@@ -70,6 +70,7 @@ export interface Config {
     users: User;
     media: Media;
     branches: Branch;
+    companies: Company;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -79,6 +80,7 @@ export interface Config {
     users: UsersSelect<false> | UsersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     branches: BranchesSelect<false> | BranchesSelect<true>;
+    companies: CompaniesSelect<false> | CompaniesSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -121,8 +123,9 @@ export interface UserAuthOperations {
  */
 export interface User {
   id: string;
-  role: 'superadmin' | 'admin' | 'delivery' | 'branch';
+  role: 'superadmin' | 'admin' | 'delivery' | 'branch' | 'company' | 'kitchen' | 'cashier';
   branch?: (string | null) | Branch;
+  company?: (string | null) | Company;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -147,11 +150,24 @@ export interface User {
  */
 export interface Branch {
   id: string;
+  company: string | Company;
   name: string;
   address: string;
   gst: string;
   phone: string;
   email: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "companies".
+ */
+export interface Company {
+  id: string;
+  name: string;
+  hqAddress?: string | null;
+  gst?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -192,6 +208,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'branches';
         value: string | Branch;
+      } | null)
+    | ({
+        relationTo: 'companies';
+        value: string | Company;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -242,6 +262,7 @@ export interface PayloadMigration {
 export interface UsersSelect<T extends boolean = true> {
   role?: T;
   branch?: T;
+  company?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -282,11 +303,23 @@ export interface MediaSelect<T extends boolean = true> {
  * via the `definition` "branches_select".
  */
 export interface BranchesSelect<T extends boolean = true> {
+  company?: T;
   name?: T;
   address?: T;
   gst?: T;
   phone?: T;
   email?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "companies_select".
+ */
+export interface CompaniesSelect<T extends boolean = true> {
+  name?: T;
+  hqAddress?: T;
+  gst?: T;
   updatedAt?: T;
   createdAt?: T;
 }

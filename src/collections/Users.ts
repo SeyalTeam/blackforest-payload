@@ -16,8 +16,11 @@ export const Users: CollectionConfig = {
         { label: 'Admin', value: 'admin' },
         { label: 'Delivery', value: 'delivery' },
         { label: 'Branch', value: 'branch' },
+        { label: 'Company', value: 'company' },
+        { label: 'Kitchen', value: 'kitchen' }, // New
+        { label: 'Cashier', value: 'cashier' }, // New
       ],
-      defaultValue: 'admin', // Default to admin
+      defaultValue: 'admin',
       required: true,
       access: {
         update: ({ req }) => req.user?.role === 'superadmin',
@@ -27,19 +30,30 @@ export const Users: CollectionConfig = {
       name: 'branch',
       type: 'relationship',
       relationTo: 'branches',
-      required: false, // Overall false, but conditional below
+      required: false,
       admin: {
-        condition: ({ role }) => role === 'branch', // Show only if role is branch
+        condition: ({ role }) => ['branch', 'kitchen', 'cashier'].includes(role), // Show for branch, kitchen, cashier
       },
       access: {
         create: ({ req }) => req.user?.role === 'superadmin',
         update: ({ req }) => req.user?.role === 'superadmin',
       },
     },
-    // Add hook for validation if needed
+    {
+      name: 'company',
+      type: 'relationship',
+      relationTo: 'companies',
+      required: false,
+      admin: {
+        condition: ({ role }) => role === 'company',
+      },
+      access: {
+        create: ({ req }) => req.user?.role === 'superadmin',
+        update: ({ req }) => req.user?.role === 'superadmin',
+      },
+    },
   ],
   access: {
-    // Existing access from before...
     create: ({ req }) => req.user?.role === 'superadmin',
     read: ({ req, id }) => {
       if (!req.user) return false
@@ -55,8 +69,12 @@ export const Users: CollectionConfig = {
     beforeChange: [
       ({ data, operation }) => {
         if (operation === 'create' || operation === 'update') {
-          if (data.role === 'branch' && !data.branch) {
-            throw new Error('Branch is required for branch role users')
+          if (['branch', 'kitchen', 'cashier'].includes(data.role) && !data.branch) {
+            // Extended for new roles
+            throw new Error('Branch is required for branch, kitchen, or cashier role users')
+          }
+          if (data.role === 'company' && !data.company) {
+            throw new Error('Company is required for company role users')
           }
         }
         return data
