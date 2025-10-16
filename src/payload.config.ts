@@ -10,7 +10,10 @@ import sharp from 'sharp'
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
 import { Branches } from './collections/Branches'
-import { Companies } from './collections/Companies' // New import
+import { Companies } from './collections/Companies'
+import Departments from './collections/Departments'
+import Categories from './collections/Categories'
+import Products from './collections/Products'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -22,7 +25,7 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Users, Media, Branches, Companies], // Add Companies
+  collections: [Users, Media, Branches, Companies, Departments, Categories, Products], // Add Companies
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {

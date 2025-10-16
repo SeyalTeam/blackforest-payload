@@ -71,6 +71,9 @@ export interface Config {
     media: Media;
     branches: Branch;
     companies: Company;
+    departments: Department;
+    categories: Category;
+    products: Product;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -81,6 +84,9 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     branches: BranchesSelect<false> | BranchesSelect<true>;
     companies: CompaniesSelect<false> | CompaniesSelect<true>;
+    departments: DepartmentsSelect<false> | DepartmentsSelect<true>;
+    categories: CategoriesSelect<false> | CategoriesSelect<true>;
+    products: ProductsSelect<false> | ProductsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -192,6 +198,64 @@ export interface Media {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "departments".
+ */
+export interface Department {
+  id: string;
+  company: (string | Company)[];
+  name: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "categories".
+ */
+export interface Category {
+  id: string;
+  name: string;
+  image?: (string | null) | Media;
+  isBilling?: boolean | null;
+  isCake?: boolean | null;
+  isStock?: boolean | null;
+  company?: (string | Company)[] | null;
+  department?: (string | null) | Department;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "products".
+ */
+export interface Product {
+  id: string;
+  name: string;
+  category: string | Category;
+  images?:
+    | {
+        image: string | Media;
+        id?: string | null;
+      }[]
+    | null;
+  isVeg?: boolean | null;
+  isAvailable?: boolean | null;
+  priceDetails?:
+    | {
+        price: number;
+        rate: number;
+        offer?: number | null;
+        quantity: number;
+        unit: 'pcs' | 'kg' | 'g';
+        gst: '0' | '5' | '12' | '18' | '22';
+        id?: string | null;
+      }[]
+    | null;
+  branch?: (string | null) | Branch;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -212,6 +276,18 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'companies';
         value: string | Company;
+      } | null)
+    | ({
+        relationTo: 'departments';
+        value: string | Department;
+      } | null)
+    | ({
+        relationTo: 'categories';
+        value: string | Category;
+      } | null)
+    | ({
+        relationTo: 'products';
+        value: string | Product;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -320,6 +396,61 @@ export interface CompaniesSelect<T extends boolean = true> {
   name?: T;
   hqAddress?: T;
   gst?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "departments_select".
+ */
+export interface DepartmentsSelect<T extends boolean = true> {
+  company?: T;
+  name?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "categories_select".
+ */
+export interface CategoriesSelect<T extends boolean = true> {
+  name?: T;
+  image?: T;
+  isBilling?: T;
+  isCake?: T;
+  isStock?: T;
+  company?: T;
+  department?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "products_select".
+ */
+export interface ProductsSelect<T extends boolean = true> {
+  name?: T;
+  category?: T;
+  images?:
+    | T
+    | {
+        image?: T;
+        id?: T;
+      };
+  isVeg?: T;
+  isAvailable?: T;
+  priceDetails?:
+    | T
+    | {
+        price?: T;
+        rate?: T;
+        offer?: T;
+        quantity?: T;
+        unit?: T;
+        gst?: T;
+        id?: T;
+      };
+  branch?: T;
   updatedAt?: T;
   createdAt?: T;
 }
