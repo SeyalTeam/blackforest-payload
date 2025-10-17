@@ -184,6 +184,7 @@ export interface Company {
 export interface Media {
   id: string;
   alt: string;
+  type?: ('product' | 'category') | null;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -195,6 +196,24 @@ export interface Media {
   height?: number | null;
   focalX?: number | null;
   focalY?: number | null;
+  sizes?: {
+    thumbnail?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+    mobile?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+  };
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -218,7 +237,7 @@ export interface Category {
   isBilling?: boolean | null;
   isCake?: boolean | null;
   isStock?: boolean | null;
-  company?: (string | Company)[] | null;
+  company: (string | Company)[];
   department?: (string | null) | Department;
   updatedAt: string;
   createdAt: string;
@@ -239,18 +258,26 @@ export interface Product {
     | null;
   isVeg?: boolean | null;
   isAvailable?: boolean | null;
-  priceDetails?:
+  defaultPriceDetails: {
+    price: number;
+    rate: number;
+    offer?: number | null;
+    quantity: number;
+    unit: 'pcs' | 'kg' | 'g';
+    gst: '0' | '5' | '12' | '18' | '22';
+  };
+  branchOverrides?:
     | {
-        price: number;
-        rate: number;
+        branch: string | Branch;
+        price?: number | null;
+        rate?: number | null;
         offer?: number | null;
-        quantity: number;
-        unit: 'pcs' | 'kg' | 'g';
-        gst: '0' | '5' | '12' | '18' | '22';
+        quantity?: number | null;
+        unit?: ('pcs' | 'kg' | 'g') | null;
+        gst?: ('0' | '5' | '12' | '18' | '22') | null;
         id?: string | null;
       }[]
     | null;
-  branch?: (string | null) | Branch;
   updatedAt: string;
   createdAt: string;
 }
@@ -362,6 +389,7 @@ export interface UsersSelect<T extends boolean = true> {
  */
 export interface MediaSelect<T extends boolean = true> {
   alt?: T;
+  type?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;
@@ -373,6 +401,30 @@ export interface MediaSelect<T extends boolean = true> {
   height?: T;
   focalX?: T;
   focalY?: T;
+  sizes?:
+    | T
+    | {
+        thumbnail?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+        mobile?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+      };
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -439,7 +491,7 @@ export interface ProductsSelect<T extends boolean = true> {
       };
   isVeg?: T;
   isAvailable?: T;
-  priceDetails?:
+  defaultPriceDetails?:
     | T
     | {
         price?: T;
@@ -448,9 +500,19 @@ export interface ProductsSelect<T extends boolean = true> {
         quantity?: T;
         unit?: T;
         gst?: T;
+      };
+  branchOverrides?:
+    | T
+    | {
+        branch?: T;
+        price?: T;
+        rate?: T;
+        offer?: T;
+        quantity?: T;
+        unit?: T;
+        gst?: T;
         id?: T;
       };
-  branch?: T;
   updatedAt?: T;
   createdAt?: T;
 }

@@ -12,14 +12,14 @@ const Products: CollectionConfig = {
       if (!user) return false
       if (user.role === 'superadmin') return true
       if (user.role === 'admin' || user.role === 'company') {
-        // Filter to user's company (async fetch for relations)
+        // Filter to user's company
         if (!user.company) return false
-        return { 'category.company': { equals: user.company } } // Assuming category has company rel
+        return { 'category.company': { equals: user.company } }
       }
       if (user.role === 'branch') {
-        // Branch users see products in their branch/company
+        // Branch users see products in their company, with pricing filtered implicitly via queries
         if (!user.company) return false
-        return { 'category.company': { equals: user.company } } // Extend if branch-specific
+        return { 'category.company': { equals: user.company } }
       }
       return false // Delivery/others no access
     },
@@ -28,6 +28,27 @@ const Products: CollectionConfig = {
     update: ({ req: { user } }) =>
       user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'company',
     delete: ({ req: { user } }) => user?.role === 'superadmin',
+  },
+  hooks: {
+    beforeChange: [
+      ({ data, req, operation }) => {
+        if (operation === 'create' || operation === 'update') {
+          if (data.branchOverrides && data.branchOverrides.length > 0) {
+            const seenBranches = new Set()
+            for (const override of data.branchOverrides) {
+              if (!override.branch) {
+                throw new Error('Branch is required for overrides')
+              }
+              if (seenBranches.has(override.branch)) {
+                throw new Error('Duplicate branch in overrides not allowed')
+              }
+              seenBranches.add(override.branch)
+            }
+          }
+        }
+        return data
+      },
+    ],
   },
   fields: [
     {
@@ -80,10 +101,9 @@ const Products: CollectionConfig = {
       ],
     },
     {
-      name: 'priceDetails',
-      type: 'array', // For multiple variants
-      label: 'Price Details',
-      minRows: 1, // Require at least one
+      name: 'defaultPriceDetails',
+      type: 'group', // Default pricing applied to all branches unless overridden
+      label: 'Default Price Details',
       fields: [
         {
           name: 'price',
@@ -140,15 +160,67 @@ const Products: CollectionConfig = {
         },
       ],
     },
-    // Optional: Link to branch if branch-specific (e.g., stock variations)
     {
-      name: 'branch',
-      type: 'relationship',
-      relationTo: 'branches',
-      required: false,
-      admin: {
-        condition: (data) => data.category?.company, // Show if category has company
-      },
+      name: 'branchOverrides',
+      type: 'array', // Overrides for specific branches (e.g., the one at ₹12)
+      label: 'Branch Overrides',
+      fields: [
+        {
+          name: 'branch',
+          type: 'relationship',
+          relationTo: 'branches',
+          required: true,
+          label: 'Branch',
+        },
+        {
+          name: 'price',
+          type: 'number',
+          min: 0,
+          label: 'Override Price (MRP)', // Optional override
+        },
+        {
+          name: 'rate',
+          type: 'number',
+          min: 0,
+          label: 'Override Rate',
+        },
+        {
+          name: 'offer',
+          type: 'number',
+          min: 0,
+          max: 100,
+          label: 'Override Offer %',
+        },
+        {
+          name: 'quantity',
+          type: 'number',
+          min: 0,
+          label: 'Override Quantity',
+        },
+        {
+          name: 'unit',
+          type: 'select',
+          options: [
+            { label: 'Pieces (pcs)', value: 'pcs' },
+            { label: 'Kilograms (kg)', value: 'kg' },
+            { label: 'Grams (g)', value: 'g' },
+          ],
+          label: 'Override Unit',
+        },
+        {
+          name: 'gst',
+          type: 'select',
+          options: [
+            { label: '0%', value: '0' },
+            { label: '5%', value: '5' },
+            { label: '12%', value: '12' },
+            { label: '18%', value: '18' },
+            { label: '22%', value: '22' },
+          ],
+          defaultValue: '0',
+          label: 'Override GST',
+        },
+      ],
     },
   ],
 }
