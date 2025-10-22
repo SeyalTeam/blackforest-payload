@@ -66,18 +66,6 @@ export const Users: CollectionConfig = {
     delete: ({ req }) => req.user?.role === 'superadmin',
   },
   hooks: {
-    afterLogin: [
-      ({ req, user }) => {
-        const allowedRoles = ['superadmin', 'admin', 'company']
-        const referer = req.headers.get('referer') // Use .get() for Headers object
-        if (!allowedRoles.includes(user.role) && referer?.includes('/admin')) {
-          throw new Error(
-            'Access denied: This role cannot log in to the admin panel. Use the Flutter app.',
-          )
-        }
-        return user
-      },
-    ],
     beforeChange: [
       ({ data, operation }) => {
         if (operation === 'create' || operation === 'update') {

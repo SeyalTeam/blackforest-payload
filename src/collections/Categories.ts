@@ -13,22 +13,7 @@ const Categories: CollectionConfig = {
     defaultColumns: ['name', 'company', 'isBilling', 'isCake', 'isStock'],
   },
   access: {
-    read: async ({ req }: { req: PayloadRequest }) => {
-      const user = req.user
-      if (!user) return false
-      if (user.role === 'superadmin') return true
-      if (user.role === 'company' || user.role === 'branch') {
-        // Type guard for user.company: Check if it's an object with id
-        const company = user.company
-        const companyId =
-          typeof company === 'object' && company !== null
-            ? company.id
-            : (company as string | undefined)
-        if (!companyId) return false
-        return { company: { contains: companyId } }
-      }
-      return false
-    },
+    read: () => true,
     create: ({ req }: { req: PayloadRequest }) =>
       req.user?.role === 'superadmin' || req.user?.role === 'company',
     update: ({ req }: { req: PayloadRequest }) =>

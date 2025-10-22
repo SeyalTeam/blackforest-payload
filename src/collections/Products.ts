@@ -7,22 +7,8 @@ const Products: CollectionConfig = {
     group: 'Inventory', // Groups under a section in sidebar
   },
   access: {
-    // Role-based access: Superadmin full, others filtered by company/branch
-    read: async ({ req: { user } }) => {
-      if (!user) return false
-      if (user.role === 'superadmin') return true
-      if (user.role === 'admin' || user.role === 'company') {
-        // Filter to user's company
-        if (!user.company) return false
-        return { 'category.company': { equals: user.company } }
-      }
-      if (user.role === 'branch') {
-        // Branch users see products in their company, with pricing filtered implicitly via queries
-        if (!user.company) return false
-        return { 'category.company': { equals: user.company } }
-      }
-      return false // Delivery/others no access
-    },
+    // Make read public (anyone can access without login)
+    read: () => true,
     create: ({ req: { user } }) =>
       user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'company',
     update: ({ req: { user } }) =>

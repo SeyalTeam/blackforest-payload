@@ -40,36 +40,7 @@ export const Branches: CollectionConfig = {
   ],
   access: {
     create: ({ req }) => req.user?.role === 'superadmin',
-    read: async ({ req }): Promise<boolean | import('payload').Where> => {
-      // Explicit type to satisfy TS
-      if (!req.user) return false
-      if (req.user.role === 'superadmin' || req.user.role === 'admin') return true
-      if (req.user.role === 'branch') {
-        if (!req.user.branch) return false // Null guard
-        let userBranchId: string
-        let userCompany: string | undefined
-        if (typeof req.user.branch === 'string') {
-          userBranchId = req.user.branch
-          const branch = await req.payload.findByID({
-            collection: 'branches',
-            id: userBranchId,
-            depth: 0,
-          })
-          userCompany = branch?.company as string | undefined
-        } else {
-          userBranchId = req.user.branch.id as string
-          userCompany = req.user.branch.company as string | undefined
-        }
-        if (!userCompany) return false // Additional guard if fetch fails
-        return {
-          or: [
-            { id: { equals: userBranchId } }, // Own branch
-            { company: { equals: userCompany } }, // Same company branches
-          ],
-        }
-      }
-      return false // Delivery none
-    },
+    read: () => true,
     update: ({ req, id }): boolean | import('payload').Where => {
       // Sync, explicit type
       if (!req.user) return false
