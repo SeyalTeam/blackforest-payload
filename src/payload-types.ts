@@ -184,7 +184,6 @@ export interface Company {
 export interface Media {
   id: string;
   alt: string;
-  type?: ('product' | 'category') | null;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -196,24 +195,6 @@ export interface Media {
   height?: number | null;
   focalX?: number | null;
   focalY?: number | null;
-  sizes?: {
-    thumbnail?: {
-      url?: string | null;
-      width?: number | null;
-      height?: number | null;
-      mimeType?: string | null;
-      filesize?: number | null;
-      filename?: string | null;
-    };
-    mobile?: {
-      url?: string | null;
-      width?: number | null;
-      height?: number | null;
-      mimeType?: string | null;
-      filesize?: number | null;
-      filename?: string | null;
-    };
-  };
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -237,7 +218,7 @@ export interface Category {
   isBilling?: boolean | null;
   isCake?: boolean | null;
   isStock?: boolean | null;
-  company: (string | Company)[];
+  company?: (string | Company)[] | null;
   department?: (string | null) | Department;
   updatedAt: string;
   createdAt: string;
@@ -389,7 +370,6 @@ export interface UsersSelect<T extends boolean = true> {
  */
 export interface MediaSelect<T extends boolean = true> {
   alt?: T;
-  type?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;
@@ -401,30 +381,6 @@ export interface MediaSelect<T extends boolean = true> {
   height?: T;
   focalX?: T;
   focalY?: T;
-  sizes?:
-    | T
-    | {
-        thumbnail?:
-          | T
-          | {
-              url?: T;
-              width?: T;
-              height?: T;
-              mimeType?: T;
-              filesize?: T;
-              filename?: T;
-            };
-        mobile?:
-          | T
-          | {
-              url?: T;
-              width?: T;
-              height?: T;
-              mimeType?: T;
-              filesize?: T;
-              filename?: T;
-            };
-      };
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
