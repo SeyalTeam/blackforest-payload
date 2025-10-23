@@ -1,3 +1,4 @@
+// src/payload.config.ts
 // storage-adapter-import-placeholder
 import { mongooseAdapter } from '@payloadcms/db-mongodb'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
@@ -5,7 +6,7 @@ import path from 'path'
 import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
-import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob' // New import
+import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob'
 
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
@@ -39,11 +40,12 @@ export default buildConfig({
     vercelBlobStorage({
       enabled: true,
       collections: {
-        [Media.slug]: true, // Assumes Media slug is 'media'—replace if different
+        [Media.slug]: {
+          prefix: '', // Empty to allow per-file dynamic prefixes from hooks
+        },
       },
       token: process.env.blackforest_READ_WRITE_TOKEN || '',
-      // Optional: For larger files (>4.5MB on Vercel), enable client-side uploads
-      // clientUploads: true,
+      // clientUploads: true, // Optional; if enabled, test for errors as per known issues
     }),
   ],
 })
