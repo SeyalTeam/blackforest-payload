@@ -5,7 +5,7 @@ import path from 'path'
 import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
-import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob' // New import
+import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob' // Vercel Blob adapter
 
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
@@ -19,6 +19,7 @@ const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
 export default buildConfig({
+  serverURL: 'https://admin.theblackforestcakes.com', // Your custom domain for absolute URLs
   admin: {
     user: Users.slug,
     importMap: {
@@ -39,10 +40,13 @@ export default buildConfig({
     vercelBlobStorage({
       enabled: true,
       collections: {
-        [Media.slug]: true, // Assumes Media slug is 'media'—replace if different
+        [Media.slug]: {
+          generateFileURL: ({ filename }: { filename: string }) =>
+            `https://admin.theblackforestcakes.com/api/media/${filename}`, // Custom proxy URL with type
+        },
       },
-      token: process.env.blackforest_READ_WRITE_TOKEN || '',
-      // Optional: For larger files (>4.5MB on Vercel), enable client-side uploads
+      token: process.env.BLOB_READ_WRITE_TOKEN || '',
+      // Optional: Uncomment for larger files
       // clientUploads: true,
     }),
   ],
