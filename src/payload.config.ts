@@ -1,11 +1,11 @@
 // storage-adapter-import-placeholder
 import { mongooseAdapter } from '@payloadcms/db-mongodb'
-import { payloadCloudPlugin } from '@payloadcms/payload-cloud'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import path from 'path'
 import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
+import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob' // New import
 
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
@@ -25,7 +25,7 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Users, Media, Branches, Companies, Departments, Categories, Products], // Add Companies
+  collections: [Users, Media, Branches, Companies, Departments, Categories, Products],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {
@@ -36,7 +36,14 @@ export default buildConfig({
   }),
   sharp,
   plugins: [
-    payloadCloudPlugin(),
-    // storage-adapter-placeholder
+    vercelBlobStorage({
+      enabled: true,
+      collections: {
+        [Media.slug]: true, // Assumes Media slug is 'media'—replace if different
+      },
+      token: process.env.blackforest_READ_WRITE_TOKEN || '',
+      // Optional: For larger files (>4.5MB on Vercel), enable client-side uploads
+      // clientUploads: true,
+    }),
   ],
 })
