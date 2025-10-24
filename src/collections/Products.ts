@@ -1,5 +1,14 @@
 import { CollectionConfig } from 'payload'
 
+const calculateEAN13CheckDigit = (eanWithoutCheckDigit: string): number => {
+  let sum = 0
+  for (let i = 0; i < 12; i++) {
+    const digit = parseInt(eanWithoutCheckDigit[i], 10)
+    sum += i % 2 === 0 ? digit : digit * 3
+  }
+  return (10 - (sum % 10)) % 10
+}
+
 const Products: CollectionConfig = {
   slug: 'products',
   admin: {
@@ -17,21 +26,49 @@ const Products: CollectionConfig = {
   },
   hooks: {
     beforeChange: [
-      ({ data, req, operation }) => {
-        if (operation === 'create' || operation === 'update') {
-          if (data.branchOverrides && data.branchOverrides.length > 0) {
-            const seenBranches = new Set()
-            for (const override of data.branchOverrides) {
-              if (!override.branch) {
-                throw new Error('Branch is required for overrides')
-              }
-              if (seenBranches.has(override.branch)) {
-                throw new Error('Duplicate branch in overrides not allowed')
-              }
-              seenBranches.add(override.branch)
+      async ({ data, req, operation, originalDoc }) => {
+        if (operation === 'create') {
+          // Generate sequential productId
+          const lastProduct = await req.payload.find({
+            collection: 'products',
+            limit: 1,
+            sort: '-productId',
+          })
+          const lastProductId = lastProduct.docs[0]?.productId || '00000'
+          const nextProductIdNum = parseInt(lastProductId, 10) + 1
+          const nextProductId = nextProductIdNum.toString().padStart(5, '0')
+          data.productId = nextProductId
+
+          // Generate UPC if not provided (for branded products, allow manual entry)
+          if (!data.upc) {
+            const companyPrefix = '8901234' // Hardcoded as per previous code
+            const eanWithoutCheckDigit = companyPrefix + nextProductId
+            const checkDigit = calculateEAN13CheckDigit(eanWithoutCheckDigit)
+            data.upc = eanWithoutCheckDigit + checkDigit.toString()
+          } else {
+            // Validate provided UPC (optional: add length/check digit validation)
+            if (data.upc.length !== 13 || isNaN(parseInt(data.upc))) {
+              throw new Error('Invalid UPC: Must be 13 digits')
             }
           }
+        } else if (operation === 'update') {
+          // Allow updating UPC on edit if needed
         }
+
+        // Existing duplicate branch check
+        if (data.branchOverrides && data.branchOverrides.length > 0) {
+          const seenBranches = new Set()
+          for (const override of data.branchOverrides) {
+            if (!override.branch) {
+              throw new Error('Branch is required for overrides')
+            }
+            if (seenBranches.has(override.branch)) {
+              throw new Error('Duplicate branch in overrides not allowed')
+            }
+            seenBranches.add(override.branch)
+          }
+        }
+
         return data
       },
     ],
@@ -67,6 +104,24 @@ const Products: CollectionConfig = {
       maxRows: 5, // Limit to a few images
       admin: {
         position: 'sidebar', // Moved to right side (sidebar), after category
+      },
+    },
+    {
+      name: 'productId',
+      type: 'text',
+      unique: true,
+      admin: {
+        readOnly: true, // Auto-generated
+        position: 'sidebar', // Moved to sidebar, after images
+      },
+    },
+    {
+      name: 'upc',
+      type: 'text',
+      unique: true,
+      required: false, // Made optional for manual entry
+      admin: {
+        position: 'sidebar', // Moved to sidebar, after images
       },
     },
     {

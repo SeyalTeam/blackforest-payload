@@ -10,6 +10,7 @@ const Categories: CollectionConfig = {
   slug: 'categories',
   admin: {
     useAsTitle: 'name',
+    group: 'Inventory',
     defaultColumns: ['name', 'company', 'isBilling', 'isCake', 'isStock'],
   },
   access: {

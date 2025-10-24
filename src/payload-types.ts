@@ -238,6 +238,8 @@ export interface Product {
         id?: string | null;
       }[]
     | null;
+  productId?: string | null;
+  upc?: string | null;
   isVeg?: boolean | null;
   isAvailable?: boolean | null;
   defaultPriceDetails: {
@@ -447,6 +449,8 @@ export interface ProductsSelect<T extends boolean = true> {
         image?: T;
         id?: T;
       };
+  productId?: T;
+  upc?: T;
   isVeg?: T;
   isAvailable?: T;
   defaultPriceDetails?:
