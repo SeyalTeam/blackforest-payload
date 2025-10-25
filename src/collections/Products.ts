@@ -90,6 +90,15 @@ const Products: CollectionConfig = {
       },
     },
     {
+      name: 'dealer',
+      type: 'relationship',
+      relationTo: 'dealers', // Link to Dealers collection
+      required: false, // Optional, as not all products may have dealers
+      admin: {
+        position: 'sidebar', // After category in sidebar
+      },
+    },
+    {
       name: 'images',
       type: 'array',
       fields: [
@@ -104,6 +113,15 @@ const Products: CollectionConfig = {
       maxRows: 5, // Limit to a few images
       admin: {
         position: 'sidebar', // Moved to right side (sidebar), after category
+      },
+    },
+    {
+      name: 'hsnCode',
+      type: 'text',
+      required: false, // Manual input, optional
+      label: 'HSN Code',
+      admin: {
+        position: 'sidebar', // Before productId in sidebar
       },
     },
     {

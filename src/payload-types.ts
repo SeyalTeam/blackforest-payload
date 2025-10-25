@@ -68,12 +68,13 @@ export interface Config {
   blocks: {};
   collections: {
     users: User;
-    media: Media;
-    branches: Branch;
     companies: Company;
+    branches: Branch;
     departments: Department;
     categories: Category;
     products: Product;
+    media: Media;
+    dealers: Dealer;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -81,12 +82,13 @@ export interface Config {
   collectionsJoins: {};
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
-    media: MediaSelect<false> | MediaSelect<true>;
-    branches: BranchesSelect<false> | BranchesSelect<true>;
     companies: CompaniesSelect<false> | CompaniesSelect<true>;
+    branches: BranchesSelect<false> | BranchesSelect<true>;
     departments: DepartmentsSelect<false> | DepartmentsSelect<true>;
     categories: CategoriesSelect<false> | CategoriesSelect<true>;
     products: ProductsSelect<false> | ProductsSelect<true>;
+    media: MediaSelect<false> | MediaSelect<true>;
+    dealers: DealersSelect<false> | DealersSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -179,26 +181,6 @@ export interface Company {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "media".
- */
-export interface Media {
-  id: string;
-  alt: string;
-  prefix?: string | null;
-  updatedAt: string;
-  createdAt: string;
-  url?: string | null;
-  thumbnailURL?: string | null;
-  filename?: string | null;
-  mimeType?: string | null;
-  filesize?: number | null;
-  width?: number | null;
-  height?: number | null;
-  focalX?: number | null;
-  focalY?: number | null;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "departments".
  */
 export interface Department {
@@ -226,18 +208,40 @@ export interface Category {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media".
+ */
+export interface Media {
+  id: string;
+  alt: string;
+  prefix?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "products".
  */
 export interface Product {
   id: string;
   name: string;
   category: string | Category;
+  dealer?: (string | null) | Dealer;
   images?:
     | {
         image: string | Media;
         id?: string | null;
       }[]
     | null;
+  hsnCode?: string | null;
   productId?: string | null;
   upc?: string | null;
   isVeg?: boolean | null;
@@ -267,6 +271,37 @@ export interface Product {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "dealers".
+ */
+export interface Dealer {
+  id: string;
+  companyName: string;
+  address: string;
+  phoneNumber: string;
+  email: string;
+  gst: string;
+  pan: string;
+  fssai?: string | null;
+  contactPerson: {
+    name: string;
+    designation?: string | null;
+    phone?: string | null;
+    email?: string | null;
+  };
+  allowedCompanies?: (string | Company)[] | null;
+  allowedBranches?: (string | Branch)[] | null;
+  status: 'active' | 'inactive' | 'on-hold';
+  bankDetails: {
+    bankName: string;
+    accountNumber: string;
+    ifscCode: string;
+    branch?: string | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -277,16 +312,12 @@ export interface PayloadLockedDocument {
         value: string | User;
       } | null)
     | ({
-        relationTo: 'media';
-        value: string | Media;
+        relationTo: 'companies';
+        value: string | Company;
       } | null)
     | ({
         relationTo: 'branches';
         value: string | Branch;
-      } | null)
-    | ({
-        relationTo: 'companies';
-        value: string | Company;
       } | null)
     | ({
         relationTo: 'departments';
@@ -299,6 +330,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'products';
         value: string | Product;
+      } | null)
+    | ({
+        relationTo: 'media';
+        value: string | Media;
+      } | null)
+    | ({
+        relationTo: 'dealers';
+        value: string | Dealer;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -369,22 +408,14 @@ export interface UsersSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "media_select".
+ * via the `definition` "companies_select".
  */
-export interface MediaSelect<T extends boolean = true> {
-  alt?: T;
-  prefix?: T;
+export interface CompaniesSelect<T extends boolean = true> {
+  name?: T;
+  hqAddress?: T;
+  gst?: T;
   updatedAt?: T;
   createdAt?: T;
-  url?: T;
-  thumbnailURL?: T;
-  filename?: T;
-  mimeType?: T;
-  filesize?: T;
-  width?: T;
-  height?: T;
-  focalX?: T;
-  focalY?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -397,17 +428,6 @@ export interface BranchesSelect<T extends boolean = true> {
   gst?: T;
   phone?: T;
   email?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "companies_select".
- */
-export interface CompaniesSelect<T extends boolean = true> {
-  name?: T;
-  hqAddress?: T;
-  gst?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -443,12 +463,14 @@ export interface CategoriesSelect<T extends boolean = true> {
 export interface ProductsSelect<T extends boolean = true> {
   name?: T;
   category?: T;
+  dealer?: T;
   images?:
     | T
     | {
         image?: T;
         id?: T;
       };
+  hsnCode?: T;
   productId?: T;
   upc?: T;
   isVeg?: T;
@@ -474,6 +496,59 @@ export interface ProductsSelect<T extends boolean = true> {
         unit?: T;
         gst?: T;
         id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media_select".
+ */
+export interface MediaSelect<T extends boolean = true> {
+  alt?: T;
+  prefix?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "dealers_select".
+ */
+export interface DealersSelect<T extends boolean = true> {
+  companyName?: T;
+  address?: T;
+  phoneNumber?: T;
+  email?: T;
+  gst?: T;
+  pan?: T;
+  fssai?: T;
+  contactPerson?:
+    | T
+    | {
+        name?: T;
+        designation?: T;
+        phone?: T;
+        email?: T;
+      };
+  allowedCompanies?: T;
+  allowedBranches?: T;
+  status?: T;
+  bankDetails?:
+    | T
+    | {
+        bankName?: T;
+        accountNumber?: T;
+        ifscCode?: T;
+        branch?: T;
       };
   updatedAt?: T;
   createdAt?: T;

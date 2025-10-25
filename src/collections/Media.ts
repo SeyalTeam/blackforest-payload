@@ -11,12 +11,7 @@ const setDynamicPrefix: CollectionBeforeChangeHook = async ({ req, data, operati
     } else if (referer?.includes('/collections/products/')) {
       return { ...data, prefix: 'products/' }
     }
-    // Optional: Add more conditions, e.g., for Products
-    // else if (referer?.includes('/collections/products/')) {
-    //   return { ...data, prefix: 'products/' }
-    // }
 
-    // Default for other uploads (e.g., direct to Media)
     return { ...data, prefix: '' }
   }
   return data
@@ -24,6 +19,9 @@ const setDynamicPrefix: CollectionBeforeChangeHook = async ({ req, data, operati
 
 export const Media: CollectionConfig = {
   slug: 'media',
+  admin: {
+    group: 'Inventory',
+  },
   access: {
     read: () => true,
   },
