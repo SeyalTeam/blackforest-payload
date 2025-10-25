@@ -279,8 +279,9 @@ export interface Dealer {
   address: string;
   phoneNumber: string;
   email: string;
-  gst: string;
-  pan: string;
+  isGSTRegistered?: boolean | null;
+  gst?: string | null;
+  pan?: string | null;
   fssai?: string | null;
   contactPerson: {
     name: string;
@@ -290,11 +291,14 @@ export interface Dealer {
   };
   allowedCompanies?: (string | Company)[] | null;
   allowedBranches?: (string | Branch)[] | null;
+  notes?: string | null;
   status: 'active' | 'inactive' | 'on-hold';
-  bankDetails: {
-    bankName: string;
-    accountNumber: string;
-    ifscCode: string;
+  hasBankAccount?: boolean | null;
+  preferredPaymentMethod?: ('cash' | 'upi' | 'cheque' | 'credit') | null;
+  bankDetails?: {
+    bankName?: string | null;
+    accountNumber?: string | null;
+    ifscCode?: string | null;
     branch?: string | null;
   };
   updatedAt: string;
@@ -528,6 +532,7 @@ export interface DealersSelect<T extends boolean = true> {
   address?: T;
   phoneNumber?: T;
   email?: T;
+  isGSTRegistered?: T;
   gst?: T;
   pan?: T;
   fssai?: T;
@@ -541,7 +546,10 @@ export interface DealersSelect<T extends boolean = true> {
       };
   allowedCompanies?: T;
   allowedBranches?: T;
+  notes?: T;
   status?: T;
+  hasBankAccount?: T;
+  preferredPaymentMethod?: T;
   bankDetails?:
     | T
     | {

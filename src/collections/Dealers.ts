@@ -5,7 +5,6 @@ const Dealers: CollectionConfig = {
   slug: 'dealers',
   admin: {
     useAsTitle: 'companyName',
-    group: 'Others',
     defaultColumns: ['companyName', 'gst', 'status'],
   },
   access: {
@@ -57,24 +56,41 @@ const Dealers: CollectionConfig = {
       label: 'Email',
       required: true,
     },
+    // GST Registration Flag
+    {
+      name: 'isGSTRegistered',
+      type: 'checkbox',
+      label: 'Is GST Registered?',
+      defaultValue: true,
+    },
+    // Conditional Compliance Fields
     {
       name: 'gst',
       type: 'text',
       label: 'GST',
-      required: true,
-      unique: true, // Ensure no duplicates
+      required: false, // Handled in hook
+      unique: true,
+      admin: {
+        condition: (data) => data.isGSTRegistered,
+      },
     },
     {
       name: 'pan',
       type: 'text',
       label: 'PAN',
-      required: true,
+      required: false, // Handled in hook
+      admin: {
+        condition: (data) => data.isGSTRegistered,
+      },
     },
     {
       name: 'fssai',
       type: 'text',
       label: 'FSSAI',
       required: false,
+      admin: {
+        condition: (data) => data.isGSTRegistered,
+      },
     },
     // Contact Person Details (main/left side)
     {
@@ -108,7 +124,7 @@ const Dealers: CollectionConfig = {
         },
       ],
     },
-    // Allowed Companies (moved back to main/left side, after Contact Person)
+    // Allowed Companies (moved back to main/left side, under Contact Person)
     {
       name: 'allowedCompanies',
       type: 'relationship',
@@ -120,7 +136,7 @@ const Dealers: CollectionConfig = {
         condition: ({ user }) => (user as any)?.role !== 'branch', // Hide for branch users if needed
       },
     },
-    // Allowed Branches (moved back to main/left side, after Allowed Companies)
+    // Allowed Branches (moved back to main/left side, under Allowed Companies)
     {
       name: 'allowedBranches',
       type: 'relationship',
@@ -129,7 +145,14 @@ const Dealers: CollectionConfig = {
       hasMany: true,
       required: false,
     },
-    // Status (moved to sidebar/right side, before Bank Details)
+    // Notes (for extra details, e.g., on non-GST dealers)
+    {
+      name: 'notes',
+      type: 'textarea',
+      label: 'Notes',
+      required: false,
+    },
+    // Status (moved before Bank Details, sidebar/right side)
     {
       name: 'status',
       type: 'select',
@@ -145,32 +168,61 @@ const Dealers: CollectionConfig = {
         { label: 'On Hold', value: 'on-hold' },
       ],
     },
-    // Bank Details (sidebar/right side, after Status)
+    // Bank Account Flag
+    {
+      name: 'hasBankAccount',
+      type: 'checkbox',
+      label: 'Has Bank Account?',
+      defaultValue: true,
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    // Preferred Payment Method (shown if no bank)
+    {
+      name: 'preferredPaymentMethod',
+      type: 'select',
+      label: 'Preferred Payment Method',
+      required: false,
+      admin: {
+        position: 'sidebar',
+        condition: (data) => !data.hasBankAccount,
+      },
+      options: [
+        { label: 'Cash', value: 'cash' },
+        { label: 'UPI', value: 'upi' },
+        { label: 'Cheque', value: 'cheque' },
+        { label: 'Credit', value: 'credit' },
+      ],
+      defaultValue: 'cash',
+    },
+    // Bank Details (sidebar/right side, after Status, conditional)
     {
       name: 'bankDetails',
       type: 'group',
       label: 'Bank Details',
       admin: {
         position: 'sidebar',
+        condition: (data) => data.hasBankAccount,
       },
       fields: [
         {
           name: 'bankName',
           type: 'text',
           label: 'Bank Name',
-          required: true,
+          required: false, // Handled in hook
         },
         {
           name: 'accountNumber',
           type: 'text',
           label: 'Account Number',
-          required: true,
+          required: false, // Handled in hook
         },
         {
           name: 'ifscCode',
           type: 'text',
           label: 'IFSC Code',
-          required: true,
+          required: false, // Handled in hook
         },
         {
           name: 'branch',
@@ -182,19 +234,42 @@ const Dealers: CollectionConfig = {
     },
   ],
   hooks: {
-    // Example hook for validations (e.g., GST/PAN format)
+    // Updated hook for conditional validations
     beforeChange: [
       async ({ data, req, operation }) => {
         if (operation === 'create' || operation === 'update') {
-          // Validate GST format (basic regex example)
-          const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
-          if (data.gst && !gstRegex.test(data.gst)) {
-            throw new Error('Invalid GST format')
+          if (data.isGSTRegistered) {
+            // Validate GST format if registered
+            const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
+            if (!data.gst || !gstRegex.test(data.gst)) {
+              throw new Error('Invalid GST format')
+            }
+            // Validate PAN format if registered
+            const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
+            if (!data.pan || !panRegex.test(data.pan)) {
+              throw new Error('Invalid PAN format')
+            }
+            // Require GST/PAN if registered
+            if (!data.gst) throw new Error('GST is required for registered dealers')
+            if (!data.pan) throw new Error('PAN is required for registered dealers')
+          } else {
+            // Clear fields if not registered
+            data.gst = null
+            data.pan = null
+            data.fssai = null
           }
-          // Validate PAN format
-          const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
-          if (data.pan && !panRegex.test(data.pan)) {
-            throw new Error('Invalid PAN format')
+
+          if (data.hasBankAccount) {
+            // Require bank fields if has account
+            if (!data.bankDetails?.bankName) throw new Error('Bank Name is required')
+            if (!data.bankDetails?.accountNumber) throw new Error('Account Number is required')
+            if (!data.bankDetails?.ifscCode) throw new Error('IFSC Code is required')
+          } else {
+            // Clear bank details if no account
+            data.bankDetails = null
+            // Require preferred method if no bank
+            if (!data.preferredPaymentMethod)
+              throw new Error('Preferred Payment Method is required for non-bank dealers')
           }
         }
         return data
