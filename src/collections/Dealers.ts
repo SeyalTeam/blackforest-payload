@@ -2,8 +2,9 @@
 import { CollectionConfig } from 'payload'
 
 const Dealers: CollectionConfig = {
-  slug: 'dealers',
+  slug: 'Others',
   admin: {
+    group: 'Inventory',
     useAsTitle: 'companyName',
     defaultColumns: ['companyName', 'gst', 'status'],
   },
