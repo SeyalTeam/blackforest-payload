@@ -75,6 +75,7 @@ export interface Config {
     products: Product;
     media: Media;
     dealers: Dealer;
+    employees: Employee;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -89,6 +90,7 @@ export interface Config {
     products: ProductsSelect<false> | ProductsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     dealers: DealersSelect<false> | DealersSelect<true>;
+    employees: EmployeesSelect<false> | EmployeesSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -306,6 +308,24 @@ export interface Dealer {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "employees".
+ */
+export interface Employee {
+  id: string;
+  name: string;
+  phoneNumber: string;
+  email?: string | null;
+  address?: string | null;
+  status: 'active' | 'inactive';
+  team: 'waiter' | 'chef' | 'driver' | 'cashier' | 'manager';
+  employeeId: string;
+  aadhaarPhoto?: (string | null) | Media;
+  photo?: (string | null) | Media;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -342,6 +362,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'dealers';
         value: string | Dealer;
+      } | null)
+    | ({
+        relationTo: 'employees';
+        value: string | Employee;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -558,6 +582,23 @@ export interface DealersSelect<T extends boolean = true> {
         ifscCode?: T;
         branch?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "employees_select".
+ */
+export interface EmployeesSelect<T extends boolean = true> {
+  name?: T;
+  phoneNumber?: T;
+  email?: T;
+  address?: T;
+  status?: T;
+  team?: T;
+  employeeId?: T;
+  aadhaarPhoto?: T;
+  photo?: T;
   updatedAt?: T;
   createdAt?: T;
 }
