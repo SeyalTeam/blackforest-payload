@@ -6,13 +6,7 @@ const Employees: CollectionConfig = {
     useAsTitle: 'name',
   },
   access: {
-    read: async ({ req: { user } }) => {
-      if (!user) return false
-      if (user.role === 'superadmin' || user.role === 'company' || user.role === 'branch')
-        return true
-      // Add more role-based logic as needed, e.g., for manager viewing staff
-      return false
-    },
+    read: () => true,
     create: ({ req: { user } }) => {
       if (!user) return false
       return user.role === 'superadmin' || user.role === 'company' || user.role === 'branch'
