@@ -56,7 +56,7 @@ export default buildConfig({
           prefix: '', // Empty to allow per-file dynamic prefixes from hooks
         },
       },
-      token: process.env.BLOB_READ_WRITE_TOKEN || '',
+      token: process.env.blackforest_READ_WRITE_TOKEN || '',
       // clientUploads: true, // Optional; if enabled, test for errors as per known issues
     }),
   ],
