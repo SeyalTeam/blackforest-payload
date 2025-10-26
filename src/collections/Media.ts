@@ -10,11 +10,7 @@ const setDynamicPrefix: CollectionBeforeChangeHook = async ({ req, data, operati
     } else if (referer?.includes('/collections/products/')) {
       return { ...data, prefix: 'products/' }
     } else if (referer?.includes('/collections/employees/')) {
-      if (data.alt && data.alt.toLowerCase().includes('aadhaar')) {
-        return { ...data, prefix: 'aadhaar/' }
-      } else {
-        return { ...data, prefix: 'employees/' }
-      }
+      return { ...data, prefix: 'employees/' }
     }
 
     return { ...data, prefix: '' }
