@@ -1,4 +1,3 @@
-// src/collections/Media.ts
 import type { CollectionConfig } from 'payload'
 import type { CollectionBeforeChangeHook } from 'payload'
 
@@ -11,7 +10,11 @@ const setDynamicPrefix: CollectionBeforeChangeHook = async ({ req, data, operati
     } else if (referer?.includes('/collections/products/')) {
       return { ...data, prefix: 'products/' }
     } else if (referer?.includes('/collections/employees/')) {
-      return { ...data, prefix: 'employees/' }
+      if (data.alt && data.alt.toLowerCase().includes('aadhaar')) {
+        return { ...data, prefix: 'aadhaar/' }
+      } else {
+        return { ...data, prefix: 'employees/' }
+      }
     }
 
     return { ...data, prefix: '' }
@@ -34,7 +37,19 @@ export const Media: CollectionConfig = {
       required: true,
     },
   ],
-  upload: true,
+  upload: {
+    disableLocalStorage: true,
+    mimeTypes: ['image/*'],
+    imageSizes: [
+      {
+        name: 'thumbnail',
+        width: 400,
+        height: 300,
+        position: 'centre',
+      },
+    ],
+    adminThumbnail: 'thumbnail',
+  },
   hooks: {
     beforeChange: [setDynamicPrefix],
   },
