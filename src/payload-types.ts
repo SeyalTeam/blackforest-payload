@@ -133,9 +133,10 @@ export interface UserAuthOperations {
  */
 export interface User {
   id: string;
-  role: 'superadmin' | 'admin' | 'delivery' | 'branch' | 'company' | 'kitchen' | 'cashier';
+  role: 'superadmin' | 'admin' | 'delivery' | 'branch' | 'company' | 'kitchen' | 'cashier' | 'waiter';
   branch?: (string | null) | Branch;
   company?: (string | null) | Company;
+  employee?: (string | null) | Employee;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -183,28 +184,19 @@ export interface Company {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "departments".
+ * via the `definition` "employees".
  */
-export interface Department {
-  id: string;
-  company: (string | Company)[];
-  name: string;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "categories".
- */
-export interface Category {
+export interface Employee {
   id: string;
   name: string;
-  image?: (string | null) | Media;
-  isBilling?: boolean | null;
-  isCake?: boolean | null;
-  isStock?: boolean | null;
-  company?: (string | Company)[] | null;
-  department?: (string | null) | Department;
+  phoneNumber: string;
+  email?: string | null;
+  address?: string | null;
+  status: 'active' | 'inactive';
+  team: 'waiter' | 'chef' | 'driver' | 'cashier' | 'manager';
+  employeeId: string;
+  aadhaarPhoto?: (string | null) | Media;
+  photo?: (string | null) | Media;
   updatedAt: string;
   createdAt: string;
 }
@@ -237,6 +229,33 @@ export interface Media {
       filename?: string | null;
     };
   };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "departments".
+ */
+export interface Department {
+  id: string;
+  company: (string | Company)[];
+  name: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "categories".
+ */
+export interface Category {
+  id: string;
+  name: string;
+  image?: (string | null) | Media;
+  isBilling?: boolean | null;
+  isCake?: boolean | null;
+  isStock?: boolean | null;
+  company?: (string | Company)[] | null;
+  department?: (string | null) | Department;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -313,24 +332,6 @@ export interface Dealer {
     ifscCode?: string | null;
     branch?: string | null;
   };
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "employees".
- */
-export interface Employee {
-  id: string;
-  name: string;
-  phoneNumber: string;
-  email?: string | null;
-  address?: string | null;
-  status: 'active' | 'inactive';
-  team: 'waiter' | 'chef' | 'driver' | 'cashier' | 'manager';
-  employeeId: string;
-  aadhaarPhoto?: (string | null) | Media;
-  photo?: (string | null) | Media;
   updatedAt: string;
   createdAt: string;
 }
@@ -427,6 +428,7 @@ export interface UsersSelect<T extends boolean = true> {
   role?: T;
   branch?: T;
   company?: T;
+  employee?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
