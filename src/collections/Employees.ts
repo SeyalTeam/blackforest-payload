@@ -6,7 +6,13 @@ const Employees: CollectionConfig = {
     useAsTitle: 'name',
   },
   access: {
-    read: () => true,
+    read: async ({ req: { user } }) => {
+      if (!user) return false
+      if (user.role === 'superadmin' || user.role === 'company' || user.role === 'branch')
+        return true
+      // Add more role-based logic as needed, e.g., for manager viewing staff
+      return false
+    },
     create: ({ req: { user } }) => {
       if (!user) return false
       return user.role === 'superadmin' || user.role === 'company' || user.role === 'branch'
@@ -24,9 +30,20 @@ const Employees: CollectionConfig = {
   },
   fields: [
     {
-      name: 'name',
-      type: 'text',
-      required: true,
+      type: 'row',
+      fields: [
+        {
+          name: 'name',
+          type: 'text',
+          required: true,
+        },
+        {
+          name: 'employeeId',
+          type: 'text',
+          unique: true,
+          required: true,
+        },
+      ],
     },
     {
       name: 'phoneNumber',
@@ -67,15 +84,6 @@ const Employees: CollectionConfig = {
         { label: 'Cashier', value: 'cashier' },
         { label: 'Manager', value: 'manager' },
       ],
-      required: true,
-      admin: {
-        position: 'sidebar',
-      },
-    },
-    {
-      name: 'employeeId',
-      type: 'text',
-      unique: true,
       required: true,
       admin: {
         position: 'sidebar',

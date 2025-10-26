@@ -37,19 +37,27 @@ export const Branches: CollectionConfig = {
       type: 'email',
       required: true,
     },
+    {
+      name: 'ipAddress',
+      type: 'text',
+      label: 'Branch IP Address (from ISP)',
+      admin: {
+        description:
+          'Public IP for auto-detecting branch on login (e.g., 192.0.2.1). Fetch via whatismyip.com at branch.',
+      },
+    },
   ],
   access: {
     create: ({ req }) => req.user?.role === 'superadmin',
     read: () => true,
     update: ({ req, id }): boolean | import('payload').Where => {
-      // Sync, explicit type
       if (!req.user) return false
       if (req.user.role === 'superadmin') return true
       if (req.user.role === 'branch') {
-        if (!req.user.branch) return false // Null guard
+        if (!req.user.branch) return false
         const userBranchId =
           typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
-        return { id: { equals: userBranchId } } // Own branch only
+        return { id: { equals: userBranchId } }
       }
       return false
     },

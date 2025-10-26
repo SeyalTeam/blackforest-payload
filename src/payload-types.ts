@@ -167,6 +167,10 @@ export interface Branch {
   gst: string;
   phone: string;
   email: string;
+  /**
+   * Public IP for auto-detecting branch on login (e.g., 192.0.2.1). Fetch via whatismyip.com at branch.
+   */
+  ipAddress?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -189,12 +193,12 @@ export interface Company {
 export interface Employee {
   id: string;
   name: string;
+  employeeId: string;
   phoneNumber: string;
   email?: string | null;
   address?: string | null;
   status: 'active' | 'inactive';
   team: 'waiter' | 'chef' | 'driver' | 'cashier' | 'manager';
-  employeeId: string;
   aadhaarPhoto?: (string | null) | Media;
   photo?: (string | null) | Media;
   updatedAt: string;
@@ -468,6 +472,7 @@ export interface BranchesSelect<T extends boolean = true> {
   gst?: T;
   phone?: T;
   email?: T;
+  ipAddress?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -617,12 +622,12 @@ export interface DealersSelect<T extends boolean = true> {
  */
 export interface EmployeesSelect<T extends boolean = true> {
   name?: T;
+  employeeId?: T;
   phoneNumber?: T;
   email?: T;
   address?: T;
   status?: T;
   team?: T;
-  employeeId?: T;
   aadhaarPhoto?: T;
   photo?: T;
   updatedAt?: T;
