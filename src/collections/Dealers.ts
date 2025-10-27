@@ -4,6 +4,7 @@ import { CollectionConfig } from 'payload'
 const Dealers: CollectionConfig = {
   slug: 'dealers',
   admin: {
+    group: 'Others',
     useAsTitle: 'companyName',
     defaultColumns: ['companyName', 'gst', 'status'],
   },
@@ -31,7 +32,7 @@ const Dealers: CollectionConfig = {
     delete: ({ req: { user } }) => (user as any)?.role === 'superadmin',
   },
   fields: [
-    // Core Identification Fields (main/left side) - only companyName mandatory
+    // Core Identification Fields (main/left side)
     {
       name: 'companyName',
       type: 'text',
@@ -42,19 +43,19 @@ const Dealers: CollectionConfig = {
       name: 'address',
       type: 'textarea',
       label: 'Address',
-      required: false,
+      required: true,
     },
     {
       name: 'phoneNumber',
       type: 'text',
       label: 'Phone Number',
-      required: false,
+      required: true,
     },
     {
       name: 'email',
       type: 'email',
       label: 'Email',
-      required: false,
+      required: true,
     },
     // GST Registration Flag
     {
@@ -92,7 +93,7 @@ const Dealers: CollectionConfig = {
         condition: (data) => data.isGSTRegistered,
       },
     },
-    // Contact Person Details (main/left side) - name mandatory, others optional
+    // Contact Person Details (main/left side)
     {
       name: 'contactPerson',
       type: 'group',
