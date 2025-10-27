@@ -234,17 +234,17 @@ const Dealers: CollectionConfig = {
     },
   ],
   hooks: {
-    // Updated hook for conditional validations (no required checks except via field-level)
+    // Updated hook for conditional validations (validate format only if provided, no required checks for GST/PAN even if registered)
     beforeChange: [
       async ({ data, req, operation }) => {
         if (operation === 'create' || operation === 'update') {
           if (data.isGSTRegistered) {
-            // Validate GST format if provided
+            // Validate GST format only if provided
             const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
             if (data.gst && !gstRegex.test(data.gst)) {
               throw new Error('Invalid GST format')
             }
-            // Validate PAN format if provided
+            // Validate PAN format only if provided
             const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
             if (data.pan && !panRegex.test(data.pan)) {
               throw new Error('Invalid PAN format')
