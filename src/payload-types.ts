@@ -318,8 +318,8 @@ export interface Dealer {
   gst?: string | null;
   pan?: string | null;
   fssai?: string | null;
-  contactPerson: {
-    name: string;
+  contactPerson?: {
+    name?: string | null;
     designation?: string | null;
     phone?: string | null;
     email?: string | null;
@@ -327,7 +327,7 @@ export interface Dealer {
   allowedCompanies?: (string | Company)[] | null;
   allowedBranches?: (string | Branch)[] | null;
   notes?: string | null;
-  status: 'active' | 'inactive' | 'on-hold';
+  status?: ('active' | 'inactive' | 'on-hold') | null;
   hasBankAccount?: boolean | null;
   preferredPaymentMethod?: ('cash' | 'upi' | 'cheque' | 'credit') | null;
   bankDetails?: {

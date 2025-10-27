@@ -4,7 +4,6 @@ import { CollectionConfig } from 'payload'
 const Dealers: CollectionConfig = {
   slug: 'dealers',
   admin: {
-    group: 'Others',
     useAsTitle: 'companyName',
     defaultColumns: ['companyName', 'gst', 'status'],
   },
@@ -43,19 +42,19 @@ const Dealers: CollectionConfig = {
       name: 'address',
       type: 'textarea',
       label: 'Address',
-      required: true,
+      required: false,
     },
     {
       name: 'phoneNumber',
       type: 'text',
       label: 'Phone Number',
-      required: true,
+      required: false,
     },
     {
       name: 'email',
       type: 'email',
       label: 'Email',
-      required: true,
+      required: false,
     },
     // GST Registration Flag
     {
@@ -69,7 +68,7 @@ const Dealers: CollectionConfig = {
       name: 'gst',
       type: 'text',
       label: 'GST',
-      required: false, // Handled in hook
+      required: false,
       unique: true,
       admin: {
         condition: (data) => data.isGSTRegistered,
@@ -79,7 +78,7 @@ const Dealers: CollectionConfig = {
       name: 'pan',
       type: 'text',
       label: 'PAN',
-      required: false, // Handled in hook
+      required: false,
       admin: {
         condition: (data) => data.isGSTRegistered,
       },
@@ -103,7 +102,7 @@ const Dealers: CollectionConfig = {
           name: 'name',
           type: 'text',
           label: 'Contact Name',
-          required: true,
+          required: false,
         },
         {
           name: 'designation',
@@ -158,7 +157,7 @@ const Dealers: CollectionConfig = {
       name: 'status',
       type: 'select',
       label: 'Status',
-      required: true,
+      required: false,
       defaultValue: 'active',
       admin: {
         position: 'sidebar',
@@ -211,19 +210,19 @@ const Dealers: CollectionConfig = {
           name: 'bankName',
           type: 'text',
           label: 'Bank Name',
-          required: false, // Handled in hook
+          required: false,
         },
         {
           name: 'accountNumber',
           type: 'text',
           label: 'Account Number',
-          required: false, // Handled in hook
+          required: false,
         },
         {
           name: 'ifscCode',
           type: 'text',
           label: 'IFSC Code',
-          required: false, // Handled in hook
+          required: false,
         },
         {
           name: 'branch',
@@ -235,24 +234,21 @@ const Dealers: CollectionConfig = {
     },
   ],
   hooks: {
-    // Updated hook for conditional validations
+    // Updated hook for conditional validations (no required checks except via field-level)
     beforeChange: [
       async ({ data, req, operation }) => {
         if (operation === 'create' || operation === 'update') {
           if (data.isGSTRegistered) {
-            // Validate GST format if registered
+            // Validate GST format if provided
             const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
-            if (!data.gst || !gstRegex.test(data.gst)) {
+            if (data.gst && !gstRegex.test(data.gst)) {
               throw new Error('Invalid GST format')
             }
-            // Validate PAN format if registered
+            // Validate PAN format if provided
             const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
-            if (!data.pan || !panRegex.test(data.pan)) {
+            if (data.pan && !panRegex.test(data.pan)) {
               throw new Error('Invalid PAN format')
             }
-            // Require GST/PAN if registered
-            if (!data.gst) throw new Error('GST is required for registered dealers')
-            if (!data.pan) throw new Error('PAN is required for registered dealers')
           } else {
             // Clear fields if not registered
             data.gst = null
@@ -261,16 +257,10 @@ const Dealers: CollectionConfig = {
           }
 
           if (data.hasBankAccount) {
-            // Require bank fields if has account
-            if (!data.bankDetails?.bankName) throw new Error('Bank Name is required')
-            if (!data.bankDetails?.accountNumber) throw new Error('Account Number is required')
-            if (!data.bankDetails?.ifscCode) throw new Error('IFSC Code is required')
+            // No required checks; validate if provided (add ifsc/account format if needed later)
           } else {
             // Clear bank details if no account
             data.bankDetails = null
-            // Require preferred method if no bank
-            if (!data.preferredPaymentMethod)
-              throw new Error('Preferred Payment Method is required for non-bank dealers')
           }
         }
         return data
