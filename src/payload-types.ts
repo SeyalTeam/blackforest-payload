@@ -311,9 +311,9 @@ export interface Product {
 export interface Dealer {
   id: string;
   companyName: string;
-  address: string;
-  phoneNumber: string;
-  email: string;
+  address?: string | null;
+  phoneNumber?: string | null;
+  email?: string | null;
   isGSTRegistered?: boolean | null;
   gst?: string | null;
   pan?: string | null;
