@@ -77,6 +77,7 @@ export interface Config {
     dealers: Dealer;
     employees: Employee;
     billings: Billing;
+    customers: Customer;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -93,6 +94,7 @@ export interface Config {
     dealers: DealersSelect<false> | DealersSelect<true>;
     employees: EmployeesSelect<false> | EmployeesSelect<true>;
     billings: BillingsSelect<false> | BillingsSelect<true>;
+    customers: CustomersSelect<false> | CustomersSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -361,15 +363,23 @@ export interface Billing {
   branch: string | Branch;
   createdBy: string | User;
   company: string | Company;
-  customerDetails?: {
-    name?: string | null;
-    phone?: string | null;
-    email?: string | null;
-    address?: string | null;
-  };
+  customer?: (string | null) | Customer;
   paymentMethod?: ('cash' | 'card' | 'upi' | 'other') | null;
   status?: ('pending' | 'completed' | 'cancelled') | null;
   notes?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "customers".
+ */
+export interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+  branch?: (string | null) | Branch;
+  company?: (string | null) | Company;
   updatedAt: string;
   createdAt: string;
 }
@@ -419,6 +429,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'billings';
         value: string | Billing;
+      } | null)
+    | ({
+        relationTo: 'customers';
+        value: string | Customer;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -692,17 +706,22 @@ export interface BillingsSelect<T extends boolean = true> {
   branch?: T;
   createdBy?: T;
   company?: T;
-  customerDetails?:
-    | T
-    | {
-        name?: T;
-        phone?: T;
-        email?: T;
-        address?: T;
-      };
+  customer?: T;
   paymentMethod?: T;
   status?: T;
   notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "customers_select".
+ */
+export interface CustomersSelect<T extends boolean = true> {
+  name?: T;
+  phone?: T;
+  branch?: T;
+  company?: T;
   updatedAt?: T;
   createdAt?: T;
 }

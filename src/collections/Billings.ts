@@ -1,4 +1,4 @@
-// src/collections/Billings.ts
+// src/collections/Billings.ts (updated)
 import { CollectionConfig } from 'payload'
 import type { Where } from 'payload' // Import Where type
 
@@ -194,26 +194,10 @@ const Billings: CollectionConfig = {
       admin: { readOnly: true },
     },
     {
-      name: 'customerDetails',
-      type: 'group',
-      fields: [
-        {
-          name: 'name',
-          type: 'text',
-        },
-        {
-          name: 'phone',
-          type: 'text',
-        },
-        {
-          name: 'email',
-          type: 'email',
-        },
-        {
-          name: 'address',
-          type: 'text',
-        },
-      ],
+      name: 'customer',
+      type: 'relationship',
+      relationTo: 'customers',
+      required: false,
     },
     {
       name: 'paymentMethod',
