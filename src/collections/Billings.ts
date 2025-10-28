@@ -1,4 +1,4 @@
-// src/collections/Billings.ts (updated)
+// src/collections/Billings.ts
 import { CollectionConfig } from 'payload'
 import type { Where } from 'payload' // Import Where type
 
