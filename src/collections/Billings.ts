@@ -194,10 +194,18 @@ const Billings: CollectionConfig = {
       admin: { readOnly: true },
     },
     {
-      name: 'customer',
-      type: 'relationship',
-      relationTo: 'customers',
-      required: false,
+      name: 'customerDetails',
+      type: 'group',
+      fields: [
+        {
+          name: 'name',
+          type: 'text',
+        },
+        {
+          name: 'address',
+          type: 'text',
+        },
+      ],
     },
     {
       name: 'paymentMethod',
