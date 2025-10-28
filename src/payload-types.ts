@@ -76,6 +76,7 @@ export interface Config {
     media: Media;
     dealers: Dealer;
     employees: Employee;
+    billings: Billing;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -91,6 +92,7 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     dealers: DealersSelect<false> | DealersSelect<true>;
     employees: EmployeesSelect<false> | EmployeesSelect<true>;
+    billings: BillingsSelect<false> | BillingsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -311,15 +313,15 @@ export interface Product {
 export interface Dealer {
   id: string;
   companyName: string;
-  address?: string | null;
-  phoneNumber?: string | null;
-  email?: string | null;
+  address: string;
+  phoneNumber: string;
+  email: string;
   isGSTRegistered?: boolean | null;
   gst?: string | null;
   pan?: string | null;
   fssai?: string | null;
-  contactPerson?: {
-    name?: string | null;
+  contactPerson: {
+    name: string;
     designation?: string | null;
     phone?: string | null;
     email?: string | null;
@@ -327,7 +329,7 @@ export interface Dealer {
   allowedCompanies?: (string | Company)[] | null;
   allowedBranches?: (string | Branch)[] | null;
   notes?: string | null;
-  status?: ('active' | 'inactive' | 'on-hold') | null;
+  status: 'active' | 'inactive' | 'on-hold';
   hasBankAccount?: boolean | null;
   preferredPaymentMethod?: ('cash' | 'upi' | 'cheque' | 'credit') | null;
   bankDetails?: {
@@ -336,6 +338,38 @@ export interface Dealer {
     ifscCode?: string | null;
     branch?: string | null;
   };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "billings".
+ */
+export interface Billing {
+  id: string;
+  invoiceNumber: string;
+  items: {
+    product: string | Product;
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    subtotal: number;
+    branchOverride?: boolean | null;
+    id?: string | null;
+  }[];
+  totalAmount: number;
+  branch: string | Branch;
+  createdBy: string | User;
+  company: string | Company;
+  customerDetails?: {
+    name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    address?: string | null;
+  };
+  paymentMethod?: ('cash' | 'card' | 'upi' | 'other') | null;
+  status?: ('pending' | 'completed' | 'cancelled') | null;
+  notes?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -381,6 +415,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'employees';
         value: string | Employee;
+      } | null)
+    | ({
+        relationTo: 'billings';
+        value: string | Billing;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -630,6 +668,41 @@ export interface EmployeesSelect<T extends boolean = true> {
   team?: T;
   aadhaarPhoto?: T;
   photo?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "billings_select".
+ */
+export interface BillingsSelect<T extends boolean = true> {
+  invoiceNumber?: T;
+  items?:
+    | T
+    | {
+        product?: T;
+        name?: T;
+        quantity?: T;
+        unitPrice?: T;
+        subtotal?: T;
+        branchOverride?: T;
+        id?: T;
+      };
+  totalAmount?: T;
+  branch?: T;
+  createdBy?: T;
+  company?: T;
+  customerDetails?:
+    | T
+    | {
+        name?: T;
+        phone?: T;
+        email?: T;
+        address?: T;
+      };
+  paymentMethod?: T;
+  status?: T;
+  notes?: T;
   updatedAt?: T;
   createdAt?: T;
 }
