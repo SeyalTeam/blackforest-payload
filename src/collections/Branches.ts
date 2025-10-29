@@ -46,6 +46,15 @@ export const Branches: CollectionConfig = {
           'Public IP for auto-detecting branch on login (e.g., 192.0.2.1). Fetch via whatismyip.com at branch.',
       },
     },
+    {
+      name: 'printerIp',
+      type: 'text',
+      label: 'Printer IP Address',
+      admin: {
+        description:
+          'IP address of the network printer for this branch (e.g., 192.168.1.100). Used for printing bills directly over the local network.',
+      },
+    },
   ],
   access: {
     create: ({ req }) => req.user?.role === 'superadmin',
