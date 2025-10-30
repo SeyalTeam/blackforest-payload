@@ -194,6 +194,7 @@ const ReturnOrders: CollectionConfig = {
       defaultValue: 'pending',
       options: [
         { label: 'Pending', value: 'pending' },
+        { label: 'Accepted', value: 'accepted' },
         { label: 'Returned', value: 'returned' },
         { label: 'Cancelled', value: 'cancelled' },
       ],
