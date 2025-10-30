@@ -1,159 +1,120 @@
-import { CollectionConfig, AccessArgs, Where } from 'payload'
-import { ObjectId } from 'mongodb'
+// src/collections/ReturnOrders.ts
+import { CollectionConfig } from 'payload'
+import type { Where } from 'payload' // Import Where type
 
-const ReturnOrder: CollectionConfig = {
-  slug: 'return-orders', // 👈 Your API route will be /api/return-orders
+const ReturnOrders: CollectionConfig = {
+  slug: 'return-orders',
   admin: {
     useAsTitle: 'returnNumber',
   },
-
   access: {
-    // 👇 Who can READ
-    read: ({ req }: AccessArgs<any>) => {
-      const user = req.user
-      if (!user) return false
+    read: ({ req: { user } }) => {
+      if (user?.role === 'superadmin') return true
 
-      if (user.role === 'superadmin') return true
-
-      if (user.role === 'company') {
+      if (user?.role === 'company') {
         const company = user.company
         if (!company) return false
-
         let companyId: string
-        if (typeof company === 'string') companyId = company
-        else if (typeof company === 'object' && company !== null && 'id' in company)
-          companyId = (company as any).id
-        else return false
-
+        if (typeof company === 'string') {
+          companyId = company
+        } else if (
+          typeof company === 'object' &&
+          company !== null &&
+          'id' in company &&
+          typeof company.id === 'string'
+        ) {
+          companyId = company.id
+        } else {
+          return false
+        }
         return { company: { equals: companyId } } as Where
       }
 
-      if (user.role === 'branch' || user.role === 'waiter') {
+      if (user?.role === 'branch' || user?.role === 'waiter') {
         const branch = user.branch
         if (!branch) return false
-
         let branchId: string
-        if (typeof branch === 'string') branchId = branch
-        else if (typeof branch === 'object' && branch !== null && 'id' in branch)
-          branchId = (branch as any).id
-        else return false
-
+        if (typeof branch === 'string') {
+          branchId = branch
+        } else if (
+          typeof branch === 'object' &&
+          branch !== null &&
+          'id' in branch &&
+          typeof branch.id === 'string'
+        ) {
+          branchId = branch.id
+        } else {
+          return false
+        }
         return { branch: { equals: branchId } } as Where
       }
 
       return false
     },
-
-    // 👇 Who can CREATE
-    create: ({ req }: AccessArgs<any>) => {
-      const user = req.user
-      return !!user && ['branch', 'waiter'].includes(user.role)
-    },
-
-    // 👇 Who can UPDATE
-    update: async ({ req, id }: AccessArgs<any>) => {
-      const user = req.user
-      if (!user) return false
-
-      if (user.role === 'superadmin') return true
-
-      if (['branch', 'waiter'].includes(user.role)) {
-        const branch = user.branch
-        if (!branch) return false
-
-        let userBranchId: string
-        if (typeof branch === 'string') userBranchId = branch
-        else if (typeof branch === 'object' && branch !== null && 'id' in branch)
-          userBranchId = (branch as any).id
-        else return false
-
-        const doc = await req.payload.findByID({
-          collection: 'return-orders',
-          id: id as string,
-          depth: 0,
-        })
-
-        let docBranchId: string | undefined
-        const docBranch = doc?.branch
-        if (typeof docBranch === 'string') docBranchId = docBranch
-        else if (typeof docBranch === 'object' && docBranch !== null && 'id' in docBranch)
-          docBranchId = (docBranch as any).id
-
-        return (
-          docBranchId === userBranchId && (doc?.status === 'pending' || doc?.status === undefined)
-        )
-      }
-
-      return false
-    },
-
-    // 👇 Only superadmin can DELETE
-    delete: ({ req }: AccessArgs<any>) => req.user?.role === 'superadmin',
+    create: ({ req: { user } }) => user?.role != null && ['branch', 'waiter'].includes(user.role),
+    update: ({ req: { user } }) => user?.role === 'superadmin',
+    delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
-
   hooks: {
     beforeChange: [
-      async ({ data, req, operation, originalDoc }) => {
-        // Auto-generate return number and date
+      async ({ data, req, operation }) => {
         if (operation === 'create') {
+          // Auto-generate return number, e.g., RET-YYYYMMDD-SEQ
           const date = new Date()
           const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, '')
-
           const existingCount = await req.payload.db.collections['return-orders'].countDocuments({
             returnNumber: { $regex: `^RET-${formattedDate}-` },
           })
-
           const seq = (existingCount + 1).toString().padStart(3, '0')
           data.returnNumber = `RET-${formattedDate}-${seq}`
-          data.date = date.toISOString().slice(0, 10)
 
-          // Auto-set company based on branch
+          // Auto-set company from branch
           if (data.branch) {
             let branchId: string
-            if (typeof data.branch === 'string') branchId = data.branch
-            else if (typeof data.branch === 'object' && data.branch !== null && 'id' in data.branch)
-              branchId = (data.branch as any).id
-            else return data
-
-            const branchDoc = await req.payload.db.collections['branches'].findOne(
-              { _id: new ObjectId(branchId) },
-              { projection: { company: 1 } },
-            )
-
-            const company = branchDoc?.company
-            if (company) {
-              let companyId: string
-              if (typeof company === 'string') companyId = company
-              else if (typeof company === 'object' && company !== null && 'id' in company)
-                companyId = (company as any).id
-              else return data
-
-              data.company = companyId
+            if (typeof data.branch === 'string') {
+              branchId = data.branch
+            } else if (
+              typeof data.branch === 'object' &&
+              data.branch !== null &&
+              'id' in data.branch &&
+              typeof data.branch.id === 'string'
+            ) {
+              branchId = data.branch.id
+            } else {
+              return data // Skip if invalid
+            }
+            const branch = await req.payload.findByID({
+              collection: 'branches',
+              id: branchId,
+              depth: 0,
+            })
+            if (branch?.company) {
+              let companyToSet = branch.company
+              if (
+                typeof companyToSet === 'object' &&
+                companyToSet !== null &&
+                'id' in companyToSet &&
+                typeof companyToSet.id === 'string'
+              ) {
+                companyToSet = companyToSet.id
+              }
+              if (typeof companyToSet === 'string') {
+                data.company = companyToSet
+              }
             }
           }
         }
-
-        // Prevent updates to non-pending orders
-        if (operation === 'update') {
-          if (originalDoc?.status !== 'pending') {
-            throw new Error('Cannot update non-pending return orders')
-          }
-        }
-
-        // Auto-calculate totalAmount
+        // Recalculate total if items change
         if (data.items) {
           data.totalAmount = data.items.reduce(
             (sum: number, item: any) => sum + (item.subtotal || 0),
             0,
           )
         }
-
         return data
       },
     ],
   },
-
-  // 👇 Field definitions
   fields: [
     {
       name: 'returnNumber',
@@ -161,18 +122,6 @@ const ReturnOrder: CollectionConfig = {
       unique: true,
       required: true,
       admin: { readOnly: true },
-    },
-    {
-      name: 'date',
-      type: 'date',
-      required: true,
-      admin: {
-        date: {
-          pickerAppearance: 'dayOnly',
-          displayFormat: 'yyyy-MM-dd',
-        },
-        readOnly: true,
-      },
     },
     {
       name: 'items',
@@ -246,7 +195,7 @@ const ReturnOrder: CollectionConfig = {
       options: [
         { label: 'Pending', value: 'pending' },
         { label: 'Returned', value: 'returned' },
-        { label: 'Rejected', value: 'rejected' },
+        { label: 'Cancelled', value: 'cancelled' },
       ],
     },
     {
@@ -254,18 +203,7 @@ const ReturnOrder: CollectionConfig = {
       type: 'textarea',
     },
   ],
-
   timestamps: true,
-
-  // 👇 Unique index for pending orders per branch per date
-  indexes: [
-    {
-      fields: ['branch', 'date', 'status'],
-      unique: true,
-      // @ts-expect-error: valid Mongo option not typed by Payload
-      partialFilterExpression: { status: 'pending' },
-    },
-  ],
 }
 
-export default ReturnOrder
+export default ReturnOrders
