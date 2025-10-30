@@ -24,6 +24,7 @@
     "@payloadcms/storage-vercel-blob": "3.60.0",
     "@payloadcms/ui": "3.60.0",
     "@types/leaflet": "^1.9.21",
+    "@vercel/speed-insights": "^1.2.0",
     "bwip-js": "^4.7.0",
     "cross-env": "^7.0.3",
     "dotenv": "16.4.7",

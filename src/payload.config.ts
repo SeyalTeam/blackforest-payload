@@ -18,6 +18,7 @@ import { Media } from './collections/Media'
 import Dealers from './collections/Dealers'
 import Employees from './collections/Employees'
 import Billings from './collections/Billings'
+import ReturnOrders from './collections/ReturnOrders'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -40,6 +41,7 @@ export default buildConfig({
     Dealers,
     Employees,
     Billings,
+    ReturnOrders,
   ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',

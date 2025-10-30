@@ -77,6 +77,7 @@ export interface Config {
     dealers: Dealer;
     employees: Employee;
     billings: Billing;
+    'return-orders': ReturnOrder;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -93,6 +94,7 @@ export interface Config {
     dealers: DealersSelect<false> | DealersSelect<true>;
     employees: EmployeesSelect<false> | EmployeesSelect<true>;
     billings: BillingsSelect<false> | BillingsSelect<true>;
+    'return-orders': ReturnOrdersSelect<false> | ReturnOrdersSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -377,6 +379,31 @@ export interface Billing {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "return-orders".
+ */
+export interface ReturnOrder {
+  id: string;
+  returnNumber: string;
+  date: string;
+  items: {
+    product: string | Product;
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    subtotal: number;
+    id?: string | null;
+  }[];
+  totalAmount: number;
+  branch: string | Branch;
+  createdBy: string | User;
+  company: string | Company;
+  status?: ('pending' | 'returned' | 'rejected') | null;
+  notes?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -421,6 +448,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'billings';
         value: string | Billing;
+      } | null)
+    | ({
+        relationTo: 'return-orders';
+        value: string | ReturnOrder;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -702,6 +733,32 @@ export interface BillingsSelect<T extends boolean = true> {
         address?: T;
       };
   paymentMethod?: T;
+  status?: T;
+  notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "return-orders_select".
+ */
+export interface ReturnOrdersSelect<T extends boolean = true> {
+  returnNumber?: T;
+  date?: T;
+  items?:
+    | T
+    | {
+        product?: T;
+        name?: T;
+        quantity?: T;
+        unitPrice?: T;
+        subtotal?: T;
+        id?: T;
+      };
+  totalAmount?: T;
+  branch?: T;
+  createdBy?: T;
+  company?: T;
   status?: T;
   notes?: T;
   updatedAt?: T;
