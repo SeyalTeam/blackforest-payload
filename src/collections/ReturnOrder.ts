@@ -1,6 +1,5 @@
-// src/collections/ReturnOrders.ts
 import { CollectionConfig } from 'payload'
-import type { Where } from 'payload' // Import Where type
+import type { Where } from 'payload'
 
 const ReturnOrders: CollectionConfig = {
   slug: 'return-orders',
@@ -52,125 +51,111 @@ const ReturnOrders: CollectionConfig = {
       return false
     },
     create: ({ req: { user } }) => user?.role != null && ['branch', 'waiter'].includes(user.role),
-    update: ({ req: { user, payload }, id }) => {
-      if (user?.role !== 'branch' && user?.role !== 'waiter') return false
-      const branch = user.branch
-      if (!branch) return false
-      let branchId: string
-      if (typeof branch === 'string') {
-        branchId = branch
-      } else if (
-        typeof branch === 'object' &&
-        branch !== null &&
-        'id' in branch &&
-        typeof branch.id === 'string'
-      ) {
-        branchId = branch.id
-      } else {
-        return false
-      }
-      // Check if status is pending and branch matches
-      return {
-        and: [
-          { id: { equals: id } },
-          { status: { equals: 'pending' } },
-          { branch: { equals: branchId } },
-        ],
-      } as Where
-    },
+    update: ({ req: { user } }) => user?.role === 'superadmin',
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
+
   hooks: {
     beforeChange: [
-      async ({ data, req, operation, originalDoc }) => {
+      async ({ data, req, operation }) => {
         if (operation === 'create') {
-          // Auto-generate return number, e.g., RET-YYYYMMDD-SEQ
           const date = new Date()
           const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, '')
-          const existingCount = await req.payload.db.collections['return-orders'].countDocuments({
-            returnNumber: { $regex: `^RET-${formattedDate}-` },
-          })
-          const seq = (existingCount + 1).toString().padStart(3, '0')
-          data.returnNumber = `RET-${formattedDate}-${seq}`
+          let branchId: string | undefined
 
-          // Auto-set returnDate to YYYY-MM-DD
-          data.returnDate = date.toISOString().slice(0, 10)
-
-          // Auto-set company from branch
+          // Extract branch ID
           if (data.branch) {
-            let branchId: string
             if (typeof data.branch === 'string') {
               branchId = data.branch
-            } else if (
-              typeof data.branch === 'object' &&
-              data.branch !== null &&
-              'id' in data.branch &&
-              typeof data.branch.id === 'string'
-            ) {
+            } else if (typeof data.branch === 'object' && data.branch?.id) {
               branchId = data.branch.id
-            } else {
-              return data // Skip if invalid
-            }
-            const branch = await req.payload.findByID({
-              collection: 'branches',
-              id: branchId,
-              depth: 0,
-            })
-            if (branch?.company) {
-              let companyToSet = branch.company
-              if (
-                typeof companyToSet === 'object' &&
-                companyToSet !== null &&
-                'id' in companyToSet &&
-                typeof companyToSet.id === 'string'
-              ) {
-                companyToSet = companyToSet.id
-              }
-              if (typeof companyToSet === 'string') {
-                data.company = companyToSet
-              }
             }
           }
-        }
 
-        if (operation === 'update') {
-          if (originalDoc?.status !== 'pending') {
-            throw new Error('Cannot update non-pending return orders')
-          }
+          if (!branchId) throw new Error('Branch is required')
 
-          // Merge new items with existing: increment qty if product duplicate
-          const existingItems = originalDoc?.items || []
-          const newItems = data.items || []
-          const mergedItems: any[] = [...existingItems]
-
-          newItems.forEach((newItem: any) => {
-            const existingIndex = mergedItems.findIndex(
-              (item: any) => item.product === newItem.product,
-            )
-            if (existingIndex !== -1) {
-              mergedItems[existingIndex].quantity += newItem.quantity
-              mergedItems[existingIndex].subtotal =
-                mergedItems[existingIndex].quantity * mergedItems[existingIndex].unitPrice
-            } else {
-              mergedItems.push(newItem)
-            }
+          // 🔍 Check if a bill already exists for this branch and date
+          const existingOrders = await req.payload.find({
+            collection: 'return-orders',
+            where: {
+              and: [
+                { branch: { equals: branchId } },
+                { returnNumber: { like: `RET-${formattedDate}-${branchId}` } },
+              ],
+            },
+            limit: 1,
           })
 
-          data.items = mergedItems
+          const existingOrder = existingOrders.docs?.[0]
 
-          // Recalculate total
-          data.totalAmount = data.items.reduce(
-            (sum: number, item: any) => sum + (item.subtotal || 0),
+          // 🧩 If an order exists for today, append new items
+          if (existingOrder) {
+            const mergedItems = [
+              ...(existingOrder.items || []),
+              ...(data.items || []).map((item: Record<string, any>) => ({
+                ...item,
+                returnedAt: new Date().toISOString(),
+              })),
+            ]
+
+            const totalAmount = mergedItems.reduce(
+              (sum: number, item: Record<string, any>) => sum + (item.subtotal || 0),
+              0,
+            )
+
+            await req.payload.update({
+              collection: 'return-orders',
+              id: existingOrder.id,
+              data: {
+                items: mergedItems,
+                totalAmount,
+                updatedAt: new Date().toISOString(),
+              },
+            })
+
+            // ❌ Prevent new doc creation (we updated existing one)
+            return null
+          }
+
+          // 🆕 Create a new bill for the day
+          const seq = '001'
+          data.returnNumber = `RET-${formattedDate}-${branchId}-${seq}`
+
+          // Auto-set company from branch
+          const branch = await req.payload.findByID({
+            collection: 'branches',
+            id: branchId,
+            depth: 0,
+          })
+
+          if (branch?.company) {
+            let companyToSet = branch.company
+            if (typeof companyToSet === 'object' && companyToSet?.id) {
+              companyToSet = companyToSet.id
+            }
+            data.company = companyToSet
+          }
+
+          // Add timestamp to each returned item
+          if (data.items) {
+            data.items = data.items.map((item: Record<string, any>) => ({
+              ...item,
+              returnedAt: new Date().toISOString(),
+            }))
+          }
+
+          // Calculate total
+          data.totalAmount = (data.items || []).reduce(
+            (sum: number, item: Record<string, any>) => sum + (item.subtotal || 0),
             0,
           )
-
-          // For concurrency, rely on Payload's internal handling or customize adapter if needed
         }
 
         return data
       },
     ],
   },
+
   fields: [
     {
       name: 'returnNumber',
@@ -178,18 +163,6 @@ const ReturnOrders: CollectionConfig = {
       unique: true,
       required: true,
       admin: { readOnly: true },
-    },
-    {
-      name: 'returnDate',
-      type: 'date',
-      required: true,
-      admin: {
-        date: {
-          pickerAppearance: 'dayOnly',
-          displayFormat: 'yyyy-MM-dd',
-        },
-        readOnly: true,
-      },
     },
     {
       name: 'items',
@@ -225,6 +198,12 @@ const ReturnOrders: CollectionConfig = {
           type: 'number',
           required: true,
           min: 0,
+        },
+        {
+          name: 'returnedAt',
+          type: 'date',
+          required: true,
+          admin: { readOnly: true },
         },
       ],
     },
@@ -271,6 +250,7 @@ const ReturnOrders: CollectionConfig = {
       type: 'textarea',
     },
   ],
+
   timestamps: true,
 }
 
