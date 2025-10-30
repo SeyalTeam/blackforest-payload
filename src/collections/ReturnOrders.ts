@@ -8,41 +8,7 @@ const ReturnOrders: CollectionConfig = {
     useAsTitle: 'returnNumber',
   },
   access: {
-    read: ({ req }: AccessArgs<any>) => {
-      const user = req.user
-      if (!user) return false
-
-      if (user.role === 'superadmin') return true
-
-      if (user.role === 'company') {
-        const company = user.company
-        if (!company) return false
-
-        let companyId: string
-        if (typeof company === 'string') companyId = company
-        else if (typeof company === 'object' && company !== null && 'id' in company)
-          companyId = (company as any).id
-        else return false
-
-        return { company: { equals: companyId } } as Where
-      }
-
-      if (user.role === 'branch' || user.role === 'waiter') {
-        const branch = user.branch
-        if (!branch) return false
-
-        let branchId: string
-        if (typeof branch === 'string') branchId = branch
-        else if (typeof branch === 'object' && branch !== null && 'id' in branch)
-          branchId = (branch as any).id
-        else return false
-
-        return { branch: { equals: branchId } } as Where
-      }
-
-      return false
-    },
-
+    read: () => true,
     create: ({ req }: AccessArgs<any>) => {
       const user = req.user
       return !!user && ['branch', 'waiter'].includes(user.role)
