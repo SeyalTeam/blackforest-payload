@@ -1,4 +1,3 @@
-// src/payload.config.ts
 // storage-adapter-import-placeholder
 import { mongooseAdapter } from '@payloadcms/db-mongodb'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
@@ -8,6 +7,7 @@ import { fileURLToPath } from 'url'
 import sharp from 'sharp'
 import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob'
 
+// ✅ Import all your collections
 import { Users } from './collections/Users'
 import { Branches } from './collections/Branches'
 import { Companies } from './collections/Companies'
@@ -18,8 +18,9 @@ import { Media } from './collections/Media'
 import Dealers from './collections/Dealers'
 import Employees from './collections/Employees'
 import Billings from './collections/Billings'
-import ReturnOrders from './collections/ReturnOrders'
+import ReturnOrder from './collections/ReturnOrder' // ✅ Your new file
 
+// Path helpers
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
@@ -30,6 +31,8 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
   },
+
+  // ✅ Add your new collection here
   collections: [
     Users,
     Companies,
@@ -41,17 +44,23 @@ export default buildConfig({
     Dealers,
     Employees,
     Billings,
-    ReturnOrders,
+    ReturnOrder, // 👈 Add this
   ],
+
   editor: lexicalEditor(),
+
   secret: process.env.PAYLOAD_SECRET || '',
+
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
   },
+
   db: mongooseAdapter({
     url: process.env.DATABASE_URI || '',
   }),
+
   sharp,
+
   plugins: [
     vercelBlobStorage({
       enabled: true,
@@ -61,7 +70,6 @@ export default buildConfig({
         },
       },
       token: process.env.blackforest_READ_WRITE_TOKEN || '',
-      // clientUploads: true, // Optional; if enabled, test for errors as per known issues
     }),
   ],
 })

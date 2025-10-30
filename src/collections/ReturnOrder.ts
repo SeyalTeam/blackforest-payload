@@ -1,19 +1,56 @@
-// src/collections/ReturnOrders.ts
 import { CollectionConfig, AccessArgs, Where } from 'payload'
 import { ObjectId } from 'mongodb'
 
-const ReturnOrders: CollectionConfig = {
-  slug: 'return-orders',
+const ReturnOrder: CollectionConfig = {
+  slug: 'return-orders', // 👈 Your API route will be /api/return-orders
   admin: {
     useAsTitle: 'returnNumber',
   },
+
   access: {
-    read: () => true,
+    // 👇 Who can READ
+    read: ({ req }: AccessArgs<any>) => {
+      const user = req.user
+      if (!user) return false
+
+      if (user.role === 'superadmin') return true
+
+      if (user.role === 'company') {
+        const company = user.company
+        if (!company) return false
+
+        let companyId: string
+        if (typeof company === 'string') companyId = company
+        else if (typeof company === 'object' && company !== null && 'id' in company)
+          companyId = (company as any).id
+        else return false
+
+        return { company: { equals: companyId } } as Where
+      }
+
+      if (user.role === 'branch' || user.role === 'waiter') {
+        const branch = user.branch
+        if (!branch) return false
+
+        let branchId: string
+        if (typeof branch === 'string') branchId = branch
+        else if (typeof branch === 'object' && branch !== null && 'id' in branch)
+          branchId = (branch as any).id
+        else return false
+
+        return { branch: { equals: branchId } } as Where
+      }
+
+      return false
+    },
+
+    // 👇 Who can CREATE
     create: ({ req }: AccessArgs<any>) => {
       const user = req.user
       return !!user && ['branch', 'waiter'].includes(user.role)
     },
 
+    // 👇 Who can UPDATE
     update: async ({ req, id }: AccessArgs<any>) => {
       const user = req.user
       if (!user) return false
@@ -50,12 +87,14 @@ const ReturnOrders: CollectionConfig = {
       return false
     },
 
+    // 👇 Only superadmin can DELETE
     delete: ({ req }: AccessArgs<any>) => req.user?.role === 'superadmin',
   },
 
   hooks: {
     beforeChange: [
       async ({ data, req, operation, originalDoc }) => {
+        // Auto-generate return number and date
         if (operation === 'create') {
           const date = new Date()
           const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, '')
@@ -68,7 +107,7 @@ const ReturnOrders: CollectionConfig = {
           data.returnNumber = `RET-${formattedDate}-${seq}`
           data.date = date.toISOString().slice(0, 10)
 
-          // Auto-set company from branch
+          // Auto-set company based on branch
           if (data.branch) {
             let branchId: string
             if (typeof data.branch === 'string') branchId = data.branch
@@ -94,12 +133,14 @@ const ReturnOrders: CollectionConfig = {
           }
         }
 
+        // Prevent updates to non-pending orders
         if (operation === 'update') {
           if (originalDoc?.status !== 'pending') {
             throw new Error('Cannot update non-pending return orders')
           }
         }
 
+        // Auto-calculate totalAmount
         if (data.items) {
           data.totalAmount = data.items.reduce(
             (sum: number, item: any) => sum + (item.subtotal || 0),
@@ -112,6 +153,7 @@ const ReturnOrders: CollectionConfig = {
     ],
   },
 
+  // 👇 Field definitions
   fields: [
     {
       name: 'returnNumber',
@@ -215,14 +257,15 @@ const ReturnOrders: CollectionConfig = {
 
   timestamps: true,
 
+  // 👇 Unique index for pending orders per branch per date
   indexes: [
     {
       fields: ['branch', 'date', 'status'],
       unique: true,
-      // @ts-expect-error: partialFilterExpression is a valid MongoDB option but not typed in Payload
+      // @ts-expect-error: valid Mongo option not typed by Payload
       partialFilterExpression: { status: 'pending' },
     },
   ],
 }
 
-export default ReturnOrders
+export default ReturnOrder
