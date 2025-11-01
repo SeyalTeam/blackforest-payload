@@ -59,15 +59,18 @@ const ReturnOrders: CollectionConfig = {
     beforeChange: [
       async ({ data, req, operation }) => {
         if (operation === 'create') {
-          // Auto-generate return number, e.g., ETT-YYYYMMDD-SEQ based on branch name
+          // Auto-generate return number, e.g., RET-YYYYMMDD-SEQ
           const date = new Date()
           const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, '')
+          const existingCount = await req.payload.db.collections['return-orders'].countDocuments({
+            returnNumber: { $regex: `^RET-${formattedDate}-` },
+          })
+          const seq = (existingCount + 1).toString().padStart(3, '0')
+          data.returnNumber = `RET-${formattedDate}-${seq}`
 
-          // Fetch branch to get name for prefix
-          let prefix = 'RET' // Fallback
-          let branchDoc: any = null
+          // Auto-set company from branch
           if (data.branch) {
-            let branchId: string | undefined
+            let branchId: string
             if (typeof data.branch === 'string') {
               branchId = data.branch
             } else if (
@@ -77,42 +80,27 @@ const ReturnOrders: CollectionConfig = {
               typeof data.branch.id === 'string'
             ) {
               branchId = data.branch.id
+            } else {
+              return data // Skip if invalid
             }
-            if (branchId) {
-              branchDoc = await req.payload.findByID({
-                collection: 'branches',
-                id: branchId,
-                depth: 0,
-              })
+            const branch = await req.payload.findByID({
+              collection: 'branches',
+              id: branchId,
+              depth: 0,
+            })
+            if (branch?.company) {
+              let companyToSet = branch.company
               if (
-                branchDoc?.name &&
-                typeof branchDoc.name === 'string' &&
-                branchDoc.name.length >= 3
+                typeof companyToSet === 'object' &&
+                companyToSet !== null &&
+                'id' in companyToSet &&
+                typeof companyToSet.id === 'string'
               ) {
-                prefix = branchDoc.name.substring(0, 3).toUpperCase()
+                companyToSet = companyToSet.id
               }
-            }
-          }
-
-          const existingCount = await req.payload.db.collections['return-orders'].countDocuments({
-            returnNumber: { $regex: `^${prefix}-${formattedDate}-` },
-          })
-          const seq = (existingCount + 1).toString().padStart(3, '0')
-          data.returnNumber = `${prefix}-${formattedDate}-${seq}`
-
-          // Auto-set company from branch (using cached branchDoc if available)
-          if (branchDoc?.company) {
-            let companyToSet = branchDoc.company
-            if (
-              typeof companyToSet === 'object' &&
-              companyToSet !== null &&
-              'id' in companyToSet &&
-              typeof companyToSet.id === 'string'
-            ) {
-              companyToSet = companyToSet.id
-            }
-            if (typeof companyToSet === 'string') {
-              data.company = companyToSet
+              if (typeof companyToSet === 'string') {
+                data.company = companyToSet
+              }
             }
           }
         }
@@ -190,7 +178,6 @@ const ReturnOrders: CollectionConfig = {
       type: 'relationship',
       relationTo: 'branches',
       required: true,
-      unique: false, // Explicitly set to false to avoid uniqueness enforcement
       admin: { readOnly: true },
     },
     {
