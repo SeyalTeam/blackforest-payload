@@ -2,12 +2,10 @@
 import { CollectionConfig } from 'payload'
 import type { Where } from 'payload' // Import Where type
 import dayjs from 'dayjs'
-import utc from 'dayjs/plugin/utc' // Required for timezone
-import timezone from 'dayjs/plugin/timezone' // For IST support
+import timezone from 'dayjs/plugin/timezone' // Assume installed: npm i dayjs @types/dayjs
 
-dayjs.extend(utc)
 dayjs.extend(timezone)
-dayjs.tz.setDefault('Asia/Kolkata') // Set default to IST
+dayjs.tz.setDefault('Asia/Kolkata') // Set default timezone to IST
 
 const ReturnOrders: CollectionConfig = {
   slug: 'return-orders',
@@ -16,6 +14,7 @@ const ReturnOrders: CollectionConfig = {
   },
   access: {
     read: ({ req: { user } }) => {
+      if (!user) return false
       if (user?.role === 'superadmin') return true
 
       if (user?.role === 'company') {
@@ -64,67 +63,114 @@ const ReturnOrders: CollectionConfig = {
   },
   hooks: {
     beforeChange: [
-      async ({ data, req, operation }) => {
+      async ({ data, req, operation, originalDoc }) => {
         if (operation === 'create') {
-          try {
-            // Auto-generate return number, e.g., RET-YYYYMMDD-SEQ in IST
-            const date = dayjs()
-            const formattedDate = date.format('YYYYMMDD')
-            const existingCount = await req.payload.db.collections['return-orders'].countDocuments({
-              returnNumber: { $regex: `^RET-${formattedDate}-` },
-            })
-            const seq = (existingCount + 1).toString().padStart(3, '0')
-            data.returnNumber = `RET-${formattedDate}-${seq}`
+          if (!req.user) throw new Error('Unauthorized')
 
-            // Auto-set company from branch
-            if (data.branch) {
-              let branchId: string
-              if (typeof data.branch === 'string') {
-                branchId = data.branch
-              } else if (
-                typeof data.branch === 'object' &&
-                data.branch !== null &&
-                'id' in data.branch &&
-                typeof data.branch.id === 'string'
+          // Validate branch matches user's branch for branch/waiter roles
+          if (['branch', 'waiter'].includes(req.user.role)) {
+            const userBranchId =
+              typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
+            const dataBranchId = typeof data.branch === 'string' ? data.branch : data?.branch?.id
+            if (!userBranchId || userBranchId !== dataBranchId) {
+              throw new Error('Unauthorized branch')
+            }
+          }
+
+          // Auto-generate return number with timezone-aware date
+          const date = dayjs.tz() // Uses default timezone (IST)
+          const formattedDate = date.format('YYYYMMDD')
+          const { totalDocs: existingCount } = await req.payload.count({
+            collection: 'return-orders',
+            where: { returnNumber: { like: `RET-${formattedDate}-%` } },
+          })
+          const seq = (existingCount + 1).toString().padStart(3, '0')
+          data.returnNumber = `RET-${formattedDate}-${seq}`
+
+          // Auto-set company from branch
+          if (data.branch) {
+            let branchId: string
+            if (typeof data.branch === 'string') {
+              branchId = data.branch
+            } else if (
+              typeof data.branch === 'object' &&
+              data.branch !== null &&
+              'id' in data.branch &&
+              typeof data.branch.id === 'string'
+            ) {
+              branchId = data.branch.id
+            } else {
+              throw new Error('Invalid branch')
+            }
+            const branch = await req.payload.findByID({
+              collection: 'branches',
+              id: branchId,
+              depth: 0,
+            })
+            if (branch?.company) {
+              let companyToSet = branch.company
+              if (
+                typeof companyToSet === 'object' &&
+                companyToSet !== null &&
+                'id' in companyToSet &&
+                typeof companyToSet.id === 'string'
               ) {
-                branchId = data.branch.id
-              } else {
-                return data // Skip if invalid
+                companyToSet = companyToSet.id
               }
-              const branch = await req.payload.findByID({
-                collection: 'branches',
-                id: branchId,
-                depth: 0,
-              })
-              if (branch?.company) {
-                let companyToSet = branch.company
-                if (
-                  typeof companyToSet === 'object' &&
-                  companyToSet !== null &&
-                  'id' in companyToSet &&
-                  typeof companyToSet.id === 'string'
-                ) {
-                  companyToSet = companyToSet.id
-                }
-                if (typeof companyToSet === 'string') {
-                  data.company = companyToSet
-                }
+              if (typeof companyToSet === 'string') {
+                data.company = companyToSet
               }
             }
-          } catch (err: unknown) {
-            // Fix: Catch as unknown, then type-guard
-            const error = err as Error // Cast to Error for .message access
-            req.payload.logger.error(`Error in return order hook: ${error.message}`)
-            throw error // This will cause 400 with message
+          }
+
+          // Set status to 'pending' if not provided
+          if (!data.status) {
+            data.status = 'pending'
           }
         }
-        // Recalculate total if items change
-        if (data.items) {
+
+        // Validate and recompute item subtotals and names/prices from products
+        if (data.items && data.items.length > 0) {
+          for (const item of data.items) {
+            if (!item.product) continue
+
+            const productId = typeof item.product === 'string' ? item.product : item.product?.id
+            if (!productId) throw new Error('Invalid product')
+
+            const product = await req.payload.findByID({
+              collection: 'products',
+              id: productId,
+              depth: 1,
+            })
+
+            if (!product) throw new Error('Product not found')
+
+            // Set name from product
+            item.name = product.name
+
+            // Compute unitPrice: default or branch override
+            let unitPrice = product.defaultPriceDetails?.price || 0
+            if (data.branch && product.branchOverrides) {
+              const branchId = typeof data.branch === 'string' ? data.branch : data.branch?.id
+              const override = product.branchOverrides.find((ov: any) => {
+                const ovBranch = typeof ov.branch === 'string' ? ov.branch : ov.branch?.id
+                return ovBranch === branchId
+              })
+              if (override) unitPrice = override.price || unitPrice
+            }
+            item.unitPrice = unitPrice
+
+            // Recompute subtotal
+            item.subtotal = (item.quantity || 0) * item.unitPrice
+          }
+
+          // Recompute totalAmount
           data.totalAmount = data.items.reduce(
             (sum: number, item: any) => sum + (item.subtotal || 0),
             0,
           )
         }
+
         return data
       },
     ],
@@ -142,14 +188,12 @@ const ReturnOrders: CollectionConfig = {
       type: 'array',
       required: true,
       minRows: 1,
-      admin: { readOnly: true },
       fields: [
         {
           name: 'product',
           type: 'relationship',
           relationTo: 'products',
           required: true,
-          admin: { readOnly: true },
         },
         {
           name: 'name',
@@ -162,7 +206,6 @@ const ReturnOrders: CollectionConfig = {
           type: 'number',
           required: true,
           min: 1,
-          admin: { readOnly: true },
         },
         {
           name: 'unitPrice',
@@ -192,8 +235,6 @@ const ReturnOrders: CollectionConfig = {
       type: 'relationship',
       relationTo: 'branches',
       required: true,
-      admin: { readOnly: true },
-      // NO unique: true here – remove if present
     },
     {
       name: 'createdBy',
