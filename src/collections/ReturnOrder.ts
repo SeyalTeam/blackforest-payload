@@ -193,6 +193,7 @@ const ReturnOrders: CollectionConfig = {
       relationTo: 'branches',
       required: true,
       admin: { readOnly: true },
+      // NO unique: true here – remove if present
     },
     {
       name: 'createdBy',
