@@ -384,7 +384,6 @@ export interface Billing {
 export interface ReturnOrder {
   id: string;
   returnNumber: string;
-  date: string;
   items: {
     product: string | Product;
     name: string;
@@ -397,7 +396,7 @@ export interface ReturnOrder {
   branch: string | Branch;
   createdBy: string | User;
   company: string | Company;
-  status?: ('pending' | 'returned' | 'rejected') | null;
+  status?: ('pending' | 'accepted' | 'returned' | 'cancelled') | null;
   notes?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -744,7 +743,6 @@ export interface BillingsSelect<T extends boolean = true> {
  */
 export interface ReturnOrdersSelect<T extends boolean = true> {
   returnNumber?: T;
-  date?: T;
   items?:
     | T
     | {

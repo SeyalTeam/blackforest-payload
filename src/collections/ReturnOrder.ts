@@ -119,7 +119,6 @@ const ReturnOrders: CollectionConfig = {
     {
       name: 'returnNumber',
       type: 'text',
-      unique: true,
       required: true,
       admin: { readOnly: true },
     },
