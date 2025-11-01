@@ -2,8 +2,10 @@
 import { CollectionConfig } from 'payload'
 import type { Where } from 'payload' // Import Where type
 import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone' // Assume installed: npm i dayjs @types/dayjs
 
+dayjs.extend(utc)
 dayjs.extend(timezone)
 
 const ReturnOrders: CollectionConfig = {
