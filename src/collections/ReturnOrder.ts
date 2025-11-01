@@ -59,18 +59,14 @@ const ReturnOrders: CollectionConfig = {
     beforeChange: [
       async ({ data, req, operation }) => {
         if (operation === 'create') {
-          // Auto-generate return number, e.g., RET-YYYYMMDD-SEQ
+          // Auto-generate return number, e.g., ETT-YYYYMMDD-SEQ based on branch name
           const date = new Date()
           const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, '')
-          const existingCount = await req.payload.db.collections['return-orders'].countDocuments({
-            returnNumber: { $regex: `^RET-${formattedDate}-` },
-          })
-          const seq = (existingCount + 1).toString().padStart(3, '0')
-          data.returnNumber = `RET-${formattedDate}-${seq}`
 
-          // Auto-set company from branch
+          // Fetch branch to get name for prefix
+          let prefix = 'RET' // Fallback
           if (data.branch) {
-            let branchId: string
+            let branchId: string | undefined
             if (typeof data.branch === 'string') {
               branchId = data.branch
             } else if (
@@ -80,7 +76,39 @@ const ReturnOrders: CollectionConfig = {
               typeof data.branch.id === 'string'
             ) {
               branchId = data.branch.id
-            } else {
+            }
+            if (branchId) {
+              const branch = await req.payload.findByID({
+                collection: 'branches',
+                id: branchId,
+                depth: 0,
+              })
+              if (branch?.name && typeof branch.name === 'string' && branch.name.length >= 3) {
+                prefix = branch.name.substring(0, 3).toUpperCase()
+              }
+            }
+          }
+
+          const existingCount = await req.payload.db.collections['return-orders'].countDocuments({
+            returnNumber: { $regex: `^${prefix}-${formattedDate}-` },
+          })
+          const seq = (existingCount + 1).toString().padStart(3, '0')
+          data.returnNumber = `${prefix}-${formattedDate}-${seq}`
+
+          // Auto-set company from branch
+          if (data.branch) {
+            let branchId: string | undefined
+            if (typeof data.branch === 'string') {
+              branchId = data.branch
+            } else if (
+              typeof data.branch === 'object' &&
+              data.branch !== null &&
+              'id' in data.branch &&
+              typeof data.branch.id === 'string'
+            ) {
+              branchId = data.branch.id
+            }
+            if (!branchId) {
               return data // Skip if invalid
             }
             const branch = await req.payload.findByID({
