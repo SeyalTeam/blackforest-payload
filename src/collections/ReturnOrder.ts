@@ -70,41 +70,11 @@ const ReturnOrders: CollectionConfig = {
 
           // Validate branch matches user's branch for branch/waiter roles
           if (['branch', 'waiter'].includes(req.user.role)) {
+            const userBranchId =
+              typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
             const dataBranchId = typeof data.branch === 'string' ? data.branch : data?.branch?.id
-            if (!dataBranchId) throw new Error('Branch required')
-
-            if (req.user.role === 'branch') {
-              const userBranchId =
-                typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
-              if (!userBranchId || userBranchId !== dataBranchId) {
-                throw new Error('Unauthorized branch')
-              }
-            } else if (req.user.role === 'waiter') {
-              // For waiter, validate branch via IP matching (server-side to prevent tampering)
-              const forwarded = req.headers.get('x-forwarded-for')
-              const realIp = req.headers.get('x-real-ip')
-              const clientIp = forwarded ? forwarded.split(',')[0].trim() : realIp?.trim() || ''
-              if (!clientIp) throw new Error('Unable to determine client IP')
-
-              const branches = await req.payload.find({
-                collection: 'branches',
-                depth: 1,
-                limit: 0, // Fetch all
-              })
-
-              const matchingBranches: string[] = []
-              for (const branch of branches.docs) {
-                const branchIp = branch.ipAddress?.toString().trim()
-                if (!branchIp) continue
-
-                if (branchIp === clientIp || isIpInRange(clientIp, branchIp)) {
-                  matchingBranches.push(branch.id)
-                }
-              }
-
-              if (!matchingBranches.includes(dataBranchId)) {
-                throw new Error('Unauthorized branch for your location')
-              }
+            if (!userBranchId || userBranchId !== dataBranchId) {
+              throw new Error('Unauthorized branch')
             }
           }
 
@@ -304,21 +274,6 @@ const ReturnOrders: CollectionConfig = {
     },
   ],
   timestamps: true,
-}
-
-// Helper function for IP range check (add this outside the config)
-function ipToInt(ip: string): number {
-  const parts = ip.split('.').map(Number)
-  return (parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]
-}
-
-function isIpInRange(deviceIp: string, range: string): boolean {
-  const parts = range.split('-')
-  if (parts.length !== 2) return false
-  const startIp = ipToInt(parts[0].trim())
-  const endIp = ipToInt(parts[1].trim())
-  const device = ipToInt(deviceIp)
-  return device >= startIp && device <= endIp
 }
 
 export default ReturnOrders
