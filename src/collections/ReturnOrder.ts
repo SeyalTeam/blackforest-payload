@@ -1,8 +1,9 @@
+// src/collections/ReturnOrders.ts
 import { CollectionConfig } from 'payload'
-import type { Where } from 'payload'
+import type { Where } from 'payload' // Import Where type
 
 const ReturnOrders: CollectionConfig = {
-  slug: 'return-orders', // ✅ correct slug
+  slug: 'return-orders',
   admin: {
     useAsTitle: 'returnNumber',
   },
@@ -54,17 +55,22 @@ const ReturnOrders: CollectionConfig = {
     update: ({ req: { user } }) => user?.role === 'superadmin',
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
-
   hooks: {
     beforeChange: [
       async ({ data, req, operation }) => {
         if (operation === 'create') {
+          // Auto-generate return number, e.g., RET-YYYYMMDD-SEQ
           const date = new Date()
           const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, '')
+          const existingCount = await req.payload.db.collections['return-orders'].countDocuments({
+            returnNumber: { $regex: `^RET-${formattedDate}-` },
+          })
+          const seq = (existingCount + 1).toString().padStart(3, '0')
+          data.returnNumber = `RET-${formattedDate}-${seq}`
 
-          // ✅ Fetch branch ID properly
-          let branchId: string | undefined
+          // Auto-set company from branch
           if (data.branch) {
+            let branchId: string
             if (typeof data.branch === 'string') {
               branchId = data.branch
             } else if (
@@ -74,81 +80,41 @@ const ReturnOrders: CollectionConfig = {
               typeof data.branch.id === 'string'
             ) {
               branchId = data.branch.id
+            } else {
+              return data // Skip if invalid
             }
-          }
-
-          // ✅ Get branch details
-          let branch: any
-          if (branchId) {
-            branch = await req.payload.findByID({
+            const branch = await req.payload.findByID({
               collection: 'branches',
               id: branchId,
               depth: 0,
             })
-          }
-
-          // ✅ Auto-set company from branch
-          if (branch?.company) {
-            let companyToSet = branch.company
-            if (
-              typeof companyToSet === 'object' &&
-              companyToSet !== null &&
-              'id' in companyToSet &&
-              typeof companyToSet.id === 'string'
-            ) {
-              companyToSet = companyToSet.id
-            }
-            if (typeof companyToSet === 'string') {
-              data.company = companyToSet
+            if (branch?.company) {
+              let companyToSet = branch.company
+              if (
+                typeof companyToSet === 'object' &&
+                companyToSet !== null &&
+                'id' in companyToSet &&
+                typeof companyToSet.id === 'string'
+              ) {
+                companyToSet = companyToSet.id
+              }
+              if (typeof companyToSet === 'string') {
+                data.company = companyToSet
+              }
             }
           }
-
-          // ✅ Generate sequential return numbers per branch per day
-          const startOfDay = new Date(date)
-          startOfDay.setHours(0, 0, 0, 0)
-          const endOfDay = new Date(date)
-          endOfDay.setHours(23, 59, 59, 999)
-
-          const latest = (await req.payload.find({
-            collection: 'return-orders', // ✅ correct slug
-            where: {
-              branch: { equals: branchId },
-              createdAt: {
-                greater_than_equal: startOfDay,
-                less_than: endOfDay,
-              },
-            },
-            sort: '-createdAt',
-            limit: 1,
-          })) as any // ✅ Fix TypeScript
-
-          let nextNumber = 1
-          if (latest.docs.length > 0) {
-            const lastReturn = latest.docs[0]
-            const match = lastReturn.returnNumber?.match(/-(\d+)$/)
-            if (match) nextNumber = parseInt(match[1], 10) + 1
-          }
-
-          // ✅ Generate code like RET-20251101-BRANCHNAME-001
-          const branchPart = branch?.name?.replace(/\s+/g, '').toUpperCase().slice(0, 6) || 'BRANCH'
-          data.returnNumber = `RET-${formattedDate}-${branchPart}-${nextNumber
-            .toString()
-            .padStart(3, '0')}`
         }
-
-        // ✅ Recalculate total
+        // Recalculate total if items change
         if (data.items) {
           data.totalAmount = data.items.reduce(
             (sum: number, item: any) => sum + (item.subtotal || 0),
             0,
           )
         }
-
         return data
       },
     ],
   },
-
   fields: [
     {
       name: 'returnNumber',
@@ -162,35 +128,41 @@ const ReturnOrders: CollectionConfig = {
       type: 'array',
       required: true,
       minRows: 1,
+      admin: { readOnly: true },
       fields: [
         {
           name: 'product',
           type: 'relationship',
           relationTo: 'products',
           required: true,
+          admin: { readOnly: true },
         },
         {
           name: 'name',
           type: 'text',
           required: true,
+          admin: { readOnly: true },
         },
         {
           name: 'quantity',
           type: 'number',
           required: true,
           min: 1,
+          admin: { readOnly: true },
         },
         {
           name: 'unitPrice',
           type: 'number',
           required: true,
           min: 0,
+          admin: { readOnly: true },
         },
         {
           name: 'subtotal',
           type: 'number',
           required: true,
           min: 0,
+          admin: { readOnly: true },
         },
       ],
     },
@@ -206,6 +178,7 @@ const ReturnOrders: CollectionConfig = {
       type: 'relationship',
       relationTo: 'branches',
       required: true,
+      admin: { readOnly: true },
     },
     {
       name: 'createdBy',
@@ -238,7 +211,6 @@ const ReturnOrders: CollectionConfig = {
       type: 'textarea',
     },
   ],
-
   timestamps: true,
 }
 
