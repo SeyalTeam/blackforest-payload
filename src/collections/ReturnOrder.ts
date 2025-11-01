@@ -190,6 +190,7 @@ const ReturnOrders: CollectionConfig = {
       type: 'relationship',
       relationTo: 'branches',
       required: true,
+      unique: false, // Explicitly set to false to avoid uniqueness enforcement
       admin: { readOnly: true },
     },
     {
