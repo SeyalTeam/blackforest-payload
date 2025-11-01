@@ -5,7 +5,6 @@ import dayjs from 'dayjs'
 import timezone from 'dayjs/plugin/timezone' // Assume installed: npm i dayjs @types/dayjs
 
 dayjs.extend(timezone)
-dayjs.tz.setDefault('Asia/Kolkata') // Set default timezone to IST
 
 const ReturnOrders: CollectionConfig = {
   slug: 'return-orders',
@@ -78,7 +77,7 @@ const ReturnOrders: CollectionConfig = {
           }
 
           // Auto-generate return number with timezone-aware date
-          const date = dayjs.tz() // Uses default timezone (IST)
+          const date = dayjs().tz('Asia/Kolkata')
           const formattedDate = date.format('YYYYMMDD')
           const { totalDocs: existingCount } = await req.payload.count({
             collection: 'return-orders',
