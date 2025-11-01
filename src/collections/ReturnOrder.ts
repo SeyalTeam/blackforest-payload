@@ -1,6 +1,13 @@
 // src/collections/ReturnOrders.ts
 import { CollectionConfig } from 'payload'
 import type { Where } from 'payload' // Import Where type
+import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc' // Required for timezone
+import timezone from 'dayjs/plugin/timezone' // For IST support
+
+dayjs.extend(utc)
+dayjs.extend(timezone)
+dayjs.tz.setDefault('Asia/Kolkata') // Set default to IST
 
 const ReturnOrders: CollectionConfig = {
   slug: 'return-orders',
@@ -59,49 +66,56 @@ const ReturnOrders: CollectionConfig = {
     beforeChange: [
       async ({ data, req, operation }) => {
         if (operation === 'create') {
-          // Auto-generate return number, e.g., RET-YYYYMMDD-SEQ
-          const date = new Date()
-          const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, '')
-          const existingCount = await req.payload.db.collections['return-orders'].countDocuments({
-            returnNumber: { $regex: `^RET-${formattedDate}-` },
-          })
-          const seq = (existingCount + 1).toString().padStart(3, '0')
-          data.returnNumber = `RET-${formattedDate}-${seq}`
-
-          // Auto-set company from branch
-          if (data.branch) {
-            let branchId: string
-            if (typeof data.branch === 'string') {
-              branchId = data.branch
-            } else if (
-              typeof data.branch === 'object' &&
-              data.branch !== null &&
-              'id' in data.branch &&
-              typeof data.branch.id === 'string'
-            ) {
-              branchId = data.branch.id
-            } else {
-              return data // Skip if invalid
-            }
-            const branch = await req.payload.findByID({
-              collection: 'branches',
-              id: branchId,
-              depth: 0,
+          try {
+            // Auto-generate return number, e.g., RET-YYYYMMDD-SEQ in IST
+            const date = dayjs()
+            const formattedDate = date.format('YYYYMMDD')
+            const existingCount = await req.payload.db.collections['return-orders'].countDocuments({
+              returnNumber: { $regex: `^RET-${formattedDate}-` },
             })
-            if (branch?.company) {
-              let companyToSet = branch.company
-              if (
-                typeof companyToSet === 'object' &&
-                companyToSet !== null &&
-                'id' in companyToSet &&
-                typeof companyToSet.id === 'string'
+            const seq = (existingCount + 1).toString().padStart(3, '0')
+            data.returnNumber = `RET-${formattedDate}-${seq}`
+
+            // Auto-set company from branch
+            if (data.branch) {
+              let branchId: string
+              if (typeof data.branch === 'string') {
+                branchId = data.branch
+              } else if (
+                typeof data.branch === 'object' &&
+                data.branch !== null &&
+                'id' in data.branch &&
+                typeof data.branch.id === 'string'
               ) {
-                companyToSet = companyToSet.id
+                branchId = data.branch.id
+              } else {
+                return data // Skip if invalid
               }
-              if (typeof companyToSet === 'string') {
-                data.company = companyToSet
+              const branch = await req.payload.findByID({
+                collection: 'branches',
+                id: branchId,
+                depth: 0,
+              })
+              if (branch?.company) {
+                let companyToSet = branch.company
+                if (
+                  typeof companyToSet === 'object' &&
+                  companyToSet !== null &&
+                  'id' in companyToSet &&
+                  typeof companyToSet.id === 'string'
+                ) {
+                  companyToSet = companyToSet.id
+                }
+                if (typeof companyToSet === 'string') {
+                  data.company = companyToSet
+                }
               }
             }
+          } catch (err: unknown) {
+            // Fix: Catch as unknown, then type-guard
+            const error = err as Error // Cast to Error for .message access
+            req.payload.logger.error(`Error in return order hook: ${error.message}`)
+            throw error // This will cause 400 with message
           }
         }
         // Recalculate total if items change
