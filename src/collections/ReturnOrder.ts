@@ -83,7 +83,12 @@ const ReturnOrders: CollectionConfig = {
           const formattedDate = date.format('YYYYMMDD')
           const { totalDocs: existingCount } = await req.payload.count({
             collection: 'return-orders',
-            where: { returnNumber: { like: `RET-${formattedDate}-%` } },
+            where: {
+              returnNumber: {
+                greater_than_equal: `RET-${formattedDate}-000`,
+                less_than_equal: `RET-${formattedDate}-999`,
+              },
+            },
           })
           const seq = (existingCount + 1).toString().padStart(3, '0')
           data.returnNumber = `RET-${formattedDate}-${seq}`
