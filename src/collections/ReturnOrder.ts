@@ -1,6 +1,5 @@
-// src/collections/ReturnOrders.ts
 import { CollectionConfig } from 'payload'
-import type { Where } from 'payload' // Import Where type
+import type { Where } from 'payload'
 
 const ReturnOrders: CollectionConfig = {
   slug: 'return-orders',
@@ -15,18 +14,16 @@ const ReturnOrders: CollectionConfig = {
         const company = user.company
         if (!company) return false
         let companyId: string
-        if (typeof company === 'string') {
-          companyId = company
-        } else if (
+        if (typeof company === 'string') companyId = company
+        else if (
           typeof company === 'object' &&
           company !== null &&
           'id' in company &&
           typeof company.id === 'string'
-        ) {
+        )
           companyId = company.id
-        } else {
-          return false
-        }
+        else return false
+
         return { company: { equals: companyId } } as Where
       }
 
@@ -34,18 +31,16 @@ const ReturnOrders: CollectionConfig = {
         const branch = user.branch
         if (!branch) return false
         let branchId: string
-        if (typeof branch === 'string') {
-          branchId = branch
-        } else if (
+        if (typeof branch === 'string') branchId = branch
+        else if (
           typeof branch === 'object' &&
           branch !== null &&
           'id' in branch &&
           typeof branch.id === 'string'
-        ) {
+        )
           branchId = branch.id
-        } else {
-          return false
-        }
+        else return false
+
         return { branch: { equals: branchId } } as Where
       }
 
@@ -55,39 +50,30 @@ const ReturnOrders: CollectionConfig = {
     update: ({ req: { user } }) => user?.role === 'superadmin',
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
+
   hooks: {
     beforeChange: [
       async ({ data, req, operation }) => {
         if (operation === 'create') {
-          // Auto-generate return number, e.g., RET-YYYYMMDD-SEQ
+          // === AUTO-GENERATE UNIQUE RETURN NUMBER ===
           const date = new Date()
           const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, '')
-          const existingCount = await req.payload.db.collections['return-orders'].countDocuments({
-            returnNumber: { $regex: `^RET-${formattedDate}-` },
-          })
-          const seq = (existingCount + 1).toString().padStart(3, '0')
-          data.returnNumber = `RET-${formattedDate}-${seq}`
 
-          // Auto-set company from branch
+          // Fetch branch info
+          let branchCode = 'BRANCH'
           if (data.branch) {
-            let branchId: string
-            if (typeof data.branch === 'string') {
-              branchId = data.branch
-            } else if (
-              typeof data.branch === 'object' &&
-              data.branch !== null &&
-              'id' in data.branch &&
-              typeof data.branch.id === 'string'
-            ) {
-              branchId = data.branch.id
-            } else {
-              return data // Skip if invalid
-            }
             const branch = await req.payload.findByID({
               collection: 'branches',
-              id: branchId,
+              id: typeof data.branch === 'string' ? data.branch : data.branch.id,
               depth: 0,
             })
+
+            if (branch && branch.name) {
+              // use branch name (shortened) for unique prefix
+              branchCode = branch.name.replace(/\s+/g, '').toUpperCase().slice(0, 6)
+            }
+
+            // Auto-set company from branch
             if (branch?.company) {
               let companyToSet = branch.company
               if (
@@ -103,22 +89,36 @@ const ReturnOrders: CollectionConfig = {
               }
             }
           }
+
+          // Count existing returns for same date + branch
+          const existingCount = await req.payload.db.collections['return-orders'].countDocuments({
+            returnNumber: { $regex: `^RET-${formattedDate}-${branchCode}-` },
+          })
+
+          const seq = (existingCount + 1).toString().padStart(3, '0')
+
+          // Final unique return number
+          data.returnNumber = `RET-${formattedDate}-${branchCode}-${seq}`
         }
-        // Recalculate total if items change
+
+        // === Recalculate total if items updated ===
         if (data.items) {
           data.totalAmount = data.items.reduce(
             (sum: number, item: any) => sum + (item.subtotal || 0),
             0,
           )
         }
+
         return data
       },
     ],
   },
+
   fields: [
     {
       name: 'returnNumber',
       type: 'text',
+      unique: true,
       required: true,
       admin: { readOnly: true },
     },
@@ -210,6 +210,7 @@ const ReturnOrders: CollectionConfig = {
       type: 'textarea',
     },
   ],
+
   timestamps: true,
 }
 
