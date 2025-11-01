@@ -65,6 +65,7 @@ const ReturnOrders: CollectionConfig = {
 
           // Fetch branch to get name for prefix
           let prefix = 'RET' // Fallback
+          let branchDoc: any = null
           if (data.branch) {
             let branchId: string | undefined
             if (typeof data.branch === 'string') {
@@ -78,13 +79,17 @@ const ReturnOrders: CollectionConfig = {
               branchId = data.branch.id
             }
             if (branchId) {
-              const branch = await req.payload.findByID({
+              branchDoc = await req.payload.findByID({
                 collection: 'branches',
                 id: branchId,
                 depth: 0,
               })
-              if (branch?.name && typeof branch.name === 'string' && branch.name.length >= 3) {
-                prefix = branch.name.substring(0, 3).toUpperCase()
+              if (
+                branchDoc?.name &&
+                typeof branchDoc.name === 'string' &&
+                branchDoc.name.length >= 3
+              ) {
+                prefix = branchDoc.name.substring(0, 3).toUpperCase()
               }
             }
           }
@@ -95,40 +100,19 @@ const ReturnOrders: CollectionConfig = {
           const seq = (existingCount + 1).toString().padStart(3, '0')
           data.returnNumber = `${prefix}-${formattedDate}-${seq}`
 
-          // Auto-set company from branch
-          if (data.branch) {
-            let branchId: string | undefined
-            if (typeof data.branch === 'string') {
-              branchId = data.branch
-            } else if (
-              typeof data.branch === 'object' &&
-              data.branch !== null &&
-              'id' in data.branch &&
-              typeof data.branch.id === 'string'
+          // Auto-set company from branch (using cached branchDoc if available)
+          if (branchDoc?.company) {
+            let companyToSet = branchDoc.company
+            if (
+              typeof companyToSet === 'object' &&
+              companyToSet !== null &&
+              'id' in companyToSet &&
+              typeof companyToSet.id === 'string'
             ) {
-              branchId = data.branch.id
+              companyToSet = companyToSet.id
             }
-            if (!branchId) {
-              return data // Skip if invalid
-            }
-            const branch = await req.payload.findByID({
-              collection: 'branches',
-              id: branchId,
-              depth: 0,
-            })
-            if (branch?.company) {
-              let companyToSet = branch.company
-              if (
-                typeof companyToSet === 'object' &&
-                companyToSet !== null &&
-                'id' in companyToSet &&
-                typeof companyToSet.id === 'string'
-              ) {
-                companyToSet = companyToSet.id
-              }
-              if (typeof companyToSet === 'string') {
-                data.company = companyToSet
-              }
+            if (typeof companyToSet === 'string') {
+              data.company = companyToSet
             }
           }
         }
