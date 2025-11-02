@@ -68,14 +68,16 @@ const ReturnOrders: CollectionConfig = {
         if (operation === 'create') {
           if (!req.user) throw new Error('Unauthorized')
 
-          // Temporarily disable branch validation to bypass mismatch error
-          // if (['branch', 'waiter'].includes(req.user.role)) {
-          //   const userBranchId = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
-          //   const dataBranchId = typeof data.branch === 'string' ? data.branch : data?.branch?.id
-          //   if (!userBranchId || userBranchId !== dataBranchId) {
-          //     throw new Error('Unauthorized branch')
-          //   }
-          // }
+          // Validate branch matches user's branch for branch/waiter roles
+          if (['branch', 'waiter'].includes(req.user.role)) {
+            const userBranchId =
+              typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id || null
+            const dataBranchId =
+              typeof data.branch === 'string' ? data.branch : data?.branch?.id || null
+            if (userBranchId && dataBranchId && userBranchId !== dataBranchId) {
+              throw new Error('Unauthorized branch')
+            }
+          }
 
           // Auto-generate return number with timezone-aware date
           const date = dayjs().tz('Asia/Kolkata')
@@ -167,6 +169,11 @@ const ReturnOrders: CollectionConfig = {
 
             // Recompute subtotal
             item.subtotal = (item.quantity || 0) * item.unitPrice
+
+            // Optional: Validate proofPhoto if required (e.g., for qty > 1)
+            // if (item.quantity > 1 && !item.proofPhoto) {
+            //   throw new Error(`Proof photo required for ${item.name} with quantity > 1`)
+            // }
           }
 
           // Recompute totalAmount
@@ -225,6 +232,12 @@ const ReturnOrders: CollectionConfig = {
           required: true,
           min: 0,
           admin: { readOnly: true },
+        },
+        {
+          name: 'proofPhoto',
+          type: 'relationship',
+          relationTo: 'media',
+          // required: true, // Uncomment if mandatory for all; else use hook for conditional
         },
       ],
     },
