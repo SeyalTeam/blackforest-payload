@@ -68,14 +68,15 @@ const ReturnOrders: CollectionConfig = {
         if (operation === 'create') {
           if (!req.user) throw new Error('Unauthorized')
 
-          // Temporarily disable branch validation to bypass mismatch error
-          // if (['branch', 'waiter'].includes(req.user.role)) {
-          //   const userBranchId = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
-          //   const dataBranchId = typeof data.branch === 'string' ? data.branch : data?.branch?.id
-          //   if (!userBranchId || userBranchId !== dataBranchId) {
-          //     throw new Error('Unauthorized branch')
-          //   }
-          // }
+          if (['branch', 'waiter'].includes(req.user.role)) {
+            const userBranchId =
+              typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id || null
+            if (userBranchId) {
+              data.branch = userBranchId // Auto-set to user's branch, overriding submitted value
+            } else {
+              throw new Error('User has no assigned branch')
+            }
+          }
 
           // Auto-generate return number with timezone-aware date
           const date = dayjs().tz('Asia/Kolkata')
