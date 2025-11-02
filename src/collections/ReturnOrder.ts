@@ -167,6 +167,11 @@ const ReturnOrders: CollectionConfig = {
 
             // Recompute subtotal
             item.subtotal = (item.quantity || 0) * item.unitPrice
+
+            // Optional: Validate proofPhoto if required (e.g., for qty > 1)
+            // if (item.quantity > 1 && !item.proofPhoto) {
+            //   throw new Error(`Proof photo required for ${item.name} with quantity > 1`)
+            // }
           }
 
           // Recompute totalAmount
@@ -225,6 +230,12 @@ const ReturnOrders: CollectionConfig = {
           required: true,
           min: 0,
           admin: { readOnly: true },
+        },
+        {
+          name: 'proofPhoto',
+          type: 'relationship',
+          relationTo: 'media',
+          // required: true, // Uncomment if mandatory for all; else use hook for conditional
         },
       ],
     },
