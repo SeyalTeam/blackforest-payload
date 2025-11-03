@@ -8,49 +8,7 @@ const Billings: CollectionConfig = {
     useAsTitle: 'invoiceNumber',
   },
   access: {
-    read: ({ req: { user } }) => {
-      if (user?.role === 'superadmin') return true
-
-      if (user?.role === 'company') {
-        const company = user.company
-        if (!company) return false
-        let companyId: string
-        if (typeof company === 'string') {
-          companyId = company
-        } else if (
-          typeof company === 'object' &&
-          company !== null &&
-          'id' in company &&
-          typeof company.id === 'string'
-        ) {
-          companyId = company.id
-        } else {
-          return false
-        }
-        return { company: { equals: companyId } } as Where
-      }
-
-      if (user?.role === 'branch' || user?.role === 'waiter') {
-        const branch = user.branch
-        if (!branch) return false
-        let branchId: string
-        if (typeof branch === 'string') {
-          branchId = branch
-        } else if (
-          typeof branch === 'object' &&
-          branch !== null &&
-          'id' in branch &&
-          typeof branch.id === 'string'
-        ) {
-          branchId = branch.id
-        } else {
-          return false
-        }
-        return { branch: { equals: branchId } } as Where
-      }
-
-      return false
-    },
+    read: () => true,
     create: ({ req: { user } }) => user?.role != null && ['branch', 'waiter'].includes(user.role),
     update: ({ req: { user } }) => user?.role === 'superadmin',
     delete: ({ req: { user } }) => user?.role === 'superadmin',
