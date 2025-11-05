@@ -2,12 +2,6 @@ import { CollectionConfig } from 'payload'
 
 const Employees: CollectionConfig = {
   slug: 'employees',
-  auth: {
-    useAPIKey: true, // Optional, if needed for API access
-    verify: false, // Disable email verification if not needed
-    maxLoginAttempts: 5,
-    lockTime: 600 * 1000, // 10 minutes lock on failed attempts
-  },
   admin: {
     useAsTitle: 'name',
   },
@@ -35,22 +29,6 @@ const Employees: CollectionConfig = {
     },
   },
   fields: [
-    // Email is required for auth, but since we want phone-based, customize
-    {
-      name: 'phoneNumber',
-      type: 'text',
-      unique: true,
-      required: true,
-      label: 'Phone Number (used for login)',
-      hooks: {
-        beforeValidate: [
-          ({ value }) => {
-            // Normalize phone number if needed
-            return value?.replace(/\D/g, '')
-          },
-        ],
-      },
-    },
     {
       type: 'row',
       fields: [
@@ -68,8 +46,13 @@ const Employees: CollectionConfig = {
       ],
     },
     {
-      name: 'email',
+      name: 'phoneNumber',
       type: 'text',
+      required: true,
+    },
+    {
+      name: 'email',
+      type: 'email',
       required: false,
     },
     {
@@ -128,7 +111,6 @@ const Employees: CollectionConfig = {
   hooks: {
     beforeChange: [
       async ({ operation, data, req }) => {
-        // Custom logic if needed
         return data
       },
     ],
