@@ -218,7 +218,7 @@ export interface Employee {
  */
 export interface Media {
   id: string;
-  alt: string;
+  alt?: string | null;
   prefix?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -390,6 +390,7 @@ export interface ReturnOrder {
     quantity: number;
     unitPrice: number;
     subtotal: number;
+    proofPhoto?: (string | null) | Media;
     id?: string | null;
   }[];
   totalAmount: number;
@@ -751,6 +752,7 @@ export interface ReturnOrdersSelect<T extends boolean = true> {
         quantity?: T;
         unitPrice?: T;
         subtotal?: T;
+        proofPhoto?: T;
         id?: T;
       };
   totalAmount?: T;

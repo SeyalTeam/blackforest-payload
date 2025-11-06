@@ -17,16 +17,11 @@ const Billings: CollectionConfig = {
     beforeChange: [
       async ({ data, req, operation }) => {
         if (operation === 'create') {
-          // Auto-generate invoice number, e.g., INV-YYYYMMDD-SEQ
+          // Auto-generate invoice number with branch prefix, e.g., CHI-YYYYMMDD-SEQ
           const date = new Date()
           const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, '')
-          const existingCount = await req.payload.db.collections.billings.countDocuments({
-            invoiceNumber: { $regex: `^INV-${formattedDate}-` },
-          })
-          const seq = (existingCount + 1).toString().padStart(3, '0')
-          data.invoiceNumber = `INV-${formattedDate}-${seq}`
 
-          // Auto-set company from branch
+          // Get branch details
           if (data.branch) {
             let branchId: string
             if (typeof data.branch === 'string') {
@@ -46,6 +41,16 @@ const Billings: CollectionConfig = {
               id: branchId,
               depth: 0,
             })
+            if (branch?.name) {
+              const prefix = branch.name.substring(0, 3).toUpperCase()
+              // Count existing for this prefix and date
+              const existingCount = await req.payload.db.collections.billings.countDocuments({
+                invoiceNumber: { $regex: `^${prefix}-${formattedDate}-` },
+              })
+              const seq = (existingCount + 1).toString().padStart(3, '0')
+              data.invoiceNumber = `${prefix}-${formattedDate}-${seq}`
+            }
+            // Auto-set company from branch (existing logic)
             if (branch?.company) {
               let companyToSet = branch.company
               if (
