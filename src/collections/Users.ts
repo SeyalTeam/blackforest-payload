@@ -3,21 +3,11 @@ import type { CollectionConfig } from 'payload'
 export const Users: CollectionConfig = {
   slug: 'users',
   admin: {
-    useAsTitle: 'phone',
+    useAsTitle: 'email',
   },
   auth: true,
   fields: [
-    // Email added by default, but we'll hide it and use phone as identifier via hooks
-    {
-      name: 'phone',
-      type: 'text',
-      required: true,
-      unique: true,
-      label: 'Phone Number',
-      admin: {
-        placeholder: 'Enter phone number (e.g., +1234567890)',
-      },
-    },
+    // Email added by default
     {
       name: 'role',
       type: 'select',
@@ -109,8 +99,6 @@ export const Users: CollectionConfig = {
           if (['waiter', 'cashier'].includes(data.role) && !data.employee) {
             throw new Error('Employee is required for waiter or cashier role users')
           }
-          // Set email to phone for auth compatibility
-          data.email = data.phone
         }
         return data
       },
