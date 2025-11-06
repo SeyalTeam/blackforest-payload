@@ -9,6 +9,15 @@ export const Users: CollectionConfig = {
   fields: [
     // Email added by default
     {
+      name: 'phone',
+      type: 'text',
+      required: false, // Set to true if you want it mandatory during creation
+      label: 'Phone Number',
+      admin: {
+        placeholder: 'Enter phone number (e.g., +1234567890)',
+      },
+    },
+    {
       name: 'role',
       type: 'select',
       options: [

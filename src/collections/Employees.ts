@@ -2,7 +2,6 @@ import { CollectionConfig } from 'payload'
 
 const Employees: CollectionConfig = {
   slug: 'employees',
-  auth: true, // Enable authentication
   admin: {
     useAsTitle: 'name',
   },
@@ -50,7 +49,6 @@ const Employees: CollectionConfig = {
       name: 'phoneNumber',
       type: 'text',
       required: true,
-      unique: true, // Ensure unique for auth
     },
     {
       name: 'email',
