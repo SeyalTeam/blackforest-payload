@@ -28,7 +28,7 @@ export const Branches: CollectionConfig = {
       required: true,
     },
     {
-      name: 'phone',
+      name: 'mobile',
       type: 'text',
       required: true,
     },
