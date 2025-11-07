@@ -2,16 +2,21 @@ import { CollectionConfig } from 'payload'
 
 const ClosingEntries: CollectionConfig = {
   slug: 'closing-entries',
+
   admin: {
     useAsTitle: 'date',
+    description:
+      'Multiple daily closing entries allowed for all branches. Auto-calculates totals, cash, and net values.',
   },
+
+  // ✅ Public access (no login required)
   access: {
-    // ✅ PUBLIC ACCESS — Anyone can read and create
     read: () => true,
     create: () => true,
     update: () => true,
     delete: () => true,
   },
+
   fields: [
     {
       name: 'date',
@@ -100,20 +105,26 @@ const ClosingEntries: CollectionConfig = {
       name: 'branch',
       type: 'relationship',
       relationTo: 'branches',
-      required: false, // made optional for public access
+      required: false, // optional for public users
     },
   ],
+
   hooks: {
+    /**
+     * ✅ beforeChange:
+     * - Assign branch automatically for branch users
+     * - Auto-calculate cash, totals, and net
+     */
     beforeChange: [
       async ({ req, operation, data }) => {
         const { user } = req
 
-        // Auto-assign branch if branch user logged in
+        // Auto-assign branch if branch user is logged in
         if (operation === 'create' && user?.role === 'branch' && user?.branch) {
           data.branch = typeof user.branch === 'object' ? user.branch.id : user.branch
         }
 
-        // Calculate cash from denominations
+        // Calculate total cash from denominations
         const denoms = data.denominations || {}
         data.cash =
           (denoms.count2000 || 0) * 2000 +
@@ -127,13 +138,18 @@ const ClosingEntries: CollectionConfig = {
         // Calculate totals
         data.totalSales =
           (data.systemSales || 0) + (data.manualSales || 0) + (data.onlineSales || 0)
+
         data.totalPayments = (data.creditCard || 0) + (data.upi || 0) + (data.cash || 0)
+
         data.net = data.totalSales - (data.expenses || 0)
 
         return data
       },
     ],
   },
+
+  // Disable versioning — prevent Payload soft-delete conflicts
+  versions: false,
 }
 
 export default ClosingEntries
