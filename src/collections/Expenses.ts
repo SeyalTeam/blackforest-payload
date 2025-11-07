@@ -1,4 +1,4 @@
-import { CollectionConfig, Where } from 'payload'
+import { CollectionConfig } from 'payload'
 
 const Expenses: CollectionConfig = {
   slug: 'expenses',
@@ -6,57 +6,28 @@ const Expenses: CollectionConfig = {
     singular: 'Expense',
     plural: 'Expenses',
   },
+
   admin: {
     useAsTitle: 'branch',
     defaultColumns: ['branch', 'total', 'createdAt'],
   },
 
+  // ✅ Public access (anyone can read/create/update/delete)
   access: {
-    read: ({ req: { user } }) => {
-      if (user?.role === 'superadmin') return true
-      if (user?.role === 'company') {
-        if (!user?.company) return false
-        const companyId = typeof user.company === 'object' ? user.company.id : user.company
-        return {
-          'branch.company': { equals: companyId },
-        } as Where
-      }
-      if (user?.role === 'branch') {
-        if (!user?.branch) return false
-        const branchId = typeof user.branch === 'object' ? user.branch.id : user.branch
-        return { branch: { equals: branchId } } as Where
-      }
-      return false
-    },
-    create: ({ req: { user } }) => {
-      if (user?.role === 'superadmin') return true
-      if (user?.role === 'branch') return true
-      return false
-    },
-    update: ({ req: { user } }) => user?.role === 'superadmin',
-    delete: ({ req: { user } }) => user?.role === 'superadmin',
+    read: () => true,
+    create: () => true,
+    update: () => true,
+    delete: () => true,
   },
 
   fields: [
-    // ✅ Proper relationship to Branch collection
+    // ✅ Proper relationship to Branch collection (shows branch name)
     {
       name: 'branch',
       type: 'relationship',
       relationTo: 'branches',
       required: true,
       label: 'Branch',
-      // Auto-assign branch for branch users
-      hooks: {
-        beforeChange: [
-          async ({ req, operation, value }) => {
-            const { user } = req
-            if (operation === 'create' && user?.role === 'branch' && user?.branch) {
-              return typeof user.branch === 'object' ? user.branch.id : user.branch
-            }
-            return value
-          },
-        ],
-      },
       admin: {
         description: 'Select the branch this expense belongs to',
       },
@@ -90,38 +61,56 @@ const Expenses: CollectionConfig = {
       ],
     },
 
-    // ✅ Total amount
+    // ✅ Total amount (auto-calculated in beforeChange hook)
     {
       name: 'total',
       type: 'number',
       required: true,
       label: 'Total Expense',
       min: 0,
+      admin: {
+        readOnly: true,
+      },
     },
 
-    // ✅ Auto-date field for tracking
+    // ✅ Optional date (auto default)
     {
       name: 'date',
       type: 'date',
       required: true,
+      defaultValue: () => new Date().toISOString(),
       admin: {
         date: {
           pickerAppearance: 'dayOnly',
           displayFormat: 'yyyy-MM-dd',
         },
       },
-      defaultValue: () => new Date().toISOString(),
     },
 
-    // ✅ Creator tracking
+    // ✅ Created By (not required in public mode)
     {
       name: 'createdBy',
-      type: 'relationship',
-      relationTo: 'users',
-      label: 'Created By',
+      type: 'text',
+      label: 'Created By (Optional)',
       admin: { position: 'sidebar' },
     },
   ],
+
+  // ✅ Automatically calculate total before save
+  hooks: {
+    beforeChange: [
+      async ({ data }) => {
+        if (data.details && Array.isArray(data.details)) {
+          const total = data.details.reduce((sum: number, item: any) => {
+            const amount = typeof item.amount === 'number' ? item.amount : 0
+            return sum + amount
+          }, 0)
+          data.total = total
+        }
+        return data
+      },
+    ],
+  },
 
   timestamps: true,
 }
