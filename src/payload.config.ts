@@ -20,6 +20,7 @@ import Employees from './collections/Employees'
 import Billings from './collections/Billings'
 import ReturnOrder from './collections/ReturnOrder'
 import ClosingEntries from './collections/ClosingEntries'
+import Expenses from './collections/Expenses'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -47,6 +48,7 @@ export default buildConfig({
     Billings,
     ReturnOrder,
     ClosingEntries,
+    Expenses,
   ],
 
   editor: lexicalEditor(),
