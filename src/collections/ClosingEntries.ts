@@ -6,10 +6,10 @@ const ClosingEntries: CollectionConfig = {
   admin: {
     useAsTitle: 'date',
     description:
-      'Multiple daily closing entries allowed for all branches. Auto-calculates totals, cash, and net values.',
+      'Multiple daily closing entries allowed for all branches. Automatically calculates totals, cash, and net values.',
   },
 
-  // ✅ Public access (no login required)
+  // ✅ Make this collection fully public
   access: {
     read: () => true,
     create: () => true,
@@ -105,26 +105,24 @@ const ClosingEntries: CollectionConfig = {
       name: 'branch',
       type: 'relationship',
       relationTo: 'branches',
-      required: false, // optional for public users
+      required: false, // ✅ optional for public access
     },
   ],
 
   hooks: {
-    /**
-     * ✅ beforeChange:
-     * - Assign branch automatically for branch users
-     * - Auto-calculate cash, totals, and net
-     */
     beforeChange: [
       async ({ req, operation, data }) => {
         const { user } = req
 
-        // Auto-assign branch if branch user is logged in
+        // ✅ Assign branch if a branch user is logged in
         if (operation === 'create' && user?.role === 'branch' && user?.branch) {
           data.branch = typeof user.branch === 'object' ? user.branch.id : user.branch
+        } else if (!data.branch) {
+          // ✅ Allow public users with no branch
+          data.branch = null
         }
 
-        // Calculate total cash from denominations
+        // ✅ Calculate cash from denominations
         const denoms = data.denominations || {}
         data.cash =
           (denoms.count2000 || 0) * 2000 +
@@ -135,20 +133,23 @@ const ClosingEntries: CollectionConfig = {
           (denoms.count10 || 0) * 10 +
           (denoms.count5 || 0) * 5
 
-        // Calculate totals
+        // ✅ Calculate total sales
         data.totalSales =
           (data.systemSales || 0) + (data.manualSales || 0) + (data.onlineSales || 0)
 
+        // ✅ Calculate total payments
         data.totalPayments = (data.creditCard || 0) + (data.upi || 0) + (data.cash || 0)
 
+        // ✅ Calculate net profit
         data.net = data.totalSales - (data.expenses || 0)
 
+        // ✅ Always return data so Payload saves it
         return data
       },
     ],
   },
 
-  // Disable versioning — prevent Payload soft-delete conflicts
+  // ✅ Disable versioning (no drafts or soft deletes)
   versions: false,
 }
 
