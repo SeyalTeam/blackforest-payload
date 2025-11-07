@@ -18,7 +18,8 @@ import { Media } from './collections/Media'
 import Dealers from './collections/Dealers'
 import Employees from './collections/Employees'
 import Billings from './collections/Billings'
-import ReturnOrder from './collections/ReturnOrder' // ✅ Your new file
+import ReturnOrder from './collections/ReturnOrder'
+import ClosingEntries from './collections/ClosingEntries'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -44,7 +45,8 @@ export default buildConfig({
     Dealers,
     Employees,
     Billings,
-    ReturnOrder, // 👈 Add this
+    ReturnOrder,
+    ClosingEntries,
   ],
 
   editor: lexicalEditor(),
