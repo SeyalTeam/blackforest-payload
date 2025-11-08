@@ -78,6 +78,8 @@ export interface Config {
     employees: Employee;
     billings: Billing;
     'return-orders': ReturnOrder;
+    'closing-entries': ClosingEntry;
+    expenses: Expense;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -95,6 +97,8 @@ export interface Config {
     employees: EmployeesSelect<false> | EmployeesSelect<true>;
     billings: BillingsSelect<false> | BillingsSelect<true>;
     'return-orders': ReturnOrdersSelect<false> | ReturnOrdersSelect<true>;
+    'closing-entries': ClosingEntriesSelect<false> | ClosingEntriesSelect<true>;
+    expenses: ExpensesSelect<false> | ExpensesSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -403,6 +407,57 @@ export interface ReturnOrder {
   createdAt: string;
 }
 /**
+ * Multiple daily closing entries allowed for all branches. Automatically calculates totals, cash, and net values.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "closing-entries".
+ */
+export interface ClosingEntry {
+  id: string;
+  date: string;
+  systemSales: number;
+  manualSales: number;
+  onlineSales: number;
+  expenses: number;
+  creditCard: number;
+  upi: number;
+  cash: number;
+  denominations?: {
+    count2000?: number | null;
+    count500?: number | null;
+    count200?: number | null;
+    count100?: number | null;
+    count50?: number | null;
+    count10?: number | null;
+    count5?: number | null;
+  };
+  totalSales?: number | null;
+  totalPayments?: number | null;
+  net?: number | null;
+  branch?: (string | null) | Branch;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "expenses".
+ */
+export interface Expense {
+  id: string;
+  invoiceNumber: string;
+  branch: string | Branch;
+  details: {
+    source: 'EB' | 'Water Bill' | 'Rent' | 'Maintenance' | 'Supplies' | 'Other';
+    reason: string;
+    amount: number;
+    id?: string | null;
+  }[];
+  total: number;
+  date: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
@@ -452,6 +507,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'return-orders';
         value: string | ReturnOrder;
+      } | null)
+    | ({
+        relationTo: 'closing-entries';
+        value: string | ClosingEntry;
+      } | null)
+    | ({
+        relationTo: 'expenses';
+        value: string | Expense;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -761,6 +824,57 @@ export interface ReturnOrdersSelect<T extends boolean = true> {
   company?: T;
   status?: T;
   notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "closing-entries_select".
+ */
+export interface ClosingEntriesSelect<T extends boolean = true> {
+  date?: T;
+  systemSales?: T;
+  manualSales?: T;
+  onlineSales?: T;
+  expenses?: T;
+  creditCard?: T;
+  upi?: T;
+  cash?: T;
+  denominations?:
+    | T
+    | {
+        count2000?: T;
+        count500?: T;
+        count200?: T;
+        count100?: T;
+        count50?: T;
+        count10?: T;
+        count5?: T;
+      };
+  totalSales?: T;
+  totalPayments?: T;
+  net?: T;
+  branch?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "expenses_select".
+ */
+export interface ExpensesSelect<T extends boolean = true> {
+  invoiceNumber?: T;
+  branch?: T;
+  details?:
+    | T
+    | {
+        source?: T;
+        reason?: T;
+        amount?: T;
+        id?: T;
+      };
+  total?: T;
+  date?: T;
   updatedAt?: T;
   createdAt?: T;
 }

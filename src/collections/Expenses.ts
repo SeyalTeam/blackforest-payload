@@ -2,117 +2,125 @@ import { CollectionConfig } from 'payload'
 
 const Expenses: CollectionConfig = {
   slug: 'expenses',
-  labels: {
-    singular: 'Expense',
-    plural: 'Expenses',
-  },
-
   admin: {
-    useAsTitle: 'branch',
-    defaultColumns: ['branch', 'total', 'createdAt'],
+    useAsTitle: 'invoiceNumber', // ✅ Use generated invoiceNumber as title for better identification
   },
-
-  // ✅ Public access (anyone can read/create/update/delete)
   access: {
     read: () => true,
-    create: () => true,
-    update: () => true,
-    delete: () => true,
+    create: ({ req: { user } }) => {
+      return user?.role === 'branch'
+    },
+    update: ({ req: { user } }) => {
+      if (user?.role === 'superadmin') return true
+      return false
+    },
+    delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
-
   fields: [
-    // ✅ Proper relationship to Branch collection (shows branch name)
+    {
+      name: 'invoiceNumber',
+      type: 'text',
+      unique: true,
+      required: true,
+      admin: {
+        readOnly: true, // ✅ Prevent manual editing in admin UI
+      },
+    },
     {
       name: 'branch',
       type: 'relationship',
       relationTo: 'branches',
       required: true,
-      label: 'Branch',
-      admin: {
-        description: 'Select the branch this expense belongs to',
+      access: {
+        create: ({ req: { user } }) => user?.role !== 'branch',
+        update: () => false,
       },
     },
-
-    // ✅ Expense details
     {
       name: 'details',
       type: 'array',
-      label: 'Expense Details',
+      required: true,
+      minRows: 1,
       fields: [
         {
           name: 'source',
-          type: 'text',
+          type: 'select',
+          options: [
+            { label: 'EB', value: 'EB' },
+            { label: 'Water Bill', value: 'Water Bill' },
+            { label: 'Rent', value: 'Rent' },
+            { label: 'Maintenance', value: 'Maintenance' },
+            { label: 'Supplies', value: 'Supplies' },
+            { label: 'Other', value: 'Other' },
+          ],
           required: true,
-          label: 'Expense Source',
         },
         {
           name: 'reason',
           type: 'text',
           required: true,
-          label: 'Reason',
         },
         {
           name: 'amount',
           type: 'number',
           required: true,
-          label: 'Amount',
-          min: 0,
         },
       ],
     },
-
-    // ✅ Total amount (auto-calculated in beforeChange hook)
     {
       name: 'total',
       type: 'number',
       required: true,
-      label: 'Total Expense',
-      min: 0,
-      admin: {
-        readOnly: true,
-      },
     },
-
-    // ✅ Optional date (auto default)
     {
       name: 'date',
       type: 'date',
-      required: true,
-      defaultValue: () => new Date().toISOString(),
       admin: {
         date: {
-          pickerAppearance: 'dayOnly',
-          displayFormat: 'yyyy-MM-dd',
+          pickerAppearance: 'dayAndTime',
         },
       },
-    },
-
-    // ✅ Created By (not required in public mode)
-    {
-      name: 'createdBy',
-      type: 'text',
-      label: 'Created By (Optional)',
-      admin: { position: 'sidebar' },
+      required: true,
     },
   ],
-
-  // ✅ Automatically calculate total before save
   hooks: {
     beforeChange: [
-      async ({ data }) => {
-        if (data.details && Array.isArray(data.details)) {
-          const total = data.details.reduce((sum: number, item: any) => {
-            const amount = typeof item.amount === 'number' ? item.amount : 0
-            return sum + amount
-          }, 0)
-          data.total = total
+      async ({ req, operation, data }) => {
+        if (operation === 'create') {
+          if (req.user?.role === 'branch') {
+            data.branch = req.user.branch // Auto-set branch
+          }
+          // ✅ Generate invoiceNumber
+          if (data.branch) {
+            const branch = await req.payload.findByID({
+              collection: 'branches',
+              id: data.branch,
+            })
+            if (branch && branch.name) {
+              const prefix = branch.name.substring(0, 3).toUpperCase()
+              // Find count of existing expenses for this branch
+              const existing = await req.payload.find({
+                collection: 'expenses',
+                where: { branch: { equals: data.branch } },
+                limit: 0, // Just for count
+              })
+              const count = existing.totalDocs + 1 // Next number
+              data.invoiceNumber = `${prefix}-EXP-${count.toString().padStart(4, '0')}`
+            }
+          }
+        }
+        // Recalculate total
+        if (data.details) {
+          const calculatedTotal = data.details.reduce(
+            (sum: number, detail: any) => sum + (detail.amount || 0),
+            0,
+          )
+          data.total = calculatedTotal
         }
         return data
       },
     ],
   },
-
-  timestamps: true,
 }
 
 export default Expenses
