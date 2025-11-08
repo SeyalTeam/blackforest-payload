@@ -3,18 +3,13 @@ import { CollectionConfig } from 'payload'
 const Expenses: CollectionConfig = {
   slug: 'expenses',
   admin: {
-    useAsTitle: 'invoiceNumber', // ✅ Use generated invoiceNumber as title for better identification
+    useAsTitle: 'invoiceNumber',
   },
   access: {
-    read: () => true,
-    create: ({ req: { user } }) => {
-      return user?.role === 'branch'
-    },
-    update: ({ req: { user } }) => {
-      if (user?.role === 'superadmin') return true
-      return false
-    },
-    delete: ({ req: { user } }) => user?.role === 'superadmin',
+    read: () => true, // Public read access
+    create: () => true, // Public create access (use cautiously)
+    update: () => true, // Public update access (use cautiously)
+    delete: () => true, // Public delete access (use cautiously)
   },
   fields: [
     {
@@ -23,7 +18,7 @@ const Expenses: CollectionConfig = {
       unique: true,
       required: true,
       admin: {
-        readOnly: true, // ✅ Prevent manual editing in admin UI
+        readOnly: true,
       },
     },
     {
@@ -88,9 +83,9 @@ const Expenses: CollectionConfig = {
       async ({ req, operation, data }) => {
         if (operation === 'create') {
           if (req.user?.role === 'branch') {
-            data.branch = req.user.branch // Auto-set branch
+            data.branch = req.user.branch // Auto-set branch if authenticated
           }
-          // ✅ Generate invoiceNumber
+          // Generate invoiceNumber
           if (data.branch) {
             const branch = await req.payload.findByID({
               collection: 'branches',
@@ -98,13 +93,12 @@ const Expenses: CollectionConfig = {
             })
             if (branch && branch.name) {
               const prefix = branch.name.substring(0, 3).toUpperCase()
-              // Find count of existing expenses for this branch
               const existing = await req.payload.find({
                 collection: 'expenses',
                 where: { branch: { equals: data.branch } },
-                limit: 0, // Just for count
+                limit: 0,
               })
-              const count = existing.totalDocs + 1 // Next number
+              const count = existing.totalDocs + 1
               data.invoiceNumber = `${prefix}-EXP-${count.toString().padStart(4, '0')}`
             }
           }
