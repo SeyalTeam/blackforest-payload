@@ -92,7 +92,7 @@ const Expenses: CollectionConfig = {
               id: data.branch,
             })
             if (branch && branch.name) {
-              const prefix = branch.name.substring(0, 3).toUpperCase()
+              const prefix = branch.name.substring(0, 4).toUpperCase()
               const existing = await req.payload.find({
                 collection: 'expenses',
                 where: { branch: { equals: data.branch } },
