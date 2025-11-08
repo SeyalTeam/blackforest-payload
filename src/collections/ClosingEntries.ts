@@ -1,10 +1,10 @@
-import { CollectionConfig } from 'payload'
+import { CollectionConfig, Where } from 'payload'
 
 const ClosingEntries: CollectionConfig = {
   slug: 'closing-entries',
 
   admin: {
-    useAsTitle: 'date',
+    useAsTitle: 'closingNumber',
     description:
       'Multiple daily closing entries allowed for all branches. Automatically calculates totals, cash, and net values.',
   },
@@ -18,6 +18,13 @@ const ClosingEntries: CollectionConfig = {
   },
 
   fields: [
+    {
+      name: 'closingNumber',
+      type: 'text',
+      unique: true,
+      required: true,
+      admin: { readOnly: true },
+    },
     {
       name: 'date',
       type: 'date',
@@ -105,7 +112,7 @@ const ClosingEntries: CollectionConfig = {
       name: 'branch',
       type: 'relationship',
       relationTo: 'branches',
-      required: false, // ✅ optional for public access
+      required: true, // Changed to required for generating closingNumber
     },
   ],
 
@@ -117,9 +124,29 @@ const ClosingEntries: CollectionConfig = {
         // ✅ Assign branch if a branch user is logged in
         if (operation === 'create' && user?.role === 'branch' && user?.branch) {
           data.branch = typeof user.branch === 'object' ? user.branch.id : user.branch
-        } else if (!data.branch) {
-          // ✅ Allow public users with no branch
-          data.branch = null
+        }
+
+        if (operation === 'create' && data.branch) {
+          // Fetch branch document to get name
+          const branchDoc = await req.payload.findByID({
+            collection: 'branches',
+            id: data.branch,
+          })
+
+          if (branchDoc) {
+            const prefix = branchDoc.name.slice(0, 3).toUpperCase()
+
+            // Count existing entries for this branch
+            const { totalDocs: count } = await req.payload.count({
+              collection: 'closing-entries',
+              where: { branch: { equals: data.branch } } as Where,
+            })
+
+            const seq = count + 1
+            const padded = seq.toString().padStart(3, '0')
+
+            data.closingNumber = `${prefix}-CLO-${padded}`
+          }
         }
 
         // ✅ Calculate cash from denominations

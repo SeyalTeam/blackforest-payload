@@ -414,6 +414,7 @@ export interface ReturnOrder {
  */
 export interface ClosingEntry {
   id: string;
+  closingNumber: string;
   date: string;
   systemSales: number;
   manualSales: number;
@@ -434,7 +435,7 @@ export interface ClosingEntry {
   totalSales?: number | null;
   totalPayments?: number | null;
   net?: number | null;
-  branch?: (string | null) | Branch;
+  branch: string | Branch;
   updatedAt: string;
   createdAt: string;
 }
@@ -832,6 +833,7 @@ export interface ReturnOrdersSelect<T extends boolean = true> {
  * via the `definition` "closing-entries_select".
  */
 export interface ClosingEntriesSelect<T extends boolean = true> {
+  closingNumber?: T;
   date?: T;
   systemSales?: T;
   manualSales?: T;
