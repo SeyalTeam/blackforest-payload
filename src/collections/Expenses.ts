@@ -6,10 +6,10 @@ const Expenses: CollectionConfig = {
     useAsTitle: 'invoiceNumber',
   },
   access: {
-    read: () => true, // Public read access
-    create: () => true, // Public create access (use cautiously)
-    update: () => true, // Public update access (use cautiously)
-    delete: () => true, // Public delete access (use cautiously)
+    read: () => true,
+    create: () => true,
+    update: () => true,
+    delete: () => true,
   },
   fields: [
     {
@@ -99,7 +99,7 @@ const Expenses: CollectionConfig = {
                 limit: 0,
               })
               const count = existing.totalDocs + 1
-              data.invoiceNumber = `${prefix}-EXP-${count.toString().padStart(4, '0')}`
+              data.invoiceNumber = `${prefix}-EXP-${count.toString().padStart(3, '0')}`
             }
           }
         }
