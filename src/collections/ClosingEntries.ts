@@ -9,7 +9,7 @@ const ClosingEntries: CollectionConfig = {
       'Multiple daily closing entries allowed for all branches. Automatically calculates totals, cash, and net values.',
   },
 
-  // ✅ Make this collection fully public
+  // ✅ Make collection fully public
   access: {
     read: () => true,
     create: () => true,
@@ -112,7 +112,7 @@ const ClosingEntries: CollectionConfig = {
       name: 'branch',
       type: 'relationship',
       relationTo: 'branches',
-      required: true, // Changed to required for generating closingNumber
+      required: true,
     },
   ],
 
@@ -121,31 +121,58 @@ const ClosingEntries: CollectionConfig = {
       async ({ req, operation, data }) => {
         const { user } = req
 
-        // ✅ Assign branch if a branch user is logged in
+        // ✅ Auto-assign branch for branch users
         if (operation === 'create' && user?.role === 'branch' && user?.branch) {
           data.branch = typeof user.branch === 'object' ? user.branch.id : user.branch
         }
 
+        // ✅ Generate closing number (safe & unique per branch)
         if (operation === 'create' && data.branch) {
-          // Fetch branch document to get name
-          const branchDoc = await req.payload.findByID({
-            collection: 'branches',
-            id: data.branch,
-          })
-
-          if (branchDoc) {
-            const prefix = branchDoc.name.slice(0, 3).toUpperCase()
-
-            // Count existing entries for this branch
-            const { totalDocs: count } = await req.payload.count({
-              collection: 'closing-entries',
-              where: { branch: { equals: data.branch } } as Where,
+          try {
+            // Fetch branch name
+            const branchDoc = await req.payload.findByID({
+              collection: 'branches',
+              id: data.branch,
             })
 
-            const seq = count + 1
-            const padded = seq.toString().padStart(3, '0')
+            if (branchDoc) {
+              const rawName = (branchDoc.name || 'BRANCH').toString().trim().toUpperCase()
+              const prefix = rawName.replace(/[^A-Z0-9]/g, '').slice(0, 3) || 'BRN'
 
-            data.closingNumber = `${prefix}-CLO-${padded}`
+              let seq = 0
+              let closingNumberCandidate = ''
+
+              // Try a few times to find unused number
+              for (let attempt = 0; attempt < 20; attempt++) {
+                const { totalDocs: count } = await req.payload.count({
+                  collection: 'closing-entries',
+                  where: { branch: { equals: data.branch } } as Where,
+                })
+
+                seq = count + 1 + attempt
+                const padded = seq.toString().padStart(3, '0')
+                closingNumberCandidate = `${prefix}-CLO-${padded}`
+
+                const exists = await req.payload.find({
+                  collection: 'closing-entries',
+                  where: { closingNumber: { equals: closingNumberCandidate } },
+                  limit: 1,
+                })
+
+                if (!exists?.docs?.length) {
+                  data.closingNumber = closingNumberCandidate
+                  break
+                }
+              }
+
+              // Fallback (extremely rare)
+              if (!data.closingNumber) {
+                const padded = (seq || 0).toString().padStart(3, '0')
+                data.closingNumber = `${prefix}-CLO-${padded}-${Date.now()}`
+              }
+            }
+          } catch (err) {
+            req.payload.logger.error('Error generating closingNumber:', err)
           }
         }
 
@@ -160,24 +187,20 @@ const ClosingEntries: CollectionConfig = {
           (denoms.count10 || 0) * 10 +
           (denoms.count5 || 0) * 5
 
-        // ✅ Calculate total sales
+        // ✅ Totals
         data.totalSales =
           (data.systemSales || 0) + (data.manualSales || 0) + (data.onlineSales || 0)
 
-        // ✅ Calculate total payments
         data.totalPayments = (data.creditCard || 0) + (data.upi || 0) + (data.cash || 0)
 
-        // ✅ Calculate net profit
         data.net = data.totalSales - (data.expenses || 0)
 
-        // ✅ Always return data so Payload saves it
         return data
       },
     ],
   },
 
-  // ✅ Disable versioning (no drafts or soft deletes)
-  versions: false,
+  versions: false, // disable drafts/soft delete
 }
 
 export default ClosingEntries
