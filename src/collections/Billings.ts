@@ -1,6 +1,4 @@
-// src/collections/Billings.ts
 import { CollectionConfig } from 'payload'
-import type { Where } from 'payload' // Import Where type
 
 const Billings: CollectionConfig = {
   slug: 'billings',
@@ -17,13 +15,13 @@ const Billings: CollectionConfig = {
     beforeChange: [
       async ({ data, req, operation }) => {
         if (operation === 'create') {
-          // Auto-generate invoice number with branch prefix, e.g., CHI-YYYYMMDD-SEQ
+          // 🧾 Auto-generate invoice number with branch prefix (e.g., CHI-YYYYMMDD-SEQ)
           const date = new Date()
           const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, '')
 
-          // Get branch details
           if (data.branch) {
             let branchId: string
+
             if (typeof data.branch === 'string') {
               branchId = data.branch
             } else if (
@@ -34,23 +32,25 @@ const Billings: CollectionConfig = {
             ) {
               branchId = data.branch.id
             } else {
-              return data // Skip if invalid
+              return data // Skip if invalid branch
             }
+
             const branch = await req.payload.findByID({
               collection: 'branches',
               id: branchId,
               depth: 0,
             })
+
             if (branch?.name) {
               const prefix = branch.name.substring(0, 3).toUpperCase()
-              // Count existing for this prefix and date
               const existingCount = await req.payload.db.collections.billings.countDocuments({
                 invoiceNumber: { $regex: `^${prefix}-${formattedDate}-` },
               })
               const seq = (existingCount + 1).toString().padStart(3, '0')
               data.invoiceNumber = `${prefix}-${formattedDate}-${seq}`
             }
-            // Auto-set company from branch (existing logic)
+
+            // 🏢 Auto-set company from branch
             if (branch?.company) {
               let companyToSet = branch.company
               if (
@@ -67,13 +67,24 @@ const Billings: CollectionConfig = {
             }
           }
         }
-        // Recalculate total if items change
-        if (data.items) {
+
+        // 🧮 Automatically calculate subtotal and totalAmount
+        if (data.items && Array.isArray(data.items)) {
+          data.items = data.items.map((item: any) => {
+            const qty = parseFloat(item.quantity) || 0
+            const unitPrice = parseFloat(item.unitPrice) || 0
+            return {
+              ...item,
+              subtotal: parseFloat((qty * unitPrice).toFixed(2)),
+            }
+          })
+
           data.totalAmount = data.items.reduce(
             (sum: number, item: any) => sum + (item.subtotal || 0),
             0,
           )
         }
+
         return data
       },
     ],
@@ -104,10 +115,17 @@ const Billings: CollectionConfig = {
           required: true,
         },
         {
+          // ✅ Allows decimal quantities (e.g., 0.75 for kg)
           name: 'quantity',
           type: 'number',
           required: true,
-          min: 1,
+          min: 0.01,
+          validate: (val?: number | null) => {
+            if (typeof val !== 'number' || val <= 0) {
+              return 'Quantity must be greater than 0'
+            }
+            return true
+          },
         },
         {
           name: 'unitPrice',
@@ -116,10 +134,12 @@ const Billings: CollectionConfig = {
           min: 0,
         },
         {
+          // ✅ Automatically calculated by hook
           name: 'subtotal',
           type: 'number',
           required: true,
           min: 0,
+          admin: { readOnly: true },
         },
         {
           name: 'branchOverride',
@@ -160,14 +180,8 @@ const Billings: CollectionConfig = {
       name: 'customerDetails',
       type: 'group',
       fields: [
-        {
-          name: 'name',
-          type: 'text',
-        },
-        {
-          name: 'address',
-          type: 'text',
-        },
+        { name: 'name', type: 'text' },
+        { name: 'address', type: 'text' },
       ],
     },
     {
