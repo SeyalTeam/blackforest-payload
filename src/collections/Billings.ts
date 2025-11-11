@@ -15,7 +15,7 @@ const Billings: CollectionConfig = {
     beforeChange: [
       async ({ data, req, operation }) => {
         if (operation === 'create') {
-          // 🧾 Auto-generate invoice number with branch prefix (e.g., CHI-YYYYMMDD-SEQ)
+          // 🧾 Auto-generate invoice number like CHI-YYYYMMDD-SEQ
           const date = new Date()
           const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, '')
 
@@ -32,7 +32,7 @@ const Billings: CollectionConfig = {
             ) {
               branchId = data.branch.id
             } else {
-              return data // Skip if invalid branch
+              return data
             }
 
             const branch = await req.payload.findByID({
@@ -68,7 +68,7 @@ const Billings: CollectionConfig = {
           }
         }
 
-        // 🧮 Automatically calculate subtotal and totalAmount
+        // 🧮 Auto-calculate subtotals & total
         if (data.items && Array.isArray(data.items)) {
           data.items = data.items.map((item: any) => {
             const qty = parseFloat(item.quantity) || 0
@@ -115,7 +115,7 @@ const Billings: CollectionConfig = {
           required: true,
         },
         {
-          // ✅ Allows decimal quantities (e.g., 0.75 for kg)
+          // ✅ Fractional quantities (e.g. 0.5 kg)
           name: 'quantity',
           type: 'number',
           required: true,
@@ -134,7 +134,7 @@ const Billings: CollectionConfig = {
           min: 0,
         },
         {
-          // ✅ Automatically calculated by hook
+          // ✅ Calculated automatically
           name: 'subtotal',
           type: 'number',
           required: true,
