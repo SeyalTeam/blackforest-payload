@@ -5,7 +5,9 @@ export const Users: CollectionConfig = {
   admin: {
     useAsTitle: 'email',
   },
-  auth: true,
+  auth: {
+    tokenExpiration: 86400, // 24 hours in seconds
+  },
   fields: [
     // Email added by default
     {
