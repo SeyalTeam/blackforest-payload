@@ -44,6 +44,7 @@ const Expenses: CollectionConfig = {
             { label: 'MAINTENANCE', value: 'MAINTENANCE' },
             { label: 'TRANSPORT', value: 'TRANSPORT' },
             { label: 'FUEL', value: 'FUEL' },
+            { label: 'PACKING', value: 'PACKING' },
             { label: 'STAFF WELFARE', value: 'STAFF WELFARE' },
             { label: 'Supplies', value: 'Supplies' },
             { label: 'ADVERTISEMENT', value: 'ADVERTISEMENT' },
