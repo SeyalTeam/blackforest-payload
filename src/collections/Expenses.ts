@@ -1,4 +1,4 @@
-import { CollectionConfig } from 'payload'
+import { CollectionConfig, Where } from 'payload'
 
 const Expenses: CollectionConfig = {
   slug: 'expenses',
@@ -99,14 +99,64 @@ const Expenses: CollectionConfig = {
               id: data.branch,
             })
             if (branch && branch.name) {
-              const prefix = branch.name.substring(0, 3).toUpperCase()
-              const existing = await req.payload.find({
-                collection: 'expenses',
-                where: { branch: { equals: data.branch } },
-                limit: 0,
-              })
-              const count = existing.totalDocs + 1
-              data.invoiceNumber = `${prefix}-EXP-${count.toString().padStart(3, '0')}`
+              let prefix
+              if (data.branch === '690e326cea6f468d6fe462e6') {
+                prefix = 'TH1'
+              } else {
+                prefix = branch.name.substring(0, 3).toUpperCase()
+              }
+
+              // Parse and format date as DDMMYY
+              const entryDate = new Date(data.date)
+              const dd = entryDate.getDate().toString().padStart(2, '0')
+              const mm = (entryDate.getMonth() + 1).toString().padStart(2, '0')
+              const yy = entryDate.getFullYear().toString().slice(-2)
+              const dateStr = `${dd}${mm}${yy}`
+
+              // Normalize date to start of day for consistency
+              data.date = new Date(entryDate.setHours(0, 0, 0, 0)).toISOString()
+
+              // Calculate start and end of day for query
+              const startOfDay = new Date(entryDate.setHours(0, 0, 0, 0)).toISOString()
+              const endOfDay = new Date(entryDate.setHours(23, 59, 59, 999)).toISOString()
+
+              let seq = 0
+              let invoiceNumberCandidate = ''
+
+              // Try a few times to find unused number
+              for (let attempt = 0; attempt < 20; attempt++) {
+                const { totalDocs: count } = await req.payload.count({
+                  collection: 'expenses',
+                  where: {
+                    and: [
+                      { branch: { equals: data.branch } },
+                      { date: { greater_than_equal: startOfDay } },
+                      { date: { less_than: endOfDay } },
+                    ],
+                  } as Where,
+                })
+
+                seq = count + 1 + attempt
+                const padded = seq.toString().padStart(2, '0')
+                invoiceNumberCandidate = `${prefix}-EXP-${dateStr}-${padded}`
+
+                const exists = await req.payload.find({
+                  collection: 'expenses',
+                  where: { invoiceNumber: { equals: invoiceNumberCandidate } },
+                  limit: 1,
+                })
+
+                if (!exists?.docs?.length) {
+                  data.invoiceNumber = invoiceNumberCandidate
+                  break
+                }
+              }
+
+              // Fallback (extremely rare)
+              if (!data.invoiceNumber) {
+                const padded = (seq || 0).toString().padStart(2, '0')
+                data.invoiceNumber = `${prefix}-EXP-${dateStr}-${padded}-${Date.now()}`
+              }
             }
           }
         }
