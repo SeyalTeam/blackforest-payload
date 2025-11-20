@@ -136,8 +136,27 @@ const ClosingEntries: CollectionConfig = {
             })
 
             if (branchDoc) {
-              const rawName = (branchDoc.name || 'BRANCH').toString().trim().toUpperCase()
-              const prefix = rawName.replace(/[^A-Z0-9]/g, '').slice(0, 3) || 'BRN'
+              let prefix
+              if (data.branch === '690e326cea6f468d6fe462e6') {
+                prefix = 'TH1'
+              } else {
+                const rawName = (branchDoc.name || 'BRANCH').toString().trim().toUpperCase()
+                prefix = rawName.replace(/[^A-Z0-9]/g, '').slice(0, 3) || 'BRN'
+              }
+
+              // Parse and format date as DDMMYY
+              const entryDate = new Date(data.date)
+              const dd = entryDate.getDate().toString().padStart(2, '0')
+              const mm = (entryDate.getMonth() + 1).toString().padStart(2, '0')
+              const yy = entryDate.getFullYear().toString().slice(-2)
+              const dateStr = `${dd}${mm}${yy}`
+
+              // Normalize date to start of day for consistency
+              data.date = new Date(entryDate.setHours(0, 0, 0, 0)).toISOString()
+
+              // Calculate start and end of day for query
+              const startOfDay = new Date(entryDate.setHours(0, 0, 0, 0)).toISOString()
+              const endOfDay = new Date(entryDate.setHours(23, 59, 59, 999)).toISOString()
 
               let seq = 0
               let closingNumberCandidate = ''
@@ -146,12 +165,18 @@ const ClosingEntries: CollectionConfig = {
               for (let attempt = 0; attempt < 20; attempt++) {
                 const { totalDocs: count } = await req.payload.count({
                   collection: 'closing-entries',
-                  where: { branch: { equals: data.branch } } as Where,
+                  where: {
+                    and: [
+                      { branch: { equals: data.branch } },
+                      { date: { greater_than_equal: startOfDay } },
+                      { date: { less_than: endOfDay } },
+                    ],
+                  } as Where,
                 })
 
                 seq = count + 1 + attempt
-                const padded = seq.toString().padStart(3, '0')
-                closingNumberCandidate = `${prefix}-CLO-${padded}`
+                const padded = seq.toString().padStart(2, '0')
+                closingNumberCandidate = `${prefix}-CLO-${dateStr}-${padded}`
 
                 const exists = await req.payload.find({
                   collection: 'closing-entries',
@@ -167,8 +192,8 @@ const ClosingEntries: CollectionConfig = {
 
               // Fallback (extremely rare)
               if (!data.closingNumber) {
-                const padded = (seq || 0).toString().padStart(3, '0')
-                data.closingNumber = `${prefix}-CLO-${padded}-${Date.now()}`
+                const padded = (seq || 0).toString().padStart(2, '0')
+                data.closingNumber = `${prefix}-CLO-${dateStr}-${padded}-${Date.now()}`
               }
             }
           } catch (err) {
