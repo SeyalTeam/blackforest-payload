@@ -20,8 +20,7 @@ const Products: CollectionConfig = {
     read: () => true,
     create: ({ req: { user } }) =>
       user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'company',
-    update: ({ req: { user } }) =>
-      user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'company',
+    update: () => true, // Made public to allow updates without authentication
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   hooks: {
