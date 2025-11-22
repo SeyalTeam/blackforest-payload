@@ -215,7 +215,10 @@ const ReturnOrders: CollectionConfig = {
           name: 'quantity',
           type: 'number',
           required: true,
-          min: 1,
+          min: 0.01,
+          admin: {
+            step: 0.01,
+          },
         },
         {
           name: 'unitPrice',
