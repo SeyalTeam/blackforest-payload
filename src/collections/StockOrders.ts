@@ -1,9 +1,9 @@
 // src/collections/StockOrders.ts
 import { CollectionConfig } from 'payload'
-import type { Where } from 'payload'
+import type { Where } from 'payload' // Import Where type
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
+import timezone from 'dayjs/plugin/timezone' // Assume installed: npm i dayjs @types/dayjs
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -13,136 +13,116 @@ const StockOrders: CollectionConfig = {
   admin: {
     useAsTitle: 'invoiceNumber',
   },
-
-  // ======================================================
-  // ACCESS RULES
-  // ======================================================
   access: {
     read: ({ req: { user } }) => {
       if (!user) return false
-      if (user.role === 'superadmin') return true
+      if (user?.role === 'superadmin') return true
 
-      // COMPANY
-      if (user.role === 'company') {
+      if (user?.role === 'company') {
         const company = user.company
         if (!company) return false
-        const companyId = typeof company === 'string' ? company : company.id
+        let companyId: string
+        if (typeof company === 'string') {
+          companyId = company
+        } else if (
+          typeof company === 'object' &&
+          company !== null &&
+          'id' in company &&
+          typeof company.id === 'string'
+        ) {
+          companyId = company.id
+        } else {
+          return false
+        }
         return { company: { equals: companyId } } as Where
       }
 
-      // BRANCH / WAITER
-      if (user.role === 'branch' || user.role === 'waiter') {
+      if (user?.role === 'branch' || user?.role === 'waiter') {
         const branch = user.branch
         if (!branch) return false
-        const branchId = typeof branch === 'string' ? branch : branch.id
+        let branchId: string
+        if (typeof branch === 'string') {
+          branchId = branch
+        } else if (
+          typeof branch === 'object' &&
+          branch !== null &&
+          'id' in branch &&
+          typeof branch.id === 'string'
+        ) {
+          branchId = branch.id
+        } else {
+          return false
+        }
         return { branch: { equals: branchId } } as Where
       }
 
       return false
     },
-
     create: ({ req: { user } }) => user?.role != null && ['branch', 'waiter'].includes(user.role),
-
-    // IMPORTANT:
-    // Allow update only for superadmin OR internal merge triggered by hook
-    update: ({ req: { context, user } }) => {
-      if (context?.isInternalUpdate === true) return true
-      return user?.role === 'superadmin' ? true : false
-    },
-
+    update: ({ req: { user } }) => user?.role === 'superadmin',
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
-
-  // ======================================================
-  // HOOKS
-  // ======================================================
   hooks: {
     beforeChange: [
-      async ({ data, req, operation }) => {
-        if (!req.user) throw new Error('Unauthorized')
-
-        // ======================================================
-        // VALIDATE branch ownership
-        // ======================================================
-        if (['branch', 'waiter'].includes(req.user.role)) {
-          const userBranchId =
-            typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
-
-          const dataBranchId = typeof data.branch === 'string' ? data.branch : data.branch?.id
-
-          if (!userBranchId || userBranchId !== dataBranchId) {
-            throw new Error('Unauthorized branch')
-          }
-        }
-
-        // ======================================================
-        // AUTO MERGE MODE
-        // ======================================================
+      async ({ data, req, operation, originalDoc }) => {
         if (operation === 'create') {
-          const now = dayjs().tz('Asia/Kolkata')
-          const dateStr = now.format('YYMMDD')
+          if (!req.user) throw new Error('Unauthorized')
 
-          // Branch ID
-          const branchId = typeof data.branch === 'string' ? data.branch : data.branch?.id
+          // Validate branch matches user's branch
+          if (['branch', 'waiter'].includes(req.user.role)) {
+            const userBranchId =
+              typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
+            const dataBranchId = typeof data.branch === 'string' ? data.branch : data?.branch?.id
+            if (!userBranchId || userBranchId !== dataBranchId) {
+              throw new Error('Unauthorized branch')
+            }
+          }
 
-          if (!branchId) throw new Error('Invalid branch')
+          // Auto-generate invoice number with timezone-aware date
+          const date = dayjs().tz('Asia/Kolkata')
+          const dateStr = date.format('YYMMDD')
 
-          // Find branch (needed for abbr + company)
+          // Fetch branch to get abbr
+          let branchId: string
+          if (typeof data.branch === 'string') {
+            branchId = data.branch
+          } else if (
+            typeof data.branch === 'object' &&
+            data.branch !== null &&
+            'id' in data.branch &&
+            typeof data.branch.id === 'string'
+          ) {
+            branchId = data.branch.id
+          } else {
+            throw new Error('Invalid branch')
+          }
           const branch = await req.payload.findByID({
             collection: 'branches',
             id: branchId,
             depth: 0,
           })
-
           const branchName = branch.name || ''
           const abbr = branchName.substring(0, 3).toUpperCase()
 
-          // AUTO-SET COMPANY (based on branch)
-          let comp = branch.company
-          if (comp && typeof comp === 'object') comp = comp.id
-          data.company = comp
-
-          // ====================================================
-          // CHECK IF A STOCK ORDER ALREADY EXISTS TODAY
-          // ====================================================
-          const startOfDay = now.startOf('day').toISOString()
-          const endOfDay = now.endOf('day').toISOString()
-
-          const existing = await req.payload.find({
-            collection: 'stock-orders',
-            limit: 1,
-            where: {
-              and: [
-                { branch: { equals: branchId } },
-                { createdAt: { greater_than_equal: startOfDay } },
-                { createdAt: { less_than_equal: endOfDay } },
-              ],
-            },
-          })
-
-          // ====================================================
-          // MERGE MODE (NO ERRORS, NO BLOCKING)
-          // ====================================================
-          if (existing.totalDocs > 0) {
-            const existingOrder = existing.docs[0]
-
-            const mergedItems = [...existingOrder.items, ...(data.items || [])]
-
-            req.context.isInternalUpdate = true
-
-            return await req.payload.update({
-              collection: 'stock-orders',
-              id: existingOrder.id,
-              data: { items: mergedItems },
-            })
+          // Auto-set company from branch
+          if (branch?.company) {
+            let companyToSet = branch.company
+            if (
+              typeof companyToSet === 'object' &&
+              companyToSet !== null &&
+              'id' in companyToSet &&
+              typeof companyToSet.id === 'string'
+            ) {
+              companyToSet = companyToSet.id
+            }
+            if (typeof companyToSet === 'string') {
+              data.company = companyToSet
+            }
           }
 
-          // ====================================================
-          // CREATE MODE (FIRST ORDER OF THE DAY)
-          // ====================================================
+          // Count existing for this branch today using invoiceNumber range
           const prefix = `${abbr}-STC-${dateStr}-`
-
-          const { totalDocs: countToday } = await req.payload.count({
+          const { totalDocs: existingCount } = await req.payload.count({
             collection: 'stock-orders',
             where: {
               invoiceNumber: {
@@ -151,41 +131,41 @@ const StockOrders: CollectionConfig = {
               },
             },
           })
-
-          const seq = (countToday + 1).toString().padStart(2, '0')
+          const seq = (existingCount + 1).toString().padStart(2, '0')
           data.invoiceNumber = `${prefix}${seq}`
 
-          if (!data.status) data.status = 'pending'
+          // Set status to 'pending' if not provided
+          if (!data.status) {
+            data.status = 'pending'
+          }
         }
 
-        // ======================================================
-        // SET ITEM NAMES & CATEGORY VALIDATION
-        // ======================================================
+        // Validate and set item names from products
         if (data.items && data.items.length > 0) {
           for (const item of data.items) {
             if (!item.product) continue
 
-            const prodId = typeof item.product === 'string' ? item.product : item.product.id
+            const productId = typeof item.product === 'string' ? item.product : item.product?.id
+            if (!productId) throw new Error('Invalid product')
 
             const product = await req.payload.findByID({
               collection: 'products',
-              id: prodId,
+              id: productId,
               depth: 1,
             })
 
             if (!product) throw new Error('Product not found')
 
-            // Auto-assign product name
+            // Set name from product
             item.name = product.name
 
-            // Validate category
-            const prodCat =
+            // Optional: Validate category matches
+            const productCategory =
               typeof product.category === 'string' ? product.category : product.category?.id
-
-            const orderCat = typeof data.category === 'string' ? data.category : data.category?.id
-
-            if (prodCat !== orderCat) {
-              throw new Error(`Product ${product.name} does not belong to selected category`)
+            const dataCategory =
+              typeof data.category === 'string' ? data.category : data.category?.id
+            if (productCategory !== dataCategory) {
+              throw new Error(`Product ${item.name} does not belong to the selected category`)
             }
           }
         }
@@ -194,10 +174,6 @@ const StockOrders: CollectionConfig = {
       },
     ],
   },
-
-  // ======================================================
-  // FIELDS
-  // ======================================================
   fields: [
     {
       name: 'invoiceNumber',
@@ -206,7 +182,6 @@ const StockOrders: CollectionConfig = {
       required: true,
       admin: { readOnly: true },
     },
-
     {
       name: 'items',
       type: 'array',
@@ -230,23 +205,27 @@ const StockOrders: CollectionConfig = {
           type: 'number',
           required: true,
           min: 0,
+          admin: {
+            step: 1,
+          },
         },
         {
           name: 'qty',
           type: 'number',
           required: true,
           min: 0,
+          admin: {
+            step: 1,
+          },
         },
       ],
     },
-
     {
       name: 'branch',
       type: 'relationship',
       relationTo: 'branches',
       required: true,
     },
-
     {
       name: 'createdBy',
       type: 'relationship',
@@ -255,7 +234,6 @@ const StockOrders: CollectionConfig = {
       defaultValue: ({ user }) => user?.id,
       admin: { readOnly: true },
     },
-
     {
       name: 'company',
       type: 'relationship',
@@ -263,14 +241,12 @@ const StockOrders: CollectionConfig = {
       required: true,
       admin: { readOnly: true },
     },
-
     {
       name: 'category',
       type: 'relationship',
       relationTo: 'categories',
       required: true,
     },
-
     {
       name: 'status',
       type: 'select',
@@ -282,13 +258,11 @@ const StockOrders: CollectionConfig = {
         { label: 'Cancelled', value: 'cancelled' },
       ],
     },
-
     {
       name: 'notes',
       type: 'textarea',
     },
   ],
-
   timestamps: true,
 }
 
