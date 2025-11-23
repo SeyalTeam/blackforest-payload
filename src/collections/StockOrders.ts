@@ -1,3 +1,4 @@
+// src/collections/StockOrders.ts
 import { CollectionConfig } from 'payload'
 import type { Where } from 'payload'
 import dayjs from 'dayjs'
@@ -12,37 +13,26 @@ const StockOrders: CollectionConfig = {
   admin: {
     useAsTitle: 'invoiceNumber',
   },
+
   access: {
     read: ({ req: { user } }) => {
       if (!user) return false
       if (user.role === 'superadmin') return true
 
+      // COMPANY
       if (user.role === 'company') {
         const company = user.company
         if (!company) return false
-
-        const companyId =
-          typeof company === 'string'
-            ? company
-            : typeof company === 'object' && company?.id
-              ? company.id
-              : null
-
-        return companyId ? ({ company: { equals: companyId } } as Where) : false
+        const companyId = typeof company === 'string' ? company : company.id
+        return { company: { equals: companyId } } as Where
       }
 
+      // BRANCH + WAITER
       if (user.role === 'branch' || user.role === 'waiter') {
         const branch = user.branch
         if (!branch) return false
-
-        const branchId =
-          typeof branch === 'string'
-            ? branch
-            : typeof branch === 'object' && branch?.id
-              ? branch.id
-              : null
-
-        return branchId ? ({ branch: { equals: branchId } } as Where) : false
+        const branchId = typeof branch === 'string' ? branch : branch.id
+        return { branch: { equals: branchId } } as Where
       }
 
       return false
@@ -50,106 +40,116 @@ const StockOrders: CollectionConfig = {
 
     create: ({ req: { user } }) => user?.role != null && ['branch', 'waiter'].includes(user.role),
 
-    update: ({ req: { user } }) =>
-      user?.role != null && ['branch', 'waiter', 'superadmin'].includes(user.role),
-
+    update: ({ req: { user } }) => user?.role === 'superadmin', // Only superadmin manually edits
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
 
   hooks: {
     beforeChange: [
       async ({ data, req, operation }) => {
-        if (!req.user) throw new Error('Unauthorized')
-
-        // -----------------------------------------------------
-        // 1️⃣ VALIDATE USER BRANCH
-        // -----------------------------------------------------
-        if (['branch', 'waiter'].includes(req.user.role)) {
-          const userBranchId =
-            typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
-
-          const dataBranchId = typeof data.branch === 'string' ? data.branch : data.branch?.id
-
-          if (!userBranchId || userBranchId !== dataBranchId) {
-            throw new Error('Unauthorized branch')
-          }
-        }
-
-        // -----------------------------------------------------
-        // 2️⃣ AUTO-SET DATE PREFIX
-        // -----------------------------------------------------
-        const date = dayjs().tz('Asia/Kolkata')
-        const dateStr = date.format('YYMMDD')
-
-        // Determine branch ID
-        let branchId: string
-        if (typeof data.branch === 'string') {
-          branchId = data.branch
-        } else if (data.branch?.id) {
-          branchId = data.branch.id
-        } else {
-          throw new Error('Invalid branch')
-        }
-
-        // Fetch branch to get abbreviation + company
-        const branch = await req.payload.findByID({
-          collection: 'branches',
-          id: branchId,
-          depth: 0,
-        })
-
-        const abbr = branch.name?.substring(0, 3).toUpperCase() || 'BRN'
-        const fixedInvoice = `${abbr}-STC-${dateStr}-01`
-
-        // -----------------------------------------------------
-        // 3️⃣ AUTO-SET COMPANY
-        // -----------------------------------------------------
-        if (branch.company) {
-          if (typeof branch.company === 'string') {
-            data.company = branch.company
-          } else if (branch.company.id) {
-            data.company = branch.company.id
-          }
-        }
-
-        // -----------------------------------------------------
-        // 4️⃣ CREATE MODE → CHECK IF ORDER EXISTS TODAY
-        // -----------------------------------------------------
         if (operation === 'create') {
-          const existing = await req.payload.find({
-            collection: 'stock-orders',
-            where: {
-              invoiceNumber: { equals: fixedInvoice },
-              branch: { equals: branchId },
-            },
-            limit: 1,
+          if (!req.user) throw new Error('Unauthorized')
+
+          // ───────────────────────────────────────────────
+          // 1. Validate Branch Ownership
+          // ───────────────────────────────────────────────
+          if (['branch', 'waiter'].includes(req.user.role)) {
+            const userBranchId =
+              typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
+
+            const dataBranchId = typeof data.branch === 'string' ? data.branch : data?.branch?.id
+
+            if (!userBranchId || userBranchId !== dataBranchId) {
+              throw new Error('Unauthorized branch')
+            }
+          }
+
+          // ───────────────────────────────────────────────
+          // 2. Auto-generate Invoice Number (ONE PER DAY)
+          // ───────────────────────────────────────────────
+          const now = dayjs().tz('Asia/Kolkata')
+          const dateStr = now.format('YYMMDD')
+
+          // Get branch ID
+          let branchId: string
+          if (typeof data.branch === 'string') {
+            branchId = data.branch
+          } else if (data.branch?.id) {
+            branchId = data.branch.id
+          } else {
+            throw new Error('Invalid branch')
+          }
+
+          // Get branch record (to get abbreviation)
+          const branch = await req.payload.findByID({
+            collection: 'branches',
+            id: branchId,
+            depth: 0,
           })
 
+          const branchName = branch.name || ''
+          const abbr = branchName.substring(0, 3).toUpperCase()
+
+          // Auto-set company from branch
+          let companyToSet = branch.company
+          if (companyToSet && typeof companyToSet === 'object') {
+            companyToSet = companyToSet.id
+          }
+          data.company = companyToSet
+
+          // ───────────────────────────────────────────────
+          // 3. Find TODAY’S existing stock order for this branch
+          // ───────────────────────────────────────────────
+          const startOfDay = now.startOf('day').toISOString()
+          const endOfDay = now.endOf('day').toISOString()
+
+          const existing = await req.payload.find({
+            collection: 'stock-orders',
+            limit: 1,
+            where: {
+              and: [
+                { branch: { equals: branchId } },
+                { createdAt: { greater_than_equal: startOfDay } },
+                { createdAt: { less_than_equal: endOfDay } },
+              ],
+            },
+          })
+
+          // ───────────────────────────────────────────────
+          // 4. If an order exists today → APPEND ITEMS (Flutter triggers PATCH)
+          //    BUT we NEVER block create (Flutter won't call create)
+          // ───────────────────────────────────────────────
           if (existing.totalDocs > 0) {
-            throw new Error(
-              'Stock Order for today already exists. Please UPDATE instead of CREATE.',
-            )
+            // Flutter mistakenly tried to CREATE
+            throw new Error('Today’s Stock Order already exists — use UPDATE instead of CREATE.')
           }
 
-          // Assign fixed invoice number
-          data.invoiceNumber = fixedInvoice
+          // ───────────────────────────────────────────────
+          // 5. If no order exists → assign first invoice number for today
+          // ───────────────────────────────────────────────
+          const prefix = `${abbr}-STC-${dateStr}-`
+
+          const { totalDocs: countToday } = await req.payload.count({
+            collection: 'stock-orders',
+            where: {
+              invoiceNumber: {
+                greater_than_equal: `${prefix}01`,
+                less_than_equal: `${prefix}99`,
+              },
+            },
+          })
+
+          const seq = (countToday + 1).toString().padStart(2, '0')
+          data.invoiceNumber = `${prefix}${seq}`
 
           // Default status
           if (!data.status) data.status = 'pending'
         }
 
-        // -----------------------------------------------------
-        // 5️⃣ UPDATE MODE → KEEP SAME INVOICE NUMBER
-        // -----------------------------------------------------
-        if (operation === 'update') {
-          // No invoice regeneration allowed
-          data.invoiceNumber = undefined
-        }
-
-        // -----------------------------------------------------
-        // 6️⃣ FILL ITEM NAMES & VALIDATE CATEGORY
-        // -----------------------------------------------------
-        if (data.items?.length > 0) {
+        // ───────────────────────────────────────────────
+        // 6. Validate and assign product names
+        // ───────────────────────────────────────────────
+        if (data.items && data.items.length > 0) {
           for (const item of data.items) {
             if (!item.product) continue
 
@@ -165,7 +165,7 @@ const StockOrders: CollectionConfig = {
 
             item.name = product.name
 
-            // Validate category
+            // Validate category match
             const productCategory =
               typeof product.category === 'string' ? product.category : product.category?.id
 
@@ -173,7 +173,7 @@ const StockOrders: CollectionConfig = {
               typeof data.category === 'string' ? data.category : data.category?.id
 
             if (productCategory !== dataCategory) {
-              throw new Error(`Product ${product.name} does not belong to the selected category`)
+              throw new Error(`Product ${item.name} does not belong to the selected category`)
             }
           }
         }
@@ -215,12 +215,14 @@ const StockOrders: CollectionConfig = {
           type: 'number',
           required: true,
           min: 0,
+          admin: { step: 1 },
         },
         {
           name: 'qty',
           type: 'number',
           required: true,
           min: 0,
+          admin: { step: 1 },
         },
       ],
     },
@@ -273,6 +275,8 @@ const StockOrders: CollectionConfig = {
       type: 'textarea',
     },
   ],
+
+  timestamps: true,
 }
 
 export default StockOrders
