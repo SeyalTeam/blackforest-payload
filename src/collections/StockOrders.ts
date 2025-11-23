@@ -15,14 +15,14 @@ const StockOrders: CollectionConfig = {
   },
 
   // ======================================================
-  // ACCESS CONTROL
+  // ACCESS RULES
   // ======================================================
   access: {
     read: ({ req: { user } }) => {
       if (!user) return false
       if (user.role === 'superadmin') return true
 
-      // Company
+      // COMPANY
       if (user.role === 'company') {
         const company = user.company
         if (!company) return false
@@ -30,7 +30,7 @@ const StockOrders: CollectionConfig = {
         return { company: { equals: companyId } } as Where
       }
 
-      // Branch + Waiter
+      // BRANCH / WAITER
       if (user.role === 'branch' || user.role === 'waiter') {
         const branch = user.branch
         if (!branch) return false
@@ -41,11 +41,15 @@ const StockOrders: CollectionConfig = {
       return false
     },
 
-    // Branch + waiter can CREATE
     create: ({ req: { user } }) => user?.role != null && ['branch', 'waiter'].includes(user.role),
 
-    // Only superadmin can manually update/delete
-    update: ({ req: { user } }) => user?.role === 'superadmin',
+    // IMPORTANT:
+    // Allow update only for superadmin OR internal merge triggered by hook
+    update: ({ req: { context, user } }) => {
+      if (context?.isInternalUpdate === true) return true
+      return user?.role === 'superadmin' ? true : false
+    },
+
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
 
@@ -55,44 +59,35 @@ const StockOrders: CollectionConfig = {
   hooks: {
     beforeChange: [
       async ({ data, req, operation }) => {
+        if (!req.user) throw new Error('Unauthorized')
+
         // ======================================================
-        // CREATE LOGIC WITH AUTO-MERGE
+        // VALIDATE branch ownership
+        // ======================================================
+        if (['branch', 'waiter'].includes(req.user.role)) {
+          const userBranchId =
+            typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
+
+          const dataBranchId = typeof data.branch === 'string' ? data.branch : data.branch?.id
+
+          if (!userBranchId || userBranchId !== dataBranchId) {
+            throw new Error('Unauthorized branch')
+          }
+        }
+
+        // ======================================================
+        // AUTO MERGE MODE
         // ======================================================
         if (operation === 'create') {
-          if (!req.user) throw new Error('Unauthorized')
-
-          // --------------------------------------------
-          // 1. Validate Branch Ownership
-          // --------------------------------------------
-          if (['branch', 'waiter'].includes(req.user.role)) {
-            const userBranchId =
-              typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
-
-            const dataBranchId = typeof data.branch === 'string' ? data.branch : data?.branch?.id
-
-            if (!userBranchId || userBranchId !== dataBranchId) {
-              throw new Error('Unauthorized branch')
-            }
-          }
-
-          // --------------------------------------------
-          // 2. Time / Date
-          // --------------------------------------------
           const now = dayjs().tz('Asia/Kolkata')
           const dateStr = now.format('YYMMDD')
 
-          // --------------------------------------------
-          // 3. Get Branch + Company
-          // --------------------------------------------
-          let branchId: string
-          if (typeof data.branch === 'string') {
-            branchId = data.branch
-          } else if (data.branch?.id) {
-            branchId = data.branch.id
-          } else {
-            throw new Error('Invalid branch')
-          }
+          // Branch ID
+          const branchId = typeof data.branch === 'string' ? data.branch : data.branch?.id
 
+          if (!branchId) throw new Error('Invalid branch')
+
+          // Find branch (needed for abbr + company)
           const branch = await req.payload.findByID({
             collection: 'branches',
             id: branchId,
@@ -102,16 +97,14 @@ const StockOrders: CollectionConfig = {
           const branchName = branch.name || ''
           const abbr = branchName.substring(0, 3).toUpperCase()
 
-          // Auto-set company
-          let companyToSet = branch.company
-          if (companyToSet && typeof companyToSet === 'object') {
-            companyToSet = companyToSet.id
-          }
-          data.company = companyToSet
+          // AUTO-SET COMPANY (based on branch)
+          let comp = branch.company
+          if (comp && typeof comp === 'object') comp = comp.id
+          data.company = comp
 
-          // --------------------------------------------
-          // 4. CHECK IF TODAY'S ORDER ALREADY EXISTS
-          // --------------------------------------------
+          // ====================================================
+          // CHECK IF A STOCK ORDER ALREADY EXISTS TODAY
+          // ====================================================
           const startOfDay = now.startOf('day').toISOString()
           const endOfDay = now.endOf('day').toISOString()
 
@@ -127,28 +120,26 @@ const StockOrders: CollectionConfig = {
             },
           })
 
-          // --------------------------------------------
-          // 5. TODAY'S ORDER EXISTS → MERGE AUTOMATICALLY
-          // --------------------------------------------
+          // ====================================================
+          // MERGE MODE (NO ERRORS, NO BLOCKING)
+          // ====================================================
           if (existing.totalDocs > 0) {
             const existingOrder = existing.docs[0]
 
             const mergedItems = [...existingOrder.items, ...(data.items || [])]
 
-            // Update existing order
-            const updated = await req.payload.update({
+            req.context.isInternalUpdate = true
+
+            return await req.payload.update({
               collection: 'stock-orders',
               id: existingOrder.id,
               data: { items: mergedItems },
             })
-
-            // Return updated doc → SKIP CREATE
-            return updated
           }
 
-          // --------------------------------------------
-          // 6. OTHERWISE → CREATE FIRST ORDER OF THE DAY
-          // --------------------------------------------
+          // ====================================================
+          // CREATE MODE (FIRST ORDER OF THE DAY)
+          // ====================================================
           const prefix = `${abbr}-STC-${dateStr}-`
 
           const { totalDocs: countToday } = await req.payload.count({
@@ -168,32 +159,33 @@ const StockOrders: CollectionConfig = {
         }
 
         // ======================================================
-        // VALIDATE PRODUCT NAMES + CATEGORY MATCH
+        // SET ITEM NAMES & CATEGORY VALIDATION
         // ======================================================
         if (data.items && data.items.length > 0) {
           for (const item of data.items) {
             if (!item.product) continue
 
-            const productId = typeof item.product === 'string' ? item.product : item.product?.id
+            const prodId = typeof item.product === 'string' ? item.product : item.product.id
 
             const product = await req.payload.findByID({
               collection: 'products',
-              id: productId,
+              id: prodId,
               depth: 1,
             })
 
             if (!product) throw new Error('Product not found')
 
+            // Auto-assign product name
             item.name = product.name
 
-            const productCategory =
+            // Validate category
+            const prodCat =
               typeof product.category === 'string' ? product.category : product.category?.id
 
-            const dataCategory =
-              typeof data.category === 'string' ? data.category : data.category?.id
+            const orderCat = typeof data.category === 'string' ? data.category : data.category?.id
 
-            if (productCategory !== dataCategory) {
-              throw new Error(`Product ${item.name} does not belong to the selected category`)
+            if (prodCat !== orderCat) {
+              throw new Error(`Product ${product.name} does not belong to selected category`)
             }
           }
         }
@@ -238,14 +230,12 @@ const StockOrders: CollectionConfig = {
           type: 'number',
           required: true,
           min: 0,
-          admin: { step: 1 },
         },
         {
           name: 'qty',
           type: 'number',
           required: true,
           min: 0,
-          admin: { step: 1 },
         },
       ],
     },
