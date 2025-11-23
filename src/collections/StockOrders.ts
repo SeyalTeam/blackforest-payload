@@ -14,12 +14,15 @@ const StockOrders: CollectionConfig = {
     useAsTitle: 'invoiceNumber',
   },
 
+  // ======================================================
+  // ACCESS CONTROL
+  // ======================================================
   access: {
     read: ({ req: { user } }) => {
       if (!user) return false
       if (user.role === 'superadmin') return true
 
-      // COMPANY
+      // Company
       if (user.role === 'company') {
         const company = user.company
         if (!company) return false
@@ -27,7 +30,7 @@ const StockOrders: CollectionConfig = {
         return { company: { equals: companyId } } as Where
       }
 
-      // BRANCH + WAITER
+      // Branch + Waiter
       if (user.role === 'branch' || user.role === 'waiter') {
         const branch = user.branch
         if (!branch) return false
@@ -38,21 +41,29 @@ const StockOrders: CollectionConfig = {
       return false
     },
 
+    // Branch + waiter can CREATE
     create: ({ req: { user } }) => user?.role != null && ['branch', 'waiter'].includes(user.role),
 
-    update: ({ req: { user } }) => user?.role === 'superadmin', // Only superadmin manually edits
+    // Only superadmin can manually update/delete
+    update: ({ req: { user } }) => user?.role === 'superadmin',
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
 
+  // ======================================================
+  // HOOKS
+  // ======================================================
   hooks: {
     beforeChange: [
       async ({ data, req, operation }) => {
+        // ======================================================
+        // CREATE LOGIC WITH AUTO-MERGE
+        // ======================================================
         if (operation === 'create') {
           if (!req.user) throw new Error('Unauthorized')
 
-          // ───────────────────────────────────────────────
+          // --------------------------------------------
           // 1. Validate Branch Ownership
-          // ───────────────────────────────────────────────
+          // --------------------------------------------
           if (['branch', 'waiter'].includes(req.user.role)) {
             const userBranchId =
               typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
@@ -64,13 +75,15 @@ const StockOrders: CollectionConfig = {
             }
           }
 
-          // ───────────────────────────────────────────────
-          // 2. Auto-generate Invoice Number (ONE PER DAY)
-          // ───────────────────────────────────────────────
+          // --------------------------------------------
+          // 2. Time / Date
+          // --------------------------------------------
           const now = dayjs().tz('Asia/Kolkata')
           const dateStr = now.format('YYMMDD')
 
-          // Get branch ID
+          // --------------------------------------------
+          // 3. Get Branch + Company
+          // --------------------------------------------
           let branchId: string
           if (typeof data.branch === 'string') {
             branchId = data.branch
@@ -80,7 +93,6 @@ const StockOrders: CollectionConfig = {
             throw new Error('Invalid branch')
           }
 
-          // Get branch record (to get abbreviation)
           const branch = await req.payload.findByID({
             collection: 'branches',
             id: branchId,
@@ -90,16 +102,16 @@ const StockOrders: CollectionConfig = {
           const branchName = branch.name || ''
           const abbr = branchName.substring(0, 3).toUpperCase()
 
-          // Auto-set company from branch
+          // Auto-set company
           let companyToSet = branch.company
           if (companyToSet && typeof companyToSet === 'object') {
             companyToSet = companyToSet.id
           }
           data.company = companyToSet
 
-          // ───────────────────────────────────────────────
-          // 3. Find TODAY’S existing stock order for this branch
-          // ───────────────────────────────────────────────
+          // --------------------------------------------
+          // 4. CHECK IF TODAY'S ORDER ALREADY EXISTS
+          // --------------------------------------------
           const startOfDay = now.startOf('day').toISOString()
           const endOfDay = now.endOf('day').toISOString()
 
@@ -115,18 +127,28 @@ const StockOrders: CollectionConfig = {
             },
           })
 
-          // ───────────────────────────────────────────────
-          // 4. If an order exists today → APPEND ITEMS (Flutter triggers PATCH)
-          //    BUT we NEVER block create (Flutter won't call create)
-          // ───────────────────────────────────────────────
+          // --------------------------------------------
+          // 5. TODAY'S ORDER EXISTS → MERGE AUTOMATICALLY
+          // --------------------------------------------
           if (existing.totalDocs > 0) {
-            // Flutter mistakenly tried to CREATE
-            throw new Error('Today’s Stock Order already exists — use UPDATE instead of CREATE.')
+            const existingOrder = existing.docs[0]
+
+            const mergedItems = [...existingOrder.items, ...(data.items || [])]
+
+            // Update existing order
+            const updated = await req.payload.update({
+              collection: 'stock-orders',
+              id: existingOrder.id,
+              data: { items: mergedItems },
+            })
+
+            // Return updated doc → SKIP CREATE
+            return updated
           }
 
-          // ───────────────────────────────────────────────
-          // 5. If no order exists → assign first invoice number for today
-          // ───────────────────────────────────────────────
+          // --------------------------------------------
+          // 6. OTHERWISE → CREATE FIRST ORDER OF THE DAY
+          // --------------------------------------------
           const prefix = `${abbr}-STC-${dateStr}-`
 
           const { totalDocs: countToday } = await req.payload.count({
@@ -142,13 +164,12 @@ const StockOrders: CollectionConfig = {
           const seq = (countToday + 1).toString().padStart(2, '0')
           data.invoiceNumber = `${prefix}${seq}`
 
-          // Default status
           if (!data.status) data.status = 'pending'
         }
 
-        // ───────────────────────────────────────────────
-        // 6. Validate and assign product names
-        // ───────────────────────────────────────────────
+        // ======================================================
+        // VALIDATE PRODUCT NAMES + CATEGORY MATCH
+        // ======================================================
         if (data.items && data.items.length > 0) {
           for (const item of data.items) {
             if (!item.product) continue
@@ -165,7 +186,6 @@ const StockOrders: CollectionConfig = {
 
             item.name = product.name
 
-            // Validate category match
             const productCategory =
               typeof product.category === 'string' ? product.category : product.category?.id
 
@@ -183,6 +203,9 @@ const StockOrders: CollectionConfig = {
     ],
   },
 
+  // ======================================================
+  // FIELDS
+  // ======================================================
   fields: [
     {
       name: 'invoiceNumber',
