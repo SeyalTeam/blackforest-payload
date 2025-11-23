@@ -80,6 +80,7 @@ export interface Config {
     'return-orders': ReturnOrder;
     'closing-entries': ClosingEntry;
     expenses: Expense;
+    'stock-orders': StockOrder;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -99,6 +100,7 @@ export interface Config {
     'return-orders': ReturnOrdersSelect<false> | ReturnOrdersSelect<true>;
     'closing-entries': ClosingEntriesSelect<false> | ClosingEntriesSelect<true>;
     expenses: ExpensesSelect<false> | ExpensesSelect<true>;
+    'stock-orders': StockOrdersSelect<false> | StockOrdersSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -448,13 +450,49 @@ export interface Expense {
   invoiceNumber: string;
   branch: string | Branch;
   details: {
-    source: 'EB' | 'Water Bill' | 'Rent' | 'Maintenance' | 'Supplies' | 'Other';
+    source:
+      | 'MAINTENANCE'
+      | 'TRANSPORT'
+      | 'FUEL'
+      | 'PACKING'
+      | 'STAFF WELFARE'
+      | 'Supplies'
+      | 'ADVERTISEMENT'
+      | 'ADVANCE'
+      | 'COMPLEMENTARY'
+      | 'RAW MATERIAL'
+      | 'SALARY'
+      | 'OC PRODUCTS'
+      | 'OTHERS';
     reason: string;
     amount: number;
     id?: string | null;
   }[];
   total: number;
   date: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "stock-orders".
+ */
+export interface StockOrder {
+  id: string;
+  invoiceNumber: string;
+  items: {
+    product: string | Product;
+    name: string;
+    inStock: number;
+    qty: number;
+    id?: string | null;
+  }[];
+  branch: string | Branch;
+  createdBy: string | User;
+  company: string | Company;
+  category: string | Category;
+  status?: ('pending' | 'approved' | 'fulfilled' | 'cancelled') | null;
+  notes?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -516,6 +554,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'expenses';
         value: string | Expense;
+      } | null)
+    | ({
+        relationTo: 'stock-orders';
+        value: string | StockOrder;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -877,6 +919,30 @@ export interface ExpensesSelect<T extends boolean = true> {
       };
   total?: T;
   date?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "stock-orders_select".
+ */
+export interface StockOrdersSelect<T extends boolean = true> {
+  invoiceNumber?: T;
+  items?:
+    | T
+    | {
+        product?: T;
+        name?: T;
+        inStock?: T;
+        qty?: T;
+        id?: T;
+      };
+  branch?: T;
+  createdBy?: T;
+  company?: T;
+  category?: T;
+  status?: T;
+  notes?: T;
   updatedAt?: T;
   createdAt?: T;
 }
