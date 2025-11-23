@@ -59,354 +59,363 @@ export type SupportedTimezones =
   | 'Pacific/Guam'
   | 'Pacific/Noumea'
   | 'Pacific/Auckland'
-  | 'Pacific/Fiji';
+  | 'Pacific/Fiji'
 
 export interface Config {
   auth: {
-    users: UserAuthOperations;
-  };
-  blocks: {};
+    users: UserAuthOperations
+  }
+  blocks: {}
   collections: {
-    users: User;
-    companies: Company;
-    branches: Branch;
-    departments: Department;
-    categories: Category;
-    products: Product;
-    media: Media;
-    dealers: Dealer;
-    employees: Employee;
-    billings: Billing;
-    'return-orders': ReturnOrder;
-    'closing-entries': ClosingEntry;
-    expenses: Expense;
-    'stock-orders': StockOrder;
-    'payload-locked-documents': PayloadLockedDocument;
-    'payload-preferences': PayloadPreference;
-    'payload-migrations': PayloadMigration;
-  };
-  collectionsJoins: {};
+    users: User
+    companies: Company
+    branches: Branch
+    departments: Department
+    categories: Category
+    products: Product
+    media: Media
+    dealers: Dealer
+    employees: Employee
+    billings: Billing
+    'return-orders': ReturnOrder
+    'closing-entries': ClosingEntry
+    expenses: Expense
+    'stock-orders': StockOrder
+    'payload-locked-documents': PayloadLockedDocument
+    'payload-preferences': PayloadPreference
+    'payload-migrations': PayloadMigration
+  }
+  collectionsJoins: {}
   collectionsSelect: {
-    users: UsersSelect<false> | UsersSelect<true>;
-    companies: CompaniesSelect<false> | CompaniesSelect<true>;
-    branches: BranchesSelect<false> | BranchesSelect<true>;
-    departments: DepartmentsSelect<false> | DepartmentsSelect<true>;
-    categories: CategoriesSelect<false> | CategoriesSelect<true>;
-    products: ProductsSelect<false> | ProductsSelect<true>;
-    media: MediaSelect<false> | MediaSelect<true>;
-    dealers: DealersSelect<false> | DealersSelect<true>;
-    employees: EmployeesSelect<false> | EmployeesSelect<true>;
-    billings: BillingsSelect<false> | BillingsSelect<true>;
-    'return-orders': ReturnOrdersSelect<false> | ReturnOrdersSelect<true>;
-    'closing-entries': ClosingEntriesSelect<false> | ClosingEntriesSelect<true>;
-    expenses: ExpensesSelect<false> | ExpensesSelect<true>;
-    'stock-orders': StockOrdersSelect<false> | StockOrdersSelect<true>;
-    'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
-    'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
-    'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
-  };
+    users: UsersSelect<false> | UsersSelect<true>
+    companies: CompaniesSelect<false> | CompaniesSelect<true>
+    branches: BranchesSelect<false> | BranchesSelect<true>
+    departments: DepartmentsSelect<false> | DepartmentsSelect<true>
+    categories: CategoriesSelect<false> | CategoriesSelect<true>
+    products: ProductsSelect<false> | ProductsSelect<true>
+    media: MediaSelect<false> | MediaSelect<true>
+    dealers: DealersSelect<false> | DealersSelect<true>
+    employees: EmployeesSelect<false> | EmployeesSelect<true>
+    billings: BillingsSelect<false> | BillingsSelect<true>
+    'return-orders': ReturnOrdersSelect<false> | ReturnOrdersSelect<true>
+    'closing-entries': ClosingEntriesSelect<false> | ClosingEntriesSelect<true>
+    expenses: ExpensesSelect<false> | ExpensesSelect<true>
+    'stock-orders': StockOrdersSelect<false> | StockOrdersSelect<true>
+    'payload-locked-documents':
+      | PayloadLockedDocumentsSelect<false>
+      | PayloadLockedDocumentsSelect<true>
+    'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>
+    'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>
+  }
   db: {
-    defaultIDType: string;
-  };
-  globals: {};
-  globalsSelect: {};
-  locale: null;
+    defaultIDType: string
+  }
+  globals: {}
+  globalsSelect: {}
+  locale: null
   user: User & {
-    collection: 'users';
-  };
+    collection: 'users'
+  }
   jobs: {
-    tasks: unknown;
-    workflows: unknown;
-  };
+    tasks: unknown
+    workflows: unknown
+  }
 }
 export interface UserAuthOperations {
   forgotPassword: {
-    email: string;
-    password: string;
-  };
+    email: string
+    password: string
+  }
   login: {
-    email: string;
-    password: string;
-  };
+    email: string
+    password: string
+  }
   registerFirstUser: {
-    email: string;
-    password: string;
-  };
+    email: string
+    password: string
+  }
   unlock: {
-    email: string;
-    password: string;
-  };
+    email: string
+    password: string
+  }
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users".
  */
 export interface User {
-  id: string;
-  role: 'superadmin' | 'admin' | 'delivery' | 'branch' | 'company' | 'kitchen' | 'cashier' | 'waiter';
-  branch?: (string | null) | Branch;
-  company?: (string | null) | Company;
-  employee?: (string | null) | Employee;
-  updatedAt: string;
-  createdAt: string;
-  email: string;
-  resetPasswordToken?: string | null;
-  resetPasswordExpiration?: string | null;
-  salt?: string | null;
-  hash?: string | null;
-  loginAttempts?: number | null;
-  lockUntil?: string | null;
+  id: string
+  role:
+    | 'superadmin'
+    | 'admin'
+    | 'delivery'
+    | 'branch'
+    | 'company'
+    | 'kitchen'
+    | 'cashier'
+    | 'waiter'
+  branch?: (string | null) | Branch
+  company?: (string | null) | Company
+  employee?: (string | null) | Employee
+  updatedAt: string
+  createdAt: string
+  email: string
+  resetPasswordToken?: string | null
+  resetPasswordExpiration?: string | null
+  salt?: string | null
+  hash?: string | null
+  loginAttempts?: number | null
+  lockUntil?: string | null
   sessions?:
     | {
-        id: string;
-        createdAt?: string | null;
-        expiresAt: string;
+        id: string
+        createdAt?: string | null
+        expiresAt: string
       }[]
-    | null;
-  password?: string | null;
+    | null
+  password?: string | null
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "branches".
  */
 export interface Branch {
-  id: string;
-  company: string | Company;
-  name: string;
-  address: string;
-  gst: string;
-  phone: string;
-  email: string;
+  id: string
+  company: string | Company
+  name: string
+  address: string
+  gst: string
+  phone: string
+  email: string
   /**
    * Public IP for auto-detecting branch on login (e.g., 192.0.2.1). Fetch via whatismyip.com at branch.
    */
-  ipAddress?: string | null;
+  ipAddress?: string | null
   /**
    * IP address of the network printer for this branch (e.g., 192.168.1.100). Used for printing bills directly over the local network.
    */
-  printerIp?: string | null;
-  updatedAt: string;
-  createdAt: string;
+  printerIp?: string | null
+  updatedAt: string
+  createdAt: string
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "companies".
  */
 export interface Company {
-  id: string;
-  name: string;
-  hqAddress?: string | null;
-  gst?: string | null;
-  updatedAt: string;
-  createdAt: string;
+  id: string
+  name: string
+  hqAddress?: string | null
+  gst?: string | null
+  updatedAt: string
+  createdAt: string
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "employees".
  */
 export interface Employee {
-  id: string;
-  name: string;
-  employeeId: string;
-  phoneNumber: string;
-  email?: string | null;
-  address?: string | null;
-  status: 'active' | 'inactive';
-  team: 'waiter' | 'chef' | 'driver' | 'cashier' | 'manager';
-  aadhaarPhoto?: (string | null) | Media;
-  photo?: (string | null) | Media;
-  updatedAt: string;
-  createdAt: string;
+  id: string
+  name: string
+  employeeId: string
+  phoneNumber: string
+  email?: string | null
+  address?: string | null
+  status: 'active' | 'inactive'
+  team: 'waiter' | 'chef' | 'driver' | 'cashier' | 'manager'
+  aadhaarPhoto?: (string | null) | Media
+  photo?: (string | null) | Media
+  updatedAt: string
+  createdAt: string
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media".
  */
 export interface Media {
-  id: string;
-  alt?: string | null;
-  prefix?: string | null;
-  updatedAt: string;
-  createdAt: string;
-  url?: string | null;
-  thumbnailURL?: string | null;
-  filename?: string | null;
-  mimeType?: string | null;
-  filesize?: number | null;
-  width?: number | null;
-  height?: number | null;
-  focalX?: number | null;
-  focalY?: number | null;
+  id: string
+  alt?: string | null
+  updatedAt: string
+  createdAt: string
+  url?: string | null
+  thumbnailURL?: string | null
+  filename?: string | null
+  mimeType?: string | null
+  filesize?: number | null
+  width?: number | null
+  height?: number | null
+  focalX?: number | null
+  focalY?: number | null
   sizes?: {
     thumbnail?: {
-      url?: string | null;
-      width?: number | null;
-      height?: number | null;
-      mimeType?: string | null;
-      filesize?: number | null;
-      filename?: string | null;
-    };
-  };
+      url?: string | null
+      width?: number | null
+      height?: number | null
+      mimeType?: string | null
+      filesize?: number | null
+      filename?: string | null
+    }
+  }
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "departments".
  */
 export interface Department {
-  id: string;
-  company: (string | Company)[];
-  name: string;
-  updatedAt: string;
-  createdAt: string;
+  id: string
+  company: (string | Company)[]
+  name: string
+  updatedAt: string
+  createdAt: string
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "categories".
  */
 export interface Category {
-  id: string;
-  name: string;
-  image?: (string | null) | Media;
-  isBilling?: boolean | null;
-  isCake?: boolean | null;
-  isStock?: boolean | null;
-  company?: (string | Company)[] | null;
-  department?: (string | null) | Department;
-  updatedAt: string;
-  createdAt: string;
+  id: string
+  name: string
+  image?: (string | null) | Media
+  isBilling?: boolean | null
+  isCake?: boolean | null
+  isStock?: boolean | null
+  company?: (string | Company)[] | null
+  department?: (string | null) | Department
+  updatedAt: string
+  createdAt: string
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "products".
  */
 export interface Product {
-  id: string;
-  name: string;
-  category: string | Category;
-  dealer?: (string | null) | Dealer;
+  id: string
+  name: string
+  category: string | Category
+  dealer?: (string | null) | Dealer
   images?:
     | {
-        image: string | Media;
-        id?: string | null;
+        image: string | Media
+        id?: string | null
       }[]
-    | null;
-  hsnCode?: string | null;
-  productId?: string | null;
-  upc?: string | null;
-  isVeg?: boolean | null;
-  isAvailable?: boolean | null;
+    | null
+  hsnCode?: string | null
+  productId?: string | null
+  upc?: string | null
+  isVeg?: boolean | null
+  isAvailable?: boolean | null
   defaultPriceDetails: {
-    price: number;
-    rate: number;
-    offer?: number | null;
-    quantity: number;
-    unit: 'pcs' | 'kg' | 'g';
-    gst: '0' | '5' | '12' | '18' | '22';
-  };
+    price: number
+    rate: number
+    offer?: number | null
+    quantity: number
+    unit: 'pcs' | 'kg' | 'g'
+    gst: '0' | '5' | '12' | '18' | '22'
+  }
   branchOverrides?:
     | {
-        branch: string | Branch;
-        price?: number | null;
-        rate?: number | null;
-        offer?: number | null;
-        quantity?: number | null;
-        unit?: ('pcs' | 'kg' | 'g') | null;
-        gst?: ('0' | '5' | '12' | '18' | '22') | null;
-        id?: string | null;
+        branch: string | Branch
+        price?: number | null
+        rate?: number | null
+        offer?: number | null
+        quantity?: number | null
+        unit?: ('pcs' | 'kg' | 'g') | null
+        gst?: ('0' | '5' | '12' | '18' | '22') | null
+        id?: string | null
       }[]
-    | null;
-  updatedAt: string;
-  createdAt: string;
+    | null
+  updatedAt: string
+  createdAt: string
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "dealers".
  */
 export interface Dealer {
-  id: string;
-  companyName: string;
-  address: string;
-  phoneNumber: string;
-  email: string;
-  isGSTRegistered?: boolean | null;
-  gst?: string | null;
-  pan?: string | null;
-  fssai?: string | null;
+  id: string
+  companyName: string
+  address: string
+  phoneNumber: string
+  email: string
+  isGSTRegistered?: boolean | null
+  gst?: string | null
+  pan?: string | null
+  fssai?: string | null
   contactPerson: {
-    name: string;
-    designation?: string | null;
-    phone?: string | null;
-    email?: string | null;
-  };
-  allowedCompanies?: (string | Company)[] | null;
-  allowedBranches?: (string | Branch)[] | null;
-  notes?: string | null;
-  status: 'active' | 'inactive' | 'on-hold';
-  hasBankAccount?: boolean | null;
-  preferredPaymentMethod?: ('cash' | 'upi' | 'cheque' | 'credit') | null;
+    name: string
+    designation?: string | null
+    phone?: string | null
+    email?: string | null
+  }
+  allowedCompanies?: (string | Company)[] | null
+  allowedBranches?: (string | Branch)[] | null
+  notes?: string | null
+  status: 'active' | 'inactive' | 'on-hold'
+  hasBankAccount?: boolean | null
+  preferredPaymentMethod?: ('cash' | 'upi' | 'cheque' | 'credit') | null
   bankDetails?: {
-    bankName?: string | null;
-    accountNumber?: string | null;
-    ifscCode?: string | null;
-    branch?: string | null;
-  };
-  updatedAt: string;
-  createdAt: string;
+    bankName?: string | null
+    accountNumber?: string | null
+    ifscCode?: string | null
+    branch?: string | null
+  }
+  updatedAt: string
+  createdAt: string
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "billings".
  */
 export interface Billing {
-  id: string;
-  invoiceNumber: string;
+  id: string
+  invoiceNumber: string
   items: {
-    product: string | Product;
-    name: string;
-    quantity: number;
-    unitPrice: number;
-    subtotal: number;
-    branchOverride?: boolean | null;
-    id?: string | null;
-  }[];
-  totalAmount: number;
-  branch: string | Branch;
-  createdBy: string | User;
-  company: string | Company;
+    product: string | Product
+    name: string
+    quantity: number
+    unitPrice: number
+    subtotal: number
+    branchOverride?: boolean | null
+    id?: string | null
+  }[]
+  totalAmount: number
+  branch: string | Branch
+  createdBy: string | User
+  company: string | Company
   customerDetails?: {
-    name?: string | null;
-    address?: string | null;
-  };
-  paymentMethod?: ('cash' | 'card' | 'upi' | 'other') | null;
-  status?: ('pending' | 'completed' | 'cancelled') | null;
-  notes?: string | null;
-  updatedAt: string;
-  createdAt: string;
+    name?: string | null
+    address?: string | null
+  }
+  paymentMethod?: ('cash' | 'card' | 'upi' | 'other') | null
+  status?: ('pending' | 'completed' | 'cancelled') | null
+  notes?: string | null
+  updatedAt: string
+  createdAt: string
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "return-orders".
  */
 export interface ReturnOrder {
-  id: string;
-  returnNumber: string;
+  id: string
+  returnNumber: string
   items: {
-    product: string | Product;
-    name: string;
-    quantity: number;
-    unitPrice: number;
-    subtotal: number;
-    proofPhoto?: (string | null) | Media;
-    id?: string | null;
-  }[];
-  totalAmount: number;
-  branch: string | Branch;
-  createdBy: string | User;
-  company: string | Company;
-  status?: ('pending' | 'accepted' | 'returned' | 'cancelled') | null;
-  notes?: string | null;
-  updatedAt: string;
-  createdAt: string;
+    product: string | Product
+    name: string
+    quantity: number
+    unitPrice: number
+    subtotal: number
+    proofPhoto?: (string | null) | Media
+    id?: string | null
+  }[]
+  totalAmount: number
+  branch: string | Branch
+  createdBy: string | User
+  company: string | Company
+  status?: ('pending' | 'accepted' | 'returned' | 'cancelled') | null
+  notes?: string | null
+  updatedAt: string
+  createdAt: string
 }
 /**
  * Multiple daily closing entries allowed for all branches. Automatically calculates totals, cash, and net values.
@@ -415,40 +424,40 @@ export interface ReturnOrder {
  * via the `definition` "closing-entries".
  */
 export interface ClosingEntry {
-  id: string;
-  closingNumber: string;
-  date: string;
-  systemSales: number;
-  manualSales: number;
-  onlineSales: number;
-  expenses: number;
-  creditCard: number;
-  upi: number;
-  cash: number;
+  id: string
+  closingNumber: string
+  date: string
+  systemSales: number
+  manualSales: number
+  onlineSales: number
+  expenses: number
+  creditCard: number
+  upi: number
+  cash: number
   denominations?: {
-    count2000?: number | null;
-    count500?: number | null;
-    count200?: number | null;
-    count100?: number | null;
-    count50?: number | null;
-    count10?: number | null;
-    count5?: number | null;
-  };
-  totalSales?: number | null;
-  totalPayments?: number | null;
-  net?: number | null;
-  branch: string | Branch;
-  updatedAt: string;
-  createdAt: string;
+    count2000?: number | null
+    count500?: number | null
+    count200?: number | null
+    count100?: number | null
+    count50?: number | null
+    count10?: number | null
+    count5?: number | null
+  }
+  totalSales?: number | null
+  totalPayments?: number | null
+  net?: number | null
+  branch: string | Branch
+  updatedAt: string
+  createdAt: string
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "expenses".
  */
 export interface Expense {
-  id: string;
-  invoiceNumber: string;
-  branch: string | Branch;
+  id: string
+  invoiceNumber: string
+  branch: string | Branch
   details: {
     source:
       | 'MAINTENANCE'
@@ -463,529 +472,525 @@ export interface Expense {
       | 'RAW MATERIAL'
       | 'SALARY'
       | 'OC PRODUCTS'
-      | 'OTHERS';
-    reason: string;
-    amount: number;
-    id?: string | null;
-  }[];
-  total: number;
-  date: string;
-  updatedAt: string;
-  createdAt: string;
+      | 'OTHERS'
+    reason: string
+    amount: number
+    id?: string | null
+  }[]
+  total: number
+  date: string
+  updatedAt: string
+  createdAt: string
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "stock-orders".
  */
 export interface StockOrder {
-  id: string;
-  invoiceNumber: string;
+  id: string
+  invoiceNumber: string
   items: {
-    product: string | Product;
-    name: string;
-    inStock: number;
-    qty: number;
-    id?: string | null;
-  }[];
-  branch: string | Branch;
-  createdBy: string | User;
-  company: string | Company;
-  category: string | Category;
-  status?: ('pending' | 'approved' | 'fulfilled' | 'cancelled') | null;
-  notes?: string | null;
-  updatedAt: string;
-  createdAt: string;
+    product: string | Product
+    name: string
+    inStock: number
+    qty: number
+    id?: string | null
+  }[]
+  branch: string | Branch
+  createdBy: string | User
+  company: string | Company
+  status?: ('pending' | 'approved' | 'fulfilled' | 'cancelled') | null
+  notes?: string | null
+  updatedAt: string
+  createdAt: string
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
-  id: string;
+  id: string
   document?:
     | ({
-        relationTo: 'users';
-        value: string | User;
+        relationTo: 'users'
+        value: string | User
       } | null)
     | ({
-        relationTo: 'companies';
-        value: string | Company;
+        relationTo: 'companies'
+        value: string | Company
       } | null)
     | ({
-        relationTo: 'branches';
-        value: string | Branch;
+        relationTo: 'branches'
+        value: string | Branch
       } | null)
     | ({
-        relationTo: 'departments';
-        value: string | Department;
+        relationTo: 'departments'
+        value: string | Department
       } | null)
     | ({
-        relationTo: 'categories';
-        value: string | Category;
+        relationTo: 'categories'
+        value: string | Category
       } | null)
     | ({
-        relationTo: 'products';
-        value: string | Product;
+        relationTo: 'products'
+        value: string | Product
       } | null)
     | ({
-        relationTo: 'media';
-        value: string | Media;
+        relationTo: 'media'
+        value: string | Media
       } | null)
     | ({
-        relationTo: 'dealers';
-        value: string | Dealer;
+        relationTo: 'dealers'
+        value: string | Dealer
       } | null)
     | ({
-        relationTo: 'employees';
-        value: string | Employee;
+        relationTo: 'employees'
+        value: string | Employee
       } | null)
     | ({
-        relationTo: 'billings';
-        value: string | Billing;
+        relationTo: 'billings'
+        value: string | Billing
       } | null)
     | ({
-        relationTo: 'return-orders';
-        value: string | ReturnOrder;
+        relationTo: 'return-orders'
+        value: string | ReturnOrder
       } | null)
     | ({
-        relationTo: 'closing-entries';
-        value: string | ClosingEntry;
+        relationTo: 'closing-entries'
+        value: string | ClosingEntry
       } | null)
     | ({
-        relationTo: 'expenses';
-        value: string | Expense;
+        relationTo: 'expenses'
+        value: string | Expense
       } | null)
     | ({
-        relationTo: 'stock-orders';
-        value: string | StockOrder;
-      } | null);
-  globalSlug?: string | null;
+        relationTo: 'stock-orders'
+        value: string | StockOrder
+      } | null)
+  globalSlug?: string | null
   user: {
-    relationTo: 'users';
-    value: string | User;
-  };
-  updatedAt: string;
-  createdAt: string;
+    relationTo: 'users'
+    value: string | User
+  }
+  updatedAt: string
+  createdAt: string
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-preferences".
  */
 export interface PayloadPreference {
-  id: string;
+  id: string
   user: {
-    relationTo: 'users';
-    value: string | User;
-  };
-  key?: string | null;
+    relationTo: 'users'
+    value: string | User
+  }
+  key?: string | null
   value?:
     | {
-        [k: string]: unknown;
+        [k: string]: unknown
       }
     | unknown[]
     | string
     | number
     | boolean
-    | null;
-  updatedAt: string;
-  createdAt: string;
+    | null
+  updatedAt: string
+  createdAt: string
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-migrations".
  */
 export interface PayloadMigration {
-  id: string;
-  name?: string | null;
-  batch?: number | null;
-  updatedAt: string;
-  createdAt: string;
+  id: string
+  name?: string | null
+  batch?: number | null
+  updatedAt: string
+  createdAt: string
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
-  role?: T;
-  branch?: T;
-  company?: T;
-  employee?: T;
-  updatedAt?: T;
-  createdAt?: T;
-  email?: T;
-  resetPasswordToken?: T;
-  resetPasswordExpiration?: T;
-  salt?: T;
-  hash?: T;
-  loginAttempts?: T;
-  lockUntil?: T;
+  role?: T
+  branch?: T
+  company?: T
+  employee?: T
+  updatedAt?: T
+  createdAt?: T
+  email?: T
+  resetPasswordToken?: T
+  resetPasswordExpiration?: T
+  salt?: T
+  hash?: T
+  loginAttempts?: T
+  lockUntil?: T
   sessions?:
     | T
     | {
-        id?: T;
-        createdAt?: T;
-        expiresAt?: T;
-      };
+        id?: T
+        createdAt?: T
+        expiresAt?: T
+      }
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "companies_select".
  */
 export interface CompaniesSelect<T extends boolean = true> {
-  name?: T;
-  hqAddress?: T;
-  gst?: T;
-  updatedAt?: T;
-  createdAt?: T;
+  name?: T
+  hqAddress?: T
+  gst?: T
+  updatedAt?: T
+  createdAt?: T
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "branches_select".
  */
 export interface BranchesSelect<T extends boolean = true> {
-  company?: T;
-  name?: T;
-  address?: T;
-  gst?: T;
-  phone?: T;
-  email?: T;
-  ipAddress?: T;
-  printerIp?: T;
-  updatedAt?: T;
-  createdAt?: T;
+  company?: T
+  name?: T
+  address?: T
+  gst?: T
+  phone?: T
+  email?: T
+  ipAddress?: T
+  printerIp?: T
+  updatedAt?: T
+  createdAt?: T
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "departments_select".
  */
 export interface DepartmentsSelect<T extends boolean = true> {
-  company?: T;
-  name?: T;
-  updatedAt?: T;
-  createdAt?: T;
+  company?: T
+  name?: T
+  updatedAt?: T
+  createdAt?: T
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "categories_select".
  */
 export interface CategoriesSelect<T extends boolean = true> {
-  name?: T;
-  image?: T;
-  isBilling?: T;
-  isCake?: T;
-  isStock?: T;
-  company?: T;
-  department?: T;
-  updatedAt?: T;
-  createdAt?: T;
+  name?: T
+  image?: T
+  isBilling?: T
+  isCake?: T
+  isStock?: T
+  company?: T
+  department?: T
+  updatedAt?: T
+  createdAt?: T
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "products_select".
  */
 export interface ProductsSelect<T extends boolean = true> {
-  name?: T;
-  category?: T;
-  dealer?: T;
+  name?: T
+  category?: T
+  dealer?: T
   images?:
     | T
     | {
-        image?: T;
-        id?: T;
-      };
-  hsnCode?: T;
-  productId?: T;
-  upc?: T;
-  isVeg?: T;
-  isAvailable?: T;
+        image?: T
+        id?: T
+      }
+  hsnCode?: T
+  productId?: T
+  upc?: T
+  isVeg?: T
+  isAvailable?: T
   defaultPriceDetails?:
     | T
     | {
-        price?: T;
-        rate?: T;
-        offer?: T;
-        quantity?: T;
-        unit?: T;
-        gst?: T;
-      };
+        price?: T
+        rate?: T
+        offer?: T
+        quantity?: T
+        unit?: T
+        gst?: T
+      }
   branchOverrides?:
     | T
     | {
-        branch?: T;
-        price?: T;
-        rate?: T;
-        offer?: T;
-        quantity?: T;
-        unit?: T;
-        gst?: T;
-        id?: T;
-      };
-  updatedAt?: T;
-  createdAt?: T;
+        branch?: T
+        price?: T
+        rate?: T
+        offer?: T
+        quantity?: T
+        unit?: T
+        gst?: T
+        id?: T
+      }
+  updatedAt?: T
+  createdAt?: T
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media_select".
  */
 export interface MediaSelect<T extends boolean = true> {
-  alt?: T;
-  prefix?: T;
-  updatedAt?: T;
-  createdAt?: T;
-  url?: T;
-  thumbnailURL?: T;
-  filename?: T;
-  mimeType?: T;
-  filesize?: T;
-  width?: T;
-  height?: T;
-  focalX?: T;
-  focalY?: T;
+  alt?: T
+  updatedAt?: T
+  createdAt?: T
+  url?: T
+  thumbnailURL?: T
+  filename?: T
+  mimeType?: T
+  filesize?: T
+  width?: T
+  height?: T
+  focalX?: T
+  focalY?: T
   sizes?:
     | T
     | {
         thumbnail?:
           | T
           | {
-              url?: T;
-              width?: T;
-              height?: T;
-              mimeType?: T;
-              filesize?: T;
-              filename?: T;
-            };
-      };
+              url?: T
+              width?: T
+              height?: T
+              mimeType?: T
+              filesize?: T
+              filename?: T
+            }
+      }
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "dealers_select".
  */
 export interface DealersSelect<T extends boolean = true> {
-  companyName?: T;
-  address?: T;
-  phoneNumber?: T;
-  email?: T;
-  isGSTRegistered?: T;
-  gst?: T;
-  pan?: T;
-  fssai?: T;
+  companyName?: T
+  address?: T
+  phoneNumber?: T
+  email?: T
+  isGSTRegistered?: T
+  gst?: T
+  pan?: T
+  fssai?: T
   contactPerson?:
     | T
     | {
-        name?: T;
-        designation?: T;
-        phone?: T;
-        email?: T;
-      };
-  allowedCompanies?: T;
-  allowedBranches?: T;
-  notes?: T;
-  status?: T;
-  hasBankAccount?: T;
-  preferredPaymentMethod?: T;
+        name?: T
+        designation?: T
+        phone?: T
+        email?: T
+      }
+  allowedCompanies?: T
+  allowedBranches?: T
+  notes?: T
+  status?: T
+  hasBankAccount?: T
+  preferredPaymentMethod?: T
   bankDetails?:
     | T
     | {
-        bankName?: T;
-        accountNumber?: T;
-        ifscCode?: T;
-        branch?: T;
-      };
-  updatedAt?: T;
-  createdAt?: T;
+        bankName?: T
+        accountNumber?: T
+        ifscCode?: T
+        branch?: T
+      }
+  updatedAt?: T
+  createdAt?: T
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "employees_select".
  */
 export interface EmployeesSelect<T extends boolean = true> {
-  name?: T;
-  employeeId?: T;
-  phoneNumber?: T;
-  email?: T;
-  address?: T;
-  status?: T;
-  team?: T;
-  aadhaarPhoto?: T;
-  photo?: T;
-  updatedAt?: T;
-  createdAt?: T;
+  name?: T
+  employeeId?: T
+  phoneNumber?: T
+  email?: T
+  address?: T
+  status?: T
+  team?: T
+  aadhaarPhoto?: T
+  photo?: T
+  updatedAt?: T
+  createdAt?: T
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "billings_select".
  */
 export interface BillingsSelect<T extends boolean = true> {
-  invoiceNumber?: T;
+  invoiceNumber?: T
   items?:
     | T
     | {
-        product?: T;
-        name?: T;
-        quantity?: T;
-        unitPrice?: T;
-        subtotal?: T;
-        branchOverride?: T;
-        id?: T;
-      };
-  totalAmount?: T;
-  branch?: T;
-  createdBy?: T;
-  company?: T;
+        product?: T
+        name?: T
+        quantity?: T
+        unitPrice?: T
+        subtotal?: T
+        branchOverride?: T
+        id?: T
+      }
+  totalAmount?: T
+  branch?: T
+  createdBy?: T
+  company?: T
   customerDetails?:
     | T
     | {
-        name?: T;
-        address?: T;
-      };
-  paymentMethod?: T;
-  status?: T;
-  notes?: T;
-  updatedAt?: T;
-  createdAt?: T;
+        name?: T
+        address?: T
+      }
+  paymentMethod?: T
+  status?: T
+  notes?: T
+  updatedAt?: T
+  createdAt?: T
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "return-orders_select".
  */
 export interface ReturnOrdersSelect<T extends boolean = true> {
-  returnNumber?: T;
+  returnNumber?: T
   items?:
     | T
     | {
-        product?: T;
-        name?: T;
-        quantity?: T;
-        unitPrice?: T;
-        subtotal?: T;
-        proofPhoto?: T;
-        id?: T;
-      };
-  totalAmount?: T;
-  branch?: T;
-  createdBy?: T;
-  company?: T;
-  status?: T;
-  notes?: T;
-  updatedAt?: T;
-  createdAt?: T;
+        product?: T
+        name?: T
+        quantity?: T
+        unitPrice?: T
+        subtotal?: T
+        proofPhoto?: T
+        id?: T
+      }
+  totalAmount?: T
+  branch?: T
+  createdBy?: T
+  company?: T
+  status?: T
+  notes?: T
+  updatedAt?: T
+  createdAt?: T
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "closing-entries_select".
  */
 export interface ClosingEntriesSelect<T extends boolean = true> {
-  closingNumber?: T;
-  date?: T;
-  systemSales?: T;
-  manualSales?: T;
-  onlineSales?: T;
-  expenses?: T;
-  creditCard?: T;
-  upi?: T;
-  cash?: T;
+  closingNumber?: T
+  date?: T
+  systemSales?: T
+  manualSales?: T
+  onlineSales?: T
+  expenses?: T
+  creditCard?: T
+  upi?: T
+  cash?: T
   denominations?:
     | T
     | {
-        count2000?: T;
-        count500?: T;
-        count200?: T;
-        count100?: T;
-        count50?: T;
-        count10?: T;
-        count5?: T;
-      };
-  totalSales?: T;
-  totalPayments?: T;
-  net?: T;
-  branch?: T;
-  updatedAt?: T;
-  createdAt?: T;
+        count2000?: T
+        count500?: T
+        count200?: T
+        count100?: T
+        count50?: T
+        count10?: T
+        count5?: T
+      }
+  totalSales?: T
+  totalPayments?: T
+  net?: T
+  branch?: T
+  updatedAt?: T
+  createdAt?: T
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "expenses_select".
  */
 export interface ExpensesSelect<T extends boolean = true> {
-  invoiceNumber?: T;
-  branch?: T;
+  invoiceNumber?: T
+  branch?: T
   details?:
     | T
     | {
-        source?: T;
-        reason?: T;
-        amount?: T;
-        id?: T;
-      };
-  total?: T;
-  date?: T;
-  updatedAt?: T;
-  createdAt?: T;
+        source?: T
+        reason?: T
+        amount?: T
+        id?: T
+      }
+  total?: T
+  date?: T
+  updatedAt?: T
+  createdAt?: T
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "stock-orders_select".
  */
 export interface StockOrdersSelect<T extends boolean = true> {
-  invoiceNumber?: T;
+  invoiceNumber?: T
   items?:
     | T
     | {
-        product?: T;
-        name?: T;
-        inStock?: T;
-        qty?: T;
-        id?: T;
-      };
-  branch?: T;
-  createdBy?: T;
-  company?: T;
-  category?: T;
-  status?: T;
-  notes?: T;
-  updatedAt?: T;
-  createdAt?: T;
+        product?: T
+        name?: T
+        inStock?: T
+        qty?: T
+        id?: T
+      }
+  branch?: T
+  createdBy?: T
+  company?: T
+  status?: T
+  notes?: T
+  updatedAt?: T
+  createdAt?: T
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents_select".
  */
 export interface PayloadLockedDocumentsSelect<T extends boolean = true> {
-  document?: T;
-  globalSlug?: T;
-  user?: T;
-  updatedAt?: T;
-  createdAt?: T;
+  document?: T
+  globalSlug?: T
+  user?: T
+  updatedAt?: T
+  createdAt?: T
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-preferences_select".
  */
 export interface PayloadPreferencesSelect<T extends boolean = true> {
-  user?: T;
-  key?: T;
-  value?: T;
-  updatedAt?: T;
-  createdAt?: T;
+  user?: T
+  key?: T
+  value?: T
+  updatedAt?: T
+  createdAt?: T
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-migrations_select".
  */
 export interface PayloadMigrationsSelect<T extends boolean = true> {
-  name?: T;
-  batch?: T;
-  updatedAt?: T;
-  createdAt?: T;
+  name?: T
+  batch?: T
+  updatedAt?: T
+  createdAt?: T
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "auth".
  */
 export interface Auth {
-  [k: string]: unknown;
+  [k: string]: unknown
 }
-
 
 declare module 'payload' {
   export interface GeneratedTypes extends Config {}
