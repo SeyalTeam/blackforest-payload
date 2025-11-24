@@ -59,133 +59,10 @@ const StockOrders: CollectionConfig = {
       return false
     },
     create: ({ req: { user } }) => user?.role != null && ['branch', 'waiter'].includes(user.role),
-    update: ({ req: { user } }) => {
-      if (!user) return false
-      if (user.role === 'superadmin') return true
-      if (user.role && ['branch', 'waiter'].includes(user.role)) {
-        const branch = user.branch
-        if (!branch) return false
-        let branchId: string
-        if (typeof branch === 'string') {
-          branchId = branch
-        } else if (
-          typeof branch === 'object' &&
-          branch !== null &&
-          'id' in branch &&
-          typeof branch.id === 'string'
-        ) {
-          branchId = branch.id
-        } else {
-          return false
-        }
-        return { branch: { equals: branchId } }
-      }
-      return false
-    },
+    update: ({ req: { user } }) => user?.role === 'superadmin',
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   hooks: {
-    beforeOperation: [
-      async ({ args, req, operation }) => {
-        if (operation === 'create') {
-          const data = args.data
-          // 1. Get Branch ID
-          let branchId: string
-          if (typeof data.branch === 'string') {
-            branchId = data.branch
-          } else if (
-            typeof data.branch === 'object' &&
-            data.branch !== null &&
-            'id' in data.branch &&
-            typeof data.branch.id === 'string'
-          ) {
-            branchId = data.branch.id
-          } else {
-            // If no branch, let validation handle it later or return
-            return args
-          }
-
-          // 2. Get Date and Construct Target Invoice Number (Sequence 01)
-          const date = dayjs().tz('Asia/Kolkata')
-          const dateStr = date.format('YYMMDD')
-
-          // We need the branch abbreviation to construct the invoice number
-          // Fetch branch to get abbr
-          const branch = await req.payload.findByID({
-            collection: 'branches',
-            id: branchId,
-            depth: 0,
-            req,
-          })
-
-          if (!branch) return args
-
-          const branchName = branch.name || ''
-          const abbr = branchName.trim().substring(0, 3).toUpperCase()
-          const targetInvoiceNumber = `${abbr}-STC-${dateStr}-01`
-
-          console.log('--- Debug Stock Order Merge ---')
-          console.log('Branch ID:', branchId)
-          console.log('Target Invoice:', targetInvoiceNumber)
-
-          // 3. Check if order exists
-          const existingOrders = await req.payload.find({
-            collection: 'stock-orders',
-            where: {
-              invoiceNumber: {
-                equals: targetInvoiceNumber,
-              },
-            },
-            depth: 1, // Need items
-            limit: 1,
-            overrideAccess: true, // Ensure we find it regardless of user permissions
-            req,
-          })
-
-          console.log('Existing Orders Found:', existingOrders.totalDocs)
-
-          if (existingOrders.totalDocs > 0) {
-            const existingOrder = existingOrders.docs[0]
-
-            // 4. Merge Items
-            const existingItems = existingOrder.items || []
-            const newItems = data.items || []
-
-            // Check if newItems contains items with IDs (implies frontend sent full state)
-            const hasExistingItems = newItems.some((item: any) => item.id)
-
-            let mergedItems
-            if (hasExistingItems) {
-              // Frontend sent full state (likely), so use newItems
-              mergedItems = newItems
-            } else {
-              // Frontend sent only new items, append
-              mergedItems = [...existingItems, ...newItems]
-            }
-
-            // 5. Switch to Update
-            args.operation = 'update'
-            args.id = existingOrder.id
-
-            // Helper to get ID from relationship
-            const getRelationshipId = (field: any) => {
-              if (typeof field === 'string') return field
-              if (field && typeof field === 'object' && 'id' in field) return field.id
-              return field
-            }
-
-            args.data = {
-              ...data,
-              items: mergedItems,
-              // Ensure required fields are present from existing order if missing in data
-              company: getRelationshipId(existingOrder.company),
-              branch: getRelationshipId(existingOrder.branch),
-            }
-          }
-        }
-        return args
-      },
-    ],
     beforeChange: [
       async ({ data, req, operation, originalDoc }) => {
         if (operation === 'create') {
@@ -202,67 +79,64 @@ const StockOrders: CollectionConfig = {
           }
 
           // Auto-generate invoice number with timezone-aware date
-          // Only generate if not already present (to support merges)
-          if (!data.invoiceNumber) {
-            const date = dayjs().tz('Asia/Kolkata')
-            const dateStr = date.format('YYMMDD')
+          const date = dayjs().tz('Asia/Kolkata')
+          const dateStr = date.format('YYMMDD')
 
-            // Fetch branch to get abbr
-            let branchId: string
-            if (typeof data.branch === 'string') {
-              branchId = data.branch
-            } else if (
-              typeof data.branch === 'object' &&
-              data.branch !== null &&
-              'id' in data.branch &&
-              typeof data.branch.id === 'string'
+          // Fetch branch to get abbr
+          let branchId: string
+          if (typeof data.branch === 'string') {
+            branchId = data.branch
+          } else if (
+            typeof data.branch === 'object' &&
+            data.branch !== null &&
+            'id' in data.branch &&
+            typeof data.branch.id === 'string'
+          ) {
+            branchId = data.branch.id
+          } else {
+            throw new Error('Invalid branch')
+          }
+          const branch = await req.payload.findByID({
+            collection: 'branches',
+            id: branchId,
+            depth: 0,
+          })
+          const branchName = branch.name || ''
+          const abbr = branchName.substring(0, 3).toUpperCase()
+
+          // Auto-set company from branch
+          if (branch?.company) {
+            let companyToSet = branch.company
+            if (
+              typeof companyToSet === 'object' &&
+              companyToSet !== null &&
+              'id' in companyToSet &&
+              typeof companyToSet.id === 'string'
             ) {
-              branchId = data.branch.id
-            } else {
-              throw new Error('Invalid branch')
+              companyToSet = companyToSet.id
             }
-            const branch = await req.payload.findByID({
-              collection: 'branches',
-              id: branchId,
-              depth: 0,
-            })
-            const branchName = branch.name || ''
-            const abbr = branchName.trim().substring(0, 3).toUpperCase()
-
-            // Auto-set company from branch
-            if (branch?.company) {
-              let companyToSet = branch.company
-              if (
-                typeof companyToSet === 'object' &&
-                companyToSet !== null &&
-                'id' in companyToSet &&
-                typeof companyToSet.id === 'string'
-              ) {
-                companyToSet = companyToSet.id
-              }
-              if (typeof companyToSet === 'string') {
-                data.company = companyToSet
-              }
+            if (typeof companyToSet === 'string') {
+              data.company = companyToSet
             }
+          }
 
-            // Count existing for this branch today using invoiceNumber range
-            const prefix = `${abbr}-STC-${dateStr}-`
-            const { totalDocs: existingCount } = await req.payload.count({
-              collection: 'stock-orders',
-              where: {
-                invoiceNumber: {
-                  greater_than_equal: `${prefix}01`,
-                  less_than_equal: `${prefix}99`,
-                },
+          // Count existing for this branch today using invoiceNumber range
+          const prefix = `${abbr}-STC-${dateStr}-`
+          const { totalDocs: existingCount } = await req.payload.count({
+            collection: 'stock-orders',
+            where: {
+              invoiceNumber: {
+                greater_than_equal: `${prefix}01`,
+                less_than_equal: `${prefix}99`,
               },
-            })
-            const seq = (existingCount + 1).toString().padStart(2, '0')
-            data.invoiceNumber = `${prefix}${seq}`
+            },
+          })
+          const seq = (existingCount + 1).toString().padStart(2, '0')
+          data.invoiceNumber = `${prefix}${seq}`
 
-            // Set status to 'pending' if not provided
-            if (!data.status) {
-              data.status = 'pending'
-            }
+          // Set status to 'pending' if not provided
+          if (!data.status) {
+            data.status = 'pending'
           }
         }
 
@@ -286,14 +160,13 @@ const StockOrders: CollectionConfig = {
             item.name = product.name
 
             // Optional: Validate category matches
-            // Optional: Validate category matches
-            // const productCategory =
-            //   typeof product.category === 'string' ? product.category : product.category?.id
-            // const dataCategory =
-            //   typeof data.category === 'string' ? data.category : data.category?.id
-            // if (productCategory !== dataCategory) {
-            //   throw new Error(`Product ${item.name} does not belong to the selected category`)
-            // }
+            const productCategory =
+              typeof product.category === 'string' ? product.category : product.category?.id
+            const dataCategory =
+              typeof data.category === 'string' ? data.category : data.category?.id
+            if (productCategory !== dataCategory) {
+              throw new Error(`Product ${item.name} does not belong to the selected category`)
+            }
           }
         }
 
@@ -352,9 +225,6 @@ const StockOrders: CollectionConfig = {
       type: 'relationship',
       relationTo: 'branches',
       required: true,
-      access: {
-        update: ({ req: { user } }) => user?.role === 'superadmin',
-      },
     },
     {
       name: 'createdBy',
@@ -370,9 +240,6 @@ const StockOrders: CollectionConfig = {
       relationTo: 'companies',
       required: true,
       admin: { readOnly: true },
-      access: {
-        update: ({ req: { user } }) => user?.role === 'superadmin',
-      },
     },
     {
       name: 'category',
@@ -384,9 +251,6 @@ const StockOrders: CollectionConfig = {
       name: 'status',
       type: 'select',
       defaultValue: 'pending',
-      access: {
-        update: ({ req: { user } }) => user?.role === 'superadmin',
-      },
       options: [
         { label: 'Pending', value: 'pending' },
         { label: 'Approved', value: 'approved' },
