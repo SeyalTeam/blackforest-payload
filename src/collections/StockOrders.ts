@@ -152,7 +152,9 @@ const StockOrders: CollectionConfig = {
             args.operation = 'update'
             args.id = existingOrder.id
             args.data = {
+              ...data,
               items: mergedItems,
+              invoiceNumber: existingOrder.invoiceNumber,
             }
           }
         }
