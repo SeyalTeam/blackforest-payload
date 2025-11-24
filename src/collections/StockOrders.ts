@@ -169,7 +169,6 @@ const StockOrders: CollectionConfig = {
             args.data = {
               ...data,
               items: mergedItems,
-              items: mergedItems,
               // invoiceNumber: existingOrder.invoiceNumber, // Removed to avoid unique validation error
               // Ensure required fields are present from existing order if missing in data
               company: getRelationshipId(existingOrder.company),
