@@ -158,15 +158,6 @@ const StockOrders: CollectionConfig = {
 
             // Set name from product
             item.name = product.name
-
-            // Optional: Validate category matches
-            const productCategory =
-              typeof product.category === 'string' ? product.category : product.category?.id
-            const dataCategory =
-              typeof data.category === 'string' ? data.category : data.category?.id
-            if (productCategory !== dataCategory) {
-              throw new Error(`Product ${item.name} does not belong to the selected category`)
-            }
           }
         }
 
@@ -240,12 +231,6 @@ const StockOrders: CollectionConfig = {
       relationTo: 'companies',
       required: true,
       admin: { readOnly: true },
-    },
-    {
-      name: 'category',
-      type: 'relationship',
-      relationTo: 'categories',
-      required: true,
     },
     {
       name: 'status',
