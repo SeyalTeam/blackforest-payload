@@ -59,10 +59,106 @@ const StockOrders: CollectionConfig = {
       return false
     },
     create: ({ req: { user } }) => user?.role != null && ['branch', 'waiter'].includes(user.role),
-    update: ({ req: { user } }) => user?.role === 'superadmin',
+    update: ({ req: { user } }) => {
+      if (!user) return false
+      if (user.role === 'superadmin') return true
+      if (user.role && ['branch', 'waiter'].includes(user.role)) {
+        const branch = user.branch
+        if (!branch) return false
+        let branchId: string
+        if (typeof branch === 'string') {
+          branchId = branch
+        } else if (
+          typeof branch === 'object' &&
+          branch !== null &&
+          'id' in branch &&
+          typeof branch.id === 'string'
+        ) {
+          branchId = branch.id
+        } else {
+          return false
+        }
+        return { branch: { equals: branchId } }
+      }
+      return false
+    },
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   hooks: {
+    beforeOperation: [
+      async ({ args, req, operation }) => {
+        if (operation === 'create') {
+          const data = args.data
+          // 1. Get Branch ID
+          let branchId: string
+          if (typeof data.branch === 'string') {
+            branchId = data.branch
+          } else if (
+            typeof data.branch === 'object' &&
+            data.branch !== null &&
+            'id' in data.branch &&
+            typeof data.branch.id === 'string'
+          ) {
+            branchId = data.branch.id
+          } else {
+            // If no branch, let validation handle it later or return
+            return args
+          }
+
+          // 2. Get Date and Construct Target Invoice Number (Sequence 01)
+          const date = dayjs().tz('Asia/Kolkata')
+          const dateStr = date.format('YYMMDD')
+
+          // We need the branch abbreviation to construct the invoice number
+          // Fetch branch to get abbr
+          const branch = await req.payload.findByID({
+            collection: 'branches',
+            id: branchId,
+            depth: 0,
+          })
+
+          if (!branch) return args
+
+          const branchName = branch.name || ''
+          const abbr = branchName.substring(0, 3).toUpperCase()
+          const targetInvoiceNumber = `${abbr}-STC-${dateStr}-01`
+
+          // 3. Check if order exists
+          const existingOrders = await req.payload.find({
+            collection: 'stock-orders',
+            where: {
+              invoiceNumber: {
+                equals: targetInvoiceNumber,
+              },
+            },
+            depth: 1, // Need items
+            limit: 1,
+          })
+
+          if (existingOrders.totalDocs > 0) {
+            const existingOrder = existingOrders.docs[0]
+
+            // 4. Merge Items
+            const existingItems = existingOrder.items || []
+            const newItems = data.items || []
+
+            // Combine items
+            // Note: You might want to consolidate same products here if needed,
+            // but the requirement just says "product need to increment" which likely means append.
+            // If exact same product exists, we could sum qty, but simple append is safer for now unless specified.
+            const mergedItems = [...existingItems, ...newItems]
+
+            // 5. Switch to Update
+            args.operation = 'update'
+            args.id = existingOrder.id
+            args.data = {
+              items: mergedItems,
+            }
+          }
+        }
+        return args
+      },
+    ],
     beforeChange: [
       async ({ data, req, operation, originalDoc }) => {
         if (operation === 'create') {
@@ -225,6 +321,9 @@ const StockOrders: CollectionConfig = {
       type: 'relationship',
       relationTo: 'branches',
       required: true,
+      access: {
+        update: ({ req: { user } }) => user?.role === 'superadmin',
+      },
     },
     {
       name: 'createdBy',
@@ -240,6 +339,9 @@ const StockOrders: CollectionConfig = {
       relationTo: 'companies',
       required: true,
       admin: { readOnly: true },
+      access: {
+        update: ({ req: { user } }) => user?.role === 'superadmin',
+      },
     },
     {
       name: 'category',
@@ -251,6 +353,9 @@ const StockOrders: CollectionConfig = {
       name: 'status',
       type: 'select',
       defaultValue: 'pending',
+      access: {
+        update: ({ req: { user } }) => user?.role === 'superadmin',
+      },
       options: [
         { label: 'Pending', value: 'pending' },
         { label: 'Approved', value: 'approved' },
