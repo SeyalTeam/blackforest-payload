@@ -120,8 +120,12 @@ const StockOrders: CollectionConfig = {
           if (!branch) return args
 
           const branchName = branch.name || ''
-          const abbr = branchName.substring(0, 3).toUpperCase()
+          const abbr = branchName.trim().substring(0, 3).toUpperCase()
           const targetInvoiceNumber = `${abbr}-STC-${dateStr}-01`
+
+          console.log('--- Debug Stock Order Merge ---')
+          console.log('Branch ID:', branchId)
+          console.log('Target Invoice:', targetInvoiceNumber)
 
           // 3. Check if order exists
           const existingOrders = await req.payload.find({
@@ -134,6 +138,8 @@ const StockOrders: CollectionConfig = {
             depth: 1, // Need items
             limit: 1,
           })
+
+          console.log('Existing Orders Found:', existingOrders.totalDocs)
 
           if (existingOrders.totalDocs > 0) {
             const existingOrder = existingOrders.docs[0]
