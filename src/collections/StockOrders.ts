@@ -115,6 +115,7 @@ const StockOrders: CollectionConfig = {
             collection: 'branches',
             id: branchId,
             depth: 0,
+            req,
           })
 
           if (!branch) return args
@@ -138,6 +139,7 @@ const StockOrders: CollectionConfig = {
             depth: 1, // Need items
             limit: 1,
             overrideAccess: true, // Ensure we find it regardless of user permissions
+            req,
           })
 
           console.log('Existing Orders Found:', existingOrders.totalDocs)
@@ -149,11 +151,17 @@ const StockOrders: CollectionConfig = {
             const existingItems = existingOrder.items || []
             const newItems = data.items || []
 
-            // Combine items
-            // Note: You might want to consolidate same products here if needed,
-            // but the requirement just says "product need to increment" which likely means append.
-            // If exact same product exists, we could sum qty, but simple append is safer for now unless specified.
-            const mergedItems = [...existingItems, ...newItems]
+            // Check if newItems contains items with IDs (implies frontend sent full state)
+            const hasExistingItems = newItems.some((item: any) => item.id)
+
+            let mergedItems
+            if (hasExistingItems) {
+              // Frontend sent full state (likely), so use newItems
+              mergedItems = newItems
+            } else {
+              // Frontend sent only new items, append
+              mergedItems = [...existingItems, ...newItems]
+            }
 
             // 5. Switch to Update
             args.operation = 'update'
@@ -169,15 +177,9 @@ const StockOrders: CollectionConfig = {
             args.data = {
               ...data,
               items: mergedItems,
-              // invoiceNumber: existingOrder.invoiceNumber, // Removed to avoid unique validation error
               // Ensure required fields are present from existing order if missing in data
               company: getRelationshipId(existingOrder.company),
               branch: getRelationshipId(existingOrder.branch),
-              // If category is different, we might want to keep the original or update it.
-              // For now, let's keep the original to avoid shifting the whole order's category if that's preferred,
-              // or let 'data' override it if the user sent it.
-              // However, since 'data' has the new category, it will overwrite.
-              // If we want to allow mixed, we just let it be, but ensure valid ID.
             }
           }
         }
