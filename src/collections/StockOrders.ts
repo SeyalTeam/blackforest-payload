@@ -184,64 +184,67 @@ const StockOrders: CollectionConfig = {
           }
 
           // Auto-generate invoice number with timezone-aware date
-          const date = dayjs().tz('Asia/Kolkata')
-          const dateStr = date.format('YYMMDD')
+          // Only generate if not already present (to support merges)
+          if (!data.invoiceNumber) {
+            const date = dayjs().tz('Asia/Kolkata')
+            const dateStr = date.format('YYMMDD')
 
-          // Fetch branch to get abbr
-          let branchId: string
-          if (typeof data.branch === 'string') {
-            branchId = data.branch
-          } else if (
-            typeof data.branch === 'object' &&
-            data.branch !== null &&
-            'id' in data.branch &&
-            typeof data.branch.id === 'string'
-          ) {
-            branchId = data.branch.id
-          } else {
-            throw new Error('Invalid branch')
-          }
-          const branch = await req.payload.findByID({
-            collection: 'branches',
-            id: branchId,
-            depth: 0,
-          })
-          const branchName = branch.name || ''
-          const abbr = branchName.substring(0, 3).toUpperCase()
-
-          // Auto-set company from branch
-          if (branch?.company) {
-            let companyToSet = branch.company
-            if (
-              typeof companyToSet === 'object' &&
-              companyToSet !== null &&
-              'id' in companyToSet &&
-              typeof companyToSet.id === 'string'
+            // Fetch branch to get abbr
+            let branchId: string
+            if (typeof data.branch === 'string') {
+              branchId = data.branch
+            } else if (
+              typeof data.branch === 'object' &&
+              data.branch !== null &&
+              'id' in data.branch &&
+              typeof data.branch.id === 'string'
             ) {
-              companyToSet = companyToSet.id
+              branchId = data.branch.id
+            } else {
+              throw new Error('Invalid branch')
             }
-            if (typeof companyToSet === 'string') {
-              data.company = companyToSet
-            }
-          }
+            const branch = await req.payload.findByID({
+              collection: 'branches',
+              id: branchId,
+              depth: 0,
+            })
+            const branchName = branch.name || ''
+            const abbr = branchName.trim().substring(0, 3).toUpperCase()
 
-          // Count existing for this branch today using invoiceNumber range
-          const prefix = `${abbr}-STC-${dateStr}-`
-          const { totalDocs: existingCount } = await req.payload.count({
-            collection: 'stock-orders',
-            where: {
-              invoiceNumber: {
-                greater_than_equal: `${prefix}01`,
-                less_than_equal: `${prefix}99`,
+            // Auto-set company from branch
+            if (branch?.company) {
+              let companyToSet = branch.company
+              if (
+                typeof companyToSet === 'object' &&
+                companyToSet !== null &&
+                'id' in companyToSet &&
+                typeof companyToSet.id === 'string'
+              ) {
+                companyToSet = companyToSet.id
+              }
+              if (typeof companyToSet === 'string') {
+                data.company = companyToSet
+              }
+            }
+
+            // Count existing for this branch today using invoiceNumber range
+            const prefix = `${abbr}-STC-${dateStr}-`
+            const { totalDocs: existingCount } = await req.payload.count({
+              collection: 'stock-orders',
+              where: {
+                invoiceNumber: {
+                  greater_than_equal: `${prefix}01`,
+                  less_than_equal: `${prefix}99`,
+                },
               },
-            },
-          })
-          const seq = (existingCount + 1).toString().padStart(2, '0')
-          data.invoiceNumber = `${prefix}${seq}`
+            })
+            const seq = (existingCount + 1).toString().padStart(2, '0')
+            data.invoiceNumber = `${prefix}${seq}`
 
-          // Set status to 'pending' if not provided
-          if (!data.status) {
-            data.status = 'pending'
+            // Set status to 'pending' if not provided
+            if (!data.status) {
+              data.status = 'pending'
+            }
           }
         }
 
