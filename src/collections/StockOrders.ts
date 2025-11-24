@@ -158,10 +158,26 @@ const StockOrders: CollectionConfig = {
             // 5. Switch to Update
             args.operation = 'update'
             args.id = existingOrder.id
+
+            // Helper to get ID from relationship
+            const getRelationshipId = (field: any) => {
+              if (typeof field === 'string') return field
+              if (field && typeof field === 'object' && 'id' in field) return field.id
+              return field
+            }
+
             args.data = {
               ...data,
               items: mergedItems,
               invoiceNumber: existingOrder.invoiceNumber,
+              // Ensure required fields are present from existing order if missing in data
+              company: getRelationshipId(existingOrder.company),
+              branch: getRelationshipId(existingOrder.branch),
+              // If category is different, we might want to keep the original or update it.
+              // For now, let's keep the original to avoid shifting the whole order's category if that's preferred,
+              // or let 'data' override it if the user sent it.
+              // However, since 'data' has the new category, it will overwrite.
+              // If we want to allow mixed, we just let it be, but ensure valid ID.
             }
           }
         }
