@@ -137,6 +137,7 @@ const StockOrders: CollectionConfig = {
             },
             depth: 1, // Need items
             limit: 1,
+            overrideAccess: true, // Ensure we find it regardless of user permissions
           })
 
           console.log('Existing Orders Found:', existingOrders.totalDocs)
