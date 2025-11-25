@@ -197,6 +197,15 @@ const StockOrders: CollectionConfig = {
             step: 1,
           },
         },
+        {
+          name: 'status',
+          type: 'select',
+          defaultValue: 'pending',
+          options: [
+            { label: 'Pending', value: 'pending' },
+            { label: 'Approved', value: 'approved' },
+          ],
+        },
       ],
     },
     {

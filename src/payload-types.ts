@@ -143,7 +143,17 @@ export interface UserAuthOperations {
  */
 export interface User {
   id: string;
-  role: 'superadmin' | 'admin' | 'delivery' | 'branch' | 'company' | 'kitchen' | 'cashier' | 'waiter';
+  role:
+    | 'superadmin'
+    | 'admin'
+    | 'delivery'
+    | 'branch'
+    | 'company'
+    | 'kitchen'
+    | 'cashier'
+    | 'waiter'
+    | 'supervisor'
+    | 'driver';
   branch?: (string | null) | Branch;
   company?: (string | null) | Company;
   employee?: (string | null) | Employee;
@@ -212,7 +222,7 @@ export interface Employee {
   email?: string | null;
   address?: string | null;
   status: 'active' | 'inactive';
-  team: 'waiter' | 'chef' | 'driver' | 'cashier' | 'manager';
+  team: 'waiter' | 'chef' | 'driver' | 'cashier' | 'manager' | 'supervisor' | 'delivery';
   aadhaarPhoto?: (string | null) | Media;
   photo?: (string | null) | Media;
   updatedAt: string;
@@ -480,17 +490,19 @@ export interface Expense {
 export interface StockOrder {
   id: string;
   invoiceNumber: string;
+  deliveryDate: string;
   items: {
     product: string | Product;
     name: string;
     inStock: number;
-    qty: number;
+    requiredQty: number;
+    sendingQty?: number | null;
+    receivedQty?: number | null;
     id?: string | null;
   }[];
   branch: string | Branch;
   createdBy: string | User;
   company: string | Company;
-  category: string | Category;
   status?: ('pending' | 'approved' | 'fulfilled' | 'cancelled') | null;
   notes?: string | null;
   updatedAt: string;
@@ -928,19 +940,21 @@ export interface ExpensesSelect<T extends boolean = true> {
  */
 export interface StockOrdersSelect<T extends boolean = true> {
   invoiceNumber?: T;
+  deliveryDate?: T;
   items?:
     | T
     | {
         product?: T;
         name?: T;
         inStock?: T;
-        qty?: T;
+        requiredQty?: T;
+        sendingQty?: T;
+        receivedQty?: T;
         id?: T;
       };
   branch?: T;
   createdBy?: T;
   company?: T;
-  category?: T;
   status?: T;
   notes?: T;
   updatedAt?: T;
