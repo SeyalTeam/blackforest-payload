@@ -1,9 +1,9 @@
 // src/collections/StockOrders.ts
 import { CollectionConfig } from 'payload'
-import type { Where } from 'payload'
+import type { Where } from 'payload' // Import Where type
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
+import timezone from 'dayjs/plugin/timezone' // Assume installed: npm i dayjs @types/dayjs
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -22,7 +22,6 @@ const StockOrders: CollectionConfig = {
         const company = user.company
         if (!company) return false
         let companyId: string
-
         if (typeof company === 'string') {
           companyId = company
         } else if (
@@ -32,8 +31,9 @@ const StockOrders: CollectionConfig = {
           typeof company.id === 'string'
         ) {
           companyId = company.id
-        } else return false
-
+        } else {
+          return false
+        }
         return { company: { equals: companyId } } as Where
       }
 
@@ -41,7 +41,6 @@ const StockOrders: CollectionConfig = {
         const branch = user.branch
         if (!branch) return false
         let branchId: string
-
         if (typeof branch === 'string') {
           branchId = branch
         } else if (
@@ -51,8 +50,9 @@ const StockOrders: CollectionConfig = {
           typeof branch.id === 'string'
         ) {
           branchId = branch.id
-        } else return false
-
+        } else {
+          return false
+        }
         return { branch: { equals: branchId } } as Where
       }
 
@@ -62,10 +62,9 @@ const StockOrders: CollectionConfig = {
     update: ({ req: { user } }) => user?.role === 'superadmin',
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
-
   hooks: {
     beforeChange: [
-      async ({ data, req, operation }) => {
+      async ({ data, req, operation, originalDoc }) => {
         if (operation === 'create') {
           if (!req.user) throw new Error('Unauthorized')
 
@@ -74,17 +73,16 @@ const StockOrders: CollectionConfig = {
             const userBranchId =
               typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
             const dataBranchId = typeof data.branch === 'string' ? data.branch : data?.branch?.id
-
             if (!userBranchId || userBranchId !== dataBranchId) {
               throw new Error('Unauthorized branch')
             }
           }
 
-          // Get today's date in IST
+          // Auto-generate invoice number with timezone-aware date
           const date = dayjs().tz('Asia/Kolkata')
           const dateStr = date.format('YYMMDD')
 
-          // Get branch ID
+          // Fetch branch to get abbr
           let branchId: string
           if (typeof data.branch === 'string') {
             branchId = data.branch
@@ -98,63 +96,56 @@ const StockOrders: CollectionConfig = {
           } else {
             throw new Error('Invalid branch')
           }
-
-          // Fetch branch to get abbr
           const branch = await req.payload.findByID({
             collection: 'branches',
             id: branchId,
             depth: 0,
           })
-
           const branchName = branch.name || ''
           const abbr = branchName.substring(0, 3).toUpperCase()
 
           // Auto-set company from branch
           if (branch?.company) {
-            let company = branch.company
+            let companyToSet = branch.company
             if (
-              typeof company === 'object' &&
-              company !== null &&
-              'id' in company &&
-              typeof company.id === 'string'
+              typeof companyToSet === 'object' &&
+              companyToSet !== null &&
+              'id' in companyToSet &&
+              typeof companyToSet.id === 'string'
             ) {
-              company = company.id
+              companyToSet = companyToSet.id
             }
-            if (typeof company === 'string') {
-              data.company = company
+            if (typeof companyToSet === 'string') {
+              data.company = companyToSet
             }
           }
 
-          // ✔ RULE: Only 1 stock order per branch per day
-          const existing = await req.payload.count({
+          // Count existing for this branch today using invoiceNumber range
+          const prefix = `${abbr}-STC-${dateStr}-`
+          const { totalDocs: existingCount } = await req.payload.count({
             collection: 'stock-orders',
             where: {
-              branch: { equals: branchId },
-              createdAt: {
-                greater_than_equal: date.startOf('day').toISOString(),
-                less_than_equal: date.endOf('day').toISOString(),
+              invoiceNumber: {
+                greater_than_equal: `${prefix}01`,
+                less_than_equal: `${prefix}99`,
               },
             },
           })
+          const seq = (existingCount + 1).toString().padStart(2, '0')
+          data.invoiceNumber = `${prefix}${seq}`
 
-          if (existing.totalDocs > 0) {
-            throw new Error('Stock order already created today for this branch')
-          }
-
-          // Invoice number always ends with -01
-          data.invoiceNumber = `${abbr}-STC-${dateStr}-01`
-
-          // Default status
+          // Set status to 'pending' if not provided
           if (!data.status) {
             data.status = 'pending'
           }
         }
 
-        // Item auto-name from product
+        // Validate and set item names from products
         if (data.items && data.items.length > 0) {
           for (const item of data.items) {
-            const productId = typeof item.product === 'string' ? item.product : item.product?.id
+            if (!item.product) continue
 
+            const productId = typeof item.product === 'string' ? item.product : item.product?.id
             if (!productId) throw new Error('Invalid product')
 
             const product = await req.payload.findByID({
@@ -165,6 +156,7 @@ const StockOrders: CollectionConfig = {
 
             if (!product) throw new Error('Product not found')
 
+            // Set name from product
             item.name = product.name
           }
         }
@@ -173,7 +165,6 @@ const StockOrders: CollectionConfig = {
       },
     ],
   },
-
   fields: [
     {
       name: 'invoiceNumber',
@@ -205,14 +196,18 @@ const StockOrders: CollectionConfig = {
           type: 'number',
           required: true,
           min: 0,
-          admin: { step: 1 },
+          admin: {
+            step: 1,
+          },
         },
         {
           name: 'qty',
           type: 'number',
           required: true,
           min: 0,
-          admin: { step: 1 },
+          admin: {
+            step: 1,
+          },
         },
       ],
     },
@@ -253,7 +248,6 @@ const StockOrders: CollectionConfig = {
       type: 'textarea',
     },
   ],
-
   timestamps: true,
 }
 
