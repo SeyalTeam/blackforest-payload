@@ -201,9 +201,30 @@ const StockOrders: CollectionConfig = {
           },
         },
         {
-          name: 'qty',
+          name: 'requiredQty',
+          label: 'Required Qty',
           type: 'number',
           required: true,
+          min: 0,
+          admin: {
+            step: 1,
+          },
+        },
+        {
+          name: 'sendingQty',
+          label: 'Sending Qty',
+          type: 'number',
+          required: false,
+          min: 0,
+          admin: {
+            step: 1,
+          },
+        },
+        {
+          name: 'receivedQty',
+          label: 'Received Qty',
+          type: 'number',
+          required: false,
           min: 0,
           admin: {
             step: 1,
