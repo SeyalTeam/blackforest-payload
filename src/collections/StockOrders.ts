@@ -59,16 +59,18 @@ const StockOrders: CollectionConfig = {
       return false
     },
     create: ({ req: { user } }) => user?.role != null && ['branch', 'waiter'].includes(user.role),
-    update: ({ req: { user } }) => user?.role === 'superadmin',
+    update: ({ req: { user } }) =>
+      user?.role != null &&
+      (user.role === 'superadmin' || ['branch', 'waiter'].includes(user.role)),
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   hooks: {
     beforeChange: [
       async ({ data, req, operation, originalDoc }) => {
-        if (operation === 'create') {
+        if (operation === 'create' || operation === 'update') {
           if (!req.user) throw new Error('Unauthorized')
 
-          // Validate branch matches user's branch
+          // Validate branch matches user's branch for branch/waiter roles
           if (['branch', 'waiter'].includes(req.user.role)) {
             const userBranchId =
               typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
@@ -76,88 +78,90 @@ const StockOrders: CollectionConfig = {
             if (!userBranchId || userBranchId !== dataBranchId) {
               throw new Error('Unauthorized branch')
             }
+
+            if (operation === 'update') {
+              const originalBranchId =
+                typeof originalDoc?.branch === 'string'
+                  ? originalDoc.branch
+                  : originalDoc?.branch?.id
+              if (userBranchId !== originalBranchId) {
+                throw new Error('Cannot update order from different branch')
+              }
+            }
           }
 
-          // Auto-generate invoice number with timezone-aware date
-          const date = dayjs().tz('Asia/Kolkata')
-          const dateStr = date.format('YYMMDD')
+          // Auto-generate invoice number ONLY on create (always -01)
+          if (operation === 'create') {
+            // Auto-generate invoice number with timezone-aware date
+            const date = dayjs().tz('Asia/Kolkata')
+            const dateStr = date.format('YYMMDD')
 
-          // Fetch branch to get abbr
-          let branchId: string
-          if (typeof data.branch === 'string') {
-            branchId = data.branch
-          } else if (
-            typeof data.branch === 'object' &&
-            data.branch !== null &&
-            'id' in data.branch &&
-            typeof data.branch.id === 'string'
-          ) {
-            branchId = data.branch.id
-          } else {
-            throw new Error('Invalid branch')
-          }
-          const branch = await req.payload.findByID({
-            collection: 'branches',
-            id: branchId,
-            depth: 0,
-          })
-          const branchName = branch.name || ''
-          const abbr = branchName.substring(0, 3).toUpperCase()
-
-          // Auto-set company from branch
-          if (branch?.company) {
-            let companyToSet = branch.company
-            if (
-              typeof companyToSet === 'object' &&
-              companyToSet !== null &&
-              'id' in companyToSet &&
-              typeof companyToSet.id === 'string'
+            // Fetch branch to get abbr
+            let branchId: string
+            if (typeof data.branch === 'string') {
+              branchId = data.branch
+            } else if (
+              typeof data.branch === 'object' &&
+              data.branch !== null &&
+              'id' in data.branch &&
+              typeof data.branch.id === 'string'
             ) {
-              companyToSet = companyToSet.id
+              branchId = data.branch.id
+            } else {
+              throw new Error('Invalid branch')
             }
-            if (typeof companyToSet === 'string') {
-              data.company = companyToSet
-            }
-          }
-
-          // Count existing for this branch today using invoiceNumber range
-          const prefix = `${abbr}-STC-${dateStr}-`
-          const { totalDocs: existingCount } = await req.payload.count({
-            collection: 'stock-orders',
-            where: {
-              invoiceNumber: {
-                greater_than_equal: `${prefix}01`,
-                less_than_equal: `${prefix}99`,
-              },
-            },
-          })
-          const seq = (existingCount + 1).toString().padStart(2, '0')
-          data.invoiceNumber = `${prefix}${seq}`
-
-          // Set status to 'pending' if not provided
-          if (!data.status) {
-            data.status = 'pending'
-          }
-        }
-
-        // Validate and set item names from products
-        if (data.items && data.items.length > 0) {
-          for (const item of data.items) {
-            if (!item.product) continue
-
-            const productId = typeof item.product === 'string' ? item.product : item.product?.id
-            if (!productId) throw new Error('Invalid product')
-
-            const product = await req.payload.findByID({
-              collection: 'products',
-              id: productId,
-              depth: 1,
+            const branch = await req.payload.findByID({
+              collection: 'branches',
+              id: branchId,
+              depth: 0,
             })
+            const branchName = branch.name || ''
+            const abbr = branchName.substring(0, 3).toUpperCase()
 
-            if (!product) throw new Error('Product not found')
+            // Always set to -01 (one per day)
+            data.invoiceNumber = `${abbr}-STC-${dateStr}-01`
 
-            // Set name from product
-            item.name = product.name
+            // Auto-set company from branch
+            if (branch?.company) {
+              let companyToSet = branch.company
+              if (
+                typeof companyToSet === 'object' &&
+                companyToSet !== null &&
+                'id' in companyToSet &&
+                typeof companyToSet.id === 'string'
+              ) {
+                companyToSet = companyToSet.id
+              }
+              if (typeof companyToSet === 'string') {
+                data.company = companyToSet
+              }
+            }
+
+            // Set status to 'pending' if not provided
+            if (!data.status) {
+              data.status = 'pending'
+            }
+          }
+
+          // Validate and set item names from products
+          if (data.items && data.items.length > 0) {
+            for (const item of data.items) {
+              if (!item.product) continue
+
+              const productId = typeof item.product === 'string' ? item.product : item.product?.id
+              if (!productId) throw new Error('Invalid product')
+
+              const product = await req.payload.findByID({
+                collection: 'products',
+                id: productId,
+                depth: 1,
+              })
+
+              if (!product) throw new Error('Product not found')
+
+              // Set name from product
+              item.name = product.name
+            }
           }
         }
 
