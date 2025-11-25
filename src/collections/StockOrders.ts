@@ -131,6 +131,16 @@ const StockOrders: CollectionConfig = {
       admin: { readOnly: true },
     },
     {
+      name: 'deliveryDate',
+      type: 'date',
+      required: true,
+      admin: {
+        date: {
+          pickerAppearance: 'dayAndTime',
+        },
+      },
+    },
+    {
       name: 'items',
       type: 'array',
       required: true,
