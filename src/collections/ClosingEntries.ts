@@ -1,4 +1,5 @@
 import { CollectionConfig, Where } from 'payload'
+import type { BeforeChangeArgs } from 'payload/types'
 
 const ClosingEntries: CollectionConfig = {
   slug: 'closing-entries',
@@ -125,7 +126,8 @@ const ClosingEntries: CollectionConfig = {
 
   hooks: {
     beforeChange: [
-      async ({ req, operation, data }) => {
+      async (args: BeforeChangeArgs) => {
+        const { req, operation, data, id } = args
         const { user } = req
 
         // ✅ Auto-assign branch for branch users
@@ -208,23 +210,71 @@ const ClosingEntries: CollectionConfig = {
           }
         }
 
-        // ✅ Calculate return total from return-orders
+        // ✅ Determine closing time
+        let closingTime: Date
+        if (operation === 'create') {
+          closingTime = new Date()
+        } else {
+          try {
+            const existing = await req.payload.findByID({
+              collection: 'closing-entries',
+              id: id,
+            })
+            closingTime = new Date(existing.createdAt)
+          } catch (err) {
+            req.payload.logger.error('Error fetching existing closing entry:', err)
+            closingTime = new Date()
+          }
+        }
+        const closingTimeISO = closingTime.toISOString()
+
+        // ✅ Calculate start and end of day
+        const entryDate = new Date(data.date)
+        const startOfDay = new Date(entryDate.setHours(0, 0, 0, 0)).toISOString()
+        const endOfDay = new Date(entryDate.setHours(23, 59, 59, 999)).toISOString()
+
+        // ✅ Calculate incremental return total from return-orders since previous closing
         if (data.date && data.branch) {
           try {
-            const entryDate = new Date(data.date)
-            const startOfDay = new Date(entryDate.setHours(0, 0, 0, 0)).toISOString()
-            const endOfDay = new Date(entryDate.setHours(23, 59, 59, 999)).toISOString()
-
-            const returnOrders = await req.payload.find({
-              collection: 'return-orders',
+            // Find previous closing on the same day
+            const previousClosings = await req.payload.find({
+              collection: 'closing-entries',
               where: {
                 and: [
                   { branch: { equals: data.branch } },
-                  { createdAt: { greater_than_equal: startOfDay } },
-                  { createdAt: { less_than: endOfDay } },
-                  { status: { equals: 'returned' } },
+                  { date: { greater_than_equal: startOfDay } },
+                  { date: { less_than: endOfDay } },
+                  { createdAt: { less_than: closingTimeISO } },
                 ],
               } as Where,
+              sort: '-createdAt',
+              limit: 1,
+            })
+
+            let returnStart: string
+            let startOperator: 'greater_than' | 'greater_than_equal' = 'greater_than_equal'
+
+            if (previousClosings.docs.length > 0) {
+              returnStart = previousClosings.docs[0].createdAt
+              startOperator = 'greater_than'
+            } else {
+              returnStart = startOfDay
+              startOperator = 'greater_than_equal'
+            }
+
+            // Query return orders in the incremental period
+            const returnQuery: Where = {
+              and: [
+                { branch: { equals: data.branch } },
+                { createdAt: { [startOperator]: returnStart } },
+                { createdAt: { less_than_equal: closingTimeISO } },
+                { status: { equals: 'returned' } },
+              ],
+            }
+
+            const returnOrders = await req.payload.find({
+              collection: 'return-orders',
+              where: returnQuery,
             })
 
             data.returnTotal = returnOrders.docs.reduce(
