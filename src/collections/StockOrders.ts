@@ -97,9 +97,11 @@ const StockOrders: CollectionConfig = {
           }
         }
 
-        // Validate and set item names from products
+        // Validate and set item names from products and set dates
         if (data.items && data.items.length > 0) {
-          for (const item of data.items) {
+          const now = new Date().toISOString()
+          for (let idx = 0; idx < data.items.length; idx++) {
+            const item = data.items[idx]
             if (!item.product) continue
 
             const productId = typeof item.product === 'string' ? item.product : item.product?.id
@@ -115,6 +117,24 @@ const StockOrders: CollectionConfig = {
 
             // Set name from product
             item.name = product.name
+
+            // Set dates if quantities are set or changed
+            const originalItem = originalDoc?.items?.[idx]
+            if (operation === 'create') {
+              if (item.requiredQty > 0) item.requiredDate = now
+              if (item.sendingQty > 0) item.sendingDate = now
+              if (item.receivedQty > 0) item.receivedDate = now
+            } else if (operation === 'update') {
+              if (item.requiredQty !== originalItem?.requiredQty && item.requiredQty > 0) {
+                item.requiredDate = now
+              }
+              if (item.sendingQty !== originalItem?.sendingQty && item.sendingQty > 0) {
+                item.sendingDate = now
+              }
+              if (item.receivedQty !== originalItem?.receivedQty && item.receivedQty > 0) {
+                item.receivedDate = now
+              }
+            }
           }
         }
 
@@ -178,6 +198,17 @@ const StockOrders: CollectionConfig = {
           },
         },
         {
+          name: 'requiredDate',
+          label: 'Required Date',
+          type: 'date',
+          admin: {
+            readOnly: true,
+            date: {
+              pickerAppearance: 'dayAndTime',
+            },
+          },
+        },
+        {
           name: 'sendingQty',
           label: 'Sending Qty',
           type: 'number',
@@ -188,6 +219,17 @@ const StockOrders: CollectionConfig = {
           },
         },
         {
+          name: 'sendingDate',
+          label: 'Sending Date',
+          type: 'date',
+          admin: {
+            readOnly: true,
+            date: {
+              pickerAppearance: 'dayAndTime',
+            },
+          },
+        },
+        {
           name: 'receivedQty',
           label: 'Received Qty',
           type: 'number',
@@ -195,6 +237,17 @@ const StockOrders: CollectionConfig = {
           min: 0,
           admin: {
             step: 1,
+          },
+        },
+        {
+          name: 'receivedDate',
+          label: 'Received Date',
+          type: 'date',
+          admin: {
+            readOnly: true,
+            date: {
+              pickerAppearance: 'dayAndTime',
+            },
           },
         },
         {
