@@ -2,80 +2,119 @@ import { CollectionConfig } from 'payload'
 
 const Billings: CollectionConfig = {
   slug: 'billings',
+
   admin: {
     useAsTitle: 'invoiceNumber',
   },
+
+  // ----------------------------------------------------------
+  // ACCESS RULES
+  // ----------------------------------------------------------
   access: {
     read: () => true,
-    create: ({ req: { user } }) => user?.role != null && ['branch', 'waiter'].includes(user.role),
-    update: ({ req: { user } }) => user?.role === 'superadmin',
-    delete: ({ req: { user } }) => user?.role === 'superadmin',
+
+    create: ({ req }) => req.user?.role != null && ['branch', 'waiter'].includes(req.user.role),
+
+    update: ({ req }) => {
+      const role = req.user?.role
+      const data = req.data as { paymentMethod?: string } | undefined
+
+      // ✔ Superadmin has full update access
+      if (role === 'superadmin') return true
+
+      // ✔ Waiter + Branch → ONLY update `paymentMethod`
+      if (
+        role && // <--- FIXED
+        ['branch', 'waiter'].includes(role) && // <--- FIXED
+        data &&
+        typeof data.paymentMethod === 'string' &&
+        Object.keys(data).length === 1
+      ) {
+        return true
+      }
+
+      return false
+    },
+
+    delete: ({ req }) => req.user?.role === 'superadmin',
   },
+
+  // ----------------------------------------------------------
+  // HOOKS
+  // ----------------------------------------------------------
   hooks: {
     beforeChange: [
       async ({ data, req, operation }) => {
+        const payload = req.payload
+
+        // ----------------------------------------------------------
+        // 1. AUTO-GENERATE INVOICE NUMBER
+        // ----------------------------------------------------------
         if (operation === 'create') {
-          // 🧾 Auto-generate invoice number like CHI-YYYYMMDD-SEQ
           const date = new Date()
           const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, '')
 
-          if (data.branch) {
-            let branchId: string
+          let branchId: string | undefined
 
-            if (typeof data.branch === 'string') {
-              branchId = data.branch
-            } else if (
-              typeof data.branch === 'object' &&
-              data.branch !== null &&
-              'id' in data.branch &&
-              typeof data.branch.id === 'string'
-            ) {
-              branchId = data.branch.id
-            } else {
-              return data
-            }
+          if (typeof data.branch === 'string') {
+            branchId = data.branch
+          } else if (
+            typeof data.branch === 'object' &&
+            data.branch &&
+            typeof (data.branch as any).id === 'string'
+          ) {
+            branchId = (data.branch as any).id
+          }
 
-            const branch = await req.payload.findByID({
-              collection: 'branches',
-              id: branchId,
-              depth: 0,
-            })
+          // ✔ Safe check before using branchId
+          if (!branchId) return data
 
-            if (branch?.name) {
-              const prefix = branch.name.substring(0, 3).toUpperCase()
-              const existingCount = await req.payload.db.collections.billings.countDocuments({
-                invoiceNumber: { $regex: `^${prefix}-${formattedDate}-` },
-              })
-              const seq = (existingCount + 1).toString().padStart(3, '0')
-              data.invoiceNumber = `${prefix}-${formattedDate}-${seq}`
-            }
+          const branch = await payload.findByID({
+            collection: 'branches',
+            id: branchId as string,
+            depth: 0,
+          })
 
-            // 🏢 Auto-set company from branch
-            if (branch?.company) {
-              let companyToSet = branch.company
-              if (
-                typeof companyToSet === 'object' &&
-                companyToSet !== null &&
-                'id' in companyToSet &&
-                typeof companyToSet.id === 'string'
-              ) {
-                companyToSet = companyToSet.id
-              }
-              if (typeof companyToSet === 'string') {
-                data.company = companyToSet
-              }
-            }
+          const prefix: string = (branch?.name ?? 'BIL').substring(0, 3).toUpperCase()
+
+          const count = await payload.db.collections.billings.countDocuments({
+            invoiceNumber: { $regex: `^${prefix}-${formattedDate}-` },
+          })
+
+          const seq = (count + 1).toString().padStart(3, '0')
+
+          data.invoiceNumber = `${prefix}-${formattedDate}-${seq}`
+
+          // ----------------------------------------------------------
+          // 2. AUTO-SET COMPANY FROM BRANCH
+          // ----------------------------------------------------------
+          let companyId: string | undefined
+
+          if (typeof branch.company === 'string') {
+            companyId = branch.company
+          } else if (
+            typeof branch.company === 'object' &&
+            branch.company &&
+            typeof (branch.company as any).id === 'string'
+          ) {
+            companyId = (branch.company as any).id
+          }
+
+          if (companyId) {
+            data.company = companyId
           }
         }
 
-        // 🧮 Auto-calculate subtotals & total
-        if (data.items && Array.isArray(data.items)) {
+        // ----------------------------------------------------------
+        // 3. AUTO-CALCULATE SUBTOTALS & TOTAL
+        // ----------------------------------------------------------
+        if (Array.isArray(data.items)) {
           data.items = data.items.map((item: any) => {
-            const qty = parseFloat(item.quantity) || 0
-            const unitPrice = parseFloat(item.unitPrice) || 0
+            const qty = Number(item.quantity) || 0
+            const price = Number(item.unitPrice) || 0
             return {
               ...item,
-              subtotal: parseFloat((qty * unitPrice).toFixed(2)),
+              subtotal: Number((qty * price).toFixed(2)),
             }
           })
 
@@ -89,6 +128,10 @@ const Billings: CollectionConfig = {
       },
     ],
   },
+
+  // ----------------------------------------------------------
+  // FIELDS
+  // ----------------------------------------------------------
   fields: [
     {
       name: 'invoiceNumber',
@@ -97,6 +140,10 @@ const Billings: CollectionConfig = {
       required: true,
       admin: { readOnly: true },
     },
+
+    // ------------------------------
+    // ITEMS ARRAY
+    // ------------------------------
     {
       name: 'items',
       type: 'array',
@@ -109,21 +156,14 @@ const Billings: CollectionConfig = {
           relationTo: 'products',
           required: true,
         },
+        { name: 'name', type: 'text', required: true },
         {
-          name: 'name',
-          type: 'text',
-          required: true,
-        },
-        {
-          // ✅ Fractional quantities (e.g. 0.5 kg)
           name: 'quantity',
           type: 'number',
           required: true,
           min: 0.01,
-          validate: (val?: number | null) => {
-            if (typeof val !== 'number' || val <= 0) {
-              return 'Quantity must be greater than 0'
-            }
+          validate: (value: number | null | undefined) => {
+            if (!value || value <= 0) return 'Quantity must be greater than 0'
             return true
           },
         },
@@ -134,7 +174,6 @@ const Billings: CollectionConfig = {
           min: 0,
         },
         {
-          // ✅ Calculated automatically
           name: 'subtotal',
           type: 'number',
           required: true,
@@ -148,27 +187,30 @@ const Billings: CollectionConfig = {
         },
       ],
     },
+
     {
       name: 'totalAmount',
       type: 'number',
       required: true,
-      min: 0,
       admin: { readOnly: true },
     },
+
     {
       name: 'branch',
       type: 'relationship',
       relationTo: 'branches',
       required: true,
     },
+
     {
       name: 'createdBy',
       type: 'relationship',
       relationTo: 'users',
       required: true,
-      defaultValue: ({ user }) => user?.id,
       admin: { readOnly: true },
+      defaultValue: ({ user }) => user?.id,
     },
+
     {
       name: 'company',
       type: 'relationship',
@@ -176,6 +218,7 @@ const Billings: CollectionConfig = {
       required: true,
       admin: { readOnly: true },
     },
+
     {
       name: 'customerDetails',
       type: 'group',
@@ -184,9 +227,12 @@ const Billings: CollectionConfig = {
         { name: 'address', type: 'text' },
       ],
     },
+
     {
       name: 'paymentMethod',
       type: 'select',
+      required: true,
+      defaultValue: 'cash',
       options: [
         { label: 'Cash', value: 'cash' },
         { label: 'Card', value: 'card' },
@@ -194,6 +240,7 @@ const Billings: CollectionConfig = {
         { label: 'Other', value: 'other' },
       ],
     },
+
     {
       name: 'status',
       type: 'select',
@@ -204,11 +251,13 @@ const Billings: CollectionConfig = {
         { label: 'Cancelled', value: 'cancelled' },
       ],
     },
+
     {
       name: 'notes',
       type: 'textarea',
     },
   ],
+
   timestamps: true,
 }
 
