@@ -65,13 +65,6 @@ const ClosingEntries: CollectionConfig = {
       admin: { readOnly: true },
     },
     {
-      name: 'stockTotal',
-      type: 'number',
-      required: true,
-      min: 0,
-      admin: { readOnly: true },
-    },
-    {
       name: 'creditCard',
       type: 'number',
       required: true,
@@ -200,28 +193,25 @@ const ClosingEntries: CollectionConfig = {
             req.payload.logger.error('Error generating closingNumber:', err)
           }
         }
-        let startOfDay, endOfDay, lastClosingTime
-        if (data.date && data.branch) {
-          const entryDate = new Date(data.date)
-          startOfDay = new Date(entryDate.setHours(0, 0, 0, 0)).toISOString()
-          endOfDay = new Date(entryDate.setHours(23, 59, 59, 999)).toISOString()
-          // Find the most recent previous closing for today
-          const lastClosingRes = await req.payload.find({
-            collection: 'closing-entries',
-            where: {
-              and: [{ branch: { equals: data.branch } }, { date: { equals: data.date } }],
-            },
-            sort: '-createdAt',
-            limit: 1,
-          })
-          lastClosingTime = startOfDay
-          if (lastClosingRes.docs.length > 0) {
-            lastClosingTime = new Date(lastClosingRes.docs[0].createdAt).toISOString()
-          }
-        }
         // ✅ Calculate return total from return-orders incrementally
         if (data.date && data.branch) {
           try {
+            const entryDate = new Date(data.date)
+            const startOfDay = new Date(entryDate.setHours(0, 0, 0, 0)).toISOString()
+            const endOfDay = new Date(entryDate.setHours(23, 59, 59, 999)).toISOString()
+            // Find the most recent previous closing for today
+            const lastClosingRes = await req.payload.find({
+              collection: 'closing-entries',
+              where: {
+                and: [{ branch: { equals: data.branch } }, { date: { equals: data.date } }],
+              },
+              sort: '-createdAt',
+              limit: 1,
+            })
+            let lastClosingTime = startOfDay
+            if (lastClosingRes.docs.length > 0) {
+              lastClosingTime = new Date(lastClosingRes.docs[0].createdAt).toISOString()
+            }
             const returnOrders = await req.payload.find({
               collection: 'return-orders',
               where: {
@@ -244,31 +234,6 @@ const ClosingEntries: CollectionConfig = {
         } else {
           data.returnTotal = 0
         }
-        // ✅ Calculate stock total from stock-orders incrementally
-        if (data.date && data.branch) {
-          try {
-            const stockOrders = await req.payload.find({
-              collection: 'stock-orders',
-              where: {
-                and: [
-                  { branch: { equals: data.branch } },
-                  { createdAt: { greater_than: lastClosingTime } },
-                  { createdAt: { less_than: endOfDay } },
-                  { status: { equals: 'approved' } },
-                ],
-              } as Where,
-            })
-            data.stockTotal = stockOrders.docs.reduce(
-              (sum, order) => sum + (order.totalReceivedAmount || 0),
-              0,
-            )
-          } catch (err) {
-            req.payload.logger.error('Error calculating stockTotal:', err)
-            data.stockTotal = 0 // Fallback to 0 on error
-          }
-        } else {
-          data.stockTotal = 0
-        }
         // ✅ Calculate cash from denominations
         const denoms = data.denominations || {}
         data.cash =
@@ -283,8 +248,7 @@ const ClosingEntries: CollectionConfig = {
         data.totalSales =
           (data.systemSales || 0) + (data.manualSales || 0) + (data.onlineSales || 0)
         data.totalPayments = (data.creditCard || 0) + (data.upi || 0) + (data.cash || 0)
-        data.net =
-          data.totalSales - (data.expenses || 0) - (data.returnTotal || 0) - (data.stockTotal || 0)
+        data.net = data.totalSales - (data.expenses || 0) - (data.returnTotal || 0)
         return data
       },
     ],
