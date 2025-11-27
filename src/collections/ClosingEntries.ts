@@ -62,6 +62,13 @@ const ClosingEntries: CollectionConfig = {
       min: 0,
     },
     {
+      name: 'returnTotal',
+      type: 'number',
+      required: true,
+      min: 0,
+      admin: { readOnly: true },
+    },
+    {
       name: 'creditCard',
       type: 'number',
       required: true,
@@ -201,6 +208,37 @@ const ClosingEntries: CollectionConfig = {
           }
         }
 
+        // ✅ Calculate return total from return-orders
+        if (data.date && data.branch) {
+          try {
+            const entryDate = new Date(data.date)
+            const startOfDay = new Date(entryDate.setHours(0, 0, 0, 0)).toISOString()
+            const endOfDay = new Date(entryDate.setHours(23, 59, 59, 999)).toISOString()
+
+            const returnOrders = await req.payload.find({
+              collection: 'return-orders',
+              where: {
+                and: [
+                  { branch: { equals: data.branch } },
+                  { createdAt: { greater_than_equal: startOfDay } },
+                  { createdAt: { less_than: endOfDay } },
+                  { status: { equals: 'returned' } },
+                ],
+              } as Where,
+            })
+
+            data.returnTotal = returnOrders.docs.reduce(
+              (sum, order) => sum + (order.totalAmount || 0),
+              0,
+            )
+          } catch (err) {
+            req.payload.logger.error('Error calculating returnTotal:', err)
+            data.returnTotal = 0 // Fallback to 0 on error
+          }
+        } else {
+          data.returnTotal = 0
+        }
+
         // ✅ Calculate cash from denominations
         const denoms = data.denominations || {}
         data.cash =
@@ -218,7 +256,7 @@ const ClosingEntries: CollectionConfig = {
 
         data.totalPayments = (data.creditCard || 0) + (data.upi || 0) + (data.cash || 0)
 
-        data.net = data.totalSales - (data.expenses || 0)
+        data.net = data.totalSales - (data.expenses || 0) - (data.returnTotal || 0)
 
         return data
       },
