@@ -124,6 +124,7 @@ const StockOrders: CollectionConfig = {
               if (item.requiredQty > 0) item.requiredDate = now
               if (item.sendingQty > 0) item.sendingDate = now
               if (item.receivedQty > 0) item.receivedDate = now
+              if (item.pickedQty > 0) item.pickedDate = now
             } else if (operation === 'update') {
               if (item.requiredQty !== originalItem?.requiredQty && item.requiredQty > 0) {
                 item.requiredDate = now
@@ -133,6 +134,9 @@ const StockOrders: CollectionConfig = {
               }
               if (item.receivedQty !== originalItem?.receivedQty && item.receivedQty > 0) {
                 item.receivedDate = now
+              }
+              if (item.pickedQty !== originalItem?.pickedQty && item.pickedQty > 0) {
+                item.pickedDate = now
               }
             }
           }
@@ -221,6 +225,27 @@ const StockOrders: CollectionConfig = {
         {
           name: 'sendingDate',
           label: 'Sending Date',
+          type: 'date',
+          admin: {
+            readOnly: true,
+            date: {
+              pickerAppearance: 'dayAndTime',
+            },
+          },
+        },
+        {
+          name: 'pickedQty',
+          label: 'Picked Qty',
+          type: 'number',
+          required: false,
+          min: 0,
+          admin: {
+            step: 1,
+          },
+        },
+        {
+          name: 'pickedDate',
+          label: 'Picked Date',
           type: 'date',
           admin: {
             readOnly: true,
