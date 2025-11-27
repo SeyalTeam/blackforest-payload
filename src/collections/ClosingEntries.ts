@@ -1,15 +1,11 @@
 import { CollectionConfig, Where } from 'payload'
-import type { BeforeChangeArgs } from 'payload/types'
-
 const ClosingEntries: CollectionConfig = {
   slug: 'closing-entries',
-
   admin: {
     useAsTitle: 'closingNumber',
     description:
       'Multiple daily closing entries allowed for all branches. Automatically calculates totals, cash, and net values.',
   },
-
   // ✅ Make collection fully public
   access: {
     read: () => true,
@@ -17,7 +13,6 @@ const ClosingEntries: CollectionConfig = {
     update: () => true,
     delete: () => true,
   },
-
   fields: [
     {
       name: 'closingNumber',
@@ -123,18 +118,17 @@ const ClosingEntries: CollectionConfig = {
       required: true,
     },
   ],
-
   hooks: {
     beforeChange: [
-      async (args: BeforeChangeArgs) => {
-        const { req, operation, data, id } = args
+      async ({ req, operation, data }) => {
         const { user } = req
-
         // ✅ Auto-assign branch for branch users
         if (operation === 'create' && user?.role === 'branch' && user?.branch) {
-          data.branch = typeof user.branch === 'object' ? user.branch.id : user.branch
+          data.branch =
+            typeof user.branch === 'object' && user.branch !== null && 'id' in user.branch
+              ? user.branch.id
+              : user.branch
         }
-
         // ✅ Generate closing number (safe & unique per branch)
         if (operation === 'create' && data.branch) {
           try {
@@ -143,7 +137,6 @@ const ClosingEntries: CollectionConfig = {
               collection: 'branches',
               id: data.branch,
             })
-
             if (branchDoc) {
               let prefix
               if (data.branch === '690e326cea6f468d6fe462e6') {
@@ -152,24 +145,19 @@ const ClosingEntries: CollectionConfig = {
                 const rawName = (branchDoc.name || 'BRANCH').toString().trim().toUpperCase()
                 prefix = rawName.replace(/[^A-Z0-9]/g, '').slice(0, 3) || 'BRN'
               }
-
               // Parse and format date as DDMMYY
               const entryDate = new Date(data.date)
               const dd = entryDate.getDate().toString().padStart(2, '0')
               const mm = (entryDate.getMonth() + 1).toString().padStart(2, '0')
               const yy = entryDate.getFullYear().toString().slice(-2)
               const dateStr = `${dd}${mm}${yy}`
-
               // Normalize date to start of day for consistency
               data.date = new Date(entryDate.setHours(0, 0, 0, 0)).toISOString()
-
               // Calculate start and end of day for query
               const startOfDay = new Date(entryDate.setHours(0, 0, 0, 0)).toISOString()
               const endOfDay = new Date(entryDate.setHours(23, 59, 59, 999)).toISOString()
-
               let seq = 0
               let closingNumberCandidate = ''
-
               // Try a few times to find unused number
               for (let attempt = 0; attempt < 20; attempt++) {
                 const { totalDocs: count } = await req.payload.count({
@@ -182,23 +170,19 @@ const ClosingEntries: CollectionConfig = {
                     ],
                   } as Where,
                 })
-
                 seq = count + 1 + attempt
                 const padded = seq.toString().padStart(2, '0')
                 closingNumberCandidate = `${prefix}-CLO-${dateStr}-${padded}`
-
                 const exists = await req.payload.find({
                   collection: 'closing-entries',
                   where: { closingNumber: { equals: closingNumberCandidate } },
                   limit: 1,
                 })
-
                 if (!exists?.docs?.length) {
                   data.closingNumber = closingNumberCandidate
                   break
                 }
               }
-
               // Fallback (extremely rare)
               if (!data.closingNumber) {
                 const padded = (seq || 0).toString().padStart(2, '0')
@@ -209,74 +193,36 @@ const ClosingEntries: CollectionConfig = {
             req.payload.logger.error('Error generating closingNumber:', err)
           }
         }
-
-        // ✅ Determine closing time
-        let closingTime: Date
-        if (operation === 'create') {
-          closingTime = new Date()
-        } else {
-          try {
-            const existing = await req.payload.findByID({
-              collection: 'closing-entries',
-              id: id,
-            })
-            closingTime = new Date(existing.createdAt)
-          } catch (err) {
-            req.payload.logger.error('Error fetching existing closing entry:', err)
-            closingTime = new Date()
-          }
-        }
-        const closingTimeISO = closingTime.toISOString()
-
-        // ✅ Calculate start and end of day
-        const entryDate = new Date(data.date)
-        const startOfDay = new Date(entryDate.setHours(0, 0, 0, 0)).toISOString()
-        const endOfDay = new Date(entryDate.setHours(23, 59, 59, 999)).toISOString()
-
-        // ✅ Calculate incremental return total from return-orders since previous closing
+        // ✅ Calculate return total from return-orders incrementally
         if (data.date && data.branch) {
           try {
-            // Find previous closing on the same day
-            const previousClosings = await req.payload.find({
+            const entryDate = new Date(data.date)
+            const startOfDay = new Date(entryDate.setHours(0, 0, 0, 0)).toISOString()
+            const endOfDay = new Date(entryDate.setHours(23, 59, 59, 999)).toISOString()
+            // Find the most recent previous closing for today
+            const lastClosingRes = await req.payload.find({
               collection: 'closing-entries',
               where: {
-                and: [
-                  { branch: { equals: data.branch } },
-                  { date: { greater_than_equal: startOfDay } },
-                  { date: { less_than: endOfDay } },
-                  { createdAt: { less_than: closingTimeISO } },
-                ],
-              } as Where,
+                and: [{ branch: { equals: data.branch } }, { date: { equals: data.date } }],
+              },
               sort: '-createdAt',
               limit: 1,
             })
-
-            let returnStart: string
-            let startOperator: 'greater_than' | 'greater_than_equal' = 'greater_than_equal'
-
-            if (previousClosings.docs.length > 0) {
-              returnStart = previousClosings.docs[0].createdAt
-              startOperator = 'greater_than'
-            } else {
-              returnStart = startOfDay
-              startOperator = 'greater_than_equal'
+            let lastClosingTime = startOfDay
+            if (lastClosingRes.docs.length > 0) {
+              lastClosingTime = new Date(lastClosingRes.docs[0].createdAt).toISOString()
             }
-
-            // Query return orders in the incremental period
-            const returnQuery: Where = {
-              and: [
-                { branch: { equals: data.branch } },
-                { createdAt: { [startOperator]: returnStart } },
-                { createdAt: { less_than_equal: closingTimeISO } },
-                { status: { equals: 'returned' } },
-              ],
-            }
-
             const returnOrders = await req.payload.find({
               collection: 'return-orders',
-              where: returnQuery,
+              where: {
+                and: [
+                  { branch: { equals: data.branch } },
+                  { createdAt: { greater_than: lastClosingTime } },
+                  { createdAt: { less_than: endOfDay } },
+                  { status: { equals: 'returned' } },
+                ],
+              } as Where,
             })
-
             data.returnTotal = returnOrders.docs.reduce(
               (sum, order) => sum + (order.totalAmount || 0),
               0,
@@ -288,7 +234,6 @@ const ClosingEntries: CollectionConfig = {
         } else {
           data.returnTotal = 0
         }
-
         // ✅ Calculate cash from denominations
         const denoms = data.denominations || {}
         data.cash =
@@ -299,21 +244,15 @@ const ClosingEntries: CollectionConfig = {
           (denoms.count50 || 0) * 50 +
           (denoms.count10 || 0) * 10 +
           (denoms.count5 || 0) * 5
-
         // ✅ Totals
         data.totalSales =
           (data.systemSales || 0) + (data.manualSales || 0) + (data.onlineSales || 0)
-
         data.totalPayments = (data.creditCard || 0) + (data.upi || 0) + (data.cash || 0)
-
         data.net = data.totalSales - (data.expenses || 0) - (data.returnTotal || 0)
-
         return data
       },
     ],
   },
-
   versions: false, // disable drafts/soft delete
 }
-
 export default ClosingEntries
