@@ -433,7 +433,6 @@ export interface ClosingEntry {
   onlineSales: number;
   expenses: number;
   returnTotal: number;
-  stockTotal: number;
   creditCard: number;
   upi: number;
   cash: number;
@@ -921,7 +920,6 @@ export interface ClosingEntriesSelect<T extends boolean = true> {
   onlineSales?: T;
   expenses?: T;
   returnTotal?: T;
-  stockTotal?: T;
   creditCard?: T;
   upi?: T;
   cash?: T;
