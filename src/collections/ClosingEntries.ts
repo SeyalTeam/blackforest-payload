@@ -1,11 +1,11 @@
-import { CollectionConfig, Where } from 'payload'
+import { CollectionConfig } from 'payload'
 
 const ClosingEntries: CollectionConfig = {
   slug: 'closing-entries',
   admin: {
     useAsTitle: 'closingNumber',
     description:
-      'Daily closing entries for branches. Auto-calculates totals, returns, stock receipts, and net.',
+      'Daily closing entries for branches. Auto-calculates sales, returns, stock receipts.',
   },
 
   access: {
@@ -16,7 +16,6 @@ const ClosingEntries: CollectionConfig = {
   },
 
   fields: [
-    // Closing Number
     {
       name: 'closingNumber',
       type: 'text',
@@ -25,7 +24,6 @@ const ClosingEntries: CollectionConfig = {
       admin: { readOnly: true },
     },
 
-    // Date (start of day UTC)
     {
       name: 'date',
       type: 'date',
@@ -45,14 +43,13 @@ const ClosingEntries: CollectionConfig = {
     // Returns
     { name: 'returnTotal', type: 'number', admin: { readOnly: true }, min: 0 },
 
-    // Stock Orders Received Amount
+    // Stock Orders Total (Incremental)
     { name: 'stockOrders', type: 'number', admin: { readOnly: true }, defaultValue: 0 },
 
     // Payments
     { name: 'creditCard', type: 'number', required: true, min: 0 },
     { name: 'upi', type: 'number', required: true, min: 0 },
 
-    // Cash auto-calculated
     {
       name: 'cash',
       type: 'number',
@@ -60,7 +57,6 @@ const ClosingEntries: CollectionConfig = {
       admin: { readOnly: true },
     },
 
-    // Denominations
     {
       name: 'denominations',
       type: 'group',
@@ -75,12 +71,10 @@ const ClosingEntries: CollectionConfig = {
       ],
     },
 
-    // Totals
     { name: 'totalSales', type: 'number', admin: { readOnly: true } },
     { name: 'totalPayments', type: 'number', admin: { readOnly: true } },
     { name: 'net', type: 'number', admin: { readOnly: true } },
 
-    // Branch
     {
       name: 'branch',
       type: 'relationship',
@@ -94,12 +88,16 @@ const ClosingEntries: CollectionConfig = {
       async ({ req, operation, data }) => {
         const { user } = req
 
-        // Auto-assign branch for branch user
-        if (operation === 'create' && user?.role === 'branch' && user?.branch) {
+        // ------------------------------------------
+        // Auto assign branch for branch users
+        // ------------------------------------------
+        if (operation === 'create' && user?.role === 'branch' && user.branch) {
           data.branch = typeof user.branch === 'object' ? user.branch.id : user.branch
         }
 
-        // Normalize date to start of day UTC
+        // ------------------------------------------
+        // Normalize Date to UTC start-of-day
+        // ------------------------------------------
         if (data.date) {
           const d = new Date(data.date)
           data.date = new Date(
@@ -131,7 +129,7 @@ const ClosingEntries: CollectionConfig = {
         ).toISOString()
 
         // ------------------------------------------
-        // Generate Closing Number
+        // Generate Closing Number (fixed prefer-const)
         // ------------------------------------------
         if (operation === 'create' && data.branch) {
           try {
@@ -140,7 +138,7 @@ const ClosingEntries: CollectionConfig = {
               id: data.branch,
             })
 
-            let prefix = branchDoc?.name
+            const prefix = branchDoc?.name
               ? branchDoc.name
                   .toUpperCase()
                   .replace(/[^A-Z0-9]/g, '')
@@ -164,34 +162,35 @@ const ClosingEntries: CollectionConfig = {
             })
 
             const seq = (totalDocs + 1).toString().padStart(2, '0')
+
             data.closingNumber = `${prefix}-CLO-${dateStr}-${seq}`
           } catch (err) {
-            req.payload.logger.error('Closing number generation failed:', err)
+            req.payload.logger.error('Closing number creation error:', err)
           }
         }
 
         // ------------------------------------------
-        // Find last closing createdAt (real last closing)
+        // Get latest received log time (for incremental stock)
         // ------------------------------------------
-        let lastClosingTime = startOfDay
+        let latestReceivedTime = startOfDay
+
         try {
-          const lastClosing = await req.payload.find({
+          const previousClosings = await req.payload.find({
             collection: 'closing-entries',
-            where: {
-              branch: { equals: data.branch },
-              createdAt: { less_than: new Date().toISOString() },
-            },
+            where: { branch: { equals: data.branch } },
             sort: '-createdAt',
             limit: 1,
           })
 
-          if (lastClosing.docs.length > 0) {
-            lastClosingTime = new Date(lastClosing.docs[0].createdAt).toISOString()
+          if (previousClosings.docs.length > 0) {
+            latestReceivedTime = new Date(previousClosings.docs[0].createdAt).toISOString()
           }
-        } catch {}
+        } catch {
+          /* ignore */
+        }
 
         // ------------------------------------------
-        // Return Orders – incremental
+        // Incremental Return Total
         // ------------------------------------------
         try {
           const returnOrders = await req.payload.find({
@@ -199,8 +198,8 @@ const ClosingEntries: CollectionConfig = {
             where: {
               and: [
                 { branch: { equals: data.branch } },
-                { createdAt: { greater_than: lastClosingTime } },
-                { createdAt: { less_than_equal: endOfDay } },
+                { createdAt: { greater_than: latestReceivedTime } },
+                { createdAt: { less_than: endOfDay } },
                 { status: { equals: 'returned' } },
               ],
             },
@@ -212,14 +211,12 @@ const ClosingEntries: CollectionConfig = {
         }
 
         // ------------------------------------------
-        // ⭐ FIXED: Stock Orders incremental using receivingLog
+        // Incremental Stock ReceivingLog Calculation (FIXED)
         // ------------------------------------------
         try {
           const stockOrders = await req.payload.find({
             collection: 'stock-orders',
-            where: {
-              branch: { equals: data.branch },
-            },
+            where: { branch: { equals: data.branch } },
             limit: 500,
           })
 
@@ -235,24 +232,22 @@ const ClosingEntries: CollectionConfig = {
                 if (!log.receivedDate) continue
 
                 const rDate = new Date(log.receivedDate).toISOString()
-                const rAmount = log.amount || 0
+                const amt = log.amount || 0
 
-                // Only entries AFTER last closing
-                if (rDate > lastClosingTime && rDate <= endOfDay) {
-                  receivedTotal += rAmount
+                if (rDate > latestReceivedTime && rDate <= endOfDay) {
+                  receivedTotal += amt
                 }
               }
             }
           }
 
           data.stockOrders = receivedTotal
-        } catch (err) {
-          req.payload.logger.error('StockOrders calc failed:', err)
+        } catch {
           data.stockOrders = 0
         }
 
         // ------------------------------------------
-        // Cash calculation
+        // Cash Calculation
         // ------------------------------------------
         const d = data.denominations || {}
         data.cash =
@@ -267,11 +262,13 @@ const ClosingEntries: CollectionConfig = {
         // Totals
         data.totalSales =
           (data.systemSales || 0) + (data.manualSales || 0) + (data.onlineSales || 0)
-
         data.totalPayments = (data.creditCard || 0) + (data.upi || 0) + (data.cash || 0)
 
         data.net =
-          data.totalSales - (data.expenses || 0) - (data.returnTotal || 0) - (data.stockOrders || 0)
+          (data.totalSales || 0) -
+          (data.expenses || 0) -
+          (data.returnTotal || 0) -
+          (data.stockOrders || 0)
 
         return data
       },

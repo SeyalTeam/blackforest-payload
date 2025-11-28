@@ -419,7 +419,7 @@ export interface ReturnOrder {
   createdAt: string;
 }
 /**
- * Daily closing entries for branches. Auto-calculates totals, returns, stock receipts, and net.
+ * Daily closing entries for branches. Auto-calculates sales, returns, stock receipts.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "closing-entries".
