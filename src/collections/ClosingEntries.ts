@@ -32,21 +32,16 @@ const ClosingEntries: CollectionConfig = {
       defaultValue: () => new Date().toISOString(),
     },
 
-    // Sales
     { name: 'systemSales', type: 'number', required: true, min: 0 },
     { name: 'manualSales', type: 'number', required: true, min: 0 },
     { name: 'onlineSales', type: 'number', required: true, min: 0 },
 
-    // Expenses
     { name: 'expenses', type: 'number', required: true, min: 0 },
 
-    // Returns
     { name: 'returnTotal', type: 'number', admin: { readOnly: true }, min: 0 },
 
-    // Stock Orders Total
     { name: 'stockOrders', type: 'number', admin: { readOnly: true }, defaultValue: 0 },
 
-    // Payments
     { name: 'creditCard', type: 'number', required: true, min: 0 },
     { name: 'upi', type: 'number', required: true, min: 0 },
 
@@ -93,7 +88,7 @@ const ClosingEntries: CollectionConfig = {
           data.branch = typeof user.branch === 'object' ? user.branch.id : user.branch
         }
 
-        // Normalize date to start of UTC day
+        // Normalize date
         if (data.date) {
           const d = new Date(data.date)
           data.date = new Date(
@@ -110,9 +105,9 @@ const ClosingEntries: CollectionConfig = {
             0,
             0,
             0,
-            0,
           ),
         ).toISOString()
+
         const endOfDay = new Date(
           Date.UTC(
             entryDate.getUTCFullYear(),
@@ -125,9 +120,7 @@ const ClosingEntries: CollectionConfig = {
           ),
         ).toISOString()
 
-        // ------------------------------------------
-        // Generate Closing Number
-        // ------------------------------------------
+        // Generate closing number
         if (operation === 'create' && data.branch) {
           try {
             const branchDoc = await req.payload.findByID({
@@ -148,47 +141,25 @@ const ClosingEntries: CollectionConfig = {
             const yy = entryDate.getUTCFullYear().toString().slice(-2)
             const dateStr = `${dd}${mm}${yy}`
 
-            let seq = 0
+            const { totalDocs } = await req.payload.count({
+              collection: 'closing-entries',
+              where: {
+                and: [
+                  { branch: { equals: data.branch } },
+                  { date: { greater_than_equal: startOfDay } },
+                  { date: { less_than: endOfDay } },
+                ],
+              },
+            })
 
-            for (let attempt = 0; attempt < 20; attempt++) {
-              const { totalDocs } = await req.payload.count({
-                collection: 'closing-entries',
-                where: {
-                  and: [
-                    { branch: { equals: data.branch } },
-                    { date: { greater_than_equal: startOfDay } },
-                    { date: { less_than: endOfDay } },
-                  ],
-                },
-              })
-
-              seq = totalDocs + 1 + attempt
-              const padded = seq.toString().padStart(2, '0')
-              const candidate = `${prefix}-CLO-${dateStr}-${padded}`
-
-              const exists = await req.payload.find({
-                collection: 'closing-entries',
-                where: { closingNumber: { equals: candidate } },
-                limit: 1,
-              })
-
-              if (!exists.docs.length) {
-                data.closingNumber = candidate
-                break
-              }
-            }
-
-            if (!data.closingNumber) {
-              data.closingNumber = `${prefix}-CLO-${dateStr}-${seq}-${Date.now()}`
-            }
-          } catch (err) {
-            req.payload.logger.error('Closing number generation failed:', err)
+            const padded = (totalDocs + 1).toString().padStart(2, '0')
+            data.closingNumber = `${prefix}-CLO-${dateStr}-${padded}`
+          } catch (e) {
+            req.payload.logger.error('Closing number error:', e)
           }
         }
 
-        // ------------------------------------------
-        // Last closing time today
-        // ------------------------------------------
+        // Last closing time
         let lastClosingTime = startOfDay
         try {
           const lastClosing = await req.payload.find({
@@ -209,11 +180,9 @@ const ClosingEntries: CollectionConfig = {
           }
         } catch {}
 
-        // ------------------------------------------
-        // Return Orders (incremental)
-        // ------------------------------------------
+        // Return orders incremental
         try {
-          const returnOrders = await req.payload.find({
+          const ro = await req.payload.find({
             collection: 'return-orders',
             where: {
               and: [
@@ -225,13 +194,14 @@ const ClosingEntries: CollectionConfig = {
             },
           })
 
-          data.returnTotal = returnOrders.docs.reduce((sum, o) => sum + (o.totalAmount || 0), 0)
+          data.returnTotal = ro.docs.reduce((s, r) => s + (r.totalAmount || 0), 0)
         } catch {
           data.returnTotal = 0
         }
 
         // ------------------------------------------
-        // Stock Orders (incremental using receivingLog)
+        // ⭐ STOCK ORDERS INCREMENTAL (CORRECT LOGIC)
+        // Count receivingLog entries, NOT totals
         // ------------------------------------------
         try {
           const stockOrders = await req.payload.find({
@@ -273,9 +243,7 @@ const ClosingEntries: CollectionConfig = {
           data.stockOrders = 0
         }
 
-        // ------------------------------------------
-        // Cash Calculation
-        // ------------------------------------------
+        // Cash calc
         const d = data.denominations || {}
         data.cash =
           (d.count2000 || 0) * 2000 +
@@ -291,11 +259,7 @@ const ClosingEntries: CollectionConfig = {
           (data.systemSales || 0) + (data.manualSales || 0) + (data.onlineSales || 0)
         data.totalPayments = (data.creditCard || 0) + (data.upi || 0) + (data.cash || 0)
 
-        data.net =
-          (data.totalSales || 0) -
-          (data.expenses || 0) -
-          (data.returnTotal || 0) -
-          (data.stockOrders || 0)
+        data.net = data.totalSales - data.expenses - data.returnTotal - data.stockOrders
 
         return data
       },
