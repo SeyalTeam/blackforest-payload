@@ -419,7 +419,7 @@ export interface ReturnOrder {
   createdAt: string;
 }
 /**
- * Daily closing entries for branches. Auto-calculates sales, returns, stock receipts.
+ * Multiple daily closing entries allowed for all branches. Automatically calculates totals, cash, and net values.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "closing-entries".
@@ -432,8 +432,6 @@ export interface ClosingEntry {
   manualSales: number;
   onlineSales: number;
   expenses: number;
-  returnTotal?: number | null;
-  stockOrders?: number | null;
   creditCard: number;
   upi: number;
   cash: number;
@@ -507,17 +505,9 @@ export interface StockOrder {
     pickedQty?: number | null;
     pickedAmount?: number | null;
     pickedDate?: string | null;
-    receivingLog?:
-      | {
-          qty: number;
-          amount: number;
-          unitPrice?: number | null;
-          receivedDate: string;
-          id?: string | null;
-        }[]
-      | null;
-    totalReceivedQty?: number | null;
-    totalReceivedAmount?: number | null;
+    receivedQty?: number | null;
+    receivedAmount?: number | null;
+    receivedDate?: string | null;
     differenceQty?: number | null;
     differenceAmount?: number | null;
     status?: ('pending' | 'approved') | null;
@@ -531,6 +521,10 @@ export interface StockOrder {
   totalSendingAmount?: number | null;
   totalPickedQty?: number | null;
   totalPickedAmount?: number | null;
+  totalReceivedQty?: number | null;
+  totalReceivedAmount?: number | null;
+  totalDifferenceQty?: number | null;
+  totalDifferenceAmount?: number | null;
   branch: string | Branch;
   createdBy: string | User;
   company: string | Company;
@@ -924,8 +918,6 @@ export interface ClosingEntriesSelect<T extends boolean = true> {
   manualSales?: T;
   onlineSales?: T;
   expenses?: T;
-  returnTotal?: T;
-  stockOrders?: T;
   creditCard?: T;
   upi?: T;
   cash?: T;
@@ -990,17 +982,9 @@ export interface StockOrdersSelect<T extends boolean = true> {
         pickedQty?: T;
         pickedAmount?: T;
         pickedDate?: T;
-        receivingLog?:
-          | T
-          | {
-              qty?: T;
-              amount?: T;
-              unitPrice?: T;
-              receivedDate?: T;
-              id?: T;
-            };
-        totalReceivedQty?: T;
-        totalReceivedAmount?: T;
+        receivedQty?: T;
+        receivedAmount?: T;
+        receivedDate?: T;
         differenceQty?: T;
         differenceAmount?: T;
         status?: T;
@@ -1014,6 +998,10 @@ export interface StockOrdersSelect<T extends boolean = true> {
   totalSendingAmount?: T;
   totalPickedQty?: T;
   totalPickedAmount?: T;
+  totalReceivedQty?: T;
+  totalReceivedAmount?: T;
+  totalDifferenceQty?: T;
+  totalDifferenceAmount?: T;
   branch?: T;
   createdBy?: T;
   company?: T;

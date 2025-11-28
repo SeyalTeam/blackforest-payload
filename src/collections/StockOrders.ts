@@ -16,7 +16,7 @@ const StockOrders: CollectionConfig = {
   access: {
     read: () => true,
     create: ({ req: { user } }) => user?.role != null && ['branch', 'waiter'].includes(user.role),
-    update: ({ req: { user } }) => user?.role === 'superadmin' || user?.role === 'branch',
+    update: ({ req: { user } }) => user?.role === 'superadmin',
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   hooks: {
@@ -139,38 +139,10 @@ const StockOrders: CollectionConfig = {
             item.requiredAmount = (item.requiredQty || 0) * price
             item.sendingAmount = (item.sendingQty || 0) * price
             item.pickedAmount = (item.pickedQty || 0) * price
-
-            // Handle receivingLog entries
-            if (item.receivingLog && Array.isArray(item.receivingLog)) {
-              for (const entry of item.receivingLog) {
-                // Ensure price snapshot
-                entry.unitPrice = price
-
-                // Auto-calc the amount per entry
-                entry.amount = (entry.qty || 0) * price
-
-                // Ensure date exists
-                if (!entry.receivedDate) entry.receivedDate = now
-              }
-            }
-
-            // Calculate received from log if exists
-            if (item.receivingLog && Array.isArray(item.receivingLog)) {
-              item.totalReceivedQty = item.receivingLog.reduce(
-                (sum: number, e: { qty?: number }) => sum + (e.qty || 0),
-                0,
-              )
-              item.totalReceivedAmount = item.receivingLog.reduce(
-                (sum: number, e: { amount?: number }) => sum + (e.amount || 0),
-                0,
-              )
-            } else {
-              item.totalReceivedQty = 0
-              item.totalReceivedAmount = 0
-            }
+            item.receivedAmount = (item.receivedQty || 0) * price
 
             // Calculate difference
-            item.differenceQty = (item.requiredQty || 0) - (item.totalReceivedQty || 0)
+            item.differenceQty = (item.requiredQty || 0) - (item.receivedQty || 0)
             item.differenceAmount = item.differenceQty * price
 
             // Accumulate totals
@@ -182,8 +154,8 @@ const StockOrders: CollectionConfig = {
             totalSendingAmount += item.sendingAmount
             totalPickedQty += item.pickedQty || 0
             totalPickedAmount += item.pickedAmount
-            totalReceivedQty += item.totalReceivedQty
-            totalReceivedAmount += item.totalReceivedAmount
+            totalReceivedQty += item.receivedQty || 0
+            totalReceivedAmount += item.receivedAmount
             totalDifferenceQty += item.differenceQty
             totalDifferenceAmount += item.differenceAmount
 
@@ -193,6 +165,7 @@ const StockOrders: CollectionConfig = {
               if (item.requiredQty > 0) item.requiredDate = now
               if (item.sendingQty > 0) item.sendingDate = now
               if (item.pickedQty > 0) item.pickedDate = now
+              if (item.receivedQty > 0) item.receivedDate = now
             } else if (operation === 'update') {
               if (item.requiredQty !== originalItem?.requiredQty && item.requiredQty > 0) {
                 item.requiredDate = now
@@ -202,6 +175,9 @@ const StockOrders: CollectionConfig = {
               }
               if (item.pickedQty !== originalItem?.pickedQty && item.pickedQty > 0) {
                 item.pickedDate = now
+              }
+              if (item.receivedQty !== originalItem?.receivedQty && item.receivedQty > 0) {
+                item.receivedDate = now
               }
             }
           }
@@ -374,59 +350,35 @@ const StockOrders: CollectionConfig = {
           },
         },
         {
-          name: 'receivingLog',
-          type: 'array',
-          label: 'Receiving History',
+          type: 'row',
           fields: [
             {
-              name: 'qty',
+              name: 'receivedQty',
+              label: 'Received Qty',
               type: 'number',
-              required: true,
+              required: false,
               min: 0,
               admin: {
                 step: 1,
               },
             },
             {
-              name: 'amount',
-              type: 'number',
-              required: true,
-              min: 0,
-              admin: { readOnly: false },
-            },
-            {
-              name: 'unitPrice',
+              name: 'receivedAmount',
               type: 'number',
               admin: { readOnly: true },
-            },
-            {
-              name: 'receivedDate',
-              type: 'date',
-              required: true,
-              admin: {
-                date: {
-                  pickerAppearance: 'dayAndTime',
-                },
-              },
             },
           ],
         },
         {
-          type: 'row',
-          fields: [
-            {
-              name: 'totalReceivedQty',
-              label: 'Total Received Qty',
-              type: 'number',
-              admin: { readOnly: true },
+          name: 'receivedDate',
+          label: 'Received Date',
+          type: 'date',
+          admin: {
+            readOnly: true,
+            date: {
+              pickerAppearance: 'dayAndTime',
             },
-            {
-              name: 'totalReceivedAmount',
-              label: 'Total Received Amount',
-              type: 'number',
-              admin: { readOnly: true },
-            },
-          ],
+          },
         },
         {
           type: 'row',
@@ -510,6 +462,36 @@ const StockOrders: CollectionConfig = {
         },
         {
           name: 'totalPickedAmount',
+          type: 'number',
+          admin: { readOnly: true },
+        },
+      ],
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'totalReceivedQty',
+          type: 'number',
+          admin: { readOnly: true },
+        },
+        {
+          name: 'totalReceivedAmount',
+          type: 'number',
+          admin: { readOnly: true },
+        },
+      ],
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'totalDifferenceQty',
+          type: 'number',
+          admin: { readOnly: true },
+        },
+        {
+          name: 'totalDifferenceAmount',
           type: 'number',
           admin: { readOnly: true },
         },

@@ -1,13 +1,15 @@
-import { CollectionConfig } from 'payload'
+import { CollectionConfig, Where } from 'payload'
 
 const ClosingEntries: CollectionConfig = {
   slug: 'closing-entries',
+
   admin: {
     useAsTitle: 'closingNumber',
     description:
-      'Daily closing entries for branches. Auto-calculates sales, returns, stock receipts.',
+      'Multiple daily closing entries allowed for all branches. Automatically calculates totals, cash, and net values.',
   },
 
+  // ✅ Make collection fully public
   access: {
     read: () => true,
     create: () => true,
@@ -23,58 +25,89 @@ const ClosingEntries: CollectionConfig = {
       required: true,
       admin: { readOnly: true },
     },
-
     {
       name: 'date',
       type: 'date',
       required: true,
-      admin: { date: { pickerAppearance: 'dayOnly', displayFormat: 'yyyy-MM-dd' } },
+      admin: {
+        date: {
+          pickerAppearance: 'dayOnly',
+          displayFormat: 'yyyy-MM-dd',
+        },
+      },
       defaultValue: () => new Date().toISOString(),
     },
-
-    // Sales
-    { name: 'systemSales', type: 'number', required: true, min: 0 },
-    { name: 'manualSales', type: 'number', required: true, min: 0 },
-    { name: 'onlineSales', type: 'number', required: true, min: 0 },
-
-    // Expenses
-    { name: 'expenses', type: 'number', required: true, min: 0 },
-
-    // Returns
-    { name: 'returnTotal', type: 'number', admin: { readOnly: true }, min: 0 },
-
-    // Stock Orders Total (Incremental)
-    { name: 'stockOrders', type: 'number', admin: { readOnly: true }, defaultValue: 0 },
-
-    // Payments
-    { name: 'creditCard', type: 'number', required: true, min: 0 },
-    { name: 'upi', type: 'number', required: true, min: 0 },
-
+    {
+      name: 'systemSales',
+      type: 'number',
+      required: true,
+      min: 0,
+    },
+    {
+      name: 'manualSales',
+      type: 'number',
+      required: true,
+      min: 0,
+    },
+    {
+      name: 'onlineSales',
+      type: 'number',
+      required: true,
+      min: 0,
+    },
+    {
+      name: 'expenses',
+      type: 'number',
+      required: true,
+      min: 0,
+    },
+    {
+      name: 'creditCard',
+      type: 'number',
+      required: true,
+      min: 0,
+    },
+    {
+      name: 'upi',
+      type: 'number',
+      required: true,
+      min: 0,
+    },
     {
       name: 'cash',
       type: 'number',
       required: true,
+      min: 0,
       admin: { readOnly: true },
     },
-
     {
       name: 'denominations',
       type: 'group',
       fields: [
-        { name: 'count2000', type: 'number', min: 0, defaultValue: 0 },
-        { name: 'count500', type: 'number', min: 0, defaultValue: 0 },
-        { name: 'count200', type: 'number', min: 0, defaultValue: 0 },
-        { name: 'count100', type: 'number', min: 0, defaultValue: 0 },
-        { name: 'count50', type: 'number', min: 0, defaultValue: 0 },
-        { name: 'count10', type: 'number', min: 0, defaultValue: 0 },
-        { name: 'count5', type: 'number', min: 0, defaultValue: 0 },
+        { name: 'count2000', type: 'number', label: '2000 × Count', min: 0, defaultValue: 0 },
+        { name: 'count500', type: 'number', label: '500 × Count', min: 0, defaultValue: 0 },
+        { name: 'count200', type: 'number', label: '200 × Count', min: 0, defaultValue: 0 },
+        { name: 'count100', type: 'number', label: '100 × Count', min: 0, defaultValue: 0 },
+        { name: 'count50', type: 'number', label: '50 × Count', min: 0, defaultValue: 0 },
+        { name: 'count10', type: 'number', label: '10 × Count', min: 0, defaultValue: 0 },
+        { name: 'count5', type: 'number', label: '5 × Count', min: 0, defaultValue: 0 },
       ],
     },
-
-    { name: 'totalSales', type: 'number', admin: { readOnly: true } },
-    { name: 'totalPayments', type: 'number', admin: { readOnly: true } },
-    { name: 'net', type: 'number', admin: { readOnly: true } },
-
+    {
+      name: 'totalSales',
+      type: 'number',
+      admin: { readOnly: true },
+    },
+    {
+      name: 'totalPayments',
+      type: 'number',
+      admin: { readOnly: true },
+    },
+    {
+      name: 'net',
+      type: 'number',
+      admin: { readOnly: true },
+    },
     {
       name: 'branch',
       type: 'relationship',
@@ -88,194 +121,111 @@ const ClosingEntries: CollectionConfig = {
       async ({ req, operation, data }) => {
         const { user } = req
 
-        // ------------------------------------------
-        // Auto assign branch for branch users
-        // ------------------------------------------
-        if (operation === 'create' && user?.role === 'branch' && user.branch) {
+        // ✅ Auto-assign branch for branch users
+        if (operation === 'create' && user?.role === 'branch' && user?.branch) {
           data.branch = typeof user.branch === 'object' ? user.branch.id : user.branch
         }
 
-        // ------------------------------------------
-        // Normalize Date to UTC start-of-day
-        // ------------------------------------------
-        if (data.date) {
-          const d = new Date(data.date)
-          data.date = new Date(
-            Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0),
-          ).toISOString()
-        }
-
-        const entryDate = new Date(data.date)
-        const startOfDay = new Date(
-          Date.UTC(
-            entryDate.getUTCFullYear(),
-            entryDate.getUTCMonth(),
-            entryDate.getUTCDate(),
-            0,
-            0,
-            0,
-          ),
-        ).toISOString()
-        const endOfDay = new Date(
-          Date.UTC(
-            entryDate.getUTCFullYear(),
-            entryDate.getUTCMonth(),
-            entryDate.getUTCDate(),
-            23,
-            59,
-            59,
-            999,
-          ),
-        ).toISOString()
-
-        // ------------------------------------------
-        // Generate Closing Number (fixed prefer-const)
-        // ------------------------------------------
+        // ✅ Generate closing number (safe & unique per branch)
         if (operation === 'create' && data.branch) {
           try {
+            // Fetch branch name
             const branchDoc = await req.payload.findByID({
               collection: 'branches',
               id: data.branch,
             })
 
-            const prefix = branchDoc?.name
-              ? branchDoc.name
-                  .toUpperCase()
-                  .replace(/[^A-Z0-9]/g, '')
-                  .slice(0, 3)
-              : 'BRN'
+            if (branchDoc) {
+              let prefix
+              if (data.branch === '690e326cea6f468d6fe462e6') {
+                prefix = 'TH1'
+              } else {
+                const rawName = (branchDoc.name || 'BRANCH').toString().trim().toUpperCase()
+                prefix = rawName.replace(/[^A-Z0-9]/g, '').slice(0, 3) || 'BRN'
+              }
 
-            const dd = entryDate.getUTCDate().toString().padStart(2, '0')
-            const mm = (entryDate.getUTCMonth() + 1).toString().padStart(2, '0')
-            const yy = entryDate.getUTCFullYear().toString().slice(-2)
-            const dateStr = `${dd}${mm}${yy}`
+              // Parse and format date as DDMMYY
+              const entryDate = new Date(data.date)
+              const dd = entryDate.getDate().toString().padStart(2, '0')
+              const mm = (entryDate.getMonth() + 1).toString().padStart(2, '0')
+              const yy = entryDate.getFullYear().toString().slice(-2)
+              const dateStr = `${dd}${mm}${yy}`
 
-            const { totalDocs } = await req.payload.count({
-              collection: 'closing-entries',
-              where: {
-                and: [
-                  { branch: { equals: data.branch } },
-                  { date: { greater_than_equal: startOfDay } },
-                  { date: { less_than: endOfDay } },
-                ],
-              },
-            })
+              // Normalize date to start of day for consistency
+              data.date = new Date(entryDate.setHours(0, 0, 0, 0)).toISOString()
 
-            const seq = (totalDocs + 1).toString().padStart(2, '0')
+              // Calculate start and end of day for query
+              const startOfDay = new Date(entryDate.setHours(0, 0, 0, 0)).toISOString()
+              const endOfDay = new Date(entryDate.setHours(23, 59, 59, 999)).toISOString()
 
-            data.closingNumber = `${prefix}-CLO-${dateStr}-${seq}`
-          } catch (err) {
-            req.payload.logger.error('Closing number creation error:', err)
-          }
-        }
+              let seq = 0
+              let closingNumberCandidate = ''
 
-        // ------------------------------------------
-        // Get latest received log time (for incremental stock)
-        // ------------------------------------------
-        let latestReceivedTime = startOfDay
+              // Try a few times to find unused number
+              for (let attempt = 0; attempt < 20; attempt++) {
+                const { totalDocs: count } = await req.payload.count({
+                  collection: 'closing-entries',
+                  where: {
+                    and: [
+                      { branch: { equals: data.branch } },
+                      { date: { greater_than_equal: startOfDay } },
+                      { date: { less_than: endOfDay } },
+                    ],
+                  } as Where,
+                })
 
-        try {
-          const previousClosings = await req.payload.find({
-            collection: 'closing-entries',
-            where: { branch: { equals: data.branch } },
-            sort: '-createdAt',
-            limit: 1,
-          })
+                seq = count + 1 + attempt
+                const padded = seq.toString().padStart(2, '0')
+                closingNumberCandidate = `${prefix}-CLO-${dateStr}-${padded}`
 
-          if (previousClosings.docs.length > 0) {
-            latestReceivedTime = new Date(previousClosings.docs[0].createdAt).toISOString()
-          }
-        } catch {
-          /* ignore */
-        }
+                const exists = await req.payload.find({
+                  collection: 'closing-entries',
+                  where: { closingNumber: { equals: closingNumberCandidate } },
+                  limit: 1,
+                })
 
-        // ------------------------------------------
-        // Incremental Return Total
-        // ------------------------------------------
-        try {
-          const returnOrders = await req.payload.find({
-            collection: 'return-orders',
-            where: {
-              and: [
-                { branch: { equals: data.branch } },
-                { createdAt: { greater_than: latestReceivedTime } },
-                { createdAt: { less_than: endOfDay } },
-                { status: { equals: 'returned' } },
-              ],
-            },
-          })
-
-          data.returnTotal = returnOrders.docs.reduce((sum, o) => sum + (o.totalAmount || 0), 0)
-        } catch {
-          data.returnTotal = 0
-        }
-
-        // ------------------------------------------
-        // Incremental Stock ReceivingLog Calculation (FIXED)
-        // ------------------------------------------
-        try {
-          const stockOrders = await req.payload.find({
-            collection: 'stock-orders',
-            where: { branch: { equals: data.branch } },
-            limit: 500,
-          })
-
-          let receivedTotal = 0
-
-          for (const so of stockOrders.docs) {
-            if (!Array.isArray(so.items)) continue
-
-            for (const item of so.items) {
-              if (!Array.isArray(item.receivingLog)) continue
-
-              for (const log of item.receivingLog) {
-                if (!log.receivedDate) continue
-
-                const rDate = new Date(log.receivedDate).toISOString()
-                const amt = log.amount || 0
-
-                if (rDate > latestReceivedTime && rDate <= endOfDay) {
-                  receivedTotal += amt
+                if (!exists?.docs?.length) {
+                  data.closingNumber = closingNumberCandidate
+                  break
                 }
               }
-            }
-          }
 
-          data.stockOrders = receivedTotal
-        } catch {
-          data.stockOrders = 0
+              // Fallback (extremely rare)
+              if (!data.closingNumber) {
+                const padded = (seq || 0).toString().padStart(2, '0')
+                data.closingNumber = `${prefix}-CLO-${dateStr}-${padded}-${Date.now()}`
+              }
+            }
+          } catch (err) {
+            req.payload.logger.error('Error generating closingNumber:', err)
+          }
         }
 
-        // ------------------------------------------
-        // Cash Calculation
-        // ------------------------------------------
-        const d = data.denominations || {}
+        // ✅ Calculate cash from denominations
+        const denoms = data.denominations || {}
         data.cash =
-          (d.count2000 || 0) * 2000 +
-          (d.count500 || 0) * 500 +
-          (d.count200 || 0) * 200 +
-          (d.count100 || 0) * 100 +
-          (d.count50 || 0) * 50 +
-          (d.count10 || 0) * 10 +
-          (d.count5 || 0) * 5
+          (denoms.count2000 || 0) * 2000 +
+          (denoms.count500 || 0) * 500 +
+          (denoms.count200 || 0) * 200 +
+          (denoms.count100 || 0) * 100 +
+          (denoms.count50 || 0) * 50 +
+          (denoms.count10 || 0) * 10 +
+          (denoms.count5 || 0) * 5
 
-        // Totals
+        // ✅ Totals
         data.totalSales =
           (data.systemSales || 0) + (data.manualSales || 0) + (data.onlineSales || 0)
+
         data.totalPayments = (data.creditCard || 0) + (data.upi || 0) + (data.cash || 0)
 
-        data.net =
-          (data.totalSales || 0) -
-          (data.expenses || 0) -
-          (data.returnTotal || 0) -
-          (data.stockOrders || 0)
+        data.net = data.totalSales - (data.expenses || 0)
 
         return data
       },
     ],
   },
 
-  versions: false,
+  versions: false, // disable drafts/soft delete
 }
 
 export default ClosingEntries
