@@ -16,6 +16,7 @@ const ClosingEntries: CollectionConfig = {
   },
 
   fields: [
+    // Closing Number
     {
       name: 'closingNumber',
       type: 'text',
@@ -24,6 +25,7 @@ const ClosingEntries: CollectionConfig = {
       admin: { readOnly: true },
     },
 
+    // Date (start of day UTC)
     {
       name: 'date',
       type: 'date',
@@ -32,19 +34,25 @@ const ClosingEntries: CollectionConfig = {
       defaultValue: () => new Date().toISOString(),
     },
 
+    // Sales
     { name: 'systemSales', type: 'number', required: true, min: 0 },
     { name: 'manualSales', type: 'number', required: true, min: 0 },
     { name: 'onlineSales', type: 'number', required: true, min: 0 },
 
+    // Expenses
     { name: 'expenses', type: 'number', required: true, min: 0 },
 
+    // Returns
     { name: 'returnTotal', type: 'number', admin: { readOnly: true }, min: 0 },
 
+    // Stock Orders Received Amount
     { name: 'stockOrders', type: 'number', admin: { readOnly: true }, defaultValue: 0 },
 
+    // Payments
     { name: 'creditCard', type: 'number', required: true, min: 0 },
     { name: 'upi', type: 'number', required: true, min: 0 },
 
+    // Cash auto-calculated
     {
       name: 'cash',
       type: 'number',
@@ -52,6 +60,7 @@ const ClosingEntries: CollectionConfig = {
       admin: { readOnly: true },
     },
 
+    // Denominations
     {
       name: 'denominations',
       type: 'group',
@@ -66,10 +75,12 @@ const ClosingEntries: CollectionConfig = {
       ],
     },
 
+    // Totals
     { name: 'totalSales', type: 'number', admin: { readOnly: true } },
     { name: 'totalPayments', type: 'number', admin: { readOnly: true } },
     { name: 'net', type: 'number', admin: { readOnly: true } },
 
+    // Branch
     {
       name: 'branch',
       type: 'relationship',
@@ -83,16 +94,16 @@ const ClosingEntries: CollectionConfig = {
       async ({ req, operation, data }) => {
         const { user } = req
 
-        // Auto-assign branch
+        // Auto-assign branch for branch user
         if (operation === 'create' && user?.role === 'branch' && user?.branch) {
           data.branch = typeof user.branch === 'object' ? user.branch.id : user.branch
         }
 
-        // Normalize date
+        // Normalize date to start of day UTC
         if (data.date) {
           const d = new Date(data.date)
           data.date = new Date(
-            Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0),
+            Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0),
           ).toISOString()
         }
 
@@ -107,7 +118,6 @@ const ClosingEntries: CollectionConfig = {
             0,
           ),
         ).toISOString()
-
         const endOfDay = new Date(
           Date.UTC(
             entryDate.getUTCFullYear(),
@@ -120,7 +130,9 @@ const ClosingEntries: CollectionConfig = {
           ),
         ).toISOString()
 
-        // Generate closing number
+        // ------------------------------------------
+        // Generate Closing Number
+        // ------------------------------------------
         if (operation === 'create' && data.branch) {
           try {
             const branchDoc = await req.payload.findByID({
@@ -128,13 +140,12 @@ const ClosingEntries: CollectionConfig = {
               id: data.branch,
             })
 
-            let prefix = 'BRN'
-            if (branchDoc?.name) {
-              prefix = branchDoc.name
-                .toUpperCase()
-                .replace(/[^A-Z0-9]/g, '')
-                .slice(0, 3)
-            }
+            let prefix = branchDoc?.name
+              ? branchDoc.name
+                  .toUpperCase()
+                  .replace(/[^A-Z0-9]/g, '')
+                  .slice(0, 3)
+              : 'BRN'
 
             const dd = entryDate.getUTCDate().toString().padStart(2, '0')
             const mm = (entryDate.getUTCMonth() + 1).toString().padStart(2, '0')
@@ -152,24 +163,23 @@ const ClosingEntries: CollectionConfig = {
               },
             })
 
-            const padded = (totalDocs + 1).toString().padStart(2, '0')
-            data.closingNumber = `${prefix}-CLO-${dateStr}-${padded}`
-          } catch (e) {
-            req.payload.logger.error('Closing number error:', e)
+            const seq = (totalDocs + 1).toString().padStart(2, '0')
+            data.closingNumber = `${prefix}-CLO-${dateStr}-${seq}`
+          } catch (err) {
+            req.payload.logger.error('Closing number generation failed:', err)
           }
         }
 
-        // Last closing time
+        // ------------------------------------------
+        // Find last closing createdAt (real last closing)
+        // ------------------------------------------
         let lastClosingTime = startOfDay
         try {
           const lastClosing = await req.payload.find({
             collection: 'closing-entries',
             where: {
-              and: [
-                { branch: { equals: data.branch } },
-                { date: { greater_than_equal: startOfDay } },
-                { date: { less_than: endOfDay } },
-              ],
+              branch: { equals: data.branch },
+              createdAt: { less_than: new Date().toISOString() },
             },
             sort: '-createdAt',
             limit: 1,
@@ -180,38 +190,35 @@ const ClosingEntries: CollectionConfig = {
           }
         } catch {}
 
-        // Return orders incremental
+        // ------------------------------------------
+        // Return Orders – incremental
+        // ------------------------------------------
         try {
-          const ro = await req.payload.find({
+          const returnOrders = await req.payload.find({
             collection: 'return-orders',
             where: {
               and: [
                 { branch: { equals: data.branch } },
                 { createdAt: { greater_than: lastClosingTime } },
-                { createdAt: { less_than: endOfDay } },
+                { createdAt: { less_than_equal: endOfDay } },
                 { status: { equals: 'returned' } },
               ],
             },
           })
 
-          data.returnTotal = ro.docs.reduce((s, r) => s + (r.totalAmount || 0), 0)
+          data.returnTotal = returnOrders.docs.reduce((sum, o) => sum + (o.totalAmount || 0), 0)
         } catch {
           data.returnTotal = 0
         }
 
         // ------------------------------------------
-        // ⭐ STOCK ORDERS INCREMENTAL (CORRECT LOGIC)
-        // Count receivingLog entries, NOT totals
+        // ⭐ FIXED: Stock Orders incremental using receivingLog
         // ------------------------------------------
         try {
           const stockOrders = await req.payload.find({
             collection: 'stock-orders',
             where: {
-              and: [
-                { branch: { equals: data.branch } },
-                { createdAt: { greater_than_equal: startOfDay } },
-                { createdAt: { less_than: endOfDay } },
-              ],
+              branch: { equals: data.branch },
             },
             limit: 500,
           })
@@ -230,6 +237,7 @@ const ClosingEntries: CollectionConfig = {
                 const rDate = new Date(log.receivedDate).toISOString()
                 const rAmount = log.amount || 0
 
+                // Only entries AFTER last closing
                 if (rDate > lastClosingTime && rDate <= endOfDay) {
                   receivedTotal += rAmount
                 }
@@ -243,7 +251,9 @@ const ClosingEntries: CollectionConfig = {
           data.stockOrders = 0
         }
 
-        // Cash calc
+        // ------------------------------------------
+        // Cash calculation
+        // ------------------------------------------
         const d = data.denominations || {}
         data.cash =
           (d.count2000 || 0) * 2000 +
@@ -257,9 +267,11 @@ const ClosingEntries: CollectionConfig = {
         // Totals
         data.totalSales =
           (data.systemSales || 0) + (data.manualSales || 0) + (data.onlineSales || 0)
+
         data.totalPayments = (data.creditCard || 0) + (data.upi || 0) + (data.cash || 0)
 
-        data.net = data.totalSales - data.expenses - data.returnTotal - data.stockOrders
+        data.net =
+          data.totalSales - (data.expenses || 0) - (data.returnTotal || 0) - (data.stockOrders || 0)
 
         return data
       },
