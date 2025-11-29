@@ -419,7 +419,7 @@ export interface ReturnOrder {
   createdAt: string;
 }
 /**
- * Multiple daily closing entries allowed for all branches. Automatically calculates totals, cash, and net values.
+ * Daily closing entries for branches. Auto-calculates totals, returns, stock receipts, and net.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "closing-entries".
@@ -432,6 +432,8 @@ export interface ClosingEntry {
   manualSales: number;
   onlineSales: number;
   expenses: number;
+  returnTotal: number;
+  stockOrders?: number | null;
   creditCard: number;
   upi: number;
   cash: number;
@@ -918,6 +920,8 @@ export interface ClosingEntriesSelect<T extends boolean = true> {
   manualSales?: T;
   onlineSales?: T;
   expenses?: T;
+  returnTotal?: T;
+  stockOrders?: T;
   creditCard?: T;
   upi?: T;
   cash?: T;
