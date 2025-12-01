@@ -262,7 +262,7 @@ const ClosingEntries: CollectionConfig = {
 
         // ------------------------------------------
         // 4️⃣ CALCULATE STOCK ORDERS (INCREMENTAL)
-        // Using each item's receivedDate & receivedAmount
+        // Using each item's sendingDate & sendingAmount
         // ------------------------------------------
         try {
           const stockOrders = await req.payload.find({
@@ -277,24 +277,24 @@ const ClosingEntries: CollectionConfig = {
             limit: 500,
           })
 
-          let receivedTotal = 0
+          let sendingTotal = 0
 
           for (const so of stockOrders.docs) {
             if (!Array.isArray(so.items)) continue
 
             for (const item of so.items) {
-              if (!item?.receivedDate) continue
+              if (!item?.sendingDate) continue
 
-              const rDate = new Date(item.receivedDate).toISOString()
-              const rAmount = item.receivedAmount || 0
+              const sDate = new Date(item.sendingDate).toISOString()
+              const sAmount = item.sendingAmount || 0
 
-              if (rDate > lastClosingTime && rDate <= endOfDay) {
-                receivedTotal += rAmount
+              if (sDate > lastClosingTime && sDate <= endOfDay) {
+                sendingTotal += sAmount
               }
             }
           }
 
-          data.stockOrders = receivedTotal
+          data.stockOrders = sendingTotal
         } catch (err) {
           req.payload.logger.error('Error calculating stockOrders:', err)
           data.stockOrders = 0
