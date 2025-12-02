@@ -1,0 +1,11 @@
+{
+  "functions": {
+    "app/**/*": {
+      "maxDuration": 15
+    }
+  },
+  "env": {
+    "PAYLOAD_CONFIG_PATH": "dist/payload.config.js"
+  },
+  "regions": ["bom1"]
+}

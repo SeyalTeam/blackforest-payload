@@ -63,6 +63,16 @@ export default buildConfig({
 
   db: mongooseAdapter({
     url: process.env.DATABASE_URI || '',
+    connectOptions: {
+      maxPoolSize: 50, // ⬆️ INCREASED from 10 to 50
+      minPoolSize: 5, // ⬆️ INCREASED from 2 to 5
+      maxIdleTimeMS: 20000, // ⬇️ REDUCED to 20s (faster cleanup)
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      waitQueueTimeoutMS: 3000, // ⬇️ REDUCED to 3s (fail faster)
+      retryWrites: true,
+      retryReads: true,
+    },
   }),
 
   sharp,
