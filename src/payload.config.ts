@@ -35,7 +35,32 @@ export default buildConfig({
     },
   },
 
-  // ✅ Add your new collection here
+  // ✅ ADD CORS + CSRF HERE
+  cors: [
+    'http://localhost:3000',
+    'http://localhost:4200',
+    'http://localhost:5173',
+    'http://localhost:8080',
+    'http://localhost:5000',
+    'http://localhost:64781', // flutter web port
+    'http://127.0.0.1',
+    'http://127.0.0.1:5500',
+    'https://admin.theblackforestcakes.com', // your domain
+  ],
+
+  csrf: [
+    'http://localhost:3000',
+    'http://localhost:4200',
+    'http://localhost:5173',
+    'http://localhost:8080',
+    'http://localhost:5000',
+    'http://localhost:64781', // flutter web
+    'http://127.0.0.1',
+    'http://127.0.0.1:5500',
+    'https://admin.theblackforestcakes.com',
+  ],
+
+  // Collections
   collections: [
     Users,
     Companies,
@@ -63,13 +88,12 @@ export default buildConfig({
 
   db: mongooseAdapter({
     url: process.env.DATABASE_URI || '',
-    // 👇 NEW OPTIONS
+
     connectOptions: {
-      // Keep a healthy pool for server‑less bursts
-      maxPoolSize: 100, // ↑ increase from 50 → 100
-      minPoolSize: 10, // keep a few warm connections
-      maxIdleTimeMS: 20000, // close idle connections after 20 s
-      waitQueueTimeoutMS: 8000, // give requests a bit more time (8 s)
+      maxPoolSize: 100,
+      minPoolSize: 10,
+      maxIdleTimeMS: 20000,
+      waitQueueTimeoutMS: 8000,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
       retryWrites: true,
@@ -84,7 +108,7 @@ export default buildConfig({
       enabled: true,
       collections: {
         [Media.slug]: {
-          prefix: '', // Empty to allow per-file dynamic prefixes from hooks
+          prefix: '',
         },
       },
       token: process.env.blackforest_READ_WRITE_TOKEN || '',
