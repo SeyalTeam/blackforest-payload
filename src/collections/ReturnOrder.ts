@@ -16,7 +16,7 @@ const ReturnOrders: CollectionConfig = {
   access: {
     read: () => true,
     create: ({ req: { user } }) => user?.role != null && ['branch', 'waiter'].includes(user.role),
-    update: ({ req: { user } }) => user?.role === 'superadmin',
+    update: () => true,
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   hooks: {
