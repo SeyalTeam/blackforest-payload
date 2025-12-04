@@ -105,6 +105,8 @@ const StockOrders: CollectionConfig = {
         let totalRequiredAmount = 0
         let totalSendingQty = 0
         let totalSendingAmount = 0
+        let totalConfirmedQty = 0
+        let totalConfirmedAmount = 0
         let totalPickedQty = 0
         let totalPickedAmount = 0
         let totalReceivedQty = 0
@@ -139,6 +141,7 @@ const StockOrders: CollectionConfig = {
             item.inStockAmount = (item.inStock || 0) * price
             item.requiredAmount = (item.requiredQty || 0) * price
             item.sendingAmount = (item.sendingQty || 0) * price
+            item.confirmedAmount = (item.confirmedQty || 0) * price
             item.pickedAmount = (item.pickedQty || 0) * price
             item.receivedAmount = (item.receivedQty || 0) * price
 
@@ -153,6 +156,8 @@ const StockOrders: CollectionConfig = {
             totalRequiredAmount += item.requiredAmount
             totalSendingQty += item.sendingQty || 0
             totalSendingAmount += item.sendingAmount
+            totalConfirmedQty += item.confirmedQty || 0
+            totalConfirmedAmount += item.confirmedAmount
             totalPickedQty += item.pickedQty || 0
             totalPickedAmount += item.pickedAmount
             totalReceivedQty += item.receivedQty || 0
@@ -165,6 +170,7 @@ const StockOrders: CollectionConfig = {
             if (operation === 'create') {
               if (item.requiredQty > 0) item.requiredDate = now
               if (item.sendingQty > 0) item.sendingDate = now
+              if (item.confirmedQty > 0) item.confirmedDate = now
               if (item.pickedQty > 0) item.pickedDate = now
               if (item.receivedQty > 0) item.receivedDate = now
             } else if (operation === 'update') {
@@ -173,6 +179,9 @@ const StockOrders: CollectionConfig = {
               }
               if (item.sendingQty !== originalItem?.sendingQty && item.sendingQty > 0) {
                 item.sendingDate = now
+              }
+              if (item.confirmedQty !== originalItem?.confirmedQty && item.confirmedQty > 0) {
+                item.confirmedDate = now
               }
               if (item.pickedQty !== originalItem?.pickedQty && item.pickedQty > 0) {
                 item.pickedDate = now
@@ -191,6 +200,8 @@ const StockOrders: CollectionConfig = {
         data.totalRequiredAmount = totalRequiredAmount
         data.totalSendingQty = totalSendingQty
         data.totalSendingAmount = totalSendingAmount
+        data.totalConfirmedQty = totalConfirmedQty
+        data.totalConfirmedAmount = totalConfirmedAmount
         data.totalPickedQty = totalPickedQty
         data.totalPickedAmount = totalPickedAmount
         data.totalReceivedQty = totalReceivedQty
@@ -311,6 +322,37 @@ const StockOrders: CollectionConfig = {
         {
           name: 'sendingDate',
           label: 'Sending Date',
+          type: 'date',
+          admin: {
+            readOnly: true,
+            date: {
+              pickerAppearance: 'dayAndTime',
+            },
+          },
+        },
+        {
+          type: 'row',
+          fields: [
+            {
+              name: 'confirmedQty',
+              label: 'Confirmed Qty',
+              type: 'number',
+              required: false,
+              min: 0,
+              admin: {
+                step: 1,
+              },
+            },
+            {
+              name: 'confirmedAmount',
+              type: 'number',
+              admin: { readOnly: true },
+            },
+          ],
+        },
+        {
+          name: 'confirmedDate',
+          label: 'Confirmed Date',
           type: 'date',
           admin: {
             readOnly: true,
@@ -448,6 +490,21 @@ const StockOrders: CollectionConfig = {
         },
         {
           name: 'totalSendingAmount',
+          type: 'number',
+          admin: { readOnly: true },
+        },
+      ],
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'totalConfirmedQty',
+          type: 'number',
+          admin: { readOnly: true },
+        },
+        {
+          name: 'totalConfirmedAmount',
           type: 'number',
           admin: { readOnly: true },
         },
