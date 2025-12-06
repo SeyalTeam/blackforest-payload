@@ -25,6 +25,11 @@ const ReturnOrders: CollectionConfig = {
         if (operation === 'create') {
           if (!req.user) throw new Error('Unauthorized')
 
+          // Auto-populate branch if missing
+          if (!data.branch && req.user.branch) {
+            data.branch = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
+          }
+
           // Temporarily disable branch validation to bypass mismatch error
           // if (['branch', 'waiter'].includes(req.user.role)) {
           //   const userBranchId = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
