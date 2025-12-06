@@ -47,6 +47,8 @@ export default buildConfig({
     'http://127.0.0.1:5500',
     'https://admin.theblackforestcakes.com', // your domain
     'https://superadmin.theblackforestcakes.com',
+    'https://blackforest-admin-portal.vercel.app',
+    'http://localhost:30001',
   ],
 
   csrf: [
@@ -60,6 +62,8 @@ export default buildConfig({
     'http://127.0.0.1:5500',
     'https://admin.theblackforestcakes.com',
     'https://superadmin.theblackforestcakes.com',
+    'https://blackforest-admin-portal.vercel.app',
+    'http://localhost:30001',
   ],
 
   // Collections
@@ -116,4 +120,33 @@ export default buildConfig({
       token: process.env.blackforest_READ_WRITE_TOKEN || '',
     }),
   ],
+  // 🟢 NEW: Express Middleware to block unauthorized apps
+  // @ts-ignore
+  express: {
+    preMiddleware: [
+      (req: any, res: any, next: any) => {
+        const APP_SECRET = 'BF_REPORT_SECRET_2024'
+        const protectedPaths = [
+          '/api/billings',
+          '/api/stock-orders',
+          '/api/return-orders',
+          '/api/expenses',
+          '/api/branches',
+        ]
+        // Check if path is protected
+        if (protectedPaths.some((path) => req.originalUrl.startsWith(path))) {
+          // Skip for OPTIONS (CORS preflight)
+          if (req.method === 'OPTIONS') return next()
+
+          const requestSecret = req.headers['x-app-secret']
+          if (requestSecret !== APP_SECRET) {
+            return res.status(403).json({
+              errors: [{ message: 'Forbidden: Missing or Invalid App Secret Key' }],
+            })
+          }
+        }
+        next()
+      },
+    ],
+  },
 })
