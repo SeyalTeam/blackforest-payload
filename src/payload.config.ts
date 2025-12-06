@@ -1,4 +1,3 @@
-// storage-adapter-import-placeholder
 import { mongooseAdapter } from '@payloadcms/db-mongodb'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import path from 'path'
@@ -6,7 +5,6 @@ import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
 import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob'
-
 // ✅ Import all your collections
 import { Users } from './collections/Users'
 import { Branches } from './collections/Branches'
@@ -22,55 +20,29 @@ import ReturnOrder from './collections/ReturnOrder'
 import ClosingEntries from './collections/ClosingEntries'
 import Expenses from './collections/Expenses'
 import StockOrders from './collections/StockOrders'
-
-// Path helpers
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
-
 export default buildConfig({
   admin: {
     user: Users.slug,
-    importMap: {
-      baseDir: path.resolve(dirname),
-    },
+    // Add your Payload admin panel customizations here
   },
-
-  // ✅ ADD CORS + CSRF HERE
   cors: [
     'http://localhost:3000',
-    'http://localhost:4200',
-    'http://localhost:5173',
-    'http://localhost:8080',
-    'http://localhost:5000',
-    'http://localhost:64781', // flutter web port
-    'http://127.0.0.1',
-    'http://127.0.0.1:5500',
-    'https://admin.theblackforestcakes.com', // your domain
-    'https://superadmin.theblackforestcakes.com',
     'https://blackforest-admin-portal.vercel.app',
+    'https://superadmin.theblackforestcakes.com',
     'http://localhost:30001',
   ],
-
   csrf: [
     'http://localhost:3000',
-    'http://localhost:4200',
-    'http://localhost:5173',
-    'http://localhost:8080',
-    'http://localhost:5000',
-    'http://localhost:64781', // flutter web
-    'http://127.0.0.1',
-    'http://127.0.0.1:5500',
-    'https://admin.theblackforestcakes.com',
-    'https://superadmin.theblackforestcakes.com',
     'https://blackforest-admin-portal.vercel.app',
+    'https://superadmin.theblackforestcakes.com',
     'http://localhost:30001',
   ],
-
-  // Collections
   collections: [
     Users,
-    Companies,
     Branches,
+    Companies,
     Departments,
     Categories,
     Products,
@@ -83,18 +55,13 @@ export default buildConfig({
     Expenses,
     StockOrders,
   ],
-
   editor: lexicalEditor(),
-
   secret: process.env.PAYLOAD_SECRET || '',
-
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
   },
-
   db: mongooseAdapter({
     url: process.env.DATABASE_URI || '',
-
     connectOptions: {
       maxPoolSize: 100,
       minPoolSize: 10,
@@ -106,9 +73,7 @@ export default buildConfig({
       retryReads: true,
     },
   }),
-
   sharp,
-
   plugins: [
     vercelBlobStorage({
       enabled: true,
@@ -120,33 +85,4 @@ export default buildConfig({
       token: process.env.blackforest_READ_WRITE_TOKEN || '',
     }),
   ],
-  // 🟢 NEW: Express Middleware to block unauthorized apps
-  // @ts-ignore
-  express: {
-    preMiddleware: [
-      (req: any, res: any, next: any) => {
-        const APP_SECRET = 'BF_REPORT_SECRET_2024'
-        const protectedPaths = [
-          '/api/billings',
-          '/api/stock-orders',
-          '/api/return-orders',
-          '/api/expenses',
-          '/api/branches',
-        ]
-        // Check if path is protected
-        if (protectedPaths.some((path) => req.originalUrl.startsWith(path))) {
-          // Skip for OPTIONS (CORS preflight)
-          if (req.method === 'OPTIONS') return next()
-
-          const requestSecret = req.headers['x-app-secret']
-          if (requestSecret !== APP_SECRET) {
-            return res.status(403).json({
-              errors: [{ message: 'Forbidden: Missing or Invalid App Secret Key' }],
-            })
-          }
-        }
-        next()
-      },
-    ],
-  },
 })
