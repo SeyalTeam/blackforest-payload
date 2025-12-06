@@ -46,6 +46,7 @@ export default buildConfig({
     'http://127.0.0.1',
     'http://127.0.0.1:5500',
     'https://admin.theblackforestcakes.com', // your domain
+    'https://superadmin.theblackforestcakes.com',
   ],
 
   csrf: [
@@ -58,6 +59,7 @@ export default buildConfig({
     'http://127.0.0.1',
     'http://127.0.0.1:5500',
     'https://admin.theblackforestcakes.com',
+    'https://superadmin.theblackforestcakes.com',
   ],
 
   // Collections
