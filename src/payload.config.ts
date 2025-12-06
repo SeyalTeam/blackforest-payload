@@ -1,3 +1,4 @@
+// storage-adapter-import-placeholder
 import { mongooseAdapter } from '@payloadcms/db-mongodb'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import path from 'path'
@@ -5,6 +6,7 @@ import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
 import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob'
+
 // ✅ Import all your collections
 import { Users } from './collections/Users'
 import { Branches } from './collections/Branches'
@@ -20,29 +22,51 @@ import ReturnOrder from './collections/ReturnOrder'
 import ClosingEntries from './collections/ClosingEntries'
 import Expenses from './collections/Expenses'
 import StockOrders from './collections/StockOrders'
+
+// Path helpers
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
+
 export default buildConfig({
   admin: {
     user: Users.slug,
-    // Add your Payload admin panel customizations here
+    importMap: {
+      baseDir: path.resolve(dirname),
+    },
   },
+
+  // ✅ ADD CORS + CSRF HERE
   cors: [
     'http://localhost:3000',
-    'https://blackforest-admin-portal.vercel.app',
+    'http://localhost:4200',
+    'http://localhost:5173',
+    'http://localhost:8080',
+    'http://localhost:5000',
+    'http://localhost:64781', // flutter web port
+    'http://127.0.0.1',
+    'http://127.0.0.1:5500',
+    'https://admin.theblackforestcakes.com', // your domain
     'https://superadmin.theblackforestcakes.com',
-    'http://localhost:30001',
   ],
+
   csrf: [
     'http://localhost:3000',
-    'https://blackforest-admin-portal.vercel.app',
+    'http://localhost:4200',
+    'http://localhost:5173',
+    'http://localhost:8080',
+    'http://localhost:5000',
+    'http://localhost:64781', // flutter web
+    'http://127.0.0.1',
+    'http://127.0.0.1:5500',
+    'https://admin.theblackforestcakes.com',
     'https://superadmin.theblackforestcakes.com',
-    'http://localhost:30001',
   ],
+
+  // Collections
   collections: [
     Users,
-    Branches,
     Companies,
+    Branches,
     Departments,
     Categories,
     Products,
@@ -55,13 +79,18 @@ export default buildConfig({
     Expenses,
     StockOrders,
   ],
+
   editor: lexicalEditor(),
+
   secret: process.env.PAYLOAD_SECRET || '',
+
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
   },
+
   db: mongooseAdapter({
     url: process.env.DATABASE_URI || '',
+
     connectOptions: {
       maxPoolSize: 100,
       minPoolSize: 10,
@@ -73,7 +102,9 @@ export default buildConfig({
       retryReads: true,
     },
   }),
+
   sharp,
+
   plugins: [
     vercelBlobStorage({
       enabled: true,
