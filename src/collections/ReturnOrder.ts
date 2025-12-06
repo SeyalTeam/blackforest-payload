@@ -37,17 +37,51 @@ const ReturnOrders: CollectionConfig = {
           // Auto-generate return number with timezone-aware date
           const date = dayjs().tz('Asia/Kolkata')
           const formattedDate = date.format('YYYYMMDD')
+
+          // Get Branch Code
+          let branchCode = 'RET' // Fallback
+          if (data.branch) {
+            let branchId: string
+            if (typeof data.branch === 'string') {
+              branchId = data.branch
+            } else if (
+              typeof data.branch === 'object' &&
+              data.branch !== null &&
+              'id' in data.branch &&
+              typeof data.branch.id === 'string'
+            ) {
+              branchId = data.branch.id
+            } else {
+              // Should not happen if required=true, but good for safety
+              throw new Error('Invalid branch')
+            }
+
+            const branchDoc = await req.payload.findByID({
+              collection: 'branches',
+              id: branchId,
+              depth: 0,
+            })
+
+            if (branchDoc && branchDoc.name) {
+              // Take first 3 letters, uppercase
+              branchCode = branchDoc.name.substring(0, 3).toUpperCase()
+            }
+          }
+
+          const prefix = `${branchCode}-RET-${formattedDate}`
+
           const { totalDocs: existingCount } = await req.payload.count({
             collection: 'return-orders',
             where: {
               returnNumber: {
-                greater_than_equal: `RET-${formattedDate}-000`,
-                less_than_equal: `RET-${formattedDate}-999`,
+                greater_than_equal: `${prefix}-000`,
+                less_than_equal: `${prefix}-999`,
               },
             },
           })
+
           const seq = (existingCount + 1).toString().padStart(3, '0')
-          data.returnNumber = `RET-${formattedDate}-${seq}`
+          data.returnNumber = `${prefix}-${seq}`
 
           // Auto-set company from branch
           if (data.branch) {
