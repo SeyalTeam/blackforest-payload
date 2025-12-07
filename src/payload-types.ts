@@ -515,13 +515,17 @@ export interface StockOrder {
     receivedDate?: string | null;
     differenceQty?: number | null;
     differenceAmount?: number | null;
-    status?: ('pending' | 'approved') | null;
+    status?:
+      | ('ordered' | 'preparing' | 'ready' | 'picked' | 'delivered' | 'not-delivered' | 'received' | 'cancelled')
+      | null;
     id?: string | null;
   }[];
   branch: string | Branch;
   createdBy: string | User;
   company: string | Company;
-  status?: ('pending' | 'approved' | 'fulfilled' | 'cancelled') | null;
+  status?:
+    | ('ordered' | 'preparing' | 'ready' | 'picked' | 'delivered' | 'not-delivered' | 'received' | 'cancelled')
+    | null;
   notes?: string | null;
   updatedAt: string;
   createdAt: string;

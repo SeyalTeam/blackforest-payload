@@ -82,7 +82,7 @@ const StockOrders: CollectionConfig = {
           const seq = (existingCount + 1).toString().padStart(2, '0')
           data.invoiceNumber = `${prefix}${seq}`
 
-          if (!data.status) data.status = 'pending'
+          // Status forced to 'ordered' at end of hook
         }
 
         // Process items: calculate amounts, set dates, calculate difference
@@ -127,6 +127,9 @@ const StockOrders: CollectionConfig = {
               if (item.confirmedQty > 0) item.confirmedDate = now
               if (item.pickedQty > 0) item.pickedDate = now
               if (item.receivedQty > 0) item.receivedDate = now
+
+              // FORCE status to ordered
+              item.status = 'ordered'
             } else if (operation === 'update') {
               if (item.requiredQty !== originalItem?.requiredQty && item.requiredQty > 0)
                 item.requiredDate = now
@@ -140,6 +143,11 @@ const StockOrders: CollectionConfig = {
                 item.receivedDate = now
             }
           }
+        }
+
+        // FORCE status to ordered on create, ignoring input
+        if (operation === 'create') {
+          data.status = 'ordered'
         }
 
         return data
@@ -295,10 +303,16 @@ const StockOrders: CollectionConfig = {
         {
           name: 'status',
           type: 'select',
-          defaultValue: 'pending',
+          defaultValue: 'ordered',
           options: [
-            { label: 'Pending', value: 'pending' },
-            { label: 'Approved', value: 'approved' },
+            { label: 'Ordered', value: 'ordered' },
+            { label: 'Preparing', value: 'preparing' },
+            { label: 'Ready', value: 'ready' },
+            { label: 'Picked', value: 'picked' },
+            { label: 'Delivered', value: 'delivered' },
+            { label: 'Not Delivered', value: 'not-delivered' },
+            { label: 'Received', value: 'received' },
+            { label: 'Cancelled', value: 'cancelled' },
           ],
         },
       ],
@@ -324,11 +338,15 @@ const StockOrders: CollectionConfig = {
     {
       name: 'status',
       type: 'select',
-      defaultValue: 'pending',
+      defaultValue: 'ordered',
       options: [
-        { label: 'Pending', value: 'pending' },
-        { label: 'Approved', value: 'approved' },
-        { label: 'Fulfilled', value: 'fulfilled' },
+        { label: 'Ordered', value: 'ordered' },
+        { label: 'Preparing', value: 'preparing' },
+        { label: 'Ready', value: 'ready' },
+        { label: 'Picked', value: 'picked' },
+        { label: 'Delivered', value: 'delivered' },
+        { label: 'Not Delivered', value: 'not-delivered' },
+        { label: 'Received', value: 'received' },
         { label: 'Cancelled', value: 'cancelled' },
       ],
     },
