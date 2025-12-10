@@ -16,7 +16,8 @@ const StockOrders: CollectionConfig = {
     read: () => true,
     create: ({ req: { user } }) => user?.role != null && ['branch', 'waiter'].includes(user.role),
     update: ({ req: { user } }) =>
-      user?.role != null && ['superadmin', 'supervisor', 'driver', 'branch'].includes(user.role),
+      user?.role != null &&
+      ['superadmin', 'supervisor', 'driver', 'branch', 'factory'].includes(user.role),
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   hooks: {
