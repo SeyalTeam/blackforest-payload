@@ -19,6 +19,7 @@ export const Users: CollectionConfig = {
         { label: 'Delivery', value: 'delivery' },
         { label: 'Branch', value: 'branch' },
         { label: 'Company', value: 'company' },
+        { label: 'Factory', value: 'factory' }, // New
         { label: 'Kitchen', value: 'kitchen' }, // New
         { label: 'Cashier', value: 'cashier' }, // New
         { label: 'Waiter', value: 'waiter' }, // New
@@ -51,6 +52,20 @@ export const Users: CollectionConfig = {
       required: false,
       admin: {
         condition: ({ role }) => role === 'company',
+      },
+      access: {
+        create: ({ req }) => req.user?.role === 'superadmin',
+        update: ({ req }) => req.user?.role === 'superadmin',
+      },
+    },
+    {
+      name: 'factory_companies',
+      type: 'relationship',
+      relationTo: 'companies',
+      hasMany: true,
+      required: false,
+      admin: {
+        condition: ({ role }) => role === 'factory',
       },
       access: {
         create: ({ req }) => req.user?.role === 'superadmin',
@@ -100,6 +115,12 @@ export const Users: CollectionConfig = {
           }
           if (data.role === 'company' && !data.company) {
             throw new Error('Company is required for company role users')
+          }
+          if (
+            data.role === 'factory' &&
+            (!data.factory_companies || data.factory_companies.length === 0)
+          ) {
+            throw new Error('At least one company is required for factory role users')
           }
           if (
             ['waiter', 'cashier', 'supervisor', 'delivery', 'driver'].includes(data.role) &&

@@ -149,6 +149,7 @@ export interface User {
     | 'delivery'
     | 'branch'
     | 'company'
+    | 'factory'
     | 'kitchen'
     | 'cashier'
     | 'waiter'
@@ -156,6 +157,7 @@ export interface User {
     | 'driver';
   branch?: (string | null) | Branch;
   company?: (string | null) | Company;
+  factory_companies?: (string | Company)[] | null;
   employee?: (string | null) | Employee;
   updatedAt: string;
   createdAt: string;
@@ -515,17 +517,13 @@ export interface StockOrder {
     receivedDate?: string | null;
     differenceQty?: number | null;
     differenceAmount?: number | null;
-    status?:
-      | ('ordered' | 'preparing' | 'ready' | 'picked' | 'delivered' | 'not-delivered' | 'received' | 'cancelled')
-      | null;
+    status?: ('ordered' | 'sending' | 'confirmed' | 'picked' | 'received') | null;
     id?: string | null;
   }[];
   branch: string | Branch;
   createdBy: string | User;
   company: string | Company;
-  status?:
-    | ('ordered' | 'preparing' | 'ready' | 'picked' | 'delivered' | 'not-delivered' | 'received' | 'cancelled')
-    | null;
+  status?: ('ordered' | 'sending' | 'confirmed' | 'picked' | 'received') | null;
   notes?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -643,6 +641,7 @@ export interface UsersSelect<T extends boolean = true> {
   role?: T;
   branch?: T;
   company?: T;
+  factory_companies?: T;
   employee?: T;
   updatedAt?: T;
   createdAt?: T;
