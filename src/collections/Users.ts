@@ -21,6 +21,7 @@ export const Users: CollectionConfig = {
         { label: 'Company', value: 'company' },
         { label: 'Factory', value: 'factory' }, // New
         { label: 'Kitchen', value: 'kitchen' }, // New
+        { label: 'Chef', value: 'chef' }, // New
         { label: 'Cashier', value: 'cashier' }, // New
         { label: 'Waiter', value: 'waiter' }, // New
         { label: 'Supervisor', value: 'supervisor' },
@@ -79,11 +80,14 @@ export const Users: CollectionConfig = {
       required: false,
       admin: {
         condition: ({ role }) =>
-          ['waiter', 'cashier', 'supervisor', 'delivery', 'driver'].includes(role),
+          ['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef'].includes(role),
       },
       filterOptions: ({ siblingData }) => {
         const role = (siblingData as { role?: string }).role
-        if (!role || !['waiter', 'cashier', 'supervisor', 'delivery', 'driver'].includes(role)) {
+        if (
+          !role ||
+          !['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef'].includes(role)
+        ) {
           return false
         }
         return { team: { equals: role } }
@@ -123,11 +127,11 @@ export const Users: CollectionConfig = {
             throw new Error('At least one company is required for factory role users')
           }
           if (
-            ['waiter', 'cashier', 'supervisor', 'delivery', 'driver'].includes(data.role) &&
+            ['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef'].includes(data.role) &&
             !data.employee
           ) {
             throw new Error(
-              'Employee is required for waiter, cashier, supervisor, delivery, or driver role users',
+              'Employee is required for waiter, cashier, supervisor, delivery, driver, or chef role users',
             )
           }
         }
