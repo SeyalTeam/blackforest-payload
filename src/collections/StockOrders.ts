@@ -134,8 +134,10 @@ const StockOrders: CollectionConfig = {
             } else if (operation === 'update') {
               if (item.requiredQty !== originalItem?.requiredQty && item.requiredQty > 0)
                 item.requiredDate = now
-              if (item.sendingQty !== originalItem?.sendingQty && item.sendingQty > 0)
-                item.sendingDate = now
+              if (item.sendingQty !== originalItem?.sendingQty) {
+                if (item.sendingQty > 0) item.sendingDate = now
+                if (req.user) item.sendingUpdatedBy = req.user.id
+              }
               if (item.confirmedQty !== originalItem?.confirmedQty && item.confirmedQty > 0)
                 item.confirmedDate = now
               if (item.pickedQty !== originalItem?.pickedQty && item.pickedQty > 0)
@@ -228,6 +230,13 @@ const StockOrders: CollectionConfig = {
           label: 'Sending Date',
           type: 'date',
           admin: { readOnly: true, date: { pickerAppearance: 'dayAndTime' } },
+        },
+        {
+          name: 'sendingUpdatedBy',
+          label: 'Updated By',
+          type: 'relationship',
+          relationTo: 'users',
+          admin: { readOnly: true },
         },
 
         // Confirmed (NEW)
