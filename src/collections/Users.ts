@@ -3,13 +3,18 @@ import type { CollectionConfig } from 'payload'
 export const Users: CollectionConfig = {
   slug: 'users',
   admin: {
-    useAsTitle: 'email',
+    useAsTitle: 'name',
+    defaultColumns: ['name', 'email', 'role'],
   },
   auth: {
     tokenExpiration: 86400, // 24 hours in seconds
   },
   fields: [
     // Email added by default
+    {
+      name: 'name',
+      type: 'text',
+    },
     {
       name: 'role',
       type: 'select',
@@ -112,8 +117,21 @@ export const Users: CollectionConfig = {
   },
   hooks: {
     beforeChange: [
-      ({ data, operation }) => {
+      async ({ data, req, operation }) => {
         if (operation === 'create' || operation === 'update') {
+          // Auto-populate name from employee if not set
+          if (!data.name && data.employee) {
+            const employeeId = typeof data.employee === 'string' ? data.employee : data.employee.id
+            if (employeeId) {
+              const employee = await req.payload.findByID({
+                collection: 'employees',
+                id: employeeId,
+              })
+              if (employee?.name) {
+                data.name = employee.name
+              }
+            }
+          }
           if (['branch', 'kitchen'].includes(data.role) && !data.branch) {
             throw new Error('Branch is required for branch or kitchen role users')
           }

@@ -143,6 +143,7 @@ export interface UserAuthOperations {
  */
 export interface User {
   id: string;
+  name?: string | null;
   role:
     | 'superadmin'
     | 'admin'
@@ -151,6 +152,7 @@ export interface User {
     | 'company'
     | 'factory'
     | 'kitchen'
+    | 'chef'
     | 'cashier'
     | 'waiter'
     | 'supervisor'
@@ -506,6 +508,7 @@ export interface StockOrder {
     sendingQty?: number | null;
     sendingAmount?: number | null;
     sendingDate?: string | null;
+    sendingUpdatedBy?: (string | null) | User;
     confirmedQty?: number | null;
     confirmedAmount?: number | null;
     confirmedDate?: string | null;
@@ -638,6 +641,7 @@ export interface PayloadMigration {
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
+  name?: T;
   role?: T;
   branch?: T;
   company?: T;
@@ -977,6 +981,7 @@ export interface StockOrdersSelect<T extends boolean = true> {
         sendingQty?: T;
         sendingAmount?: T;
         sendingDate?: T;
+        sendingUpdatedBy?: T;
         confirmedQty?: T;
         confirmedAmount?: T;
         confirmedDate?: T;
