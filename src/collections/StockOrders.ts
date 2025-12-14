@@ -138,10 +138,14 @@ const StockOrders: CollectionConfig = {
                 if (item.sendingQty > 0) item.sendingDate = now
                 if (req.user) item.sendingUpdatedBy = req.user.id
               }
-              if (item.confirmedQty !== originalItem?.confirmedQty && item.confirmedQty > 0)
-                item.confirmedDate = now
-              if (item.pickedQty !== originalItem?.pickedQty && item.pickedQty > 0)
-                item.pickedDate = now
+              if (item.confirmedQty !== originalItem?.confirmedQty) {
+                if (item.confirmedQty > 0) item.confirmedDate = now
+                if (req.user) item.confirmedUpdatedBy = req.user.id
+              }
+              if (item.pickedQty !== originalItem?.pickedQty) {
+                if (item.pickedQty > 0) item.pickedDate = now
+                if (req.user) item.pickedUpdatedBy = req.user.id
+              }
               if (item.receivedQty !== originalItem?.receivedQty && item.receivedQty > 0)
                 item.receivedDate = now
             }
@@ -259,6 +263,13 @@ const StockOrders: CollectionConfig = {
           type: 'date',
           admin: { readOnly: true, date: { pickerAppearance: 'dayAndTime' } },
         },
+        {
+          name: 'confirmedUpdatedBy',
+          label: 'Updated By',
+          type: 'relationship',
+          relationTo: 'users',
+          admin: { readOnly: true },
+        },
 
         // Picked
         {
@@ -273,6 +284,13 @@ const StockOrders: CollectionConfig = {
           label: 'Picked Date',
           type: 'date',
           admin: { readOnly: true, date: { pickerAppearance: 'dayAndTime' } },
+        },
+        {
+          name: 'pickedUpdatedBy',
+          label: 'Updated By',
+          type: 'relationship',
+          relationTo: 'users',
+          admin: { readOnly: true },
         },
 
         // Received
