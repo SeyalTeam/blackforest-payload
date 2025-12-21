@@ -22,6 +22,7 @@ import ReturnOrder from './collections/ReturnOrder'
 import ClosingEntries from './collections/ClosingEntries'
 import Expenses from './collections/Expenses'
 import StockOrders from './collections/StockOrders'
+import { IPSettings } from './globals/IPSettings'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -79,6 +80,7 @@ export default buildConfig({
     Expenses,
     StockOrders,
   ],
+  globals: [IPSettings],
 
   editor: lexicalEditor(),
 

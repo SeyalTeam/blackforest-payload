@@ -108,8 +108,12 @@ export interface Config {
   db: {
     defaultIDType: string;
   };
-  globals: {};
-  globalsSelect: {};
+  globals: {
+    'ip-settings': IpSetting;
+  };
+  globalsSelect: {
+    'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
+  };
   locale: null;
   user: User & {
     collection: 'users';
@@ -512,9 +516,11 @@ export interface StockOrder {
     confirmedQty?: number | null;
     confirmedAmount?: number | null;
     confirmedDate?: string | null;
+    confirmedUpdatedBy?: (string | null) | User;
     pickedQty?: number | null;
     pickedAmount?: number | null;
     pickedDate?: string | null;
+    pickedUpdatedBy?: (string | null) | User;
     receivedQty?: number | null;
     receivedAmount?: number | null;
     receivedDate?: string | null;
@@ -985,9 +991,11 @@ export interface StockOrdersSelect<T extends boolean = true> {
         confirmedQty?: T;
         confirmedAmount?: T;
         confirmedDate?: T;
+        confirmedUpdatedBy?: T;
         pickedQty?: T;
         pickedAmount?: T;
         pickedDate?: T;
+        pickedUpdatedBy?: T;
         receivedQty?: T;
         receivedAmount?: T;
         receivedDate?: T;
@@ -1035,6 +1043,49 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   batch?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "ip-settings".
+ */
+export interface IpSetting {
+  id: string;
+  roleRestrictions?:
+    | {
+        role: 'chef' | 'driver' | 'supervisor' | 'waiter' | 'cashier' | 'delivery' | 'branch' | 'kitchen';
+        ipRanges: {
+          /**
+           * e.g., 192.168.2.1 or 192.168.2.1-192.168.2.250. Use * for any IP.
+           */
+          ipOrRange: string;
+          id?: string | null;
+        }[];
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "ip-settings_select".
+ */
+export interface IpSettingsSelect<T extends boolean = true> {
+  roleRestrictions?:
+    | T
+    | {
+        role?: T;
+        ipRanges?:
+          | T
+          | {
+              ipOrRange?: T;
+              id?: T;
+            };
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

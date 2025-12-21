@@ -1,4 +1,6 @@
 import type { CollectionConfig } from 'payload'
+import { isIPAllowed } from '../utilities/ipCheck'
+import type { IpSetting } from '../payload-types'
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -116,6 +118,32 @@ export const Users: CollectionConfig = {
     delete: ({ req }) => req.user?.role === 'superadmin',
   },
   hooks: {
+    beforeLogin: [
+      async ({ req, user }) => {
+        if (user.role === 'superadmin') return
+
+        const ipSettings: IpSetting = await req.payload.findGlobal({
+          slug: 'ip-settings',
+        })
+
+        const restriction = ipSettings.roleRestrictions?.find((r) => r.role === user.role)
+
+        if (restriction) {
+          const forwarded = req.headers.get('x-forwarded-for')
+          const clientIp =
+            typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : '127.0.0.1'
+
+          const allowedIPs = restriction.ipRanges?.map((r) => r.ipOrRange) || []
+
+          if (!isIPAllowed(clientIp, allowedIPs)) {
+            console.warn(`Login denied for role ${user.role} (IP: ${clientIp}).`)
+            throw new Error(
+              `Login restricted from this IP address (${clientIp}). Please contact admin.`,
+            )
+          }
+        }
+      },
+    ],
     beforeChange: [
       async ({ data, req, operation }) => {
         if (operation === 'create' || operation === 'update') {
