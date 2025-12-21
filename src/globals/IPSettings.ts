@@ -40,6 +40,17 @@ export const IPSettings: GlobalConfig = {
           required: true,
           fields: [
             {
+              name: 'ipType',
+              type: 'select',
+              label: 'IP Type',
+              options: [
+                { label: 'Public IP', value: 'public' },
+                { label: 'Private IP', value: 'private' },
+              ],
+              defaultValue: 'public',
+              required: true,
+            },
+            {
               name: 'ipOrRange',
               type: 'text',
               label: 'IP or Range',

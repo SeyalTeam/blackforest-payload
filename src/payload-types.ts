@@ -1054,6 +1054,7 @@ export interface IpSetting {
     | {
         role: 'chef' | 'driver' | 'supervisor' | 'waiter' | 'cashier' | 'delivery' | 'branch' | 'kitchen';
         ipRanges: {
+          ipType: 'public' | 'private';
           /**
            * e.g., 192.168.2.1 or 192.168.2.1-192.168.2.250. Use * for any IP.
            */
@@ -1078,6 +1079,7 @@ export interface IpSettingsSelect<T extends boolean = true> {
         ipRanges?:
           | T
           | {
+              ipType?: T;
               ipOrRange?: T;
               id?: T;
             };

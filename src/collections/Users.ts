@@ -129,16 +129,37 @@ export const Users: CollectionConfig = {
         const restriction = ipSettings.roleRestrictions?.find((r) => r.role === user.role)
 
         if (restriction) {
+          // Detect Public IP
           const forwarded = req.headers.get('x-forwarded-for')
-          const clientIp =
+          const publicIp =
             typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : '127.0.0.1'
 
-          const allowedIPs = restriction.ipRanges?.map((r) => r.ipOrRange) || []
+          // Detect Private IP (from custom header)
+          const privateIpHeader = req.headers.get('x-private-ip')
+          const privateIp = typeof privateIpHeader === 'string' ? privateIpHeader.trim() : null
 
-          if (!isIPAllowed(clientIp, allowedIPs)) {
-            console.warn(`Login denied for role ${user.role} (IP: ${clientIp}).`)
+          const publicAllowedRanges =
+            restriction.ipRanges
+              ?.filter((r: any) => r.ipType === 'public')
+              .map((r: any) => r.ipOrRange) || []
+          const privateAllowedRanges =
+            restriction.ipRanges
+              ?.filter((r: any) => r.ipType === 'private')
+              .map((r: any) => r.ipOrRange) || []
+
+          const isPublicAllowed =
+            publicAllowedRanges.length > 0 && isIPAllowed(publicIp, publicAllowedRanges)
+          const isPrivateAllowed =
+            privateIp &&
+            privateAllowedRanges.length > 0 &&
+            isIPAllowed(privateIp, privateAllowedRanges)
+
+          if (!isPublicAllowed && !isPrivateAllowed) {
+            console.warn(
+              `Login denied for role ${user.role}. Public IP: ${publicIp}, Private IP: ${privateIp || 'Not provided'}.`,
+            )
             throw new Error(
-              `Login restricted from this IP address (${clientIp}). Please contact admin.`,
+              `Login restricted from this IP address. Please contact admin. (Public: ${publicIp}${privateIp ? `, Private: ${privateIp}` : ''})`,
             )
           }
         }
