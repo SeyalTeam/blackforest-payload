@@ -49,13 +49,18 @@ export const IPSettings: GlobalConfig = {
               ],
               defaultValue: 'public',
               required: true,
+              admin: {
+                description:
+                  'Private IP requires sending the "x-private-ip" header from the client application.',
+              },
             },
             {
               name: 'ipOrRange',
               type: 'text',
               label: 'IP or Range',
               admin: {
-                description: 'e.g., 192.168.2.1 or 192.168.2.1-192.168.2.250. Use * for any IP.',
+                description:
+                  'e.g., 192.168.2.1 or 192.168.2.1-192.168.2.250. Use * for any IP. For Private IP, enter the local LAN IP (e.g., 192.168.1.15).',
               },
               required: true,
             },
