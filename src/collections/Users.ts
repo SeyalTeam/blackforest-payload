@@ -158,9 +158,14 @@ export const Users: CollectionConfig = {
             console.warn(
               `Login denied for role ${user.role}. Public IP: ${publicIp}, Private IP: ${privateIp || 'Not provided'}.`,
             )
-            throw new Error(
-              `Login restricted from this IP address. Please contact admin. (Public: ${publicIp}${privateIp ? `, Private: ${privateIp}` : ''})`,
-            )
+
+            let errorMessage = `Login restricted from this IP address. Please contact admin.`
+            if (privateAllowedRanges.length > 0 && !privateIp) {
+              errorMessage += ` (Missing Private IP detection. Ensure your app sends the x-private-ip header).`
+            }
+            errorMessage += ` (Detected Public IP: ${publicIp}${privateIp ? `, Private IP: ${privateIp}` : ''})`
+
+            throw new Error(errorMessage)
           }
         }
       },
