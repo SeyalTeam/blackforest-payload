@@ -196,7 +196,7 @@ export interface Branch {
   phone: string;
   email: string;
   /**
-   * Public IP for auto-detecting branch on login (e.g., 192.0.2.1). Fetch via whatismyip.com at branch.
+   * Public or Private IP for auto-detecting branch. Supports ranges (e.g., 192.168.1.1-192.168.1.250) and comma-separated lists.
    */
   ipAddress?: string | null;
   /**
@@ -1054,9 +1054,12 @@ export interface IpSetting {
     | {
         role: 'chef' | 'driver' | 'supervisor' | 'waiter' | 'cashier' | 'delivery' | 'branch' | 'kitchen';
         ipRanges: {
+          /**
+           * Private IP requires sending the "x-private-ip" header from the client application.
+           */
           ipType: 'public' | 'private';
           /**
-           * e.g., 192.168.2.1 or 192.168.2.1-192.168.2.250. Use * for any IP.
+           * e.g., 192.168.2.1 or 192.168.2.1-192.168.2.250. Use * for any IP. For Private IP, enter the local LAN IP (e.g., 192.168.1.15).
            */
           ipOrRange: string;
           id?: string | null;
