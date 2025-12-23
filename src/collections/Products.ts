@@ -25,7 +25,7 @@ const Products: CollectionConfig = {
   },
   hooks: {
     beforeChange: [
-      async ({ data, req, operation, originalDoc }) => {
+      async ({ data, req, operation, originalDoc: _originalDoc }) => {
         if (operation === 'create') {
           // Generate sequential productId
           const lastProduct = await req.payload.find({

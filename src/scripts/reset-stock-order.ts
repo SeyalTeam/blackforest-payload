@@ -27,7 +27,7 @@ async function resetOrders() {
     const doc = order.docs[0]
     console.log(`  Found Order ID: ${doc.id}`)
 
-    const updatedItems = doc.items?.map((item: any) => ({
+    const updatedItems = doc.items?.map((item: Record<string, unknown>) => ({
       ...item,
       // Reset Sending
       sendingQty: 0,
@@ -57,7 +57,6 @@ async function resetOrders() {
     }))
 
     console.log(`  Updating ${doc.items?.length} items via direct DB update...`)
-    // @ts-ignore
     const collection = payload.db.collections['stock-orders']
     await collection.updateOne(
       { _id: doc.id },

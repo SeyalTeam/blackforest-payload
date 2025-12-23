@@ -1,6 +1,6 @@
 // src/collections/ReturnOrders.ts
 import { CollectionConfig } from 'payload'
-import type { Where } from 'payload' // Import Where type
+import type { Where as _Where } from 'payload' // Import Where type
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone' // Assume installed: npm i dayjs @types/dayjs
@@ -21,7 +21,7 @@ const ReturnOrders: CollectionConfig = {
   },
   hooks: {
     beforeChange: [
-      async ({ data, req, operation, originalDoc }) => {
+      async ({ data, req, operation, originalDoc: _originalDoc }) => {
         if (operation === 'create') {
           if (!req.user) throw new Error('Unauthorized')
 
@@ -153,10 +153,12 @@ const ReturnOrders: CollectionConfig = {
             let unitPrice = product.defaultPriceDetails?.price || 0
             if (data.branch && product.branchOverrides) {
               const branchId = typeof data.branch === 'string' ? data.branch : data.branch?.id
-              const override = product.branchOverrides.find((ov: any) => {
-                const ovBranch = typeof ov.branch === 'string' ? ov.branch : ov.branch?.id
-                return ovBranch === branchId
-              })
+              const override = product.branchOverrides.find(
+                (ov: { branch: string | { id: string }; price?: number | null }) => {
+                  const ovBranch = typeof ov.branch === 'string' ? ov.branch : ov.branch?.id
+                  return ovBranch === branchId
+                },
+              )
               if (override) unitPrice = override.price || unitPrice
             }
             item.unitPrice = unitPrice
@@ -172,7 +174,7 @@ const ReturnOrders: CollectionConfig = {
 
           // Recompute totalAmount
           data.totalAmount = data.items.reduce(
-            (sum: number, item: any) => sum + (item.subtotal || 0),
+            (sum: number, item: { subtotal?: number }) => sum + (item.subtotal || 0),
             0,
           )
         }

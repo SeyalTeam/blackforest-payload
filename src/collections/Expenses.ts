@@ -163,7 +163,7 @@ const Expenses: CollectionConfig = {
         // Recalculate total
         if (data.details) {
           const calculatedTotal = data.details.reduce(
-            (sum: number, detail: any) => sum + (detail.amount || 0),
+            (sum: number, detail: { amount?: number }) => sum + (detail.amount || 0),
             0,
           )
           data.total = calculatedTotal

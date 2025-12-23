@@ -26,14 +26,16 @@ async function bulkPick() {
     const pickedDate = new Date('2025-12-22T15:00:00.000Z')
     const userId = new ObjectId('693f95089d9f6d17f5076818')
 
-    const updatedItems = order.items.map((item: any) => ({
-      ...item,
-      pickedQty: item.confirmedQty || 0,
-      pickedAmount: item.confirmedAmount || 0,
-      pickedDate: pickedDate,
-      pickedUpdatedBy: userId,
-      status: 'picked',
-    }))
+    const updatedItems = (order.items || []).map(
+      (item: { confirmedQty?: number; confirmedAmount?: number }) => ({
+        ...item,
+        pickedQty: item.confirmedQty || 0,
+        pickedAmount: item.confirmedAmount || 0,
+        pickedDate: pickedDate,
+        pickedUpdatedBy: userId,
+        status: 'picked',
+      }),
+    )
 
     await collection.updateOne(
       { _id: order._id },

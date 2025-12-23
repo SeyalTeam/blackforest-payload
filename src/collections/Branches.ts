@@ -59,7 +59,7 @@ export const Branches: CollectionConfig = {
   access: {
     create: ({ req }) => req.user?.role === 'superadmin',
     read: () => true,
-    update: ({ req, id }): boolean | import('payload').Where => {
+    update: ({ req, id: _id }): boolean | import('payload').Where => {
       if (!req.user) return false
       if (req.user.role === 'superadmin') return true
       if (req.user.role === 'branch') {

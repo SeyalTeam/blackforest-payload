@@ -23,11 +23,22 @@ async function debug() {
   console.log('Stock Order:', doc.invoiceNumber)
   console.log('Items Count:', doc.items?.length)
 
-  doc.items?.forEach((item: any, index: number) => {
-    console.log(
-      `[${index}] ${item.name} (${item.product}): Req: ${item.requiredQty}, Send: ${item.sendingQty}, Conf: ${item.confirmedQty}`,
-    )
-  })
+  doc.items?.forEach(
+    (
+      item: {
+        name: string
+        product: string | object
+        requiredQty?: number | null
+        sendingQty?: number | null
+        confirmedQty?: number | null
+      },
+      index: number,
+    ) => {
+      console.log(
+        `[${index}] ${item.name} (${item.product}): Req: ${item.requiredQty}, Send: ${item.sendingQty}, Conf: ${item.confirmedQty}`,
+      )
+    },
+  )
 
   process.exit(0)
 }

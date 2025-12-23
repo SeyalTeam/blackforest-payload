@@ -26,14 +26,16 @@ async function bulkUpdate() {
     const sendingDate = new Date('2025-12-22T14:05:00.000Z')
     const chefId = new ObjectId('693f916c536497dce5d7eb26')
 
-    const updatedItems = order.items.map((item: any) => ({
-      ...item,
-      sendingQty: item.requiredQty || 0,
-      sendingAmount: item.requiredAmount || 0,
-      sendingDate: sendingDate,
-      sendingUpdatedBy: chefId,
-      status: 'sending',
-    }))
+    const updatedItems = (order.items || []).map(
+      (item: { requiredQty?: number; requiredAmount?: number }) => ({
+        ...item,
+        sendingQty: item.requiredQty || 0,
+        sendingAmount: item.requiredAmount || 0,
+        sendingDate: sendingDate,
+        sendingUpdatedBy: chefId,
+        status: 'sending',
+      }),
+    )
 
     await collection.updateOne(
       { _id: order._id },

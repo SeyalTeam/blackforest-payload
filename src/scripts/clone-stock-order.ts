@@ -25,13 +25,15 @@ async function cloneOrder() {
   console.log(`Cloning from ${doc.invoiceNumber}...`)
 
   // 2. Prepare items (reset all except required info)
-  const newItems = doc.items.map((item: any) => ({
-    product: item.product,
-    name: item.name,
-    inStock: item.inStock || 0,
-    requiredQty: item.requiredQty || 0,
-    // Other qty fields will be 0 by default or handled by hooks
-  }))
+  const newItems = (doc.items || []).map(
+    (item: { product: any; name: string; inStock?: number; requiredQty?: number }) => ({
+      product: typeof item.product === 'object' ? item.product.id : item.product,
+      name: item.name,
+      inStock: item.inStock || 0,
+      requiredQty: item.requiredQty || 0,
+      // Other qty fields will be 0 by default or handled by hooks
+    }),
+  )
 
   // 3. Create new order
   // Tomorrow is Dec 24, 2025
@@ -43,10 +45,17 @@ async function cloneOrder() {
     const newOrder = await payload.create({
       collection: 'stock-orders',
       data: {
+        invoiceNumber: 'TEMP-' + Date.now(), // Will be overwritten by hook
+        createdBy: '69031a3ba019f41f1db7aeca',
         branch: doc.branch,
         company: doc.company,
         deliveryDate: tomorrowDelivery.toISOString(),
-        items: newItems,
+        items: newItems as {
+          product: string
+          name: string
+          inStock: number
+          requiredQty: number
+        }[],
         status: 'ordered',
       },
       user: {
@@ -54,7 +63,7 @@ async function cloneOrder() {
         collection: 'users',
         role: 'branch',
         branch: doc.branch,
-      } as any,
+      } as { id: string; collection: 'users'; role: string; branch: any },
       overrideAccess: true,
     })
 

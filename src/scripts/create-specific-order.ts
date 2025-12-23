@@ -29,37 +29,52 @@ async function createSpecificOrder() {
     const tomorrowDelivery = new Date('2025-12-24T09:00:00.000Z')
 
     // 2. Prepare new document
-    const { _id, invoiceNumber, createdAt, updatedAt, ...baseData } = original
+    const {
+      _id: _id,
+      invoiceNumber: _invoiceNumber,
+      createdAt: _createdAt,
+      updatedAt: _updatedAt,
+      ...baseData
+    } = original
 
     // Update items with new requiredDate and reset other fields
-    const newItems = original.items.map((item: any) => ({
-      product: item.product,
-      name: item.name,
-      inStock: item.inStock || 0,
-      inStockAmount: item.inStockAmount || 0,
-      requiredQty: item.requiredQty || 0,
-      requiredAmount: item.requiredAmount || 0,
-      requiredDate: yesterdayDate,
-      sendingQty: 0,
-      sendingAmount: 0,
-      sendingDate: null,
-      sendingUpdatedBy: null,
-      confirmedQty: 0,
-      confirmedAmount: 0,
-      confirmedDate: null,
-      confirmedUpdatedBy: null,
-      pickedQty: 0,
-      pickedAmount: 0,
-      pickedDate: null,
-      pickedUpdatedBy: null,
-      receivedQty: 0,
-      receivedAmount: 0,
-      receivedDate: null,
-      differenceQty: item.requiredQty || 0,
-      differenceAmount: item.requiredAmount || 0,
-      status: 'ordered',
-      id: new ObjectId().toString(),
-    }))
+    const newItems = (original.items || []).map(
+      (item: {
+        product: string | object
+        name: string
+        inStock?: number
+        inStockAmount?: number
+        requiredQty?: number
+        requiredAmount?: number
+      }) => ({
+        product: item.product,
+        name: item.name,
+        inStock: item.inStock || 0,
+        inStockAmount: item.inStockAmount || 0,
+        requiredQty: item.requiredQty || 0,
+        requiredAmount: item.requiredAmount || 0,
+        requiredDate: yesterdayDate,
+        sendingQty: 0,
+        sendingAmount: 0,
+        sendingDate: null,
+        sendingUpdatedBy: null,
+        confirmedQty: 0,
+        confirmedAmount: 0,
+        confirmedDate: null,
+        confirmedUpdatedBy: null,
+        pickedQty: 0,
+        pickedAmount: 0,
+        pickedDate: null,
+        pickedUpdatedBy: null,
+        receivedQty: 0,
+        receivedAmount: 0,
+        receivedDate: null,
+        differenceQty: item.requiredQty || 0,
+        differenceAmount: item.requiredAmount || 0,
+        status: 'ordered',
+        id: new ObjectId().toString(),
+      }),
+    )
 
     const newDoc = {
       ...baseData,

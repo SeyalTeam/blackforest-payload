@@ -10,26 +10,24 @@ const Dealers: CollectionConfig = {
   },
   access: {
     // Role-based access without custom User type import—use type assertions or any for compatibility with your existing setup
-    create: ({ req: { user } }) => (user as any)?.role === 'superadmin',
+    create: ({ req: { user } }) => (user as { role?: string })?.role === 'superadmin',
     read: ({ req: { user } }) => {
-      if ((user as any)?.role === 'superadmin') return true
-      if (
-        (user as any)?.role === 'admin' ||
-        (user as any)?.role === 'company' ||
-        (user as any)?.role === 'branch'
-      ) {
-        // Filter to user's companies—handle companies as array of IDs or objects
-        const companies = (user as any)?.companies || []
-        const companyIds = companies.map((c: any) => (typeof c === 'string' ? c : c.id))
+      const u = user as { role?: string; companies?: (string | { id: string })[] } | null
+      if (u?.role === 'superadmin') return true
+      if (u?.role === 'admin' || u?.role === 'company' || u?.role === 'branch') {
+        const companies = u.companies || []
+        const companyIds = companies.map((c) => (typeof c === 'string' ? c : c.id))
         return {
           'allowedCompanies.id': { in: companyIds },
         }
       }
       return false
     },
-    update: ({ req: { user } }) =>
-      (user as any)?.role === 'superadmin' || (user as any)?.role === 'admin',
-    delete: ({ req: { user } }) => (user as any)?.role === 'superadmin',
+    update: ({ req: { user } }) => {
+      const u = user as { role?: string } | null
+      return u?.role === 'superadmin' || u?.role === 'admin'
+    },
+    delete: ({ req: { user } }) => (user as { role?: string })?.role === 'superadmin',
   },
   fields: [
     // Core Identification Fields (main/left side)
@@ -134,7 +132,7 @@ const Dealers: CollectionConfig = {
       hasMany: true,
       required: true, // At least one company
       admin: {
-        condition: ({ user }) => (user as any)?.role !== 'branch', // Hide for branch users if needed
+        condition: ({ user }) => (user as { role?: string })?.role !== 'branch', // Hide for branch users if needed
       },
     },
     // Allowed Branches (moved back to main/left side, under Allowed Companies)
@@ -237,7 +235,7 @@ const Dealers: CollectionConfig = {
   hooks: {
     // Updated hook for conditional validations
     beforeChange: [
-      async ({ data, req, operation }) => {
+      async ({ data, req: _req, operation }) => {
         if (operation === 'create' || operation === 'update') {
           if (data.isGSTRegistered) {
             // Validate GST format if registered

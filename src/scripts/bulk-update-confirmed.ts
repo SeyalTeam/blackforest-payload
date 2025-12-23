@@ -26,14 +26,16 @@ async function bulkConfirm() {
     const confirmedDate = new Date('2025-12-22T14:45:00.000Z')
     const userId = new ObjectId('6924470658b8fcd1660f926e')
 
-    const updatedItems = order.items.map((item: any) => ({
-      ...item,
-      confirmedQty: item.sendingQty || 0,
-      confirmedAmount: item.sendingAmount || 0,
-      confirmedDate: confirmedDate,
-      confirmedUpdatedBy: userId,
-      status: 'confirmed',
-    }))
+    const updatedItems = (order.items || []).map(
+      (item: { sendingQty?: number; sendingAmount?: number }) => ({
+        ...item,
+        confirmedQty: item.sendingQty || 0,
+        confirmedAmount: item.sendingAmount || 0,
+        confirmedDate: confirmedDate,
+        confirmedUpdatedBy: userId,
+        status: 'confirmed',
+      }),
+    )
 
     await collection.updateOne(
       { _id: order._id },

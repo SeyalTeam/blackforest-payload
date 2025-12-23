@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { MongoClient, ObjectId } from 'mongodb'
+import { MongoClient, ObjectId as _ObjectId } from 'mongodb'
 
 async function resetRaw() {
   const uri = process.env.DATABASE_URI || ''
@@ -22,7 +22,7 @@ async function resetRaw() {
 
     console.log(`Resetting items for ${invoiceNumber}...`)
 
-    const updatedItems = order.items.map((item: any) => ({
+    const updatedItems = (order.items || []).map((item: Record<string, unknown>) => ({
       ...item,
       sendingQty: 0,
       sendingAmount: 0,

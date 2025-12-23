@@ -30,7 +30,9 @@ async function generatePDF() {
 
   const docData = order.docs[0]
   const branchName =
-    typeof docData.branch === 'object' ? (docData.branch as any).name : 'Unknown Branch'
+    typeof docData.branch === 'object' && docData.branch !== null
+      ? (docData.branch as { name?: string }).name
+      : 'Unknown Branch'
 
   console.log(`Generating PDF for ${invoiceNumber} (${branchName})...`)
 
@@ -77,10 +79,19 @@ async function generatePDF() {
     return yPos + 20
   }
 
+  interface StockOrderItem {
+    name: string
+    requiredQty?: number | null
+    sendingQty?: number | null
+    confirmedQty?: number | null
+    pickedQty?: number | null
+  }
+
   // Group by category
-  const categoriesMap: { [key: string]: any[] } = {}
+  const categoriesMap: { [key: string]: StockOrderItem[] } = {}
   for (const item of docData.items || []) {
-    const catName = (item.product as any)?.category?.name || 'Uncategorized'
+    const product = item.product as unknown as { category?: { name?: string } }
+    const catName = product?.category?.name || 'Uncategorized'
     if (!categoriesMap[catName]) categoriesMap[catName] = []
     categoriesMap[catName].push(item)
   }

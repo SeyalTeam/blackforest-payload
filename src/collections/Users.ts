@@ -140,12 +140,12 @@ export const Users: CollectionConfig = {
 
           const publicAllowedRanges =
             restriction.ipRanges
-              ?.filter((r: any) => r.ipType === 'public')
-              .map((r: any) => r.ipOrRange) || []
+              ?.filter((r: { ipType: string }) => r.ipType === 'public')
+              .map((r: { ipOrRange: string }) => r.ipOrRange) || []
           const privateAllowedRanges =
             restriction.ipRanges
-              ?.filter((r: any) => r.ipType === 'private')
-              .map((r: any) => r.ipOrRange) || []
+              ?.filter((r: { ipType: string }) => r.ipType === 'private')
+              .map((r: { ipOrRange: string }) => r.ipOrRange) || []
 
           const isPublicAllowed =
             publicAllowedRanges.length > 0 && isIPAllowed(publicIp, publicAllowedRanges)

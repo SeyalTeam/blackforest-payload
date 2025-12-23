@@ -17,7 +17,7 @@ const Employees: CollectionConfig = {
       if (!user) return false
       return user.role === 'superadmin' || user.role === 'company' || user.role === 'branch'
     },
-    update: ({ req: { user }, id }) => {
+    update: ({ req: { user }, id: _id }) => {
       if (!user) return false
       if (user.role === 'superadmin') return true
       // For company/branch, check ownership via async if needed, but simplify for now
@@ -112,7 +112,7 @@ const Employees: CollectionConfig = {
   ],
   hooks: {
     beforeChange: [
-      async ({ operation, data, req }) => {
+      async ({ operation: _operation, data, req: _req }) => {
         return data
       },
     ],

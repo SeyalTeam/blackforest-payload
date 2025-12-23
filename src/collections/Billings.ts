@@ -71,17 +71,25 @@ const Billings: CollectionConfig = {
 
         // 🧮 Auto-calculate subtotals & total
         if (data.items && Array.isArray(data.items)) {
-          data.items = data.items.map((item: any) => {
-            const qty = parseFloat(item.quantity) || 0
-            const unitPrice = parseFloat(item.unitPrice) || 0
-            return {
-              ...item,
-              subtotal: parseFloat((qty * unitPrice).toFixed(2)),
-            }
-          })
+          data.items = data.items.map(
+            (item: {
+              quantity: number | string
+              unitPrice: number | string
+              subtotal?: number
+            }) => {
+              const qty =
+                typeof item.quantity === 'string' ? parseFloat(item.quantity) : item.quantity
+              const unitPrice =
+                typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) : item.unitPrice
+              return {
+                ...item,
+                subtotal: parseFloat(((qty || 0) * (unitPrice || 0)).toFixed(2)),
+              }
+            },
+          )
 
           data.totalAmount = data.items.reduce(
-            (sum: number, item: any) => sum + (item.subtotal || 0),
+            (sum: number, item: { subtotal?: number }) => sum + (item.subtotal || 0),
             0,
           )
         }

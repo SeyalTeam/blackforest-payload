@@ -1,10 +1,10 @@
 import { CollectionConfig, PayloadRequest, Where } from 'payload' // Added Where import for type safety in filterOptions
 
 // Assuming Company is exported from Companies.ts; if not, define a simple interface
-interface Company {
-  id: string
-  // Add other fields if needed for typing
-}
+// interface Company {
+//   id: string
+//   // Add other fields if needed for typing
+// }
 
 const Categories: CollectionConfig = {
   slug: 'categories',
@@ -87,7 +87,7 @@ const Categories: CollectionConfig = {
   ],
   hooks: {
     beforeChange: [
-      ({ data, req, operation }: { data: any; req: PayloadRequest; operation: string }) => {
+      ({ data, req: _req, operation }) => {
         if (operation === 'create' || operation === 'update') {
           if (!data.company || data.company.length === 0) {
             throw new Error('At least one company must be selected.')
