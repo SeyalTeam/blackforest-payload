@@ -196,7 +196,7 @@ export interface Branch {
   phone: string;
   email: string;
   /**
-   * Public or Private IP for auto-detecting branch. Supports ranges (e.g., 192.168.1.1-192.168.1.250) and comma-separated lists.
+   * Public IP for auto-detecting branch on login (e.g., 192.0.2.1). Fetch via whatismyip.com at branch.
    */
   ipAddress?: string | null;
   /**
