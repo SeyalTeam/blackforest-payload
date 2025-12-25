@@ -23,6 +23,8 @@ import ClosingEntries from './collections/ClosingEntries'
 import Expenses from './collections/Expenses'
 import StockOrders from './collections/StockOrders'
 import { IPSettings } from './globals/IPSettings'
+import { BranchWiseReportGlobal } from './globals/BranchWiseReport'
+import { getBranchWiseReportHandler } from './endpoints/getBranchWiseReport'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -63,6 +65,14 @@ export default buildConfig({
     'https://superadmin.theblackforestcakes.com',
   ],
 
+  endpoints: [
+    {
+      path: '/reports/branch-wise',
+      method: 'get',
+      handler: getBranchWiseReportHandler,
+    },
+  ],
+
   // Collections
   collections: [
     Users,
@@ -80,7 +90,7 @@ export default buildConfig({
     Expenses,
     StockOrders,
   ],
-  globals: [IPSettings],
+  globals: [IPSettings, BranchWiseReportGlobal],
 
   editor: lexicalEditor(),
 

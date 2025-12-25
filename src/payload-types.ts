@@ -110,9 +110,11 @@ export interface Config {
   };
   globals: {
     'ip-settings': IpSetting;
+    'branch-wise-report': BranchWiseReport;
   };
   globalsSelect: {
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
+    'branch-wise-report': BranchWiseReportSelect<false> | BranchWiseReportSelect<true>;
   };
   locale: null;
   user: User & {
@@ -526,13 +528,13 @@ export interface StockOrder {
     receivedDate?: string | null;
     differenceQty?: number | null;
     differenceAmount?: number | null;
-    status?: ('ordered' | 'sending' | 'confirmed' | 'picked' | 'received' | 'completed') | null;
+    status?: ('ordered' | 'sending' | 'confirmed' | 'picked' | 'received') | null;
     id?: string | null;
   }[];
   branch: string | Branch;
   createdBy: string | User;
   company: string | Company;
-  status?: ('ordered' | 'sending' | 'confirmed' | 'picked' | 'received' | 'completed') | null;
+  status?: ('ordered' | 'sending' | 'confirmed' | 'picked' | 'received') | null;
   notes?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -1072,6 +1074,15 @@ export interface IpSetting {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "branch-wise-report".
+ */
+export interface BranchWiseReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "ip-settings_select".
  */
 export interface IpSettingsSelect<T extends boolean = true> {
@@ -1088,6 +1099,15 @@ export interface IpSettingsSelect<T extends boolean = true> {
             };
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "branch-wise-report_select".
+ */
+export interface BranchWiseReportSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
