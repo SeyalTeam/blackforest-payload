@@ -158,15 +158,6 @@ const StockOrders: CollectionConfig = {
           data.status = 'ordered'
         }
 
-        // Auto-complete order if all items are completed
-        const itemsToCheck = data.items || originalDoc?.items || []
-        if (itemsToCheck.length > 0) {
-          const allCompleted = itemsToCheck.every((item: any) => item.status === 'completed')
-          if (allCompleted) {
-            data.status = 'completed'
-          }
-        }
-
         return data
       },
     ],
@@ -348,7 +339,6 @@ const StockOrders: CollectionConfig = {
             { label: 'Confirmed', value: 'confirmed' },
             { label: 'picked', value: 'picked' },
             { label: 'Received', value: 'received' },
-            { label: 'Completed', value: 'completed' },
           ],
         },
       ],
@@ -381,7 +371,6 @@ const StockOrders: CollectionConfig = {
         { label: 'Confirmed', value: 'confirmed' },
         { label: 'picked', value: 'picked' },
         { label: 'Received', value: 'received' },
-        { label: 'Completed', value: 'completed' },
       ],
     },
     { name: 'notes', type: 'textarea' },
