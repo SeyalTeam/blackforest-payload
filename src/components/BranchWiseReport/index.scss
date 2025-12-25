@@ -1,9 +1,11 @@
 .branch-report-container {
   padding: 2rem;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background: var(--theme-elevation-0);
+  border-radius: var(--style-radius-m);
+  box-shadow: var(--theme-shadow-success);
   margin: 2rem;
+
+  color: var(--theme-text-primary);
 
   .report-header {
     display: flex;
@@ -14,17 +16,22 @@
     h1 {
       margin: 0;
       font-size: 1.5rem;
+      color: var(--theme-text-primary);
     }
 
     .date-filter {
       display: flex;
       align-items: center;
       gap: 1rem;
+      color: var(--theme-text-primary);
 
       .date-input {
         padding: 0.5rem;
-        border: 1px solid #ddd;
-        border-radius: 4px;
+        background: var(--theme-bg-input);
+        border: 1px solid var(--theme-border-color);
+        border-radius: var(--style-radius-s);
+        color: var(--theme-text-primary);
+        font-family: inherit;
       }
     }
   }
@@ -36,26 +43,32 @@
     th,
     td {
       padding: 1rem;
-      border-bottom: 1px solid #eee;
+      border-bottom: 1px solid var(--theme-elevation-100);
       text-align: left;
+      color: var(--theme-text-primary);
     }
 
     th {
-      background: #f8f9fa;
+      background: var(--theme-elevation-50);
       font-weight: 600;
     }
 
+    // Zebra Striping
+    tbody tr:nth-child(even) {
+      background-color: var(--theme-elevation-50);
+    }
+
     .grand-total {
-      background: #f1f3f5;
+      background: var(--theme-elevation-100);
       font-weight: bold;
 
       td {
-        border-top: 2px solid #ddd;
+        border-top: 2px solid var(--theme-border-color);
       }
     }
   }
 
   .error {
-    color: red;
+    color: var(--theme-error-500);
   }
 }

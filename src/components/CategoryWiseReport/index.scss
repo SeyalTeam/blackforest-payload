@@ -1,0 +1,117 @@
+.category-report-container {
+  padding: 2rem;
+  background: var(--theme-elevation-0);
+  border-radius: var(--style-radius-m);
+  box-shadow: var(--theme-shadow-success);
+  margin: 2rem;
+
+  color: var(--theme-text-primary);
+
+  .report-header {
+    display: flex;
+    flex-wrap: wrap; // Allow wrapping on small screens
+    justify-content: flex-start; // Align items to the left
+    align-items: center;
+    gap: 2rem; // Increase gap for better separation
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--theme-elevation-100); // Add separator
+
+    h1 {
+      margin: 0;
+      font-size: 1.75rem;
+      font-weight: 600;
+      color: var(--theme-text-primary);
+    }
+
+    .date-filter {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem; // More space between controls
+      color: var(--theme-text-primary);
+      flex-wrap: wrap;
+
+      .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+
+        label {
+          font-weight: 500;
+          opacity: 0.8;
+        }
+      }
+
+      .date-input {
+        padding: 0.625rem 1rem; // Larger touch area
+        background: var(--theme-bg-input);
+        border: 1px solid var(--theme-elevation-200);
+        border-radius: var(--style-radius-s);
+        color: var(--theme-text-primary);
+        font-family: inherit;
+        font-size: 0.9rem;
+        transition:
+          border-color 0.2s,
+          box-shadow 0.2s;
+        height: 42px; // Fixed height to match both inputs exactly
+        box-sizing: border-box; // Ensure padding doesn't affect total height
+
+        &:focus {
+          outline: none;
+          border-color: var(--theme-success-500); // Use theme accent
+          box-shadow: 0 0 0 2px var(--theme-elevation-100);
+        }
+
+        &[type='date'] {
+          cursor: text;
+        }
+      }
+
+      select.date-input {
+        cursor: pointer;
+        padding-right: 2.5rem; // Space for arrow if custom
+      }
+    }
+  }
+
+  .table-container {
+    overflow-x: auto; /* Allow scrolling if many branches */
+  }
+
+  .report-table {
+    width: 100%;
+    border-collapse: collapse;
+    white-space: nowrap; /* Prevent wrapping in headers */
+
+    th,
+    td {
+      padding: 1rem;
+      border-bottom: 1px solid var(--theme-elevation-100);
+      text-align: left;
+      color: var(--theme-text-primary);
+    }
+
+    th {
+      background: var(--theme-elevation-50);
+      font-weight: 600;
+    }
+
+    // Zebra Striping
+    tbody tr:nth-child(even) {
+      background-color: var(--theme-elevation-50);
+    }
+
+    .grand-total {
+      background: var(--theme-elevation-100);
+      font-weight: bold;
+
+      td {
+        border-top: 2px solid var(--theme-border-color);
+      }
+    }
+  }
+
+  .error {
+    color: var(--theme-error-500);
+  }
+}

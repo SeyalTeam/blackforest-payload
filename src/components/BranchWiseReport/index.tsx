@@ -67,7 +67,8 @@ const BranchWiseReport: React.FC = () => {
           <table className="report-table">
             <thead>
               <tr>
-                <th>Branch</th>
+                <th style={{ width: '50px' }}>S.No</th>
+                <th>Branch Name</th>
                 <th style={{ textAlign: 'right' }}>Total Bills</th>
                 <th style={{ textAlign: 'right' }}>Cash</th>
                 <th style={{ textAlign: 'right' }}>UPI</th>
@@ -77,19 +78,32 @@ const BranchWiseReport: React.FC = () => {
             </thead>
             <tbody>
               {data.stats.map((row, index) => (
-                <tr key={index}>
+                <tr key={row.branchName}>
+                  <td>{index + 1}</td>{' '}
+                  {/* Using index + 1 for S.No as row.sNo is not defined in ReportStats */}
                   <td>{row.branchName}</td>
                   <td style={{ textAlign: 'right' }}>{row.totalBills}</td>
-                  <td style={{ textAlign: 'right' }}>{row.cash.toFixed(2)}</td>
-                  <td style={{ textAlign: 'right' }}>{row.upi.toFixed(2)}</td>
-                  <td style={{ textAlign: 'right' }}>{row.card.toFixed(2)}</td>
-                  <td style={{ textAlign: 'right' }}>{row.totalAmount.toFixed(2)}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    {row.cash.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    {row.upi.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    {row.card.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    {row.totalAmount.toLocaleString('en-IN', {
+                      style: 'currency',
+                      currency: 'INR',
+                    })}
+                  </td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="grand-total">
-                <td>
+                <td colSpan={2}>
                   <strong>Total</strong>
                 </td>
                 <td style={{ textAlign: 'right' }}>

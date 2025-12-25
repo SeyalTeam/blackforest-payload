@@ -94,9 +94,15 @@ export const getBranchWiseReportHandler: PayloadHandler = async (
       { totalBills: 0, totalAmount: 0, cash: 0, upi: 0, card: 0 },
     )
 
+    // Add Serial Number
+    const statsWithSn = stats.map((item, index) => ({
+      ...item,
+      sNo: index + 1,
+    }))
+
     return Response.json({
       date: dateParam,
-      stats,
+      stats: statsWithSn,
       totals,
     })
   } catch (error) {

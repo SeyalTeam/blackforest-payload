@@ -24,7 +24,9 @@ import Expenses from './collections/Expenses'
 import StockOrders from './collections/StockOrders'
 import { IPSettings } from './globals/IPSettings'
 import { BranchWiseReportGlobal } from './globals/BranchWiseReport'
+import { CategoryWiseReportGlobal } from './globals/CategoryWiseReport'
 import { getBranchWiseReportHandler } from './endpoints/getBranchWiseReport'
+import { getCategoryWiseReportHandler } from './endpoints/getCategoryWiseReport'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -71,6 +73,11 @@ export default buildConfig({
       method: 'get',
       handler: getBranchWiseReportHandler,
     },
+    {
+      path: '/reports/category-wise',
+      method: 'get',
+      handler: getCategoryWiseReportHandler,
+    },
   ],
 
   // Collections
@@ -90,7 +97,7 @@ export default buildConfig({
     Expenses,
     StockOrders,
   ],
-  globals: [IPSettings, BranchWiseReportGlobal],
+  globals: [IPSettings, BranchWiseReportGlobal, CategoryWiseReportGlobal],
 
   editor: lexicalEditor(),
 
