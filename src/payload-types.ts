@@ -526,13 +526,13 @@ export interface StockOrder {
     receivedDate?: string | null;
     differenceQty?: number | null;
     differenceAmount?: number | null;
-    status?: ('ordered' | 'sending' | 'confirmed' | 'picked' | 'received') | null;
+    status?: ('ordered' | 'sending' | 'confirmed' | 'picked' | 'received' | 'completed') | null;
     id?: string | null;
   }[];
   branch: string | Branch;
   createdBy: string | User;
   company: string | Company;
-  status?: ('ordered' | 'sending' | 'confirmed' | 'picked' | 'received') | null;
+  status?: ('ordered' | 'sending' | 'confirmed' | 'picked' | 'received' | 'completed') | null;
   notes?: string | null;
   updatedAt: string;
   createdAt: string;
