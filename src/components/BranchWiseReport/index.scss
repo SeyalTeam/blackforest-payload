@@ -106,8 +106,8 @@
       color: var(--theme-text-primary);
       border-right: 1px solid var(--theme-elevation-100);
 
-      &:last-child {
-        border-right: none;
+      &:first-child {
+        border-left: 1px solid var(--theme-elevation-100);
       }
 
       &.branch-name-cell {

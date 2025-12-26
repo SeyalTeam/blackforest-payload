@@ -41,6 +41,9 @@ export default buildConfig({
     importMap: {
       baseDir: path.resolve(dirname),
     },
+    components: {
+      // beforeNavLinks: [],
+    },
   },
 
   // ✅ ADD CORS + CSRF HERE

@@ -44,18 +44,23 @@ const CategoryWiseReport: React.FC = () => {
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
   const [selectedDepartment, setSelectedDepartment] = useState('all')
 
+  const [showZeroHighlight, setShowZeroHighlight] = useState<boolean>(true)
+  const [showTopSaleHighlight, setShowTopSaleHighlight] = useState<boolean>(false)
+  const [showLowSaleHighlight, setShowLowSaleHighlight] = useState<boolean>(false)
+
+  const [showExportMenu, setShowExportMenu] = useState(false)
+
   const formatValue = (val: number) => {
     const fixed = val.toFixed(2)
     return fixed.endsWith('.00') ? fixed.slice(0, -3) : fixed
   }
 
   const handleExportExcel = () => {
-    // ... existing export logic ...
     if (!data) return
     const csvRows = []
     // Header
     csvRows.push(
-      ['S.No', 'Category', ...data.branchHeaders, 'Total Units', 'Total Amount'].join(','),
+      ['S.NO', 'CATEGORY', ...data.branchHeaders, 'TOTAL UNITS', 'TOTAL AMOUNT'].join(','),
     )
     // Rows
     data.stats.forEach((row) => {
@@ -94,6 +99,7 @@ const CategoryWiseReport: React.FC = () => {
       endDate?.toISOString().split('T')[0]
     }.csv`
     a.click()
+    setShowExportMenu(false)
   }
 
   const branchOptions = [
@@ -107,7 +113,6 @@ const CategoryWiseReport: React.FC = () => {
   ]
 
   const customStyles = {
-    // ... exact styles as before ...
     control: (base: any, state: any) => ({
       ...base,
       backgroundColor: 'var(--theme-input-bg, var(--theme-elevation-50))',
@@ -241,7 +246,45 @@ const CategoryWiseReport: React.FC = () => {
   return (
     <div className="category-report-container">
       <div className="report-header">
-        <h1>Category Wise Report</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <h1>Category Wise Report</h1>
+          <button
+            title="Toggle Zero Highlight"
+            onClick={() => setShowZeroHighlight(!showZeroHighlight)}
+            style={{
+              width: '16px',
+              height: '16px',
+              backgroundColor: '#800020',
+              border: showZeroHighlight ? '1px solid #ffffff' : '1px solid #800020',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          />
+          <button
+            title="Toggle Top Sale Highlight"
+            onClick={() => setShowTopSaleHighlight(!showTopSaleHighlight)}
+            style={{
+              width: '16px',
+              height: '16px',
+              backgroundColor: '#006400', // Dark Green
+              border: showTopSaleHighlight ? '1px solid #ffffff' : '1px solid #006400',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          />
+          <button
+            title="Toggle Lowest Sale Highlight"
+            onClick={() => setShowLowSaleHighlight(!showLowSaleHighlight)}
+            style={{
+              width: '16px',
+              height: '16px',
+              backgroundColor: '#B8860B', // Dark Goldenrod
+              border: showLowSaleHighlight ? '1px solid #ffffff' : '1px solid #B8860B',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          />
+        </div>
         <div className="date-filter">
           <div className="filter-group">
             <DatePicker
@@ -256,6 +299,7 @@ const CategoryWiseReport: React.FC = () => {
               className="date-input"
               customInput={<CustomInput />}
               calendarClassName="custom-calendar"
+              popperPlacement="bottom-start"
             />
           </div>
 
@@ -288,15 +332,34 @@ const CategoryWiseReport: React.FC = () => {
             <div className="export-container">
               <button
                 className="export-btn"
-                onClick={handleExportExcel}
-                title="Export to Excel"
-                disabled={!data}
-                style={{ opacity: !data ? 0.5 : 1, cursor: !data ? 'not-allowed' : 'pointer' }}
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                title="Export Report"
               >
                 <span>Export</span>
                 <span className="icon">↓</span>
               </button>
+              {showExportMenu && (
+                <div className="export-menu">
+                  <button onClick={handleExportExcel}>Excel</button>
+                </div>
+              )}
             </div>
+            {/* Backdrop */}
+            {showExportMenu && (
+              <div
+                className="export-backdrop"
+                onClick={() => setShowExportMenu(false)}
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  zIndex: 9998,
+                  cursor: 'default',
+                }}
+              />
+            )}
           </div>
 
           <div className="filter-group">
@@ -340,134 +403,216 @@ const CategoryWiseReport: React.FC = () => {
       {loading && <p>Loading...</p>}
       {error && <p className="error">{error}</p>}
 
-      {data && (
-        <div className="table-container">
-          <table className="report-table">
-            <thead>
-              <tr>
-                <th style={{ width: '50px' }}>S.No</th>
-                <th>Category</th>
-                {/* Dynamically render branch headers */}
-                {data.branchHeaders.map((header) => (
-                  <th key={header} style={{ textAlign: 'left' }}>
-                    {header}
-                  </th>
-                ))}
-                <th style={{ textAlign: 'right' }}>Total Units</th>
-                <th style={{ textAlign: 'right' }}>Total Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.stats.map((row) => (
-                <tr key={row.sNo}>
-                  <td>{row.sNo}</td>
-                  <td>{row.categoryName}</td>
-                  {data.branchHeaders.map((header) => {
-                    const sales = row.branchSales[header] || { amount: 0, quantity: 0 }
-                    const isZero = sales.amount === 0
-                    return (
-                      <td
-                        key={header}
-                        style={{
-                          textAlign: 'left',
-                          verticalAlign: 'top',
-                          backgroundColor: isZero ? '#800020' : 'inherit',
-                          color: isZero ? '#FFFFFF' : 'inherit',
-                        }}
-                      >
-                        <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>
-                          {formatValue(sales.amount)}
-                        </div>
-                        {sales.quantity > 0 && (
-                          <div
-                            style={{
-                              fontSize: '0.75rem',
-                              color: isZero ? '#FFFFFF' : 'var(--theme-elevation-400)',
-                              marginTop: '2px',
-                            }}
-                          >
-                            {formatValue(sales.quantity)} Units
-                          </div>
-                        )}
-                      </td>
-                    )
-                  })}
-                  <td
-                    style={{
-                      textAlign: 'right',
-                      fontWeight: '600',
-                      fontSize: '1.2rem',
-                      backgroundColor: row.totalQuantity === 0 ? '#800020' : 'inherit',
-                      color: row.totalQuantity === 0 ? '#FFFFFF' : 'inherit',
-                    }}
-                  >
-                    {formatValue(row.totalQuantity)}
-                  </td>
-                  <td
-                    style={{
-                      textAlign: 'right',
-                      fontWeight: '600',
-                      fontSize: '1.2rem',
-                      backgroundColor: row.totalAmount === 0 ? '#800020' : 'inherit',
-                      color: row.totalAmount === 0 ? '#FFFFFF' : 'inherit',
-                    }}
-                  >
-                    {formatValue(row.totalAmount)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="grand-total">
-                <td colSpan={2}>
-                  <strong>Total</strong>
-                </td>
-                {/* Branch Totals */}
-                {data.branchHeaders.map((header) => {
-                  const val = data.totals.branchTotals[header] || 0
-                  const isZero = val === 0
-                  return (
-                    <td
-                      key={header}
+      {(() => {
+        // Calculate Max and Min Branch Sale Amount per Branch
+        const maxSalesPerBranch: Record<string, number> = {}
+        const minSalesPerBranch: Record<string, number> = {}
+
+        if (data) {
+          data.branchHeaders.forEach((header) => {
+            // Get all amounts for this branch
+            const amounts = data.stats.map((row) => row.branchSales[header]?.amount || 0)
+            const positiveAmounts = amounts.filter((a) => a > 0)
+
+            // Max is max of all amounts (or 0 if none)
+            maxSalesPerBranch[header] = amounts.length > 0 ? Math.max(...amounts) : 0
+
+            // Min is min of positive amounts (or 0 if none)
+            minSalesPerBranch[header] =
+              positiveAmounts.length > 0 ? Math.min(...positiveAmounts) : 0
+          })
+        }
+
+        return (
+          data && (
+            <div className="table-container">
+              <table className="report-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '50px' }}>S.NO</th>
+                    <th style={{ width: '180px', maxWidth: '180px', whiteSpace: 'normal' }}>
+                      CATEGORY
+                    </th>
+                    {/* Dynamically render branch headers */}
+                    {data.branchHeaders.map((header) => (
+                      <th key={header} style={{ textAlign: 'left' }}>
+                        {header}
+                      </th>
+                    ))}
+                    <th
                       style={{
-                        textAlign: 'left',
-                        fontWeight: 'bold',
-                        fontSize: '1.2rem',
-                        backgroundColor: isZero ? '#800020' : 'inherit',
-                        color: isZero ? '#FFFFFF' : 'inherit',
+                        textAlign: 'right',
                       }}
                     >
-                      {formatValue(val)}
+                      TOTAL UNITS
+                    </th>
+                    <th style={{ textAlign: 'right' }}>TOTAL AMOUNT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.stats.map((row) => (
+                    <tr key={row.sNo}>
+                      <td>{row.sNo}</td>
+                      <td style={{ whiteSpace: 'normal' }}>{row.categoryName}</td>
+                      {data.branchHeaders.map((header) => {
+                        const sales = row.branchSales[header] || { amount: 0, quantity: 0 }
+                        const isZero = sales.amount === 0
+                        const isTopSale =
+                          showTopSaleHighlight &&
+                          selectedBranch === 'all' &&
+                          sales.amount > 0 &&
+                          Math.abs(sales.amount - maxSalesPerBranch[header]) < 0.001
+
+                        const isLowSale =
+                          showLowSaleHighlight &&
+                          selectedBranch === 'all' &&
+                          sales.amount > 0 &&
+                          Math.abs(sales.amount - minSalesPerBranch[header]) < 0.001
+
+                        const branchTotal = data.totals.branchTotals[header] || 0
+                        const percentage =
+                          branchTotal > 0 ? ((sales.amount / branchTotal) * 100).toFixed(2) : '0.00'
+
+                        return (
+                          <td
+                            key={header}
+                            style={{
+                              textAlign: 'left',
+                              verticalAlign: 'top',
+                              backgroundColor:
+                                showZeroHighlight && isZero
+                                  ? '#800020'
+                                  : isTopSale
+                                    ? '#006400'
+                                    : isLowSale
+                                      ? '#B8860B'
+                                      : 'inherit',
+                              color:
+                                (showZeroHighlight && isZero) || isTopSale || isLowSale
+                                  ? '#FFFFFF'
+                                  : 'inherit',
+                            }}
+                          >
+                            <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>
+                              {formatValue(sales.amount)}
+                            </div>
+                            {(sales.quantity > 0 || sales.amount > 0) && (
+                              <div
+                                style={{
+                                  fontSize: '0.75rem',
+                                  color:
+                                    isZero || isTopSale || isLowSale
+                                      ? '#FFFFFF'
+                                      : 'var(--theme-elevation-400)',
+                                  marginTop: '2px',
+                                }}
+                              >
+                                {sales.quantity > 0 && (
+                                  <span>{formatValue(sales.quantity)} Units</span>
+                                )}
+                                {sales.amount > 0 && (
+                                  <span style={{ marginLeft: sales.quantity > 0 ? '8px' : '0' }}>
+                                    {percentage}%
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        )
+                      })}
+                      <td
+                        style={{
+                          textAlign: 'right',
+                          fontWeight: '600',
+                          fontSize: '1.2rem',
+                          backgroundColor:
+                            showZeroHighlight && row.totalQuantity === 0 ? '#800020' : 'inherit',
+                          color:
+                            showZeroHighlight && row.totalQuantity === 0 ? '#FFFFFF' : 'inherit',
+                        }}
+                      >
+                        {formatValue(row.totalQuantity)}
+                      </td>
+                      <td
+                        style={{
+                          textAlign: 'right',
+                          fontWeight: '600',
+                          fontSize: '1.2rem',
+                          backgroundColor:
+                            showZeroHighlight && row.totalAmount === 0 ? '#800020' : 'inherit',
+                          color: showZeroHighlight && row.totalAmount === 0 ? '#FFFFFF' : 'inherit',
+                        }}
+                      >
+                        {formatValue(row.totalAmount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="grand-total">
+                    <td colSpan={2}>
+                      <strong>TOTAL</strong>
                     </td>
-                  )
-                })}
-                <td
-                  style={{
-                    textAlign: 'right',
-                    fontWeight: '600',
-                    fontSize: '1.2rem',
-                    backgroundColor: data.totals.totalQuantity === 0 ? '#800020' : 'inherit',
-                    color: data.totals.totalQuantity === 0 ? '#FFFFFF' : 'inherit',
-                  }}
-                >
-                  {formatValue(data.totals.totalQuantity)}
-                </td>
-                <td
-                  style={{
-                    textAlign: 'right',
-                    fontWeight: '600',
-                    fontSize: '1.2rem',
-                    backgroundColor: data.totals.totalAmount === 0 ? '#FF0000' : 'inherit',
-                    color: data.totals.totalAmount === 0 ? '#FFFFFF' : 'inherit',
-                  }}
-                >
-                  {formatValue(data.totals.totalAmount)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      )}
+                    {/* Branch Totals */}
+                    {data.branchHeaders.map((header) => {
+                      const val = data.totals.branchTotals[header] || 0
+                      const isZero = val === 0
+                      return (
+                        <td
+                          key={header}
+                          style={{
+                            textAlign: 'left',
+                            fontWeight: 'bold',
+                            fontSize: '1.2rem',
+                            backgroundColor: showZeroHighlight && isZero ? '#800020' : 'inherit',
+                            color: showZeroHighlight && isZero ? '#FFFFFF' : 'inherit',
+                          }}
+                        >
+                          {formatValue(val)}
+                        </td>
+                      )
+                    })}
+                    <td
+                      style={{
+                        textAlign: 'right',
+                        fontWeight: '600',
+                        fontSize: '1.2rem',
+                        backgroundColor:
+                          showZeroHighlight && data.totals.totalQuantity === 0
+                            ? '#800020'
+                            : 'inherit',
+                        color:
+                          showZeroHighlight && data.totals.totalQuantity === 0
+                            ? '#FFFFFF'
+                            : 'inherit',
+                      }}
+                    >
+                      {formatValue(data.totals.totalQuantity)}
+                    </td>
+                    <td
+                      style={{
+                        textAlign: 'right',
+                        fontWeight: '600',
+                        fontSize: '1.2rem',
+                        backgroundColor:
+                          showZeroHighlight && data.totals.totalAmount === 0
+                            ? '#800020'
+                            : 'inherit',
+                        color:
+                          showZeroHighlight && data.totals.totalAmount === 0
+                            ? '#FFFFFF'
+                            : 'inherit',
+                      }}
+                    >
+                      {formatValue(data.totals.totalAmount)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )
+        )
+      })()}
     </div>
   )
 }

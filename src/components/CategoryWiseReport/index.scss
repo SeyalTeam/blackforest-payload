@@ -91,8 +91,8 @@
   }
 
   .table-container {
-    /* Remove constraints to allow viewport sticky behavior */
     width: 100%;
+    /* overflow-x: auto; - Removed to restore sticky behavior relative to viewport */
   }
 
   .report-table {
@@ -104,12 +104,17 @@
     td {
       padding: 1rem;
       border-bottom: 1px solid var(--theme-elevation-100);
-      border-right: 1px solid var(--theme-elevation-100); // Vertical separator
+      border-right: 1px solid var(--theme-elevation-100); // Standard vertical separator
       text-align: left;
       color: var(--theme-text-primary);
 
+      &:first-child {
+        border-right: 1px solid var(--theme-elevation-100); // Ensure uniformity
+        border-left: 1px solid var(--theme-elevation-100); // Add left-most border
+      }
+
       &:last-child {
-        border-right: none;
+        border-right: 1px solid var(--theme-elevation-100); // Ensure right-most border
       }
     }
 
@@ -120,6 +125,7 @@
       top: 0;
       z-index: 100; // Increased z-index to stay above other content
       box-shadow: 0 1px 0 var(--theme-elevation-100);
+      text-transform: uppercase; // Ensure all headers are caps
       /* Ensure header is opaque when content scrolls behind */
     }
 
@@ -131,9 +137,14 @@
     .grand-total {
       background: var(--theme-elevation-100);
       font-weight: bold;
+      position: sticky;
+      bottom: 0;
+      z-index: 100;
+      box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
 
       td {
         border-top: 2px solid var(--theme-border-color);
+        background: var(--theme-elevation-100); // Ensure opaque background
       }
     }
   }

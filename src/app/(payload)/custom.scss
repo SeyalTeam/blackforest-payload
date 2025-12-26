@@ -8,6 +8,7 @@ aside.nav,
   width: 260px !important;
   min-width: 260px !important;
   max-width: 260px !important;
+  transition: width 0.3s ease; // Smooth collapse
 
   .nav__scroll {
     // Enable Flexbox to reorder groups
@@ -32,8 +33,11 @@ aside.nav,
 
   // --- REORDERING LOGIC ---
   // Move "Report" group to top using :has() selector
-  // It now inherits the border from .nav-group above
-  .nav-group:has(a[href*='branch-wise-report']) {
+  // We check for ANY of the report links to ensure the group is targeted
+  // regardless of which specific report is active or if DOM structure varies.
+  .nav-group:has(a[href*='branch-wise-report']),
+  .nav-group:has(a[href*='category-wise-report']),
+  .nav-group:has(a[href*='product-wise-report']) {
     order: -1 !important;
   }
 
@@ -55,9 +59,13 @@ aside.nav,
     position: relative;
     display: flex;
     align-items: center;
+    border-radius: 8px; // Rounded corners from image
+    transition: all 0.2s ease;
 
     span {
       font-size: 16px !important;
+      white-space: nowrap; // Prevent wrapping
+      transition: opacity 0.2s;
     }
 
     // ICON MIXIN
@@ -77,6 +85,7 @@ aside.nav,
       mask-size: contain;
 
       flex-shrink: 0;
+      transition: margin 0.3s;
 
       // DEFAULT ICON (Circle Dot)
       -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3C/svg%3E");
@@ -95,7 +104,7 @@ aside.nav,
   // 2. Branches
   a[href*='/collections/branches']::before {
     -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3Cpolyline points='9 22 9 12 15 12 15 22'/%3E%3C/svg%3E");
-    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3Cpolyline points='9 22 9 12 15 12 15 22'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 9l9-7 9 7v11a2 2 0 0 1-2-2z'/%3E%3Cpolyline points='9 22 9 12 15 12 15 22'/%3E%3C/svg%3E");
   }
 
   // 3. Organization
@@ -181,7 +190,7 @@ aside.nav,
   // 11. Globals (IP Settings)
   a[href*='globals/ip-settings']::before {
     -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='2' y1='12' x2='22' y2='12'/%3E%3Cpath d='M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z'/%3E%3C/svg%3E");
-    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='2' y1='12' x2='22' y2='12'/%3E%3Cpath d='M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='2' y1='12' x2='22' y2='12'/%3E%3Cpath d='M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z'/%3E%3C/svg%3E");
   }
 }
 

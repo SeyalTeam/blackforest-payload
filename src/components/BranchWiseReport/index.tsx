@@ -156,6 +156,7 @@ const BranchWiseReport: React.FC = () => {
               dateFormat="yyyy-MM-dd"
               customInput={<CustomInput />}
               calendarClassName="custom-calendar"
+              popperPlacement="bottom-start"
             />
           </div>
 
@@ -210,13 +211,13 @@ const BranchWiseReport: React.FC = () => {
           <table className="report-table">
             <thead>
               <tr>
-                <th style={{ width: '50px' }}>S.No</th>
-                <th>Branch Name</th>
-                <th style={{ textAlign: 'right' }}>Total Bills</th>
-                <th style={{ textAlign: 'right' }}>Cash</th>
+                <th style={{ width: '50px' }}>S.NO</th>
+                <th>BRANCH NAME</th>
+                <th style={{ textAlign: 'right' }}>TOTAL BILLS</th>
+                <th style={{ textAlign: 'right' }}>CASH</th>
                 <th style={{ textAlign: 'right' }}>UPI</th>
-                <th style={{ textAlign: 'right' }}>Card</th>
-                <th style={{ textAlign: 'right' }}>Total Amount</th>
+                <th style={{ textAlign: 'right' }}>CARD</th>
+                <th style={{ textAlign: 'right' }}>TOTAL AMOUNT</th>
               </tr>
             </thead>
             <tbody>
@@ -224,7 +225,7 @@ const BranchWiseReport: React.FC = () => {
                 <tr key={row.branchName}>
                   <td>{index + 1}</td>{' '}
                   {/* Using index + 1 for S.No as row.sNo is not defined in ReportStats */}
-                  <td className="branch-name-cell">{row.branchName}</td>
+                  <td className="branch-name-cell">{row.branchName.toUpperCase()}</td>
                   <td style={{ textAlign: 'right' }}>{row.totalBills}</td>
                   <td
                     style={{

@@ -9,6 +9,8 @@ interface BranchData {
 
 interface RawStat {
   productName: string
+  price: number
+  unit: string
   totalQuantity: number
   totalAmount: number
   branchData: BranchData[]
@@ -133,6 +135,8 @@ export const getProductWiseReportHandler: PayloadHandler = async (
           _id: {
             productName: '$productDetails.name',
             branchId: '$branch',
+            price: '$productDetails.defaultPriceDetails.price',
+            unit: '$productDetails.defaultPriceDetails.unit',
           },
           quantity: { $sum: '$items.quantity' },
           amount: { $sum: '$items.subtotal' }, // Assuming subtotal is at item level
@@ -141,6 +145,8 @@ export const getProductWiseReportHandler: PayloadHandler = async (
       {
         $group: {
           _id: '$_id.productName',
+          price: { $first: '$_id.price' },
+          unit: { $first: '$_id.unit' },
           totalQuantity: { $sum: '$quantity' },
           totalAmount: { $sum: '$amount' },
           branchData: {
@@ -156,6 +162,8 @@ export const getProductWiseReportHandler: PayloadHandler = async (
         $project: {
           _id: 0,
           productName: '$_id',
+          price: 1,
+          unit: 1,
           totalQuantity: 1,
           totalAmount: 1,
           branchData: 1,
@@ -203,6 +211,8 @@ export const getProductWiseReportHandler: PayloadHandler = async (
       return {
         sNo: index + 1,
         productName: item.productName,
+        price: item.price || 0,
+        unit: item.unit || '',
         totalQuantity: item.totalQuantity,
         totalAmount: item.totalAmount,
         branchSales,

@@ -109,8 +109,27 @@
       text-align: left;
       color: var(--theme-text-primary);
 
+      &:first-child {
+        border-left: 1px solid var(--theme-elevation-100);
+      }
+
       &:last-child {
-        border-right: none;
+        border-right: 1px solid var(--theme-elevation-100);
+      }
+
+      &.product-name-cell {
+        font-size: 1.1rem;
+        font-weight: 600;
+        white-space: normal; // Allow text wrapping
+        max-width: 180px; // Compress width
+        min-width: 150px; // Prevent over-squashing
+
+        .product-price-unit {
+          font-size: 0.85rem;
+          color: var(--theme-elevation-400);
+          margin-top: 4px;
+          font-weight: 500;
+        }
       }
     }
 
@@ -119,9 +138,18 @@
       font-weight: 600;
       position: sticky;
       top: 0;
-      z-index: 100; // Increased z-index to stay above other content
+      z-index: 5;
+      border-right: 1px solid var(--theme-elevation-100);
       box-shadow: 0 1px 0 var(--theme-elevation-100);
       /* Ensure header is opaque when content scrolls behind */
+
+      &:first-child {
+        border-left: 1px solid var(--theme-elevation-100);
+      }
+
+      &:last-child {
+        border-right: 1px solid var(--theme-elevation-100);
+      }
     }
 
     // Zebra Striping
@@ -132,9 +160,14 @@
     .grand-total {
       background: var(--theme-elevation-100);
       font-weight: bold;
+      position: sticky;
+      bottom: 0;
+      z-index: 10;
+      box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1); // Add shadow for separation
 
       td {
         border-top: 2px solid var(--theme-border-color);
+        background: var(--theme-elevation-100); // Ensure opaque background
       }
     }
   }
