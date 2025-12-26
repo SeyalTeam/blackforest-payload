@@ -112,11 +112,13 @@ export interface Config {
     'ip-settings': IpSetting;
     'branch-wise-report': BranchWiseReport;
     'category-wise-report': CategoryWiseReport;
+    'product-wise-report': ProductWiseReport;
   };
   globalsSelect: {
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
     'branch-wise-report': BranchWiseReportSelect<false> | BranchWiseReportSelect<true>;
     'category-wise-report': CategoryWiseReportSelect<false> | CategoryWiseReportSelect<true>;
+    'product-wise-report': ProductWiseReportSelect<false> | ProductWiseReportSelect<true>;
   };
   locale: null;
   user: User & {
@@ -1094,6 +1096,15 @@ export interface CategoryWiseReport {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "product-wise-report".
+ */
+export interface ProductWiseReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "ip-settings_select".
  */
 export interface IpSettingsSelect<T extends boolean = true> {
@@ -1128,6 +1139,15 @@ export interface BranchWiseReportSelect<T extends boolean = true> {
  * via the `definition` "category-wise-report_select".
  */
 export interface CategoryWiseReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "product-wise-report_select".
+ */
+export interface ProductWiseReportSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

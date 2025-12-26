@@ -1,5 +1,7 @@
 import { PayloadRequest, PayloadHandler } from 'payload'
 import PDFDocument from 'pdfkit'
+import path from 'path'
+import fs from 'fs'
 
 export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
   req: PayloadRequest,
@@ -28,6 +30,17 @@ export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
     payload.logger.info(
       `Generating Category Wise Report PDF for ${startDateParam} to ${endDateParam}`,
     )
+
+    // --- FONT SETUP ---
+    const fontsDir = path.join(process.cwd(), 'src/assets/fonts')
+    const fontRegular = path.join(fontsDir, 'Inter-Regular.ttf')
+    const fontBold = path.join(fontsDir, 'Inter-Bold.ttf')
+
+    const hasRegular = fs.existsSync(fontRegular)
+    const hasBold = fs.existsSync(fontBold)
+
+    if (!hasRegular) payload.logger.warn(`Regular font not found at ${fontRegular}`)
+    if (!hasBold) payload.logger.warn(`Bold font not found at ${fontBold}`)
 
     // --- DATA FETCHING ---
     const branches = await payload.find({
@@ -162,13 +175,24 @@ export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
       doc.on('end', () => resolve(Buffer.concat(chunks)))
       doc.on('error', reject)
 
+      // Register and Apply default font
+      if (hasRegular) {
+        doc.font(fontRegular)
+      }
+
+      // Helper to set font based on bold requirement
+      const setDocFont = (bold = false) => {
+        if (bold && hasBold) doc.font(fontBold)
+        else if (hasRegular) doc.font(fontRegular)
+      }
+
       // Title & Dates
-      doc.fontSize(18).font('Helvetica-Bold').text('Category Wise Report', { align: 'center' })
+      setDocFont(true) // Bold for title
+      doc.fontSize(18).text('Category Wise Report', { align: 'center' })
       doc.moveDown(0.5)
-      doc
-        .fontSize(10)
-        .font('Helvetica')
-        .text(`Date: ${startDateParam} to ${endDateParam}`, { align: 'center' })
+
+      setDocFont(false) // Regular for dates
+      doc.fontSize(10).text(`Date: ${startDateParam} to ${endDateParam}`, { align: 'center' })
       doc.moveDown(1)
 
       // Table Setup
@@ -191,7 +215,12 @@ export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
         }
 
         let curX = startX
-        if (isHeader) doc.rect(startX, y, pageWidth, rowHeight).fill('#f0f0f0').stroke()
+        if (isHeader) {
+          doc.rect(startX, y, pageWidth, rowHeight).fill('#f0f0f0').stroke()
+          setDocFont(true)
+        } else {
+          setDocFont(false)
+        }
         doc.fillColor('black')
 
         data.forEach((text, i) => {
@@ -214,15 +243,12 @@ export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
             align = 'right'
           }
 
-          doc
-            .font(isHeader ? 'Helvetica-Bold' : 'Helvetica')
-            .fontSize(9)
-            .text(text, curX + 2, y + 5, {
-              width: w - 4,
-              align,
-              height: rowHeight - 10,
-              ellipsis: true,
-            })
+          doc.fontSize(9).text(text, curX + 2, y + 5, {
+            width: w - 4,
+            align,
+            height: rowHeight - 10,
+            ellipsis: true,
+          })
           doc.rect(curX, y, w, rowHeight).stroke()
           curX += w
         })
