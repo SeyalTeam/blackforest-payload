@@ -5,13 +5,22 @@ export const getCategoryWiseReportHandler: PayloadHandler = async (
 ): Promise<Response> => {
   const { payload } = req
 
-  const dateParam =
-    typeof req.query.date === 'string' ? req.query.date : new Date().toISOString().split('T')[0]
+  // 1. Get date from query param or use today
+  const startDateParam =
+    typeof req.query.startDate === 'string'
+      ? req.query.startDate
+      : new Date().toISOString().split('T')[0]
+  const endDateParam =
+    typeof req.query.endDate === 'string'
+      ? req.query.endDate
+      : new Date().toISOString().split('T')[0]
 
-  const startOfDay = new Date(dateParam)
+  // Start of day (00:00:00)
+  const startOfDay = new Date(startDateParam)
   startOfDay.setHours(0, 0, 0, 0)
 
-  const endOfDay = new Date(dateParam)
+  // End of day (23:59:59)
+  const endOfDay = new Date(endDateParam)
   endOfDay.setHours(23, 59, 59, 999)
 
   const branchParam = typeof req.query.branch === 'string' ? req.query.branch : ''
@@ -166,7 +175,8 @@ export const getCategoryWiseReportHandler: PayloadHandler = async (
     )
 
     return Response.json({
-      date: dateParam,
+      startDate: startDateParam,
+      endDate: endDateParam,
       branchHeaders,
       stats: formattedStats,
       totals,

@@ -12,7 +12,8 @@ type ReportStats = {
 }
 
 type ReportData = {
-  date: string
+  startDate: string
+  endDate: string
   branchHeaders: string[]
   stats: ReportStats[]
   totals: {
@@ -21,14 +22,135 @@ type ReportData = {
   }
 }
 
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
+import Select from 'react-select'
+
+// ... existing code ...
+
 const CategoryWiseReport: React.FC = () => {
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  // Combine start and end date into a single range state for the picker
+  const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()])
+  const [startDate, endDate] = dateRange
+
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([])
   const [selectedBranch, setSelectedBranch] = useState('all')
+  const [showExportMenu, setShowExportMenu] = useState(false)
+
+  const handleExportExcel = () => {
+    if (!data) return
+    const csvRows = []
+    // Header
+    csvRows.push(
+      ['S.No', 'Category', ...data.branchHeaders, 'Total Quantity', 'Total Amount'].join(','),
+    )
+    // Rows
+    data.stats.forEach((row) => {
+      const branchValues = data.branchHeaders.map((header) =>
+        (row.branchSales[header] || 0).toFixed(2),
+      )
+      csvRows.push(
+        [
+          row.sNo,
+          `"${row.categoryName}"`, // Quote strings
+          ...branchValues,
+          row.totalQuantity,
+          row.totalAmount.toFixed(2),
+        ].join(','),
+      )
+    })
+    // Total Row
+    const totalBranchPlaceholders = data.branchHeaders.map(() => '')
+    csvRows.push(
+      [
+        '',
+        'TOTAL',
+        ...totalBranchPlaceholders,
+        data.totals.totalQuantity,
+        data.totals.totalAmount.toFixed(2),
+      ].join(','),
+    )
+
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `category_report_${startDate?.toISOString().split('T')[0]}_to_${
+      endDate?.toISOString().split('T')[0]
+    }.csv`
+    a.click()
+    setShowExportMenu(false)
+  }
+
+  const handleExportPDF = () => {
+    if (!startDate || !endDate) return
+    const s = startDate.toISOString().split('T')[0]
+    const e = endDate.toISOString().split('T')[0]
+    const url = `/api/reports/category-wise/export-pdf?startDate=${s}&endDate=${e}&branch=${selectedBranch}`
+
+    // Trigger download
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `category_report_${s}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+
+    setShowExportMenu(false)
+  }
+
+  const branchOptions = [
+    { value: 'all', label: 'All Branches' },
+    ...branches.map((b) => ({ value: b.id, label: b.name })),
+  ]
+
+  const customStyles = {
+    control: (base: any, state: any) => ({
+      ...base,
+      backgroundColor: 'var(--theme-input-bg, var(--theme-elevation-50))',
+      borderColor: state.isFocused ? 'var(--theme-info-500)' : 'var(--theme-elevation-400)',
+      borderRadius: '8px',
+      height: '42px', // Match fixed height of datepicker
+      minHeight: '42px',
+      minWidth: '250px', // Force width to accommodate long branch names like THOOTHUKUDI MACROON
+      padding: '0',
+      boxShadow: state.isFocused ? '0 0 0 1px var(--theme-info-500)' : 'none',
+      color: 'var(--theme-text-primary)',
+      '&:hover': {
+        borderColor: 'var(--theme-info-750)',
+      },
+    }),
+    singleValue: (base: any) => ({
+      ...base,
+      color: 'var(--theme-text-primary)',
+      fontWeight: '600', // Darker number/text
+    }),
+    option: (base: any, state: any) => ({
+      ...base,
+      backgroundColor: state.isSelected
+        ? 'var(--theme-info-500)'
+        : state.isFocused
+          ? 'var(--theme-elevation-100)'
+          : 'var(--theme-input-bg, var(--theme-elevation-50))',
+      color: state.isSelected ? '#fff' : 'var(--theme-text-primary)',
+      cursor: 'pointer',
+    }),
+    menu: (base: any) => ({
+      ...base,
+      backgroundColor: 'var(--theme-input-bg, var(--theme-elevation-50))',
+      border: '1px solid var(--theme-elevation-150)',
+      zIndex: 9999, // Ensure it's above everything
+      minWidth: '250px',
+    }),
+    input: (base: any) => ({
+      ...base,
+      color: 'var(--theme-text-primary)',
+    }),
+  }
 
   // Fetch available branches
   useEffect(() => {
@@ -46,11 +168,13 @@ const CategoryWiseReport: React.FC = () => {
     fetchBranches()
   }, [])
 
-  const fetchReport = async (selectedDate: string, branchId: string) => {
+  const fetchReport = async (start: string, end: string, branchId: string) => {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`/api/reports/category-wise?date=${selectedDate}&branch=${branchId}`)
+      const res = await fetch(
+        `/api/reports/category-wise?startDate=${start}&endDate=${end}&branch=${branchId}`,
+      )
       if (!res.ok) throw new Error('Failed to fetch report')
       const json = await res.json()
       setData(json)
@@ -62,9 +186,49 @@ const CategoryWiseReport: React.FC = () => {
     }
   }
 
+  // Sync dateRange changes to backend fetch
   useEffect(() => {
-    fetchReport(date, selectedBranch)
-  }, [date, selectedBranch])
+    if (startDate && endDate) {
+      fetchReport(
+        startDate.toISOString().split('T')[0],
+        endDate.toISOString().split('T')[0],
+        selectedBranch,
+      )
+    }
+  }, [dateRange, selectedBranch])
+
+  const CustomInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
+    ({ value, onClick }, ref) => {
+      // split the value "YYYY-MM-DD - YYYY-MM-DD"
+      const [start, end] = value ? value.split(' - ') : ['', '']
+
+      return (
+        <button className="custom-date-input" onClick={onClick} ref={ref}>
+          <span className="date-text">{start}</span>
+          <span className="separator">→</span>
+          <span className="date-text">{end || start}</span>
+          <span className="icon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+          </span>
+        </button>
+      )
+    },
+  )
+  CustomInput.displayName = 'CustomInput'
 
   return (
     <div className="category-report-container">
@@ -72,28 +236,67 @@ const CategoryWiseReport: React.FC = () => {
         <h1>Category Wise Report</h1>
         <div className="date-filter">
           <div className="filter-group">
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
+            <DatePicker
+              selectsRange={true}
+              startDate={startDate}
+              endDate={endDate}
+              onChange={(update) => {
+                setDateRange(update)
+              }}
+              monthsShown={2}
+              dateFormat="yyyy-MM-dd"
               className="date-input"
+              customInput={<CustomInput />}
+              calendarClassName="custom-calendar"
             />
           </div>
 
+          <div className="filter-group" style={{ width: '250px' }}>
+            <Select
+              options={branchOptions}
+              value={branchOptions.find((o) => o.value === selectedBranch)}
+              onChange={(option: any) => setSelectedBranch(option?.value || 'all')}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Select Branch..."
+              isSearchable={true}
+            />
+          </div>
+
+          {/* Export Button */}
           <div className="filter-group">
-            <select
-              value={selectedBranch}
-              onChange={(e) => setSelectedBranch(e.target.value)}
-              className="date-input"
-              style={{ minWidth: '180px' }}
-            >
-              <option value="all">All Branches</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
+            <div className="export-container">
+              <button
+                className="export-btn"
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                title="Export Report"
+              >
+                <span>Export</span>
+                <span className="icon">↓</span>
+              </button>
+              {showExportMenu && (
+                <div className="export-menu">
+                  <button onClick={handleExportExcel}>Excel</button>
+                  <button onClick={handleExportPDF}>PDF</button>
+                </div>
+              )}
+            </div>
+            {/* Backdrop to close menu */}
+            {showExportMenu && (
+              <div
+                className="export-backdrop"
+                onClick={() => setShowExportMenu(false)}
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  zIndex: 9998,
+                  cursor: 'default',
+                }}
+              />
+            )}
           </div>
         </div>
       </div>

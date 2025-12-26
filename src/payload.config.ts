@@ -27,6 +27,7 @@ import { BranchWiseReportGlobal } from './globals/BranchWiseReport'
 import { CategoryWiseReportGlobal } from './globals/CategoryWiseReport'
 import { getBranchWiseReportHandler } from './endpoints/getBranchWiseReport'
 import { getCategoryWiseReportHandler } from './endpoints/getCategoryWiseReport'
+import { getCategoryWiseReportPDFHandler } from './endpoints/getCategoryWiseReportPDF'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -77,6 +78,11 @@ export default buildConfig({
       path: '/reports/category-wise',
       method: 'get',
       handler: getCategoryWiseReportHandler,
+    },
+    {
+      path: '/reports/category-wise/export-pdf',
+      method: 'get',
+      handler: getCategoryWiseReportPDFHandler,
     },
   ],
 
