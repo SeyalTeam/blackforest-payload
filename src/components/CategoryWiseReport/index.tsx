@@ -44,6 +44,11 @@ const CategoryWiseReport: React.FC = () => {
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
   const [selectedDepartment, setSelectedDepartment] = useState('all')
 
+  const formatValue = (val: number) => {
+    const fixed = val.toFixed(2)
+    return fixed.endsWith('.00') ? fixed.slice(0, -3) : fixed
+  }
+
   const handleExportExcel = () => {
     // ... existing export logic ...
     if (!data) return
@@ -55,29 +60,29 @@ const CategoryWiseReport: React.FC = () => {
     // Rows
     data.stats.forEach((row) => {
       const branchValues = data.branchHeaders.map((header) =>
-        (row.branchSales[header]?.amount || 0).toFixed(2),
+        formatValue(row.branchSales[header]?.amount || 0),
       )
       csvRows.push(
         [
           row.sNo,
           `"${row.categoryName}"`, // Quote strings
           ...branchValues,
-          row.totalQuantity,
-          row.totalAmount.toFixed(2),
+          formatValue(row.totalQuantity),
+          formatValue(row.totalAmount),
         ].join(','),
       )
     })
     // Total Row
     const totalBranchValues = data.branchHeaders.map((header) =>
-      (data.totals.branchTotals[header] || 0).toFixed(2),
+      formatValue(data.totals.branchTotals[header] || 0),
     )
     csvRows.push(
       [
         '',
         'TOTAL',
         ...totalBranchValues,
-        data.totals.totalQuantity,
-        data.totals.totalAmount.toFixed(2),
+        formatValue(data.totals.totalQuantity),
+        formatValue(data.totals.totalAmount),
       ].join(','),
     )
 
@@ -293,6 +298,42 @@ const CategoryWiseReport: React.FC = () => {
               </button>
             </div>
           </div>
+
+          <div className="filter-group">
+            <button
+              onClick={() => {
+                setDateRange([new Date(), new Date()])
+                setSelectedBranch('all')
+                setSelectedDepartment('all')
+              }}
+              title="Reset Filters"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '0 0 0 10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--theme-text-primary)',
+              }}
+            >
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M23 4v6h-6"></path>
+                <path d="M1 20v-6h6"></path>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -323,25 +364,56 @@ const CategoryWiseReport: React.FC = () => {
                   <td>{row.categoryName}</td>
                   {data.branchHeaders.map((header) => {
                     const sales = row.branchSales[header] || { amount: 0, quantity: 0 }
+                    const isZero = sales.amount === 0
                     return (
-                      <td key={header} style={{ textAlign: 'left', verticalAlign: 'top' }}>
-                        <div style={{ fontWeight: 500 }}>{sales.amount.toFixed(2)}</div>
+                      <td
+                        key={header}
+                        style={{
+                          textAlign: 'left',
+                          verticalAlign: 'top',
+                          backgroundColor: isZero ? '#800020' : 'inherit',
+                          color: isZero ? '#FFFFFF' : 'inherit',
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>
+                          {formatValue(sales.amount)}
+                        </div>
                         {sales.quantity > 0 && (
                           <div
                             style={{
                               fontSize: '0.75rem',
-                              color: 'var(--theme-elevation-400)',
+                              color: isZero ? '#FFFFFF' : 'var(--theme-elevation-400)',
                               marginTop: '2px',
                             }}
                           >
-                            {sales.quantity} Units
+                            {formatValue(sales.quantity)} Units
                           </div>
                         )}
                       </td>
                     )
                   })}
-                  <td style={{ textAlign: 'right' }}>{row.totalQuantity}</td>
-                  <td style={{ textAlign: 'right' }}>{row.totalAmount.toFixed(2)}</td>
+                  <td
+                    style={{
+                      textAlign: 'right',
+                      fontWeight: '600',
+                      fontSize: '1.2rem',
+                      backgroundColor: row.totalQuantity === 0 ? '#800020' : 'inherit',
+                      color: row.totalQuantity === 0 ? '#FFFFFF' : 'inherit',
+                    }}
+                  >
+                    {formatValue(row.totalQuantity)}
+                  </td>
+                  <td
+                    style={{
+                      textAlign: 'right',
+                      fontWeight: '600',
+                      fontSize: '1.2rem',
+                      backgroundColor: row.totalAmount === 0 ? '#800020' : 'inherit',
+                      color: row.totalAmount === 0 ? '#FFFFFF' : 'inherit',
+                    }}
+                  >
+                    {formatValue(row.totalAmount)}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -351,16 +423,45 @@ const CategoryWiseReport: React.FC = () => {
                   <strong>Total</strong>
                 </td>
                 {/* Branch Totals */}
-                {data.branchHeaders.map((header) => (
-                  <td key={header} style={{ textAlign: 'left', fontWeight: 'bold' }}>
-                    {(data.totals.branchTotals[header] || 0).toFixed(2)}
-                  </td>
-                ))}
-                <td style={{ textAlign: 'right' }}>
-                  <strong>{data.totals.totalQuantity}</strong>
+                {data.branchHeaders.map((header) => {
+                  const val = data.totals.branchTotals[header] || 0
+                  const isZero = val === 0
+                  return (
+                    <td
+                      key={header}
+                      style={{
+                        textAlign: 'left',
+                        fontWeight: 'bold',
+                        fontSize: '1.2rem',
+                        backgroundColor: isZero ? '#800020' : 'inherit',
+                        color: isZero ? '#FFFFFF' : 'inherit',
+                      }}
+                    >
+                      {formatValue(val)}
+                    </td>
+                  )
+                })}
+                <td
+                  style={{
+                    textAlign: 'right',
+                    fontWeight: '600',
+                    fontSize: '1.2rem',
+                    backgroundColor: data.totals.totalQuantity === 0 ? '#800020' : 'inherit',
+                    color: data.totals.totalQuantity === 0 ? '#FFFFFF' : 'inherit',
+                  }}
+                >
+                  {formatValue(data.totals.totalQuantity)}
                 </td>
-                <td style={{ textAlign: 'right' }}>
-                  <strong>{data.totals.totalAmount.toFixed(2)}</strong>
+                <td
+                  style={{
+                    textAlign: 'right',
+                    fontWeight: '600',
+                    fontSize: '1.2rem',
+                    backgroundColor: data.totals.totalAmount === 0 ? '#FF0000' : 'inherit',
+                    color: data.totals.totalAmount === 0 ? '#FFFFFF' : 'inherit',
+                  }}
+                >
+                  {formatValue(data.totals.totalAmount)}
                 </td>
               </tr>
             </tfoot>

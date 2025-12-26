@@ -104,8 +104,13 @@
     td {
       padding: 1rem;
       border-bottom: 1px solid var(--theme-elevation-100);
+      border-right: 1px solid var(--theme-elevation-100); // Vertical separator
       text-align: left;
       color: var(--theme-text-primary);
+
+      &:last-child {
+        border-right: none;
+      }
     }
 
     th {
