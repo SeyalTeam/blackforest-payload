@@ -39,7 +39,6 @@ const CategoryWiseReport: React.FC = () => {
 
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([])
   const [selectedBranch, setSelectedBranch] = useState('all')
-  const [showExportMenu, setShowExportMenu] = useState(false)
 
   const handleExportExcel = () => {
     if (!data) return
@@ -83,39 +82,6 @@ const CategoryWiseReport: React.FC = () => {
       endDate?.toISOString().split('T')[0]
     }.csv`
     a.click()
-    setShowExportMenu(false)
-  }
-
-  const handleExportPDF = async () => {
-    if (!startDate || !endDate) return
-    const s = startDate.toISOString().split('T')[0]
-    const e = endDate.toISOString().split('T')[0]
-    const url = `/api/reports/category-wise/export-pdf?startDate=${s}&endDate=${e}&branch=${selectedBranch}`
-
-    try {
-      setLoading(true)
-      const response = await fetch(url)
-      if (!response.ok) {
-        const errorData = await response.json()
-        alert(`Error: ${errorData.error || 'Failed to generate PDF'}`)
-        return
-      }
-      const blob = await response.blob()
-      const downloadUrl = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = downloadUrl
-      a.download = `category_report_${s}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      window.URL.revokeObjectURL(downloadUrl)
-    } catch (err) {
-      console.error(err)
-      alert('Network error or server crash while generating PDF. See console for details.')
-    } finally {
-      setLoading(false)
-      setShowExportMenu(false)
-    }
   }
 
   const branchOptions = [
@@ -283,35 +249,15 @@ const CategoryWiseReport: React.FC = () => {
             <div className="export-container">
               <button
                 className="export-btn"
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                title="Export Report"
+                onClick={handleExportExcel}
+                title="Export to Excel"
+                disabled={!data}
+                style={{ opacity: !data ? 0.5 : 1, cursor: !data ? 'not-allowed' : 'pointer' }}
               >
                 <span>Export</span>
                 <span className="icon">↓</span>
               </button>
-              {showExportMenu && (
-                <div className="export-menu">
-                  <button onClick={handleExportExcel}>Excel</button>
-                  <button onClick={handleExportPDF}>PDF</button>
-                </div>
-              )}
             </div>
-            {/* Backdrop to close menu */}
-            {showExportMenu && (
-              <div
-                className="export-backdrop"
-                onClick={() => setShowExportMenu(false)}
-                style={{
-                  position: 'fixed',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  zIndex: 9998,
-                  cursor: 'default',
-                }}
-              />
-            )}
           </div>
         </div>
       </div>
