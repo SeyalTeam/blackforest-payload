@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react'
 import './index.scss'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
 
 type ReportStats = {
   branchName: string
@@ -13,22 +15,29 @@ type ReportStats = {
 }
 
 type ReportData = {
-  date: string
+  startDate: string
+  endDate: string
   stats: ReportStats[]
   totals: Omit<ReportStats, 'branchName'>
 }
 
 const BranchWiseReport: React.FC = () => {
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()])
+  const [startDate, endDate] = dateRange
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const fetchReport = async (selectedDate: string) => {
+  const formatValue = (val: number) => {
+    const fixed = val.toFixed(2)
+    return fixed.endsWith('.00') ? fixed.slice(0, -3) : fixed
+  }
+
+  const fetchReport = async (start: string, end: string) => {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`/api/reports/branch-wise?date=${selectedDate}`)
+      const res = await fetch(`/api/reports/branch-wise?startDate=${start}&endDate=${end}`)
       if (!res.ok) throw new Error('Failed to fetch report')
       const json = await res.json()
       setData(json)
@@ -41,21 +50,155 @@ const BranchWiseReport: React.FC = () => {
   }
 
   useEffect(() => {
-    fetchReport(date)
-  }, [date])
+    if (startDate && endDate) {
+      fetchReport(startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange])
+
+  const CustomInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
+    ({ value, onClick }, ref) => {
+      // split the value "YYYY-MM-DD - YYYY-MM-DD"
+      const [start, end] = value ? value.split(' - ') : ['', '']
+
+      return (
+        <button className="custom-date-input" onClick={onClick} ref={ref}>
+          <span className="date-text">{start}</span>
+          <span className="separator" style={{ color: 'var(--theme-text-primary)' }}>
+            →
+          </span>
+          <span className="date-text">{end || start}</span>
+          <span className="icon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+          </span>
+        </button>
+      )
+    },
+  )
+  CustomInput.displayName = 'CustomInput'
+
+  const handleExportExcel = () => {
+    if (!data) return
+    const csvRows = []
+    // Header
+    const headers = ['S.No', 'Branch Name', 'Total Bills', 'Cash', 'UPI', 'Card', 'Total Amount']
+    csvRows.push(headers.join(','))
+
+    // Rows
+    data.stats.forEach((row, index) => {
+      csvRows.push(
+        [
+          index + 1,
+          `"${row.branchName}"`,
+          row.totalBills,
+          formatValue(row.cash),
+          formatValue(row.upi),
+          formatValue(row.card),
+          formatValue(row.totalAmount),
+        ].join(','),
+      )
+    })
+
+    // Total Row
+    csvRows.push(
+      [
+        '',
+        'TOTAL',
+        data.totals.totalBills,
+        formatValue(data.totals.cash),
+        formatValue(data.totals.upi),
+        formatValue(data.totals.card),
+        formatValue(data.totals.totalAmount),
+      ].join(','),
+    )
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + csvRows.join('\n')
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement('a')
+    link.setAttribute('href', encodedUri)
+    link.setAttribute(
+      'download',
+      `branch_wise_report_${startDate?.toISOString().split('T')[0]}_${endDate?.toISOString().split('T')[0]}.csv`,
+    )
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 
   return (
     <div className="branch-report-container">
       <div className="report-header">
         <h1>Branch Wise Report</h1>
         <div className="date-filter">
-          <label>Date: </label>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="date-input"
-          />
+          <div className="filter-group">
+            <DatePicker
+              selectsRange={true}
+              startDate={startDate}
+              endDate={endDate}
+              onChange={(update) => {
+                setDateRange(update)
+              }}
+              monthsShown={2}
+              dateFormat="yyyy-MM-dd"
+              customInput={<CustomInput />}
+              calendarClassName="custom-calendar"
+            />
+          </div>
+
+          <div className="filter-group">
+            <button className="export-btn" onClick={handleExportExcel} title="Export to Excel">
+              Export Excel
+              <span className="icon">↓</span>
+            </button>
+          </div>
+
+          <div className="filter-group">
+            <button
+              onClick={() => {
+                setDateRange([new Date(), new Date()]) // Reset to Today
+              }}
+              title="Reset Filters"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '0 0 0 10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--theme-text-primary)',
+              }}
+            >
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M23 4v6h-6"></path>
+                <path d="M1 20v-6h6"></path>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -81,22 +224,51 @@ const BranchWiseReport: React.FC = () => {
                 <tr key={row.branchName}>
                   <td>{index + 1}</td>{' '}
                   {/* Using index + 1 for S.No as row.sNo is not defined in ReportStats */}
-                  <td>{row.branchName}</td>
+                  <td className="branch-name-cell">{row.branchName}</td>
                   <td style={{ textAlign: 'right' }}>{row.totalBills}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    {row.cash.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
+                  <td
+                    style={{
+                      textAlign: 'right',
+                      fontWeight: '600',
+                      fontSize: '1.2rem',
+                      backgroundColor: row.cash === 0 ? '#800020' : 'inherit',
+                      color: row.cash === 0 ? '#FFFFFF' : 'inherit',
+                    }}
+                  >
+                    {formatValue(row.cash)}
                   </td>
-                  <td style={{ textAlign: 'right' }}>
-                    {row.upi.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
+                  <td
+                    style={{
+                      textAlign: 'right',
+                      fontWeight: '600',
+                      fontSize: '1.2rem',
+                      backgroundColor: row.upi === 0 ? '#800020' : 'inherit',
+                      color: row.upi === 0 ? '#FFFFFF' : 'inherit',
+                    }}
+                  >
+                    {formatValue(row.upi)}
                   </td>
-                  <td style={{ textAlign: 'right' }}>
-                    {row.card.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
+                  <td
+                    style={{
+                      textAlign: 'right',
+                      fontWeight: '600',
+                      fontSize: '1.2rem',
+                      backgroundColor: row.card === 0 ? '#800020' : 'inherit',
+                      color: row.card === 0 ? '#FFFFFF' : 'inherit',
+                    }}
+                  >
+                    {formatValue(row.card)}
                   </td>
-                  <td style={{ textAlign: 'right' }}>
-                    {row.totalAmount.toLocaleString('en-IN', {
-                      style: 'currency',
-                      currency: 'INR',
-                    })}
+                  <td
+                    style={{
+                      textAlign: 'right',
+                      fontWeight: '600',
+                      fontSize: '1.2rem',
+                      backgroundColor: row.totalAmount === 0 ? '#800020' : 'inherit',
+                      color: row.totalAmount === 0 ? '#FFFFFF' : 'inherit',
+                    }}
+                  >
+                    {formatValue(row.totalAmount)}
                   </td>
                 </tr>
               ))}
@@ -109,17 +281,49 @@ const BranchWiseReport: React.FC = () => {
                 <td style={{ textAlign: 'right' }}>
                   <strong>{data.totals.totalBills}</strong>
                 </td>
-                <td style={{ textAlign: 'right' }}>
-                  <strong>{data.totals.cash.toFixed(2)}</strong>
+                <td
+                  style={{
+                    textAlign: 'right',
+                    fontWeight: 'bold',
+                    fontSize: '1.2rem',
+                    backgroundColor: data.totals.cash === 0 ? '#800020' : 'inherit',
+                    color: data.totals.cash === 0 ? '#FFFFFF' : 'inherit',
+                  }}
+                >
+                  <strong>{formatValue(data.totals.cash)}</strong>
                 </td>
-                <td style={{ textAlign: 'right' }}>
-                  <strong>{data.totals.upi.toFixed(2)}</strong>
+                <td
+                  style={{
+                    textAlign: 'right',
+                    fontWeight: 'bold',
+                    fontSize: '1.2rem',
+                    backgroundColor: data.totals.upi === 0 ? '#800020' : 'inherit',
+                    color: data.totals.upi === 0 ? '#FFFFFF' : 'inherit',
+                  }}
+                >
+                  <strong>{formatValue(data.totals.upi)}</strong>
                 </td>
-                <td style={{ textAlign: 'right' }}>
-                  <strong>{data.totals.card.toFixed(2)}</strong>
+                <td
+                  style={{
+                    textAlign: 'right',
+                    fontWeight: 'bold',
+                    fontSize: '1.2rem',
+                    backgroundColor: data.totals.card === 0 ? '#800020' : 'inherit',
+                    color: data.totals.card === 0 ? '#FFFFFF' : 'inherit',
+                  }}
+                >
+                  <strong>{formatValue(data.totals.card)}</strong>
                 </td>
-                <td style={{ textAlign: 'right' }}>
-                  <strong>{data.totals.totalAmount.toFixed(2)}</strong>
+                <td
+                  style={{
+                    textAlign: 'right',
+                    fontWeight: 'bold',
+                    fontSize: '1.2rem',
+                    backgroundColor: data.totals.totalAmount === 0 ? '#800020' : 'inherit',
+                    color: data.totals.totalAmount === 0 ? '#FFFFFF' : 'inherit',
+                  }}
+                >
+                  <strong>{formatValue(data.totals.totalAmount)}</strong>
                 </td>
               </tr>
             </tfoot>

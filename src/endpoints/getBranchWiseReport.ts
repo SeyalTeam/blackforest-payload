@@ -5,15 +5,22 @@ export const getBranchWiseReportHandler: PayloadHandler = async (
 ): Promise<Response> => {
   const { payload } = req
 
-  // 1. Get date from query param or use today
-  const dateParam =
-    typeof req.query.date === 'string' ? req.query.date : new Date().toISOString().split('T')[0]
+  // 1. Get dates from query params or use today
+  const startDateParam =
+    typeof req.query.startDate === 'string'
+      ? req.query.startDate
+      : new Date().toISOString().split('T')[0]
+  const endDateParam =
+    typeof req.query.endDate === 'string'
+      ? req.query.endDate
+      : new Date().toISOString().split('T')[0]
 
-  // Start of day (00:00:00) and End of day (23:59:59)
-  const startOfDay = new Date(dateParam)
+  // Start of day (00:00:00) for startDate
+  const startOfDay = new Date(startDateParam)
   startOfDay.setHours(0, 0, 0, 0)
 
-  const endOfDay = new Date(dateParam)
+  // End of day (23:59:59) for endDate
+  const endOfDay = new Date(endDateParam)
   endOfDay.setHours(23, 59, 59, 999)
 
   try {
@@ -101,7 +108,8 @@ export const getBranchWiseReportHandler: PayloadHandler = async (
     }))
 
     return Response.json({
-      date: dateParam,
+      startDate: startDateParam,
+      endDate: endDateParam,
       stats: statsWithSn,
       totals,
     })
