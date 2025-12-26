@@ -93,6 +93,8 @@ export default buildConfig({
     },
   ],
 
+  globals: [IPSettings, BranchWiseReportGlobal, CategoryWiseReportGlobal, ProductWiseReportGlobal],
+
   // Collections
   collections: [
     Users,
@@ -110,7 +112,6 @@ export default buildConfig({
     Expenses,
     StockOrders,
   ],
-  globals: [IPSettings, BranchWiseReportGlobal, CategoryWiseReportGlobal, ProductWiseReportGlobal],
 
   editor: lexicalEditor(),
 
