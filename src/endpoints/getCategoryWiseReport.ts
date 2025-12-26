@@ -186,7 +186,8 @@ export const getCategoryWiseReportHandler: PayloadHandler = async (
     })
 
     // Calculate Grand Totals
-    const totals = formattedStats.reduce(
+    // Calculate Grand Totals
+    const aggregatedStats = formattedStats.reduce(
       (acc: any, curr: any) => ({
         totalQuantity: acc.totalQuantity + curr.totalQuantity,
         totalAmount: acc.totalAmount + curr.totalAmount,
@@ -195,7 +196,10 @@ export const getCategoryWiseReportHandler: PayloadHandler = async (
     )
 
     // Add computed branch totals to the final response
-    totals.branchTotals = branchTotals
+    const totals = {
+      ...aggregatedStats,
+      branchTotals,
+    }
 
     payload.logger.info(`Generated Category Wise Report: ${formattedStats.length} categories found`)
 
