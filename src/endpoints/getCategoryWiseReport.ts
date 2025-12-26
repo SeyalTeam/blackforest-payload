@@ -121,6 +121,7 @@ export const getCategoryWiseReportHandler: PayloadHandler = async (
             $push: {
               branchId: '$_id.branchId',
               amount: '$amount',
+              quantity: '$quantity',
             },
           },
         },
@@ -166,13 +167,13 @@ export const getCategoryWiseReportHandler: PayloadHandler = async (
 
     // 5. Format Stats with Sorted Columns
     const formattedStats = rawStats.map((item: any, index: number) => {
-      const branchSales: Record<string, number> = {}
+      const branchSales: Record<string, { amount: number; quantity: number }> = {}
 
       item.branchData.forEach((b: any) => {
         const bId = b.branchId.toString()
         if (branchMap[bId]) {
           const code = branchMap[bId]
-          branchSales[code] = b.amount
+          branchSales[code] = { amount: b.amount, quantity: b.quantity }
         }
       })
 

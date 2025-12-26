@@ -8,7 +8,7 @@ type ReportStats = {
   categoryName: string
   totalQuantity: number
   totalAmount: number
-  branchSales: Record<string, number>
+  branchSales: Record<string, { amount: number; quantity: number }>
 }
 
 type ReportData = {
@@ -50,12 +50,12 @@ const CategoryWiseReport: React.FC = () => {
     const csvRows = []
     // Header
     csvRows.push(
-      ['S.No', 'Category', ...data.branchHeaders, 'Total Quantity', 'Total Amount'].join(','),
+      ['S.No', 'Category', ...data.branchHeaders, 'Total Units', 'Total Amount'].join(','),
     )
     // Rows
     data.stats.forEach((row) => {
       const branchValues = data.branchHeaders.map((header) =>
-        (row.branchSales[header] || 0).toFixed(2),
+        (row.branchSales[header]?.amount || 0).toFixed(2),
       )
       csvRows.push(
         [
@@ -312,7 +312,7 @@ const CategoryWiseReport: React.FC = () => {
                     {header}
                   </th>
                 ))}
-                <th style={{ textAlign: 'right' }}>Total Quantity</th>
+                <th style={{ textAlign: 'right' }}>Total Units</th>
                 <th style={{ textAlign: 'right' }}>Total Amount</th>
               </tr>
             </thead>
@@ -321,12 +321,25 @@ const CategoryWiseReport: React.FC = () => {
                 <tr key={row.sNo}>
                   <td>{row.sNo}</td>
                   <td>{row.categoryName}</td>
-                  {/* Dynamically render branch sales cells */}
-                  {data.branchHeaders.map((header) => (
-                    <td key={header} style={{ textAlign: 'left' }}>
-                      {(row.branchSales[header] || 0).toFixed(2)}
-                    </td>
-                  ))}
+                  {data.branchHeaders.map((header) => {
+                    const sales = row.branchSales[header] || { amount: 0, quantity: 0 }
+                    return (
+                      <td key={header} style={{ textAlign: 'left', verticalAlign: 'top' }}>
+                        <div style={{ fontWeight: 500 }}>{sales.amount.toFixed(2)}</div>
+                        {sales.quantity > 0 && (
+                          <div
+                            style={{
+                              fontSize: '0.75rem',
+                              color: 'var(--theme-elevation-400)',
+                              marginTop: '2px',
+                            }}
+                          >
+                            {sales.quantity} Units
+                          </div>
+                        )}
+                      </td>
+                    )
+                  })}
                   <td style={{ textAlign: 'right' }}>{row.totalQuantity}</td>
                   <td style={{ textAlign: 'right' }}>{row.totalAmount.toFixed(2)}</td>
                 </tr>

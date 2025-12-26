@@ -4,6 +4,7 @@ import mongoose from 'mongoose'
 interface BranchData {
   branchId: string
   amount: number
+  quantity: number
 }
 
 interface RawStat {
@@ -146,6 +147,7 @@ export const getProductWiseReportHandler: PayloadHandler = async (
             $push: {
               branchId: '$_id.branchId',
               amount: '$amount',
+              quantity: '$quantity',
             },
           },
         },
@@ -188,13 +190,13 @@ export const getProductWiseReportHandler: PayloadHandler = async (
 
     // 5. Format Stats with Sorted Columns
     const formattedStats = rawStats.map((item, index) => {
-      const branchSales: Record<string, number> = {}
+      const branchSales: Record<string, { amount: number; quantity: number }> = {}
 
       item.branchData.forEach((b) => {
         const bId = b.branchId.toString()
         if (branchMap[bId]) {
           const code = branchMap[bId]
-          branchSales[code] = b.amount
+          branchSales[code] = { amount: b.amount, quantity: b.quantity }
         }
       })
 
