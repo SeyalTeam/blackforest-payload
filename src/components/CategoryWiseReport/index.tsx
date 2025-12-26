@@ -86,21 +86,36 @@ const CategoryWiseReport: React.FC = () => {
     setShowExportMenu(false)
   }
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     if (!startDate || !endDate) return
     const s = startDate.toISOString().split('T')[0]
     const e = endDate.toISOString().split('T')[0]
     const url = `/api/reports/category-wise/export-pdf?startDate=${s}&endDate=${e}&branch=${selectedBranch}`
 
-    // Trigger download
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `category_report_${s}.pdf`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-
-    setShowExportMenu(false)
+    try {
+      setLoading(true)
+      const response = await fetch(url)
+      if (!response.ok) {
+        const errorData = await response.json()
+        alert(`Error: ${errorData.error || 'Failed to generate PDF'}`)
+        return
+      }
+      const blob = await response.blob()
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = downloadUrl
+      a.download = `category_report_${s}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(downloadUrl)
+    } catch (err) {
+      console.error(err)
+      alert('Network error or server crash while generating PDF. See console for details.')
+    } finally {
+      setLoading(false)
+      setShowExportMenu(false)
+    }
   }
 
   const branchOptions = [

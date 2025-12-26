@@ -174,6 +174,8 @@ export const getCategoryWiseReportHandler: PayloadHandler = async (
       { totalQuantity: 0, totalAmount: 0 },
     )
 
+    payload.logger.info(`Generated Category Wise Report: ${formattedStats.length} categories found`)
+
     return Response.json({
       startDate: startDateParam,
       endDate: endDateParam,
@@ -181,8 +183,8 @@ export const getCategoryWiseReportHandler: PayloadHandler = async (
       stats: formattedStats,
       totals,
     })
-  } catch (error) {
-    payload.logger.error(error)
+  } catch (error: any) {
+    payload.logger.error({ msg: 'Category Report Error', error, stack: error.stack })
     return Response.json({ error: 'Failed to generate category report' }, { status: 500 })
   }
 }

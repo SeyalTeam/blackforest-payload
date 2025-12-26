@@ -6,7 +6,7 @@ export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
 ): Promise<Response> => {
   const { payload } = req
 
-  // 1. Get date from query param or use today
+  // 1. Get dates from query param
   const startDateParam =
     typeof req.query.startDate === 'string'
       ? req.query.startDate
@@ -16,20 +16,20 @@ export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
       ? req.query.endDate
       : new Date().toISOString().split('T')[0]
 
-  // Start of day (00:00:00)
   const startOfDay = new Date(startDateParam)
   startOfDay.setHours(0, 0, 0, 0)
 
-  // End of day (23:59:59)
   const endOfDay = new Date(endDateParam)
   endOfDay.setHours(23, 59, 59, 999)
 
   const branchParam = typeof req.query.branch === 'string' ? req.query.branch : ''
 
   try {
-    // --- DATA FETCHING (Same as getCategoryWiseReport.ts) ---
+    payload.logger.info(
+      `Generating Category Wise Report PDF for ${startDateParam} to ${endDateParam}`,
+    )
 
-    // 1. Fetch all branches map (ID -> Code)
+    // --- DATA FETCHING ---
     const branches = await payload.find({
       collection: 'branches',
       limit: 100,
@@ -42,8 +42,6 @@ export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
     })
 
     const BillingModel = payload.db.collections['billings']
-
-    // Construct match query
     const matchQuery: any = {
       createdAt: {
         $gte: startOfDay,
@@ -57,14 +55,9 @@ export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
       }
     }
 
-    // 2. Aggregate Data
     const rawStats = await BillingModel.aggregate([
-      {
-        $match: matchQuery,
-      },
-      {
-        $unwind: '$items',
-      },
+      { $match: matchQuery },
+      { $unwind: '$items' },
       {
         $lookup: {
           from: 'products',
@@ -73,9 +66,7 @@ export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
           as: 'productDetails',
         },
       },
-      {
-        $unwind: '$productDetails',
-      },
+      { $unwind: '$productDetails' },
       {
         $lookup: {
           from: 'categories',
@@ -84,9 +75,7 @@ export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
           as: 'categoryDetails',
         },
       },
-      {
-        $unwind: '$categoryDetails',
-      },
+      { $unwind: '$categoryDetails' },
       {
         $group: {
           _id: {
@@ -119,14 +108,10 @@ export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
           branchData: 1,
         },
       },
-      {
-        $sort: { totalAmount: -1 },
-      },
+      { $sort: { totalAmount: -1 } },
     ])
 
-    // 3. Calculate Branch Totals to Sort Headers
     const branchTotals: Record<string, number> = {}
-
     rawStats.forEach((stat: any) => {
       stat.branchData.forEach((b: any) => {
         const bId = b.branchId.toString()
@@ -137,16 +122,12 @@ export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
       })
     })
 
-    // 4. Create Sorted Header List
-    // Filter out branches with <= 0 sales and Sort by Amount Desc
     const branchHeaders = Object.keys(branchTotals)
       .filter((code) => branchTotals[code] > 0)
       .sort((a, b) => branchTotals[b] - branchTotals[a])
 
-    // 5. Format Stats
     const formattedStats = rawStats.map((item: any, index: number) => {
       const branchSales: Record<string, number> = {}
-
       item.branchData.forEach((b: any) => {
         const bId = b.branchId.toString()
         if (branchMap[bId]) {
@@ -154,7 +135,6 @@ export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
           branchSales[code] = b.amount
         }
       })
-
       return {
         sNo: index + 1,
         categoryName: item.categoryName,
@@ -164,7 +144,6 @@ export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
       }
     })
 
-    // Calculate Grand Totals
     const totals = formattedStats.reduce(
       (acc: any, curr: any) => ({
         totalQuantity: acc.totalQuantity + curr.totalQuantity,
@@ -173,151 +152,109 @@ export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
       { totalQuantity: 0, totalAmount: 0 },
     )
 
-    // --- PDF GENERATION (BUFFERED) ---
+    // --- PDF GENERATION ---
     const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' })
-    const chunks: Buffer[] = []
+    const chunks: any[] = []
 
     doc.on('data', (chunk) => chunks.push(chunk))
 
-    // Wrap doc.end() in a promise to await completion
     const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
       doc.on('end', () => resolve(Buffer.concat(chunks)))
       doc.on('error', reject)
 
-      // --- PDF CONTENT ---
-
-      // Header
+      // Title & Dates
       doc.fontSize(18).font('Helvetica-Bold').text('Category Wise Report', { align: 'center' })
       doc.moveDown(0.5)
-
       doc
         .fontSize(10)
         .font('Helvetica')
         .text(`Date: ${startDateParam} to ${endDateParam}`, { align: 'center' })
-
       doc.moveDown(1)
 
-      // Table Config
-      const tableTop = 100
+      // Table Setup
       const startX = 30
+      let y = 100
       const rowHeight = 20
       const pageWidth = doc.page.width - 60
 
-      // Column Widths
       const sNoWidth = 40
       const categoryWidth = 120
       const totalQtyWidth = 70
       const totalAmtWidth = 80
-
-      const fixedWidth = sNoWidth + categoryWidth + totalQtyWidth + totalAmtWidth
-      const remainingWidth = pageWidth - fixedWidth
+      const remainingWidth = pageWidth - (sNoWidth + categoryWidth + totalQtyWidth + totalAmtWidth)
       const branchColWidth = branchHeaders.length > 0 ? remainingWidth / branchHeaders.length : 0
 
-      // Helper to draw cell
-      const drawCell = (
-        text: string,
-        x: number,
-        y: number,
-        w: number,
-        align: 'left' | 'center' | 'right' = 'left',
-        bold = false,
-      ) => {
-        if (bold) doc.font('Helvetica-Bold')
-        else doc.font('Helvetica')
-
-        // Truncate text if too long? For now let it clip or wrap naturally (PDFKit wraps by default if width set)
-        // But we set height 20 so wrapping might look bad.
-        // Let's force single line by replacing newlines
-        const safeText = text.replace(/\n/g, ' ')
-
-        doc.text(safeText, x + 2, y + 5, {
-          width: w - 4,
-          align: align,
-          height: rowHeight - 10,
-          ellipsis: true,
-        })
-        // box
-        doc.rect(x, y, w, rowHeight).stroke()
-      }
-
-      let currentX = startX
-      let y = tableTop
-
-      // Header Row
-      doc.rect(startX, y, pageWidth, rowHeight).fill('#f0f0f0').stroke()
-      doc.fillColor('black')
-
-      drawCell('S.No', currentX, y, sNoWidth, 'center', true)
-      currentX += sNoWidth
-
-      drawCell('Category', currentX, y, categoryWidth, 'left', true)
-      currentX += categoryWidth
-
-      branchHeaders.forEach((header) => {
-        drawCell(header, currentX, y, branchColWidth, 'center', true)
-        currentX += branchColWidth
-      })
-
-      drawCell('Total Qty', currentX, y, totalQtyWidth, 'right', true)
-      currentX += totalQtyWidth
-
-      drawCell('Total Amt', currentX, y, totalAmtWidth, 'right', true)
-
-      y += rowHeight
-
-      // Data Rows
-      formattedStats.forEach((row: any) => {
-        // Check page break
+      const drawRow = (data: string[], isHeader = false) => {
         if (y > doc.page.height - 50) {
           doc.addPage({ layout: 'landscape', margin: 30 })
-          y = 30 // Reset y
+          y = 30
         }
 
-        currentX = startX
+        let curX = startX
+        if (isHeader) doc.rect(startX, y, pageWidth, rowHeight).fill('#f0f0f0').stroke()
+        doc.fillColor('black')
 
-        drawCell(row.sNo.toString(), currentX, y, sNoWidth, 'center')
-        currentX += sNoWidth
+        data.forEach((text, i) => {
+          let w = 0
+          let align: 'left' | 'center' | 'right' = 'left'
+          if (i === 0) {
+            w = sNoWidth
+            align = 'center'
+          } else if (i === 1) {
+            w = categoryWidth
+            align = 'left'
+          } else if (i < data.length - 2) {
+            w = branchColWidth
+            align = 'right'
+          } else if (i === data.length - 2) {
+            w = totalQtyWidth
+            align = 'right'
+          } else {
+            w = totalAmtWidth
+            align = 'right'
+          }
 
-        drawCell(row.categoryName, currentX, y, categoryWidth, 'left')
-        currentX += categoryWidth
-
-        branchHeaders.forEach((header) => {
-          const val = (row.branchSales[header] || 0).toFixed(2)
-          drawCell(val, currentX, y, branchColWidth, 'right')
-          currentX += branchColWidth
+          doc
+            .font(isHeader ? 'Helvetica-Bold' : 'Helvetica')
+            .fontSize(9)
+            .text(text, curX + 2, y + 5, {
+              width: w - 4,
+              align,
+              height: rowHeight - 10,
+              ellipsis: true,
+            })
+          doc.rect(curX, y, w, rowHeight).stroke()
+          curX += w
         })
-
-        drawCell(row.totalQuantity.toString(), currentX, y, totalQtyWidth, 'right')
-        currentX += totalQtyWidth
-
-        drawCell(row.totalAmount.toFixed(2), currentX, y, totalAmtWidth, 'right')
-
         y += rowHeight
-      })
-
-      // Grand Total Row
-      if (y > doc.page.height - 50) {
-        doc.addPage({ layout: 'landscape', margin: 30 })
-        y = 30
       }
 
-      currentX = startX
-      doc.font('Helvetica-Bold')
-      drawCell('', currentX, y, sNoWidth, 'center')
-      currentX += sNoWidth
+      // Headers
+      drawRow(['S.No', 'Category', ...branchHeaders, 'Total Qty', 'Total Amt'], true)
 
-      drawCell('TOTAL', currentX, y, categoryWidth, 'left', true)
-      currentX += categoryWidth
-
-      branchHeaders.forEach((header) => {
-        drawCell('', currentX, y, branchColWidth, 'center')
-        currentX += branchColWidth
+      // Data Rows
+      formattedStats.forEach((r: any) => {
+        const rowData = [
+          r.sNo.toString(),
+          r.categoryName,
+          ...branchHeaders.map((h) => (r.branchSales[h] || 0).toFixed(2)),
+          r.totalQuantity.toString(),
+          r.totalAmount.toFixed(2),
+        ]
+        drawRow(rowData)
       })
 
-      drawCell(totals.totalQuantity.toString(), currentX, y, totalQtyWidth, 'right', true)
-      currentX += totalQtyWidth
-
-      drawCell(totals.totalAmount.toFixed(2), currentX, y, totalAmtWidth, 'right', true)
+      // Grand Total
+      drawRow(
+        [
+          '',
+          'TOTAL',
+          ...branchHeaders.map(() => ''),
+          totals.totalQuantity.toString(),
+          totals.totalAmount.toFixed(2),
+        ],
+        true,
+      )
 
       doc.end()
     })
@@ -329,8 +266,11 @@ export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
         'Content-Length': pdfBuffer.length.toString(),
       },
     })
-  } catch (error) {
-    payload.logger.error(error)
-    return Response.json({ error: 'Failed to generate PDF' }, { status: 500 })
+  } catch (error: any) {
+    payload.logger.error({ msg: 'PDF Generation Error', error, stack: error.stack })
+    return new Response(JSON.stringify({ error: error.message || 'Failed to generate PDF' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
   }
 }
