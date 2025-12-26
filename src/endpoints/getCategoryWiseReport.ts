@@ -24,9 +24,11 @@ export const getCategoryWiseReportHandler: PayloadHandler = async (
   endOfDay.setHours(23, 59, 59, 999)
 
   const branchParam = typeof req.query.branch === 'string' ? req.query.branch : ''
+  const departmentParam = typeof req.query.department === 'string' ? req.query.department : ''
 
   try {
     // 1. Fetch all branches map (ID -> Code)
+    // ... (rest of simple fetch) ...
     const branches = await payload.find({
       collection: 'branches',
       limit: 100,
@@ -55,8 +57,8 @@ export const getCategoryWiseReportHandler: PayloadHandler = async (
       }
     }
 
-    // 2. Aggregate Data
-    const rawStats = await BillingModel.aggregate([
+    // Pipeline stages
+    const pipeline: any[] = [
       {
         $match: matchQuery,
       },
@@ -85,6 +87,21 @@ export const getCategoryWiseReportHandler: PayloadHandler = async (
       {
         $unwind: '$categoryDetails',
       },
+    ]
+
+    // Optional Department Filter
+    if (departmentParam && departmentParam !== 'all') {
+      pipeline.push({
+        $match: {
+          $expr: {
+            $eq: [{ $toString: '$categoryDetails.department' }, departmentParam],
+          },
+        },
+      })
+    }
+
+    // Continue with grouping
+    pipeline.push(
       {
         $group: {
           _id: {
@@ -120,7 +137,10 @@ export const getCategoryWiseReportHandler: PayloadHandler = async (
       {
         $sort: { totalAmount: -1 },
       },
-    ])
+    )
+
+    // 2. Aggregate Data
+    const rawStats = await BillingModel.aggregate(pipeline)
 
     // 3. Calculate Branch Totals to Sort Headers
     const branchTotals: Record<string, number> = {}
@@ -173,6 +193,9 @@ export const getCategoryWiseReportHandler: PayloadHandler = async (
       }),
       { totalQuantity: 0, totalAmount: 0 },
     )
+
+    // Add computed branch totals to the final response
+    totals.branchTotals = branchTotals
 
     payload.logger.info(`Generated Category Wise Report: ${formattedStats.length} categories found`)
 

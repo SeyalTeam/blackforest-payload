@@ -19,6 +19,7 @@ type ReportData = {
   totals: {
     totalQuantity: number
     totalAmount: number
+    branchTotals: Record<string, number>
   }
 }
 
@@ -40,7 +41,11 @@ const CategoryWiseReport: React.FC = () => {
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([])
   const [selectedBranch, setSelectedBranch] = useState('all')
 
+  const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
+  const [selectedDepartment, setSelectedDepartment] = useState('all')
+
   const handleExportExcel = () => {
+    // ... existing export logic ...
     if (!data) return
     const csvRows = []
     // Header
@@ -63,12 +68,14 @@ const CategoryWiseReport: React.FC = () => {
       )
     })
     // Total Row
-    const totalBranchPlaceholders = data.branchHeaders.map(() => '')
+    const totalBranchValues = data.branchHeaders.map((header) =>
+      (data.totals.branchTotals[header] || 0).toFixed(2),
+    )
     csvRows.push(
       [
         '',
         'TOTAL',
-        ...totalBranchPlaceholders,
+        ...totalBranchValues,
         data.totals.totalQuantity,
         data.totals.totalAmount.toFixed(2),
       ].join(','),
@@ -89,7 +96,13 @@ const CategoryWiseReport: React.FC = () => {
     ...branches.map((b) => ({ value: b.id, label: b.name })),
   ]
 
+  const departmentOptions = [
+    { value: 'all', label: 'All Departments' },
+    ...departments.map((d) => ({ value: d.id, label: d.name })),
+  ]
+
   const customStyles = {
+    // ... exact styles as before ...
     control: (base: any, state: any) => ({
       ...base,
       backgroundColor: 'var(--theme-input-bg, var(--theme-elevation-50))',
@@ -97,7 +110,7 @@ const CategoryWiseReport: React.FC = () => {
       borderRadius: '8px',
       height: '42px', // Match fixed height of datepicker
       minHeight: '42px',
-      minWidth: '250px', // Force width to accommodate long branch names like THOOTHUKUDI MACROON
+      minWidth: '200px',
       padding: '0',
       boxShadow: state.isFocused ? '0 0 0 1px var(--theme-info-500)' : 'none',
       color: 'var(--theme-text-primary)',
@@ -125,7 +138,7 @@ const CategoryWiseReport: React.FC = () => {
       backgroundColor: 'var(--theme-input-bg, var(--theme-elevation-50))',
       border: '1px solid var(--theme-elevation-150)',
       zIndex: 9999, // Ensure it's above everything
-      minWidth: '250px',
+      minWidth: '200px',
     }),
     input: (base: any) => ({
       ...base,
@@ -133,28 +146,36 @@ const CategoryWiseReport: React.FC = () => {
     }),
   }
 
-  // Fetch available branches
+  // Fetch available branches and departments
   useEffect(() => {
-    const fetchBranches = async () => {
+    const fetchMetadata = async () => {
       try {
-        const res = await fetch('/api/branches?limit=100&pagination=false')
-        if (res.ok) {
-          const json = await res.json()
+        const [branchRes, deptRes] = await Promise.all([
+          fetch('/api/branches?limit=100&pagination=false'),
+          fetch('/api/departments?limit=100&pagination=false'),
+        ])
+
+        if (branchRes.ok) {
+          const json = await branchRes.json()
           setBranches(json.docs)
+        }
+        if (deptRes.ok) {
+          const json = await deptRes.json()
+          setDepartments(json.docs)
         }
       } catch (e) {
         console.error(e)
       }
     }
-    fetchBranches()
+    fetchMetadata()
   }, [])
 
-  const fetchReport = async (start: string, end: string, branchId: string) => {
+  const fetchReport = async (start: string, end: string, branchId: string, deptId: string) => {
     setLoading(true)
     setError('')
     try {
       const res = await fetch(
-        `/api/reports/category-wise?startDate=${start}&endDate=${end}&branch=${branchId}`,
+        `/api/reports/category-wise?startDate=${start}&endDate=${end}&branch=${branchId}&department=${deptId}`,
       )
       if (!res.ok) throw new Error('Failed to fetch report')
       const json = await res.json()
@@ -174,9 +195,10 @@ const CategoryWiseReport: React.FC = () => {
         startDate.toISOString().split('T')[0],
         endDate.toISOString().split('T')[0],
         selectedBranch,
+        selectedDepartment,
       )
     }
-  }, [dateRange, selectedBranch])
+  }, [dateRange, selectedBranch, selectedDepartment])
 
   const CustomInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
     ({ value, onClick }, ref) => {
@@ -232,7 +254,7 @@ const CategoryWiseReport: React.FC = () => {
             />
           </div>
 
-          <div className="filter-group" style={{ width: '250px' }}>
+          <div className="filter-group">
             <Select
               options={branchOptions}
               value={branchOptions.find((o) => o.value === selectedBranch)}
@@ -240,6 +262,18 @@ const CategoryWiseReport: React.FC = () => {
               styles={customStyles}
               classNamePrefix="react-select"
               placeholder="Select Branch..."
+              isSearchable={true}
+            />
+          </div>
+
+          <div className="filter-group">
+            <Select
+              options={departmentOptions}
+              value={departmentOptions.find((o) => o.value === selectedDepartment)}
+              onChange={(option: any) => setSelectedDepartment(option?.value || 'all')}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Select Department..."
               isSearchable={true}
             />
           </div>
@@ -303,9 +337,11 @@ const CategoryWiseReport: React.FC = () => {
                 <td colSpan={2}>
                   <strong>Total</strong>
                 </td>
-                {/* Empty cells for branch columns in footer (or calculate vertical totals if needed later) */}
+                {/* Branch Totals */}
                 {data.branchHeaders.map((header) => (
-                  <td key={header}></td>
+                  <td key={header} style={{ textAlign: 'left', fontWeight: 'bold' }}>
+                    {(data.totals.branchTotals[header] || 0).toFixed(2)}
+                  </td>
                 ))}
                 <td style={{ textAlign: 'right' }}>
                   <strong>{data.totals.totalQuantity}</strong>

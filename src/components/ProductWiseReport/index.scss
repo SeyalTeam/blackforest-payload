@@ -9,15 +9,15 @@
 
   .report-header {
     display: flex;
-    flex-wrap: wrap; // Allow wrapping on small screens
-    justify-content: flex-start; // Align items to the left
-    align-items: center;
-    gap: 2rem; // Increase gap for better separation
+    flex-direction: column; // Stack title and filters vertically
+    justify-content: flex-start;
+    align-items: flex-start; // Align both to the left
+    gap: 1.5rem; // Gap between Title and Filters
     margin-bottom: 2rem;
     padding-bottom: 1.5rem;
-    border-bottom: 1px solid var(--theme-elevation-100); // Add separator
-    position: relative; // Create stacking context
-    z-index: 500; // Ensure header (and dropdowns) sit above the table/sticky headers
+    border-bottom: 1px solid var(--theme-elevation-100);
+    position: relative;
+    z-index: 500;
 
     h1 {
       margin: 0;
@@ -37,6 +37,7 @@
         display: flex;
         align-items: center;
         gap: 0.75rem;
+        flex-shrink: 0; // Prevent shrinking
 
         label {
           font-weight: 500;

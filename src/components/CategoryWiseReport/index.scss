@@ -9,9 +9,9 @@
 
   .report-header {
     display: flex;
-    flex-wrap: wrap; // Allow wrapping on small screens
-    justify-content: flex-start; // Align items to the left
-    align-items: center;
+    flex-direction: column; // Stack items vertically
+    align-items: flex-start; // Left align items
+    justify-content: flex-start;
     gap: 2rem; // Increase gap for better separation
     margin-bottom: 2rem;
     padding-bottom: 1.5rem;
@@ -29,7 +29,7 @@
     .date-filter {
       display: flex;
       align-items: center;
-      gap: 1.5rem; // More space between controls
+      gap: 1.5rem; // Standard input gap matching Product Report
       color: var(--theme-text-primary);
       flex-wrap: wrap;
 

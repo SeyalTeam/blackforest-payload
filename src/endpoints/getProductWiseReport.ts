@@ -38,6 +38,7 @@ export const getProductWiseReportHandler: PayloadHandler = async (
 
   const branchParam = typeof req.query.branch === 'string' ? req.query.branch : ''
   const categoryParam = typeof req.query.category === 'string' ? req.query.category : ''
+  const departmentParam = typeof req.query.department === 'string' ? req.query.department : ''
 
   try {
     // 1. Fetch all branches map (ID -> Code)
@@ -112,6 +113,15 @@ export const getProductWiseReportHandler: PayloadHandler = async (
       aggregationPipeline.push({
         $match: {
           'categoryDetails._id': { $eq: new mongoose.Types.ObjectId(categoryParam) },
+        },
+      })
+    }
+
+    // Apply Department Filter if present
+    if (departmentParam && departmentParam !== 'all') {
+      aggregationPipeline.push({
+        $match: {
+          'categoryDetails.department': { $eq: new mongoose.Types.ObjectId(departmentParam) },
         },
       })
     }
@@ -213,7 +223,10 @@ export const getProductWiseReportHandler: PayloadHandler = async (
       endDate: endDateParam,
       branchHeaders,
       stats: formattedStats,
-      totals,
+      totals: {
+        ...totals,
+        branchTotals,
+      },
     })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {

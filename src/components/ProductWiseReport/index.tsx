@@ -19,6 +19,7 @@ type ReportData = {
   totals: {
     totalQuantity: number
     totalAmount: number
+    branchTotals: Record<string, number>
   }
 }
 
@@ -40,6 +41,9 @@ const ProductWiseReport: React.FC = () => {
 
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const [selectedCategory, setSelectedCategory] = useState('all')
+
+  const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
+  const [selectedDepartment, setSelectedDepartment] = useState('all')
 
   const [showExportMenu, setShowExportMenu] = useState(false)
 
@@ -66,7 +70,9 @@ const ProductWiseReport: React.FC = () => {
       )
     })
     // Total Row
-    const totalBranchPlaceholders = data.branchHeaders.map(() => '')
+    const totalBranchPlaceholders = data.branchHeaders.map((header) =>
+      (data.totals.branchTotals[header] || 0).toFixed(2),
+    )
     csvRows.push(
       [
         '',
@@ -102,6 +108,11 @@ const ProductWiseReport: React.FC = () => {
   const categoryOptions = [
     { value: 'all', label: 'All Categories' },
     ...categories.map((c) => ({ value: c.id, label: c.name })),
+  ]
+
+  const departmentOptions = [
+    { value: 'all', label: 'All Departments' },
+    ...departments.map((d) => ({ value: d.id, label: d.name })),
   ]
 
   const customStyles = {
@@ -155,9 +166,10 @@ const ProductWiseReport: React.FC = () => {
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
-        const [branchRes, categoryRes] = await Promise.all([
+        const [branchRes, categoryRes, departmentRes] = await Promise.all([
           fetch('/api/branches?limit=100&pagination=false'),
           fetch('/api/categories?limit=100&pagination=false'),
+          fetch('/api/departments?limit=100&pagination=false'),
         ])
 
         if (branchRes.ok) {
@@ -168,6 +180,10 @@ const ProductWiseReport: React.FC = () => {
           const json = await categoryRes.json()
           setCategories(json.docs)
         }
+        if (departmentRes.ok) {
+          const json = await departmentRes.json()
+          setDepartments(json.docs)
+        }
       } catch (e) {
         console.error(e)
       }
@@ -175,12 +191,18 @@ const ProductWiseReport: React.FC = () => {
     fetchMetadata()
   }, [])
 
-  const fetchReport = async (start: string, end: string, branchId: string, categoryId: string) => {
+  const fetchReport = async (
+    start: string,
+    end: string,
+    branchId: string,
+    categoryId: string,
+    departmentId: string,
+  ) => {
     setLoading(true)
     setError('')
     try {
       const res = await fetch(
-        `/api/reports/product-wise?startDate=${start}&endDate=${end}&branch=${branchId}&category=${categoryId}`,
+        `/api/reports/product-wise?startDate=${start}&endDate=${end}&branch=${branchId}&category=${categoryId}&department=${departmentId}`,
       )
       if (!res.ok) throw new Error('Failed to fetch report')
       const json = await res.json()
@@ -201,9 +223,10 @@ const ProductWiseReport: React.FC = () => {
         endDate.toISOString().split('T')[0],
         selectedBranch,
         selectedCategory,
+        selectedDepartment,
       )
     }
-  }, [startDate, endDate, selectedBranch, selectedCategory])
+  }, [startDate, endDate, selectedBranch, selectedCategory, selectedDepartment])
 
   const CustomInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
     ({ value, onClick }, ref) => {
@@ -259,7 +282,7 @@ const ProductWiseReport: React.FC = () => {
             />
           </div>
 
-          <div className="filter-group" style={{ width: '250px' }}>
+          <div className="filter-group select-group">
             <Select
               options={branchOptions}
               value={branchOptions.find((o) => o.value === selectedBranch)}
@@ -273,7 +296,21 @@ const ProductWiseReport: React.FC = () => {
             />
           </div>
 
-          <div className="filter-group" style={{ width: '250px' }}>
+          <div className="filter-group select-group">
+            <Select
+              options={departmentOptions}
+              value={departmentOptions.find((o) => o.value === selectedDepartment)}
+              onChange={(option: { value: string; label: string } | null) =>
+                setSelectedDepartment(option?.value || 'all')
+              }
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Select Department..."
+              isSearchable={true}
+            />
+          </div>
+
+          <div className="filter-group select-group">
             <Select
               options={categoryOptions}
               value={categoryOptions.find((o) => o.value === selectedCategory)}
@@ -366,9 +403,11 @@ const ProductWiseReport: React.FC = () => {
                 <td colSpan={2}>
                   <strong>Total</strong>
                 </td>
-                {/* Empty cells for branch columns in footer (or calculate vertical totals if needed later) */}
+                {/* Dynamically render branch totals in footer */}
                 {data.branchHeaders.map((header) => (
-                  <td key={header}></td>
+                  <td key={header} style={{ textAlign: 'left' }}>
+                    <strong>{(data.totals.branchTotals[header] || 0).toFixed(2)}</strong>
+                  </td>
                 ))}
                 <td style={{ textAlign: 'right' }}>
                   <strong>{data.totals.totalQuantity}</strong>
