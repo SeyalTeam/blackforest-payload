@@ -17,14 +17,31 @@ type ReportStats = {
   cash: number
   upi: number
   card: number
+  closingNumbers: string[]
+  lastUpdated: string
+  entries: ClosingEntryDetail[]
   sNo?: number
+}
+
+type ClosingEntryDetail = {
+  closingNumber: string
+  createdAt: string
+  systemSales: number
+  totalBills: number
+  manualSales: number
+  onlineSales: number
+  totalSales: number
+  expenses: number
+  cash: number
+  upi: number
+  card: number
 }
 
 type ReportData = {
   startDate: string
   endDate: string
   stats: ReportStats[]
-  totals: Omit<ReportStats, 'branchName' | 'sNo'>
+  totals: Omit<ReportStats, 'branchName' | 'sNo' | 'entries' | 'closingNumbers' | 'lastUpdated'>
 }
 
 const ClosingEntryReport: React.FC = () => {
@@ -34,6 +51,7 @@ const ClosingEntryReport: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showZeroHighlight, setShowZeroHighlight] = useState<boolean>(false)
+  const [selectedBranch, setSelectedBranch] = useState<string | null>(null)
 
   const formatValue = (val: number) => {
     const fixed = val.toFixed(2)
@@ -205,6 +223,8 @@ const ClosingEntryReport: React.FC = () => {
     textAlign: 'right' as const,
     fontWeight: '600' as const,
     fontSize: '1.2rem' as const,
+    verticalAlign: 'middle' as const, // Ensure vertical centering
+    padding: '8px', // Ensure padding matches
     backgroundColor: showZeroHighlight && val === 0 ? '#800020' : 'inherit',
     color: showZeroHighlight && val === 0 ? '#FFFFFF' : 'inherit',
   })
@@ -212,10 +232,8 @@ const ClosingEntryReport: React.FC = () => {
   // Specific style for System Sales to handle stacked content
   const getSystemSalesStyle = (val: number) => ({
     ...getStyle(val),
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
+    // Removed display: flex to allow table-cell behavior (full height background)
+    // Content will handle its own alignment via text-align: right
   })
 
   return (
@@ -322,25 +340,145 @@ const ClosingEntryReport: React.FC = () => {
               {data.stats.map((row, index) => {
                 const calculatedTotal = row.expenses + row.cash + row.upi + row.card
                 return (
-                  <tr key={row.branchName}>
-                    <td>{index + 1}</td>
-                    <td className="branch-name-cell">{row.branchName.toUpperCase()}</td>
-                    <td style={getSystemSalesStyle(row.systemSales)}>
-                      <div>{formatValue(row.systemSales)}</div>
-                      <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>{row.totalBills} Bills</div>
-                    </td>
-                    <td style={getStyle(row.manualSales)}>{formatValue(row.manualSales)}</td>
-                    <td style={getStyle(row.onlineSales)}>{formatValue(row.onlineSales)}</td>
-                    <td style={getStyle(row.totalSales)}>{formatValue(row.totalSales)}</td>
-                    <td style={getStyle(row.expenses)}>{formatValue(row.expenses)}</td>
-                    <td style={getStyle(row.cash)}>{formatValue(row.cash)}</td>
-                    <td style={getStyle(row.upi)}>{formatValue(row.upi)}</td>
-                    <td style={getStyle(row.card)}>{formatValue(row.card)}</td>
-                    <td style={getStyle(calculatedTotal)}>{formatValue(calculatedTotal)}</td>
-                    <td style={getStyle(calculatedTotal - row.totalSales)}>
-                      {formatValue(calculatedTotal - row.totalSales)}
-                    </td>
-                  </tr>
+                  <React.Fragment key={row.branchName}>
+                    <tr
+                      key={row.branchName}
+                      onClick={() =>
+                        setSelectedBranch(selectedBranch === row.branchName ? null : row.branchName)
+                      }
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <td>{index + 1}</td>
+                      <td className="branch-name-cell">
+                        <div>{row.branchName.toUpperCase()}</div>
+                        <div
+                          style={{
+                            fontSize: '0.8rem',
+                            color: '#888',
+                            marginTop: '4px',
+                            display: 'flex',
+                            // flexWrap: 'wrap', // Removed to prevent wrapping
+                            whiteSpace: 'nowrap', // Force single line
+                            alignItems: 'center',
+                          }}
+                        >
+                          <span>
+                            {row.closingNumbers
+                              ?.map((num) => {
+                                const parts = num.split('-')
+                                // Expected format: SAW-CLO-271225-01
+                                if (parts.length >= 4) {
+                                  return `${parts[0]}-${parts[parts.length - 1]}`
+                                }
+                                return num
+                              })
+                              .join(', ')}
+                          </span>
+                          {row.lastUpdated && (
+                            <span style={{ marginLeft: '8px' }}>
+                              {new Date(row.lastUpdated).toLocaleTimeString([], {
+                                hour: 'numeric',
+                                minute: '2-digit',
+                                hour12: true,
+                              })}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={getSystemSalesStyle(row.systemSales)}>
+                        <div>{formatValue(row.systemSales)}</div>
+                        <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>
+                          {row.totalBills} Bills
+                        </div>
+                      </td>
+                      <td style={getStyle(row.manualSales)}>{formatValue(row.manualSales)}</td>
+                      <td style={getStyle(row.onlineSales)}>{formatValue(row.onlineSales)}</td>
+                      <td style={getStyle(row.totalSales)}>{formatValue(row.totalSales)}</td>
+                      <td style={getStyle(row.expenses)}>{formatValue(row.expenses)}</td>
+                      <td style={getStyle(row.cash)}>{formatValue(row.cash)}</td>
+                      <td style={getStyle(row.upi)}>{formatValue(row.upi)}</td>
+                      <td style={getStyle(row.card)}>{formatValue(row.card)}</td>
+                      <td style={getStyle(calculatedTotal)}>{formatValue(calculatedTotal)}</td>
+                      <td style={getStyle(calculatedTotal - row.totalSales)}>
+                        {formatValue(calculatedTotal - row.totalSales)}
+                      </td>
+                    </tr>
+                    {selectedBranch === row.branchName &&
+                      row.entries?.map((entry, i) => {
+                        const entryTotal =
+                          (entry.expenses || 0) +
+                          (entry.cash || 0) +
+                          (entry.upi || 0) +
+                          (entry.card || 0)
+                        const parts = entry.closingNumber.split('-')
+                        const displayNo =
+                          parts.length >= 4
+                            ? `${parts[0]}-${parts[parts.length - 1]}`
+                            : entry.closingNumber
+
+                        return (
+                          <tr
+                            key={`${row.branchName}-entry-${i}`}
+                            style={{
+                              backgroundColor:
+                                i % 2 === 0
+                                  ? 'var(--theme-elevation-100)'
+                                  : 'var(--theme-elevation-150)',
+                            }}
+                          >
+                            <td></td>
+                            <td className="branch-name-cell">
+                              <div
+                                style={{
+                                  fontSize: '1rem',
+                                  color: '#FFFFFF',
+                                  fontWeight: 600,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                <span>{displayNo}</span>
+                                <span
+                                  style={{
+                                    marginLeft: '8px',
+                                    fontSize: '0.9rem', // Slightly increased relative to parent
+                                    opacity: 0.9,
+                                    color: '#FFFFFF',
+                                  }}
+                                >
+                                  {new Date(entry.createdAt).toLocaleTimeString([], {
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                    hour12: true,
+                                  })}
+                                </span>
+                              </div>
+                            </td>
+                            <td style={getStyle(entry.systemSales)}>
+                              {formatValue(entry.systemSales)}
+                            </td>
+                            <td style={getStyle(entry.manualSales)}>
+                              {formatValue(entry.manualSales)}
+                            </td>
+                            <td style={getStyle(entry.onlineSales)}>
+                              {formatValue(entry.onlineSales)}
+                            </td>
+                            <td style={getStyle(entry.totalSales)}>
+                              {formatValue(entry.totalSales)}
+                            </td>
+                            <td style={getStyle(entry.expenses)}>{formatValue(entry.expenses)}</td>
+                            <td style={getStyle(entry.cash)}>{formatValue(entry.cash)}</td>
+                            <td style={getStyle(entry.upi)}>{formatValue(entry.upi)}</td>
+                            <td style={getStyle(entry.card)}>{formatValue(entry.card)}</td>
+                            <td style={getStyle(entryTotal)}>{formatValue(entryTotal)}</td>
+                            <td style={getStyle(entryTotal - entry.totalSales)}>
+                              {formatValue(entryTotal - entry.totalSales)}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                  </React.Fragment>
                 )
               })}
             </tbody>

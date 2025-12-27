@@ -45,6 +45,23 @@ export const getClosingEntryReportHandler: PayloadHandler = async (
         $group: {
           _id: '$branch', // Group by Branch ID
           totalEntries: { $sum: 1 },
+          closingNumbers: { $push: '$closingNumber' },
+          lastUpdated: { $max: '$createdAt' },
+          entries: {
+            $push: {
+              closingNumber: '$closingNumber',
+              createdAt: '$createdAt',
+              systemSales: '$systemSales',
+              totalBills: '$totalBills',
+              manualSales: '$manualSales',
+              onlineSales: '$onlineSales',
+              totalSales: '$totalSales',
+              expenses: '$expenses',
+              cash: '$cash',
+              upi: '$upi',
+              card: '$creditCard',
+            },
+          },
           systemSales: { $sum: '$systemSales' },
           totalBills: { $sum: '$totalBills' }, // Add totalBills aggregation
           manualSales: { $sum: '$manualSales' },
@@ -79,6 +96,9 @@ export const getClosingEntryReportHandler: PayloadHandler = async (
           _id: 0,
           branchName: { $ifNull: ['$branchDetails.name', 'Unknown Branch'] },
           totalEntries: 1,
+          closingNumbers: 1,
+          lastUpdated: 1,
+          entries: 1,
           systemSales: 1,
           totalBills: 1,
           manualSales: 1,
