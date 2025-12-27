@@ -6,8 +6,9 @@ import './index.scss'
 type ReportStats = {
   waiterId: string
   waiterName: string
-  employeeId: string // New field
-  branchName: string // New field
+  employeeId?: string // New field
+  branchName?: string // New field
+  lastBillTime?: string
   totalBills: number
   totalAmount: number
   cashAmount: number
@@ -26,11 +27,20 @@ type ReportData = {
     upiAmount: number
     cardAmount: number
   }
+  activeBranches?: { id: string; name: string }[]
+  timeline?: { minHour: number; maxHour: number }
 }
 
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
-import Select from 'react-select'
+import Select, { StylesConfig } from 'react-select'
+
+/* Helper to format time (e.g. 2:30 pm) */
+const formatTime = (isoString?: string) => {
+  if (!isoString) return ''
+  const date = new Date(isoString)
+  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+}
 
 const WaiterWiseBillingReport: React.FC = () => {
   // Combine start and end date into a single range state for the picker
@@ -60,33 +70,47 @@ const WaiterWiseBillingReport: React.FC = () => {
   const handleExportExcel = () => {
     if (!data) return
     const csvRows = []
-    // Header
-    csvRows.push(
-      ['S.NO', 'WAITER NAME', 'BRANCH', 'TOTAL BILLS', 'CASH', 'UPI', 'CARD', 'TOTAL AMOUNT'].join(
-        ',',
-      ),
-    )
+    // Headers
+    const headers = [
+      'S.NO',
+      'WAITER NAME',
+      'BRANCH',
+      'LAST BILL TIME',
+      'TOTAL BILLS',
+      'CASH',
+      'UPI',
+      'CARD',
+      'TOTAL AMOUNT',
+    ]
+    csvRows.push(headers.join(','))
+
     // Rows
-    data.stats.forEach((row, index) => {
-      csvRows.push(
-        [
-          index + 1,
-          `"${row.employeeId || ''} ${row.waiterName}"`,
-          `"${(row.branchName || '').toUpperCase()}"`,
-          row.totalBills,
-          row.cashAmount.toFixed(2),
-          row.upiAmount.toFixed(2),
-          row.cardAmount.toFixed(2),
-          row.totalAmount.toFixed(2),
-        ].join(','),
-      )
+    const rows = data.stats.map((row, index) => {
+      const waiterLabel = row.employeeId
+        ? `${row.employeeId} - ${row.waiterName?.toUpperCase() || ''}`
+        : row.waiterName?.toUpperCase() || ''
+
+      return [
+        index + 1,
+        `"${waiterLabel}"`,
+        `"${row.branchName?.toUpperCase() || ''}"`,
+        row.lastBillTime ? formatTime(row.lastBillTime) : '',
+        row.totalBills,
+        row.cashAmount.toFixed(2),
+        row.upiAmount.toFixed(2),
+        row.cardAmount.toFixed(2),
+        row.totalAmount.toFixed(2),
+      ]
     })
+    rows.forEach((r) => csvRows.push(r.join(',')))
+
     // Total Row
     csvRows.push(
       [
         '',
-        '',
         'TOTAL',
+        '',
+        '',
         data.totals.totalBills,
         data.totals.cashAmount.toFixed(2),
         data.totals.upiAmount.toFixed(2),
@@ -163,6 +187,7 @@ const WaiterWiseBillingReport: React.FC = () => {
     input: (base: Record<string, unknown>) => ({
       ...base,
       color: 'var(--theme-text-primary)',
+      fontWeight: '600', // Darker number/text
     }),
   }
 
@@ -172,6 +197,10 @@ const WaiterWiseBillingReport: React.FC = () => {
     const local = new Date(d.getTime() - offset * 60 * 1000)
     return local.toISOString().split('T')[0]
   }
+
+  // --- TIMELINE LOGIC ---
+  const [selectedHour, setSelectedHour] = useState<number | null>(null)
+  const [timelineRange, setTimelineRange] = useState<{ min: number; max: number } | null>(null)
 
   // Fetch report data
   const fetchReport = useCallback(async () => {
@@ -191,9 +220,12 @@ const WaiterWiseBillingReport: React.FC = () => {
       if (selectedWaiter !== 'all') {
         url += `&waiter=${selectedWaiter}`
       }
+      if (selectedHour !== null) {
+        url += `&hour=${selectedHour}`
+      }
 
       const res = await fetch(url)
-      const json = await res.json()
+      const json: ReportData = await res.json()
 
       if (res.ok) {
         setData(json)
@@ -202,6 +234,15 @@ const WaiterWiseBillingReport: React.FC = () => {
         // 1. Branches: Use the `activeBranches` returned by the API (which are distinct branches for the date range)
         if (json.activeBranches && Array.isArray(json.activeBranches)) {
           setBranches(json.activeBranches)
+        }
+
+        // Timeline: Set range if available (and we are NOT currently filtering by hour,
+        // to keep the timeline stable? No, backend calculates it independent of hour filter?
+        // Yes, backend timeline calculation uses only branchMatchQuery which is date+branch.)
+        if (json.timeline) {
+          // Only update range if it's different or NULL.
+          // We want the range to represent the *day's* activity.
+          setTimelineRange({ min: json.timeline.minHour, max: json.timeline.maxHour })
         }
 
         // 2. Waiters: Use the stats to find unique waiters who worked.
@@ -231,7 +272,7 @@ const WaiterWiseBillingReport: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }, [startDate, endDate, selectedBranch, selectedWaiter])
+  }, [startDate, endDate, selectedBranch, selectedWaiter, selectedHour])
 
   useEffect(() => {
     fetchReport()
@@ -269,6 +310,94 @@ const WaiterWiseBillingReport: React.FC = () => {
     },
   )
   CustomInput.displayName = 'CustomInput'
+
+  // Component for Timeline Block
+  const TimelineBlock = ({
+    hour,
+    isSelected,
+    onClick,
+  }: {
+    hour: number
+    isSelected: boolean
+    onClick: () => void
+  }) => {
+    // User requested 24h format
+    const label24 = hour.toString()
+
+    return (
+      <div
+        onClick={onClick}
+        style={{
+          backgroundColor: isSelected ? '#D1004A' : 'var(--theme-elevation-150)', // Active vs Inactive
+          color: isSelected ? 'white' : 'var(--theme-text-primary)',
+          padding: '6px 12px',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          fontWeight: 'bold',
+          minWidth: '40px',
+          textAlign: 'center',
+          position: 'relative',
+          fontSize: '0.9rem',
+        }}
+      >
+        {label24}
+        {isSelected && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '-6px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: 0,
+              height: 0,
+              borderLeft: '6px solid transparent',
+              borderRight: '6px solid transparent',
+              borderTop: '6px solid #D1004A',
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Generate timeline blocks
+  const renderTimeline = () => {
+    if (!timelineRange) return null
+    const blocks = []
+    // Safety cap
+    let start = timelineRange.min >= 0 ? timelineRange.min : 6
+    let end = timelineRange.max <= 23 ? timelineRange.max : 23
+
+    if (timelineRange.min === undefined || timelineRange.max === undefined) {
+      start = 6
+      end = 23
+    }
+
+    for (let h = start; h <= end; h++) {
+      blocks.push(
+        <TimelineBlock
+          key={h}
+          hour={h}
+          isSelected={selectedHour === h}
+          onClick={() => setSelectedHour((prev) => (prev === h ? null : h))}
+        />,
+      )
+    }
+    return (
+      <div
+        className="timeline-container"
+        style={{
+          display: 'flex',
+          gap: '8px',
+          overflowX: 'auto',
+          padding: '10px 0',
+          marginBottom: '15px',
+        }}
+      >
+        {blocks}
+      </div>
+    )
+  }
 
   return (
     <div className="waiter-report-container">
@@ -364,6 +493,7 @@ const WaiterWiseBillingReport: React.FC = () => {
                 setDateRange([new Date(), new Date()])
                 setSelectedBranch('all')
                 setSelectedWaiter('all')
+                setSelectedHour(null)
               }}
               title="Reset Filters"
               style={{
@@ -396,6 +526,9 @@ const WaiterWiseBillingReport: React.FC = () => {
         </div>
       </div>
 
+      {/* Timeline Filter */}
+      {renderTimeline()}
+
       {loading && <p>Loading...</p>}
       {error && <p className="error">{error}</p>}
 
@@ -418,23 +551,40 @@ const WaiterWiseBillingReport: React.FC = () => {
                 <tr key={row.waiterId || Math.random().toString()}>
                   <td>{index + 1}</td>
                   <td>
-                    <span style={{ color: 'var(--theme-elevation-400)', fontWeight: 500 }}>
-                      {row.employeeId}
-                      {row.employeeId && ' '}
-                    </span>
-                    <span style={{ fontWeight: 'bold' }}>{row.waiterName}</span>
-                    {row.branchName && (
-                      <div
-                        style={{
-                          fontSize: '0.75em',
-                          color: 'var(--theme-elevation-400)',
-                          marginTop: '2px',
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        {row.branchName}
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ fontWeight: 'bold' }}>
+                        <span
+                          style={{
+                            color: 'var(--theme-text-secondary)',
+                            marginRight: '6px',
+                            fontWeight: 'normal',
+                          }}
+                        >
+                          {row.employeeId || 'ID'}
+                        </span>
+                        <span style={{ color: '#fff' }}>{row.waiterName?.toUpperCase()}</span>
                       </div>
-                    )}
+                      <div style={{ marginTop: '2px', color: 'var(--theme-text-secondary)' }}>
+                        <span
+                          style={{
+                            fontSize: '0.85em',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {(row.branchName?.substring(0, 3).toUpperCase() || 'UNK') + ' -'}
+                        </span>
+                        {row.lastBillTime && (
+                          <span
+                            style={{
+                              fontSize: '0.75em',
+                              marginLeft: '8px',
+                            }}
+                          >
+                            Last Bill: {formatTime(row.lastBillTime)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </td>
                   <td className="text-right">{row.totalBills}</td>
                   <td className="text-right amount-cell">{formatValue(row.cashAmount)}</td>

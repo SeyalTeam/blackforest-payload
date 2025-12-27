@@ -41,18 +41,42 @@ export const getWaiterWiseBillingReportHandler: PayloadHandler = async (
       },
     }
 
+    // Prepare $expr conditions array
+    const exprConditions: any[] = []
+
     if (branchParam && branchParam !== 'all') {
-      matchQuery.$expr = {
-        $eq: [{ $toString: '$branch' }, branchParam],
-      }
+      // Ideally branch should also be handled carefully if it's an ObjectId reference/string
+      // But user hasn't complained about branch filter yet.
+      // Existing logic: { $eq: [{ $toString: '$branch' }, branchParam] }
+      exprConditions.push({ $eq: [{ $toString: '$branch' }, branchParam] })
     }
 
     if (waiterParam && waiterParam !== 'all') {
-      // Assuming waiterParam is the ID string
-      // In Payload 3.0 / Mongoose adapter, relationship fields might be stored as ObjectIds or Strings depending on config
-      // Safest is to try both or rely on the fact that createdBy is a relationship.
-      // Usually matchQuery on a relationship field expects the ID.
-      matchQuery.createdBy = { $eq: waiterParam }
+      // Use $expr with $toObjectId to ensure we match the ID correctly regardless of input type
+      // Check if valid hex to avoid cast errors
+      if (/^[0-9a-fA-F]{24}$/.test(waiterParam)) {
+        exprConditions.push({ $eq: ['$createdBy', { $toObjectId: waiterParam }] })
+      } else {
+        // Fallback if not a valid ObjectId format (just compare as is, or stringify field)
+        exprConditions.push({ $eq: ['$createdBy', waiterParam] })
+      }
+    }
+
+    const hourParam = req.query.hour ? parseInt(req.query.hour as string) : null
+    if (hourParam !== null && !isNaN(hourParam)) {
+      // Filter by hour (IST +5:30)
+      exprConditions.push({
+        $eq: [{ $hour: { date: '$createdAt', timezone: '+05:30' } }, hourParam],
+      })
+    }
+
+    // Combine all expr conditions into matchQuery
+    if (exprConditions.length > 0) {
+      if (exprConditions.length === 1) {
+        matchQuery.$expr = exprConditions[0]
+      } else {
+        matchQuery.$expr = { $and: exprConditions }
+      }
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -112,6 +136,7 @@ export const getWaiterWiseBillingReportHandler: PayloadHandler = async (
           },
           employeeId: { $first: '$employeeDetails.employeeId' }, // Fetch explicit employeeId
           billingBranchId: { $first: '$branch' }, // Capture branch from the bill
+          lastBillTime: { $max: '$createdAt' }, // Capture Last Updated Time
           totalBills: { $sum: 1 },
           totalAmount: { $sum: '$totalAmount' },
           cashAmount: {
@@ -158,6 +183,7 @@ export const getWaiterWiseBillingReportHandler: PayloadHandler = async (
           waiterName: { $toUpper: '$waiterName' },
           employeeId: 1, // Pass explicit ID through
           branchName: '$branchDetails.name', // Project from the new lookup
+          lastBillTime: 1,
           totalBills: 1,
           totalAmount: 1,
           cashAmount: 1,
@@ -201,16 +227,38 @@ export const getWaiterWiseBillingReportHandler: PayloadHandler = async (
       },
       branch: { $exists: true, $ne: null },
     }
-    // Aggregate distinct branches
-    const activeBranchesRaw = await BillingModel.aggregate([
+
+    let timeline = { minHour: 6, maxHour: 23 } // Default 6 AM to 11 PM
+
+    // Re-run aggregation for timeline metadata specifically to be safe with timezones
+    const timelineMeta = await BillingModel.aggregate([
       { $match: branchMatchQuery },
-      { $group: { _id: '$branch' } }, // Group by branch ID
-      // Lookup names
       {
-        $addFields: {
-          branchObjectId: { $toObjectId: '$_id' },
+        $project: {
+          hour: { $hour: { date: '$createdAt', timezone: '+05:30' } },
         },
       },
+      {
+        $group: {
+          _id: null,
+          minHour: { $min: '$hour' },
+          maxHour: { $max: '$hour' },
+        },
+      },
+    ])
+
+    if (timelineMeta.length > 0) {
+      timeline = {
+        minHour: timelineMeta[0].minHour,
+        maxHour: timelineMeta[0].maxHour,
+      }
+    }
+
+    // Re-calculating Active Branches (Reuse previous working logic block)
+    const activeBranchesResult = await BillingModel.aggregate([
+      { $match: branchMatchQuery },
+      { $group: { _id: '$branch' } },
+      { $addFields: { branchObjectId: { $toObjectId: '$_id' } } },
       {
         $lookup: {
           from: 'branches',
@@ -220,13 +268,7 @@ export const getWaiterWiseBillingReportHandler: PayloadHandler = async (
         },
       },
       { $unwind: '$details' },
-      {
-        $project: {
-          id: '$_id',
-          name: '$details.name',
-          _id: 0,
-        },
-      },
+      { $project: { id: '$_id', name: '$details.name', _id: 0 } },
       { $sort: { name: 1 } },
     ])
 
@@ -235,7 +277,8 @@ export const getWaiterWiseBillingReportHandler: PayloadHandler = async (
       endDate: endDateParam,
       stats,
       totals,
-      activeBranches: activeBranchesRaw, // Return distinct active branches
+      activeBranches: activeBranchesResult,
+      timeline, // Return min/max hour
     })
   } catch (error) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
