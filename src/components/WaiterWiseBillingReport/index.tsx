@@ -552,7 +552,7 @@ const WaiterWiseBillingReport: React.FC = () => {
                   <td>{index + 1}</td>
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <div style={{ fontWeight: 'bold' }}>
+                      <div style={{ fontWeight: 'bold', fontSize: '1.05em' }}>
                         <span
                           style={{
                             color: 'var(--theme-text-secondary)',
@@ -564,25 +564,21 @@ const WaiterWiseBillingReport: React.FC = () => {
                         </span>
                         <span style={{ color: '#fff' }}>{row.waiterName?.toUpperCase()}</span>
                       </div>
-                      <div style={{ marginTop: '2px', color: 'var(--theme-text-secondary)' }}>
-                        <span
-                          style={{
-                            fontSize: '0.85em',
-                            textTransform: 'uppercase',
-                          }}
-                        >
-                          {(row.branchName?.substring(0, 3).toUpperCase() || 'UNK') + ' -'}
-                        </span>
+                      <div
+                        style={{
+                          marginTop: '4px',
+                          color: 'var(--theme-text-secondary)',
+                          fontSize: '0.85em',
+                        }}
+                      >
                         {row.lastBillTime && (
-                          <span
-                            style={{
-                              fontSize: '0.75em',
-                              marginLeft: '8px',
-                            }}
-                          >
+                          <span style={{ marginRight: '6px' }}>
                             Last Bill: {formatTime(row.lastBillTime)}
                           </span>
                         )}
+                        <span style={{ textTransform: 'uppercase' }}>
+                          {row.branchName?.substring(0, 3).toUpperCase() || 'UNK'}
+                        </span>
                       </div>
                     </div>
                   </td>
