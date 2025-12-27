@@ -21,7 +21,7 @@ const run = async () => {
   console.log(`Found Branch: ${branch.name} (ID: ${branch.id})`)
 
   // 2. Define Date Range (Yesterday: 2025-12-26)
-  const date = new Date('2025-12-26T00:00:00Z') // Start of day UTC
+  // const date = new Date('2025-12-26T00:00:00Z') // Start of day UTC
   const startOfDay = new Date(Date.UTC(2025, 11, 26, 0, 0, 0, 0)).toISOString()
   const endOfDay = new Date(Date.UTC(2025, 11, 26, 23, 59, 59, 999)).toISOString()
 

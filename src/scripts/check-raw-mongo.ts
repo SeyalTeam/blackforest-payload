@@ -8,8 +8,12 @@ const run = async () => {
   const rawCollection = payload.db.collections['closing-entries'].collection
   const doc = await rawCollection.findOne({})
 
-  console.log('Raw Mongo Doc Date:', doc.date)
-  console.log('Type:', Object.prototype.toString.call(doc.date)) // [object Date] vs [object String]
+  if (doc) {
+    console.log('Raw Mongo Doc Date:', doc.date)
+    console.log('Type:', Object.prototype.toString.call(doc.date)) // [object Date] vs [object String]
+  } else {
+    console.log('No document found')
+  }
 
   process.exit(0)
 }

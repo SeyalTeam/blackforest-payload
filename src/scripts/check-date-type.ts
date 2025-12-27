@@ -17,7 +17,7 @@ const run = async () => {
   }
 
   // Debug Query with Date object vs String
-  const start = new Date('2025-01-01') // Future date, should be 0
+  // const start = new Date('2025-01-01') // Future date, should be 0
 
   // Try finding with String
   const strQuery = await payload.find({
