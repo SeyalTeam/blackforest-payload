@@ -1,0 +1,427 @@
+.waiter-report-container {
+  padding: 2rem;
+  background: var(--theme-elevation-0);
+  border-radius: var(--style-radius-m);
+  box-shadow: var(--theme-shadow-success);
+  margin: 2rem;
+
+  color: var(--theme-text-primary);
+
+  .report-header {
+    display: flex;
+    flex-direction: column; // Stack title and filters vertically
+    justify-content: flex-start;
+    align-items: flex-start; // Align both to the left
+    gap: 1.5rem; // Gap between Title and Filters
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--theme-elevation-100);
+    position: relative;
+    z-index: 500;
+
+    h1 {
+      margin: 0;
+      font-size: 1.75rem;
+      font-weight: 600;
+      color: var(--theme-text-primary);
+    }
+
+    .date-filter {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem; // More space between controls
+      color: var(--theme-text-primary);
+      flex-wrap: wrap;
+
+      .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-shrink: 0; // Prevent shrinking
+
+        label {
+          font-weight: 500;
+          opacity: 0.8;
+        }
+      }
+
+      .custom-date-input {
+        background: var(--theme-bg-input);
+        border: 1px solid var(--theme-elevation-400);
+        border-radius: 8px;
+        color: var(--theme-text-primary);
+        padding: 0 1rem; // Use horizontal padding only, flex handles vertical centering
+        height: 42px; // Explicit height to match React Select
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 1rem;
+        min-width: 250px;
+        transition: all 0.2s;
+
+        &:hover {
+          border-color: var(--theme-info-750);
+        }
+
+        .date-text {
+          font-weight: 600; // Make number dark/bold
+          letter-spacing: 0.5px;
+          color: var(--theme-text-primary); // Ensure high contrast
+        }
+
+        &:hover {
+          border-color: var(--theme-info-750);
+        }
+
+        // Remove old emoji pseudo-element if it exists
+        &::after {
+          display: none;
+        }
+
+        .icon {
+          display: flex;
+          align-items: center;
+          opacity: 0.6;
+          color: var(--theme-text-primary);
+        }
+      }
+    }
+  }
+
+  .table-container {
+    /* Remove constraints to allow viewport sticky behavior */
+    width: 100%;
+  }
+
+  .report-table {
+    width: 100%;
+    border-collapse: collapse;
+    white-space: nowrap; /* Prevent wrapping in headers */
+
+    th,
+    td {
+      padding: 1rem;
+      border-bottom: 1px solid var(--theme-elevation-100);
+      border-right: 1px solid var(--theme-elevation-100); // Vertical separator
+      text-align: left;
+      color: var(--theme-text-primary);
+
+      &:first-child {
+        border-left: 1px solid var(--theme-elevation-100);
+      }
+
+      &:last-child {
+        border-right: 1px solid var(--theme-elevation-100);
+      }
+
+      &.text-right {
+        text-align: right;
+      }
+
+      &.amount-cell {
+        font-weight: 600;
+        font-size: 1rem;
+      }
+    }
+
+    th {
+      background: var(--theme-elevation-50);
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      border-right: 1px solid var(--theme-elevation-100);
+      box-shadow: 0 1px 0 var(--theme-elevation-100);
+      /* Ensure header is opaque when content scrolls behind */
+
+      &:first-child {
+        border-left: 1px solid var(--theme-elevation-100);
+      }
+
+      &:last-child {
+        border-right: 1px solid var(--theme-elevation-100);
+      }
+    }
+
+    // Zebra Striping
+    tbody tr:nth-child(even) {
+      background-color: var(--theme-elevation-50);
+    }
+
+    .grand-total {
+      background: var(--theme-elevation-100);
+      font-weight: bold;
+      position: sticky;
+      bottom: 0;
+      z-index: 10;
+      box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1); // Add shadow for separation
+
+      td {
+        border-top: 2px solid var(--theme-border-color);
+        background: var(--theme-elevation-100); // Ensure opaque background
+      }
+    }
+  }
+
+  .error {
+    color: var(--theme-error-500);
+  }
+}
+
+// Reuse generic classes if they are global, otherwise duplicate needed snippets
+// Assuming .custom-calendar and .export-container are global or copied here
+// Since they were in the previous file, I will copy them to be safe as Scss modules/imports might be scoped.
+
+.custom-calendar {
+  font-family: inherit;
+  border: 1px solid var(--theme-elevation-400) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+  background-color: var(--theme-elevation-100) !important;
+  color: var(--theme-text-primary) !important;
+  padding: 1rem;
+  border-radius: 4px !important;
+  display: inline-block;
+
+  .react-datepicker__month-container {
+    margin: 0 0.5rem; // Add space between the two months
+    float: left;
+  }
+
+  .react-datepicker__header {
+    background-color: transparent !important;
+    border-bottom: none !important;
+    padding: 0 0 1rem 0;
+  }
+
+  .react-datepicker__current-month,
+  .react-datepicker-time__header,
+  .react-datepicker-year-header {
+    color: var(--theme-text-primary) !important;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .react-datepicker__day-names {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+  }
+
+  .react-datepicker__day-name {
+    color: var(--theme-text-primary) !important;
+    opacity: 0.6;
+    width: 2.5rem;
+    line-height: 2rem;
+    margin: 0;
+    text-align: center;
+    font-weight: 500;
+  }
+
+  .react-datepicker__month {
+    margin: 0;
+  }
+
+  .react-datepicker__day {
+    color: var(--theme-text-primary) !important;
+    width: 2.5rem;
+    line-height: 2.5rem;
+    margin: 1px;
+    border: 1px solid var(--theme-elevation-150) !important;
+    border-radius: 0 !important; // Squared edges
+    display: inline-block;
+    text-align: center;
+    background-color: transparent;
+
+    &:hover {
+      background-color: var(--theme-elevation-200) !important;
+      border-color: var(--theme-elevation-300) !important;
+      border-radius: 0 !important;
+    }
+  }
+
+  .react-datepicker__day--disabled {
+    color: var(--theme-elevation-400) !important;
+    pointer-events: none;
+    border-color: transparent !important;
+  }
+
+  .react-datepicker__day--outside-month {
+    color: var(--theme-elevation-400) !important;
+    border-color: transparent !important;
+    opacity: 0.5;
+  }
+
+  // Selected State
+  .react-datepicker__day--selected,
+  .react-datepicker__day--in-selecting-range,
+  .react-datepicker__day--in-range {
+    background-color: transparent !important;
+    color: var(--theme-text-primary) !important;
+    border: 2px solid var(--theme-text-primary) !important; // Thick border for selection
+    font-weight: 700;
+
+    &:hover {
+      background-color: var(--theme-elevation-200) !important;
+    }
+  }
+
+  // Today State
+  .react-datepicker__day--today {
+    font-weight: bold;
+    position: relative;
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 2px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background-color: var(--theme-info-500);
+    }
+  }
+
+  .react-datepicker__day--keyboard-selected {
+    background-color: var(--theme-elevation-150) !important;
+    border-radius: 0 !important;
+  }
+}
+
+// Ensure the datepicker popper sits above sticky headers (z-index 100)
+:global(.react-datepicker-popper) {
+  z-index: 9999 !important;
+}
+
+// Export specific styles
+.export-container {
+  position: relative;
+
+  .export-btn {
+    border: 1px solid var(--theme-elevation-400);
+    background: var(--theme-input-bg, var(--theme-elevation-50)); // Match React Select bg
+    color: var(--theme-text-primary);
+    padding: 0 1rem; // Compact horizontal padding
+    height: 42px; // Exact match to DatePicker and React Select
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between; // Space between text and icon
+    gap: 0.5rem;
+    transition: all 0.2s;
+    font-weight: 500;
+    min-width: auto; // Ensure it doesn't stretch
+
+    &:hover {
+      border-color: var(--theme-info-500); // Match React Select hover
+    }
+
+    .icon {
+      font-size: 0.8em;
+      opacity: 0.7;
+    }
+  }
+
+  .export-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    margin-top: 0;
+    background: var(--theme-input-bg, var(--theme-elevation-50));
+    border: 1px solid var(--theme-elevation-150);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    width: 100%; // Force exact match to container/button
+    min-width: auto; // Remove fixed min-width
+    z-index: 9999 !important;
+    overflow: hidden;
+
+    button {
+      background: transparent;
+      border: none;
+      color: var(--theme-text-primary);
+      padding: 0.75rem 1rem;
+      text-align: left;
+      cursor: pointer;
+      font-size: 0.95rem;
+      width: 100%;
+      font-weight: 500;
+      white-space: nowrap; // Prevent wrapping if tight
+
+      &:hover {
+        background: var(--theme-info-500);
+        color: #fff;
+      }
+    }
+  }
+}
+
+// Print Styles for PDF Export
+@media print {
+  // Hide non-essential elements
+  .payload-app-bar, // Assuming Payload app header class, adjust if needed
+  header,
+  nav,
+  aside, // Sidebar
+  .date-filter, // Hide filters row (inputs, buttons)
+  .report-header .export-container, // Hide export button specifically
+  .report-header .custom-date-input,
+  .report-header .react-select-container {
+    display: none !important;
+  }
+
+  // Ensure container takes full width
+  .waiter-report-container {
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .table-container {
+    max-height: none !important; // Expand to full height
+    overflow: visible !important;
+  }
+
+  .report-table {
+    width: 100% !important;
+    font-size: 10pt; // Slightly smaller for print
+
+    th,
+    td {
+      border: 1px solid #ddd !important; // Explicit borders for print clarity
+      color: #000 !important; // Ensure black text
+    }
+
+    th {
+      background-color: #f0f0f0 !important; // Light gray header
+      position: static !important; // Remove sticky for print
+      box-shadow: none !important;
+    }
+  }
+
+  // Adjust header specific to print
+  .report-header {
+    margin-bottom: 1rem !important;
+    border-bottom: 2px solid #000 !important;
+
+    h1 {
+      font-size: 18pt !important;
+      color: #000 !important;
+    }
+  }
+
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+}

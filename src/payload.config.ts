@@ -31,7 +31,9 @@ import { getCategoryWiseReportHandler } from './endpoints/getCategoryWiseReport'
 import { getCategoryWiseReportPDFHandler } from './endpoints/getCategoryWiseReportPDF'
 import { getProductWiseReportHandler } from './endpoints/getProductWiseReport'
 import { getClosingEntryReportHandler } from './endpoints/getClosingEntryReport'
+import { getWaiterWiseBillingReportHandler } from './endpoints/getWaiterWiseBillingReport'
 import { ClosingEntryReportGlobal } from './globals/ClosingEntryReport'
+import { WaiterWiseBillingReportGlobal } from './globals/WaiterWiseBillingReport'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -101,6 +103,11 @@ export default buildConfig({
       method: 'get',
       handler: getClosingEntryReportHandler,
     },
+    {
+      path: '/reports/waiter-wise',
+      method: 'get',
+      handler: getWaiterWiseBillingReportHandler,
+    },
   ],
 
   globals: [
@@ -109,6 +116,7 @@ export default buildConfig({
     CategoryWiseReportGlobal,
     ProductWiseReportGlobal,
     ClosingEntryReportGlobal,
+    WaiterWiseBillingReportGlobal,
   ],
 
   // Collections
