@@ -47,7 +47,7 @@ const ProductWiseReport: React.FC = () => {
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
   const [selectedDepartment, setSelectedDepartment] = useState('all')
 
-  const [showZeroHighlight, setShowZeroHighlight] = useState<boolean>(true)
+  const [showZeroHighlight, setShowZeroHighlight] = useState<boolean>(false)
   const [showTopSaleHighlight, setShowTopSaleHighlight] = useState<boolean>(false)
   const [showLowSaleHighlight, setShowLowSaleHighlight] = useState<boolean>(false)
 
@@ -218,6 +218,44 @@ const ProductWiseReport: React.FC = () => {
       if (!res.ok) throw new Error('Failed to fetch report')
       const json = await res.json()
       setData(json)
+
+      // auto-enable highlight if there are zeros
+      let hasZero = false
+      if (json && json.stats) {
+        for (const row of json.stats) {
+          if (row.totalQuantity === 0 || row.totalAmount === 0) {
+            hasZero = true
+            break
+          }
+          // check branch sales
+          if (!hasZero) {
+            for (const header of json.branchHeaders) {
+              const sales = row.branchSales[header]
+              // Check if sale exists and has 0 amount.
+              // Note: implementation details might vary, usually we check amount being 0
+              if (sales && sales.amount === 0) {
+                hasZero = true
+                break
+              }
+            }
+          }
+          if (hasZero) break
+        }
+        if (!hasZero && json.totals) {
+          if (json.totals.totalQuantity === 0 || json.totals.totalAmount === 0) {
+            hasZero = true
+          }
+          if (!hasZero && json.totals.branchTotals) {
+            for (const key in json.totals.branchTotals) {
+              if (json.totals.branchTotals[key] === 0) {
+                hasZero = true
+                break
+              }
+            }
+          }
+        }
+      }
+      setShowZeroHighlight(hasZero)
     } catch (err) {
       console.error(err)
       setError('Error loading report data')

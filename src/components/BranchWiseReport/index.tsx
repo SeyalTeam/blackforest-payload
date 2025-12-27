@@ -27,6 +27,7 @@ const BranchWiseReport: React.FC = () => {
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showZeroHighlight, setShowZeroHighlight] = useState<boolean>(false)
 
   const formatValue = (val: number) => {
     const fixed = val.toFixed(2)
@@ -41,6 +42,28 @@ const BranchWiseReport: React.FC = () => {
       if (!res.ok) throw new Error('Failed to fetch report')
       const json = await res.json()
       setData(json)
+
+      // auto-enable highlight if there are zeros
+      let hasZero = false
+      if (json && json.stats) {
+        for (const row of json.stats) {
+          if (row.cash === 0 || row.upi === 0 || row.card === 0 || row.totalAmount === 0) {
+            hasZero = true
+            break
+          }
+        }
+        if (!hasZero && json.totals) {
+          if (
+            json.totals.cash === 0 ||
+            json.totals.upi === 0 ||
+            json.totals.card === 0 ||
+            json.totals.totalAmount === 0
+          ) {
+            hasZero = true
+          }
+        }
+      }
+      setShowZeroHighlight(hasZero)
     } catch (err) {
       console.error(err)
       setError('Error loading report data')
@@ -142,7 +165,21 @@ const BranchWiseReport: React.FC = () => {
   return (
     <div className="branch-report-container">
       <div className="report-header">
-        <h1>Branch Wise Report</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <h1>Branch Wise Report</h1>
+          <button
+            title="Toggle Zero Highlight"
+            onClick={() => setShowZeroHighlight(!showZeroHighlight)}
+            style={{
+              width: '16px',
+              height: '16px',
+              backgroundColor: '#800020',
+              border: showZeroHighlight ? '1px solid #ffffff' : '1px solid #800020',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          />
+        </div>
         <div className="date-filter">
           <div className="filter-group">
             <DatePicker
@@ -232,8 +269,8 @@ const BranchWiseReport: React.FC = () => {
                       textAlign: 'right',
                       fontWeight: '600',
                       fontSize: '1.2rem',
-                      backgroundColor: row.cash === 0 ? '#800020' : 'inherit',
-                      color: row.cash === 0 ? '#FFFFFF' : 'inherit',
+                      backgroundColor: showZeroHighlight && row.cash === 0 ? '#800020' : 'inherit',
+                      color: showZeroHighlight && row.cash === 0 ? '#FFFFFF' : 'inherit',
                     }}
                   >
                     {formatValue(row.cash)}
@@ -243,8 +280,8 @@ const BranchWiseReport: React.FC = () => {
                       textAlign: 'right',
                       fontWeight: '600',
                       fontSize: '1.2rem',
-                      backgroundColor: row.upi === 0 ? '#800020' : 'inherit',
-                      color: row.upi === 0 ? '#FFFFFF' : 'inherit',
+                      backgroundColor: showZeroHighlight && row.upi === 0 ? '#800020' : 'inherit',
+                      color: showZeroHighlight && row.upi === 0 ? '#FFFFFF' : 'inherit',
                     }}
                   >
                     {formatValue(row.upi)}
@@ -254,8 +291,8 @@ const BranchWiseReport: React.FC = () => {
                       textAlign: 'right',
                       fontWeight: '600',
                       fontSize: '1.2rem',
-                      backgroundColor: row.card === 0 ? '#800020' : 'inherit',
-                      color: row.card === 0 ? '#FFFFFF' : 'inherit',
+                      backgroundColor: showZeroHighlight && row.card === 0 ? '#800020' : 'inherit',
+                      color: showZeroHighlight && row.card === 0 ? '#FFFFFF' : 'inherit',
                     }}
                   >
                     {formatValue(row.card)}
@@ -265,8 +302,9 @@ const BranchWiseReport: React.FC = () => {
                       textAlign: 'right',
                       fontWeight: '600',
                       fontSize: '1.2rem',
-                      backgroundColor: row.totalAmount === 0 ? '#800020' : 'inherit',
-                      color: row.totalAmount === 0 ? '#FFFFFF' : 'inherit',
+                      backgroundColor:
+                        showZeroHighlight && row.totalAmount === 0 ? '#800020' : 'inherit',
+                      color: showZeroHighlight && row.totalAmount === 0 ? '#FFFFFF' : 'inherit',
                     }}
                   >
                     {formatValue(row.totalAmount)}
@@ -287,8 +325,9 @@ const BranchWiseReport: React.FC = () => {
                     textAlign: 'right',
                     fontWeight: 'bold',
                     fontSize: '1.2rem',
-                    backgroundColor: data.totals.cash === 0 ? '#800020' : 'inherit',
-                    color: data.totals.cash === 0 ? '#FFFFFF' : 'inherit',
+                    backgroundColor:
+                      showZeroHighlight && data.totals.cash === 0 ? '#800020' : 'inherit',
+                    color: showZeroHighlight && data.totals.cash === 0 ? '#FFFFFF' : 'inherit',
                   }}
                 >
                   <strong>{formatValue(data.totals.cash)}</strong>
@@ -298,8 +337,9 @@ const BranchWiseReport: React.FC = () => {
                     textAlign: 'right',
                     fontWeight: 'bold',
                     fontSize: '1.2rem',
-                    backgroundColor: data.totals.upi === 0 ? '#800020' : 'inherit',
-                    color: data.totals.upi === 0 ? '#FFFFFF' : 'inherit',
+                    backgroundColor:
+                      showZeroHighlight && data.totals.upi === 0 ? '#800020' : 'inherit',
+                    color: showZeroHighlight && data.totals.upi === 0 ? '#FFFFFF' : 'inherit',
                   }}
                 >
                   <strong>{formatValue(data.totals.upi)}</strong>
@@ -309,8 +349,9 @@ const BranchWiseReport: React.FC = () => {
                     textAlign: 'right',
                     fontWeight: 'bold',
                     fontSize: '1.2rem',
-                    backgroundColor: data.totals.card === 0 ? '#800020' : 'inherit',
-                    color: data.totals.card === 0 ? '#FFFFFF' : 'inherit',
+                    backgroundColor:
+                      showZeroHighlight && data.totals.card === 0 ? '#800020' : 'inherit',
+                    color: showZeroHighlight && data.totals.card === 0 ? '#FFFFFF' : 'inherit',
                   }}
                 >
                   <strong>{formatValue(data.totals.card)}</strong>
@@ -320,8 +361,10 @@ const BranchWiseReport: React.FC = () => {
                     textAlign: 'right',
                     fontWeight: 'bold',
                     fontSize: '1.2rem',
-                    backgroundColor: data.totals.totalAmount === 0 ? '#800020' : 'inherit',
-                    color: data.totals.totalAmount === 0 ? '#FFFFFF' : 'inherit',
+                    backgroundColor:
+                      showZeroHighlight && data.totals.totalAmount === 0 ? '#800020' : 'inherit',
+                    color:
+                      showZeroHighlight && data.totals.totalAmount === 0 ? '#FFFFFF' : 'inherit',
                   }}
                 >
                   <strong>{formatValue(data.totals.totalAmount)}</strong>
