@@ -40,30 +40,20 @@ const BranchWiseReport: React.FC = () => {
     try {
       const res = await fetch(`/api/reports/branch-wise?startDate=${start}&endDate=${end}`)
       if (!res.ok) throw new Error('Failed to fetch report')
-      const json = await res.json()
-      setData(json)
+      const json: ReportData = await res.json()
 
-      // auto-enable highlight if there are zeros
-      let hasZero = false
-      if (json && json.stats) {
-        for (const row of json.stats) {
-          if (row.cash === 0 || row.upi === 0 || row.card === 0 || row.totalAmount === 0) {
-            hasZero = true
-            break
-          }
-        }
-        if (!hasZero && json.totals) {
-          if (
-            json.totals.cash === 0 ||
-            json.totals.upi === 0 ||
-            json.totals.card === 0 ||
-            json.totals.totalAmount === 0
-          ) {
-            hasZero = true
-          }
-        }
-      }
+      // Automatically enable zero highlight if there are zero values
+      const hasZero =
+        json.stats.some(
+          (row) => row.cash === 0 || row.upi === 0 || row.card === 0 || row.totalAmount === 0,
+        ) ||
+        json.totals.cash === 0 ||
+        json.totals.upi === 0 ||
+        json.totals.card === 0 ||
+        json.totals.totalAmount === 0
+
       setShowZeroHighlight(hasZero)
+      setData(json)
     } catch (err) {
       console.error(err)
       setError('Error loading report data')

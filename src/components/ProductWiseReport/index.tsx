@@ -216,46 +216,23 @@ const ProductWiseReport: React.FC = () => {
         `/api/reports/product-wise?startDate=${start}&endDate=${end}&branch=${branchId}&category=${categoryId}&department=${departmentId}`,
       )
       if (!res.ok) throw new Error('Failed to fetch report')
-      const json = await res.json()
-      setData(json)
+      const json: ReportData = await res.json()
 
-      // auto-enable highlight if there are zeros
-      let hasZero = false
-      if (json && json.stats) {
-        for (const row of json.stats) {
-          if (row.totalQuantity === 0 || row.totalAmount === 0) {
-            hasZero = true
-            break
-          }
-          // check branch sales
-          if (!hasZero) {
-            for (const header of json.branchHeaders) {
-              const sales = row.branchSales[header]
-              // Check if sale exists and has 0 amount.
-              // Note: implementation details might vary, usually we check amount being 0
-              if (sales && sales.amount === 0) {
-                hasZero = true
-                break
-              }
-            }
-          }
-          if (hasZero) break
-        }
-        if (!hasZero && json.totals) {
-          if (json.totals.totalQuantity === 0 || json.totals.totalAmount === 0) {
-            hasZero = true
-          }
-          if (!hasZero && json.totals.branchTotals) {
-            for (const key in json.totals.branchTotals) {
-              if (json.totals.branchTotals[key] === 0) {
-                hasZero = true
-                break
-              }
-            }
-          }
-        }
-      }
-      setShowZeroHighlight(hasZero)
+      // Automatically enable zero highlight if there are zero values
+      const hasStatsZero = json.stats.some(
+        (row) =>
+          json.branchHeaders.some((h) => (row.branchSales[h]?.amount || 0) === 0) ||
+          row.totalAmount === 0 ||
+          row.totalQuantity === 0,
+      )
+
+      const hasTotalZero =
+        json.totals.totalQuantity === 0 ||
+        json.totals.totalAmount === 0 ||
+        json.branchHeaders.some((h) => (json.totals.branchTotals[h] || 0) === 0)
+
+      setShowZeroHighlight(hasStatsZero || hasTotalZero)
+      setData(json)
     } catch (err) {
       console.error(err)
       setError('Error loading report data')
