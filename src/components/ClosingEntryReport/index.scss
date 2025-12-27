@@ -1,0 +1,264 @@
+.branch-report-container {
+  padding: 2rem;
+  background: var(--theme-elevation-0);
+  border-radius: var(--style-radius-m);
+  box-shadow: var(--theme-shadow-success);
+  margin: 2rem;
+
+  color: var(--theme-text-primary);
+
+  .report-header {
+    display: flex;
+    flex-direction: column; // Stack vertically
+    align-items: flex-start; // Align left
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid var(--theme-elevation-100);
+    padding-bottom: 1.5rem;
+
+    h1 {
+      margin: 0;
+      font-size: 1.5rem;
+      color: var(--theme-text-primary);
+    }
+
+    .date-filter {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      width: 100%;
+      flex-wrap: wrap; // Allow wrapping if needed
+      color: var(--theme-text-primary);
+
+      .custom-date-input {
+        background: var(--theme-bg-input);
+        border: 1px solid var(--theme-elevation-400);
+        border-radius: 8px;
+        color: var(--theme-text-primary);
+        padding: 0 1rem; // Use horizontal padding only, flex handles vertical centering
+        height: 42px; // Explicit height to match React Select
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 1rem;
+        min-width: 250px;
+        transition: all 0.2s;
+
+        &:hover {
+          border-color: var(--theme-info-750);
+        }
+
+        .date-text {
+          font-weight: 600; // Make number dark/bold
+          letter-spacing: 0.5px;
+          color: var(--theme-text-primary); // Ensure high contrast
+        }
+
+        .icon {
+          display: flex;
+          align-items: center;
+          opacity: 0.6;
+          color: var(--theme-text-primary);
+        }
+      }
+
+      .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+    }
+
+    // Export Button Styles
+    .export-btn {
+      border: 1px solid var(--theme-elevation-400);
+      background: var(--theme-input-bg, var(--theme-elevation-50));
+      color: var(--theme-text-primary);
+      padding: 0 1rem;
+      height: 42px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 500;
+      transition: all 0.2s;
+
+      &:hover {
+        border-color: var(--theme-info-500);
+      }
+    }
+  }
+
+  .report-table {
+    width: 100%;
+    border-collapse: collapse;
+
+    th,
+    td {
+      padding: 1rem;
+      border-bottom: 1px solid var(--theme-elevation-100);
+      text-align: left;
+      color: var(--theme-text-primary);
+      border-right: 1px solid var(--theme-elevation-100);
+
+      &:first-child {
+        border-left: 1px solid var(--theme-elevation-100);
+      }
+
+      &.branch-name-cell {
+        font-size: 1.1rem;
+        font-weight: 600;
+      }
+    }
+
+    th {
+      background: var(--theme-elevation-50);
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    // Zebra Striping
+    tbody tr:nth-child(even) {
+      background-color: var(--theme-elevation-50);
+    }
+
+    .grand-total {
+      background: var(--theme-elevation-100);
+      font-weight: bold;
+
+      td {
+        border-top: 2px solid var(--theme-border-color);
+      }
+    }
+  }
+
+  .error {
+    color: var(--theme-error-500);
+  }
+}
+
+// Root-level overrides for the custom calendar class
+.custom-calendar {
+  font-family: inherit;
+  border: 1px solid var(--theme-elevation-400) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+  background-color: var(--theme-elevation-100) !important;
+  color: var(--theme-text-primary) !important;
+  padding: 1rem;
+  border-radius: 4px !important;
+  display: inline-block;
+
+  .react-datepicker__month-container {
+    margin: 0 0.5rem;
+    float: left;
+  }
+
+  .react-datepicker__header {
+    background-color: transparent !important;
+    border-bottom: none !important;
+    padding: 0 0 1rem 0;
+  }
+
+  .react-datepicker__current-month,
+  .react-datepicker-time__header,
+  .react-datepicker-year-header {
+    color: var(--theme-text-primary) !important;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .react-datepicker__day-names {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+  }
+
+  .react-datepicker__day-name {
+    color: var(--theme-text-primary) !important;
+    opacity: 0.6;
+    width: 2.5rem;
+    line-height: 2rem;
+    margin: 0;
+    text-align: center;
+    font-weight: 500;
+  }
+
+  .react-datepicker__month {
+    margin: 0;
+  }
+
+  .react-datepicker__day {
+    color: var(--theme-text-primary) !important;
+    width: 2.5rem;
+    line-height: 2.5rem;
+    margin: 1px;
+    border: 1px solid var(--theme-elevation-150) !important;
+    border-radius: 0 !important;
+    display: inline-block;
+    text-align: center;
+    background-color: transparent;
+
+    &:hover {
+      background-color: var(--theme-elevation-200) !important;
+      border-color: var(--theme-elevation-300) !important;
+      border-radius: 0 !important;
+    }
+  }
+
+  .react-datepicker__day--disabled {
+    color: var(--theme-elevation-400) !important;
+    pointer-events: none;
+    border-color: transparent !important;
+  }
+
+  .react-datepicker__day--outside-month {
+    color: var(--theme-elevation-400) !important;
+    border-color: transparent !important;
+    opacity: 0.5;
+  }
+
+  // Selected State
+  .react-datepicker__day--selected,
+  .react-datepicker__day--in-selecting-range,
+  .react-datepicker__day--in-range {
+    background-color: transparent !important;
+    color: var(--theme-text-primary) !important;
+    border: 2px solid var(--theme-text-primary) !important;
+    font-weight: 700;
+
+    &:hover {
+      background-color: var(--theme-elevation-200) !important;
+    }
+  }
+
+  // Today State
+  .react-datepicker__day--today {
+    font-weight: bold;
+    position: relative;
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 2px;
+      left: 50%;
+      transform: translateX(-50%); // Centering
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background-color: var(--theme-info-500);
+    }
+  }
+
+  .react-datepicker__day--keyboard-selected {
+    background-color: var(--theme-elevation-150) !important;
+    border-radius: 0 !important;
+  }
+}
+
+:global(.react-datepicker-popper) {
+  z-index: 9999 !important;
+}

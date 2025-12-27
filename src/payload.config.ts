@@ -23,13 +23,15 @@ import ClosingEntries from './collections/ClosingEntries'
 import Expenses from './collections/Expenses'
 import StockOrders from './collections/StockOrders'
 import { IPSettings } from './globals/IPSettings'
-import { BranchWiseReportGlobal } from './globals/BranchWiseReport'
+import { BranchBillingReportGlobal } from './globals/BranchBillingReport'
 import { CategoryWiseReportGlobal } from './globals/CategoryWiseReport'
 import { ProductWiseReportGlobal } from './globals/ProductWiseReport'
-import { getBranchWiseReportHandler } from './endpoints/getBranchWiseReport'
+import { getBranchBillingReportHandler } from './endpoints/getBranchBillingReport'
 import { getCategoryWiseReportHandler } from './endpoints/getCategoryWiseReport'
 import { getCategoryWiseReportPDFHandler } from './endpoints/getCategoryWiseReportPDF'
 import { getProductWiseReportHandler } from './endpoints/getProductWiseReport'
+import { getClosingEntryReportHandler } from './endpoints/getClosingEntryReport'
+import { ClosingEntryReportGlobal } from './globals/ClosingEntryReport'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -75,9 +77,9 @@ export default buildConfig({
 
   endpoints: [
     {
-      path: '/reports/branch-wise',
+      path: '/reports/branch-billing',
       method: 'get',
-      handler: getBranchWiseReportHandler,
+      handler: getBranchBillingReportHandler,
     },
     {
       path: '/reports/category-wise',
@@ -94,9 +96,20 @@ export default buildConfig({
       method: 'get',
       handler: getProductWiseReportHandler,
     },
+    {
+      path: '/reports/closing-entry',
+      method: 'get',
+      handler: getClosingEntryReportHandler,
+    },
   ],
 
-  globals: [IPSettings, BranchWiseReportGlobal, CategoryWiseReportGlobal, ProductWiseReportGlobal],
+  globals: [
+    IPSettings,
+    BranchBillingReportGlobal,
+    CategoryWiseReportGlobal,
+    ProductWiseReportGlobal,
+    ClosingEntryReportGlobal,
+  ],
 
   // Collections
   collections: [

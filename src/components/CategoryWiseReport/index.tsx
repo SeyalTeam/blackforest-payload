@@ -95,8 +95,8 @@ const CategoryWiseReport: React.FC = () => {
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `category_report_${startDate?.toISOString().split('T')[0]}_to_${
-      endDate?.toISOString().split('T')[0]
+    a.download = `category_report_${startDate ? toLocalDateStr(startDate) : ''}_to_${
+      endDate ? toLocalDateStr(endDate) : ''
     }.csv`
     a.click()
     setShowExportMenu(false)
@@ -180,12 +180,22 @@ const CategoryWiseReport: React.FC = () => {
     fetchMetadata()
   }, [])
 
-  const fetchReport = async (start: string, end: string, branchId: string, deptId: string) => {
+  /* Helper to format date as YYYY-MM-DD using local time to avoid timezone shifts */
+  const toLocalDateStr = (d: Date) => {
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0') // Month is 0-indexed
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const fetchReport = async (start: Date, end: Date, branchId: string, deptId: string) => {
     setLoading(true)
     setError('')
     try {
+      const startStr = toLocalDateStr(start)
+      const endStr = toLocalDateStr(end)
       const res = await fetch(
-        `/api/reports/category-wise?startDate=${start}&endDate=${end}&branch=${branchId}&department=${deptId}`,
+        `/api/reports/category-wise?startDate=${startStr}&endDate=${endStr}&branch=${branchId}&department=${deptId}`,
       )
       if (!res.ok) throw new Error('Failed to fetch report')
       const json: ReportData = await res.json()
@@ -216,12 +226,7 @@ const CategoryWiseReport: React.FC = () => {
   // Sync dateRange changes to backend fetch
   useEffect(() => {
     if (startDate && endDate) {
-      fetchReport(
-        startDate.toISOString().split('T')[0],
-        endDate.toISOString().split('T')[0],
-        selectedBranch,
-        selectedDepartment,
-      )
+      fetchReport(startDate, endDate, selectedBranch, selectedDepartment)
     }
   }, [dateRange, selectedBranch, selectedDepartment])
 

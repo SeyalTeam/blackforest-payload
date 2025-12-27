@@ -21,7 +21,7 @@ type ReportData = {
   totals: Omit<ReportStats, 'branchName'>
 }
 
-const BranchWiseReport: React.FC = () => {
+const BranchBillingReport: React.FC = () => {
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()])
   const [startDate, endDate] = dateRange
   const [data, setData] = useState<ReportData | null>(null)
@@ -34,11 +34,20 @@ const BranchWiseReport: React.FC = () => {
     return fixed.endsWith('.00') ? fixed.slice(0, -3) : fixed
   }
 
-  const fetchReport = async (start: string, end: string) => {
+  const toLocalDateStr = (d: Date) => {
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const fetchReport = async (start: Date, end: Date) => {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`/api/reports/branch-wise?startDate=${start}&endDate=${end}`)
+      const startStr = toLocalDateStr(start)
+      const endStr = toLocalDateStr(end)
+      const res = await fetch(`/api/reports/branch-billing?startDate=${startStr}&endDate=${endStr}`)
       if (!res.ok) throw new Error('Failed to fetch report')
       const json: ReportData = await res.json()
 
@@ -64,10 +73,9 @@ const BranchWiseReport: React.FC = () => {
 
   useEffect(() => {
     if (startDate && endDate) {
-      fetchReport(startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0])
+      fetchReport(startDate, endDate)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange])
+  }, [dateRange, startDate, endDate])
 
   const CustomInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
     ({ value, onClick }, ref) => {
@@ -77,7 +85,7 @@ const BranchWiseReport: React.FC = () => {
       return (
         <button className="custom-date-input" onClick={onClick} ref={ref}>
           <span className="date-text">{start}</span>
-          <span className="separator" style={{ color: 'var(--theme-text-primary)' }}>
+          <span className="separator" style={{ padding: '0 5px' }}>
             →
           </span>
           <span className="date-text">{end || start}</span>
@@ -145,7 +153,7 @@ const BranchWiseReport: React.FC = () => {
     link.setAttribute('href', encodedUri)
     link.setAttribute(
       'download',
-      `branch_wise_report_${startDate?.toISOString().split('T')[0]}_${endDate?.toISOString().split('T')[0]}.csv`,
+      `branch_billing_report_${startDate ? toLocalDateStr(startDate) : ''}_to_${endDate ? toLocalDateStr(endDate) : ''}.csv`,
     )
     document.body.appendChild(link)
     link.click()
@@ -156,7 +164,7 @@ const BranchWiseReport: React.FC = () => {
     <div className="branch-report-container">
       <div className="report-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <h1>Branch Wise Report</h1>
+          <h1>Branch Billing Report</h1>
           <button
             title="Toggle Zero Highlight"
             onClick={() => setShowZeroHighlight(!showZeroHighlight)}
@@ -176,7 +184,7 @@ const BranchWiseReport: React.FC = () => {
               selectsRange={true}
               startDate={startDate}
               endDate={endDate}
-              onChange={(update) => {
+              onChange={(update: [Date | null, Date | null]) => {
                 setDateRange(update)
               }}
               monthsShown={2}
@@ -368,4 +376,4 @@ const BranchWiseReport: React.FC = () => {
   )
 }
 
-export default BranchWiseReport
+export default BranchBillingReport

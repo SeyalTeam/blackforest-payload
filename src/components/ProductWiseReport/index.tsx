@@ -98,8 +98,8 @@ const ProductWiseReport: React.FC = () => {
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `product_report_${startDate?.toISOString().split('T')[0]}_to_${
-      endDate?.toISOString().split('T')[0]
+    a.download = `product_report_${startDate ? toLocalDateStr(startDate) : ''}_to_${
+      endDate ? toLocalDateStr(endDate) : ''
     }.csv`
     a.click()
     setShowExportMenu(false)
@@ -202,9 +202,17 @@ const ProductWiseReport: React.FC = () => {
     fetchMetadata()
   }, [])
 
+  /* Helper to format date as YYYY-MM-DD using local time to avoid timezone shifts */
+  const toLocalDateStr = (d: Date) => {
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0') // Month is 0-indexed
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
   const fetchReport = async (
-    start: string,
-    end: string,
+    start: Date,
+    end: Date,
     branchId: string,
     categoryId: string,
     departmentId: string,
@@ -212,8 +220,10 @@ const ProductWiseReport: React.FC = () => {
     setLoading(true)
     setError('')
     try {
+      const startStr = toLocalDateStr(start)
+      const endStr = toLocalDateStr(end)
       const res = await fetch(
-        `/api/reports/product-wise?startDate=${start}&endDate=${end}&branch=${branchId}&category=${categoryId}&department=${departmentId}`,
+        `/api/reports/product-wise?startDate=${startStr}&endDate=${endStr}&branch=${branchId}&category=${categoryId}&department=${departmentId}`,
       )
       if (!res.ok) throw new Error('Failed to fetch report')
       const json: ReportData = await res.json()
@@ -244,13 +254,7 @@ const ProductWiseReport: React.FC = () => {
   // Sync dateRange changes to backend fetch
   useEffect(() => {
     if (startDate && endDate) {
-      fetchReport(
-        startDate.toISOString().split('T')[0],
-        endDate.toISOString().split('T')[0],
-        selectedBranch,
-        selectedCategory,
-        selectedDepartment,
-      )
+      fetchReport(startDate, endDate, selectedBranch, selectedCategory, selectedDepartment)
     }
   }, [startDate, endDate, selectedBranch, selectedCategory, selectedDepartment])
 

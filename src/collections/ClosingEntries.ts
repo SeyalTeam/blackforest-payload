@@ -1,4 +1,4 @@
-import { CollectionConfig, Where } from 'payload'
+import { CollectionConfig, Where, APIError } from 'payload'
 
 const ClosingEntries: CollectionConfig = {
   slug: 'closing-entries',
@@ -38,6 +38,15 @@ const ClosingEntries: CollectionConfig = {
 
     // Sales
     { name: 'systemSales', type: 'number', required: true, min: 0 },
+    {
+      name: 'totalBills',
+      type: 'number',
+      min: 0,
+      defaultValue: 0,
+      admin: {
+        description: 'Auto-calculated from Billings (can be overridden)',
+      },
+    },
     { name: 'manualSales', type: 'number', required: true, min: 0 },
     { name: 'onlineSales', type: 'number', required: true, min: 0 },
 
@@ -145,6 +154,26 @@ const ClosingEntries: CollectionConfig = {
             999,
           ),
         ).toISOString()
+
+        // ------------------------------------------
+        // 1.5️⃣ VALIDATE MAX 3 ENTRIES PER DAY
+        // ------------------------------------------
+        if (operation === 'create') {
+          const { totalDocs: existingCount } = await req.payload.count({
+            collection: 'closing-entries',
+            where: {
+              and: [
+                { branch: { equals: data.branch } },
+                { date: { greater_than_equal: startOfDay } },
+                { date: { less_than: endOfDay } },
+              ],
+            },
+          })
+
+          if (existingCount >= 3) {
+            throw new APIError('Maximum 3 closing entries allowed per day for this branch.', 400)
+          }
+        }
 
         // ------------------------------------------
         // 2️⃣ GENERATE CLOSING NUMBER PER BRANCH
@@ -298,6 +327,26 @@ const ClosingEntries: CollectionConfig = {
         } catch (err) {
           req.payload.logger.error('Error calculating stockOrders:', err)
           data.stockOrders = 0
+        }
+
+        // ------------------------------------------
+        // 4.5️⃣ CALCULATE TOTAL BILLS FROM BILLINGS
+        // ------------------------------------------
+        try {
+          const { totalDocs: billCount } = await req.payload.count({
+            collection: 'billings',
+            where: {
+              and: [
+                { branch: { equals: data.branch } },
+                { createdAt: { greater_than: lastClosingTime } },
+                { createdAt: { less_than: endOfDay } },
+              ],
+            },
+          })
+          data.totalBills = billCount
+        } catch (err) {
+          req.payload.logger.error('Error calculating totalBills:', err)
+          data.totalBills = 0
         }
 
         // ------------------------------------------

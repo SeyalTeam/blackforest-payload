@@ -110,15 +110,17 @@ export interface Config {
   };
   globals: {
     'ip-settings': IpSetting;
-    'branch-wise-report': BranchWiseReport;
+    'branch-billing-report': BranchBillingReport;
     'category-wise-report': CategoryWiseReport;
     'product-wise-report': ProductWiseReport;
+    'closing-entry-report': ClosingEntryReport;
   };
   globalsSelect: {
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
-    'branch-wise-report': BranchWiseReportSelect<false> | BranchWiseReportSelect<true>;
+    'branch-billing-report': BranchBillingReportSelect<false> | BranchBillingReportSelect<true>;
     'category-wise-report': CategoryWiseReportSelect<false> | CategoryWiseReportSelect<true>;
     'product-wise-report': ProductWiseReportSelect<false> | ProductWiseReportSelect<true>;
+    'closing-entry-report': ClosingEntryReportSelect<false> | ClosingEntryReportSelect<true>;
   };
   locale: null;
   user: User & {
@@ -443,6 +445,10 @@ export interface ClosingEntry {
   closingNumber: string;
   date: string;
   systemSales: number;
+  /**
+   * Auto-calculated from Billings (can be overridden)
+   */
+  totalBills?: number | null;
   manualSales: number;
   onlineSales: number;
   expenses: number;
@@ -927,6 +933,7 @@ export interface ClosingEntriesSelect<T extends boolean = true> {
   closingNumber?: T;
   date?: T;
   systemSales?: T;
+  totalBills?: T;
   manualSales?: T;
   onlineSales?: T;
   expenses?: T;
@@ -1078,9 +1085,9 @@ export interface IpSetting {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "branch-wise-report".
+ * via the `definition` "branch-billing-report".
  */
-export interface BranchWiseReport {
+export interface BranchBillingReport {
   id: string;
   updatedAt?: string | null;
   createdAt?: string | null;
@@ -1099,6 +1106,15 @@ export interface CategoryWiseReport {
  * via the `definition` "product-wise-report".
  */
 export interface ProductWiseReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "closing-entry-report".
+ */
+export interface ClosingEntryReport {
   id: string;
   updatedAt?: string | null;
   createdAt?: string | null;
@@ -1127,9 +1143,9 @@ export interface IpSettingsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "branch-wise-report_select".
+ * via the `definition` "branch-billing-report_select".
  */
-export interface BranchWiseReportSelect<T extends boolean = true> {
+export interface BranchBillingReportSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
@@ -1148,6 +1164,15 @@ export interface CategoryWiseReportSelect<T extends boolean = true> {
  * via the `definition` "product-wise-report_select".
  */
 export interface ProductWiseReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "closing-entry-report_select".
+ */
+export interface ClosingEntryReportSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
