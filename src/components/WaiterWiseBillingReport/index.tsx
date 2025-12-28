@@ -565,7 +565,9 @@ const WaiterWiseBillingReport: React.FC = () => {
                         >
                           {row.employeeId || 'ID'}
                         </span>
-                        <span style={{ color: '#fff' }}>{row.waiterName?.toUpperCase()}</span>
+                        <span style={{ color: 'var(--theme-text-primary)' }}>
+                          {row.waiterName?.toUpperCase()}
+                        </span>
                       </div>
                       <div
                         style={{
