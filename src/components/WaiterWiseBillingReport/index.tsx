@@ -7,8 +7,8 @@ type ReportStats = {
   waiterId: string
   waiterName: string
   employeeId?: string
-  branchName?: string
-  branchId?: string // New field
+  branchNames?: string[] // Updated to array
+  branchIds?: string[] // Updated to array
   lastBillTime?: string
   totalBills: number
   totalAmount: number
@@ -582,18 +582,31 @@ const WaiterWiseBillingReport: React.FC = () => {
                           </span>
                         )}
                         <span style={{ textTransform: 'uppercase' }}>
-                          {row.branchName?.substring(0, 3).toUpperCase() || 'UNK'}
+                          {row.branchNames
+                            ?.map((name) => name.substring(0, 3).toUpperCase())
+                            .join(', ') || 'UNK'}
                         </span>
                       </div>
                     </div>
                   </td>
                   {(() => {
                     const waiterAvg = row.totalBills > 0 ? row.totalAmount / row.totalBills : 0
-                    const benchmark = data.branchBenchmarks?.find((b) => b._id === row.branchId)
-                    const branchAvg =
-                      benchmark && benchmark.totalBills > 0
-                        ? benchmark.totalAmount / benchmark.totalBills
-                        : 0
+                    const branchIds = row.branchIds || []
+                    const benchmarkTotal = branchIds.reduce((acc, id) => {
+                      const b = data.branchBenchmarks?.find((x) => x._id === id)
+                      return acc + (b ? b.totalAmount : 0)
+                    }, 0)
+                    const benchmarkBills = branchIds.reduce((acc, id) => {
+                      const b = data.branchBenchmarks?.find((x) => x._id === id)
+                      return acc + (b ? b.totalBills : 0)
+                    }, 0)
+
+                    // We use total bills of branches to check data existence, but user wants Branch Total Sales vs Waiter Total Sales
+                    // So we just check if benchmarkTotal > 0
+                    const hasBenchmark = benchmarkTotal > 0
+                    // Logic simplified above
+                    // Using hasBenchmark check instead of branchAvg calculation
+                    const showBenchmark = hasBenchmark
                     return (
                       <td className="text-right">
                         <div
@@ -604,12 +617,11 @@ const WaiterWiseBillingReport: React.FC = () => {
                           }}
                         >
                           <span style={{ fontWeight: 'bold' }}>{formatValue(waiterAvg)}</span>
-                          {branchAvg > 0 && (
+                          {showBenchmark && (
                             <span
                               style={{ color: 'var(--theme-text-secondary)', fontSize: '0.85em' }}
                             >
-                              {((row.totalAmount / (benchmark?.totalAmount || 1)) * 100).toFixed(0)}
-                              %
+                              {((row.totalAmount / (benchmarkTotal || 1)) * 100).toFixed(0)}%
                             </span>
                           )}
                         </div>

@@ -174,7 +174,7 @@ export const getWaiterWiseBillingReportHandler: PayloadHandler = async (
             },
           },
           employeeId: { $first: '$employeeDetails.employeeId' }, // Fetch explicit employeeId
-          billingBranchId: { $first: '$branch' }, // Capture branch from the bill
+          billingBranchIds: { $addToSet: '$branch' }, // Capture all branches from the bills
           lastBillTime: { $max: '$createdAt' }, // Capture Last Updated Time
           totalBills: { $sum: 1 },
           totalAmount: { $sum: '$totalAmount' },
@@ -195,24 +195,24 @@ export const getWaiterWiseBillingReportHandler: PayloadHandler = async (
           },
         },
       },
-      // Lookup Branch details using the captured billingBranchId
+      // Lookup Branch details using the captured billingBranchIds
       {
         $addFields: {
-          billingBranchObjectId: { $toObjectId: '$billingBranchId' },
+          billingBranchObjectIds: {
+            $map: {
+              input: '$billingBranchIds',
+              as: 'branchId',
+              in: { $toObjectId: '$$branchId' },
+            },
+          },
         },
       },
       {
         $lookup: {
           from: 'branches',
-          localField: 'billingBranchObjectId', // Use the converted ObjectId
+          localField: 'billingBranchObjectIds',
           foreignField: '_id',
           as: 'branchDetails',
-        },
-      },
-      {
-        $unwind: {
-          path: '$branchDetails',
-          preserveNullAndEmptyArrays: true,
         },
       },
       {
@@ -221,8 +221,8 @@ export const getWaiterWiseBillingReportHandler: PayloadHandler = async (
           waiterId: '$_id',
           waiterName: { $toUpper: '$waiterName' },
           employeeId: 1, // Pass explicit ID through
-          branchName: '$branchDetails.name', // Project from the new lookup
-          branchId: '$billingBranchId', // EXPOSE BRANCH ID for matching benchmarks
+          branchNames: '$branchDetails.name', // Return array of branch names
+          branchIds: '$billingBranchIds', // Return array of branch IDs
           lastBillTime: 1,
           totalBills: 1,
           totalAmount: 1,
