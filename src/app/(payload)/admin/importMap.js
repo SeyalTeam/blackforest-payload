@@ -3,6 +3,7 @@ import { default as default_d8bafb5f412c8147720cc49221686b05 } from '../../../co
 import { default as default_7fcb386117141f28d4e8590c34e4f6e2 } from '../../../components/ProductWiseReport/index.tsx'
 import { default as default_7397014835f53864fd04e60a81829907 } from '../../../components/ClosingEntryReport/index.tsx'
 import { default as default_bf85980ee3af56c75543fe343ccb1155 } from '../../../components/WaiterWiseBillingReport/index.tsx'
+import { default as default_7c4eca9b024572db8dabeb53bf36c0e7 } from '../../../components/InventoryReport/index.tsx'
 import { VercelBlobClientUploadHandler as VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e } from '@payloadcms/storage-vercel-blob/client'
 
 export const importMap = {
@@ -11,5 +12,6 @@ export const importMap = {
   "/components/ProductWiseReport/index.tsx#default": default_7fcb386117141f28d4e8590c34e4f6e2,
   "/components/ClosingEntryReport/index.tsx#default": default_7397014835f53864fd04e60a81829907,
   "/components/WaiterWiseBillingReport/index.tsx#default": default_bf85980ee3af56c75543fe343ccb1155,
+  "/components/InventoryReport/index.tsx#default": default_7c4eca9b024572db8dabeb53bf36c0e7,
   "@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler": VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e
 }

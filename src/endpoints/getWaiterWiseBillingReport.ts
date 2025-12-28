@@ -79,6 +79,45 @@ export const getWaiterWiseBillingReportHandler: PayloadHandler = async (
       }
     }
 
+    // --- BENCHMARK DATA (Branch Totals ignoring Waiter Filter) ---
+    const benchmarkExprConditions: any[] = []
+    const benchmarkMatchBase: Record<string, any> = {
+      createdAt: {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      },
+    }
+
+    if (branchParam && branchParam !== 'all') {
+      benchmarkExprConditions.push({ $eq: [{ $toString: '$branch' }, branchParam] })
+    }
+
+    if (hourParam !== null && !isNaN(hourParam)) {
+      benchmarkExprConditions.push({
+        $eq: [{ $hour: { date: '$createdAt', timezone: '+05:30' } }, hourParam],
+      })
+    }
+
+    const benchmarkMatchQuery = { ...benchmarkMatchBase }
+    if (benchmarkExprConditions.length > 0) {
+      if (benchmarkExprConditions.length === 1) {
+        benchmarkMatchQuery.$expr = benchmarkExprConditions[0]
+      } else {
+        benchmarkMatchQuery.$expr = { $and: benchmarkExprConditions }
+      }
+    }
+
+    const branchBenchmarks = await BillingModel.aggregate([
+      { $match: benchmarkMatchQuery },
+      {
+        $group: {
+          _id: '$branch', // Group by branch ID
+          totalAmount: { $sum: '$totalAmount' },
+          totalBills: { $sum: 1 },
+        },
+      },
+    ])
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const aggregationPipeline: any[] = [
       {
@@ -183,6 +222,7 @@ export const getWaiterWiseBillingReportHandler: PayloadHandler = async (
           waiterName: { $toUpper: '$waiterName' },
           employeeId: 1, // Pass explicit ID through
           branchName: '$branchDetails.name', // Project from the new lookup
+          branchId: '$billingBranchId', // EXPOSE BRANCH ID for matching benchmarks
           lastBillTime: 1,
           totalBills: 1,
           totalAmount: 1,
@@ -279,6 +319,7 @@ export const getWaiterWiseBillingReportHandler: PayloadHandler = async (
       totals,
       activeBranches: activeBranchesResult,
       timeline, // Return min/max hour
+      branchBenchmarks, // Return benchmark data
     })
   } catch (error) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

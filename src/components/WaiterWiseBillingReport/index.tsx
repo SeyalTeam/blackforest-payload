@@ -6,8 +6,9 @@ import './index.scss'
 type ReportStats = {
   waiterId: string
   waiterName: string
-  employeeId?: string // New field
-  branchName?: string // New field
+  employeeId?: string
+  branchName?: string
+  branchId?: string // New field
   lastBillTime?: string
   totalBills: number
   totalAmount: number
@@ -29,11 +30,12 @@ type ReportData = {
   }
   activeBranches?: { id: string; name: string }[]
   timeline?: { minHour: number; maxHour: number }
+  branchBenchmarks?: { _id: string; totalAmount: number; totalBills: number }[]
 }
 
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
-import Select, { StylesConfig } from 'react-select'
+import Select from 'react-select'
 
 /* Helper to format time (e.g. 2:30 pm) */
 const formatTime = (isoString?: string) => {
@@ -539,6 +541,7 @@ const WaiterWiseBillingReport: React.FC = () => {
               <tr>
                 <th style={{ width: '50px' }}>S.NO</th>
                 <th>WAITER NAME</th>
+                <th className="text-right">AVG (BILL)</th>
                 <th className="text-right">TOTAL BILLS</th>
                 <th className="text-right">CASH</th>
                 <th className="text-right">UPI</th>
@@ -582,6 +585,35 @@ const WaiterWiseBillingReport: React.FC = () => {
                       </div>
                     </div>
                   </td>
+                  {(() => {
+                    const waiterAvg = row.totalBills > 0 ? row.totalAmount / row.totalBills : 0
+                    const benchmark = data.branchBenchmarks?.find((b) => b._id === row.branchId)
+                    const branchAvg =
+                      benchmark && benchmark.totalBills > 0
+                        ? benchmark.totalAmount / benchmark.totalBills
+                        : 0
+                    return (
+                      <td className="text-right">
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'flex-end',
+                          }}
+                        >
+                          <span style={{ fontWeight: 'bold' }}>{formatValue(waiterAvg)}</span>
+                          {branchAvg > 0 && (
+                            <span
+                              style={{ color: 'var(--theme-text-secondary)', fontSize: '0.85em' }}
+                            >
+                              {((row.totalAmount / (benchmark?.totalAmount || 1)) * 100).toFixed(0)}
+                              %
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    )
+                  })()}
                   <td className="text-right">{row.totalBills}</td>
                   <td className="text-right amount-cell">{formatValue(row.cashAmount)}</td>
                   <td className="text-right amount-cell">{formatValue(row.upiAmount)}</td>
@@ -593,6 +625,11 @@ const WaiterWiseBillingReport: React.FC = () => {
             <tfoot>
               <tr className="grand-total">
                 <td colSpan={2}>TOTAL</td>
+                <td className="text-right">
+                  {data.totals.totalBills > 0
+                    ? formatValue(data.totals.totalAmount / data.totals.totalBills)
+                    : '0.00'}
+                </td>
                 <td className="text-right">{data.totals.totalBills}</td>
                 <td className="text-right amount-cell">{formatValue(data.totals.cashAmount)}</td>
                 <td className="text-right amount-cell">{formatValue(data.totals.upiAmount)}</td>

@@ -34,6 +34,8 @@ import { getClosingEntryReportHandler } from './endpoints/getClosingEntryReport'
 import { getWaiterWiseBillingReportHandler } from './endpoints/getWaiterWiseBillingReport'
 import { ClosingEntryReportGlobal } from './globals/ClosingEntryReport'
 import { WaiterWiseBillingReportGlobal } from './globals/WaiterWiseBillingReport'
+import { InventoryReportGlobal } from './globals/InventoryReport'
+import { getInventoryReportHandler } from './endpoints/getInventoryReport'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -108,6 +110,11 @@ export default buildConfig({
       method: 'get',
       handler: getWaiterWiseBillingReportHandler,
     },
+    {
+      path: '/reports/inventory',
+      method: 'get',
+      handler: getInventoryReportHandler,
+    },
   ],
 
   globals: [
@@ -117,6 +124,7 @@ export default buildConfig({
     ProductWiseReportGlobal,
     ClosingEntryReportGlobal,
     WaiterWiseBillingReportGlobal,
+    InventoryReportGlobal,
   ],
 
   // Collections

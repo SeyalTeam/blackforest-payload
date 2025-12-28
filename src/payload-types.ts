@@ -115,6 +115,7 @@ export interface Config {
     'product-wise-report': ProductWiseReport;
     'closing-entry-report': ClosingEntryReport;
     'waiter-wise-billing-report': WaiterWiseBillingReport;
+    'inventory-report': InventoryReport;
   };
   globalsSelect: {
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
@@ -123,6 +124,7 @@ export interface Config {
     'product-wise-report': ProductWiseReportSelect<false> | ProductWiseReportSelect<true>;
     'closing-entry-report': ClosingEntryReportSelect<false> | ClosingEntryReportSelect<true>;
     'waiter-wise-billing-report': WaiterWiseBillingReportSelect<false> | WaiterWiseBillingReportSelect<true>;
+    'inventory-report': InventoryReportSelect<false> | InventoryReportSelect<true>;
   };
   locale: null;
   user: User & {
@@ -1132,6 +1134,15 @@ export interface WaiterWiseBillingReport {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "inventory-report".
+ */
+export interface InventoryReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "ip-settings_select".
  */
 export interface IpSettingsSelect<T extends boolean = true> {
@@ -1193,6 +1204,15 @@ export interface ClosingEntryReportSelect<T extends boolean = true> {
  * via the `definition` "waiter-wise-billing-report_select".
  */
 export interface WaiterWiseBillingReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "inventory-report_select".
+ */
+export interface InventoryReportSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
