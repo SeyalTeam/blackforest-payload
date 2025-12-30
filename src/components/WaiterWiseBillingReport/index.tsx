@@ -95,7 +95,7 @@ const WaiterWiseBillingReport: React.FC = () => {
       return [
         index + 1,
         `"${waiterLabel}"`,
-        `"${row.branchName?.toUpperCase() || ''}"`,
+        `"${row.branchNames?.join(', ').toUpperCase() || ''}"`,
         row.lastBillTime ? formatTime(row.lastBillTime) : '',
         row.totalBills,
         row.cashAmount.toFixed(2),
