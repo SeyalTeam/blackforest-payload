@@ -62,7 +62,7 @@ export default buildConfig({
     'http://localhost:64781', // flutter web port
     'http://127.0.0.1',
     'http://127.0.0.1:5500',
-    'https://admin.theblackforestcakes.com', // your domain
+    'https://blackforest.vseyal.com', // your domain
     'https://superadmin.theblackforestcakes.com',
   ],
 
@@ -75,7 +75,7 @@ export default buildConfig({
     'http://localhost:64781', // flutter web
     'http://127.0.0.1',
     'http://127.0.0.1:5500',
-    'https://admin.theblackforestcakes.com',
+    'https://blackforest.vseyal.com',
     'https://superadmin.theblackforestcakes.com',
   ],
 
