@@ -13,8 +13,20 @@ export function middleware(request: NextRequest) {
     const apiKey = request.headers.get('x-api-key')
     const validApiKey = process.env.BRANCH_APP_API_KEY
 
-    // Validate
+    // 1. Allow if API Key is Valid
     if (apiKey && apiKey === validApiKey) {
+      return NextResponse.next()
+    }
+
+    // 2. Allow if Payload Session Cookie exists (Admin Dashboard authenticated users)
+    const payloadToken = request.cookies.get('payload-token')
+    if (payloadToken) {
+      return NextResponse.next()
+    }
+
+    // 3. Allow if Referer is from the Admin Panel (e.g., Login Page)
+    const referer = request.headers.get('referer')
+    if (referer && referer.includes('/admin')) {
       return NextResponse.next()
     }
 
