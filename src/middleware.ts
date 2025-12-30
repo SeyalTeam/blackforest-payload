@@ -11,7 +11,7 @@ export function middleware(request: NextRequest) {
 
     // Check for the x-api-key header
     const apiKey = request.headers.get('x-api-key')
-    const validApiKey = process.env.APP_API_KEY
+    const validApiKey = process.env.BRANCH_APP_API_KEY
 
     // Validate
     if (apiKey && apiKey === validApiKey) {
