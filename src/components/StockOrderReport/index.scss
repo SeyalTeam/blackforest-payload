@@ -1,0 +1,209 @@
+// Stock Order Report Styles - Dark Theme Ref
+.stock-order-report-container {
+  padding: 20px;
+  min-height: 100vh;
+  color: #ffffff;
+
+  .report-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #27272a;
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .date-filter {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+
+      .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .custom-date-input {
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        border: 1px solid #27272a;
+        border-radius: 6px;
+        background-color: #18181b;
+        color: #ffffff;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.2s;
+
+        &:hover {
+          border-color: #52525b;
+        }
+
+        .separator {
+          color: #a1a1aa;
+        }
+
+        .icon {
+          margin-left: 10px;
+          color: #a1a1aa;
+        }
+      }
+
+      .export-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background-color: #18181b;
+        border: 1px solid #27272a;
+        color: #ffffff;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.2s;
+
+        &:hover {
+          background-color: #27272a;
+        }
+      }
+    }
+  }
+
+  .filters-row {
+    margin-bottom: 20px;
+  }
+
+  .table-container {
+    overflow-x: auto;
+    background-color: #09090b;
+    border-radius: 8px;
+    max-width: 740px; // Match width of filters (5 * 140px + 4 * 10px)
+  }
+
+  .report-table {
+    width: 100%; // Expand table to full width
+    border-collapse: collapse;
+    font-size: 14px;
+    color: #e4e4e7;
+
+    th,
+    td {
+      padding: 6px 8px; // Reduced padding for compact view
+      border: 1px solid #27272a; // Grid borders
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    th {
+      background-color: #18181b; // Dark header
+      font-weight: 600;
+      color: #a1a1aa;
+      text-transform: uppercase;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    // Zebra Striping
+    tbody tr:nth-child(even) {
+      background-color: var(--theme-elevation-50);
+    }
+
+    tr:hover td {
+      background-color: #27272a;
+    }
+
+    tfoot {
+      tr {
+        background-color: #18181b;
+        font-weight: bold;
+        td {
+          border-top: 2px solid #52525b;
+          color: #ffffff;
+        }
+      }
+    }
+  }
+
+  .error {
+    color: #ef4444;
+    padding: 10px;
+    background-color: rgba(239, 68, 68, 0.1);
+    border-radius: 4px;
+    margin-bottom: 20px;
+  }
+}
+
+// Global Calendar Override
+:global(.react-datepicker-popper) {
+  z-index: 9999 !important;
+}
+
+.custom-calendar {
+  font-family: inherit;
+  border: 1px solid #27272a !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+  background-color: #18181b !important;
+  color: #ffffff !important;
+  padding: 1rem;
+  border-radius: 6px !important;
+  display: inline-block;
+
+  .react-datepicker__header {
+    background-color: transparent !important;
+    border-bottom: none !important;
+  }
+
+  .react-datepicker__current-month,
+  .react-datepicker-time__header,
+  .react-datepicker-year-header,
+  .react-datepicker__day-name,
+  .react-datepicker__day {
+    color: #ffffff !important;
+  }
+
+  .react-datepicker__day:hover {
+    background-color: #27272a !important;
+  }
+
+  .react-datepicker__day--selected,
+  .react-datepicker__day--in-range {
+    background-color: #3b82f6 !important;
+    color: white !important;
+  }
+}
+
+// Filter Select Style
+.filter-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 8px 36px 8px 12px;
+  border: 1px solid #27272a;
+  border-radius: 6px;
+  background-color: #18181b;
+  color: #ffffff;
+  font-size: 14px;
+  min-width: 160px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+
+  &:focus {
+    outline: none;
+    border-color: #52525b;
+  }
+}
+
+.details-table {
+  margin-top: 15px;
+}
