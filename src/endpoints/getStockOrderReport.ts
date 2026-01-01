@@ -5,6 +5,7 @@ import timezone from 'dayjs/plugin/timezone'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
+dayjs.tz.setDefault('Asia/Kolkata')
 
 export const getStockOrderReportHandler: PayloadHandler = async (req): Promise<Response> => {
   if (!req.user) {
@@ -27,8 +28,12 @@ export const getStockOrderReportHandler: PayloadHandler = async (req): Promise<R
   const orderTypeFilter = url.searchParams.get('orderType') // 'stock' | 'live'
   const invoiceFilter = url.searchParams.get('invoice')
 
-  const start = startDateStr ? dayjs(startDateStr).startOf('day') : dayjs().startOf('day')
-  const end = endDateStr ? dayjs(endDateStr).endOf('day') : dayjs().endOf('day')
+  const start = startDateStr
+    ? dayjs.tz(startDateStr, 'Asia/Kolkata').startOf('day')
+    : dayjs().tz('Asia/Kolkata').startOf('day')
+  const end = endDateStr
+    ? dayjs.tz(endDateStr, 'Asia/Kolkata').endOf('day')
+    : dayjs().tz('Asia/Kolkata').endOf('day')
 
   try {
     // 1. Fetch Stock Orders
