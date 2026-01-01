@@ -31,6 +31,7 @@ type DetailItem = {
   branchDisplay?: string
   categoryName?: string
   departmentName?: string
+  invoiceNumber?: string
 }
 
 type ReportData = {
@@ -178,7 +179,7 @@ const StockOrderReport: React.FC = () => {
         ...(filters.product && { product: filters.product }),
         ...(filters.status && { status: filters.status }),
         ...(filters.orderType && { orderType: filters.orderType }),
-        ...(filters.invoice && { invoice: filters.invoice }),
+        ...(filters.orderType && { orderType: filters.orderType }),
       })
 
       const res = await fetch(`/api/reports/stock-order?${query.toString()}`)
@@ -202,7 +203,7 @@ const StockOrderReport: React.FC = () => {
         product: selectedProd,
         status: selectedStatus,
         orderType: selectedOrderType,
-        invoice: selectedInvoice,
+        invoice: undefined, // Client-side filtering only
       })
     }
   }, [
@@ -216,7 +217,6 @@ const StockOrderReport: React.FC = () => {
     selectedProd,
     selectedStatus,
     selectedOrderType,
-    selectedInvoice,
   ])
 
   const CustomInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
@@ -611,7 +611,10 @@ const StockOrderReport: React.FC = () => {
                       }
                     : null
                 }
-                onChange={(option: any) => setSelectedBranch(option?.value || '')}
+                onChange={(option: any) => {
+                  setLoading(true)
+                  setSelectedBranch(option?.value || '')
+                }}
                 styles={customStyles}
                 placeholder="All Branches"
                 isClearable={true}
@@ -728,6 +731,15 @@ const StockOrderReport: React.FC = () => {
 
                         // If we have a branch code, display it and chips.
                         if (branchCode) {
+                          if (loading) {
+                            return (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ color: '#a1a1aa', fontStyle: 'italic' }}>
+                                  Loading invoices...
+                                </span>
+                              </div>
+                            )
+                          }
                           return (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <span style={{ color: '#a1a1aa', fontWeight: '800' }}>
@@ -825,246 +837,387 @@ const StockOrderReport: React.FC = () => {
                   </tr>
                 )}
 
-                {Object.entries(groupedDetails).map(([dept, categories]) => (
-                  <React.Fragment key={dept}>
-                    {/* Department Header Row */}
-                    <tr style={{ backgroundColor: '#18181b' }}>
-                      <td
-                        colSpan={8}
-                        style={{
-                          padding: '10px 12px',
-                          fontWeight: '800',
-                          color: '#fbbf24',
-                          fontSize: '14px',
-                          textAlign: 'left',
-                          letterSpacing: '1px',
-                          borderTop: '1px solid #3f3f46',
-                          borderBottom: '1px solid #3f3f46',
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        {dept}
-                      </td>
-                    </tr>
+                {Object.entries(groupedDetails).map(([dept, categories]) => {
+                  // Calculate Department Totals
+                  const deptItems = Object.values(categories).flat()
+                  const filteredDeptItems = selectedInvoice
+                    ? deptItems.filter((i) => i.invoiceNumber === selectedInvoice)
+                    : deptItems
 
-                    {Object.entries(categories).map(([category, items]) => (
-                      <React.Fragment key={`${dept}-${category}`}>
-                        {/* Category Header Row */}
-                        <tr style={{ backgroundColor: '#27272a' }}>
-                          <td
-                            colSpan={8}
-                            style={{
-                              padding: '8px 12px',
-                              fontWeight: 'bold',
-                              color: '#38bdf8',
-                              fontSize: '14px',
-                              textAlign: 'left',
-                              letterSpacing: '0.5px',
-                              borderTop: '1px solid #3f3f46',
-                              borderBottom: '1px solid #3f3f46',
-                            }}
-                          >
-                            {category}
-                          </td>
-                        </tr>
+                  const deptOrdTotal = filteredDeptItems.reduce(
+                    (sum, item) => sum + item.ordQty * item.price,
+                    0,
+                  )
+                  const deptSntTotal = filteredDeptItems.reduce(
+                    (sum, item) => sum + item.sntQty * item.price,
+                    0,
+                  )
+                  const deptConTotal = filteredDeptItems.reduce(
+                    (sum, item) => sum + item.conQty * item.price,
+                    0,
+                  )
+                  const deptPicTotal = filteredDeptItems.reduce(
+                    (sum, item) => sum + item.picQty * item.price,
+                    0,
+                  )
+                  const deptRecTotal = filteredDeptItems.reduce(
+                    (sum, item) => sum + item.recQty * item.price,
+                    0,
+                  )
+                  const deptDifTotal = filteredDeptItems.reduce(
+                    (sum, item) => sum + item.difQty * item.price,
+                    0,
+                  )
 
-                        {/* Column Sub-Header Row */}
-                        <tr
+                  // Don't render dept if empty after filter? (Optional, but user might want to see empty headers)
+                  // If "All Branches" and filter hides everything, maybe hide dept.
+                  if (filteredDeptItems.length === 0) return null
+
+                  return (
+                    <React.Fragment key={dept}>
+                      {/* Department Header Row */}
+                      <tr style={{ backgroundColor: '#18181b' }}>
+                        <td
+                          colSpan={8}
                           style={{
-                            backgroundColor: '#202022',
+                            padding: '10px 12px',
+                            fontWeight: '800',
+                            color: '#fbbf24',
+                            fontSize: '14px',
+                            textAlign: 'left',
+                            letterSpacing: '1px',
+                            borderTop: '1px solid #3f3f46',
                             borderBottom: '1px solid #3f3f46',
+                            textTransform: 'uppercase',
                           }}
                         >
-                          <th
+                          <div
                             style={{
-                              width: '180px',
-                              textAlign: 'left',
-                              padding: '8px 12px',
-                              fontSize: '11px',
-                              color: '#a1a1aa',
-                              fontWeight: '600',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
                             }}
                           >
-                            PRODUCT NAME
-                          </th>
-                          <th
-                            style={{
-                              width: '75px',
-                              textAlign: 'right',
-                              padding: '8px',
-                              fontSize: '11px',
-                              color: '#a1a1aa',
-                              fontWeight: '600',
-                            }}
-                          >
-                            PRC
-                          </th>
-                          <th
-                            style={{
-                              width: '75px',
-                              textAlign: 'center',
-                              padding: '8px',
-                              fontSize: '11px',
-                              color: '#a1a1aa',
-                              fontWeight: '600',
-                            }}
-                          >
-                            ORD
-                          </th>
-                          <th
-                            style={{
-                              width: '75px',
-                              textAlign: 'center',
-                              padding: '8px',
-                              fontSize: '11px',
-                              color: '#a1a1aa',
-                              fontWeight: '600',
-                            }}
-                          >
-                            SNT
-                          </th>
-                          <th
-                            style={{
-                              width: '75px',
-                              textAlign: 'center',
-                              padding: '8px',
-                              fontSize: '11px',
-                              color: '#a1a1aa',
-                              fontWeight: '600',
-                            }}
-                          >
-                            CON
-                          </th>
-                          <th
-                            style={{
-                              width: '75px',
-                              textAlign: 'center',
-                              padding: '8px',
-                              fontSize: '11px',
-                              color: '#a1a1aa',
-                              fontWeight: '600',
-                            }}
-                          >
-                            PIC
-                          </th>
-                          <th
-                            style={{
-                              width: '75px',
-                              textAlign: 'center',
-                              padding: '8px',
-                              fontSize: '11px',
-                              color: '#a1a1aa',
-                              fontWeight: '600',
-                            }}
-                          >
-                            REC
-                          </th>
-                          <th
-                            style={{
-                              width: '75px',
-                              textAlign: 'center',
-                              padding: '8px',
-                              fontSize: '11px',
-                              color: '#a1a1aa',
-                              fontWeight: '600',
-                            }}
-                          >
-                            DIF
-                          </th>
-                        </tr>
-
-                        {/* Items for this Category */}
-                        {items.map((item, idx) => (
-                          <tr key={`${dept}-${category}-${idx}`}>
-                            <td
-                              style={{ maxWidth: '180px', whiteSpace: 'normal', fontSize: '13px' }}
-                            >
-                              <div style={{ fontWeight: 500 }}>{item.productName}</div>
-                              <div
-                                style={{ fontSize: '0.8em', color: 'var(--theme-elevation-400)' }}
-                              >
-                                {(item.branchDisplay || item.branchName)
-                                  .split(',')
-                                  .filter(Boolean)
-                                  .map((branch, i) => (
-                                    <span
-                                      key={i}
-                                      style={{
-                                        display: 'inline-block',
-                                        backgroundColor: '#27272a',
-                                        padding: '1px 3px',
-                                        borderRadius: '3px',
-                                        marginRight: '2px',
-                                        fontSize: '9px',
-                                        fontWeight: '600',
-                                        color: '#a1a1aa',
-                                        lineHeight: '1',
-                                      }}
-                                    >
-                                      {branch.trim()}
-                                    </span>
-                                  ))}
-                              </div>
-                            </td>
-                            <td style={{ textAlign: 'right', fontSize: '13px' }}>{item.price}</td>
-                            <td style={{ textAlign: 'center', fontSize: '13px' }}>
-                              <div>{item.ordQty}</div>
-                              <div
-                                style={{ fontSize: '0.75em', color: 'var(--theme-elevation-450)' }}
-                              >
-                                {formatTime(item.ordTime)}
-                              </div>
-                            </td>
-
-                            <td style={{ textAlign: 'center', fontSize: '13px' }}>
-                              <div>{item.sntQty}</div>
-                              <div
-                                style={{ fontSize: '0.75em', color: 'var(--theme-elevation-450)' }}
-                              >
-                                {formatTime(item.sntTime)}
-                              </div>
-                            </td>
-                            <td style={{ textAlign: 'center', fontSize: '13px' }}>
-                              <div>{item.conQty}</div>
-                              <div
-                                style={{ fontSize: '0.75em', color: 'var(--theme-elevation-450)' }}
-                              >
-                                {formatTime(item.conTime)}
-                              </div>
-                            </td>
-                            <td style={{ textAlign: 'center', fontSize: '13px' }}>
-                              <div>{item.picQty}</div>
-                              <div
-                                style={{ fontSize: '0.75em', color: 'var(--theme-elevation-450)' }}
-                              >
-                                {formatTime(item.picTime)}
-                              </div>
-                            </td>
-                            <td style={{ textAlign: 'center', fontSize: '13px' }}>
-                              <div>{item.recQty}</div>
-                              <div
-                                style={{ fontSize: '0.75em', color: 'var(--theme-elevation-450)' }}
-                              >
-                                {formatTime(item.recTime)}
-                              </div>
-                            </td>
-
-                            <td
+                            <span>{dept}</span>
+                            <span
                               style={{
-                                textAlign: 'center',
-                                color: item.difQty !== 0 ? '#ef4444' : 'inherit',
-                                fontWeight: item.difQty !== 0 ? '600' : 'normal',
-                                fontSize: '13px',
+                                fontSize: '12px',
+                                color: '#fbbf24',
+                                fontWeight: '600',
+                                letterSpacing: '0.5px',
                               }}
                             >
-                              {item.difQty}
-                            </td>
-                          </tr>
-                        ))}
-                      </React.Fragment>
-                    ))}
-                  </React.Fragment>
-                ))}
+                              ORD: {deptOrdTotal.toLocaleString('en-IN')} | SNT:{' '}
+                              {deptSntTotal.toLocaleString('en-IN')} | CON:{' '}
+                              {deptConTotal.toLocaleString('en-IN')} | PIC:{' '}
+                              {deptPicTotal.toLocaleString('en-IN')} | REC:{' '}
+                              {deptRecTotal.toLocaleString('en-IN')} | DIF:{' '}
+                              {deptDifTotal.toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {Object.entries(categories).map(([category, items]) => {
+                        // --- Client-side Invoice Filtering ---
+                        const filteredItems = selectedInvoice
+                          ? items.filter((item) => item.invoiceNumber === selectedInvoice)
+                          : items
+
+                        if (filteredItems.length === 0) return null
+
+                        const catOrdTotal = filteredItems.reduce(
+                          (sum, item) => sum + item.ordQty * item.price,
+                          0,
+                        )
+                        const catSntTotal = filteredItems.reduce(
+                          (sum, item) => sum + item.sntQty * item.price,
+                          0,
+                        )
+                        const catConTotal = filteredItems.reduce(
+                          (sum, item) => sum + item.conQty * item.price,
+                          0,
+                        )
+                        const catPicTotal = filteredItems.reduce(
+                          (sum, item) => sum + item.picQty * item.price,
+                          0,
+                        )
+                        const catRecTotal = filteredItems.reduce(
+                          (sum, item) => sum + item.recQty * item.price,
+                          0,
+                        )
+                        const catDifTotal = filteredItems.reduce(
+                          (sum, item) => sum + item.difQty * item.price,
+                          0,
+                        )
+
+                        return (
+                          <React.Fragment key={category}>
+                            {/* Category Header Row */}
+                            <tr style={{ backgroundColor: '#27272a' }}>
+                              <td
+                                colSpan={8}
+                                style={{
+                                  padding: '8px 12px',
+                                  fontWeight: 'bold',
+                                  color: '#38bdf8',
+                                  fontSize: '14px',
+                                  textAlign: 'left',
+                                  letterSpacing: '0.5px',
+                                  borderTop: '1px solid #3f3f46',
+                                  borderBottom: '1px solid #3f3f46',
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                  }}
+                                >
+                                  <span>{category}</span>
+                                  <span
+                                    style={{
+                                      fontSize: '11px',
+                                      color: '#38bdf8',
+                                      fontWeight: '500',
+                                    }}
+                                  >
+                                    ORD: {catOrdTotal.toLocaleString('en-IN')} | SNT:{' '}
+                                    {catSntTotal.toLocaleString('en-IN')} | CON:{' '}
+                                    {catConTotal.toLocaleString('en-IN')} | PIC:{' '}
+                                    {catPicTotal.toLocaleString('en-IN')} | REC:{' '}
+                                    {catRecTotal.toLocaleString('en-IN')} | DIF:{' '}
+                                    {catDifTotal.toLocaleString('en-IN')}
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+
+                            {/* Column Sub-headers */}
+                            <tr
+                              style={{
+                                backgroundColor: '#202022',
+                                borderBottom: '1px solid #3f3f46',
+                              }}
+                            >
+                              <th
+                                style={{
+                                  width: '180px',
+                                  textAlign: 'left',
+                                  padding: '8px 12px',
+                                  fontSize: '11px',
+                                  color: '#a1a1aa',
+                                  fontWeight: '600',
+                                }}
+                              >
+                                PRODUCT NAME
+                              </th>
+                              <th
+                                style={{
+                                  width: '75px',
+                                  textAlign: 'right',
+                                  padding: '8px',
+                                  fontSize: '11px',
+                                  color: '#a1a1aa',
+                                  fontWeight: '600',
+                                }}
+                              >
+                                PRC
+                              </th>
+                              <th
+                                style={{
+                                  width: '75px',
+                                  textAlign: 'center',
+                                  padding: '8px',
+                                  fontSize: '11px',
+                                  color: '#a1a1aa',
+                                  fontWeight: '600',
+                                }}
+                              >
+                                ORD
+                              </th>
+                              <th
+                                style={{
+                                  width: '75px',
+                                  textAlign: 'center',
+                                  padding: '8px',
+                                  fontSize: '11px',
+                                  color: '#a1a1aa',
+                                  fontWeight: '600',
+                                }}
+                              >
+                                SNT
+                              </th>
+                              <th
+                                style={{
+                                  width: '75px',
+                                  textAlign: 'center',
+                                  padding: '8px',
+                                  fontSize: '11px',
+                                  color: '#a1a1aa',
+                                  fontWeight: '600',
+                                }}
+                              >
+                                CON
+                              </th>
+                              <th
+                                style={{
+                                  width: '75px',
+                                  textAlign: 'center',
+                                  padding: '8px',
+                                  fontSize: '11px',
+                                  color: '#a1a1aa',
+                                  fontWeight: '600',
+                                }}
+                              >
+                                PIC
+                              </th>
+                              <th
+                                style={{
+                                  width: '75px',
+                                  textAlign: 'center',
+                                  padding: '8px',
+                                  fontSize: '11px',
+                                  color: '#a1a1aa',
+                                  fontWeight: '600',
+                                }}
+                              >
+                                REC
+                              </th>
+                              <th
+                                style={{
+                                  width: '75px',
+                                  textAlign: 'center',
+                                  padding: '8px',
+                                  fontSize: '11px',
+                                  color: '#a1a1aa',
+                                  fontWeight: '600',
+                                }}
+                              >
+                                DIF
+                              </th>
+                            </tr>
+
+                            {/* Items for this Category */}
+                            {/* Items for this Category */}
+                            {filteredItems.map((item, idx) => (
+                              <tr key={`${dept}-${category}-${idx}`}>
+                                <td
+                                  style={{
+                                    maxWidth: '180px',
+                                    whiteSpace: 'normal',
+                                    fontSize: '13px',
+                                  }}
+                                >
+                                  <div style={{ fontWeight: 500 }}>{item.productName}</div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.8em',
+                                      color: 'var(--theme-elevation-400)',
+                                    }}
+                                  >
+                                    {(item.branchDisplay || item.branchName)
+                                      .split(',')
+                                      .filter(Boolean)
+                                      .map((branch, i) => (
+                                        <span
+                                          key={i}
+                                          style={{
+                                            display: 'inline-block',
+                                            backgroundColor: '#27272a',
+                                            padding: '1px 3px',
+                                            borderRadius: '3px',
+                                            marginRight: '2px',
+                                            fontSize: '9px',
+                                            fontWeight: '600',
+                                            color: '#a1a1aa',
+                                            lineHeight: '1',
+                                          }}
+                                        >
+                                          {branch.trim()}
+                                        </span>
+                                      ))}
+                                  </div>
+                                </td>
+                                <td style={{ textAlign: 'right', fontSize: '13px' }}>
+                                  {item.price}
+                                </td>
+                                <td style={{ textAlign: 'center', fontSize: '13px' }}>
+                                  <div>{item.ordQty}</div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.75em',
+                                      color: 'var(--theme-elevation-450)',
+                                    }}
+                                  >
+                                    {formatTime(item.ordTime)}
+                                  </div>
+                                </td>
+
+                                <td style={{ textAlign: 'center', fontSize: '13px' }}>
+                                  <div>{item.sntQty}</div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.75em',
+                                      color: 'var(--theme-elevation-450)',
+                                    }}
+                                  >
+                                    {formatTime(item.sntTime)}
+                                  </div>
+                                </td>
+                                <td style={{ textAlign: 'center', fontSize: '13px' }}>
+                                  <div>{item.conQty}</div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.75em',
+                                      color: 'var(--theme-elevation-450)',
+                                    }}
+                                  >
+                                    {formatTime(item.conTime)}
+                                  </div>
+                                </td>
+                                <td style={{ textAlign: 'center', fontSize: '13px' }}>
+                                  <div>{item.picQty}</div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.75em',
+                                      color: 'var(--theme-elevation-450)',
+                                    }}
+                                  >
+                                    {formatTime(item.picTime)}
+                                  </div>
+                                </td>
+                                <td style={{ textAlign: 'center', fontSize: '13px' }}>
+                                  <div>{item.recQty}</div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.75em',
+                                      color: 'var(--theme-elevation-450)',
+                                    }}
+                                  >
+                                    {formatTime(item.recTime)}
+                                  </div>
+                                </td>
+
+                                <td
+                                  style={{
+                                    textAlign: 'center',
+                                    color: item.difQty !== 0 ? '#ef4444' : 'inherit',
+                                    fontWeight: item.difQty !== 0 ? '600' : 'normal',
+                                    fontSize: '13px',
+                                  }}
+                                >
+                                  {item.difQty}
+                                </td>
+                              </tr>
+                            ))}
+                          </React.Fragment>
+                        )
+                      })}
+                    </React.Fragment>
+                  )
+                })}
                 {data.details.length === 0 && (
                   <tr>
                     <td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>

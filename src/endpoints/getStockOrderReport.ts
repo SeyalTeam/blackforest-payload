@@ -31,16 +31,49 @@ export const getStockOrderReportHandler: PayloadHandler = async (req): Promise<R
   const end = endDateStr ? dayjs(endDateStr).endOf('day') : dayjs().endOf('day')
 
   try {
-    // 1. Fetch Products for Lookup (filtering context)
-    // We need this to filter items by Department/Category/Product and get Price
+    // 1. Fetch Stock Orders
+    const where: any = {
+      deliveryDate: {
+        greater_than_equal: start.toISOString(),
+        less_than_equal: end.toISOString(),
+      },
+    }
+
+    if (branchFilter) {
+      where.branch = { equals: branchFilter }
+    }
+
+    const { docs: orders } = await req.payload.find({
+      collection: 'stock-orders',
+      where,
+      depth: 1,
+      limit: 5000,
+      pagination: false,
+      sort: '-updatedAt',
+    })
+
+    // 2. Fetch Products for Lookup (Optimized)
+    const productIds = new Set<string>()
+    orders.forEach((o) => {
+      if (o.items && Array.isArray(o.items)) {
+        o.items.forEach((i: any) => {
+          const pid = typeof i.product === 'object' ? i.product?.id : i.product
+          if (pid) productIds.add(pid)
+        })
+      }
+    })
+
     const productsQuery: any = {
       limit: 5000,
       pagination: false,
       depth: 2, // Need Category -> Department
       collection: 'products',
+      where: {
+        id: { in: Array.from(productIds) },
+      },
     }
 
-    // Optimization: If product filter is set, only fetch that product
+    // Optimization: If product filter is set, override or intersect
     if (productFilter) {
       productsQuery.where = { id: { equals: productFilter } }
     }
@@ -60,27 +93,6 @@ export const getStockOrderReportHandler: PayloadHandler = async (req): Promise<R
         departmentId: dept?.id,
         departmentName: dept?.name || 'No Department',
       })
-    })
-
-    // 2. Fetch Stock Orders
-    const where: any = {
-      deliveryDate: {
-        greater_than_equal: start.toISOString(),
-        less_than_equal: end.toISOString(),
-      },
-    }
-
-    if (branchFilter) {
-      where.branch = { equals: branchFilter }
-    }
-
-    const { docs: orders } = await req.payload.find({
-      collection: 'stock-orders',
-      where,
-      depth: 1,
-      limit: 5000,
-      pagination: false,
-      sort: '-updatedAt',
     })
 
     // 3. Aggregate Data (Matrix) and Details
@@ -116,8 +128,9 @@ export const getStockOrderReportHandler: PayloadHandler = async (req): Promise<R
         invoiceNumbers.set(order.invoiceNumber, { isLive, createdAt: order.createdAt })
       }
 
-      // Invoice Filtering (Drill-down)
-      if (invoiceFilter && order.invoiceNumber !== invoiceFilter) return
+      if (order.invoiceNumber) {
+        invoiceNumbers.set(order.invoiceNumber, { isLive, createdAt: order.createdAt })
+      }
 
       if (branchId) {
         if (!branchMap.has(branchId)) {
