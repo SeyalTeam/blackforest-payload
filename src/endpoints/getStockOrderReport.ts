@@ -173,10 +173,12 @@ export const getStockOrderReportHandler: PayloadHandler = async (req): Promise<R
           }
 
           const branchCode = branchName ? branchName.substring(0, 3).toUpperCase() : ''
+          const invoiceKey = order.invoiceNumber || 'NO_INVOICE'
+          const uniqueKey = `${prodId}__${invoiceKey}`
 
-          if (detailsMap.has(prodId)) {
+          if (detailsMap.has(uniqueKey)) {
             // Aggregate
-            const existing = detailsMap.get(prodId)
+            const existing = detailsMap.get(uniqueKey)
             existing.ordQty += item.requiredQty || 0
             existing.ordTime = getMaxDate(existing.ordTime, item.requiredDate)
 
@@ -205,11 +207,12 @@ export const getStockOrderReportHandler: PayloadHandler = async (req): Promise<R
               initialBranchStats.set(branchCode, item.requiredQty || 0)
             }
 
-            detailsMap.set(prodId, {
+            detailsMap.set(uniqueKey, {
               productName: productData.name,
               categoryName: productData.categoryName,
               departmentName: productData.departmentName,
               price: productData.price,
+              invoiceNumber: order.invoiceNumber, // Add invoice number
 
               // Ordered (Required)
               ordQty: item.requiredQty || 0,

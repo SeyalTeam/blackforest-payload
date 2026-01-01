@@ -344,9 +344,70 @@ const StockOrderReport: React.FC = () => {
     : products
 
   // Group Details by Department -> Category
+  // Group Details by Department -> Category
   const groupedDetails = React.useMemo(() => {
     if (!data?.details) return {}
-    return data.details.reduce(
+
+    let processedItems: DetailItem[] = []
+
+    if (selectedInvoice) {
+      // If invoice selected, show only items for that invoice
+      processedItems = data.details.filter((item) => item.invoiceNumber === selectedInvoice)
+    } else {
+      // If NO invoice selected, Aggregate duplicates (same product in multiple invoices)
+      const aggregationMap = new Map<string, DetailItem>()
+
+      const mergeBranchDisplays = (d1: string | undefined, d2: string | undefined) => {
+        const map = new Map<string, number>()
+        const parse = (str: string | undefined) => {
+          if (!str) return
+          str.split(',').forEach((part) => {
+            const [code, qty] = part.split('-').map((s) => s.trim())
+            if (code && qty) map.set(code, (map.get(code) || 0) + parseInt(qty, 10))
+          })
+        }
+        parse(d1)
+        parse(d2)
+        return Array.from(map.entries())
+          .map(([code, qty]) => `${code} - ${qty}`)
+          .join(',')
+      }
+
+      data.details.forEach((item) => {
+        const key = `${item.departmentName}||${item.categoryName}||${item.productName}`
+
+        if (!aggregationMap.has(key)) {
+          aggregationMap.set(key, { ...item })
+        } else {
+          const existing = aggregationMap.get(key)!
+          // Sum Quantities
+          existing.ordQty += item.ordQty
+          existing.sntQty += item.sntQty
+          existing.conQty += item.conQty
+          existing.picQty += item.picQty
+          existing.recQty += item.recQty
+          existing.difQty += item.difQty
+
+          // Max Times
+          const getMaxTime = (t1?: string, t2?: string) => {
+            if (!t1) return t2
+            if (!t2) return t1
+            return t1 > t2 ? t1 : t2
+          }
+          existing.ordTime = getMaxTime(existing.ordTime, item.ordTime)
+          existing.sntTime = getMaxTime(existing.sntTime, item.sntTime)
+          existing.conTime = getMaxTime(existing.conTime, item.conTime)
+          existing.picTime = getMaxTime(existing.picTime, item.picTime)
+          existing.recTime = getMaxTime(existing.recTime, item.recTime)
+
+          // Merge Branch Display
+          existing.branchDisplay = mergeBranchDisplays(existing.branchDisplay, item.branchDisplay)
+        }
+      })
+      processedItems = Array.from(aggregationMap.values())
+    }
+
+    return processedItems.reduce(
       (acc, item) => {
         const dept = item.departmentName || 'No Department'
         const cat = item.categoryName || 'Uncategorized'
@@ -359,7 +420,7 @@ const StockOrderReport: React.FC = () => {
       },
       {} as Record<string, Record<string, DetailItem[]>>,
     )
-  }, [data?.details])
+  }, [data?.details, selectedInvoice])
 
   return (
     <div className="stock-order-report-container">
@@ -840,9 +901,8 @@ const StockOrderReport: React.FC = () => {
                 {Object.entries(groupedDetails).map(([dept, categories]) => {
                   // Calculate Department Totals
                   const deptItems = Object.values(categories).flat()
-                  const filteredDeptItems = selectedInvoice
-                    ? deptItems.filter((i) => i.invoiceNumber === selectedInvoice)
-                    : deptItems
+                  // Items are already processed
+                  const filteredDeptItems = deptItems
 
                   const deptOrdTotal = filteredDeptItems.reduce(
                     (sum, item) => sum + item.ordQty * item.price,
@@ -919,10 +979,8 @@ const StockOrderReport: React.FC = () => {
                       </tr>
 
                       {Object.entries(categories).map(([category, items]) => {
-                        // --- Client-side Invoice Filtering ---
-                        const filteredItems = selectedInvoice
-                          ? items.filter((item) => item.invoiceNumber === selectedInvoice)
-                          : items
+                        // Items are already processed in groupedDetails
+                        const filteredItems = items
 
                         if (filteredItems.length === 0) return null
 
