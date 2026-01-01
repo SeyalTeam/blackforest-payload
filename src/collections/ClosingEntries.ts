@@ -1,4 +1,4 @@
-import { CollectionConfig, Where, APIError } from 'payload'
+import { CollectionConfig, Where } from 'payload'
 
 const ClosingEntries: CollectionConfig = {
   slug: 'closing-entries',
@@ -154,26 +154,6 @@ const ClosingEntries: CollectionConfig = {
             999,
           ),
         ).toISOString()
-
-        // ------------------------------------------
-        // 1.5️⃣ VALIDATE MAX 3 ENTRIES PER DAY
-        // ------------------------------------------
-        if (operation === 'create') {
-          const { totalDocs: existingCount } = await req.payload.count({
-            collection: 'closing-entries',
-            where: {
-              and: [
-                { branch: { equals: data.branch } },
-                { date: { greater_than_equal: startOfDay } },
-                { date: { less_than: endOfDay } },
-              ],
-            },
-          })
-
-          if (existingCount >= 3) {
-            throw new APIError('Maximum 3 closing entries allowed per day for this branch.', 400)
-          }
-        }
 
         // ------------------------------------------
         // 2️⃣ GENERATE CLOSING NUMBER PER BRANCH
