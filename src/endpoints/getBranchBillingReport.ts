@@ -1,5 +1,11 @@
 import { PayloadRequest, PayloadHandler } from 'payload'
+import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
 
+dayjs.extend(utc)
+dayjs.extend(timezone)
+dayjs.tz.setDefault('Asia/Kolkata')
 export const getBranchBillingReportHandler: PayloadHandler = async (
   req: PayloadRequest,
 ): Promise<Response> => {
@@ -16,13 +22,22 @@ export const getBranchBillingReportHandler: PayloadHandler = async (
       : new Date().toISOString().split('T')[0]
 
   // Start of day (00:00:00) for startDate
-  // Start of day (00:00:00 UTC) for startDate
-  const [startYear, startMonth, startDay] = startDateParam.split('-').map(Number)
-  const startOfDay = new Date(Date.UTC(startYear, startMonth - 1, startDay, 0, 0, 0, 0))
+  const startYear = parseInt(startDateParam.split('-')[0])
+  const startMonth = parseInt(startDateParam.split('-')[1])
+  const startDay = parseInt(startDateParam.split('-')[2])
+  const startOfDay = dayjs
+    .tz(`${startYear}-${startMonth}-${startDay}`, 'YYYY-MM-DD', 'Asia/Kolkata')
+    .startOf('day')
+    .toDate()
 
-  // End of day (23:59:59 UTC) for endDate
-  const [endYear, endMonth, endDay] = endDateParam.split('-').map(Number)
-  const endOfDay = new Date(Date.UTC(endYear, endMonth - 1, endDay, 23, 59, 59, 999))
+  // End of day (23:59:59) for endDate
+  const endYear = parseInt(endDateParam.split('-')[0])
+  const endMonth = parseInt(endDateParam.split('-')[1])
+  const endDay = parseInt(endDateParam.split('-')[2])
+  const endOfDay = dayjs
+    .tz(`${endYear}-${endMonth}-${endDay}`, 'YYYY-MM-DD', 'Asia/Kolkata')
+    .endOf('day')
+    .toDate()
 
   try {
     const BillingModel = payload.db.collections['billings']
