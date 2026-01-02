@@ -9,7 +9,7 @@ export const Users: CollectionConfig = {
     defaultColumns: ['name', 'email', 'role'],
   },
   auth: {
-    tokenExpiration: 86400, // 24 hours in seconds
+    tokenExpiration: 604800, // 7 days in seconds
   },
   fields: [
     // Email added by default
