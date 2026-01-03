@@ -1,4 +1,5 @@
-import { CollectionConfig } from 'payload'
+import { CollectionConfig, APIError } from 'payload'
+import { getProductStock } from '../utilities/inventory'
 
 const Billings: CollectionConfig = {
   slug: 'billings',
@@ -14,7 +15,44 @@ const Billings: CollectionConfig = {
   },
   hooks: {
     beforeChange: [
-      async ({ data, req, operation }) => {
+      async ({ data, req, operation, originalDoc }) => {
+        // 🛑 Inventory Validation
+        if ((operation === 'create' || operation === 'update') && data.status !== 'cancelled') {
+          const items = data.items || []
+          const branchId = data.branch || originalDoc?.branch
+
+          if (branchId && items.length > 0) {
+            for (const item of items) {
+              const productId = typeof item.product === 'object' ? item.product.id : item.product
+              if (!productId) continue
+
+              const currentStock = await getProductStock(req.payload, productId, branchId)
+
+              // If it's an update, we need to account for the quantity already in this document
+              let existingQty = 0
+              if (operation === 'update' && originalDoc?.items) {
+                const originalItem = originalDoc.items.find((oi: any) => {
+                  const oiId = typeof oi.product === 'object' ? oi.product.id : oi.product
+                  return oiId === productId
+                })
+                if (originalItem) {
+                  existingQty = originalItem.quantity || 0
+                }
+              }
+
+              const requestedQty = item.quantity || 0
+              const additionalQtyNeeded = requestedQty - existingQty
+
+              if (additionalQtyNeeded > currentStock) {
+                throw new APIError(
+                  `Insufficient stock for ${item.name}. Current stock: ${currentStock}, Requested: ${requestedQty}${operation === 'update' ? ` (Additional: ${additionalQtyNeeded})` : ''}`,
+                  400,
+                )
+              }
+            }
+          }
+        }
+
         if (operation === 'create') {
           // 🧾 Auto-generate invoice number like CHI-YYYYMMDD-SEQ
           const date = new Date()

@@ -55,6 +55,34 @@ export const Branches: CollectionConfig = {
           'IP address of the network printer for this branch (e.g., 192.168.1.100). Used for printing bills directly over the local network.',
       },
     },
+    {
+      name: 'inventoryResetDate',
+      type: 'date',
+      admin: {
+        description: 'Inventory counts before this date will be ignored in reports.',
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'productResets',
+      type: 'array',
+      fields: [
+        {
+          name: 'product',
+          type: 'relationship',
+          relationTo: 'products',
+          required: true,
+        },
+        {
+          name: 'resetDate',
+          type: 'date',
+          required: true,
+        },
+      ],
+      admin: {
+        description: 'Granular reset dates for specific products.',
+      },
+    },
   ],
   access: {
     create: ({ req }) => req.user?.role === 'superadmin',

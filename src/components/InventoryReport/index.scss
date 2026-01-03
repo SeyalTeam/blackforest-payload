@@ -5,24 +5,134 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--theme-elevation-100);
 
     h1 {
       margin: 0;
-      font-size: 24px;
-      color: var(--theme-text-primary);
+      font-size: 1.75rem;
+      font-weight: 600;
     }
 
-    .refresh-btn {
-      padding: 8px 16px;
-      background-color: var(--theme-primary-500);
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
+    .header-right {
+      display: flex;
+      gap: 1rem;
 
-      &:hover {
-        background-color: var(--theme-primary-600);
+      .refresh-btn,
+      .export-btn,
+      .reset-stock-btn {
+        padding: 0.6rem 1.2rem;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid var(--theme-elevation-200);
+        background: var(--theme-elevation-50);
+        color: var(--theme-text-primary);
+
+        &:hover {
+          background: var(--theme-elevation-100);
+          border-color: var(--theme-elevation-300);
+        }
+      }
+
+      .export-btn {
+        background: var(--theme-success-500);
+        color: white;
+        border: none;
+
+        &:hover {
+          background: var(--theme-success-600);
+        }
+      }
+
+      .reset-stock-btn {
+        background: var(--theme-error-500);
+        color: white;
+        border: none;
+
+        &:hover {
+          background: var(--theme-error-600);
+        }
+      }
+    }
+  }
+
+  .filters-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      min-width: 200px;
+
+      label {
+        font-size: 0.9rem;
+        font-weight: 500;
+        opacity: 0.8;
+      }
+
+      .react-select-container {
+        color: var(--theme-text-primary);
+
+        .react-select__control {
+          background: var(--theme-elevation-50);
+          border-color: var(--theme-elevation-200);
+          border-radius: 8px;
+          min-height: 42px;
+
+          &:hover {
+            border-color: var(--theme-elevation-300);
+          }
+        }
+
+        .react-select__menu {
+          background: var(--theme-elevation-100);
+          z-index: 1000;
+        }
+
+        .react-select__option {
+          background: transparent;
+          color: var(--theme-text-primary);
+
+          &:hover {
+            background: var(--theme-elevation-200);
+          }
+
+          &--is-selected {
+            background: var(--theme-success-500);
+            color: white;
+          }
+        }
+
+        .react-select__single-value {
+          color: var(--theme-text-primary);
+        }
+      }
+    }
+
+    .filter-actions {
+      .reset-btn {
+        height: 42px;
+        padding: 0 1.5rem;
+        border-radius: 8px;
+        border: 1px solid var(--theme-elevation-200);
+        background: var(--theme-elevation-50);
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+
+        &:hover {
+          background: var(--theme-error-500);
+          color: white;
+          border-color: var(--theme-error-500);
+        }
       }
     }
   }
@@ -46,63 +156,87 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 14px;
+    white-space: nowrap;
 
     th,
     td {
       padding: 12px 16px;
       text-align: left;
-      border-bottom: 1px solid var(--theme-elevation-150);
+      border-bottom: 1px solid var(--theme-elevation-100);
+      border-right: 1px solid var(--theme-elevation-100);
+      color: var(--theme-text-primary);
     }
 
     th {
-      background-color: var(--theme-elevation-100);
+      background: var(--theme-elevation-50);
       font-weight: 600;
-      color: var(--theme-text-secondary);
-      white-space: nowrap;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      color: var(--theme-text-primary);
       text-transform: uppercase;
       font-size: 0.85rem;
+      box-shadow: 0 1px 0 var(--theme-elevation-100);
     }
 
     .text-right {
       text-align: right;
     }
 
-    tr.expanded {
-      background-color: var(--theme-elevation-100);
-    }
-
-    .details-row {
+    // Zebra Striping
+    tbody tr:nth-child(even) {
       background-color: var(--theme-elevation-50);
-
-      td {
-        padding: 0;
-        border-bottom: 1px solid var(--theme-elevation-150);
-      }
     }
 
-    .details-container {
-      padding: 10px 20px 20px 60px;
+    // PRODUCT NAME Column Sticky
+    th:nth-child(2),
+    td:nth-child(2) {
+      position: sticky;
+      left: 0;
+      background: inherit;
+      z-index: 10;
+      border-right: 2px solid var(--theme-elevation-200);
+      max-width: 180px; // Reduce width
+      min-width: 120px; // Prevent over-squashing
+      white-space: normal; // Enable wrapping for long names
     }
 
-    .sub-table {
-      width: 100%;
-      border: 1px solid var(--theme-elevation-200);
-      border-radius: 4px;
+    th:nth-child(2) {
+      z-index: 20;
+      background: var(--theme-elevation-50);
+    }
 
-      th {
-        background-color: var(--theme-elevation-200);
-        font-size: 0.8rem;
-        padding: 8px 12px;
-      }
+    tbody tr:nth-child(even) td:nth-child(2) {
+      background-color: var(--theme-elevation-50);
+    }
+
+    tbody tr:nth-child(odd) td:nth-child(2) {
+      background-color: var(--theme-elevation-0, #fff);
+    }
+
+    // Last column (TOTAL) width reduction
+    th:last-child,
+    td:last-child {
+      width: 80px;
+      min-width: 80px;
+      max-width: 100px;
+    }
+
+    // Grand Total Row Sticky
+    .grand-total-row {
+      background: var(--theme-elevation-100);
+      position: sticky;
+      bottom: 0;
+      z-index: 15;
+      box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
 
       td {
-        padding: 8px 12px;
-        color: var(--theme-text-secondary);
-        border-bottom: 1px solid var(--theme-elevation-150);
+        border-top: 2px solid var(--theme-elevation-200);
+        background: var(--theme-elevation-100);
       }
 
-      tr:last-child td {
-        border-bottom: none;
+      td:nth-child(2) {
+        z-index: 25;
       }
     }
   }

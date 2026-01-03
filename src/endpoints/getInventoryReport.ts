@@ -1,4 +1,5 @@
 import { PayloadHandler, PayloadRequest } from 'payload'
+import { addGranularMatch } from '../utilities/inventory'
 
 export const getInventoryReportHandler: PayloadHandler = async (
   req: PayloadRequest,
@@ -6,16 +7,27 @@ export const getInventoryReportHandler: PayloadHandler = async (
   const { payload } = req
 
   try {
-    // 1. Fetch all Products and Branches to build the skeleton
-    // We use limit: 0 to get all docs
+    const { department, category, product, branch } = req.query as Record<string, string>
+
+    // 1. Fetch all Products and Branches
+    const query: any = {}
+    if (department && department !== 'all') query.department = department
+    if (category && category !== 'all') query.category = category
+    if (product && product !== 'all') query.id = product
+
+    const branchQuery: any = {}
+    if (branch && branch !== 'all') branchQuery.id = branch
+
     const [productsResult, branchesResult] = await Promise.all([
       payload.find({
         collection: 'products',
+        where: query,
         limit: 1000,
         pagination: false,
       }),
       payload.find({
         collection: 'branches',
+        where: branchQuery,
         limit: 100,
         pagination: false,
       }),
@@ -24,19 +36,48 @@ export const getInventoryReportHandler: PayloadHandler = async (
     const products = productsResult.docs
     const branches = branchesResult.docs
 
-    // 2. Aggregate Received Qty (Stock In)
-    // We look at StockOrders. We sum 'items.receivedQty'.
-    // We match any order that has valid items.
+    const branchIds = branches.map((b) => b.id)
+
+    // 3. Aggregate Received Qty (Stock In)
     const StockOrderModel = payload.db.collections['stock-orders']
-    const stockInStats = await StockOrderModel.aggregate([
-      {
-        $unwind: '$items',
-      },
+
+    // Fetch Initial Stock
+    const initialStockPipeline: any[] = [
       {
         $match: {
-          'items.receivedQty': { $gt: 0 },
+          $and: [
+            { $expr: { $in: [{ $toString: '$branch' }, branchIds] } },
+            { notes: 'INITIAL STOCK' },
+          ],
         },
       },
+    ]
+    addGranularMatch(initialStockPipeline)
+    initialStockPipeline.push(
+      { $match: { 'items.inStock': { $gt: 0 } } },
+      {
+        $group: {
+          _id: {
+            branch: '$branch',
+            product: '$items.product',
+          },
+          totalInStock: { $sum: '$items.inStock' },
+        },
+      },
+    )
+    const initialStockStats = await StockOrderModel.aggregate(initialStockPipeline)
+
+    // Stock In
+    const stockInPipeline: any[] = [
+      {
+        $match: {
+          $expr: { $in: [{ $toString: '$branch' }, branchIds] },
+        },
+      },
+    ]
+    addGranularMatch(stockInPipeline, 'items.receivedDate')
+    stockInPipeline.push(
+      { $match: { 'items.receivedQty': { $gt: 0 } } },
       {
         $group: {
           _id: {
@@ -46,46 +87,58 @@ export const getInventoryReportHandler: PayloadHandler = async (
           totalReceived: { $sum: '$items.receivedQty' },
         },
       },
-    ])
+    )
+    const stockInStats = await StockOrderModel.aggregate(stockInPipeline)
 
-    // 3. Aggregate Sold Qty (Stock Out)
-    // We look at Billings. We sum 'items.quantity'.
-    // Filter out cancelled bills.
+    // 4. Aggregate Sold Qty (Stock Out)
     const BillingModel = payload.db.collections['billings']
-    const stockOutStats = await BillingModel.aggregate([
+    const stockOutPipeline: any[] = [
       {
         $match: {
-          status: { $ne: 'cancelled' },
+          $and: [
+            { $expr: { $in: [{ $toString: '$branch' }, branchIds] } },
+            { status: { $ne: 'cancelled' } },
+          ],
         },
       },
-      {
-        $unwind: '$items',
+    ]
+    addGranularMatch(stockOutPipeline)
+    stockOutPipeline.push({
+      $group: {
+        _id: {
+          branch: '$branch',
+          product: '$items.product',
+        },
+        totalSold: { $sum: '$items.quantity' },
       },
+    })
+    const stockOutStats = await BillingModel.aggregate(stockOutPipeline)
+
+    // 5. Aggregate Returned Qty
+    const ReturnOrderModel = payload.db.collections['return-orders']
+    const returnPipeline: any[] = [
       {
-        $group: {
-          _id: {
-            branch: '$branch',
-            product: '$items.product', // In Billings, checks relation
-          },
-          totalSold: { $sum: '$items.quantity' },
+        $match: {
+          $and: [
+            { $expr: { $in: [{ $toString: '$branch' }, branchIds] } },
+            { status: { $ne: 'cancelled' } },
+          ],
         },
       },
-    ])
+    ]
+    addGranularMatch(returnPipeline)
+    returnPipeline.push({
+      $group: {
+        _id: {
+          branch: '$branch',
+          product: '$items.product',
+        },
+        totalReturned: { $sum: '$items.quantity' },
+      },
+    })
+    const returnStats = await ReturnOrderModel.aggregate(returnPipeline)
 
-    // 4. Combine Data
-    // We want a structure:
-    // [
-    //   {
-    //     productId, productName,
-    //     inventory: {
-    //        branchId1: count,
-    //        branchId2: count
-    //     },
-    //     totalInventory: number
-    //   }
-    // ]
-
-    // Initialize map with all products
+    // 6. Combine Data
     const inventoryMap: Record<
       string,
       {
@@ -101,23 +154,33 @@ export const getInventoryReportHandler: PayloadHandler = async (
         totalInventory: 0,
         branches: {},
       }
-      // Initialize 0 for all known branches
       branches.forEach((b) => {
         inventoryMap[p.id].branches[b.id] = 0
       })
     })
 
-    // Helper to get product ID safely
     const getId = (ref: any): string | null => {
       if (!ref) return null
-      // If string, return as is
       if (typeof ref === 'string') return ref
-      // If it has a string ID (Payload populated doc), use it
       if (ref.id && typeof ref.id === 'string') return ref.id
-      // Fallback to toString() which handles MongoDB ObjectId correctly (returns hex string)
-      // (ref.id on an ObjectId returns a Buffer, so we avoid that path if it's not a string)
       return ref.toString()
     }
+
+    // Process Initial Stock
+    initialStockStats.forEach((stat) => {
+      const branchId = getId(stat._id.branch)
+      const productId = getId(stat._id.product)
+      const inStock = stat.totalInStock || 0
+
+      if (
+        branchId &&
+        productId &&
+        inventoryMap[productId] &&
+        inventoryMap[productId].branches[branchId] !== undefined
+      ) {
+        inventoryMap[productId].branches[branchId] += inStock
+      }
+    })
 
     // Process Stock In
     stockInStats.forEach((stat) => {
@@ -151,9 +214,24 @@ export const getInventoryReportHandler: PayloadHandler = async (
       }
     })
 
+    // Process Returns
+    returnStats.forEach((stat) => {
+      const branchId = getId(stat._id.branch)
+      const productId = getId(stat._id.product)
+      const returned = stat.totalReturned || 0
+
+      if (
+        branchId &&
+        productId &&
+        inventoryMap[productId] &&
+        inventoryMap[productId].branches[branchId] !== undefined
+      ) {
+        inventoryMap[productId].branches[branchId] -= returned
+      }
+    })
+
     // Calculate Totals and Format Output
     const reportData = Object.entries(inventoryMap).map(([productId, data]) => {
-      // Calculate row total
       const totalInventory = Object.values(data.branches).reduce((a, b) => a + b, 0)
 
       return {
@@ -168,7 +246,6 @@ export const getInventoryReportHandler: PayloadHandler = async (
       }
     })
 
-    // Sort by name
     reportData.sort((a, b) => a.name.localeCompare(b.name))
 
     return Response.json({

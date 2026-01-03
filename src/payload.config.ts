@@ -38,6 +38,7 @@ import { InventoryReportGlobal } from './globals/InventoryReport'
 import { getInventoryReportHandler } from './endpoints/getInventoryReport'
 import { StockOrderReportGlobal } from './globals/StockOrderReport'
 import { getStockOrderReportHandler } from './endpoints/getStockOrderReport'
+import { resetInventoryHandler } from './endpoints/resetInventory'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -121,6 +122,11 @@ export default buildConfig({
       path: '/reports/stock-order',
       method: 'get',
       handler: getStockOrderReportHandler,
+    },
+    {
+      path: '/inventory/reset',
+      method: 'post',
+      handler: resetInventoryHandler,
     },
   ],
 

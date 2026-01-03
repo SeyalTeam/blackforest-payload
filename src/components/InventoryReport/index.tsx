@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
+import Select from 'react-select'
 import './index.scss'
 
 type BranchInventory = {
@@ -25,13 +26,50 @@ const InventoryReport: React.FC = () => {
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+
+  const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
+  const [products, setProducts] = useState<{ id: string; name: string }[]>([])
+  const [allBranches, setAllBranches] = useState<{ id: string; name: string }[]>([])
+
+  const [selectedDepartment, setSelectedDepartment] = useState('all')
+  const [selectedCategory, setSelectedCategory] = useState('all')
+  const [selectedProduct, setSelectedProduct] = useState('all')
+  const [selectedBranch, setSelectedBranch] = useState('all')
+
+  const fetchMetadata = useCallback(async () => {
+    try {
+      const [deptRes, catRes, prodRes, branchRes] = await Promise.all([
+        fetch('/api/departments?limit=100&pagination=false'),
+        fetch('/api/categories?limit=100&pagination=false'),
+        fetch('/api/products?limit=100&pagination=false'),
+        fetch('/api/branches?limit=100&pagination=false'),
+      ])
+
+      if (deptRes.ok) setDepartments((await deptRes.json()).docs)
+      if (catRes.ok) setCategories((await catRes.json()).docs)
+      if (prodRes.ok) setProducts((await prodRes.json()).docs)
+      if (branchRes.ok) setAllBranches((await branchRes.json()).docs)
+    } catch (e) {
+      console.error('Error fetching metadata:', e)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchMetadata()
+  }, [fetchMetadata])
 
   const fetchReport = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch('/api/reports/inventory')
+      const query = new URLSearchParams({
+        department: selectedDepartment,
+        category: selectedCategory,
+        product: selectedProduct,
+        branch: selectedBranch,
+      })
+      const res = await fetch(`/api/reports/inventory?${query.toString()}`)
       const json: ReportData = await res.json()
       if (res.ok) {
         setData(json)
@@ -44,108 +82,327 @@ const InventoryReport: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [selectedDepartment, selectedCategory, selectedProduct, selectedBranch])
 
   useEffect(() => {
     fetchReport()
   }, [fetchReport])
 
-  const toggleRow = (id: string) => {
-    const newDocs = new Set(expandedRows)
-    if (newDocs.has(id)) {
-      newDocs.delete(id)
-    } else {
-      newDocs.add(id)
-    }
-    setExpandedRows(newDocs)
+  const formatValue = (val: number) => {
+    const fixed = val.toFixed(2)
+    return fixed.endsWith('.00') ? fixed.slice(0, -3) : fixed
   }
+
+  // Calculate Column Totals
+  const columnTotals = React.useMemo(() => {
+    if (!data || data.products.length === 0) return { branchTotals: {}, grandTotal: 0 }
+
+    const branchTotals: Record<string, number> = {}
+    let grandTotal = 0
+
+    // Initialize branch totals
+    data.products[0].branches.forEach((b) => {
+      branchTotals[b.id] = 0
+    })
+
+    data.products.forEach((product) => {
+      product.branches.forEach((branch) => {
+        branchTotals[branch.id] = (branchTotals[branch.id] || 0) + branch.inventory
+      })
+      grandTotal += product.totalInventory
+    })
+
+    return { branchTotals, grandTotal }
+  }, [data])
+
+  const handleZeroOutStock = async () => {
+    if (!selectedBranch || selectedBranch === 'all') {
+      alert('Please select a specific branch to reset its stock.')
+      return
+    }
+
+    const branchName =
+      allBranches.find((b) => b.id === selectedBranch)?.name || 'the selected branch'
+    let scope = branchName
+    if (selectedProduct !== 'all') {
+      scope = `product "${products.find((p) => p.id === selectedProduct)?.name}" in ${branchName}`
+    } else if (selectedCategory !== 'all') {
+      scope = `all products in category "${categories.find((c) => c.id === selectedCategory)?.name}" for ${branchName}`
+    } else if (selectedDepartment !== 'all') {
+      scope = `all products in department "${departments.find((d) => d.id === selectedDepartment)?.name}" for ${branchName}`
+    } else {
+      scope = `ALL products for ${branchName}`
+    }
+
+    const confirmMessage = `Are you sure you want to reset stock to zero for ${scope}?\n\nThis action cannot be undone.`
+    if (!window.confirm(confirmMessage)) return
+
+    setLoading(true)
+    try {
+      const res = await fetch('/api/inventory/reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          branch: selectedBranch,
+          department: selectedDepartment === 'all' ? undefined : selectedDepartment,
+          category: selectedCategory === 'all' ? undefined : selectedCategory,
+          product: selectedProduct === 'all' ? undefined : selectedProduct,
+        }),
+      })
+
+      if (res.ok) {
+        alert('Inventory reset successful!')
+        fetchReport()
+      } else {
+        const errorData = await res.json()
+        throw new Error(errorData.error || 'Failed to reset inventory')
+      }
+    } catch (error) {
+      console.error(error)
+      alert(error instanceof Error ? error.message : 'Failed to reset inventory')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleExportExcel = () => {
+    if (!data) return
+
+    const headers = [
+      'S.NO',
+      'PRODUCT NAME',
+      ...data.products[0].branches.map((b) => b.name.toUpperCase()),
+      'TOTAL',
+    ]
+
+    const rows = data.products.map((p, i) => [
+      i + 1,
+      p.name,
+      ...p.branches.map((b) => b.inventory),
+      p.totalInventory,
+    ])
+
+    // Add Grand Total row to export
+    const totalRow = [
+      '',
+      'GRAND TOTAL',
+      ...data.products[0].branches.map((b) => columnTotals.branchTotals[b.id]),
+      columnTotals.grandTotal,
+    ]
+    rows.push(totalRow)
+
+    const csvContent = [headers, ...rows].map((e) => e.join(',')).join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `Inventory_Report_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const deptOptions = [
+    { value: 'all', label: 'All Departments' },
+    ...departments.map((d) => ({ value: d.id, label: d.name })),
+  ]
+
+  const catOptions = [
+    { value: 'all', label: 'All Categories' },
+    ...categories.map((c) => ({ value: c.id, label: c.name })),
+  ]
+
+  const productOptions = [
+    { value: 'all', label: 'All Products' },
+    ...products.map((p) => ({ value: p.id, label: p.name })),
+  ]
+
+  const branchOptions = [
+    { value: 'all', label: 'All Branches' },
+    ...allBranches.map((b) => ({ value: b.id, label: b.name })),
+  ]
 
   return (
     <div className="inventory-report-container">
       <div className="report-header">
-        <h1>Inventory Report</h1>
-        <button onClick={fetchReport} className="refresh-btn">
-          Refresh
-        </button>
+        <div className="header-left">
+          <h1>Inventory Report</h1>
+        </div>
+        <div className="header-right">
+          <button onClick={fetchReport} className="refresh-btn">
+            Refresh
+          </button>
+          <button
+            onClick={handleZeroOutStock}
+            className="reset-stock-btn"
+            title="Reset selected stock to zero"
+          >
+            Zero Out Stock
+          </button>
+          <button onClick={handleExportExcel} className="export-btn">
+            Export
+          </button>
+        </div>
+      </div>
+
+      <div className="filters-row">
+        <div className="filter-group">
+          <label>Branch</label>
+          <Select
+            options={branchOptions}
+            value={branchOptions.find((o) => o.value === selectedBranch)}
+            onChange={(o) => setSelectedBranch(o?.value || 'all')}
+            className="react-select-container"
+            classNamePrefix="react-select"
+          />
+        </div>
+        <div className="filter-group">
+          <label>Department</label>
+          <Select
+            options={deptOptions}
+            value={deptOptions.find((o) => o.value === selectedDepartment)}
+            onChange={(o) => setSelectedDepartment(o?.value || 'all')}
+            className="react-select-container"
+            classNamePrefix="react-select"
+          />
+        </div>
+        <div className="filter-group">
+          <label>Category</label>
+          <Select
+            options={catOptions}
+            value={catOptions.find((o) => o.value === selectedCategory)}
+            onChange={(o) => setSelectedCategory(o?.value || 'all')}
+            className="react-select-container"
+            classNamePrefix="react-select"
+          />
+        </div>
+        <div className="filter-group">
+          <label>Product</label>
+          <Select
+            options={productOptions}
+            value={productOptions.find((o) => o.value === selectedProduct)}
+            onChange={(o) => setSelectedProduct(o?.value || 'all')}
+            className="react-select-container"
+            classNamePrefix="react-select"
+          />
+        </div>
+        <div className="filter-actions">
+          <button
+            className="reset-btn"
+            onClick={() => {
+              setSelectedBranch('all')
+              setSelectedDepartment('all')
+              setSelectedCategory('all')
+              setSelectedProduct('all')
+            }}
+            title="Reset Filters"
+          >
+            Reset
+          </button>
+        </div>
       </div>
 
       {loading && <p>Loading...</p>}
       {error && <p className="error">{error}</p>}
 
-      {data && (
+      {data && data.products.length > 0 && (
         <div className="table-container">
           <table className="report-table">
             <thead>
               <tr>
-                <th style={{ width: '50px' }}></th>
                 <th style={{ width: '50px' }}>S.NO</th>
                 <th>PRODUCT NAME</th>
-                <th className="text-right">TOTAL INVENTORY</th>
+                {/* Dynamically render branch headers with shortened names */}
+                {data.products[0].branches.map((branch: BranchInventory) => (
+                  <th key={branch.id} className="text-right">
+                    {branch.name.substring(0, 3).toUpperCase()}
+                  </th>
+                ))}
+                <th className="text-right">TOTAL</th>
               </tr>
             </thead>
             <tbody>
-              {data.products.map((product, index) => (
-                <React.Fragment key={product.id}>
-                  <tr
-                    onClick={() => toggleRow(product.id)}
-                    className={expandedRows.has(product.id) ? 'expanded' : ''}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <td style={{ textAlign: 'center' }}>
-                      {expandedRows.has(product.id) ? '▼' : '▶'}
-                    </td>
-                    <td>{index + 1}</td>
-                    <td style={{ fontWeight: 'bold' }}>{product.name}</td>
+              {data.products.map((product: ProductInventory, index: number) => (
+                <tr key={product.id}>
+                  <td>{index + 1}</td>
+                  <td style={{ fontWeight: '600' }}>{product.name}</td>
+                  {/* Render branch-wise inventory */}
+                  {product.branches.map((branch: BranchInventory) => (
                     <td
+                      key={branch.id}
                       className="text-right"
                       style={{
-                        fontWeight: 'bold',
+                        fontWeight: '600',
                         color:
-                          product.totalInventory < 0
+                          branch.inventory < 0
                             ? 'red'
-                            : product.totalInventory === 0
+                            : branch.inventory === 0
                               ? 'orange'
                               : 'inherit',
                       }}
                     >
-                      {product.totalInventory}
+                      {formatValue(branch.inventory)}
                     </td>
-                  </tr>
-
-                  {expandedRows.has(product.id) && (
-                    <tr className="details-row">
-                      <td colSpan={4}>
-                        <div className="details-container">
-                          <table className="sub-table">
-                            <thead>
-                              <tr>
-                                <th>Branch</th>
-                                <th className="text-right">Inventory Count</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {product.branches.map((branch) => (
-                                <tr key={branch.id}>
-                                  <td>{branch.name}</td>
-                                  <td
-                                    className="text-right"
-                                    style={{
-                                      color: branch.inventory < 0 ? 'red' : 'inherit',
-                                    }}
-                                  >
-                                    {branch.inventory}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
+                  ))}
+                  <td
+                    className="text-right"
+                    style={{
+                      fontWeight: 'bold',
+                      color:
+                        product.totalInventory < 0
+                          ? 'red'
+                          : product.totalInventory === 0
+                            ? 'orange'
+                            : 'inherit',
+                    }}
+                  >
+                    {formatValue(product.totalInventory)}
+                  </td>
+                </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr className="grand-total-row">
+                <td colSpan={2} style={{ fontWeight: 'bold', textAlign: 'right' }}>
+                  GRAND TOTAL
+                </td>
+                {data.products[0].branches.map((branch: BranchInventory) => (
+                  <td
+                    key={branch.id}
+                    className="text-right"
+                    style={{
+                      fontWeight: 'bold',
+                      color:
+                        columnTotals.branchTotals[branch.id] < 0
+                          ? 'red'
+                          : columnTotals.branchTotals[branch.id] === 0
+                            ? 'orange'
+                            : 'inherit',
+                    }}
+                  >
+                    {formatValue(columnTotals.branchTotals[branch.id])}
+                  </td>
+                ))}
+                <td
+                  className="text-right"
+                  style={{
+                    fontWeight: 'bold',
+                    color:
+                      columnTotals.grandTotal < 0
+                        ? 'red'
+                        : columnTotals.grandTotal === 0
+                          ? 'orange'
+                          : 'inherit',
+                  }}
+                >
+                  {formatValue(columnTotals.grandTotal)}
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}

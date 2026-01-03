@@ -217,6 +217,20 @@ export interface Branch {
    * IP address of the network printer for this branch (e.g., 192.168.1.100). Used for printing bills directly over the local network.
    */
   printerIp?: string | null;
+  /**
+   * Inventory counts before this date will be ignored in reports.
+   */
+  inventoryResetDate?: string | null;
+  /**
+   * Granular reset dates for specific products.
+   */
+  productResets?:
+    | {
+        product: string | Product;
+        resetDate: string;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -229,81 +243,6 @@ export interface Company {
   name: string;
   hqAddress?: string | null;
   gst?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "employees".
- */
-export interface Employee {
-  id: string;
-  name: string;
-  employeeId: string;
-  phoneNumber: string;
-  email?: string | null;
-  address?: string | null;
-  status: 'active' | 'inactive';
-  team: 'waiter' | 'chef' | 'driver' | 'cashier' | 'manager' | 'supervisor' | 'delivery';
-  aadhaarPhoto?: (string | null) | Media;
-  photo?: (string | null) | Media;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "media".
- */
-export interface Media {
-  id: string;
-  alt?: string | null;
-  prefix?: string | null;
-  updatedAt: string;
-  createdAt: string;
-  url?: string | null;
-  thumbnailURL?: string | null;
-  filename?: string | null;
-  mimeType?: string | null;
-  filesize?: number | null;
-  width?: number | null;
-  height?: number | null;
-  focalX?: number | null;
-  focalY?: number | null;
-  sizes?: {
-    thumbnail?: {
-      url?: string | null;
-      width?: number | null;
-      height?: number | null;
-      mimeType?: string | null;
-      filesize?: number | null;
-      filename?: string | null;
-    };
-  };
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "departments".
- */
-export interface Department {
-  id: string;
-  company: (string | Company)[];
-  name: string;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "categories".
- */
-export interface Category {
-  id: string;
-  name: string;
-  image?: (string | null) | Media;
-  isBilling?: boolean | null;
-  isCake?: boolean | null;
-  isStock?: boolean | null;
-  company?: (string | Company)[] | null;
-  department?: (string | null) | Department;
   updatedAt: string;
   createdAt: string;
 }
@@ -352,6 +291,63 @@ export interface Product {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "categories".
+ */
+export interface Category {
+  id: string;
+  name: string;
+  image?: (string | null) | Media;
+  isBilling?: boolean | null;
+  isCake?: boolean | null;
+  isStock?: boolean | null;
+  company?: (string | Company)[] | null;
+  department?: (string | null) | Department;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media".
+ */
+export interface Media {
+  id: string;
+  alt?: string | null;
+  prefix?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+  sizes?: {
+    thumbnail?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "departments".
+ */
+export interface Department {
+  id: string;
+  company: (string | Company)[];
+  name: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "dealers".
  */
 export interface Dealer {
@@ -382,6 +378,24 @@ export interface Dealer {
     ifscCode?: string | null;
     branch?: string | null;
   };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "employees".
+ */
+export interface Employee {
+  id: string;
+  name: string;
+  employeeId: string;
+  phoneNumber: string;
+  email?: string | null;
+  address?: string | null;
+  status: 'active' | 'inactive';
+  team: 'waiter' | 'chef' | 'driver' | 'cashier' | 'manager' | 'supervisor' | 'delivery';
+  aadhaarPhoto?: (string | null) | Media;
+  photo?: (string | null) | Media;
   updatedAt: string;
   createdAt: string;
 }
@@ -712,6 +726,14 @@ export interface BranchesSelect<T extends boolean = true> {
   email?: T;
   ipAddress?: T;
   printerIp?: T;
+  inventoryResetDate?: T;
+  productResets?:
+    | T
+    | {
+        product?: T;
+        resetDate?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }
