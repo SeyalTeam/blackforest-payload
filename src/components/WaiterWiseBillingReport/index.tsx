@@ -593,12 +593,8 @@ const WaiterWiseBillingReport: React.FC = () => {
                     const waiterAvg = row.totalBills > 0 ? row.totalAmount / row.totalBills : 0
                     const branchIds = row.branchIds || []
                     const benchmarkTotal = branchIds.reduce((acc, id) => {
-                      const b = data.branchBenchmarks?.find((x) => x._id === id)
+                      const b = data.branchBenchmarks?.find((x: any) => x._id === id)
                       return acc + (b ? b.totalAmount : 0)
-                    }, 0)
-                    const benchmarkBills = branchIds.reduce((acc, id) => {
-                      const b = data.branchBenchmarks?.find((x) => x._id === id)
-                      return acc + (b ? b.totalBills : 0)
                     }, 0)
 
                     // We use total bills of branches to check data existence, but user wants Branch Total Sales vs Waiter Total Sales

@@ -6,7 +6,13 @@ export const resetInventoryHandler: PayloadHandler = async (
   const { payload } = req
 
   try {
-    const { branch, department, category, product } = await req.json()
+    const data = (req.json ? await req.json() : {}) as {
+      branch?: string
+      department?: string
+      category?: string
+      product?: string
+    }
+    const { branch, department, category, product } = data
 
     if (!branch || branch === 'all') {
       return Response.json({ error: 'Branch is required for reset' }, { status: 400 })
@@ -15,6 +21,7 @@ export const resetInventoryHandler: PayloadHandler = async (
     const now = new Date().toISOString()
 
     // 1. Fetch matching products
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const query: any = {}
     if (department && department !== 'all') query.department = department
     if (category && category !== 'all') query.category = category

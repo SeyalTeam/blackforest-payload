@@ -31,7 +31,9 @@ const Billings: CollectionConfig = {
               // If it's an update, we need to account for the quantity already in this document
               let existingQty = 0
               if (operation === 'update' && originalDoc?.items) {
-                const originalItem = originalDoc.items.find((oi: any) => {
+                const originalItem = (
+                  originalDoc.items as Array<{ product: any; quantity: number }>
+                ).find((oi) => {
                   const oiId = typeof oi.product === 'object' ? oi.product.id : oi.product
                   return oiId === productId
                 })

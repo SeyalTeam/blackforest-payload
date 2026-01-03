@@ -10,11 +10,13 @@ export const getInventoryReportHandler: PayloadHandler = async (
     const { department, category, product, branch } = req.query as Record<string, string>
 
     // 1. Fetch all Products and Branches
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const query: any = {}
     if (department && department !== 'all') query.department = department
     if (category && category !== 'all') query.category = category
     if (product && product !== 'all') query.id = product
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const branchQuery: any = {}
     if (branch && branch !== 'all') branchQuery.id = branch
 
@@ -42,6 +44,7 @@ export const getInventoryReportHandler: PayloadHandler = async (
     const StockOrderModel = payload.db.collections['stock-orders']
 
     // Fetch Initial Stock
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const initialStockPipeline: any[] = [
       {
         $match: {
@@ -68,6 +71,7 @@ export const getInventoryReportHandler: PayloadHandler = async (
     const initialStockStats = await StockOrderModel.aggregate(initialStockPipeline)
 
     // Stock In
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const stockInPipeline: any[] = [
       {
         $match: {
@@ -159,6 +163,7 @@ export const getInventoryReportHandler: PayloadHandler = async (
       })
     })
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const getId = (ref: any): string | null => {
       if (!ref) return null
       if (typeof ref === 'string') return ref
