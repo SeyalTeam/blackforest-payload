@@ -8,12 +8,14 @@ type BranchInventory = {
   id: string
   name: string
   inventory: number
+  value: number
 }
 
 type ProductInventory = {
   id: string
   name: string
   totalInventory: number
+  totalValue: number
   branches: BranchInventory[]
 }
 
@@ -93,26 +95,40 @@ const InventoryReport: React.FC = () => {
     return fixed.endsWith('.00') ? fixed.slice(0, -3) : fixed
   }
 
+  const formatCurrency = (val: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+    }).format(val)
+  }
+
   // Calculate Column Totals
   const columnTotals = React.useMemo(() => {
-    if (!data || data.products.length === 0) return { branchTotals: {}, grandTotal: 0 }
+    if (!data || data.products.length === 0)
+      return { branchTotals: {}, grandTotal: 0, branchValues: {}, grandTotalValue: 0 }
 
     const branchTotals: Record<string, number> = {}
+    const branchValues: Record<string, number> = {}
     let grandTotal = 0
+    let grandTotalValue = 0
 
     // Initialize branch totals
     data.products[0].branches.forEach((b) => {
       branchTotals[b.id] = 0
+      branchValues[b.id] = 0
     })
 
     data.products.forEach((product) => {
       product.branches.forEach((branch) => {
         branchTotals[branch.id] = (branchTotals[branch.id] || 0) + branch.inventory
+        branchValues[branch.id] = (branchValues[branch.id] || 0) + (branch.value || 0)
       })
       grandTotal += product.totalInventory
+      grandTotalValue += product.totalValue || 0
     })
 
-    return { branchTotals, grandTotal }
+    return { branchTotals, grandTotal, branchValues, grandTotalValue }
   }, [data])
 
   const handleZeroOutStock = async () => {
@@ -379,35 +395,47 @@ const InventoryReport: React.FC = () => {
                   GRAND TOTAL
                 </td>
                 {data.products[0].branches.map((branch: BranchInventory) => (
-                  <td
-                    key={branch.id}
-                    className="text-right"
-                    style={{
-                      fontWeight: 'bold',
-                      color:
-                        columnTotals.branchTotals[branch.id] < 0
-                          ? 'red'
-                          : columnTotals.branchTotals[branch.id] === 0
-                            ? 'orange'
-                            : 'inherit',
-                    }}
-                  >
-                    {formatValue(columnTotals.branchTotals[branch.id])}
+                  <td key={branch.id} className="text-right" style={{ fontWeight: 'bold' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-end',
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: columnTotals.branchValues[branch.id] < 0 ? 'red' : 'inherit',
+                        }}
+                      >
+                        {formatCurrency(columnTotals.branchValues[branch.id])}
+                      </span>
+                      <span style={{ fontSize: '0.8em', color: 'var(--theme-elevation-400)' }}>
+                        {formatValue(columnTotals.branchTotals[branch.id])}
+                      </span>
+                    </div>
                   </td>
                 ))}
-                <td
-                  className="text-right"
-                  style={{
-                    fontWeight: 'bold',
-                    color:
-                      columnTotals.grandTotal < 0
-                        ? 'red'
-                        : columnTotals.grandTotal === 0
-                          ? 'orange'
-                          : 'inherit',
-                  }}
-                >
-                  {formatValue(columnTotals.grandTotal)}
+                <td className="text-right">
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-end',
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: columnTotals.grandTotalValue < 0 ? 'red' : 'inherit',
+                      }}
+                    >
+                      {formatCurrency(columnTotals.grandTotalValue)}
+                    </span>
+                    <span style={{ fontSize: '0.8em', color: 'var(--theme-elevation-400)' }}>
+                      {formatValue(columnTotals.grandTotal)}
+                    </span>
+                  </div>
                 </td>
               </tr>
             </tfoot>

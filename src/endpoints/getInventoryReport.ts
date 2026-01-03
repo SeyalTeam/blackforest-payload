@@ -165,10 +165,13 @@ export const getInventoryReportHandler: PayloadHandler = async (
     const returnStats = await ReturnOrderModel.aggregate(returnPipeline)
 
     // 6. Combine Data
+    // 6. Combine Data
     const inventoryMap: Record<
       string,
       {
         name: string
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        product: any
         totalInventory: number
         branches: Record<string, number>
       }
@@ -177,6 +180,7 @@ export const getInventoryReportHandler: PayloadHandler = async (
     products.forEach((p) => {
       inventoryMap[p.id] = {
         name: p.name,
+        product: p,
         totalInventory: 0,
         branches: {},
       }
@@ -261,15 +265,40 @@ export const getInventoryReportHandler: PayloadHandler = async (
     const reportData = Object.entries(inventoryMap).map(([productId, data]) => {
       const totalInventory = Object.values(data.branches).reduce((a, b) => a + b, 0)
 
+      const branchDetails = branches.map((b) => {
+        const inventory = data.branches[b.id] || 0
+
+        // Calculate Value
+        let rate = data.product.defaultPriceDetails?.rate || 0
+        if (data.product.branchOverrides && Array.isArray(data.product.branchOverrides)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const override = data.product.branchOverrides.find((bo: any) => {
+            const boBranchId = typeof bo.branch === 'string' ? bo.branch : bo.branch?.id
+            return boBranchId === b.id
+          })
+          if (override && override.rate !== undefined && override.rate !== null) {
+            rate = override.rate
+          }
+        }
+
+        const value = inventory * rate
+
+        return {
+          id: b.id,
+          name: b.name,
+          inventory,
+          value,
+        }
+      })
+
+      const totalValue = branchDetails.reduce((sum, b) => sum + b.value, 0)
+
       return {
         id: productId,
         name: data.name,
         totalInventory,
-        branches: branches.map((b) => ({
-          id: b.id,
-          name: b.name,
-          inventory: data.branches[b.id] || 0,
-        })),
+        totalValue,
+        branches: branchDetails,
       }
     })
 
