@@ -31,7 +31,7 @@ async function verifyInventoryValue() {
     })
     if (override) {
       console.log('Branch Override Found:', override)
-      if (override.rate !== undefined) rate = override.rate
+      if (override.rate !== undefined && override.rate !== null) rate = override.rate
     }
   }
 
