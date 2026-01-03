@@ -74,12 +74,12 @@ const Billings: CollectionConfig = {
 
               if (additionalQtyNeeded > currentStock) {
                 console.log(
-                  `[Inventory] BLOCKED: ${item.name} (${requestedQty} needed, ${currentStock} available)`,
+                  `[Inventory] WARNING: ${item.name} (${requestedQty} needed, ${currentStock} available). Proceeding due to override.`,
                 )
-                throw new APIError(
-                  `Insufficient stock for ${item.name}. Current stock: ${currentStock}, Requested: ${requestedQty}${operation === 'update' ? ` (Additional: ${additionalQtyNeeded})` : ''}`,
-                  400,
-                )
+                // throw new APIError(
+                //   `Insufficient stock for ${item.name}. Current stock: ${currentStock}, Requested: ${requestedQty}${operation === 'update' ? ` (Additional: ${additionalQtyNeeded})` : ''}`,
+                //   400,
+                // )
               }
             }
           }

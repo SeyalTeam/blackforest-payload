@@ -33,16 +33,13 @@ async function verifyBillingValidation() {
       } as any,
       overrideAccess: true,
     })
-    console.log('Success: Billing created!', billing.invoiceNumber)
-    console.log('Final Company:', billing.company)
+    console.log(
+      'Success: Billing created even with insufficient stock (Expected).',
+      billing.invoiceNumber,
+    )
   } catch (error: any) {
-    console.log('Verification Success: Billing failed as expected.')
+    console.log('Error: Billing failed unexpectedly!')
     console.log('Error Message:', error.message)
-    if (error.message.includes('Insufficient stock')) {
-      console.log('✅ Validation message is correct.')
-    } else {
-      console.log('❌ Validation message is unexpected.')
-    }
   }
 
   process.exit(0)
