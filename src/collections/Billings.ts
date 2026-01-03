@@ -14,8 +14,35 @@ const Billings: CollectionConfig = {
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   hooks: {
-    beforeChange: [
+    beforeValidate: [
       async ({ data, req, operation, originalDoc }) => {
+        if (!data) return
+        // 1️⃣ Fix missing data for validation (Auto-set fields early)
+        if (operation === 'create') {
+          // 🏢 Auto-set company from branch early to pass validation
+          const branchId = data.branch
+          if (branchId) {
+            const branch = await req.payload.findByID({
+              collection: 'branches',
+              id: typeof branchId === 'object' ? branchId.id : branchId,
+              depth: 0,
+            })
+            if (branch?.company) {
+              data.company = typeof branch.company === 'object' ? branch.company.id : branch.company
+            }
+          }
+
+          // 🧾 Placeholder for invoice number to pass validation
+          if (!data.invoiceNumber) {
+            data.invoiceNumber = 'TEMP-' + Date.now()
+          }
+
+          // 💰 Total amount placeholder
+          if (data.totalAmount === undefined) {
+            data.totalAmount = 0
+          }
+        }
+
         // 🛑 Inventory Validation
         if ((operation === 'create' || operation === 'update') && data.status !== 'cancelled') {
           const items = data.items || []
@@ -46,6 +73,9 @@ const Billings: CollectionConfig = {
               const additionalQtyNeeded = requestedQty - existingQty
 
               if (additionalQtyNeeded > currentStock) {
+                console.log(
+                  `[Inventory] BLOCKED: ${item.name} (${requestedQty} needed, ${currentStock} available)`,
+                )
                 throw new APIError(
                   `Insufficient stock for ${item.name}. Current stock: ${currentStock}, Requested: ${requestedQty}${operation === 'update' ? ` (Additional: ${additionalQtyNeeded})` : ''}`,
                   400,
@@ -55,22 +85,22 @@ const Billings: CollectionConfig = {
           }
         }
 
+        return data
+      },
+    ],
+    beforeChange: [
+      async ({ data, req, operation }) => {
+        if (!data) return
         if (operation === 'create') {
-          // 🧾 Auto-generate invoice number like CHI-YYYYMMDD-SEQ
+          // 🧾 Final Invoice Number generation
           const date = new Date()
           const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, '')
 
           if (data.branch) {
             let branchId: string
-
             if (typeof data.branch === 'string') {
               branchId = data.branch
-            } else if (
-              typeof data.branch === 'object' &&
-              data.branch !== null &&
-              'id' in data.branch &&
-              typeof data.branch.id === 'string'
-            ) {
+            } else if (typeof data.branch === 'object' && data.branch !== null) {
               branchId = data.branch.id
             } else {
               return data
@@ -90,26 +120,10 @@ const Billings: CollectionConfig = {
               const seq = (existingCount + 1).toString().padStart(3, '0')
               data.invoiceNumber = `${prefix}-${formattedDate}-${seq}`
             }
-
-            // 🏢 Auto-set company from branch
-            if (branch?.company) {
-              let companyToSet = branch.company
-              if (
-                typeof companyToSet === 'object' &&
-                companyToSet !== null &&
-                'id' in companyToSet &&
-                typeof companyToSet.id === 'string'
-              ) {
-                companyToSet = companyToSet.id
-              }
-              if (typeof companyToSet === 'string') {
-                data.company = companyToSet
-              }
-            }
           }
         }
 
-        // 🧮 Auto-calculate subtotals & total
+        // 🧮 Final subtotal & total calculation
         if (data.items && Array.isArray(data.items)) {
           data.items = data.items.map(
             (item: {

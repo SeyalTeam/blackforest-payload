@@ -40,10 +40,10 @@ const InventoryReport: React.FC = () => {
   const fetchMetadata = useCallback(async () => {
     try {
       const [deptRes, catRes, prodRes, branchRes] = await Promise.all([
-        fetch('/api/departments?limit=100&pagination=false'),
-        fetch('/api/categories?limit=100&pagination=false'),
-        fetch('/api/products?limit=100&pagination=false'),
-        fetch('/api/branches?limit=100&pagination=false'),
+        fetch('/api/departments?limit=1000&pagination=false'),
+        fetch('/api/categories?limit=1000&pagination=false'),
+        fetch('/api/products?limit=1000&pagination=false'),
+        fetch('/api/branches?limit=1000&pagination=false'),
       ])
 
       if (deptRes.ok) setDepartments((await deptRes.json()).docs)
@@ -232,21 +232,6 @@ const InventoryReport: React.FC = () => {
         <div className="header-left">
           <h1>Inventory Report</h1>
         </div>
-        <div className="header-right">
-          <button onClick={fetchReport} className="refresh-btn">
-            Refresh
-          </button>
-          <button
-            onClick={handleZeroOutStock}
-            className="reset-stock-btn"
-            title="Reset selected stock to zero"
-          >
-            Zero Out Stock
-          </button>
-          <button onClick={handleExportExcel} className="export-btn">
-            Export
-          </button>
-        </div>
       </div>
 
       <div className="filters-row">
@@ -292,6 +277,16 @@ const InventoryReport: React.FC = () => {
         </div>
         <div className="filter-actions">
           <button
+            onClick={handleZeroOutStock}
+            className="reset-stock-btn"
+            title="Reset selected stock to zero"
+          >
+            Zero Out Stock
+          </button>
+          <button onClick={handleExportExcel} className="export-btn">
+            Export
+          </button>
+          <button
             className="reset-btn"
             onClick={() => {
               setSelectedBranch('all')
@@ -301,7 +296,20 @@ const InventoryReport: React.FC = () => {
             }}
             title="Reset Filters"
           >
-            Reset
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M23 4v6h-6"></path>
+              <path d="M1 20v-6h6"></path>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
           </button>
         </div>
       </div>

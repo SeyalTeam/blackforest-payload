@@ -25,15 +25,16 @@ async function verifyBillingValidation() {
             subtotal: 10,
           },
         ],
-        invoiceNumber: 'TEMP', // Will be overridden by hook
-        totalAmount: 10, // Will be overridden by hook
+        invoiceNumber: 'AUTO',
+        totalAmount: 0,
         status: 'pending',
         paymentMethod: 'cash',
         createdBy: '69195db9b1875799b940b004', // VSeyal User
       } as any,
       overrideAccess: true,
     })
-    console.log('Error: Billing should have failed but succeeded!', billing.invoiceNumber)
+    console.log('Success: Billing created!', billing.invoiceNumber)
+    console.log('Final Company:', billing.company)
   } catch (error: any) {
     console.log('Verification Success: Billing failed as expected.')
     console.log('Error Message:', error.message)

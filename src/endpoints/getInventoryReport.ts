@@ -9,16 +9,38 @@ export const getInventoryReportHandler: PayloadHandler = async (
   try {
     const { department, category, product, branch } = req.query as Record<string, string>
 
-    // 1. Fetch all Products and Branches
+    // 1. Handle Department filter (Products link to Category, Category links to Department)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const query: any = {}
-    if (department && department !== 'all') query.department = department
-    if (category && category !== 'all') query.category = category
-    if (product && product !== 'all') query.id = product
+    const query: any = { and: [] }
 
+    if (department && department !== 'all') {
+      const categoriesInDept = await payload.find({
+        collection: 'categories',
+        where: { department: { equals: department } },
+        limit: 1000,
+        pagination: false,
+      })
+      const categoryIds = categoriesInDept.docs.map((c) => c.id)
+      query.and.push({ category: { in: categoryIds } })
+    }
+
+    if (category && category !== 'all') {
+      query.and.push({ category: { equals: category } })
+    }
+
+    if (product && product !== 'all') {
+      query.and.push({ id: { equals: product } })
+    }
+
+    if (query.and.length === 0) delete query.and
+
+    // 2. Handle Branch filter
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const branchQuery: any = {}
-    if (branch && branch !== 'all') branchQuery.id = branch
+    const branchQuery: any = { and: [] }
+    if (branch && branch !== 'all') {
+      branchQuery.and.push({ id: { equals: branch } })
+    }
+    if (branchQuery.and.length === 0) delete branchQuery.and
 
     const [productsResult, branchesResult] = await Promise.all([
       payload.find({
