@@ -11,9 +11,11 @@ export function middleware(request: NextRequest) {
 
     // Check for the x-api-key header
     const apiKey = request.headers.get('x-api-key')
-    const validApiKeys = [process.env.BRANCH_APP_API_KEY, process.env.TRACKER_APP_API_KEY].filter(
-      Boolean,
-    ) // Remove undefined if variable is missing
+    const validApiKeys = [
+      process.env.BRANCH_APP_API_KEY,
+      process.env.TRACKER_APP_API_KEY,
+      process.env.BILLING_APP_API_KEY,
+    ].filter(Boolean) // Remove undefined if variable is missing
 
     // 1. Allow if API Key is Valid
     if (apiKey && validApiKeys.includes(apiKey)) {
