@@ -22,12 +22,15 @@ async function verifyBillingValidation() {
             name: 'BINGO ORIGINAL SALT',
             quantity: 1,
             unitPrice: 10,
+            subtotal: 10,
           },
         ],
+        invoiceNumber: 'TEMP', // Will be overridden by hook
+        totalAmount: 10, // Will be overridden by hook
         status: 'pending',
         paymentMethod: 'cash',
         createdBy: '69195db9b1875799b940b004', // VSeyal User
-      },
+      } as any,
       overrideAccess: true,
     })
     console.log('Error: Billing should have failed but succeeded!', billing.invoiceNumber)
