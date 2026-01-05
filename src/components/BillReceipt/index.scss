@@ -1,0 +1,85 @@
+.bill-receipt {
+  font-family: 'Courier New', Courier, monospace; /* Thermal printer style */
+  color: #000;
+  padding: 20px;
+  background: white;
+
+  .bill-header {
+    text-align: center;
+    margin-bottom: 20px;
+    border-bottom: 1px dashed #000;
+    padding-bottom: 15px;
+
+    h2 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: bold;
+    }
+
+    p {
+      margin: 5px 0;
+      font-size: 14px;
+    }
+  }
+
+  .bill-meta {
+    margin-bottom: 15px;
+    font-size: 14px;
+
+    div {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+  }
+
+  .bill-items {
+    width: 100%;
+    margin-bottom: 20px;
+    border-collapse: collapse;
+    font-size: 14px;
+
+    th,
+    td {
+      text-align: left;
+      padding: 5px 0;
+    }
+
+    th {
+      border-bottom: 1px dashed #000;
+    }
+
+    .item-qty,
+    .item-total {
+      text-align: right;
+    }
+  }
+
+  .bill-totals {
+    border-top: 1px dashed #000;
+    padding-top: 15px;
+    font-size: 14px;
+
+    div {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+
+      &.grand-total {
+        font-weight: bold;
+        font-size: 16px;
+        margin-top: 10px;
+      }
+    }
+  }
+
+  .bill-footer {
+    margin-top: 30px;
+    text-align: center;
+    font-size: 12px;
+
+    p {
+      margin: 5px 0;
+    }
+  }
+}

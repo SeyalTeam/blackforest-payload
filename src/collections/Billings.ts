@@ -1,4 +1,4 @@
-import { CollectionConfig, APIError } from 'payload'
+import { CollectionConfig } from 'payload'
 import { getProductStock } from '../utilities/inventory'
 
 const Billings: CollectionConfig = {
@@ -270,6 +270,16 @@ const Billings: CollectionConfig = {
     {
       name: 'notes',
       type: 'textarea',
+    },
+    {
+      name: 'billDetailView',
+      type: 'ui',
+      admin: {
+        components: {
+          Field: '/components/BillDetailView/index.tsx#default',
+        },
+        position: 'sidebar',
+      },
     },
   ],
   timestamps: true,
