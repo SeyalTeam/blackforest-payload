@@ -39,6 +39,7 @@ import { getInventoryReportHandler } from './endpoints/getInventoryReport'
 import { StockOrderReportGlobal } from './globals/StockOrderReport'
 import { getStockOrderReportHandler } from './endpoints/getStockOrderReport'
 import { resetInventoryHandler } from './endpoints/resetInventory'
+import Reviews from './collections/Reviews'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -157,6 +158,7 @@ export default buildConfig({
     ClosingEntries,
     Expenses,
     StockOrders,
+    Reviews,
   ],
 
   editor: lexicalEditor(),

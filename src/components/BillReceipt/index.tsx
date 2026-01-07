@@ -1,4 +1,5 @@
-import React from 'react'
+'use client'
+import React, { useState } from 'react'
 import './index.scss'
 import { Product } from '@/payload-types'
 
@@ -12,6 +13,7 @@ export type BillItem = {
 }
 
 export type BillData = {
+  id?: string
   invoiceNumber?: string | null
   createdAt?: string
   items?: BillItem[]
@@ -30,6 +32,7 @@ export type BillData = {
     | null
   branch?:
     | {
+        id?: string
         name?: string
         address?: string
         phone?: string
@@ -40,6 +43,7 @@ export type BillData = {
 
 const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
   const {
+    id,
     invoiceNumber,
     createdAt,
     items = [],
@@ -49,6 +53,55 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
     branch,
     createdBy,
   } = data
+
+  const [feedback, setFeedback] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleSubmitReview = async () => {
+    if (!feedback.trim()) {
+      alert('Please enter your feedback before submitting.')
+      return
+    }
+
+    if (!id) {
+      alert('Bill ID is missing. Cannot submit review.')
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const payload = {
+        bill: id,
+        feedback: feedback,
+        customerName: customerDetails?.name || undefined,
+        customerPhone: customerDetails?.phoneNumber || undefined,
+        branch: typeof branch === 'object' ? branch?.id : branch,
+        rating: 5, // Defaulting to 5 for now as per static UI
+      }
+
+      const response = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (response.ok) {
+        alert('Thank you for your feedback!')
+        setFeedback('')
+      } else {
+        const errorData = await response.json()
+        alert(`Failed to submit review: ${errorData.errors?.[0]?.message || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Error submitting review:', error)
+      alert('An error occurred while submitting your review.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   const branchName = typeof branch === 'object' ? branch?.name : 'Branch'
   // const branchAddress = typeof branch === 'object' ? branch?.address : '' // Removed as unused
@@ -172,21 +225,25 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
               }}
               placeholder="Write your feedback here..."
               rows={3}
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
             />
           </div>
           <div style={{ marginTop: '5px', textAlign: 'center' }}>
             <button
+              onClick={handleSubmitReview}
+              disabled={isSubmitting}
               style={{
                 padding: '4px 8px',
-                backgroundColor: '#000',
+                backgroundColor: isSubmitting ? '#666' : '#000',
                 color: '#fff',
                 border: 'none',
-                cursor: 'pointer',
+                cursor: isSubmitting ? 'not-allowed' : 'pointer',
                 fontSize: '12px',
                 fontWeight: 'bold',
               }}
             >
-              Submit Review
+              {isSubmitting ? 'Submitting...' : 'Submit Review'}
             </button>
           </div>
         </details>
