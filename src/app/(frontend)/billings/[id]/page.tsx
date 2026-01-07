@@ -1,6 +1,6 @@
 import React from 'react'
 import { notFound } from 'next/navigation'
-import { getPayloadHMR } from '@payloadcms/next/utilities'
+import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import BillReceipt, { BillData } from '@/components/BillReceipt'
 import './styles.css'
@@ -13,7 +13,7 @@ type Args = {
 
 export default async function BillPage({ params }: Args) {
   const { id } = await params
-  const payload = await getPayloadHMR({ config: configPromise })
+  const payload = await getPayload({ config: configPromise })
 
   let bill
   try {
@@ -33,6 +33,7 @@ export default async function BillPage({ params }: Args) {
 
   // Construct data object for BillReceipt using the fetched document
   const billData: BillData = {
+    id: bill.id,
     invoiceNumber: bill.invoiceNumber,
     totalAmount: bill.totalAmount,
     items: bill.items as any, // Type assertion for compatibility
