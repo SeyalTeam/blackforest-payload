@@ -174,6 +174,21 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
               rows={3}
             />
           </div>
+          <div style={{ marginTop: '5px', textAlign: 'center' }}>
+            <button
+              style={{
+                padding: '4px 8px',
+                backgroundColor: '#000',
+                color: '#fff',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 'bold',
+              }}
+            >
+              Submit Review
+            </button>
+          </div>
         </details>
       </div>
 
