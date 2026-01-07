@@ -418,12 +418,13 @@ export interface Billing {
   totalAmount: number;
   branch: string | Branch;
   createdBy: string | User;
+  paymentMethod?: ('cash' | 'card' | 'upi' | 'other') | null;
   company: string | Company;
   customerDetails?: {
     name?: string | null;
+    phoneNumber?: string | null;
     address?: string | null;
   };
-  paymentMethod?: ('cash' | 'card' | 'upi' | 'other') | null;
   status?: ('pending' | 'completed' | 'cancelled') | null;
   notes?: string | null;
   updatedAt: string;
@@ -914,14 +915,15 @@ export interface BillingsSelect<T extends boolean = true> {
   totalAmount?: T;
   branch?: T;
   createdBy?: T;
+  paymentMethod?: T;
   company?: T;
   customerDetails?:
     | T
     | {
         name?: T;
+        phoneNumber?: T;
         address?: T;
       };
-  paymentMethod?: T;
   status?: T;
   notes?: T;
   updatedAt?: T;

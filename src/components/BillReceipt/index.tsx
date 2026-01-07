@@ -18,6 +18,7 @@ export type BillData = {
   totalAmount?: number
   customerDetails?: {
     name?: string | null
+    phoneNumber?: string | null
     address?: string | null
   } | null
   paymentMethod?: string | null
@@ -88,20 +89,24 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
           <span>Bill No: {billNoSuffix}</span>
           <span>Date: {formattedDate}</span>
         </div>
-        <div>
-          <span>Assigned By:</span>
-          <span>{creatorName}</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span>Assigned By: {creatorName}</span>
+          {paymentMethod && <span>Pay Mode: {paymentMethod.toUpperCase()}</span>}
         </div>
-        {customerDetails?.name && (
-          <div>
-            <span>Customer:</span>
-            <span>{customerDetails.name}</span>
-          </div>
-        )}
-        {paymentMethod && (
-          <div>
-            <span>Pay Mode:</span>
-            <span>{paymentMethod.toUpperCase()}</span>
+        {(customerDetails?.name || customerDetails?.phoneNumber || customerDetails?.address) && (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {/* Row 1: Name and Phone */}
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              {customerDetails?.name && <span>Customer: {customerDetails.name}</span>}
+              {customerDetails?.phoneNumber && <span>Ph: {customerDetails.phoneNumber}</span>}
+            </div>
+
+            {/* Row 2: Address (if present) */}
+            {customerDetails?.address && (
+              <div style={{ marginTop: '2px' }}>
+                <span>Address: {customerDetails.address}</span>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -136,6 +141,40 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
           <span>Grand Total:</span>
           <span>{totalAmount.toFixed(2)}</span>
         </div>
+      </div>
+
+      <div style={{ marginTop: '10px', width: '100%' }}>
+        <details open style={{ width: '100%', borderTop: '1px dashed #000', paddingTop: '5px' }}>
+          <summary style={{ cursor: 'pointer', textAlign: 'left', fontWeight: 'bold' }}>
+            Review Us
+          </summary>
+          <div
+            style={{
+              marginTop: '5px',
+              border: '1px solid #000',
+              padding: '10px',
+              minHeight: '60px',
+              fontSize: '12px',
+            }}
+          >
+            <p style={{ margin: '0 0 5px 0' }}>Rate Us: ☆ ☆ ☆ ☆ ☆</p>
+            <textarea
+              style={{
+                width: '100%',
+                border: 'none',
+                outline: 'none',
+                resize: 'none',
+                fontFamily: 'inherit',
+                fontSize: 'inherit',
+                color: '#000',
+                background: 'transparent',
+                fontWeight: 'bold',
+              }}
+              placeholder="Write your feedback here..."
+              rows={3}
+            />
+          </div>
+        </details>
       </div>
 
       <div className="bill-footer">

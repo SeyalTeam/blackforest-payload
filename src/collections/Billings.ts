@@ -225,12 +225,27 @@ const Billings: CollectionConfig = {
       required: true,
     },
     {
-      name: 'createdBy',
-      type: 'relationship',
-      relationTo: 'users',
-      required: true,
-      defaultValue: ({ user }) => user?.id,
-      admin: { readOnly: true },
+      type: 'row',
+      fields: [
+        {
+          name: 'createdBy',
+          type: 'relationship',
+          relationTo: 'users',
+          required: true,
+          defaultValue: ({ user }) => user?.id,
+          admin: { readOnly: true },
+        },
+        {
+          name: 'paymentMethod',
+          type: 'select',
+          options: [
+            { label: 'Cash', value: 'cash' },
+            { label: 'Card', value: 'card' },
+            { label: 'UPI', value: 'upi' },
+            { label: 'Other', value: 'other' },
+          ],
+        },
+      ],
     },
     {
       name: 'company',
@@ -244,19 +259,11 @@ const Billings: CollectionConfig = {
       type: 'group',
       fields: [
         { name: 'name', type: 'text' },
+        { name: 'phoneNumber', type: 'text' },
         { name: 'address', type: 'text' },
       ],
     },
-    {
-      name: 'paymentMethod',
-      type: 'select',
-      options: [
-        { label: 'Cash', value: 'cash' },
-        { label: 'Card', value: 'card' },
-        { label: 'UPI', value: 'upi' },
-        { label: 'Other', value: 'other' },
-      ],
-    },
+
     {
       name: 'status',
       type: 'select',

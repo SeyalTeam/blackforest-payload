@@ -4,6 +4,10 @@
   padding: 20px;
   background: white;
 
+  @media (max-width: 480px) {
+    padding: 10px;
+  }
+
   .bill-header {
     text-align: center;
     margin-bottom: 20px;
