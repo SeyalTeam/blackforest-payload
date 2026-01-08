@@ -579,9 +579,14 @@ export interface StockOrder {
 export interface Review {
   id: string;
   bill: string | Billing;
-  product: string | Product;
-  rating?: number | null;
-  feedback: string;
+  items?:
+    | {
+        product: string | Product;
+        rating?: number | null;
+        feedback: string;
+        id?: string | null;
+      }[]
+    | null;
   customerName?: string | null;
   customerPhone?: string | null;
   branch?: (string | null) | Branch;
@@ -1083,9 +1088,14 @@ export interface StockOrdersSelect<T extends boolean = true> {
  */
 export interface ReviewsSelect<T extends boolean = true> {
   bill?: T;
-  product?: T;
-  rating?: T;
-  feedback?: T;
+  items?:
+    | T
+    | {
+        product?: T;
+        rating?: T;
+        feedback?: T;
+        id?: T;
+      };
   customerName?: T;
   customerPhone?: T;
   branch?: T;

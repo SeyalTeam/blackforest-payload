@@ -20,21 +20,27 @@ const Reviews: CollectionConfig = {
       required: true,
     },
     {
-      name: 'product',
-      type: 'relationship',
-      relationTo: 'products',
-      required: true,
-    },
-    {
-      name: 'rating',
-      type: 'number',
-      min: 1,
-      max: 5,
-    },
-    {
-      name: 'feedback',
-      type: 'textarea',
-      required: true,
+      name: 'items',
+      type: 'array',
+      fields: [
+        {
+          name: 'product',
+          type: 'relationship',
+          relationTo: 'products',
+          required: true,
+        },
+        {
+          name: 'rating',
+          type: 'number',
+          min: 1,
+          max: 5,
+        },
+        {
+          name: 'feedback',
+          type: 'textarea',
+          required: true,
+        },
+      ],
     },
     {
       name: 'customerName',
