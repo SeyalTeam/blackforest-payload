@@ -1,16 +1,16 @@
 .public-bill-container {
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center; /* Center vertically */
   min-height: 100vh;
-  background-color: #f0f0f0;
-  padding: 40px 20px;
+  background-color: #0e172a; /* Dark Blue */
+  padding: 20px;
 }
 
 .bill-wrapper {
   background-color: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border-radius: 20px; /* More rounded */
   overflow: hidden;
   max-width: 400px;
   width: 100%;
@@ -18,18 +18,17 @@
 
 @media (max-width: 768px) {
   .public-bill-container {
-    padding: 0;
-    align-items: stretch;
-    background-color: white;
-    width: 100vw;
-    min-height: 100%;
+    padding: 20px; /* Maintain padding on mobile */
+    align-items: center;
+    background-color: #0e172a;
   }
 
   .bill-wrapper {
-    max-width: none;
+    max-width: 100%;
     width: 100%;
-    box-shadow: none;
-    border-radius: 0;
+    /* Keep shadow and radius on mobile */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    border-radius: 20px;
     margin: 0;
   }
 }
