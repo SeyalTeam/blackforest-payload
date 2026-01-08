@@ -579,6 +579,7 @@ export interface StockOrder {
 export interface Review {
   id: string;
   bill: string | Billing;
+  product: string | Product;
   rating?: number | null;
   feedback: string;
   customerName?: string | null;
@@ -1082,6 +1083,7 @@ export interface StockOrdersSelect<T extends boolean = true> {
  */
 export interface ReviewsSelect<T extends boolean = true> {
   bill?: T;
+  product?: T;
   rating?: T;
   feedback?: T;
   customerName?: T;

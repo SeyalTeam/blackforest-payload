@@ -4,31 +4,32 @@
   align-items: center; /* Center vertically */
   min-height: 100vh;
   background-color: #0e172a; /* Dark Blue */
-  padding: 20px;
+  padding: 10px; /* Reduced padding */
 }
 
-.bill-wrapper {
+.bill-card {
   background-color: white;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   border-radius: 20px; /* More rounded */
   overflow: hidden;
-  max-width: 400px;
+  max-width: 500px; /* Increased from 400px */
   width: 100%;
+  margin-bottom: 20px; /* Separator between cards */
 }
 
 @media (max-width: 768px) {
   .public-bill-container {
-    padding: 20px; /* Maintain padding on mobile */
+    padding: 10px; /* Reduced padding on mobile */
     align-items: center;
     background-color: #0e172a;
   }
 
-  .bill-wrapper {
+  .bill-card {
     max-width: 100%;
     width: 100%;
     /* Keep shadow and radius on mobile */
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     border-radius: 20px;
-    margin: 0;
+    margin-bottom: 20px;
   }
 }

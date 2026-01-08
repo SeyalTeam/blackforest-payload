@@ -39,6 +39,12 @@ export type BillData = {
       }
     | string
     | null
+  company?:
+    | {
+        name?: string
+      }
+    | string
+    | null
 }
 
 const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
@@ -52,32 +58,52 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
     paymentMethod,
     branch,
     createdBy,
+    company,
   } = data
 
-  const [feedback, setFeedback] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [productReviews, setProductReviews] = useState<{
+    [productId: string]: { rating: number; feedback: string; submitted: boolean }
+  }>({})
 
-  const handleSubmitReview = async () => {
-    if (!feedback.trim()) {
-      alert('Please enter your feedback before submitting.')
-      return
-    }
+  const [submittingProduct, setSubmittingProduct] = useState<string | null>(null)
 
-    if (!id) {
-      alert('Bill ID is missing. Cannot submit review.')
-      return
-    }
+  const handleRatingChange = (productId: string, rating: number) => {
+    setProductReviews((prev) => ({
+      ...prev,
+      [productId]: {
+        ...prev[productId],
+        rating,
+        feedback: prev[productId]?.feedback || '',
+        submitted: prev[productId]?.submitted || false,
+      },
+    }))
+  }
 
-    setIsSubmitting(true)
+  const handleFeedbackChange = (productId: string, feedback: string) => {
+    setProductReviews((prev) => ({
+      ...prev,
+      [productId]: {
+        ...prev[productId],
+        feedback,
+      },
+    }))
+  }
+
+  const handleSubmitReview = async (productId: string) => {
+    const reviewData = productReviews[productId]
+    if (!reviewData || !reviewData.rating) return
+
+    setSubmittingProduct(productId)
 
     try {
       const payload = {
         bill: id,
-        feedback: feedback,
+        product: productId,
+        rating: reviewData.rating,
+        feedback: reviewData.feedback,
         customerName: customerDetails?.name || undefined,
         customerPhone: customerDetails?.phoneNumber || undefined,
         branch: typeof branch === 'object' ? branch?.id : branch,
-        rating: 5, // Defaulting to 5 for now as per static UI
       }
 
       const response = await fetch('/api/reviews', {
@@ -89,8 +115,14 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
       })
 
       if (response.ok) {
-        alert('Thank you for your feedback!')
-        setFeedback('')
+        alert('Thank you for your review!')
+        setProductReviews((prev) => ({
+          ...prev,
+          [productId]: {
+            ...prev[productId],
+            submitted: true,
+          },
+        }))
       } else {
         const errorData = await response.json()
         alert(`Failed to submit review: ${errorData.errors?.[0]?.message || 'Unknown error'}`)
@@ -99,13 +131,11 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
       console.error('Error submitting review:', error)
       alert('An error occurred while submitting your review.')
     } finally {
-      setIsSubmitting(false)
+      setSubmittingProduct(null)
     }
   }
 
   const branchName = typeof branch === 'object' ? branch?.name : 'Branch'
-  // const branchAddress = typeof branch === 'object' ? branch?.address : '' // Removed as unused
-  // const branchPhone = typeof branch === 'object' ? branch?.phone : ''     // Removed as unused
 
   let creatorName = 'Staff'
   if (typeof createdBy === 'object' && createdBy !== null) {
@@ -124,136 +154,194 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
   }
 
   // Date formatting
-  const formattedDate = createdAt ? new Date(createdAt).toLocaleString() : 'N/A'
+  const dateObj = createdAt ? new Date(createdAt) : null
+
+  // Format Date: DD/MM/YY
+  const formattedDate = dateObj
+    ? dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })
+    : 'N/A'
+
+  // Format Time: HH:MM
+  const formattedTime = dateObj
+    ? dateObj.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+    : ''
 
   // Extract Bill No suffix (e.g., "003" from "INV-20251106-003")
   const billNoSuffix = invoiceNumber ? invoiceNumber.split('-').pop() : ''
 
   return (
-    <div className="bill-receipt">
-      <div className="bill-header">
-        <h2>THE BLACK FOREST</h2>
-        {branchName && <p>{branchName}</p>}
-        {/* Address and Phone removed as per request */}
-      </div>
-
-      <div className="bill-meta">
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span>Bill No: {billNoSuffix}</span>
-          <span>Date: {formattedDate}</span>
+    <>
+      {/* Card 1: Bill Details */}
+      <div className="bill-card bill-receipt">
+        <div className="bill-header">
+          <h2>
+            {typeof company === 'object' && company !== null ? company.name : 'THE BLACK FOREST'}
+          </h2>
+          {branchName && <p>{branchName}</p>}
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span>Assigned By: {creatorName}</span>
-          {paymentMethod && <span>Pay Mode: {paymentMethod.toUpperCase()}</span>}
-        </div>
-        {(customerDetails?.name || customerDetails?.phoneNumber || customerDetails?.address) && (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {/* Row 1: Name and Phone */}
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              {customerDetails?.name && <span>Customer: {customerDetails.name}</span>}
-              {customerDetails?.phoneNumber && <span>Ph: {customerDetails.phoneNumber}</span>}
-            </div>
 
-            {/* Row 2: Address (if present) */}
-            {customerDetails?.address && (
-              <div style={{ marginTop: '2px' }}>
-                <span>Address: {customerDetails.address}</span>
+        <div className="bill-meta">
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Bill No: {billNoSuffix}</span>
+            <span>Date: {formattedDate}</span>
+            <span>Time: {formattedTime}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Assigned By: {creatorName}</span>
+            {paymentMethod && <span>Pay Mode: {paymentMethod.toUpperCase()}</span>}
+          </div>
+          {(customerDetails?.name || customerDetails?.phoneNumber || customerDetails?.address) && (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                {customerDetails?.name && <span>Customer: {customerDetails.name}</span>}
+                {customerDetails?.phoneNumber && <span>Ph: {customerDetails.phoneNumber}</span>}
               </div>
-            )}
-          </div>
-        )}
-      </div>
+              {customerDetails?.address && (
+                <div style={{ marginTop: '2px' }}>
+                  <span>Address: {customerDetails.address}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
-      <table className="bill-items">
-        <thead>
-          <tr>
-            <th>Item</th>
-            <th className="item-qty">Qty</th>
-            <th className="item-total">Amt</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item, index) => (
-            <tr key={index}>
-              <td>{item.name}</td>
-              <td className="item-qty">
-                {item.quantity} x {item.unitPrice}
-              </td>
-              <td className="item-total">{item.subtotal?.toFixed(2)}</td>
+        <table className="bill-items">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th className="item-qty">Qty</th>
+              <th className="item-total">Amt</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {items.map((item, index) => {
+              const productId =
+                typeof item.product === 'object' ? item.product?.id : (item.product as string)
+              const reviewData = productId ? productReviews[productId] : null
+              const rating = reviewData?.rating || 0
+              const isSubmitted = reviewData?.submitted
 
-      <div className="bill-totals">
-        <div>
-          <span>Total Items:</span>
-          <span>{items.length}</span>
-        </div>
-        <div className="grand-total">
-          <span>Grand Total:</span>
-          <span>{totalAmount.toFixed(2)}</span>
-        </div>
-      </div>
+              return (
+                <React.Fragment key={index}>
+                  <tr>
+                    <td>{item.name}</td>
+                    <td className="item-qty">
+                      {item.quantity} x {item.unitPrice}
+                    </td>
+                    <td className="item-total">{item.subtotal?.toFixed(2)}</td>
+                  </tr>
 
-      <div style={{ marginTop: '10px', width: '100%' }}>
-        <details open style={{ width: '100%', borderTop: '1px dashed #000', paddingTop: '5px' }}>
-          <summary style={{ cursor: 'pointer', textAlign: 'left', fontWeight: 'bold' }}>
-            Review Us
-          </summary>
-          <div
-            style={{
-              marginTop: '5px',
-              border: '1px solid #000',
-              padding: '10px',
-              minHeight: '60px',
-              fontSize: '12px',
-            }}
-          >
-            <p style={{ margin: '0 0 5px 0' }}>Rate Us: ☆ ☆ ☆ ☆ ☆</p>
-            <textarea
-              style={{
-                width: '100%',
-                border: 'none',
-                outline: 'none',
-                resize: 'none',
-                fontFamily: 'inherit',
-                fontSize: 'inherit',
-                color: '#000',
-                background: 'transparent',
-                fontWeight: 'bold',
-              }}
-              placeholder="Write your feedback here..."
-              rows={3}
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-            />
+                  {/* Review Section for specific Product */}
+                  {productId && !isSubmitted && (
+                    <tr>
+                      <td
+                        colSpan={3}
+                        style={{ borderBottom: '1px dashed #ddd', paddingBottom: '10px' }}
+                      >
+                        <div style={{ marginTop: '5px' }}>
+                          <div
+                            style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}
+                          >
+                            <span style={{ fontSize: '12px', marginRight: '5px' }}>
+                              Rate this item:
+                            </span>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <span
+                                key={star}
+                                onClick={() => handleRatingChange(productId, star)}
+                                style={{
+                                  cursor: 'pointer',
+                                  color: star <= rating ? '#FFD700' : '#ccc',
+                                  fontSize: '18px',
+                                  marginRight: '2px',
+                                }}
+                              >
+                                ★
+                              </span>
+                            ))}
+                          </div>
+
+                          {rating > 0 && (
+                            <div style={{ marginTop: '5px' }}>
+                              <textarea
+                                placeholder="How was it?"
+                                value={reviewData?.feedback || ''}
+                                onChange={(e) => handleFeedbackChange(productId, e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  border: '1px solid #ccc',
+                                  borderRadius: '4px',
+                                  padding: '5px',
+                                  fontSize: '12px',
+                                  resize: 'none',
+                                  color: 'black',
+                                }}
+                                rows={2}
+                              />
+                              <button
+                                onClick={() => handleSubmitReview(productId)}
+                                disabled={submittingProduct === productId}
+                                style={{
+                                  marginTop: '5px',
+                                  backgroundColor: '#000',
+                                  color: '#fff',
+                                  border: 'none',
+                                  padding: '4px 8px',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '11px',
+                                }}
+                              >
+                                {submittingProduct === productId ? '...' : 'Submit'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  {/* Show thank you message if submitted */}
+                  {isSubmitted && (
+                    <tr>
+                      <td
+                        colSpan={3}
+                        style={{
+                          textAlign: 'center',
+                          color: 'green',
+                          fontSize: '12px',
+                          paddingBottom: '5px',
+                          borderBottom: '1px dashed #ddd',
+                        }}
+                      >
+                        Thanks for rating!
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              )
+            })}
+          </tbody>
+        </table>
+
+        <div className="bill-totals">
+          <div>
+            <span>Total Items:</span>
+            <span>{items.length}</span>
           </div>
-          <div style={{ marginTop: '5px', textAlign: 'center' }}>
-            <button
-              onClick={handleSubmitReview}
-              disabled={isSubmitting}
-              style={{
-                padding: '4px 8px',
-                backgroundColor: isSubmitting ? '#666' : '#000',
-                color: '#fff',
-                border: 'none',
-                cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                fontSize: '12px',
-                fontWeight: 'bold',
-              }}
-            >
-              {isSubmitting ? 'Submitting...' : 'Submit Review'}
-            </button>
+          <div className="grand-total">
+            <span>Grand Total:</span>
+            <span>{totalAmount.toFixed(2)}</span>
           </div>
-        </details>
+        </div>
       </div>
 
-      <div className="bill-footer">
-        <p>Thank you for visiting!</p>
-        <p>Have a sweet day!</p>
+      <div className="bill-card bill-receipt" style={{ marginTop: '20px', textAlign: 'center' }}>
+        <div className="bill-footer">
+          <p>Thank you for visiting!</p>
+          <p>Have a sweet day!</p>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 

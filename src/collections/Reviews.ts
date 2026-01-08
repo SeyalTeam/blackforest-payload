@@ -20,6 +20,12 @@ const Reviews: CollectionConfig = {
       required: true,
     },
     {
+      name: 'product',
+      type: 'relationship',
+      relationTo: 'products',
+      required: true,
+    },
+    {
       name: 'rating',
       type: 'number',
       min: 1,

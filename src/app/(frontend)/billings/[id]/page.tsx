@@ -42,11 +42,17 @@ export default async function BillPage({ params }: Args) {
     paymentMethod: bill.paymentMethod,
     branch: bill.branch as any,
     createdBy: bill.createdBy as any,
+    company: bill.company as any,
   }
 
   return (
     <div className="public-bill-container">
-      <div className="bill-wrapper">
+      <div style={{ width: '100%' }}>
+        {billData.customerDetails?.name && (
+          <h2 style={{ color: 'white', marginBottom: '20px', textAlign: 'left' }}>
+            Hello {billData.customerDetails.name},
+          </h2>
+        )}
         <BillReceipt data={billData} />
       </div>
     </div>
