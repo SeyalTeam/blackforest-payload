@@ -28,7 +28,7 @@ const debugReviewPhone = async () => {
       }
     }
   } catch (e) {
-    console.log('Not a review ID or not found: ' + e.message)
+    console.log('Not a review ID or not found: ' + (e as any).message)
   }
 
   console.log(`\n--- Checking Bill with Invoice ${invoiceNumber} ---`)

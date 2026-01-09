@@ -158,7 +158,7 @@ const Billings: CollectionConfig = {
         if (operation === 'create' || operation === 'update') {
           const phoneNumber = doc.customerDetails?.phoneNumber
           const customerName = doc.customerDetails?.name
-          const address = doc.customerDetails?.address
+          // const address = doc.customerDetails?.address
 
           if (phoneNumber) {
             const finalCustomerName = customerName || phoneNumber
