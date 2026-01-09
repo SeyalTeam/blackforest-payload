@@ -113,6 +113,8 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
     // Check if we have customer details
     if (!localCustomerDetails?.name || !localCustomerDetails?.phoneNumber) {
       // Missing details: Open modal and save intent
+      setModalPhone(localCustomerDetails?.phoneNumber || '')
+      setModalName(localCustomerDetails?.name || '')
       setPendingRating({ productId, rating })
       setShowCustomerModal(true)
       return
@@ -130,25 +132,35 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
     }))
   }
 
+  // ... (rest of the file until modal JSX)
+
   const handleSaveDetails = async () => {
     if (!id || !modalName || !modalPhone) return
-    setIsSaving(true)
 
-    const res = await updateCustomer(id, modalName, modalPhone)
+    // 1. Optimistic Update: Immediately changes UI state
+    setLocalCustomerDetails({ ...localCustomerDetails, name: modalName, phoneNumber: modalPhone })
+    setShowCustomerModal(false)
 
-    setIsSaving(false)
-    if (res.success) {
-      // Update local state
-      setLocalCustomerDetails({ ...localCustomerDetails, name: modalName, phoneNumber: modalPhone })
-      setShowCustomerModal(false)
+    // 2. Apply pending rating immediately
+    if (pendingRating) {
+      setProductReviews((prev) => ({
+        ...prev,
+        [pendingRating.productId]: {
+          ...prev[pendingRating.productId],
+          rating: pendingRating.rating,
+          feedback: prev[pendingRating.productId]?.feedback || '',
+          submitted: prev[pendingRating.productId]?.submitted || false,
+        },
+      }))
+      setPendingRating(null)
+    }
 
-      // Resume pending action if any
-      if (pendingRating) {
-        handleRatingChange(pendingRating.productId, pendingRating.rating)
-        setPendingRating(null)
-      }
-    } else {
-      alert('Failed to save details. Please try again.')
+    // 3. Background Sync (Fire and Forget)
+    try {
+      await updateCustomer(id, modalName, modalPhone)
+    } catch (error) {
+      console.error('Failed to sync customer details in background', error)
+      // Optionally handle error (e.g., toast), but don't blocking UI
     }
   }
 
