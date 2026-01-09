@@ -18,6 +18,13 @@ export type BillData = {
   createdAt?: string
   items?: BillItem[]
   totalAmount?: number
+  existingReviews?: {
+    items?: Array<{
+      product: string | Product
+      rating: number
+      feedback?: string
+    }>
+  } | null
   customerDetails?: {
     name?: string | null
     phoneNumber?: string | null
@@ -59,13 +66,28 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
     branch,
     createdBy,
     company,
+    existingReviews,
   } = data
 
   const [productReviews, setProductReviews] = useState<{
     [productId: string]: { rating: number; feedback: string; submitted: boolean }
-  }>({})
-
-  const [submittingProduct, setSubmittingProduct] = useState<string | null>(null)
+  }>(() => {
+    const initialState: {
+      [key: string]: { rating: number; feedback: string; submitted: boolean }
+    } = {}
+    if (existingReviews?.items) {
+      existingReviews.items.forEach((reviewItem) => {
+        const prodId =
+          typeof reviewItem.product === 'object' ? reviewItem.product.id : reviewItem.product
+        initialState[prodId] = {
+          rating: reviewItem.rating,
+          feedback: reviewItem.feedback || '',
+          submitted: true,
+        }
+      })
+    }
+    return initialState
+  })
 
   const handleRatingChange = (productId: string, rating: number) => {
     setProductReviews((prev) => ({
@@ -93,7 +115,14 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
     const reviewData = productReviews[productId]
     if (!reviewData || !reviewData.rating) return
 
-    setSubmittingProduct(productId)
+    // Optimistic update: Show as submitted immediately
+    setProductReviews((prev) => ({
+      ...prev,
+      [productId]: {
+        ...prev[productId],
+        submitted: true,
+      },
+    }))
 
     try {
       const payload = {
@@ -106,32 +135,15 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
         branch: typeof branch === 'object' ? branch?.id : branch,
       }
 
-      const response = await fetch('/api/reviews', {
+      await fetch('/api/reviews', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
       })
-
-      if (response.ok) {
-        alert('Thank you for your review!')
-        setProductReviews((prev) => ({
-          ...prev,
-          [productId]: {
-            ...prev[productId],
-            submitted: true,
-          },
-        }))
-      } else {
-        const errorData = await response.json()
-        alert(`Failed to submit review: ${errorData.errors?.[0]?.message || 'Unknown error'}`)
-      }
     } catch (error) {
       console.error('Error submitting review:', error)
-      alert('An error occurred while submitting your review.')
-    } finally {
-      setSubmittingProduct(null)
     }
   }
 
@@ -271,49 +283,83 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
                                   width: '100%',
                                   border: '1px solid #ccc',
                                   borderRadius: '4px',
-                                  padding: '5px',
-                                  fontSize: '12px',
+                                  padding: '8px',
+                                  fontSize: '13px',
                                   resize: 'none',
                                   color: 'black',
                                 }}
                                 rows={2}
                               />
-                              <button
-                                onClick={() => handleSubmitReview(productId)}
-                                disabled={submittingProduct === productId}
-                                style={{
-                                  marginTop: '5px',
-                                  backgroundColor: '#000',
-                                  color: '#fff',
-                                  border: 'none',
-                                  padding: '4px 8px',
-                                  borderRadius: '4px',
-                                  cursor: 'pointer',
-                                  fontSize: '11px',
-                                }}
-                              >
-                                {submittingProduct === productId ? '...' : 'Submit'}
-                              </button>
+                              <div style={{ textAlign: 'center', marginTop: '10px' }}>
+                                <button
+                                  onClick={() => handleSubmitReview(productId)}
+                                  style={{
+                                    backgroundColor: '#000',
+                                    color: '#fff',
+                                    border: 'none',
+                                    padding: '8px 24px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontSize: '13px',
+                                    fontWeight: '500',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                  }}
+                                >
+                                  Submit Review
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
                       </td>
                     </tr>
                   )}
-                  {/* Show thank you message if submitted */}
+                  {/* Show rating and feedback if submitted */}
                   {isSubmitted && (
                     <tr>
                       <td
                         colSpan={3}
                         style={{
-                          textAlign: 'center',
-                          color: 'green',
-                          fontSize: '12px',
-                          paddingBottom: '5px',
+                          paddingBottom: '10px',
                           borderBottom: '1px dashed #ddd',
                         }}
                       >
-                        Thanks for rating!
+                        <div style={{ marginTop: '2px' }}>
+                          <div
+                            style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}
+                          >
+                            <span style={{ fontSize: '12px', marginRight: '5px' }}>
+                              Thanks For Your Rating:
+                            </span>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <span
+                                key={star}
+                                style={{
+                                  color: star <= rating ? '#FFD700' : '#ccc',
+                                  fontSize: '18px',
+                                  marginRight: '2px',
+                                }}
+                              >
+                                ★
+                              </span>
+                            ))}
+                          </div>
+                          {reviewData?.feedback && (
+                            <div
+                              style={{
+                                fontSize: '11px',
+                                lineHeight: '1.2',
+                                color: '#555',
+                                backgroundColor: '#f9f9f9',
+                                padding: '3px 5px',
+                                borderRadius: '3px',
+                                border: '1px solid #eee',
+                              }}
+                            >
+                              {reviewData.feedback}
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )}

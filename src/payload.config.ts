@@ -40,6 +40,7 @@ import { StockOrderReportGlobal } from './globals/StockOrderReport'
 import { getStockOrderReportHandler } from './endpoints/getStockOrderReport'
 import { resetInventoryHandler } from './endpoints/resetInventory'
 import Reviews from './collections/Reviews'
+import Customers from './collections/Customers'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -159,6 +160,7 @@ export default buildConfig({
     Expenses,
     StockOrders,
     Reviews,
+    Customers,
   ],
 
   editor: lexicalEditor(),

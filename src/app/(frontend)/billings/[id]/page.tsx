@@ -31,6 +31,23 @@ export default async function BillPage({ params }: Args) {
     return notFound()
   }
 
+  // Fetch existing review for this bill
+  let existingReview
+  try {
+    const reviewsQuery = await payload.find({
+      collection: 'reviews',
+      where: {
+        bill: {
+          equals: id,
+        },
+      },
+      depth: 0,
+    })
+    existingReview = reviewsQuery.docs[0] || null
+  } catch (error) {
+    console.error('Error fetching existing review:', error)
+  }
+
   // Construct data object for BillReceipt using the fetched document
   const billData: BillData = {
     id: bill.id,
@@ -43,6 +60,7 @@ export default async function BillPage({ params }: Args) {
     branch: bill.branch as any,
     createdBy: bill.createdBy as any,
     company: bill.company as any,
+    existingReviews: existingReview as any,
   }
 
   return (

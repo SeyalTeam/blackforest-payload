@@ -151,6 +151,65 @@ const Billings: CollectionConfig = {
         return data
       },
     ],
+    afterChange: [
+      async ({ doc, req, operation }) => {
+        if (!doc) return
+        // Sync Customer Data
+        if (operation === 'create' || operation === 'update') {
+          const phoneNumber = doc.customerDetails?.phoneNumber
+          const customerName = doc.customerDetails?.name
+          const address = doc.customerDetails?.address
+
+          if (phoneNumber && customerName) {
+            try {
+              // 1. Check if customer exists
+              const existingCustomers = await req.payload.find({
+                collection: 'customers',
+                where: {
+                  phoneNumber: {
+                    equals: phoneNumber,
+                  },
+                },
+                depth: 0,
+              })
+
+              if (existingCustomers.totalDocs > 0) {
+                // 2. Update existing customer
+                const customer = existingCustomers.docs[0]
+                const currentBills =
+                  customer.bills?.map((b) => (typeof b === 'object' ? b.id : b)) || []
+
+                // Add current bill if not already present
+                if (!currentBills.includes(doc.id)) {
+                  await req.payload.update({
+                    collection: 'customers',
+                    id: customer.id,
+                    data: {
+                      bills: [...currentBills, doc.id],
+                      // Update name/address if changed? Optional. Keeping latest for now.
+                      // name: customerName,
+                    },
+                  })
+                }
+              } else {
+                // 3. Create new customer
+                await req.payload.create({
+                  collection: 'customers',
+                  data: {
+                    name: customerName,
+                    phoneNumber: phoneNumber,
+                    bills: [doc.id],
+                  },
+                })
+              }
+            } catch (error) {
+              console.error('Error syncing customer data:', error)
+            }
+          }
+        }
+        return doc
+      },
+    ],
   },
   fields: [
     {

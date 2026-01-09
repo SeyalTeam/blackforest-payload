@@ -82,6 +82,7 @@ export interface Config {
     expenses: Expense;
     'stock-orders': StockOrder;
     reviews: Review;
+    customers: Customer;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -103,6 +104,7 @@ export interface Config {
     expenses: ExpensesSelect<false> | ExpensesSelect<true>;
     'stock-orders': StockOrdersSelect<false> | StockOrdersSelect<true>;
     reviews: ReviewsSelect<false> | ReviewsSelect<true>;
+    customers: CustomersSelect<false> | CustomersSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -595,6 +597,18 @@ export interface Review {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "customers".
+ */
+export interface Customer {
+  id: string;
+  name: string;
+  phoneNumber: string;
+  bills?: (string | Billing)[] | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -659,6 +673,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'reviews';
         value: string | Review;
+      } | null)
+    | ({
+        relationTo: 'customers';
+        value: string | Customer;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1099,6 +1117,17 @@ export interface ReviewsSelect<T extends boolean = true> {
   customerName?: T;
   customerPhone?: T;
   branch?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "customers_select".
+ */
+export interface CustomersSelect<T extends boolean = true> {
+  name?: T;
+  phoneNumber?: T;
+  bills?: T;
   updatedAt?: T;
   createdAt?: T;
 }
