@@ -148,27 +148,6 @@ const Billings: CollectionConfig = {
           )
         }
 
-        // 🔍 Auto-populate Customer Name if missing
-        if (data.customerDetails?.phoneNumber && !data.customerDetails?.name) {
-          try {
-            const customers = await req.payload.find({
-              collection: 'customers',
-              where: {
-                phoneNumber: {
-                  equals: data.customerDetails.phoneNumber,
-                },
-              },
-              depth: 0,
-            })
-
-            if (customers.totalDocs > 0) {
-              data.customerDetails.name = customers.docs[0].name
-            }
-          } catch (error) {
-            console.error('Error auto-populating customer name:', error)
-          }
-        }
-
         return data
       },
     ],
