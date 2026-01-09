@@ -78,6 +78,7 @@ export const getReviewReportHandler: PayloadHandler = async (
           productName,
           reviewMessage: item.feedback,
           status: item.status,
+          reviewDate: review.createdAt,
         })
       })
     })
