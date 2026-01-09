@@ -148,6 +148,27 @@ const Billings: CollectionConfig = {
           )
         }
 
+        // 🔍 Auto-populate Customer Name if missing
+        if (data.customerDetails?.phoneNumber && !data.customerDetails?.name) {
+          try {
+            const customers = await req.payload.find({
+              collection: 'customers',
+              where: {
+                phoneNumber: {
+                  equals: data.customerDetails.phoneNumber,
+                },
+              },
+              depth: 0,
+            })
+
+            if (customers.totalDocs > 0) {
+              data.customerDetails.name = customers.docs[0].name
+            }
+          } catch (error) {
+            console.error('Error auto-populating customer name:', error)
+          }
+        }
+
         return data
       },
     ],
@@ -160,7 +181,8 @@ const Billings: CollectionConfig = {
           const customerName = doc.customerDetails?.name
           const address = doc.customerDetails?.address
 
-          if (phoneNumber && customerName) {
+          if (phoneNumber) {
+            const finalCustomerName = customerName || phoneNumber
             try {
               // 1. Check if customer exists
               const existingCustomers = await req.payload.find({
@@ -196,7 +218,7 @@ const Billings: CollectionConfig = {
                 await req.payload.create({
                   collection: 'customers',
                   data: {
-                    name: customerName,
+                    name: finalCustomerName,
                     phoneNumber: phoneNumber,
                     bills: [doc.id],
                   },

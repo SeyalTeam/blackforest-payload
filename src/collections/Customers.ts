@@ -31,6 +31,11 @@ const Customers: CollectionConfig = {
       type: 'relationship',
       relationTo: 'billings',
       hasMany: true,
+      admin: {
+        components: {
+          Field: '/components/CustomerBillsTable/index.tsx#default',
+        },
+      },
     },
   ],
   timestamps: true,
