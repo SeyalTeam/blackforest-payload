@@ -541,11 +541,11 @@ const WaiterWiseBillingReport: React.FC = () => {
               <tr>
                 <th style={{ width: '50px' }}>S.NO</th>
                 <th>WAITER NAME</th>
-                <th className="text-right">AVG (BILL)</th>
-                <th className="text-right">TOTAL BILLS</th>
                 <th className="text-right">CASH</th>
                 <th className="text-right">UPI</th>
                 <th className="text-right">CARD</th>
+                <th className="text-right">AVG (BILL)</th>
+                <th className="text-right">TOTAL BILLS</th>
                 <th className="text-right">TOTAL AMOUNT</th>
               </tr>
             </thead>
@@ -589,6 +589,9 @@ const WaiterWiseBillingReport: React.FC = () => {
                       </div>
                     </div>
                   </td>
+                  <td className="text-right amount-cell">{formatValue(row.cashAmount)}</td>
+                  <td className="text-right amount-cell">{formatValue(row.upiAmount)}</td>
+                  <td className="text-right amount-cell">{formatValue(row.cardAmount)}</td>
                   {(() => {
                     const waiterAvg = row.totalBills > 0 ? row.totalAmount / row.totalBills : 0
                     const branchIds = row.branchIds || []
@@ -625,9 +628,6 @@ const WaiterWiseBillingReport: React.FC = () => {
                     )
                   })()}
                   <td className="text-right">{row.totalBills}</td>
-                  <td className="text-right amount-cell">{formatValue(row.cashAmount)}</td>
-                  <td className="text-right amount-cell">{formatValue(row.upiAmount)}</td>
-                  <td className="text-right amount-cell">{formatValue(row.cardAmount)}</td>
                   <td className="text-right amount-cell">{formatValue(row.totalAmount)}</td>
                 </tr>
               ))}
@@ -635,15 +635,15 @@ const WaiterWiseBillingReport: React.FC = () => {
             <tfoot>
               <tr className="grand-total">
                 <td colSpan={2}>TOTAL</td>
+                <td className="text-right amount-cell">{formatValue(data.totals.cashAmount)}</td>
+                <td className="text-right amount-cell">{formatValue(data.totals.upiAmount)}</td>
+                <td className="text-right amount-cell">{formatValue(data.totals.cardAmount)}</td>
                 <td className="text-right">
                   {data.totals.totalBills > 0
                     ? formatValue(data.totals.totalAmount / data.totals.totalBills)
                     : '0.00'}
                 </td>
                 <td className="text-right">{data.totals.totalBills}</td>
-                <td className="text-right amount-cell">{formatValue(data.totals.cashAmount)}</td>
-                <td className="text-right amount-cell">{formatValue(data.totals.upiAmount)}</td>
-                <td className="text-right amount-cell">{formatValue(data.totals.cardAmount)}</td>
                 <td className="text-right amount-cell">{formatValue(data.totals.totalAmount)}</td>
               </tr>
             </tfoot>

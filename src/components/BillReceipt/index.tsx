@@ -54,6 +54,10 @@ export type BillData = {
     | null
 }
 
+import { updateCustomer } from '@/app/actions/updateCustomer'
+
+// ... existing imports
+
 const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
   const {
     id,
@@ -68,6 +72,22 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
     company,
     existingReviews,
   } = data
+
+  // Local state for customer details (initially from props)
+  const [localCustomerDetails, setLocalCustomerDetails] = useState(
+    customerDetails || { name: '', phoneNumber: '', address: '' },
+  )
+
+  // Modal state
+  const [showCustomerModal, setShowCustomerModal] = useState(false)
+  const [modalName, setModalName] = useState('')
+  const [modalPhone, setModalPhone] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+
+  // Pending action state (to resume after details collected)
+  const [pendingRating, setPendingRating] = useState<{ productId: string; rating: number } | null>(
+    null,
+  )
 
   const [productReviews, setProductReviews] = useState<{
     [productId: string]: { rating: number; feedback: string; submitted: boolean }
@@ -90,6 +110,15 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
   })
 
   const handleRatingChange = (productId: string, rating: number) => {
+    // Check if we have customer details
+    if (!localCustomerDetails?.name || !localCustomerDetails?.phoneNumber) {
+      // Missing details: Open modal and save intent
+      setPendingRating({ productId, rating })
+      setShowCustomerModal(true)
+      return
+    }
+
+    // Normal behavior
     setProductReviews((prev) => ({
       ...prev,
       [productId]: {
@@ -99,6 +128,28 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
         submitted: prev[productId]?.submitted || false,
       },
     }))
+  }
+
+  const handleSaveDetails = async () => {
+    if (!id || !modalName || !modalPhone) return
+    setIsSaving(true)
+
+    const res = await updateCustomer(id, modalName, modalPhone)
+
+    setIsSaving(false)
+    if (res.success) {
+      // Update local state
+      setLocalCustomerDetails({ ...localCustomerDetails, name: modalName, phoneNumber: modalPhone })
+      setShowCustomerModal(false)
+
+      // Resume pending action if any
+      if (pendingRating) {
+        handleRatingChange(pendingRating.productId, pendingRating.rating)
+        setPendingRating(null)
+      }
+    } else {
+      alert('Failed to save details. Please try again.')
+    }
   }
 
   const handleFeedbackChange = (productId: string, feedback: string) => {
@@ -202,15 +253,19 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
             <span>Assigned By: {creatorName}</span>
             {paymentMethod && <span>Pay Mode: {paymentMethod.toUpperCase()}</span>}
           </div>
-          {(customerDetails?.name || customerDetails?.phoneNumber || customerDetails?.address) && (
+          {(localCustomerDetails?.name ||
+            localCustomerDetails?.phoneNumber ||
+            localCustomerDetails?.address) && (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                {customerDetails?.name && <span>Customer: {customerDetails.name}</span>}
-                {customerDetails?.phoneNumber && <span>Ph: {customerDetails.phoneNumber}</span>}
+                {localCustomerDetails?.name && <span>Customer: {localCustomerDetails.name}</span>}
+                {localCustomerDetails?.phoneNumber && (
+                  <span>Ph: {localCustomerDetails.phoneNumber}</span>
+                )}
               </div>
-              {customerDetails?.address && (
+              {localCustomerDetails?.address && (
                 <div style={{ marginTop: '2px' }}>
-                  <span>Address: {customerDetails.address}</span>
+                  <span>Address: {localCustomerDetails.address}</span>
                 </div>
               )}
             </div>
@@ -387,6 +442,53 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
           <p>Have a sweet day!</p>
         </div>
       </div>
+      {/* Customer Details Modal */}
+      {showCustomerModal && (
+        <div className="customer-modal-overlay">
+          <div className="customer-modal">
+            <h3>Customer Details</h3>
+
+            <div className="form-group">
+              <label>Phone Number</label>
+              <input
+                type="tel"
+                placeholder="Enter phone number"
+                value={modalPhone}
+                onChange={(e) => setModalPhone(e.target.value)}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Customer Name</label>
+              <input
+                type="text"
+                placeholder="Enter customer name"
+                value={modalName}
+                onChange={(e) => setModalName(e.target.value)}
+              />
+            </div>
+
+            <div className="modal-actions">
+              <button
+                className="cancel-btn"
+                onClick={() => {
+                  setShowCustomerModal(false)
+                  setPendingRating(null)
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="save-btn"
+                onClick={handleSaveDetails}
+                disabled={!modalName || !modalPhone || isSaving}
+              >
+                {isSaving ? 'Submitting...' : 'Submit'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

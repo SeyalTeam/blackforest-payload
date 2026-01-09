@@ -38,6 +38,10 @@ import { InventoryReportGlobal } from './globals/InventoryReport'
 import { getInventoryReportHandler } from './endpoints/getInventoryReport'
 import { StockOrderReportGlobal } from './globals/StockOrderReport'
 import { getStockOrderReportHandler } from './endpoints/getStockOrderReport'
+import { getAfterstockCustomerReportHandler } from './endpoints/getAfterstockCustomerReport'
+import { AfterstockCustomerReportGlobal } from './globals/AfterstockCustomerReport'
+import { getReviewReportHandler } from './endpoints/getReviewReport'
+import { ReviewReportGlobal } from './globals/ReviewReport'
 import { resetInventoryHandler } from './endpoints/resetInventory'
 import Reviews from './collections/Reviews'
 import Customers from './collections/Customers'
@@ -126,6 +130,16 @@ export default buildConfig({
       handler: getStockOrderReportHandler,
     },
     {
+      path: '/reports/afterstock-customer',
+      method: 'get',
+      handler: getAfterstockCustomerReportHandler,
+    },
+    {
+      path: '/reports/review',
+      method: 'get',
+      handler: getReviewReportHandler,
+    },
+    {
       path: '/inventory/reset',
       method: 'post',
       handler: resetInventoryHandler,
@@ -141,6 +155,8 @@ export default buildConfig({
     WaiterWiseBillingReportGlobal,
     InventoryReportGlobal,
     StockOrderReportGlobal,
+    AfterstockCustomerReportGlobal,
+    ReviewReportGlobal,
   ],
 
   // Collections

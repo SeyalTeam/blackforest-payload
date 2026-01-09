@@ -7,6 +7,8 @@ import { default as default_7397014835f53864fd04e60a81829907 } from '../../../co
 import { default as default_bf85980ee3af56c75543fe343ccb1155 } from '../../../components/WaiterWiseBillingReport/index.tsx'
 import { default as default_7c4eca9b024572db8dabeb53bf36c0e7 } from '../../../components/InventoryReport/index.tsx'
 import { default as default_f6297d9a270bdbbca7736c61f9f4f1e9 } from '../../../components/StockOrderReport/index.tsx'
+import { default as default_b041205a7c55420476e32a6bc72ba118 } from '../../../components/AfterstockCustomerReport/index.tsx'
+import { default as default_140b8e69630a9ff5b0533c7021cd6bfe } from '../../../components/ReviewReport/index.tsx'
 import { VercelBlobClientUploadHandler as VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e } from '@payloadcms/storage-vercel-blob/client'
 
 export const importMap = {
@@ -19,5 +21,7 @@ export const importMap = {
   "/components/WaiterWiseBillingReport/index.tsx#default": default_bf85980ee3af56c75543fe343ccb1155,
   "/components/InventoryReport/index.tsx#default": default_7c4eca9b024572db8dabeb53bf36c0e7,
   "/components/StockOrderReport/index.tsx#default": default_f6297d9a270bdbbca7736c61f9f4f1e9,
+  "/components/AfterstockCustomerReport/index.tsx#default": default_b041205a7c55420476e32a6bc72ba118,
+  "/components/ReviewReport/index.tsx#default": default_140b8e69630a9ff5b0533c7021cd6bfe,
   "@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler": VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e
 }

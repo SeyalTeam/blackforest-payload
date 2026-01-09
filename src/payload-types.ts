@@ -121,6 +121,8 @@ export interface Config {
     'waiter-wise-billing-report': WaiterWiseBillingReport;
     'inventory-report': InventoryReport;
     'stock-order-report': StockOrderReport;
+    'afterstock-customer-report': AfterstockCustomerReport;
+    'review-report': ReviewReport;
   };
   globalsSelect: {
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
@@ -131,6 +133,8 @@ export interface Config {
     'waiter-wise-billing-report': WaiterWiseBillingReportSelect<false> | WaiterWiseBillingReportSelect<true>;
     'inventory-report': InventoryReportSelect<false> | InventoryReportSelect<true>;
     'stock-order-report': StockOrderReportSelect<false> | StockOrderReportSelect<true>;
+    'afterstock-customer-report': AfterstockCustomerReportSelect<false> | AfterstockCustomerReportSelect<true>;
+    'review-report': ReviewReportSelect<false> | ReviewReportSelect<true>;
   };
   locale: null;
   user: User & {
@@ -586,6 +590,13 @@ export interface Review {
         product: string | Product;
         rating?: number | null;
         feedback: string;
+        /**
+         * Reply from the chef regarding this feedback
+         */
+        chefReply?: string | null;
+        repliedBy?: string | null;
+        repliedAt?: string | null;
+        status?: ('waiting' | 'replied' | 'approved') | null;
         id?: string | null;
       }[]
     | null;
@@ -1112,6 +1123,10 @@ export interface ReviewsSelect<T extends boolean = true> {
         product?: T;
         rating?: T;
         feedback?: T;
+        chefReply?: T;
+        repliedBy?: T;
+        repliedAt?: T;
+        status?: T;
         id?: T;
       };
   customerName?: T;
@@ -1254,6 +1269,24 @@ export interface StockOrderReport {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "afterstock-customer-report".
+ */
+export interface AfterstockCustomerReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "review-report".
+ */
+export interface ReviewReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "ip-settings_select".
  */
 export interface IpSettingsSelect<T extends boolean = true> {
@@ -1333,6 +1366,24 @@ export interface InventoryReportSelect<T extends boolean = true> {
  * via the `definition` "stock-order-report_select".
  */
 export interface StockOrderReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "afterstock-customer-report_select".
+ */
+export interface AfterstockCustomerReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "review-report_select".
+ */
+export interface ReviewReportSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
