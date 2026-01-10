@@ -1,4 +1,5 @@
 import { CollectionConfig } from 'payload'
+import { isIPAllowed } from '../utilities/ipCheck'
 
 const calculateEAN13CheckDigit = (eanWithoutCheckDigit: string): number => {
   let sum = 0
@@ -51,17 +52,30 @@ const Products: CollectionConfig = {
         }
 
         if (clientIp) {
+          // Log detected IP for debugging
+          console.log(`[Products Access] Checking IP: ${clientIp}`)
           try {
-            const branch = await req.payload.find({
+            // Fetch all branches to check IP ranges
+            const branches = await req.payload.find({
               collection: 'branches',
-              where: { ipAddress: { equals: clientIp } },
-              limit: 1,
+              limit: 100,
+              pagination: false,
+              // select: { ipAddress: true, name: true }, // Optimization if supported in this version
             })
-            if (branch.docs.length > 0) {
-              branchId = branch.docs[0].id
+
+            for (const branch of branches.docs) {
+              // Use isIPAllowed utility to check ranges/lists
+              if (branch.ipAddress && isIPAllowed(clientIp, branch.ipAddress)) {
+                branchId = branch.id
+                console.log(
+                  `[Products Access] Match Found: ${clientIp} -> ${branch.name} (${branch.id})`,
+                )
+                break
+              }
             }
           } catch (error) {
             // Ignore error
+            console.error('[Products Access] IP Check Failed', error)
           }
         }
       }
