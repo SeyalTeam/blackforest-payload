@@ -17,7 +17,65 @@ const Products: CollectionConfig = {
   },
   access: {
     // Make read public (anyone can access without login)
-    read: () => true,
+    read: async ({ req }) => {
+      // Allow full access for admins/company if no specific branch query is present
+      if (
+        req.user &&
+        ['superadmin', 'admin', 'company'].includes(req.user.role) &&
+        !req.query?.branch
+      ) {
+        return true
+      }
+
+      // Get branch ID from user or query
+      let branchId: string | null = null
+
+      // Priority 1: Query param (allows admins to test branch view, or public to filter)
+      if (req.query?.branch && typeof req.query.branch === 'string') {
+        branchId = req.query.branch
+      }
+      // Priority 2: User's assigned branch
+      else if (req.user?.branch) {
+        branchId = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
+      }
+      // Priority 3: Detect Branch by IP (for waiters/devices on branch WiFi)
+      else {
+        // Detect Public IP
+        let clientIp = '127.0.0.1'
+        if (req.headers && typeof req.headers.get === 'function') {
+          const forwarded = req.headers.get('x-forwarded-for')
+          const ip = typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : null
+          if (ip) clientIp = ip
+        } else if ((req as any).ip) {
+          clientIp = (req as any).ip
+        }
+
+        if (clientIp) {
+          try {
+            const branch = await req.payload.find({
+              collection: 'branches',
+              where: { ipAddress: { equals: clientIp } },
+              limit: 1,
+            })
+            if (branch.docs.length > 0) {
+              branchId = branch.docs[0].id
+            }
+          } catch (error) {
+            // Ignore error
+          }
+        }
+      }
+
+      if (branchId) {
+        return {
+          inactiveBranches: {
+            not_equals: branchId,
+          },
+        }
+      }
+
+      return true
+    },
     create: ({ req: { user } }) =>
       user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'company',
     update: () => true, // Made public to allow updates without authentication
