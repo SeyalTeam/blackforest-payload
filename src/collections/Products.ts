@@ -219,6 +219,16 @@ const Products: CollectionConfig = {
       ],
     },
     {
+      name: 'inactiveBranches',
+      type: 'relationship',
+      relationTo: 'branches',
+      hasMany: true,
+      label: 'Inactive in Branches',
+      admin: {
+        description: 'Select branches where this product should be inactive.',
+      },
+    },
+    {
       name: 'branchOverrides',
       type: 'array', // Overrides for specific branches (e.g., the one at ₹12)
       label: 'Branch Overrides',

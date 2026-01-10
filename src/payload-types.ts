@@ -282,6 +282,10 @@ export interface Product {
     unit: 'pcs' | 'kg' | 'g';
     gst: '0' | '5' | '12' | '18' | '22';
   };
+  /**
+   * Select branches where this product should be inactive.
+   */
+  inactiveBranches?: (string | Branch)[] | null;
   branchOverrides?:
     | {
         branch: string | Branch;
@@ -848,6 +852,7 @@ export interface ProductsSelect<T extends boolean = true> {
         unit?: T;
         gst?: T;
       };
+  inactiveBranches?: T;
   branchOverrides?:
     | T
     | {
