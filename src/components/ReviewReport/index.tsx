@@ -6,6 +6,7 @@ import '../AfterstockCustomerReport/index.scss' // Reusing styles from Customer 
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 
+import { approveReview } from '@/app/actions/approveReview'
 import { getBill } from '@/app/actions/getBill'
 import BillReceipt, { BillData } from '@/components/BillReceipt'
 
@@ -18,6 +19,8 @@ type ReviewStat = {
   productName: string
   reviewMessage: string
   chefReply: string
+  reviewId: string
+  itemId: string
   status: string
 }
 

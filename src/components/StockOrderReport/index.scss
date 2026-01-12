@@ -84,7 +84,7 @@
     overflow-x: auto;
     background-color: #09090b;
     border-radius: 8px;
-    max-width: 740px; // Match width of filters (5 * 140px + 4 * 10px)
+    width: 75%; // Occupy 75% space per user request
   }
 
   .report-table {
@@ -206,5 +206,4 @@
 
 .details-table {
   margin-top: 15px;
-  max-width: 100%;
 }
