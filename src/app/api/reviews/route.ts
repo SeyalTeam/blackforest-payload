@@ -94,3 +94,39 @@ export const POST = async (req: NextRequest) => {
     )
   }
 }
+
+export const GET = async (req: NextRequest) => {
+  const payload = await getPayload({ config: configPromise })
+  const { searchParams } = new URL(req.url)
+  const bill = searchParams.get('bill')
+  const product = searchParams.get('product')
+
+  const where: any = {}
+  if (bill) {
+    where.bill = { equals: bill }
+  }
+  // Note: product filtering would be on items.product, which is inside an array.
+  // Payload query syntax for array searching:
+  /*
+    where: {
+      'items.product': { equals: product }
+    }
+  */
+  if (product) {
+    where['items.product'] = { equals: product }
+  }
+
+  try {
+    const reviews = await payload.find({
+      collection: 'reviews',
+      where,
+      depth: 1, // Adjust depth as needed to get related data
+      limit: 100, // Reasonable default limit
+    })
+
+    return NextResponse.json(reviews, { status: 200 })
+  } catch (error) {
+    console.error('Error fetching reviews:', error)
+    return NextResponse.json({ errors: [{ message: 'Failed to fetch reviews' }] }, { status: 500 })
+  }
+}
