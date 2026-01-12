@@ -1,8 +1,12 @@
 .bill-receipt {
   font-family: 'Courier New', Courier, monospace; /* Thermal printer style */
-  color: #000;
+  color: #000 !important;
   padding: 20px;
   background: white;
+
+  * {
+    color: #000 !important;
+  }
 
   @media (max-width: 480px) {
     padding: 10px;
@@ -18,11 +22,13 @@
       margin: 0;
       font-size: 22px;
       font-weight: bold;
+      color: #000 !important;
     }
 
     p {
       margin: 5px 0;
       font-size: 14px;
+      color: #000 !important;
     }
   }
 
@@ -47,6 +53,7 @@
     td {
       text-align: left;
       padding: 5px 0;
+      color: #000 !important;
     }
 
     th {

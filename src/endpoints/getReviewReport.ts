@@ -75,8 +75,12 @@ export const getReviewReportHandler: PayloadHandler = async (
           customerName,
           phoneNumber: customerPhone,
           billNumber,
+          billId: typeof review.bill === 'object' ? review.bill?.id : (review.bill as string),
           productName,
           reviewMessage: item.feedback,
+          chefReply: item.chefReply || '',
+          reviewId: review.id,
+          itemId: item.id,
           status: item.status,
           reviewDate: review.createdAt,
         })
