@@ -151,10 +151,6 @@ export const getStockOrderReportHandler: PayloadHandler = async (req): Promise<R
         })
       }
 
-      if (order.invoiceNumber) {
-        invoiceNumbers.set(order.invoiceNumber, { isLive, createdAt: order.createdAt })
-      }
-
       if (branchId) {
         if (!branchMap.has(branchId)) {
           branchMap.set(branchId, {

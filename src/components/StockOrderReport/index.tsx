@@ -604,7 +604,7 @@ const StockOrderReport: React.FC = () => {
                     <div className="card-row">
                       <span className="icon">🚚</span>
                       <span className="value">
-                        Del: {formatCardDate(inv.deliveryDate || inv.createdAt)}
+                        Del: {formatCardDate(inv.deliveryDate) || 'N/A'}
                       </span>
                     </div>
                     <div className="card-row amount">
