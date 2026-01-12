@@ -118,6 +118,17 @@ export const getStockOrderReportHandler: PayloadHandler = async (req): Promise<R
     >()
 
     orders.forEach((order) => {
+      // DEBUG: Log order details
+      if (order.invoiceNumber === 'KMC-STC-260112-01' || order.invoiceNumber?.includes('STC')) {
+        req.payload.logger.info({
+          msg: 'DEBUG STOCK ORDER',
+          invoice: order.invoiceNumber,
+          deliveryDate: order.deliveryDate,
+          createdAt: order.createdAt,
+          hasDeliveryDate: 'deliveryDate' in order,
+        })
+      }
+
       // --- Matrix Aggregation ---
       const branchId = typeof order.branch === 'object' ? order.branch?.id : order.branch
       const branchName = typeof order.branch === 'object' ? order.branch?.name : 'Unknown'

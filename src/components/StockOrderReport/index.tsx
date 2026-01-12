@@ -582,6 +582,20 @@ const StockOrderReport: React.FC = () => {
                   >
                     <div className="card-header">
                       <h4>{inv.invoice}</h4>
+                      <span
+                        style={{
+                          backgroundColor: inv.isLive ? '#ef4444' : '#22c55e',
+                          color: '#ffffff',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          fontSize: '10px',
+                          fontWeight: '700',
+                          letterSpacing: '0.5px',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {inv.isLive ? 'LIVE' : 'STOCK'}
+                      </span>
                     </div>
                     <div className="card-row">
                       <span className="icon">📅</span>
