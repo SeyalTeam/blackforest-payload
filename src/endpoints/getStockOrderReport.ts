@@ -112,7 +112,10 @@ export const getStockOrderReportHandler: PayloadHandler = async (req): Promise<R
     >()
 
     const detailsMap = new Map<string, any>()
-    const invoiceNumbers = new Map<string, { isLive: boolean; createdAt: string }>()
+    const invoiceNumbers = new Map<
+      string,
+      { isLive: boolean; createdAt: string; deliveryDate?: string }
+    >()
 
     orders.forEach((order) => {
       // --- Matrix Aggregation ---
@@ -130,7 +133,11 @@ export const getStockOrderReportHandler: PayloadHandler = async (req): Promise<R
       }
 
       if (order.invoiceNumber) {
-        invoiceNumbers.set(order.invoiceNumber, { isLive, createdAt: order.createdAt })
+        invoiceNumbers.set(order.invoiceNumber, {
+          isLive,
+          createdAt: order.createdAt,
+          deliveryDate: order.deliveryDate,
+        })
       }
 
       if (order.invoiceNumber) {
@@ -311,10 +318,11 @@ export const getStockOrderReportHandler: PayloadHandler = async (req): Promise<R
       totals,
       details,
       invoiceNumbers: Array.from(invoiceNumbers.entries())
-        .map(([invoice, { isLive, createdAt }]) => ({
+        .map(([invoice, { isLive, createdAt, deliveryDate }]) => ({
           invoice,
           isLive,
           createdAt,
+          deliveryDate,
         }))
         .sort((a, b) => {
           const t1 = new Date(a.createdAt || 0).getTime()

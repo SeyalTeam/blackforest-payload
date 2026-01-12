@@ -44,7 +44,12 @@ type ReportData = {
     totalOrders: number
   }
   details: DetailItem[]
-  invoiceNumbers?: Array<{ invoice: string; isLive: boolean; createdAt?: string }>
+  invoiceNumbers?: Array<{
+    invoice: string
+    isLive: boolean
+    createdAt?: string
+    deliveryDate?: string
+  }>
 }
 
 const StockOrderReport: React.FC = () => {
@@ -422,6 +427,46 @@ const StockOrderReport: React.FC = () => {
     )
   }, [data?.details, selectedInvoice])
 
+  const invoiceList = React.useMemo(() => {
+    if (!data?.invoiceNumbers) return []
+
+    // 1. Calculate Amount per Invoice
+    const amounts = new Map<string, number>()
+    if (data.details) {
+      data.details.forEach((item) => {
+        if (item.invoiceNumber) {
+          amounts.set(
+            item.invoiceNumber,
+            (amounts.get(item.invoiceNumber) || 0) + item.price * item.ordQty,
+          )
+        }
+      })
+    }
+
+    // 2. Filter & Map
+    return data.invoiceNumbers
+      .filter((inv) => {
+        if (!selectedOrderType) return true
+        if (selectedOrderType === 'stock') return !inv.isLive
+        if (selectedOrderType === 'live') return inv.isLive
+        return true
+      })
+      .map((inv) => ({
+        ...inv,
+        amount: amounts.get(inv.invoice) || 0,
+      }))
+  }, [data?.invoiceNumbers, data?.details, selectedOrderType])
+
+  const formatCardDate = (iso?: string) => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    const dd = String(d.getDate()).padStart(2, '0')
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const yy = String(d.getFullYear()).slice(-2)
+    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+    return `${dd}.${mm}.${yy}- ${time.replace(':', '.')}`
+  }
+
   return (
     <div className="stock-order-report-container">
       <div className="report-header">
@@ -502,789 +547,688 @@ const StockOrderReport: React.FC = () => {
           className="report-content"
           style={{ opacity: loading ? 0.7 : 1, transition: 'opacity 0.2s' }}
         >
-          <div className="table-container summary-table">
-            <table className="report-table">
-              <thead>
-                <tr>
-                  <th style={{ minWidth: '150px', position: 'sticky', left: 0, zIndex: 2 }}>
-                    METRIC
-                  </th>
-                  {data.stats.map((row) => (
-                    <th key={row.branchName} style={{ textAlign: 'center' }}>
-                      {row.branchName.substring(0, 3).toUpperCase()}
-                    </th>
-                  ))}
-                  <th style={{ textAlign: 'center', minWidth: '100px', fontWeight: 'bold' }}>
-                    TOTAL
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* Stock Orders Row */}
-                <tr>
-                  <td
-                    style={{
-                      fontWeight: '600',
-                      position: 'sticky',
-                      left: 0,
-                      backgroundColor: 'var(--theme-elevation-50)',
-                      zIndex: 1,
-                      borderRight: '1px solid var(--theme-elevation-200)',
-                    }}
+          <div className="report-body">
+            {/* Sidebar */}
+            <div className="report-sidebar">
+              <div className="sidebar-filter">
+                <Select
+                  options={[
+                    { value: '', label: 'All Orders' },
+                    { value: 'stock', label: 'Stock Orders' },
+                    { value: 'live', label: 'Live Orders' },
+                  ]}
+                  value={
+                    selectedOrderType
+                      ? {
+                          value: selectedOrderType,
+                          label: selectedOrderType === 'stock' ? 'Stock Orders' : 'Live Orders',
+                        }
+                      : { value: '', label: 'All Orders' }
+                  }
+                  onChange={(opt: any) => setSelectedOrderType(opt?.value || '')}
+                  styles={customStyles}
+                  isSearchable={false}
+                />
+              </div>
+
+              <div className="order-list">
+                {invoiceList.map((inv) => (
+                  <div
+                    key={inv.invoice}
+                    className={`order-card ${selectedInvoice === inv.invoice ? 'active' : ''}`}
+                    onClick={() =>
+                      setSelectedInvoice((prev) => (prev === inv.invoice ? '' : inv.invoice))
+                    }
                   >
-                    Stock Orders
-                  </td>
-                  {data.stats.map((row) => (
-                    <td key={row.branchName} style={{ textAlign: 'center' }}>
-                      {row.stockOrders}
-                    </td>
-                  ))}
-                  <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                    {data.totals.stockOrders}
-                  </td>
-                </tr>
-
-                {/* Live Orders Row */}
-                <tr>
-                  <td
-                    style={{
-                      fontWeight: '600',
-                      position: 'sticky',
-                      left: 0,
-                      backgroundColor: 'var(--theme-elevation-50)',
-                      zIndex: 1,
-                      borderRight: '1px solid var(--theme-elevation-200)',
-                    }}
-                  >
-                    Live Orders
-                  </td>
-                  {data.stats.map((row) => (
-                    <td key={row.branchName} style={{ textAlign: 'center' }}>
-                      {row.liveOrders}
-                    </td>
-                  ))}
-                  <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                    {data.totals.liveOrders}
-                  </td>
-                </tr>
-
-                {/* Total Orders Row */}
-                <tr style={{ backgroundColor: 'var(--theme-elevation-100)', fontWeight: 'bold' }}>
-                  <td
-                    style={{
-                      position: 'sticky',
-                      left: 0,
-                      backgroundColor: 'var(--theme-elevation-100)',
-                      zIndex: 1,
-                      borderRight: '1px solid var(--theme-elevation-200)',
-                    }}
-                  >
-                    Total Orders
-                  </td>
-                  {data.stats.map((row) => (
-                    <td key={row.branchName} style={{ textAlign: 'center' }}>
-                      {row.totalOrders}
-                    </td>
-                  ))}
-                  <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                    {data.totals.totalOrders}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div
-            className="table-title"
-            style={{
-              marginTop: '30px',
-              marginBottom: '10px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '15px',
-            }}
-          >
-            <h3 style={{ margin: 0 }}>Product Order Details</h3>
-
-            {/* Order Type Chips */}
-            <div
-              className="filter-group"
-              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-            >
-              <button
-                onClick={() => setSelectedOrderType((prev) => (prev === 'stock' ? '' : 'stock'))}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  border: '1px solid #22c55e',
-                  backgroundColor: selectedOrderType === 'stock' ? '#22c55e' : 'transparent',
-                  color: selectedOrderType === 'stock' ? '#ffffff' : '#22c55e',
-                  cursor: 'pointer',
-                  fontWeight: '600',
-                  fontSize: '11px',
-                  transition: 'all 0.2s',
-                }}
-              >
-                Stock
-              </button>
-              <button
-                onClick={() => setSelectedOrderType((prev) => (prev === 'live' ? '' : 'live'))}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  border: '1px solid #ef4444',
-                  backgroundColor: selectedOrderType === 'live' ? '#ef4444' : 'transparent',
-                  color: selectedOrderType === 'live' ? '#ffffff' : '#ef4444',
-                  cursor: 'pointer',
-                  fontWeight: '600',
-                  fontSize: '11px',
-                  transition: 'all 0.2s',
-                }}
-              >
-                Live
-              </button>
-            </div>
-          </div>
-
-          <div
-            className="filters-row"
-            style={{
-              display: 'flex',
-              gap: '10px',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              marginBottom: '15px',
-            }}
-          >
-            <div style={{ flex: '0 0 140px' }}>
-              <Select
-                options={[
-                  { value: '', label: 'All Branches' },
-                  ...branches.map((b: any) => ({ value: b.id, label: b.name })),
-                ]}
-                value={
-                  selectedBranch
-                    ? {
-                        value: selectedBranch,
-                        label:
-                          branches.find((b: any) => b.id === selectedBranch)?.name ||
-                          'All Branches',
-                      }
-                    : null
-                }
-                onChange={(option: any) => {
-                  setLoading(true)
-                  setSelectedBranch(option?.value || '')
-                }}
-                styles={customStyles}
-                placeholder="All Branches"
-                isClearable={true}
-              />
+                    <div className="card-header">
+                      <h4>{inv.invoice}</h4>
+                    </div>
+                    <div className="card-row">
+                      <span className="icon">📅</span>
+                      <span className="value">Ord: {formatCardDate(inv.createdAt)}</span>
+                    </div>
+                    <div className="card-row" style={{ border: '1px dashed #ef4444' }}>
+                      <span className="icon">🚚</span>
+                      <span className="value">
+                        Delivery: {formatCardDate(inv.deliveryDate || inv.createdAt)}
+                      </span>
+                    </div>
+                    <div className="card-row amount">
+                      <span className="icon">💵</span>
+                      <span className="value">
+                        Amount: ₹ {(inv.amount ?? 0).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            <div style={{ flex: '0 0 140px' }}>
-              <Select
-                options={[
-                  { value: '', label: 'Departments' },
-                  ...departments.map((d: any) => ({ value: d.id, label: d.name })),
-                ]}
-                value={
-                  selectedDept
-                    ? {
-                        value: selectedDept,
-                        label:
-                          departments.find((d: any) => d.id === selectedDept)?.name ||
-                          'Departments',
-                      }
-                    : null
-                }
-                onChange={(option: any) => setSelectedDept(option?.value || '')}
-                styles={customStyles}
-                placeholder="Departments"
-                isClearable={true}
-              />
-            </div>
+            {/* Main Content */}
+            <div className="main-content">
+              <div className="table-container summary-table">
+                <table className="report-table">
+                  <thead>
+                    <tr>
+                      <th style={{ minWidth: '150px', position: 'sticky', left: 0, zIndex: 2 }}>
+                        METRIC
+                      </th>
+                      {data.stats.map((row) => (
+                        <th key={row.branchName} style={{ textAlign: 'center' }}>
+                          {row.branchName.substring(0, 3).toUpperCase()}
+                        </th>
+                      ))}
+                      <th style={{ textAlign: 'center', minWidth: '100px', fontWeight: 'bold' }}>
+                        TOTAL
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Stock Orders Row */}
+                    <tr>
+                      <td
+                        style={{
+                          fontWeight: '600',
+                          position: 'sticky',
+                          left: 0,
+                          backgroundColor: 'var(--theme-elevation-50)',
+                          zIndex: 1,
+                          borderRight: '1px solid var(--theme-elevation-200)',
+                        }}
+                      >
+                        Stock Orders
+                      </td>
+                      {data.stats.map((row) => (
+                        <td key={row.branchName} style={{ textAlign: 'center' }}>
+                          {row.stockOrders}
+                        </td>
+                      ))}
+                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                        {data.totals.stockOrders}
+                      </td>
+                    </tr>
 
-            <div style={{ flex: '0 0 140px' }}>
-              <Select
-                options={[
-                  { value: '', label: 'All Categories' },
-                  ...filteredCategories.map((c: any) => ({ value: c.id, label: c.name })),
-                ]}
-                value={
-                  selectedCat
-                    ? {
-                        value: selectedCat,
-                        label:
-                          filteredCategories.find((c: any) => c.id === selectedCat)?.name ||
-                          'All Categories',
-                      }
-                    : null
-                }
-                onChange={(option: any) => setSelectedCat(option?.value || '')}
-                styles={customStyles}
-                placeholder="All Categories"
-                isClearable={true}
-              />
-            </div>
+                    {/* Live Orders Row */}
+                    <tr>
+                      <td
+                        style={{
+                          fontWeight: '600',
+                          position: 'sticky',
+                          left: 0,
+                          backgroundColor: 'var(--theme-elevation-50)',
+                          zIndex: 1,
+                          borderRight: '1px solid var(--theme-elevation-200)',
+                        }}
+                      >
+                        Live Orders
+                      </td>
+                      {data.stats.map((row) => (
+                        <td key={row.branchName} style={{ textAlign: 'center' }}>
+                          {row.liveOrders}
+                        </td>
+                      ))}
+                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                        {data.totals.liveOrders}
+                      </td>
+                    </tr>
 
-            <div style={{ flex: '0 0 140px' }}>
-              <Select
-                options={[
-                  { value: '', label: 'All Products' },
-                  ...filteredProducts.map((p: any) => ({ value: p.id, label: p.name })),
-                ]}
-                value={
-                  selectedProd
-                    ? {
-                        value: selectedProd,
-                        label:
-                          filteredProducts.find((p: any) => p.id === selectedProd)?.name ||
-                          'All Products',
-                      }
-                    : null
-                }
-                onChange={(option: any) => setSelectedProd(option?.value || '')}
-                styles={customStyles}
-                placeholder="All Products"
-                isClearable={true}
-              />
-            </div>
-
-            <div style={{ flex: '0 0 140px' }}>
-              <Select
-                options={[{ value: '', label: 'All Status' }, ...statusOptions]}
-                value={
-                  selectedStatus ? statusOptions.find((opt) => opt.value === selectedStatus) : null
-                }
-                onChange={(option: any) => setSelectedStatus(option?.value || '')}
-                styles={customStyles}
-                placeholder="All Status"
-                isClearable={true}
-              />
-            </div>
-          </div>
-
-          <div className="table-container details-table">
-            <table className="report-table">
-              {/* thead removed as per request to move headers inside body */}
-              <tbody>
-                {/* Invoice Number Row (Only when Branch Filter is active) */}
-                {selectedBranch && data?.invoiceNumbers && data.invoiceNumbers.length > 0 && (
-                  <tr style={{ backgroundColor: '#18181b' }}>
-                    <td
-                      colSpan={8}
+                    {/* Total Orders Row */}
+                    <tr
                       style={{
-                        padding: '12px',
-                        fontWeight: '700',
-                        color: '#d4d4d8',
-                        fontSize: '14px',
-                        textAlign: 'left',
-                        borderBottom: '1px solid #3f3f46',
+                        backgroundColor: 'var(--theme-elevation-100)',
+                        fontWeight: 'bold',
                       }}
                     >
-                      {(() => {
-                        const invoices = data.invoiceNumbers || []
-                        const firstEntry = invoices[0]
-                        const firstInvoice = firstEntry?.invoice || ''
-                        const parts = firstInvoice.split('-')
-                        const branchCode = parts.length >= 4 ? parts[0] : ''
+                      <td
+                        style={{
+                          position: 'sticky',
+                          left: 0,
+                          backgroundColor: 'var(--theme-elevation-100)',
+                          zIndex: 1,
+                          borderRight: '1px solid var(--theme-elevation-200)',
+                        }}
+                      >
+                        Total Orders
+                      </td>
+                      {data.stats.map((row) => (
+                        <td key={row.branchName} style={{ textAlign: 'center' }}>
+                          {row.totalOrders}
+                        </td>
+                      ))}
+                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                        {data.totals.totalOrders}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
 
-                        // If we have a branch code, display it and chips.
-                        if (branchCode) {
-                          if (loading) {
-                            return (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span style={{ color: '#a1a1aa', fontStyle: 'italic' }}>
-                                  Loading invoices...
+              <div
+                className="table-title"
+                style={{
+                  marginTop: '30px',
+                  marginBottom: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '15px',
+                }}
+              >
+                <h3 style={{ margin: 0 }}>Product Order Details</h3>
+              </div>
+
+              <div
+                className="filters-row"
+                style={{
+                  display: 'flex',
+                  gap: '10px',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  marginBottom: '15px',
+                }}
+              >
+                <div style={{ flex: '0 0 140px' }}>
+                  <Select
+                    options={[
+                      { value: '', label: 'All Branches' },
+                      ...branches.map((b: any) => ({ value: b.id, label: b.name })),
+                    ]}
+                    value={
+                      selectedBranch
+                        ? {
+                            value: selectedBranch,
+                            label:
+                              branches.find((b: any) => b.id === selectedBranch)?.name ||
+                              'All Branches',
+                          }
+                        : null
+                    }
+                    onChange={(option: any) => {
+                      setLoading(true)
+                      setSelectedBranch(option?.value || '')
+                    }}
+                    styles={customStyles}
+                    placeholder="All Branches"
+                    isClearable={true}
+                  />
+                </div>
+
+                <div style={{ flex: '0 0 140px' }}>
+                  <Select
+                    options={[
+                      { value: '', label: 'Departments' },
+                      ...departments.map((d: any) => ({ value: d.id, label: d.name })),
+                    ]}
+                    value={
+                      selectedDept
+                        ? {
+                            value: selectedDept,
+                            label:
+                              departments.find((d: any) => d.id === selectedDept)?.name ||
+                              'Departments',
+                          }
+                        : null
+                    }
+                    onChange={(option: any) => setSelectedDept(option?.value || '')}
+                    styles={customStyles}
+                    placeholder="Departments"
+                    isClearable={true}
+                  />
+                </div>
+
+                <div style={{ flex: '0 0 140px' }}>
+                  <Select
+                    options={[
+                      { value: '', label: 'All Categories' },
+                      ...filteredCategories.map((c: any) => ({ value: c.id, label: c.name })),
+                    ]}
+                    value={
+                      selectedCat
+                        ? {
+                            value: selectedCat,
+                            label:
+                              filteredCategories.find((c: any) => c.id === selectedCat)?.name ||
+                              'All Categories',
+                          }
+                        : null
+                    }
+                    onChange={(option: any) => setSelectedCat(option?.value || '')}
+                    styles={customStyles}
+                    placeholder="All Categories"
+                    isClearable={true}
+                  />
+                </div>
+
+                <div style={{ flex: '0 0 140px' }}>
+                  <Select
+                    options={[
+                      { value: '', label: 'All Products' },
+                      ...filteredProducts.map((p: any) => ({ value: p.id, label: p.name })),
+                    ]}
+                    value={
+                      selectedProd
+                        ? {
+                            value: selectedProd,
+                            label:
+                              filteredProducts.find((p: any) => p.id === selectedProd)?.name ||
+                              'All Products',
+                          }
+                        : null
+                    }
+                    onChange={(option: any) => setSelectedProd(option?.value || '')}
+                    styles={customStyles}
+                    placeholder="All Products"
+                    isClearable={true}
+                  />
+                </div>
+
+                <div style={{ flex: '0 0 140px' }}>
+                  <Select
+                    options={[{ value: '', label: 'All Status' }, ...statusOptions]}
+                    value={
+                      selectedStatus
+                        ? statusOptions.find((opt) => opt.value === selectedStatus)
+                        : null
+                    }
+                    onChange={(option: any) => setSelectedStatus(option?.value || '')}
+                    styles={customStyles}
+                    placeholder="All Status"
+                    isClearable={true}
+                  />
+                </div>
+              </div>
+
+              <div className="table-container details-table">
+                <table className="report-table">
+                  <tbody>
+                    {Object.entries(groupedDetails).map(([dept, categories]) => {
+                      // Calculate Department Totals
+                      const deptItems = Object.values(categories).flat()
+                      // Items are already processed
+                      const filteredDeptItems = deptItems
+
+                      const deptOrdTotal = filteredDeptItems.reduce(
+                        (sum, item) => sum + item.ordQty * item.price,
+                        0,
+                      )
+                      const deptSntTotal = filteredDeptItems.reduce(
+                        (sum, item) => sum + item.sntQty * item.price,
+                        0,
+                      )
+                      const deptConTotal = filteredDeptItems.reduce(
+                        (sum, item) => sum + item.conQty * item.price,
+                        0,
+                      )
+                      const deptPicTotal = filteredDeptItems.reduce(
+                        (sum, item) => sum + item.picQty * item.price,
+                        0,
+                      )
+                      const deptRecTotal = filteredDeptItems.reduce(
+                        (sum, item) => sum + item.recQty * item.price,
+                        0,
+                      )
+                      const deptDifTotal = filteredDeptItems.reduce(
+                        (sum, item) => sum + item.difQty * item.price,
+                        0,
+                      )
+
+                      // Don't render dept if empty after filter? (Optional, but user might want to see empty headers)
+                      // If "All Branches" and filter hides everything, maybe hide dept.
+                      if (filteredDeptItems.length === 0) return null
+
+                      return (
+                        <React.Fragment key={dept}>
+                          {/* Department Header Row */}
+                          <tr style={{ backgroundColor: '#18181b' }}>
+                            <td
+                              colSpan={8}
+                              style={{
+                                padding: '10px 12px',
+                                fontWeight: '800',
+                                color: '#fbbf24',
+                                fontSize: '14px',
+                                textAlign: 'left',
+                                letterSpacing: '1px',
+                                borderTop: '1px solid #3f3f46',
+                                borderBottom: '1px solid #3f3f46',
+                                textTransform: 'uppercase',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                }}
+                              >
+                                <span>{dept}</span>
+                                <span
+                                  style={{
+                                    fontSize: '12px',
+                                    color: '#fbbf24',
+                                    fontWeight: '600',
+                                    letterSpacing: '0.5px',
+                                  }}
+                                >
+                                  ORD: {deptOrdTotal.toLocaleString('en-IN')} | SNT:{' '}
+                                  {deptSntTotal.toLocaleString('en-IN')} | CON:{' '}
+                                  {deptConTotal.toLocaleString('en-IN')} | PIC:{' '}
+                                  {deptPicTotal.toLocaleString('en-IN')} | REC:{' '}
+                                  {deptRecTotal.toLocaleString('en-IN')} | DIF:{' '}
+                                  {deptDifTotal.toLocaleString('en-IN')}
                                 </span>
                               </div>
+                            </td>
+                          </tr>
+
+                          {Object.entries(categories).map(([category, items]) => {
+                            // Items are already processed in groupedDetails
+                            const filteredItems = items
+
+                            if (filteredItems.length === 0) return null
+
+                            const catOrdTotal = filteredItems.reduce(
+                              (sum, item) => sum + item.ordQty * item.price,
+                              0,
                             )
-                          }
-                          return (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ color: '#a1a1aa', fontWeight: '800' }}>
-                                {branchCode}
-                              </span>
-                              <span style={{ color: '#a1a1aa' }}>INVOICE:</span>
-                              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                                {invoices.map((entry) => {
-                                  const invString = entry.invoice
-                                  const seq = invString.split('-').pop()
-                                  // Live = Red (#ef4444), Stock = Green (#22c55e)
-                                  const chipColor = entry.isLive ? '#ef4444' : '#22c55e'
-                                  const isSelected = selectedInvoice === invString
-                                  const textColor = '#ffffff'
+                            const catSntTotal = filteredItems.reduce(
+                              (sum, item) => sum + item.sntQty * item.price,
+                              0,
+                            )
+                            const catConTotal = filteredItems.reduce(
+                              (sum, item) => sum + item.conQty * item.price,
+                              0,
+                            )
+                            const catPicTotal = filteredItems.reduce(
+                              (sum, item) => sum + item.picQty * item.price,
+                              0,
+                            )
+                            const catRecTotal = filteredItems.reduce(
+                              (sum, item) => sum + item.recQty * item.price,
+                              0,
+                            )
+                            const catDifTotal = filteredItems.reduce(
+                              (sum, item) => sum + item.difQty * item.price,
+                              0,
+                            )
 
-                                  const timeString = entry.createdAt
-                                    ? new Date(entry.createdAt).toLocaleTimeString([], {
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                        hour12: false,
-                                      })
-                                    : ''
-
-                                  return (
-                                    <span
-                                      key={invString}
-                                      onClick={() =>
-                                        setSelectedInvoice((prev) =>
-                                          prev === invString ? '' : invString,
-                                        )
-                                      }
+                            return (
+                              <React.Fragment key={category}>
+                                {/* Category Header Row */}
+                                <tr style={{ backgroundColor: '#27272a' }}>
+                                  <td
+                                    colSpan={8}
+                                    style={{
+                                      padding: '8px 12px',
+                                      fontWeight: 'bold',
+                                      color: '#38bdf8',
+                                      fontSize: '14px',
+                                      textAlign: 'left',
+                                      letterSpacing: '0.5px',
+                                      borderTop: '1px solid #3f3f46',
+                                      borderBottom: '1px solid #3f3f46',
+                                    }}
+                                  >
+                                    <div
                                       style={{
-                                        backgroundColor: chipColor,
-                                        color: textColor,
-                                        padding: '2px 8px',
-                                        borderRadius: '4px',
-                                        fontSize: '12px',
-                                        fontWeight: '600',
-                                        letterSpacing: '0.5px',
-                                        cursor: 'pointer',
-                                        border: isSelected ? '2px solid #ffffff' : 'none',
-                                        outline: isSelected ? '2px solid #3b82f6' : 'none',
-                                        transform: isSelected ? 'scale(1.1)' : 'none',
-                                        transition: 'all 0.1s ease',
-                                        boxShadow: isSelected
-                                          ? '0 0 0 2px rgba(255, 255, 255, 0.4)'
-                                          : 'none',
                                         display: 'flex',
+                                        justifyContent: 'space-between',
                                         alignItems: 'center',
-                                        gap: '4px',
                                       }}
                                     >
-                                      {seq}
-                                      {timeString && (
-                                        <>
-                                          <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            width="12"
-                                            height="12"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            style={{ opacity: 0.9 }}
-                                          >
-                                            <circle cx="12" cy="12" r="10" />
-                                            <polyline points="12 6 12 12 16 14" />
-                                          </svg>
-                                          <span style={{ fontSize: '11px', opacity: 0.95 }}>
-                                            {timeString}
-                                          </span>
-                                        </>
-                                      )}
-                                    </span>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          )
-                        }
+                                      <span>{category}</span>
+                                      <span
+                                        style={{
+                                          fontSize: '11px',
+                                          color: '#38bdf8',
+                                          fontWeight: '500',
+                                        }}
+                                      >
+                                        ORD: {catOrdTotal.toLocaleString('en-IN')} | SNT:{' '}
+                                        {catSntTotal.toLocaleString('en-IN')} | CON:{' '}
+                                        {catConTotal.toLocaleString('en-IN')} | PIC:{' '}
+                                        {catPicTotal.toLocaleString('en-IN')} | REC:{' '}
+                                        {catRecTotal.toLocaleString('en-IN')} | DIF:{' '}
+                                        {catDifTotal.toLocaleString('en-IN')}
+                                      </span>
+                                    </div>
+                                  </td>
+                                </tr>
 
-                        // Fallback (for old format)
-                        return (
-                          <>
-                            <span style={{ color: '#a1a1aa', marginRight: '8px' }}>INVOICE:</span>
-                            <span style={{ color: '#ffffff', letterSpacing: '0.5px' }}>
-                              {invoices.map((i) => i.invoice).join(', ')}
-                            </span>
-                          </>
-                        )
-                      })()}
-                    </td>
-                  </tr>
-                )}
+                                {/* Column Sub-headers */}
+                                <tr
+                                  style={{
+                                    backgroundColor: '#202022',
+                                    borderBottom: '1px solid #3f3f46',
+                                  }}
+                                >
+                                  <th
+                                    style={{
+                                      width: '180px',
+                                      textAlign: 'left',
+                                      padding: '8px 12px',
+                                      fontSize: '11px',
+                                      color: '#a1a1aa',
+                                      fontWeight: '600',
+                                    }}
+                                  >
+                                    PRODUCT NAME
+                                  </th>
+                                  <th
+                                    style={{
+                                      width: '75px',
+                                      textAlign: 'right',
+                                      padding: '8px',
+                                      fontSize: '11px',
+                                      color: '#a1a1aa',
+                                      fontWeight: '600',
+                                    }}
+                                  >
+                                    PRC
+                                  </th>
+                                  <th
+                                    style={{
+                                      width: '75px',
+                                      textAlign: 'center',
+                                      padding: '8px',
+                                      fontSize: '11px',
+                                      color: '#a1a1aa',
+                                      fontWeight: '600',
+                                    }}
+                                  >
+                                    ORD
+                                  </th>
+                                  <th
+                                    style={{
+                                      width: '75px',
+                                      textAlign: 'center',
+                                      padding: '8px',
+                                      fontSize: '11px',
+                                      color: '#a1a1aa',
+                                      fontWeight: '600',
+                                    }}
+                                  >
+                                    SNT
+                                  </th>
+                                  <th
+                                    style={{
+                                      width: '75px',
+                                      textAlign: 'center',
+                                      padding: '8px',
+                                      fontSize: '11px',
+                                      color: '#a1a1aa',
+                                      fontWeight: '600',
+                                    }}
+                                  >
+                                    CON
+                                  </th>
+                                  <th
+                                    style={{
+                                      width: '75px',
+                                      textAlign: 'center',
+                                      padding: '8px',
+                                      fontSize: '11px',
+                                      color: '#a1a1aa',
+                                      fontWeight: '600',
+                                    }}
+                                  >
+                                    PIC
+                                  </th>
+                                  <th
+                                    style={{
+                                      width: '75px',
+                                      textAlign: 'center',
+                                      padding: '8px',
+                                      fontSize: '11px',
+                                      color: '#a1a1aa',
+                                      fontWeight: '600',
+                                    }}
+                                  >
+                                    REC
+                                  </th>
+                                  <th
+                                    style={{
+                                      width: '75px',
+                                      textAlign: 'center',
+                                      padding: '8px',
+                                      fontSize: '11px',
+                                      color: '#a1a1aa',
+                                      fontWeight: '600',
+                                    }}
+                                  >
+                                    DIF
+                                  </th>
+                                </tr>
 
-                {Object.entries(groupedDetails).map(([dept, categories]) => {
-                  // Calculate Department Totals
-                  const deptItems = Object.values(categories).flat()
-                  // Items are already processed
-                  const filteredDeptItems = deptItems
+                                {/* Items for this Category */}
+                                {/* Items for this Category */}
+                                {filteredItems.map((item, idx) => (
+                                  <tr key={`${dept}-${category}-${idx}`}>
+                                    <td
+                                      style={{
+                                        maxWidth: '180px',
+                                        whiteSpace: 'normal',
+                                        fontSize: '13px',
+                                      }}
+                                    >
+                                      <div style={{ fontWeight: 500 }}>{item.productName}</div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.8em',
+                                          color: 'var(--theme-elevation-400)',
+                                        }}
+                                      >
+                                        {(item.branchDisplay || item.branchName)
+                                          .split(',')
+                                          .filter(Boolean)
+                                          .map((branch, i) => (
+                                            <span
+                                              key={i}
+                                              style={{
+                                                display: 'inline-block',
+                                                backgroundColor: '#27272a',
+                                                padding: '1px 3px',
+                                                borderRadius: '3px',
+                                                marginRight: '2px',
+                                                fontSize: '9px',
+                                                fontWeight: '600',
+                                                color: '#a1a1aa',
+                                                lineHeight: '1',
+                                              }}
+                                            >
+                                              {branch.trim()}
+                                            </span>
+                                          ))}
+                                      </div>
+                                    </td>
+                                    <td style={{ textAlign: 'right', fontSize: '13px' }}>
+                                      {item.price}
+                                    </td>
+                                    <td style={{ textAlign: 'center', fontSize: '13px' }}>
+                                      <div>{item.ordQty}</div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.75em',
+                                          color: 'var(--theme-elevation-450)',
+                                        }}
+                                      >
+                                        {formatTime(item.ordTime)}
+                                      </div>
+                                    </td>
 
-                  const deptOrdTotal = filteredDeptItems.reduce(
-                    (sum, item) => sum + item.ordQty * item.price,
-                    0,
-                  )
-                  const deptSntTotal = filteredDeptItems.reduce(
-                    (sum, item) => sum + item.sntQty * item.price,
-                    0,
-                  )
-                  const deptConTotal = filteredDeptItems.reduce(
-                    (sum, item) => sum + item.conQty * item.price,
-                    0,
-                  )
-                  const deptPicTotal = filteredDeptItems.reduce(
-                    (sum, item) => sum + item.picQty * item.price,
-                    0,
-                  )
-                  const deptRecTotal = filteredDeptItems.reduce(
-                    (sum, item) => sum + item.recQty * item.price,
-                    0,
-                  )
-                  const deptDifTotal = filteredDeptItems.reduce(
-                    (sum, item) => sum + item.difQty * item.price,
-                    0,
-                  )
+                                    <td style={{ textAlign: 'center', fontSize: '13px' }}>
+                                      <div>{item.sntQty}</div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.75em',
+                                          color: 'var(--theme-elevation-450)',
+                                        }}
+                                      >
+                                        {formatTime(item.sntTime)}
+                                      </div>
+                                    </td>
+                                    <td style={{ textAlign: 'center', fontSize: '13px' }}>
+                                      <div>{item.conQty}</div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.75em',
+                                          color: 'var(--theme-elevation-450)',
+                                        }}
+                                      >
+                                        {formatTime(item.conTime)}
+                                      </div>
+                                    </td>
+                                    <td style={{ textAlign: 'center', fontSize: '13px' }}>
+                                      <div>{item.picQty}</div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.75em',
+                                          color: 'var(--theme-elevation-450)',
+                                        }}
+                                      >
+                                        {formatTime(item.picTime)}
+                                      </div>
+                                    </td>
+                                    <td style={{ textAlign: 'center', fontSize: '13px' }}>
+                                      <div>{item.recQty}</div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.75em',
+                                          color: 'var(--theme-elevation-450)',
+                                        }}
+                                      >
+                                        {formatTime(item.recTime)}
+                                      </div>
+                                    </td>
 
-                  // Don't render dept if empty after filter? (Optional, but user might want to see empty headers)
-                  // If "All Branches" and filter hides everything, maybe hide dept.
-                  if (filteredDeptItems.length === 0) return null
-
-                  return (
-                    <React.Fragment key={dept}>
-                      {/* Department Header Row */}
-                      <tr style={{ backgroundColor: '#18181b' }}>
-                        <td
-                          colSpan={8}
-                          style={{
-                            padding: '10px 12px',
-                            fontWeight: '800',
-                            color: '#fbbf24',
-                            fontSize: '14px',
-                            textAlign: 'left',
-                            letterSpacing: '1px',
-                            borderTop: '1px solid #3f3f46',
-                            borderBottom: '1px solid #3f3f46',
-                            textTransform: 'uppercase',
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                            }}
-                          >
-                            <span>{dept}</span>
-                            <span
-                              style={{
-                                fontSize: '12px',
-                                color: '#fbbf24',
-                                fontWeight: '600',
-                                letterSpacing: '0.5px',
-                              }}
-                            >
-                              ORD: {deptOrdTotal.toLocaleString('en-IN')} | SNT:{' '}
-                              {deptSntTotal.toLocaleString('en-IN')} | CON:{' '}
-                              {deptConTotal.toLocaleString('en-IN')} | PIC:{' '}
-                              {deptPicTotal.toLocaleString('en-IN')} | REC:{' '}
-                              {deptRecTotal.toLocaleString('en-IN')} | DIF:{' '}
-                              {deptDifTotal.toLocaleString('en-IN')}
-                            </span>
-                          </div>
+                                    <td
+                                      style={{
+                                        textAlign: 'center',
+                                        color: item.difQty !== 0 ? '#ef4444' : 'inherit',
+                                        fontWeight: item.difQty !== 0 ? '600' : 'normal',
+                                        fontSize: '13px',
+                                      }}
+                                    >
+                                      {item.difQty}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </React.Fragment>
+                            )
+                          })}
+                        </React.Fragment>
+                      )
+                    })}
+                    {data.details.length === 0 && (
+                      <tr>
+                        <td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>
+                          No items found.
                         </td>
                       </tr>
-
-                      {Object.entries(categories).map(([category, items]) => {
-                        // Items are already processed in groupedDetails
-                        const filteredItems = items
-
-                        if (filteredItems.length === 0) return null
-
-                        const catOrdTotal = filteredItems.reduce(
-                          (sum, item) => sum + item.ordQty * item.price,
-                          0,
-                        )
-                        const catSntTotal = filteredItems.reduce(
-                          (sum, item) => sum + item.sntQty * item.price,
-                          0,
-                        )
-                        const catConTotal = filteredItems.reduce(
-                          (sum, item) => sum + item.conQty * item.price,
-                          0,
-                        )
-                        const catPicTotal = filteredItems.reduce(
-                          (sum, item) => sum + item.picQty * item.price,
-                          0,
-                        )
-                        const catRecTotal = filteredItems.reduce(
-                          (sum, item) => sum + item.recQty * item.price,
-                          0,
-                        )
-                        const catDifTotal = filteredItems.reduce(
-                          (sum, item) => sum + item.difQty * item.price,
-                          0,
-                        )
-
-                        return (
-                          <React.Fragment key={category}>
-                            {/* Category Header Row */}
-                            <tr style={{ backgroundColor: '#27272a' }}>
-                              <td
-                                colSpan={8}
-                                style={{
-                                  padding: '8px 12px',
-                                  fontWeight: 'bold',
-                                  color: '#38bdf8',
-                                  fontSize: '14px',
-                                  textAlign: 'left',
-                                  letterSpacing: '0.5px',
-                                  borderTop: '1px solid #3f3f46',
-                                  borderBottom: '1px solid #3f3f46',
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                  }}
-                                >
-                                  <span>{category}</span>
-                                  <span
-                                    style={{
-                                      fontSize: '11px',
-                                      color: '#38bdf8',
-                                      fontWeight: '500',
-                                    }}
-                                  >
-                                    ORD: {catOrdTotal.toLocaleString('en-IN')} | SNT:{' '}
-                                    {catSntTotal.toLocaleString('en-IN')} | CON:{' '}
-                                    {catConTotal.toLocaleString('en-IN')} | PIC:{' '}
-                                    {catPicTotal.toLocaleString('en-IN')} | REC:{' '}
-                                    {catRecTotal.toLocaleString('en-IN')} | DIF:{' '}
-                                    {catDifTotal.toLocaleString('en-IN')}
-                                  </span>
-                                </div>
-                              </td>
-                            </tr>
-
-                            {/* Column Sub-headers */}
-                            <tr
-                              style={{
-                                backgroundColor: '#202022',
-                                borderBottom: '1px solid #3f3f46',
-                              }}
-                            >
-                              <th
-                                style={{
-                                  width: '180px',
-                                  textAlign: 'left',
-                                  padding: '8px 12px',
-                                  fontSize: '11px',
-                                  color: '#a1a1aa',
-                                  fontWeight: '600',
-                                }}
-                              >
-                                PRODUCT NAME
-                              </th>
-                              <th
-                                style={{
-                                  width: '75px',
-                                  textAlign: 'right',
-                                  padding: '8px',
-                                  fontSize: '11px',
-                                  color: '#a1a1aa',
-                                  fontWeight: '600',
-                                }}
-                              >
-                                PRC
-                              </th>
-                              <th
-                                style={{
-                                  width: '75px',
-                                  textAlign: 'center',
-                                  padding: '8px',
-                                  fontSize: '11px',
-                                  color: '#a1a1aa',
-                                  fontWeight: '600',
-                                }}
-                              >
-                                ORD
-                              </th>
-                              <th
-                                style={{
-                                  width: '75px',
-                                  textAlign: 'center',
-                                  padding: '8px',
-                                  fontSize: '11px',
-                                  color: '#a1a1aa',
-                                  fontWeight: '600',
-                                }}
-                              >
-                                SNT
-                              </th>
-                              <th
-                                style={{
-                                  width: '75px',
-                                  textAlign: 'center',
-                                  padding: '8px',
-                                  fontSize: '11px',
-                                  color: '#a1a1aa',
-                                  fontWeight: '600',
-                                }}
-                              >
-                                CON
-                              </th>
-                              <th
-                                style={{
-                                  width: '75px',
-                                  textAlign: 'center',
-                                  padding: '8px',
-                                  fontSize: '11px',
-                                  color: '#a1a1aa',
-                                  fontWeight: '600',
-                                }}
-                              >
-                                PIC
-                              </th>
-                              <th
-                                style={{
-                                  width: '75px',
-                                  textAlign: 'center',
-                                  padding: '8px',
-                                  fontSize: '11px',
-                                  color: '#a1a1aa',
-                                  fontWeight: '600',
-                                }}
-                              >
-                                REC
-                              </th>
-                              <th
-                                style={{
-                                  width: '75px',
-                                  textAlign: 'center',
-                                  padding: '8px',
-                                  fontSize: '11px',
-                                  color: '#a1a1aa',
-                                  fontWeight: '600',
-                                }}
-                              >
-                                DIF
-                              </th>
-                            </tr>
-
-                            {/* Items for this Category */}
-                            {/* Items for this Category */}
-                            {filteredItems.map((item, idx) => (
-                              <tr key={`${dept}-${category}-${idx}`}>
-                                <td
-                                  style={{
-                                    maxWidth: '180px',
-                                    whiteSpace: 'normal',
-                                    fontSize: '13px',
-                                  }}
-                                >
-                                  <div style={{ fontWeight: 500 }}>{item.productName}</div>
-                                  <div
-                                    style={{
-                                      fontSize: '0.8em',
-                                      color: 'var(--theme-elevation-400)',
-                                    }}
-                                  >
-                                    {(item.branchDisplay || item.branchName)
-                                      .split(',')
-                                      .filter(Boolean)
-                                      .map((branch, i) => (
-                                        <span
-                                          key={i}
-                                          style={{
-                                            display: 'inline-block',
-                                            backgroundColor: '#27272a',
-                                            padding: '1px 3px',
-                                            borderRadius: '3px',
-                                            marginRight: '2px',
-                                            fontSize: '9px',
-                                            fontWeight: '600',
-                                            color: '#a1a1aa',
-                                            lineHeight: '1',
-                                          }}
-                                        >
-                                          {branch.trim()}
-                                        </span>
-                                      ))}
-                                  </div>
-                                </td>
-                                <td style={{ textAlign: 'right', fontSize: '13px' }}>
-                                  {item.price}
-                                </td>
-                                <td style={{ textAlign: 'center', fontSize: '13px' }}>
-                                  <div>{item.ordQty}</div>
-                                  <div
-                                    style={{
-                                      fontSize: '0.75em',
-                                      color: 'var(--theme-elevation-450)',
-                                    }}
-                                  >
-                                    {formatTime(item.ordTime)}
-                                  </div>
-                                </td>
-
-                                <td style={{ textAlign: 'center', fontSize: '13px' }}>
-                                  <div>{item.sntQty}</div>
-                                  <div
-                                    style={{
-                                      fontSize: '0.75em',
-                                      color: 'var(--theme-elevation-450)',
-                                    }}
-                                  >
-                                    {formatTime(item.sntTime)}
-                                  </div>
-                                </td>
-                                <td style={{ textAlign: 'center', fontSize: '13px' }}>
-                                  <div>{item.conQty}</div>
-                                  <div
-                                    style={{
-                                      fontSize: '0.75em',
-                                      color: 'var(--theme-elevation-450)',
-                                    }}
-                                  >
-                                    {formatTime(item.conTime)}
-                                  </div>
-                                </td>
-                                <td style={{ textAlign: 'center', fontSize: '13px' }}>
-                                  <div>{item.picQty}</div>
-                                  <div
-                                    style={{
-                                      fontSize: '0.75em',
-                                      color: 'var(--theme-elevation-450)',
-                                    }}
-                                  >
-                                    {formatTime(item.picTime)}
-                                  </div>
-                                </td>
-                                <td style={{ textAlign: 'center', fontSize: '13px' }}>
-                                  <div>{item.recQty}</div>
-                                  <div
-                                    style={{
-                                      fontSize: '0.75em',
-                                      color: 'var(--theme-elevation-450)',
-                                    }}
-                                  >
-                                    {formatTime(item.recTime)}
-                                  </div>
-                                </td>
-
-                                <td
-                                  style={{
-                                    textAlign: 'center',
-                                    color: item.difQty !== 0 ? '#ef4444' : 'inherit',
-                                    fontWeight: item.difQty !== 0 ? '600' : 'normal',
-                                    fontSize: '13px',
-                                  }}
-                                >
-                                  {item.difQty}
-                                </td>
-                              </tr>
-                            ))}
-                          </React.Fragment>
-                        )
-                      })}
-                    </React.Fragment>
-                  )
-                })}
-                {data.details.length === 0 && (
-                  <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>
-                      No items found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       )}
