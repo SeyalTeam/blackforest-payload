@@ -123,7 +123,12 @@
       cursor: pointer;
       transition: all 0.2s;
       position: relative;
-      overflow: hidden;
+      // Ensure the card fits all content
+      height: auto;
+      min-height: auto;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0; // Prevent shrinking in flex container
 
       &:hover {
         border-color: #52525b;
@@ -142,6 +147,8 @@
           bottom: 0;
           width: 4px;
           background-color: #3b82f6;
+          border-top-left-radius: 8px;
+          border-bottom-left-radius: 8px;
         }
       }
 

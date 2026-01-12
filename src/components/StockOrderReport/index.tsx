@@ -587,16 +587,16 @@ const StockOrderReport: React.FC = () => {
                       <span className="icon">📅</span>
                       <span className="value">Ord: {formatCardDate(inv.createdAt)}</span>
                     </div>
-                    <div className="card-row" style={{ border: '1px dashed #ef4444' }}>
+                    <div className="card-row">
                       <span className="icon">🚚</span>
                       <span className="value">
-                        Delivery: {formatCardDate(inv.deliveryDate || inv.createdAt)}
+                        Del: {formatCardDate(inv.deliveryDate || inv.createdAt)}
                       </span>
                     </div>
                     <div className="card-row amount">
                       <span className="icon">💵</span>
                       <span className="value">
-                        Amount: ₹ {(inv.amount ?? 0).toLocaleString('en-IN')}
+                        Amt: ₹ {(inv.amount ?? 0).toLocaleString('en-IN')}
                       </span>
                     </div>
                   </div>
