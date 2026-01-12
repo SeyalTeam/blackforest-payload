@@ -9,7 +9,7 @@ const Reviews: CollectionConfig = {
     create: () => true, // Allow anyone to create reviews (public submission)
     read: () => true,
     update: ({ req: { user } }) =>
-      user?.role != null && ['superadmin', 'admin'].includes(user.role),
+      user?.role != null && ['superadmin', 'admin', 'chef'].includes(user.role),
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   hooks: {
