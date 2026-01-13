@@ -20,7 +20,7 @@ export default async function BillPage({ params }: Args) {
     bill = await payload.findByID({
       collection: 'billings',
       id,
-      depth: 2,
+      depth: 3,
     })
   } catch (error) {
     console.error('Error fetching billing:', error)

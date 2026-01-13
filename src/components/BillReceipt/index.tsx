@@ -294,8 +294,20 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
           </thead>
           <tbody>
             {items.map((item, index) => {
-              const productId =
-                typeof item.product === 'object' ? item.product?.id : (item.product as string)
+              // Update types (Add this near the top or update existing BillItem definition)
+              // Wait, I should not redefine it if it's already there, but I need to make sure the prop passed has the data.
+              // The data is passed as `any` in page.tsx line 56, so safely accessing it inside the component is key.
+
+              // In the map function:
+              const product = typeof item.product === 'object' ? (item.product as any) : null
+              const productId = product?.id || (item.product as string)
+
+              const department = product?.category?.department
+              const departmentName = typeof department === 'object' ? department?.name : null
+
+              // Restriction Logic: Hide if no department OR department is 'Others'
+              const canReview = departmentName && departmentName !== 'Others'
+
               const reviewData = productId ? productReviews[productId] : null
               const rating = reviewData?.rating || 0
               const isSubmitted = reviewData?.submitted
@@ -310,8 +322,8 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
                     <td className="item-total">{item.subtotal?.toFixed(2)}</td>
                   </tr>
 
-                  {/* Review Section for specific Product */}
-                  {productId && !isSubmitted && (
+                  {/* Review Section for specific Product - Only if allowed */}
+                  {productId && !isSubmitted && canReview && (
                     <tr>
                       <td
                         colSpan={3}
