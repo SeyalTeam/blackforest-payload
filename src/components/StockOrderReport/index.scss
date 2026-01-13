@@ -88,21 +88,15 @@
 
   .report-sidebar {
     width: 15%;
-    min-width: 250px;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-
-    .sidebar-filter {
-      width: 100%;
-    }
+    position: sticky;
+    top: 80px;
+    height: calc(100vh - 90px); // Adjust height to fit viewport below header
 
     .order-list {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      max-height: calc(100vh - 200px);
+      height: 100%; // Fill parent
       overflow-y: auto;
       padding-right: 5px;
 

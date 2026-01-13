@@ -12,8 +12,8 @@ async function renameInvoice() {
     const db = client.db()
     const collection = db.collection('stock-orders')
 
-    const oldInvoice = 'ETT-STC-251222-11'
-    const newInvoice = 'ETT-STC-251222-10'
+    const oldInvoice = 'ALA-STC-260111-01'
+    const newInvoice = 'ALA-01'
 
     console.log(`Renaming ${oldInvoice} to ${newInvoice}...`)
 

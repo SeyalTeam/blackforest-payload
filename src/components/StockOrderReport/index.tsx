@@ -547,30 +547,154 @@ const StockOrderReport: React.FC = () => {
           className="report-content"
           style={{ opacity: loading ? 0.7 : 1, transition: 'opacity 0.2s' }}
         >
+          <div
+            className="filters-row"
+            style={{
+              display: 'flex',
+              gap: '10px',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              marginBottom: '15px',
+              position: 'sticky',
+              top: 0,
+              zIndex: 10,
+              backgroundColor: '#18181b', // Dark background for sticky header
+              paddingTop: '10px',
+              paddingBottom: '10px',
+              borderBottom: '1px solid var(--theme-elevation-200)',
+            }}
+          >
+            <div style={{ flex: '0 0 140px' }}>
+              <Select
+                options={[
+                  { value: '', label: 'All Orders' },
+                  { value: 'stock', label: 'Stock Orders' },
+                  { value: 'live', label: 'Live Orders' },
+                ]}
+                value={
+                  selectedOrderType
+                    ? {
+                        value: selectedOrderType,
+                        label: selectedOrderType === 'stock' ? 'Stock Orders' : 'Live Orders',
+                      }
+                    : { value: '', label: 'All Orders' }
+                }
+                onChange={(opt: any) => setSelectedOrderType(opt?.value || '')}
+                styles={customStyles}
+                isSearchable={false}
+              />
+            </div>
+            <div style={{ flex: '0 0 140px' }}>
+              <Select
+                options={[
+                  { value: '', label: 'All Branches' },
+                  ...branches.map((b: any) => ({ value: b.id, label: b.name })),
+                ]}
+                value={
+                  selectedBranch
+                    ? {
+                        value: selectedBranch,
+                        label:
+                          branches.find((b: any) => b.id === selectedBranch)?.name ||
+                          'All Branches',
+                      }
+                    : null
+                }
+                onChange={(option: any) => {
+                  setLoading(true)
+                  setSelectedBranch(option?.value || '')
+                }}
+                styles={customStyles}
+                placeholder="All Branches"
+                isClearable={true}
+              />
+            </div>
+
+            <div style={{ flex: '0 0 140px' }}>
+              <Select
+                options={[
+                  { value: '', label: 'Departments' },
+                  ...departments.map((d: any) => ({ value: d.id, label: d.name })),
+                ]}
+                value={
+                  selectedDept
+                    ? {
+                        value: selectedDept,
+                        label:
+                          departments.find((d: any) => d.id === selectedDept)?.name ||
+                          'Departments',
+                      }
+                    : null
+                }
+                onChange={(option: any) => setSelectedDept(option?.value || '')}
+                styles={customStyles}
+                placeholder="Departments"
+                isClearable={true}
+              />
+            </div>
+
+            <div style={{ flex: '0 0 140px' }}>
+              <Select
+                options={[
+                  { value: '', label: 'All Categories' },
+                  ...filteredCategories.map((c: any) => ({ value: c.id, label: c.name })),
+                ]}
+                value={
+                  selectedCat
+                    ? {
+                        value: selectedCat,
+                        label:
+                          filteredCategories.find((c: any) => c.id === selectedCat)?.name ||
+                          'All Categories',
+                      }
+                    : null
+                }
+                onChange={(option: any) => setSelectedCat(option?.value || '')}
+                styles={customStyles}
+                placeholder="All Categories"
+                isClearable={true}
+              />
+            </div>
+
+            <div style={{ flex: '0 0 140px' }}>
+              <Select
+                options={[
+                  { value: '', label: 'All Products' },
+                  ...filteredProducts.map((p: any) => ({ value: p.id, label: p.name })),
+                ]}
+                value={
+                  selectedProd
+                    ? {
+                        value: selectedProd,
+                        label:
+                          filteredProducts.find((p: any) => p.id === selectedProd)?.name ||
+                          'All Products',
+                      }
+                    : null
+                }
+                onChange={(option: any) => setSelectedProd(option?.value || '')}
+                styles={customStyles}
+                placeholder="All Products"
+                isClearable={true}
+              />
+            </div>
+
+            <div style={{ flex: '0 0 140px' }}>
+              <Select
+                options={[{ value: '', label: 'All Status' }, ...statusOptions]}
+                value={
+                  selectedStatus ? statusOptions.find((opt) => opt.value === selectedStatus) : null
+                }
+                onChange={(option: any) => setSelectedStatus(option?.value || '')}
+                styles={customStyles}
+                placeholder="All Status"
+                isClearable={true}
+              />
+            </div>
+          </div>
           <div className="report-body">
             {/* Sidebar */}
             <div className="report-sidebar">
-              <div className="sidebar-filter">
-                <Select
-                  options={[
-                    { value: '', label: 'All Orders' },
-                    { value: 'stock', label: 'Stock Orders' },
-                    { value: 'live', label: 'Live Orders' },
-                  ]}
-                  value={
-                    selectedOrderType
-                      ? {
-                          value: selectedOrderType,
-                          label: selectedOrderType === 'stock' ? 'Stock Orders' : 'Live Orders',
-                        }
-                      : { value: '', label: 'All Orders' }
-                  }
-                  onChange={(opt: any) => setSelectedOrderType(opt?.value || '')}
-                  styles={customStyles}
-                  isSearchable={false}
-                />
-              </div>
-
               <div className="order-list">
                 {invoiceList.map((inv) => (
                   <div
@@ -728,127 +852,6 @@ const StockOrderReport: React.FC = () => {
                 }}
               >
                 <h3 style={{ margin: 0 }}>Product Order Details</h3>
-              </div>
-
-              <div
-                className="filters-row"
-                style={{
-                  display: 'flex',
-                  gap: '10px',
-                  flexWrap: 'wrap',
-                  alignItems: 'center',
-                  marginBottom: '15px',
-                }}
-              >
-                <div style={{ flex: '0 0 140px' }}>
-                  <Select
-                    options={[
-                      { value: '', label: 'All Branches' },
-                      ...branches.map((b: any) => ({ value: b.id, label: b.name })),
-                    ]}
-                    value={
-                      selectedBranch
-                        ? {
-                            value: selectedBranch,
-                            label:
-                              branches.find((b: any) => b.id === selectedBranch)?.name ||
-                              'All Branches',
-                          }
-                        : null
-                    }
-                    onChange={(option: any) => {
-                      setLoading(true)
-                      setSelectedBranch(option?.value || '')
-                    }}
-                    styles={customStyles}
-                    placeholder="All Branches"
-                    isClearable={true}
-                  />
-                </div>
-
-                <div style={{ flex: '0 0 140px' }}>
-                  <Select
-                    options={[
-                      { value: '', label: 'Departments' },
-                      ...departments.map((d: any) => ({ value: d.id, label: d.name })),
-                    ]}
-                    value={
-                      selectedDept
-                        ? {
-                            value: selectedDept,
-                            label:
-                              departments.find((d: any) => d.id === selectedDept)?.name ||
-                              'Departments',
-                          }
-                        : null
-                    }
-                    onChange={(option: any) => setSelectedDept(option?.value || '')}
-                    styles={customStyles}
-                    placeholder="Departments"
-                    isClearable={true}
-                  />
-                </div>
-
-                <div style={{ flex: '0 0 140px' }}>
-                  <Select
-                    options={[
-                      { value: '', label: 'All Categories' },
-                      ...filteredCategories.map((c: any) => ({ value: c.id, label: c.name })),
-                    ]}
-                    value={
-                      selectedCat
-                        ? {
-                            value: selectedCat,
-                            label:
-                              filteredCategories.find((c: any) => c.id === selectedCat)?.name ||
-                              'All Categories',
-                          }
-                        : null
-                    }
-                    onChange={(option: any) => setSelectedCat(option?.value || '')}
-                    styles={customStyles}
-                    placeholder="All Categories"
-                    isClearable={true}
-                  />
-                </div>
-
-                <div style={{ flex: '0 0 140px' }}>
-                  <Select
-                    options={[
-                      { value: '', label: 'All Products' },
-                      ...filteredProducts.map((p: any) => ({ value: p.id, label: p.name })),
-                    ]}
-                    value={
-                      selectedProd
-                        ? {
-                            value: selectedProd,
-                            label:
-                              filteredProducts.find((p: any) => p.id === selectedProd)?.name ||
-                              'All Products',
-                          }
-                        : null
-                    }
-                    onChange={(option: any) => setSelectedProd(option?.value || '')}
-                    styles={customStyles}
-                    placeholder="All Products"
-                    isClearable={true}
-                  />
-                </div>
-
-                <div style={{ flex: '0 0 140px' }}>
-                  <Select
-                    options={[{ value: '', label: 'All Status' }, ...statusOptions]}
-                    value={
-                      selectedStatus
-                        ? statusOptions.find((opt) => opt.value === selectedStatus)
-                        : null
-                    }
-                    onChange={(option: any) => setSelectedStatus(option?.value || '')}
-                    styles={customStyles}
-                    placeholder="All Status"
-                    isClearable={true}
-                  />
-                </div>
               </div>
 
               <div className="table-container details-table">
