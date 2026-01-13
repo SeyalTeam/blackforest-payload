@@ -12,27 +12,30 @@ const formatTime = (iso?: string) => {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
+const getStatusColor = (currentQty: number, targetQty: number, currentTime?: string) => {
+  if (currentQty > targetQty) return '#FFFF3F'
+  if (currentQty < targetQty && currentTime) return '#48CAE4'
+  if (currentTime) return '#A1E417'
+  return undefined
+}
+
 const getStatusCellStyle = (currentQty: number, targetQty: number, currentTime?: string) => {
-  if (currentQty > targetQty) {
-    return { backgroundColor: '#03624C', color: '#ffffff' }
-  }
-  if (currentQty < targetQty && currentTime) {
-    return { backgroundColor: '#D8E4BC', color: '#000000' }
-  }
-  if (currentTime) {
-    return { backgroundColor: '#2CC295', color: '#000000' }
-  }
   return { backgroundColor: 'transparent', color: 'inherit' }
 }
 
-const getStatusQtyStyle = (currentTime?: string) => {
-  return { fontWeight: currentTime ? 'bold' : 'normal' }
+const getStatusQtyStyle = (currentQty: number, targetQty: number, currentTime?: string) => {
+  const color = getStatusColor(currentQty, targetQty, currentTime)
+  return {
+    fontWeight: '700',
+    fontSize: '22px',
+    color: color || 'inherit',
+  }
 }
 
 const getStatusTimeStyle = (currentQty: number, targetQty: number, currentTime?: string) => {
-  if (currentQty > targetQty) return { color: '#ffffff' }
-  if (currentTime) return { color: '#000000' }
-  return { color: 'var(--theme-elevation-450)' }
+  return {
+    color: 'var(--theme-elevation-450)',
+  }
 }
 
 type ReportStats = {
@@ -1143,17 +1146,32 @@ const StockOrderReport: React.FC = () => {
                                       style={{
                                         maxWidth: '180px',
                                         whiteSpace: 'normal',
-                                        fontSize: '13px',
+                                        fontSize: '16px',
+                                        padding: '12px 8px',
                                       }}
                                     >
-                                      <div style={{ fontWeight: 500 }}>{item.productName}</div>
+                                      <div style={{ fontWeight: 700 }}>{item.productName}</div>
                                     </td>
 
-                                    <td style={{ textAlign: 'right', fontSize: '13px' }}>
+                                    <td
+                                      style={{
+                                        textAlign: 'right',
+                                        fontSize: '13px',
+                                        padding: '12px 8px',
+                                      }}
+                                    >
                                       {item.price}
                                     </td>
-                                    <td style={{ textAlign: 'center', fontSize: '13px' }}>
-                                      <div>{item.ordQty}</div>
+                                    <td
+                                      style={{
+                                        textAlign: 'center',
+                                        fontSize: '13px',
+                                        padding: '12px 8px',
+                                      }}
+                                    >
+                                      <div style={{ fontWeight: '700', fontSize: '22px' }}>
+                                        {item.ordQty}
+                                      </div>
                                       <div
                                         style={{
                                           fontSize: '0.75em',
@@ -1168,6 +1186,7 @@ const StockOrderReport: React.FC = () => {
                                       style={{
                                         textAlign: 'center',
                                         fontSize: '13px',
+                                        padding: '12px 8px',
                                         ...getStatusCellStyle(
                                           item.sntQty,
                                           item.ordQty,
@@ -1175,7 +1194,15 @@ const StockOrderReport: React.FC = () => {
                                         ),
                                       }}
                                     >
-                                      <div style={{ ...getStatusQtyStyle(item.sntTime) }}>
+                                      <div
+                                        style={{
+                                          ...getStatusQtyStyle(
+                                            item.sntQty,
+                                            item.ordQty,
+                                            item.sntTime,
+                                          ),
+                                        }}
+                                      >
                                         {item.sntQty}
                                       </div>
                                       <div
@@ -1195,6 +1222,7 @@ const StockOrderReport: React.FC = () => {
                                       style={{
                                         textAlign: 'center',
                                         fontSize: '13px',
+                                        padding: '12px 8px',
                                         ...getStatusCellStyle(
                                           item.conQty,
                                           item.sntQty,
@@ -1202,7 +1230,15 @@ const StockOrderReport: React.FC = () => {
                                         ),
                                       }}
                                     >
-                                      <div style={{ ...getStatusQtyStyle(item.conTime) }}>
+                                      <div
+                                        style={{
+                                          ...getStatusQtyStyle(
+                                            item.conQty,
+                                            item.sntQty,
+                                            item.conTime,
+                                          ),
+                                        }}
+                                      >
                                         {item.conQty}
                                       </div>
                                       <div
@@ -1222,6 +1258,7 @@ const StockOrderReport: React.FC = () => {
                                       style={{
                                         textAlign: 'center',
                                         fontSize: '13px',
+                                        padding: '12px 8px',
                                         ...getStatusCellStyle(
                                           item.picQty,
                                           item.conQty,
@@ -1229,7 +1266,15 @@ const StockOrderReport: React.FC = () => {
                                         ),
                                       }}
                                     >
-                                      <div style={{ ...getStatusQtyStyle(item.picTime) }}>
+                                      <div
+                                        style={{
+                                          ...getStatusQtyStyle(
+                                            item.picQty,
+                                            item.conQty,
+                                            item.picTime,
+                                          ),
+                                        }}
+                                      >
                                         {item.picQty}
                                       </div>
                                       <div
@@ -1249,6 +1294,7 @@ const StockOrderReport: React.FC = () => {
                                       style={{
                                         textAlign: 'center',
                                         fontSize: '13px',
+                                        padding: '12px 8px',
                                         ...getStatusCellStyle(
                                           item.recQty,
                                           item.picQty,
@@ -1256,7 +1302,15 @@ const StockOrderReport: React.FC = () => {
                                         ),
                                       }}
                                     >
-                                      <div style={{ ...getStatusQtyStyle(item.recTime) }}>
+                                      <div
+                                        style={{
+                                          ...getStatusQtyStyle(
+                                            item.recQty,
+                                            item.picQty,
+                                            item.recTime,
+                                          ),
+                                        }}
+                                      >
                                         {item.recQty}
                                       </div>
                                       <div
@@ -1277,8 +1331,9 @@ const StockOrderReport: React.FC = () => {
                                       style={{
                                         textAlign: 'center',
                                         color: item.difQty !== 0 ? '#ef4444' : 'inherit',
-                                        fontWeight: item.difQty !== 0 ? '600' : 'normal',
-                                        fontSize: '13px',
+                                        fontWeight: item.difQty !== 0 ? '700' : '700',
+                                        fontSize: '22px',
+                                        padding: '12px 8px',
                                       }}
                                     >
                                       {Number(item.difQty).toFixed(2)}
@@ -1358,14 +1413,16 @@ const ProductDetailPopup = ({
               {branchDetails.map((item, idx) => (
                 <tr key={idx}>
                   <td>
-                    <div style={{ fontWeight: 600 }}>{item.branchName}</div>
-                    <div style={{ fontSize: '10px', color: '#a1a1aa' }}>{item.invoiceNumber}</div>
+                    <div style={{ fontWeight: 600, padding: '12px 8px' }}>{item.branchName}</div>
+                    <div style={{ fontSize: '10px', color: '#a1a1aa', padding: '0 8px' }}>
+                      {item.invoiceNumber}
+                    </div>
                   </td>
-                  <td style={{ textAlign: 'center' }}>{item.price}</td>
+                  <td style={{ textAlign: 'center', padding: '12px 8px' }}>{item.price}</td>
 
                   {/* ORD */}
-                  <td style={{ textAlign: 'center' }}>
-                    <div>{item.ordQty}</div>
+                  <td style={{ textAlign: 'center', padding: '12px 8px' }}>
+                    <div style={{ fontWeight: '700', fontSize: '22px' }}>{item.ordQty}</div>
                     <div style={{ fontSize: '0.75em', color: 'var(--theme-elevation-450)' }}>
                       {formatTime(item.ordTime)}
                     </div>
@@ -1375,10 +1432,17 @@ const ProductDetailPopup = ({
                   <td
                     style={{
                       textAlign: 'center',
+                      padding: '12px 8px',
                       ...getStatusCellStyle(item.sntQty, item.ordQty, item.sntTime),
                     }}
                   >
-                    <div style={{ ...getStatusQtyStyle(item.sntTime) }}>{item.sntQty}</div>
+                    <div
+                      style={{
+                        ...getStatusQtyStyle(item.sntQty, item.ordQty, item.sntTime),
+                      }}
+                    >
+                      {item.sntQty}
+                    </div>
                     <div
                       style={{
                         fontSize: '0.75em',
@@ -1393,10 +1457,17 @@ const ProductDetailPopup = ({
                   <td
                     style={{
                       textAlign: 'center',
+                      padding: '12px 8px',
                       ...getStatusCellStyle(item.conQty, item.sntQty, item.conTime),
                     }}
                   >
-                    <div style={{ ...getStatusQtyStyle(item.conTime) }}>{item.conQty}</div>
+                    <div
+                      style={{
+                        ...getStatusQtyStyle(item.conQty, item.sntQty, item.conTime),
+                      }}
+                    >
+                      {item.conQty}
+                    </div>
                     <div
                       style={{
                         fontSize: '0.75em',
@@ -1414,7 +1485,13 @@ const ProductDetailPopup = ({
                       ...getStatusCellStyle(item.picQty, item.conQty, item.picTime),
                     }}
                   >
-                    <div style={{ ...getStatusQtyStyle(item.picTime) }}>{item.picQty}</div>
+                    <div
+                      style={{
+                        ...getStatusQtyStyle(item.picQty, item.conQty, item.picTime),
+                      }}
+                    >
+                      {item.picQty}
+                    </div>
                     <div
                       style={{
                         fontSize: '0.75em',
@@ -1432,7 +1509,13 @@ const ProductDetailPopup = ({
                       ...getStatusCellStyle(item.recQty, item.picQty, item.recTime),
                     }}
                   >
-                    <div style={{ ...getStatusQtyStyle(item.recTime) }}>{item.recQty}</div>
+                    <div
+                      style={{
+                        ...getStatusQtyStyle(item.recQty, item.picQty, item.recTime),
+                      }}
+                    >
+                      {item.recQty}
+                    </div>
                     <div
                       style={{
                         fontSize: '0.75em',
@@ -1447,7 +1530,9 @@ const ProductDetailPopup = ({
                     style={{
                       textAlign: 'center',
                       color: item.difQty !== 0 ? '#ef4444' : 'inherit',
-                      fontWeight: item.difQty !== 0 ? '600' : 'normal',
+                      fontWeight: item.difQty !== 0 ? '700' : '700',
+                      fontSize: '22px',
+                      padding: '12px 8px',
                     }}
                   >
                     {Number(item.difQty).toFixed(2)}

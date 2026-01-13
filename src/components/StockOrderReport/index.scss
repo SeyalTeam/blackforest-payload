@@ -234,8 +234,9 @@
     }
 
     // Zebra Striping
-    tbody tr:nth-child(even) {
-      background-color: var(--theme-elevation-50);
+    // Plain Black Background
+    tbody tr {
+      background-color: #000000;
     }
 
     tr:hover td {
