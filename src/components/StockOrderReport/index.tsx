@@ -6,6 +6,35 @@ import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import Select from 'react-select'
 
+const formatTime = (iso?: string) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
+const getStatusCellStyle = (currentQty: number, targetQty: number, currentTime?: string) => {
+  if (currentQty > targetQty) {
+    return { backgroundColor: '#03624C', color: '#ffffff' }
+  }
+  if (currentQty < targetQty && currentTime) {
+    return { backgroundColor: '#D8E4BC', color: '#000000' }
+  }
+  if (currentTime) {
+    return { backgroundColor: '#2CC295', color: '#000000' }
+  }
+  return { backgroundColor: 'transparent', color: 'inherit' }
+}
+
+const getStatusQtyStyle = (currentTime?: string) => {
+  return { fontWeight: currentTime ? 'bold' : 'normal' }
+}
+
+const getStatusTimeStyle = (currentQty: number, targetQty: number, currentTime?: string) => {
+  if (currentQty > targetQty) return { color: '#ffffff' }
+  if (currentTime) return { color: '#000000' }
+  return { color: 'var(--theme-elevation-450)' }
+}
+
 type ReportStats = {
   branchName: string
   stockOrders: number
@@ -69,6 +98,7 @@ const StockOrderReport: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState('')
 
   const [selectedOrderType, setSelectedOrderType] = useState<'' | 'stock' | 'live'>('')
+  const [selectedDetailProduct, setSelectedDetailProduct] = useState<DetailItem | null>(null)
   const [selectedInvoice, setSelectedInvoice] = useState('')
 
   // React Select Constants
@@ -706,34 +736,17 @@ const StockOrderReport: React.FC = () => {
                   >
                     <div className="card-header">
                       <h4>{inv.invoice}</h4>
-                      <span
-                        style={{
-                          backgroundColor: inv.isLive ? '#ef4444' : '#22c55e',
-                          color: '#ffffff',
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          fontSize: '10px',
-                          fontWeight: '700',
-                          letterSpacing: '0.5px',
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        {inv.isLive ? 'LIVE' : 'STOCK'}
-                      </span>
                     </div>
                     <div className="card-row">
-                      <span className="icon">📅</span>
                       <span className="value">Ord: {formatCardDate(inv.createdAt)}</span>
                     </div>
                     <div className="card-row">
-                      <span className="icon">🚚</span>
                       <span className="value">
                         Del: {formatCardDate(inv.deliveryDate) || 'N/A'}
                       </span>
                     </div>
                     <div className="card-row amount">
-                      <span className="icon">💵</span>
-                      <span className="value">
+                      <span className="value" style={{ color: '#D8E4BC' }}>
                         Amt: ₹ {(inv.amount ?? 0).toLocaleString('en-IN')}
                       </span>
                     </div>
@@ -1119,7 +1132,13 @@ const StockOrderReport: React.FC = () => {
                                 {/* Items for this Category */}
                                 {/* Items for this Category */}
                                 {filteredItems.map((item, idx) => (
-                                  <tr key={`${dept}-${category}-${idx}`}>
+                                  <tr
+                                    key={`${dept}-${category}-${idx}`}
+                                    onClick={() =>
+                                      !selectedInvoice && setSelectedDetailProduct(item)
+                                    }
+                                    style={{ cursor: !selectedInvoice ? 'pointer' : 'default' }}
+                                  >
                                     <td
                                       style={{
                                         maxWidth: '180px',
@@ -1128,35 +1147,8 @@ const StockOrderReport: React.FC = () => {
                                       }}
                                     >
                                       <div style={{ fontWeight: 500 }}>{item.productName}</div>
-                                      <div
-                                        style={{
-                                          fontSize: '0.8em',
-                                          color: 'var(--theme-elevation-400)',
-                                        }}
-                                      >
-                                        {(item.branchDisplay || item.branchName)
-                                          .split(',')
-                                          .filter(Boolean)
-                                          .map((branch, i) => (
-                                            <span
-                                              key={i}
-                                              style={{
-                                                display: 'inline-block',
-                                                backgroundColor: '#27272a',
-                                                padding: '1px 3px',
-                                                borderRadius: '3px',
-                                                marginRight: '2px',
-                                                fontSize: '9px',
-                                                fontWeight: '600',
-                                                color: '#a1a1aa',
-                                                lineHeight: '1',
-                                              }}
-                                            >
-                                              {branch.trim()}
-                                            </span>
-                                          ))}
-                                      </div>
                                     </td>
+
                                     <td style={{ textAlign: 'right', fontSize: '13px' }}>
                                       {item.price}
                                     </td>
@@ -1172,45 +1164,109 @@ const StockOrderReport: React.FC = () => {
                                       </div>
                                     </td>
 
-                                    <td style={{ textAlign: 'center', fontSize: '13px' }}>
-                                      <div>{item.sntQty}</div>
+                                    <td
+                                      style={{
+                                        textAlign: 'center',
+                                        fontSize: '13px',
+                                        ...getStatusCellStyle(
+                                          item.sntQty,
+                                          item.ordQty,
+                                          item.sntTime,
+                                        ),
+                                      }}
+                                    >
+                                      <div style={{ ...getStatusQtyStyle(item.sntTime) }}>
+                                        {item.sntQty}
+                                      </div>
                                       <div
                                         style={{
                                           fontSize: '0.75em',
-                                          color: 'var(--theme-elevation-450)',
+                                          ...getStatusTimeStyle(
+                                            item.sntQty,
+                                            item.ordQty,
+                                            item.sntTime,
+                                          ),
                                         }}
                                       >
                                         {formatTime(item.sntTime)}
                                       </div>
                                     </td>
-                                    <td style={{ textAlign: 'center', fontSize: '13px' }}>
-                                      <div>{item.conQty}</div>
+                                    <td
+                                      style={{
+                                        textAlign: 'center',
+                                        fontSize: '13px',
+                                        ...getStatusCellStyle(
+                                          item.conQty,
+                                          item.sntQty,
+                                          item.conTime,
+                                        ),
+                                      }}
+                                    >
+                                      <div style={{ ...getStatusQtyStyle(item.conTime) }}>
+                                        {item.conQty}
+                                      </div>
                                       <div
                                         style={{
                                           fontSize: '0.75em',
-                                          color: 'var(--theme-elevation-450)',
+                                          ...getStatusTimeStyle(
+                                            item.conQty,
+                                            item.sntQty,
+                                            item.conTime,
+                                          ),
                                         }}
                                       >
                                         {formatTime(item.conTime)}
                                       </div>
                                     </td>
-                                    <td style={{ textAlign: 'center', fontSize: '13px' }}>
-                                      <div>{item.picQty}</div>
+                                    <td
+                                      style={{
+                                        textAlign: 'center',
+                                        fontSize: '13px',
+                                        ...getStatusCellStyle(
+                                          item.picQty,
+                                          item.conQty,
+                                          item.picTime,
+                                        ),
+                                      }}
+                                    >
+                                      <div style={{ ...getStatusQtyStyle(item.picTime) }}>
+                                        {item.picQty}
+                                      </div>
                                       <div
                                         style={{
                                           fontSize: '0.75em',
-                                          color: 'var(--theme-elevation-450)',
+                                          ...getStatusTimeStyle(
+                                            item.picQty,
+                                            item.conQty,
+                                            item.picTime,
+                                          ),
                                         }}
                                       >
                                         {formatTime(item.picTime)}
                                       </div>
                                     </td>
-                                    <td style={{ textAlign: 'center', fontSize: '13px' }}>
-                                      <div>{item.recQty}</div>
+                                    <td
+                                      style={{
+                                        textAlign: 'center',
+                                        fontSize: '13px',
+                                        ...getStatusCellStyle(
+                                          item.recQty,
+                                          item.picQty,
+                                          item.recTime,
+                                        ),
+                                      }}
+                                    >
+                                      <div style={{ ...getStatusQtyStyle(item.recTime) }}>
+                                        {item.recQty}
+                                      </div>
                                       <div
                                         style={{
                                           fontSize: '0.75em',
-                                          color: 'var(--theme-elevation-450)',
+                                          ...getStatusTimeStyle(
+                                            item.recQty,
+                                            item.picQty,
+                                            item.recTime,
+                                          ),
                                         }}
                                       >
                                         {formatTime(item.recTime)}
@@ -1225,7 +1281,7 @@ const StockOrderReport: React.FC = () => {
                                         fontSize: '13px',
                                       }}
                                     >
-                                      {item.difQty}
+                                      {Number(item.difQty).toFixed(2)}
                                     </td>
                                   </tr>
                                 ))}
@@ -1249,6 +1305,159 @@ const StockOrderReport: React.FC = () => {
           </div>
         </div>
       )}
+      {selectedDetailProduct && data?.details && (
+        <ProductDetailPopup
+          product={selectedDetailProduct}
+          allDetails={data.details}
+          onClose={() => setSelectedDetailProduct(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+const ProductDetailPopup = ({
+  product,
+  allDetails,
+  onClose,
+}: {
+  product: DetailItem
+  allDetails: DetailItem[]
+  onClose: () => void
+}) => {
+  const branchDetails = allDetails.filter(
+    (d) =>
+      d.productName === product.productName &&
+      d.categoryName === product.categoryName &&
+      d.departmentName === product.departmentName,
+  )
+
+  return (
+    <div className="popup-overlay" onClick={onClose}>
+      <div className="popup-container" onClick={(e) => e.stopPropagation()}>
+        <div className="popup-header">
+          <h2>{product.productName}</h2>
+          <button onClick={onClose}>CLOSE</button>
+        </div>
+
+        <div className="popup-body">
+          <table className="report-table">
+            <thead>
+              <tr>
+                <th style={{ width: '25%' }}>Branch Name</th>
+                <th style={{ textAlign: 'center', width: '60px' }}>PRC</th>
+                <th style={{ textAlign: 'center', width: '60px' }}>ORD</th>
+                <th style={{ textAlign: 'center', width: '60px' }}>SNT</th>
+                <th style={{ textAlign: 'center', width: '60px' }}>CON</th>
+                <th style={{ textAlign: 'center', width: '60px' }}>PIC</th>
+                <th style={{ textAlign: 'center', width: '60px' }}>REC</th>
+                <th style={{ textAlign: 'center', width: '60px' }}>DIF</th>
+              </tr>
+            </thead>
+            <tbody>
+              {branchDetails.map((item, idx) => (
+                <tr key={idx}>
+                  <td>
+                    <div style={{ fontWeight: 600 }}>{item.branchName}</div>
+                    <div style={{ fontSize: '10px', color: '#a1a1aa' }}>{item.invoiceNumber}</div>
+                  </td>
+                  <td style={{ textAlign: 'center' }}>{item.price}</td>
+
+                  {/* ORD */}
+                  <td style={{ textAlign: 'center' }}>
+                    <div>{item.ordQty}</div>
+                    <div style={{ fontSize: '0.75em', color: 'var(--theme-elevation-450)' }}>
+                      {formatTime(item.ordTime)}
+                    </div>
+                  </td>
+
+                  {/* SNT */}
+                  <td
+                    style={{
+                      textAlign: 'center',
+                      ...getStatusCellStyle(item.sntQty, item.ordQty, item.sntTime),
+                    }}
+                  >
+                    <div style={{ ...getStatusQtyStyle(item.sntTime) }}>{item.sntQty}</div>
+                    <div
+                      style={{
+                        fontSize: '0.75em',
+                        ...getStatusTimeStyle(item.sntQty, item.ordQty, item.sntTime),
+                      }}
+                    >
+                      {formatTime(item.sntTime)}
+                    </div>
+                  </td>
+
+                  {/* CON */}
+                  <td
+                    style={{
+                      textAlign: 'center',
+                      ...getStatusCellStyle(item.conQty, item.sntQty, item.conTime),
+                    }}
+                  >
+                    <div style={{ ...getStatusQtyStyle(item.conTime) }}>{item.conQty}</div>
+                    <div
+                      style={{
+                        fontSize: '0.75em',
+                        ...getStatusTimeStyle(item.conQty, item.sntQty, item.conTime),
+                      }}
+                    >
+                      {formatTime(item.conTime)}
+                    </div>
+                  </td>
+
+                  {/* PIC */}
+                  <td
+                    style={{
+                      textAlign: 'center',
+                      ...getStatusCellStyle(item.picQty, item.conQty, item.picTime),
+                    }}
+                  >
+                    <div style={{ ...getStatusQtyStyle(item.picTime) }}>{item.picQty}</div>
+                    <div
+                      style={{
+                        fontSize: '0.75em',
+                        ...getStatusTimeStyle(item.picQty, item.conQty, item.picTime),
+                      }}
+                    >
+                      {formatTime(item.picTime)}
+                    </div>
+                  </td>
+
+                  {/* REC */}
+                  <td
+                    style={{
+                      textAlign: 'center',
+                      ...getStatusCellStyle(item.recQty, item.picQty, item.recTime),
+                    }}
+                  >
+                    <div style={{ ...getStatusQtyStyle(item.recTime) }}>{item.recQty}</div>
+                    <div
+                      style={{
+                        fontSize: '0.75em',
+                        ...getStatusTimeStyle(item.recQty, item.picQty, item.recTime),
+                      }}
+                    >
+                      {formatTime(item.recTime)}
+                    </div>
+                  </td>
+
+                  <td
+                    style={{
+                      textAlign: 'center',
+                      color: item.difQty !== 0 ? '#ef4444' : 'inherit',
+                      fontWeight: item.difQty !== 0 ? '600' : 'normal',
+                    }}
+                  >
+                    {Number(item.difQty).toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }
