@@ -46,6 +46,7 @@ import { ReviewReportGlobal } from './globals/ReviewReport'
 import { resetInventoryHandler } from './endpoints/resetInventory'
 import Reviews from './collections/Reviews'
 import Customers from './collections/Customers'
+import InstockEntries from './collections/InstockEntries'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -178,6 +179,7 @@ export default buildConfig({
     StockOrders,
     Reviews,
     Customers,
+    InstockEntries,
   ],
 
   editor: lexicalEditor(),

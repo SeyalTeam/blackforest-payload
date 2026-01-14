@@ -83,6 +83,7 @@ export interface Config {
     'stock-orders': StockOrder;
     reviews: Review;
     customers: Customer;
+    'instock-entries': InstockEntry;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -105,6 +106,7 @@ export interface Config {
     'stock-orders': StockOrdersSelect<false> | StockOrdersSelect<true>;
     reviews: ReviewsSelect<false> | ReviewsSelect<true>;
     customers: CustomersSelect<false> | CustomersSelect<true>;
+    'instock-entries': InstockEntriesSelect<false> | InstockEntriesSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -624,6 +626,28 @@ export interface Customer {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "instock-entries".
+ */
+export interface InstockEntry {
+  id: string;
+  invoiceNumber: string;
+  date: string;
+  items: {
+    product: string | Product;
+    instock: number;
+    status?: ('waiting' | 'approved') | null;
+    id?: string | null;
+  }[];
+  branch: string | Branch;
+  createdBy: string | User;
+  company: string | Company;
+  dealer?: (string | null) | Dealer;
+  status?: ('waiting' | 'approved') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -692,6 +716,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'customers';
         value: string | Customer;
+      } | null)
+    | ({
+        relationTo: 'instock-entries';
+        value: string | InstockEntry;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1148,6 +1176,29 @@ export interface CustomersSelect<T extends boolean = true> {
   name?: T;
   phoneNumber?: T;
   bills?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "instock-entries_select".
+ */
+export interface InstockEntriesSelect<T extends boolean = true> {
+  invoiceNumber?: T;
+  date?: T;
+  items?:
+    | T
+    | {
+        product?: T;
+        instock?: T;
+        status?: T;
+        id?: T;
+      };
+  branch?: T;
+  createdBy?: T;
+  company?: T;
+  dealer?: T;
+  status?: T;
   updatedAt?: T;
   createdAt?: T;
 }
