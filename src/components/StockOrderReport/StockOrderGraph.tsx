@@ -16,6 +16,8 @@ import { Check } from 'lucide-react'
 
 // Define the shape of the data item based on usage in index.tsx
 // Ideally this should be imported from types, but for now we define it here based on usage
+// Define the shape of the data item based on usage in index.tsx
+// Ideally this should be imported from types, but for now we define it here based on usage
 export interface StockReportItem {
   ordQty: number
   ordTime?: string
@@ -29,6 +31,7 @@ export interface StockReportItem {
   recTime?: string
   difQty: number
   price: number
+  branchName: string
   // Add other fields if necessary
 }
 
@@ -56,24 +59,33 @@ const StockOrderGraph: React.FC<StockOrderGraphProps> = ({ items }) => {
     // OR we can plot them on their respective times.
     // For a "trend" of total volume processed over the day, we can bucket by hour of the day.
 
-    const timeBuckets: Record<
-      string,
-      {
-        time: string
-        timestamp: number
-        ord: number
-        snt: number
-        con: number
-        pic: number
-        rec: number
+    interface BucketValue {
+      time: string
+      timestamp: number
+      ord: number
+      snt: number
+      con: number
+      pic: number
+      rec: number
+      dif: number
+      breakdown: {
+        ord: Record<string, number>
+        snt: Record<string, number>
+        con: Record<string, number>
+        pic: Record<string, number>
+        rec: Record<string, number>
+        dif: Record<string, number>
       }
-    > = {}
+    }
+
+    const timeBuckets: Record<string, BucketValue> = {}
 
     const addToBucket = (
       isoTime: string | undefined,
-      type: 'ord' | 'snt' | 'con' | 'pic' | 'rec',
+      type: 'ord' | 'snt' | 'con' | 'pic' | 'rec' | 'dif',
       qty: number,
       price: number,
+      branch: string,
     ) => {
       if (!isoTime) return
       // Bucket by hour, e.g., "2023-10-27 10:00"
@@ -88,17 +100,32 @@ const StockOrderGraph: React.FC<StockOrderGraphProps> = ({ items }) => {
           con: 0,
           pic: 0,
           rec: 0,
+          dif: 0,
+          breakdown: { ord: {}, snt: {}, con: {}, pic: {}, rec: {}, dif: {} },
         }
       }
-      timeBuckets[bucketKey][type] += qty * price
+      const val = qty * price
+      timeBuckets[bucketKey][type] += val
+
+      // Add to breakdown
+      if (!timeBuckets[bucketKey].breakdown[type][branch]) {
+        timeBuckets[bucketKey].breakdown[type][branch] = 0
+      }
+      timeBuckets[bucketKey].breakdown[type][branch] += val
     }
 
     items.forEach((item) => {
-      addToBucket(item.ordTime, 'ord', item.ordQty, item.price)
-      addToBucket(item.sntTime, 'snt', item.sntQty, item.price)
-      addToBucket(item.conTime, 'con', item.conQty, item.price)
-      addToBucket(item.picTime, 'pic', item.picQty, item.price)
-      addToBucket(item.recTime, 'rec', item.recQty, item.price)
+      addToBucket(item.ordTime, 'ord', item.ordQty, item.price, item.branchName)
+      addToBucket(item.sntTime, 'snt', item.sntQty, item.price, item.branchName)
+      addToBucket(item.conTime, 'con', item.conQty, item.price, item.branchName)
+      addToBucket(item.picTime, 'pic', item.picQty, item.price, item.branchName)
+      addToBucket(item.recTime, 'rec', item.recQty, item.price, item.branchName)
+      // For DIF, we use recTime as the timestamp, or maybe ordTime?
+      // Usually DIF is calculated at the end, so recTime is appropriate.
+      // If recTime is missing, fallback to others or current time?
+      // Safe to use recTime or fallback to ordTime.
+      const time = item.recTime || item.picTime || item.conTime || item.sntTime || item.ordTime
+      addToBucket(time, 'dif', item.difQty, item.price, item.branchName)
     })
 
     // Convert to array and sort by time
@@ -252,23 +279,142 @@ const StockOrderGraph: React.FC<StockOrderGraphProps> = ({ items }) => {
               width={40}
             />
             <Tooltip
-              contentStyle={{
-                backgroundColor: '#18181b',
-                border: '1px solid #3f3f46',
-                borderRadius: '6px',
-                color: '#e4e4e7',
-              }}
-              itemStyle={{ fontSize: '12px' }}
-              labelStyle={{ fontSize: '12px', color: '#a1a1aa', marginBottom: '8px' }}
-              formatter={(value: number | undefined) =>
-                (value || 0).toLocaleString('en-IN', {
-                  minimumFractionDigits: 1,
-                  maximumFractionDigits: 1,
-                })
-              }
-              itemSorter={(item: { name?: string }) => {
-                const order = ['ORD', 'SNT', 'CON', 'PIC', 'REC']
-                return order.indexOf(item.name || '')
+              content={({ active, payload, label }) => {
+                if (active && payload && payload.length) {
+                  // Cast payload data to our internal BucketValue type
+                  const data = payload[0].payload as {
+                    [key: string]: any
+                    breakdown: {
+                      ord: Record<string, number>
+                      snt: Record<string, number>
+                      con: Record<string, number>
+                      pic: Record<string, number>
+                      rec: Record<string, number>
+                      dif: Record<string, number>
+                    }
+                  }
+
+                  const cols = [
+                    { key: 'ord', name: 'ORD', color: '#facc15' },
+                    { key: 'snt', name: 'SNT', color: '#3b82f6' },
+                    { key: 'con', name: 'CON', color: '#a855f7' },
+                    { key: 'pic', name: 'PIC', color: '#f97316' },
+                    { key: 'rec', name: 'REC', color: '#22c55e' },
+                    { key: 'dif', name: 'DIF', color: '#f87171' }, // Red for DIF
+                  ] as const
+
+                  // Collect all unique branches from all metrics
+                  const allBranches = new Set<string>()
+                  cols.forEach((col) => {
+                    const breakdown = data.breakdown[col.key] || {}
+                    Object.keys(breakdown).forEach((b) => allBranches.add(b))
+                  })
+
+                  const branchList = Array.from(allBranches).sort()
+
+                  if (branchList.length === 0) return null
+
+                  return (
+                    <div
+                      style={{
+                        backgroundColor: '#18181b',
+                        border: '1px solid #3f3f46',
+                        borderRadius: '6px',
+                        padding: '12px',
+                        color: '#e4e4e7',
+                        minWidth: '350px',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)',
+                      }}
+                    >
+                      <p
+                        style={{
+                          fontSize: '13px',
+                          color: '#a1a1aa',
+                          marginBottom: '12px',
+                          fontWeight: '600',
+                          borderBottom: '1px solid #27272a',
+                          paddingBottom: '8px',
+                        }}
+                      >
+                        {label}
+                      </p>
+                      <table
+                        style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}
+                      >
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid #3f3f46' }}>
+                            <th
+                              style={{
+                                textAlign: 'left',
+                                padding: '4px 8px',
+                                color: '#a1a1aa',
+                                fontWeight: '600',
+                              }}
+                            >
+                              Branch
+                            </th>
+                            {cols.map((col) => (
+                              <th
+                                key={col.key}
+                                style={{
+                                  textAlign: 'right',
+                                  padding: '4px 8px',
+                                  color: col.color,
+                                  fontWeight: '700',
+                                }}
+                              >
+                                {col.name}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {branchList.map((branch) => (
+                            <tr
+                              key={branch}
+                              style={{
+                                borderBottom: '1px solid #27272a',
+                                transition: 'background 0.2s',
+                              }}
+                            >
+                              <td
+                                style={{
+                                  textAlign: 'left',
+                                  padding: '6px 8px',
+                                  fontWeight: '600',
+                                  color: '#e4e4e7',
+                                }}
+                              >
+                                {branch}
+                              </td>
+                              {cols.map((col) => {
+                                const val = data.breakdown[col.key]?.[branch] || 0
+                                return (
+                                  <td
+                                    key={col.key}
+                                    style={{
+                                      textAlign: 'right',
+                                      padding: '6px 8px',
+                                      color: val !== 0 ? '#e4e4e7' : '#52525b', // Dim zeros
+                                    }}
+                                  >
+                                    {val !== 0
+                                      ? val.toLocaleString('en-IN', {
+                                          minimumFractionDigits: val % 1 === 0 ? 0 : 2,
+                                          maximumFractionDigits: 2,
+                                        })
+                                      : '-'}
+                                  </td>
+                                )
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                }
+                return null
               }}
             />
             <Legend wrapperStyle={{ paddingTop: '20px' }} />

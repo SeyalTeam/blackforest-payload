@@ -1358,7 +1358,9 @@ const StockOrderReport: React.FC = () => {
                                         padding: '12px 8px',
                                       }}
                                     >
-                                      {Math.abs(Number(item.difQty)).toFixed(2)}
+                                      {Math.abs(Number(item.difQty)) % 1 === 0
+                                        ? Math.abs(Number(item.difQty)).toFixed(0)
+                                        : Math.abs(Number(item.difQty)).toFixed(2)}
                                     </td>
                                   </tr>
                                 ))}
@@ -1561,7 +1563,9 @@ const ProductDetailPopup = ({
                       padding: '12px 8px',
                     }}
                   >
-                    {Math.abs(Number(item.difQty)).toFixed(2)}
+                    {Math.abs(Number(item.difQty)) % 1 === 0
+                      ? Math.abs(Number(item.difQty)).toFixed(0)
+                      : Math.abs(Number(item.difQty)).toFixed(2)}
                   </td>
                 </tr>
               ))}
