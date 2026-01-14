@@ -13,10 +13,15 @@ const formatTime = (iso?: string) => {
 }
 
 const getStatusColor = (currentQty: number, targetQty: number, currentTime?: string) => {
-  if (currentQty > targetQty) return '#FFFF3F'
-  if (currentQty < targetQty && currentTime) return '#48CAE4'
-  if (currentTime) return '#A1E417'
+  if (currentQty > targetQty) return '#FA8603'
+  if (currentQty < targetQty && currentTime) return '#ef4444'
+  if (currentTime) return '#53fd68'
   return undefined
+}
+const getDifColor = (val: number) => {
+  if (val < 0) return '#FA8603'
+  if (val > 0) return '#ef4444'
+  return '#53fd68'
 }
 
 const getStatusCellStyle = (currentQty: number, targetQty: number, currentTime?: string) => {
@@ -1174,7 +1179,8 @@ const StockOrderReport: React.FC = () => {
                                       </div>
                                       <div
                                         style={{
-                                          fontSize: '0.75em',
+                                          fontSize: '13px',
+                                          fontWeight: '600',
                                           color: 'var(--theme-elevation-450)',
                                         }}
                                       >
@@ -1207,7 +1213,8 @@ const StockOrderReport: React.FC = () => {
                                       </div>
                                       <div
                                         style={{
-                                          fontSize: '0.75em',
+                                          fontSize: '13px',
+                                          fontWeight: '600',
                                           ...getStatusTimeStyle(
                                             item.sntQty,
                                             item.ordQty,
@@ -1243,7 +1250,8 @@ const StockOrderReport: React.FC = () => {
                                       </div>
                                       <div
                                         style={{
-                                          fontSize: '0.75em',
+                                          fontSize: '13px',
+                                          fontWeight: '600',
                                           ...getStatusTimeStyle(
                                             item.conQty,
                                             item.sntQty,
@@ -1279,7 +1287,8 @@ const StockOrderReport: React.FC = () => {
                                       </div>
                                       <div
                                         style={{
-                                          fontSize: '0.75em',
+                                          fontSize: '13px',
+                                          fontWeight: '600',
                                           ...getStatusTimeStyle(
                                             item.picQty,
                                             item.conQty,
@@ -1315,7 +1324,8 @@ const StockOrderReport: React.FC = () => {
                                       </div>
                                       <div
                                         style={{
-                                          fontSize: '0.75em',
+                                          fontSize: '13px',
+                                          fontWeight: '600',
                                           ...getStatusTimeStyle(
                                             item.recQty,
                                             item.picQty,
@@ -1330,13 +1340,13 @@ const StockOrderReport: React.FC = () => {
                                     <td
                                       style={{
                                         textAlign: 'center',
-                                        color: item.difQty !== 0 ? '#ef4444' : 'inherit',
+                                        color: getDifColor(item.difQty),
                                         fontWeight: item.difQty !== 0 ? '700' : '700',
                                         fontSize: '22px',
                                         padding: '12px 8px',
                                       }}
                                     >
-                                      {Number(item.difQty).toFixed(2)}
+                                      {Math.abs(Number(item.difQty)).toFixed(2)}
                                     </td>
                                   </tr>
                                 ))}
@@ -1445,7 +1455,8 @@ const ProductDetailPopup = ({
                     </div>
                     <div
                       style={{
-                        fontSize: '0.75em',
+                        fontSize: '13px',
+                        fontWeight: '600',
                         ...getStatusTimeStyle(item.sntQty, item.ordQty, item.sntTime),
                       }}
                     >
@@ -1470,7 +1481,8 @@ const ProductDetailPopup = ({
                     </div>
                     <div
                       style={{
-                        fontSize: '0.75em',
+                        fontSize: '13px',
+                        fontWeight: '600',
                         ...getStatusTimeStyle(item.conQty, item.sntQty, item.conTime),
                       }}
                     >
@@ -1494,7 +1506,8 @@ const ProductDetailPopup = ({
                     </div>
                     <div
                       style={{
-                        fontSize: '0.75em',
+                        fontSize: '13px',
+                        fontWeight: '600',
                         ...getStatusTimeStyle(item.picQty, item.conQty, item.picTime),
                       }}
                     >
@@ -1518,7 +1531,8 @@ const ProductDetailPopup = ({
                     </div>
                     <div
                       style={{
-                        fontSize: '0.75em',
+                        fontSize: '13px',
+                        fontWeight: '600',
                         ...getStatusTimeStyle(item.recQty, item.picQty, item.recTime),
                       }}
                     >
@@ -1529,13 +1543,13 @@ const ProductDetailPopup = ({
                   <td
                     style={{
                       textAlign: 'center',
-                      color: item.difQty !== 0 ? '#ef4444' : 'inherit',
+                      color: getDifColor(item.difQty),
                       fontWeight: item.difQty !== 0 ? '700' : '700',
                       fontSize: '22px',
                       padding: '12px 8px',
                     }}
                   >
-                    {Number(item.difQty).toFixed(2)}
+                    {Math.abs(Number(item.difQty)).toFixed(2)}
                   </td>
                 </tr>
               ))}
