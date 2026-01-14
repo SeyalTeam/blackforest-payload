@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { ChevronDown, ChevronRight, X, Search } from 'lucide-react'
+import StockOrderGraph from './StockOrderGraph'
 import './index.scss'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -862,10 +864,14 @@ const StockOrderReport: React.FC = () => {
                 </table>
               </div>
 
+              <div style={{ marginBottom: '20px', marginTop: '30px' }}>
+                <StockOrderGraph items={data.details} />
+              </div>
+
               <div
                 className="table-title"
                 style={{
-                  marginTop: '30px',
+                  marginTop: '10px',
                   marginBottom: '10px',
                   display: 'flex',
                   alignItems: 'center',
