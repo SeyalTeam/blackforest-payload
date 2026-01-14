@@ -266,6 +266,10 @@ const StockOrderGraph: React.FC<StockOrderGraphProps> = ({ items }) => {
                   maximumFractionDigits: 1,
                 })
               }
+              itemSorter={(item: { name?: string }) => {
+                const order = ['ORD', 'SNT', 'CON', 'PIC', 'REC']
+                return order.indexOf(item.name || '')
+              }}
             />
             <Legend wrapperStyle={{ paddingTop: '20px' }} />
 

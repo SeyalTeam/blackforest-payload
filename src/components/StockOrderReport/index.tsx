@@ -865,7 +865,13 @@ const StockOrderReport: React.FC = () => {
               </div>
 
               <div style={{ marginBottom: '20px', marginTop: '30px' }}>
-                <StockOrderGraph items={data.details} />
+                <StockOrderGraph
+                  items={
+                    selectedInvoice
+                      ? data.details.filter((item) => item.invoiceNumber === selectedInvoice)
+                      : data.details
+                  }
+                />
               </div>
 
               <div
