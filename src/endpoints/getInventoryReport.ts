@@ -40,6 +40,15 @@ export const getInventoryReportHandler: PayloadHandler = async (
     if (branch && branch !== 'all') {
       branchQuery.and.push({ id: { equals: branch } })
     }
+
+    // Enforce Company restriction
+    const allowedCompanies = [
+      '68fcabc113ce32e6595e46ba',
+      '68fcabf913ce32e6595e46cc',
+      '68fcac0b13ce32e6595e46cf',
+    ]
+    branchQuery.and.push({ company: { in: allowedCompanies } })
+
     if (branchQuery.and.length === 0) delete branchQuery.and
 
     const [productsResult, branchesResult] = await Promise.all([

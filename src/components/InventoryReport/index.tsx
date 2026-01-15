@@ -9,6 +9,7 @@ type BranchInventory = {
   name: string
   inventory: number
   value: number
+  company?: { id: string; name: string } | string
 }
 
 type ProductInventory = {
@@ -23,6 +24,12 @@ type ReportData = {
   timestamp: string
   products: ProductInventory[]
 }
+
+const allowedCompanies = [
+  '68fcabc113ce32e6595e46ba',
+  '68fcabf913ce32e6595e46cc',
+  '68fcac0b13ce32e6595e46cf',
+]
 
 const InventoryReport: React.FC = () => {
   const [data, setData] = useState<ReportData | null>(null)
@@ -45,13 +52,16 @@ const InventoryReport: React.FC = () => {
         fetch('/api/departments?limit=1000&pagination=false'),
         fetch('/api/categories?limit=1000&pagination=false'),
         fetch('/api/products?limit=1000&pagination=false'),
-        fetch('/api/branches?limit=1000&pagination=false'),
+        fetch('/api/branches?limit=1000&pagination=false&depth=1'),
       ])
 
       if (deptRes.ok) setDepartments((await deptRes.json()).docs)
       if (catRes.ok) setCategories((await catRes.json()).docs)
       if (prodRes.ok) setProducts((await prodRes.json()).docs)
       if (branchRes.ok) setAllBranches((await branchRes.json()).docs)
+      // Remove company fetch and setCompanies if no longer needed for branch logic,
+      // but branch filtering relies on company info so keeping branch fetch depth=1 is good.
+      // We don't need to fetch companies list for dropdown anymore.
     } catch (e) {
       console.error('Error fetching metadata:', e)
     }
@@ -239,7 +249,14 @@ const InventoryReport: React.FC = () => {
 
   const branchOptions = [
     { value: 'all', label: 'All Branches' },
-    ...allBranches.map((b) => ({ value: b.id, label: b.name })),
+    ...allBranches
+      .filter((branch) => {
+        const b = branch as unknown as BranchInventory
+        // Show branches from any of the allowed companies
+        const branchCompId = typeof b.company === 'string' ? b.company : b.company?.id
+        return branchCompId && allowedCompanies.includes(branchCompId)
+      })
+      .map((b) => ({ value: b.id, label: b.name })),
   ]
 
   return (

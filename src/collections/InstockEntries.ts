@@ -69,7 +69,7 @@ const InstockEntries: CollectionConfig = {
             }
           }
 
-          const prefix = `${abbr}-INE-${dateStr}-`
+          const prefix = `${abbr}-INS-${dateStr}-`
           const { totalDocs: existingCount } = await req.payload.count({
             collection: 'instock-entries',
             where: {

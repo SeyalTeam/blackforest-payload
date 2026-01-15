@@ -11,18 +11,7 @@ const Dealers: CollectionConfig = {
   access: {
     // Role-based access without custom User type import—use type assertions or any for compatibility with your existing setup
     create: ({ req: { user } }) => (user as { role?: string })?.role === 'superadmin',
-    read: ({ req: { user } }) => {
-      const u = user as { role?: string; companies?: (string | { id: string })[] } | null
-      if (u?.role === 'superadmin') return true
-      if (u?.role === 'admin' || u?.role === 'company' || u?.role === 'branch') {
-        const companies = u.companies || []
-        const companyIds = companies.map((c) => (typeof c === 'string' ? c : c.id))
-        return {
-          'allowedCompanies.id': { in: companyIds },
-        }
-      }
-      return false
-    },
+    read: () => true,
     update: ({ req: { user } }) => {
       const u = user as { role?: string } | null
       return u?.role === 'superadmin' || u?.role === 'admin'
