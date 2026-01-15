@@ -377,13 +377,9 @@ const InventoryReport: React.FC = () => {
                       key={branch.id}
                       className="text-right"
                       style={{
-                        fontWeight: '600',
-                        color:
-                          branch.inventory < 0
-                            ? 'red'
-                            : branch.inventory === 0
-                              ? 'orange'
-                              : 'inherit',
+                        fontWeight: '700',
+                        fontSize: '18px',
+                        color: branch.inventory > 0 ? '#22c55e' : '#ef4444',
                       }}
                     >
                       {formatValue(branch.inventory)}
@@ -392,13 +388,14 @@ const InventoryReport: React.FC = () => {
                   <td
                     className="text-right"
                     style={{
-                      fontWeight: 'bold',
+                      fontWeight: '700',
+                      fontSize: '18px',
                       color:
                         product.totalInventory < 0
-                          ? 'red'
+                          ? '#ef4444' // Red
                           : product.totalInventory === 0
-                            ? 'orange'
-                            : 'inherit',
+                            ? '#ef4444' // Red
+                            : '#22c55e', // Green
                     }}
                   >
                     {formatValue(product.totalInventory)}

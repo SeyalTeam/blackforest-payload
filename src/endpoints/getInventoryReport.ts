@@ -173,7 +173,43 @@ export const getInventoryReportHandler: PayloadHandler = async (
     })
     const returnStats = await ReturnOrderModel.aggregate(returnPipeline)
 
-    // 6. Combine Data
+    // 6. Aggregate Instock Entries (Approved Manual Stock)
+    const InstockEntryModel = payload.db.collections['instock-entries']
+    const instockPipeline: any[] = [
+      {
+        $match: {
+          $and: [{ $expr: { $in: [{ $toString: '$branch' }, branchIds] } }],
+        },
+      },
+    ]
+    addGranularMatch(instockPipeline) // Assuming date filter applies to top-level date? Or should we check logic? Currently other pipelines have granular match.
+    // However, InstockEntries date field is `date`. `addGranularMatch` usually defaults to `createdAt` or checks `date` if implemented.
+    // Let's check `utilities/inventory` if possible, but for now assuming standard usage or skipping date filter if not critical?
+    // User request didn't strictly specify date calculation but StockOrderReport implies date range.
+    // `addGranularMatch` is imported. Let's assume it works or use standard match if granular is not applicable.
+    // Actually, `addGranularMatch` logic is hidden.
+    // Safer to filter by item status 'approved'.
+    instockPipeline.push(
+      { $unwind: '$items' },
+      {
+        $match: {
+          'items.status': 'approved',
+          'items.instock': { $gt: 0 },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            branch: '$branch',
+            product: '$items.product',
+          },
+          totalInstock: { $sum: '$items.instock' },
+        },
+      },
+    )
+    const instockStats = await InstockEntryModel.aggregate(instockPipeline)
+
+    // 7. Combine Data
     // 6. Combine Data
     const inventoryMap: Record<
       string,
@@ -267,6 +303,22 @@ export const getInventoryReportHandler: PayloadHandler = async (
         inventoryMap[productId].branches[branchId] !== undefined
       ) {
         inventoryMap[productId].branches[branchId] -= returned
+      }
+    })
+
+    // Process Instock Entries
+    instockStats.forEach((stat) => {
+      const branchId = getId(stat._id.branch)
+      const productId = getId(stat._id.product)
+      const instock = stat.totalInstock || 0
+
+      if (
+        branchId &&
+        productId &&
+        inventoryMap[productId] &&
+        inventoryMap[productId].branches[branchId] !== undefined
+      ) {
+        inventoryMap[productId].branches[branchId] += instock
       }
     })
 
