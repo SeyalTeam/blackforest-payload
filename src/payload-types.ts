@@ -634,6 +634,7 @@ export interface InstockEntry {
   date: string;
   items: {
     product: string | Product;
+    dealer?: (string | null) | Dealer;
     instock: number;
     status?: ('waiting' | 'approved') | null;
     id?: string | null;
@@ -1190,6 +1191,7 @@ export interface InstockEntriesSelect<T extends boolean = true> {
     | T
     | {
         product?: T;
+        dealer?: T;
         instock?: T;
         status?: T;
         id?: T;

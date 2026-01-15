@@ -138,7 +138,12 @@ const InstockEntries: CollectionConfig = {
       minRows: 1,
       fields: [
         { name: 'product', type: 'relationship', relationTo: 'products', required: true },
-
+        {
+          name: 'dealer',
+          type: 'relationship',
+          relationTo: 'dealers',
+          required: false,
+        },
         {
           name: 'instock',
           label: 'In Stock Qty',
