@@ -43,7 +43,7 @@ export const getInstockEntryReportHandler: PayloadHandler = async (req): Promise
       where.branch = { equals: branchFilter }
     }
     if (dealerFilter) {
-      where.dealer = { equals: dealerFilter }
+      where['items.dealer'] = { equals: dealerFilter }
     }
     if (statusFilter) {
       where.status = { equals: statusFilter }
@@ -108,8 +108,6 @@ export const getInstockEntryReportHandler: PayloadHandler = async (req): Promise
     entries.forEach((entry) => {
       const branchId = typeof entry.branch === 'object' ? entry.branch?.id : entry.branch
       const branchName = typeof entry.branch === 'object' ? entry.branch?.name : 'Unknown'
-      const dealerId = typeof entry.dealer === 'object' ? entry.dealer?.id : entry.dealer
-      const dealerName = typeof entry.dealer === 'object' ? entry.dealer?.companyName : ''
 
       if (branchId) {
         branchStats.set(branchName, (branchStats.get(branchName) || 0) + 1)
@@ -119,6 +117,10 @@ export const getInstockEntryReportHandler: PayloadHandler = async (req): Promise
         entry.items.forEach((item: any) => {
           const prodId = typeof item.product === 'object' ? item.product?.id : item.product
           const productData = productMap.get(prodId)
+
+          // Handle Dealer Filter at Item Level
+          const itemDealerId = typeof item.dealer === 'object' ? item.dealer?.id : item.dealer
+          if (dealerFilter && itemDealerId !== dealerFilter) return
 
           // Filter Logic
           if (!productData) return
