@@ -17,6 +17,8 @@ type CustomerStat = {
   totalBills: number
   totalAmount: number
   lastPurchasingDate: string
+  branchName?: string
+  waiterName?: string
 }
 
 type ReportData = {
