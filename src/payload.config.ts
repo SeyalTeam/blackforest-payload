@@ -48,6 +48,7 @@ import Reviews from './collections/Reviews'
 import Customers from './collections/Customers'
 import InstockEntries from './collections/InstockEntries'
 import { getInstockEntryReportHandler } from './endpoints/getInstockEntryReport'
+import { updateInstockStatusHandler } from './endpoints/updateInstockStatus'
 import { InstockEntryReportGlobal } from './globals/InstockEntryReport'
 
 // Path helpers
@@ -142,6 +143,11 @@ export default buildConfig({
       path: '/reports/instock-entry',
       method: 'get',
       handler: getInstockEntryReportHandler,
+    },
+    {
+      path: '/instock-params/update-status', // Choosing a path
+      method: 'post',
+      handler: updateInstockStatusHandler,
     },
     {
       path: '/reports/review',

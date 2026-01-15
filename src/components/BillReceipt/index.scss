@@ -12,6 +12,14 @@
     color: #fff !important;
   }
 
+  .star-filled {
+    color: #ffd700 !important;
+  }
+
+  .star-empty {
+    color: #ccc !important;
+  }
+
   @media (max-width: 480px) {
     padding: 10px;
   }

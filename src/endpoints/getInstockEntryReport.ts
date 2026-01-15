@@ -104,6 +104,15 @@ export const getInstockEntryReportHandler: PayloadHandler = async (req): Promise
     // 3. Aggregate Data
     const detailsMap = new Map<string, any>()
     const branchStats = new Map<string, number>() // Total entries by branch
+    const invoiceStats = new Map<
+      string,
+      {
+        invoice: string
+        date: string
+        productCount: number
+        totalAmount: number
+      }
+    >()
 
     entries.forEach((entry) => {
       const branchId = typeof entry.branch === 'object' ? entry.branch?.id : entry.branch
@@ -111,6 +120,16 @@ export const getInstockEntryReportHandler: PayloadHandler = async (req): Promise
 
       if (branchId) {
         branchStats.set(branchName, (branchStats.get(branchName) || 0) + 1)
+      }
+
+      // Initialize invoice stat if exists
+      if (entry.invoiceNumber && !invoiceStats.has(entry.invoiceNumber)) {
+        invoiceStats.set(entry.invoiceNumber, {
+          invoice: entry.invoiceNumber,
+          date: entry.createdAt, // Using createdAt for precise time, or entry.date if preferred
+          productCount: 0,
+          totalAmount: 0,
+        })
       }
 
       if (entry.items && Array.isArray(entry.items)) {
@@ -127,9 +146,20 @@ export const getInstockEntryReportHandler: PayloadHandler = async (req): Promise
           if (categoryFilter && productData.categoryId !== categoryFilter) return
           if (departmentFilter && productData.departmentId !== departmentFilter) return
 
+          // Update Invoice Stats
+          if (entry.invoiceNumber && invoiceStats.has(entry.invoiceNumber)) {
+            const stat = invoiceStats.get(entry.invoiceNumber)!
+            stat.productCount += 1
+            stat.totalAmount += (item.instock || 0) * (productData.price || 0)
+          }
+
           // Unique Key for aggregation: Product ID
           // (We aggregate ALL entries for this product in the date range)
           const uniqueKey = prodId
+
+          // Handle Dealer Info for Display
+          const itemDealerName =
+            typeof item.dealer === 'object' ? item.dealer?.companyName : 'Unknown Dealer'
 
           if (detailsMap.has(uniqueKey)) {
             const existing = detailsMap.get(uniqueKey)
@@ -138,6 +168,28 @@ export const getInstockEntryReportHandler: PayloadHandler = async (req): Promise
             // Append Invoice Numbers if not exists
             if (entry.invoiceNumber && !existing.invoiceNumbers.includes(entry.invoiceNumber)) {
               existing.invoiceNumbers.push(entry.invoiceNumber)
+            }
+
+            // Update Invoice Details
+            if (entry.invoiceNumber) {
+              if (!existing.invoiceDetails) existing.invoiceDetails = {}
+
+              if (existing.invoiceDetails[entry.invoiceNumber]) {
+                existing.invoiceDetails[entry.invoiceNumber].qty += item.instock || 0
+                // Status priority: approved > waiting (unlikely to have mixed status in same invoice but good to handle)
+                if (item.status === 'approved' || entry.status === 'approved') {
+                  existing.invoiceDetails[entry.invoiceNumber].status = 'approved'
+                }
+              } else {
+                existing.invoiceDetails[entry.invoiceNumber] = {
+                  qty: item.instock || 0,
+                  status: item.status || entry.status || 'waiting',
+                  dealer: itemDealerName,
+                  branch: branchName,
+                  entryId: entry.id,
+                  itemId: item.id,
+                }
+              }
             }
 
             // Branch Breakdown
@@ -151,13 +203,31 @@ export const getInstockEntryReportHandler: PayloadHandler = async (req): Promise
             const initialBranchStats = new Map<string, number>()
             initialBranchStats.set(bCode, item.instock || 0)
 
+            // Invoice Granular Details
+            const currentInvoiceDetail = {
+              qty: item.instock || 0,
+              status: item.status || entry.status || 'waiting',
+              dealer: itemDealerName,
+              branch: branchName,
+              entryId: entry.id,
+              itemId: item.id,
+            }
+
+            // Map for invoice details (initialized below or retrieved)
+            const newInvoiceDetails: Record<string, any> = {}
+            if (entry.invoiceNumber) {
+              newInvoiceDetails[entry.invoiceNumber] = currentInvoiceDetail
+            }
+
             detailsMap.set(uniqueKey, {
               productName: productData.name,
               categoryName: productData.categoryName,
               departmentName: productData.departmentName,
+              dealerName: itemDealerName, // Default/Last dealer for agg view
               instockQty: item.instock || 0,
               invoiceNumbers: entry.invoiceNumber ? [entry.invoiceNumber] : [],
               branchStats: initialBranchStats,
+              invoiceDetails: newInvoiceDetails,
             })
           }
         })
@@ -174,6 +244,7 @@ export const getInstockEntryReportHandler: PayloadHandler = async (req): Promise
             return `${code}: ${qty}`
           })
           .join(', '),
+        // invoiceDetails is already an object, no conversion needed if we used Record
       }))
       .sort((a, b) => {
         // Sort by Department Name first
@@ -189,12 +260,18 @@ export const getInstockEntryReportHandler: PayloadHandler = async (req): Promise
     const totalInstock = details.reduce((sum, item) => sum + item.instockQty, 0)
     const totalEntries = entries.length
 
+    // Filter out invoices with 0 products (if filter removed all items)
+    const invoices = Array.from(invoiceStats.values())
+      .filter((inv) => inv.productCount > 0)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
     return Response.json({
       startDate: start.format('YYYY-MM-DD'),
       endDate: end.format('YYYY-MM-DD'),
       totalInstock,
       totalEntries,
       details,
+      invoices,
     })
   } catch (error) {
     req.payload.logger.error(error)
