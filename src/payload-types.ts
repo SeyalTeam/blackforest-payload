@@ -125,6 +125,7 @@ export interface Config {
     'stock-order-report': StockOrderReport;
     'afterstock-customer-report': AfterstockCustomerReport;
     'review-report': ReviewReport;
+    'instock-entry-report': InstockEntryReport;
   };
   globalsSelect: {
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
@@ -137,6 +138,7 @@ export interface Config {
     'stock-order-report': StockOrderReportSelect<false> | StockOrderReportSelect<true>;
     'afterstock-customer-report': AfterstockCustomerReportSelect<false> | AfterstockCustomerReportSelect<true>;
     'review-report': ReviewReportSelect<false> | ReviewReportSelect<true>;
+    'instock-entry-report': InstockEntryReportSelect<false> | InstockEntryReportSelect<true>;
   };
   locale: null;
   user: User & {
@@ -1343,6 +1345,15 @@ export interface ReviewReport {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "instock-entry-report".
+ */
+export interface InstockEntryReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "ip-settings_select".
  */
 export interface IpSettingsSelect<T extends boolean = true> {
@@ -1440,6 +1451,15 @@ export interface AfterstockCustomerReportSelect<T extends boolean = true> {
  * via the `definition` "review-report_select".
  */
 export interface ReviewReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "instock-entry-report_select".
+ */
+export interface InstockEntryReportSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

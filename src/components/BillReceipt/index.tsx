@@ -383,6 +383,7 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
                                     fontWeight: '500',
                                     boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                                   }}
+                                  className="submit-review-btn"
                                 >
                                   Submit Review
                                 </button>

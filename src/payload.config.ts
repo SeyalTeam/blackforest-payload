@@ -47,6 +47,8 @@ import { resetInventoryHandler } from './endpoints/resetInventory'
 import Reviews from './collections/Reviews'
 import Customers from './collections/Customers'
 import InstockEntries from './collections/InstockEntries'
+import { getInstockEntryReportHandler } from './endpoints/getInstockEntryReport'
+import { InstockEntryReportGlobal } from './globals/InstockEntryReport'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -137,6 +139,11 @@ export default buildConfig({
       handler: getAfterstockCustomerReportHandler,
     },
     {
+      path: '/reports/instock-entry',
+      method: 'get',
+      handler: getInstockEntryReportHandler,
+    },
+    {
       path: '/reports/review',
       method: 'get',
       handler: getReviewReportHandler,
@@ -159,6 +166,7 @@ export default buildConfig({
     StockOrderReportGlobal,
     AfterstockCustomerReportGlobal,
     ReviewReportGlobal,
+    InstockEntryReportGlobal,
   ],
 
   // Collections
