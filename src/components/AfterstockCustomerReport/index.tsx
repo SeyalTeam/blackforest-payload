@@ -244,6 +244,8 @@ const AfterstockCustomerReport: React.FC = () => {
                 <th style={{ width: '50px' }}>S.NO</th>
                 <th>CUSTOMER NAME</th>
                 <th>PHONE NUMBER</th>
+                <th>BRANCH</th>
+                <th>WAITER</th>
                 <th style={{ textAlign: 'right' }}>TOTAL BILLS</th>
                 <th style={{ textAlign: 'right' }}>TOTAL AMOUNT</th>
                 <th style={{ textAlign: 'right' }}>LAST PURCHASING DATE</th>
@@ -253,8 +255,10 @@ const AfterstockCustomerReport: React.FC = () => {
               {data.stats.map((row) => (
                 <tr key={row.sNo}>
                   <td>{row.sNo}</td>
-                  <td>{row.customerName}</td>
+                  <td>{row.customerName?.toUpperCase()}</td>
                   <td>{row.phoneNumber}</td>
+                  <td>{row.branchName?.toUpperCase()}</td>
+                  <td>{row.waiterName?.toUpperCase()}</td>
                   <td style={{ textAlign: 'right', fontWeight: '600' }}>{row.totalBills}</td>
                   <td style={{ textAlign: 'right', fontWeight: '600', fontSize: '1.1rem' }}>
                     {formatValue(row.totalAmount)}

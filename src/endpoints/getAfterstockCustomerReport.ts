@@ -59,6 +59,9 @@ export const getAfterstockCustomerReportHandler: PayloadHandler = async (
         },
       },
       {
+        $sort: { createdAt: -1 },
+      },
+      {
         $group: {
           _id: '$customerDetails.phoneNumber',
           customerName: { $first: '$customerDetails.name' },
@@ -66,6 +69,36 @@ export const getAfterstockCustomerReportHandler: PayloadHandler = async (
           totalBills: { $sum: 1 },
           totalAmount: { $sum: '$totalAmount' },
           lastPurchasingDate: { $max: '$createdAt' },
+          branchId: { $first: '$branch' },
+          waiterId: { $first: '$createdBy' },
+        },
+      },
+      {
+        $lookup: {
+          from: 'branches',
+          localField: 'branchId',
+          foreignField: '_id',
+          as: 'branchDoc',
+        },
+      },
+      {
+        $unwind: {
+          path: '$branchDoc',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'waiterId',
+          foreignField: '_id',
+          as: 'waiterDoc',
+        },
+      },
+      {
+        $unwind: {
+          path: '$waiterDoc',
+          preserveNullAndEmptyArrays: true,
         },
       },
       {
@@ -79,6 +112,8 @@ export const getAfterstockCustomerReportHandler: PayloadHandler = async (
           totalBills: 1,
           totalAmount: 1,
           lastPurchasingDate: 1,
+          branchName: '$branchDoc.name',
+          waiterName: '$waiterDoc.name',
         },
       },
     ]
@@ -90,6 +125,8 @@ export const getAfterstockCustomerReportHandler: PayloadHandler = async (
       sNo: index + 1,
       customerName: stat.customerName || 'Unknown',
       phoneNumber: stat.phoneNumber,
+      branchName: stat.branchName || 'N/A',
+      waiterName: stat.waiterName || 'N/A',
       totalBills: stat.totalBills,
       totalAmount: stat.totalAmount,
       lastPurchasingDate: stat.lastPurchasingDate,

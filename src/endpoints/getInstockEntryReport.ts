@@ -170,13 +170,19 @@ export const getInstockEntryReportHandler: PayloadHandler = async (req): Promise
               existing.invoiceNumbers.push(entry.invoiceNumber)
             }
 
+            // count pending
+            const isPending = (item.status || entry.status) === 'waiting'
+            if (isPending) {
+              existing.pendingQty += item.instock || 0
+            }
+
             // Update Invoice Details
             if (entry.invoiceNumber) {
               if (!existing.invoiceDetails) existing.invoiceDetails = {}
 
               if (existing.invoiceDetails[entry.invoiceNumber]) {
                 existing.invoiceDetails[entry.invoiceNumber].qty += item.instock || 0
-                // Status priority: approved > waiting (unlikely to have mixed status in same invoice but good to handle)
+                // Status priority: approved > waiting
                 if (item.status === 'approved' || entry.status === 'approved') {
                   existing.invoiceDetails[entry.invoiceNumber].status = 'approved'
                 }
@@ -192,16 +198,16 @@ export const getInstockEntryReportHandler: PayloadHandler = async (req): Promise
               }
             }
 
-            // Branch Breakdown
-            const bCode = branchName ? branchName.substring(0, 3).toUpperCase() : 'UNK'
+            // Branch Breakdown (Full Name)
+            const bName = branchName || 'Unknown'
             existing.branchStats.set(
-              bCode,
-              (existing.branchStats.get(bCode) || 0) + (item.instock || 0),
+              bName,
+              (existing.branchStats.get(bName) || 0) + (item.instock || 0),
             )
           } else {
-            const bCode = branchName ? branchName.substring(0, 3).toUpperCase() : 'UNK'
+            const bName = branchName || 'Unknown'
             const initialBranchStats = new Map<string, number>()
-            initialBranchStats.set(bCode, item.instock || 0)
+            initialBranchStats.set(bName, item.instock || 0)
 
             // Invoice Granular Details
             const currentInvoiceDetail = {
@@ -219,12 +225,15 @@ export const getInstockEntryReportHandler: PayloadHandler = async (req): Promise
               newInvoiceDetails[entry.invoiceNumber] = currentInvoiceDetail
             }
 
+            const isPending = (item.status || entry.status) === 'waiting'
+
             detailsMap.set(uniqueKey, {
               productName: productData.name,
               categoryName: productData.categoryName,
               departmentName: productData.departmentName,
               dealerName: itemDealerName, // Default/Last dealer for agg view
               instockQty: item.instock || 0,
+              pendingQty: isPending ? item.instock || 0 : 0,
               invoiceNumbers: entry.invoiceNumber ? [entry.invoiceNumber] : [],
               branchStats: initialBranchStats,
               invoiceDetails: newInvoiceDetails,
@@ -240,8 +249,8 @@ export const getInstockEntryReportHandler: PayloadHandler = async (req): Promise
         ...item,
         branchDisplay: Array.from(item.branchStats)
           .map((entry: any) => {
-            const [code, qty] = entry
-            return `${code}: ${qty}`
+            const [code] = entry
+            return code
           })
           .join(', '),
         // invoiceDetails is already an object, no conversion needed if we used Record

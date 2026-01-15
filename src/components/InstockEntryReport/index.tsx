@@ -10,6 +10,7 @@ type DetailItem = {
   productName: string
   price: number
   instockQty: number
+  pendingQty?: number
   categoryName?: string
   departmentName?: string
   branchDisplay?: string
@@ -60,6 +61,12 @@ const InstockEntryReport: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState('')
   const [selectedDealer, setSelectedDealer] = useState('')
   const [selectedInvoice, setSelectedInvoice] = useState('')
+
+  // Confirmation State
+  const [confirmState, setConfirmState] = useState<{
+    invoice: string
+    type: 'approved' | 'waiting'
+  } | null>(null)
 
   // React Select Constants
   const statusOptions = [
@@ -282,29 +289,20 @@ const InstockEntryReport: React.FC = () => {
     }
   }
 
-  const handleBulkApprove = async (targetStatus: string) => {
-    if (!selectedInvoice || !data?.invoices) return
+  const handleBulkClick = (invoice: string, targetStatus: 'approved' | 'waiting') => {
+    setConfirmState({ invoice, type: targetStatus })
+  }
 
-    // Find entryId from any item in this invoice
-    let entryIdToUpdate = ''
-    data.details.forEach((item) => {
-      if (
-        item.invoiceDetails &&
-        item.invoiceDetails[selectedInvoice] &&
-        item.invoiceDetails[selectedInvoice].entryId
-      ) {
-        entryIdToUpdate = item.invoiceDetails[selectedInvoice].entryId!
-      }
-    })
+  const executeBulkUpdate = async () => {
+    if (!confirmState || !data?.details) return
+
+    const { invoice, type: targetStatus } = confirmState
+
+    // Find entryId
+    const found = data.details.find((d) => d.invoiceDetails && d.invoiceDetails[invoice])
+    const entryIdToUpdate = found?.invoiceDetails?.[invoice]?.entryId || ''
 
     if (!entryIdToUpdate) return
-
-    const confirmMsg =
-      targetStatus === 'approved'
-        ? 'Are you sure you want to approve all items in this invoice?'
-        : 'Are you sure you want to reverse all items to waiting?'
-
-    if (!confirm(confirmMsg)) return
 
     try {
       const res = await fetch('/api/instock-params/update-status', {
@@ -325,14 +323,13 @@ const InstockEntryReport: React.FC = () => {
       setData((prevData) => {
         if (!prevData) return prevData
         const newDetails = prevData.details.map((item) => {
-          if (selectedInvoice && item.invoiceDetails && item.invoiceDetails[selectedInvoice]) {
-            const detail = item.invoiceDetails[selectedInvoice]
-            // Update all items in this invoice to targetStatus
+          if (item.invoiceDetails && item.invoiceDetails[invoice]) {
+            const detail = item.invoiceDetails[invoice]
             return {
               ...item,
               invoiceDetails: {
                 ...item.invoiceDetails,
-                [selectedInvoice]: {
+                [invoice]: {
                   ...detail,
                   status: targetStatus,
                 },
@@ -347,6 +344,7 @@ const InstockEntryReport: React.FC = () => {
           details: newDetails,
         }
       })
+      setConfirmState(null)
     } catch (err) {
       console.error(err)
       alert('Failed to bulk update')
@@ -593,29 +591,27 @@ const InstockEntryReport: React.FC = () => {
                     <th>Product Name</th>
                     <th>Instock</th>
                     <th>Dealer Name</th>
-                    <th>Branch Name</th>
-                    {selectedInvoice && <th>Status</th>}
+                    <th className="branch-header">Branch Name</th>
+                    {selectedInvoice && <th className="status-header">Status</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {Object.keys(groupedDetails).map((dept) => (
                     <React.Fragment key={dept}>
-                      <tr className="group-header dept-header">
-                        <td colSpan={selectedInvoice ? 5 : 4}>{dept}</td>
-                      </tr>
                       {Object.keys(groupedDetails[dept]).map((cat) => (
                         <React.Fragment key={cat}>
-                          <tr className="group-header cat-header">
-                            <td colSpan={selectedInvoice ? 5 : 4} style={{ paddingLeft: '20px' }}>
-                              {cat}
-                            </td>
-                          </tr>
                           {groupedDetails[dept][cat].map((item, idx) => {
                             // Determine display values based on selection
                             let displayQty = item.instockQty
                             let displayDealer = item.dealerName
-                            let displayBranch = item.branchDisplay
                             let displayStatus = ''
+
+                            const displayBranch =
+                              selectedInvoice &&
+                              item.invoiceDetails &&
+                              item.invoiceDetails[selectedInvoice]
+                                ? item.invoiceDetails[selectedInvoice].branch
+                                : item.branchDisplay
 
                             if (
                               selectedInvoice &&
@@ -625,7 +621,7 @@ const InstockEntryReport: React.FC = () => {
                               const invDetail = item.invoiceDetails[selectedInvoice]
                               displayQty = invDetail.qty
                               displayDealer = invDetail.dealer
-                              displayBranch = invDetail.branch
+                              // displayBranch is handled by the const above
                               displayStatus = invDetail.status
                             }
 
@@ -708,24 +704,80 @@ const InstockEntryReport: React.FC = () => {
                             if (!hasItems) return null
 
                             if (allApproved) {
+                              if (
+                                confirmState?.invoice === inv.invoice &&
+                                confirmState.type === 'waiting'
+                              ) {
+                                return (
+                                  <div className="flex gap-2 justify-end items-center">
+                                    <span className="text-xs text-zinc-400">Sure?</span>
+                                    <button
+                                      className="bg-zinc-700 text-white px-2 py-1 rounded text-xs hover:bg-zinc-600"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setConfirmState(null)
+                                      }}
+                                    >
+                                      No
+                                    </button>
+                                    <button
+                                      className="bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        executeBulkUpdate()
+                                      }}
+                                    >
+                                      Yes
+                                    </button>
+                                  </div>
+                                )
+                              }
                               return (
                                 <button
-                                  className="bg-red-600 text-white px-2 py-1 rounded text-xs font-medium hover:bg-red-700"
+                                  className="bg-zinc-600 text-white px-2 py-1 rounded text-xs font-medium hover:bg-zinc-500"
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    handleBulkApprove('waiting')
+                                    handleBulkClick(inv.invoice, 'waiting')
                                   }}
                                 >
                                   Undo All
                                 </button>
                               )
                             } else {
+                              if (
+                                confirmState?.invoice === inv.invoice &&
+                                confirmState.type === 'approved'
+                              ) {
+                                return (
+                                  <div className="flex gap-4 justify-end items-center">
+                                    <span className="text-xs text-zinc-400">Sure?</span>
+                                    <button
+                                      className="bg-zinc-700 text-white px-3 py-1 rounded text-xs hover:bg-zinc-600"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setConfirmState(null)
+                                      }}
+                                    >
+                                      No
+                                    </button>
+                                    <button
+                                      className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        executeBulkUpdate()
+                                      }}
+                                    >
+                                      Yes
+                                    </button>
+                                  </div>
+                                )
+                              }
                               return (
                                 <button
                                   className="bg-blue-600 text-white px-2 py-1 rounded text-xs font-medium hover:bg-blue-700"
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    handleBulkApprove('approved')
+                                    handleBulkClick(inv.invoice, 'approved')
                                   }}
                                 >
                                   Approve All
