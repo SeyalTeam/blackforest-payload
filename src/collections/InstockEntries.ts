@@ -104,6 +104,15 @@ const InstockEntries: CollectionConfig = {
             if (operation === 'create') {
               item.status = 'waiting'
             }
+
+            // Auto-populate dealer from product if not provided
+            if (!item.dealer && product.dealer) {
+              const productDealerId =
+                typeof product.dealer === 'string' ? product.dealer : product.dealer.id
+              if (productDealerId) {
+                item.dealer = productDealerId
+              }
+            }
           }
         }
 
