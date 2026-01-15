@@ -642,7 +642,6 @@ export interface InstockEntry {
   branch: string | Branch;
   createdBy: string | User;
   company: string | Company;
-  dealer?: (string | null) | Dealer;
   status?: ('waiting' | 'approved') | null;
   updatedAt: string;
   createdAt: string;
@@ -1199,7 +1198,6 @@ export interface InstockEntriesSelect<T extends boolean = true> {
   branch?: T;
   createdBy?: T;
   company?: T;
-  dealer?: T;
   status?: T;
   updatedAt?: T;
   createdAt?: T;

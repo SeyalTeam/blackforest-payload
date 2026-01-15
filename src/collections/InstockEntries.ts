@@ -188,12 +188,7 @@ const InstockEntries: CollectionConfig = {
       required: true,
       admin: { readOnly: true },
     },
-    {
-      name: 'dealer',
-      type: 'relationship',
-      relationTo: 'dealers',
-      required: false,
-    },
+
     {
       name: 'status',
       type: 'select',
