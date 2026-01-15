@@ -6,7 +6,7 @@ export const updateInstockStatusHandler: PayloadHandler = async (req): Promise<R
   }
 
   try {
-    const { entryId, itemId, status, updateAll } = await req.json()
+    const { entryId, itemId, status, updateAll } = await (req as any).json()
 
     if (!entryId || (!itemId && !updateAll) || !status) {
       return Response.json({ message: 'Missing required fields' }, { status: 400 })
