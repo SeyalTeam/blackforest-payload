@@ -137,7 +137,7 @@ const run = async () => {
       items.push({
         product: p.id,
         instock: entry.qty,
-        status: 'waiting',
+        status: 'waiting' as const,
         // dealer auto-populated by hook if exists in product
       })
     } else {
@@ -156,7 +156,7 @@ const run = async () => {
         items.push({
           product: p.id,
           instock: entry.qty,
-          status: 'waiting',
+          status: 'waiting' as const,
         })
       } else {
         missing.push(entry.name)
@@ -185,7 +185,7 @@ const run = async () => {
         // Hook: if (branch?.company) ... data.company = ...
         // So we don't strictly need to pass it if the hook works.
         // status: 'waiting' // Hook forces this
-      },
+      } as any,
       user, // Pass the user to satisfy the hook
     })
 
