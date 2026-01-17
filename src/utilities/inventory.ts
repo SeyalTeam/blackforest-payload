@@ -161,9 +161,31 @@ export const getProductStock = async (
   )
   const [returns] = await ReturnOrderModel.aggregate(returnPipeline)
 
+  // 5. Instock Entries
+  const InstockModel = payload.db.collections['instock-entries']
+  const instockPipeline: any[] = [
+    {
+      $match: {
+        $and: [{ $expr: { $eq: [{ $toString: '$branch' }, branchId] } }, { status: 'approved' }],
+      },
+    },
+  ]
+  addGranularMatch(instockPipeline)
+  instockPipeline.push(
+    { $match: { 'items.product': prodId, 'items.instock': { $gt: 0 } } },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: '$items.instock' },
+      },
+    },
+  )
+  const [instockAdded] = await InstockModel.aggregate(instockPipeline)
+
   const currentStock =
     (initialStock?.total || 0) +
-    (stockIn?.total || 0) -
+    (stockIn?.total || 0) +
+    (instockAdded?.total || 0) -
     (stockOut?.total || 0) -
     (returns?.total || 0)
 
