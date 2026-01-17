@@ -1,4 +1,5 @@
 import { PayloadHandler, PayloadRequest } from 'payload'
+import mongoose from 'mongoose'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
@@ -59,8 +60,8 @@ export const getAfterstockCustomerReportHandler: PayloadHandler = async (
           // Filter out cancelled bills? Usually reports exclude cancelled
           status: { $ne: 'cancelled' },
           'customerDetails.phoneNumber': { $exists: true, $ne: null },
-          ...(branchParam ? { branch: branchParam } : {}),
-          ...(waiterParam ? { createdBy: waiterParam } : {}),
+          ...(branchParam ? { branch: new mongoose.Types.ObjectId(branchParam) } : {}),
+          ...(waiterParam ? { createdBy: new mongoose.Types.ObjectId(waiterParam) } : {}),
         },
       },
       {

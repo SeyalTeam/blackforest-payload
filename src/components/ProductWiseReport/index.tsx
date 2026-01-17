@@ -131,7 +131,13 @@ const ProductWiseReport: React.FC = () => {
 
   const productOptions = [
     { value: 'all', label: 'All Products' },
-    ...products.map((p) => ({ value: p.id, label: p.name })),
+    ...products
+      .filter((p: any) => {
+        if (selectedCategory === 'all') return true
+        const pCatId = typeof p.category === 'object' ? p.category?.id : p.category
+        return pCatId === selectedCategory
+      })
+      .map((p) => ({ value: p.id, label: p.name })),
   ]
 
   const customStyles = {
