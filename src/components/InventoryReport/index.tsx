@@ -1,7 +1,10 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, forwardRef } from 'react'
 import Select from 'react-select'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
+import { Button } from '@payloadcms/ui'
 import './index.scss'
 
 type BranchInventory = {
@@ -45,6 +48,34 @@ const InventoryReport: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [selectedProduct, setSelectedProduct] = useState('all')
   const [selectedBranch, setSelectedBranch] = useState('all')
+  const [viewMode, setViewMode] = useState<'stock' | 'billing' | 'return' | 'received' | 'instock'>(
+    'stock',
+  )
+  const [toDate, setToDate] = useState<Date | null>(new Date())
+
+  const CustomDateInput = forwardRef(({ value, onClick }: any, ref: any) => (
+    <div className="custom-date-input" onClick={onClick} ref={ref}>
+      {value}
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="icon"
+      >
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+        <line x1="16" y1="2" x2="16" y2="6"></line>
+        <line x1="8" y1="2" x2="8" y2="6"></line>
+        <line x1="3" y1="10" x2="21" y2="10"></line>
+      </svg>
+    </div>
+  ))
+  CustomDateInput.displayName = 'CustomDateInput'
 
   const fetchMetadata = useCallback(async () => {
     try {
@@ -113,6 +144,54 @@ const InventoryReport: React.FC = () => {
     }).format(val)
   }
 
+  const customStyles = {
+    control: (base: any, state: { isFocused: boolean }) => ({
+      ...base,
+      backgroundColor: '#18181b',
+      borderColor: state.isFocused ? '#3b82f6' : '#27272a',
+      borderRadius: '6px',
+      height: '38px',
+      minHeight: '38px',
+      minWidth: '90px',
+      padding: '0 2px',
+      boxShadow: 'none',
+      color: '#ffffff',
+      '&:hover': {
+        borderColor: '#52525b',
+      },
+    }),
+    singleValue: (base: any) => ({
+      ...base,
+      color: '#ffffff',
+      fontWeight: '500',
+    }),
+    option: (base: any, state: { isSelected: boolean; isFocused: boolean }) => ({
+      ...base,
+      backgroundColor: state.isSelected ? '#3b82f6' : state.isFocused ? '#27272a' : '#18181b',
+      color: '#ffffff',
+      cursor: 'pointer',
+    }),
+    menu: (base: any) => ({
+      ...base,
+      backgroundColor: '#18181b',
+      border: '1px solid #27272a',
+      zIndex: 9999,
+    }),
+    input: (base: any) => ({
+      ...base,
+      color: '#ffffff',
+    }),
+    indicatorSeparator: () => ({ display: 'none' }),
+    dropdownIndicator: (base: any) => ({
+      ...base,
+      color: '#a1a1aa',
+      padding: '4px',
+      '&:hover': {
+        color: '#ffffff',
+      },
+    }),
+  }
+
   // Calculate Column Totals
   const columnTotals = React.useMemo(() => {
     if (!data || data.products.length === 0)
@@ -131,15 +210,34 @@ const InventoryReport: React.FC = () => {
 
     data.products.forEach((product) => {
       product.branches.forEach((branch) => {
-        branchTotals[branch.id] = (branchTotals[branch.id] || 0) + branch.inventory
-        branchValues[branch.id] = (branchValues[branch.id] || 0) + (branch.value || 0)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const b = branch as any
+        let val = 0
+        if (viewMode === 'stock') val = b.inventory
+        else if (viewMode === 'billing') val = b.sold
+        else if (viewMode === 'return') val = b.returned
+        else if (viewMode === 'received') val = b.received
+        else if (viewMode === 'instock') val = b.instock
+
+        branchTotals[branch.id] = (branchTotals[branch.id] || 0) + val
+        branchValues[branch.id] = (branchValues[branch.id] || 0) + (branch.value || 0) // Value always keeps total value? Or should value also reflect view? Usually value is stock value.
       })
-      grandTotal += product.totalInventory
+
+      let prodVal = 0
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const p = product as any
+      if (viewMode === 'stock') prodVal = p.totalInventory
+      else if (viewMode === 'billing') prodVal = p.totalSold
+      else if (viewMode === 'return') prodVal = p.totalReturned
+      else if (viewMode === 'received') prodVal = p.totalReceived
+      else if (viewMode === 'instock') prodVal = p.totalInstock
+
+      grandTotal += prodVal
       grandTotalValue += product.totalValue || 0
     })
 
     return { branchTotals, grandTotal, branchValues, grandTotalValue }
-  }, [data])
+  }, [data, viewMode])
 
   const handleZeroOutStock = async () => {
     if (!selectedBranch || selectedBranch === 'all') {
@@ -203,12 +301,33 @@ const InventoryReport: React.FC = () => {
       'TOTAL',
     ]
 
-    const rows = data.products.map((p, i) => [
-      i + 1,
-      p.name,
-      ...p.branches.map((b) => b.inventory),
-      p.totalInventory,
-    ])
+    const rows = data.products.map((p, i) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const prod = p as any
+      let totalVal = 0
+      if (viewMode === 'stock') totalVal = prod.totalInventory
+      else if (viewMode === 'billing') totalVal = prod.totalSold
+      else if (viewMode === 'return') totalVal = prod.totalReturned
+      else if (viewMode === 'received') totalVal = prod.totalReceived
+      else if (viewMode === 'instock') totalVal = prod.totalInstock
+
+      return [
+        i + 1,
+        p.name,
+        ...p.branches.map((b) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const branch = b as any
+          let val = 0
+          if (viewMode === 'stock') val = branch.inventory
+          else if (viewMode === 'billing') val = branch.sold
+          else if (viewMode === 'return') val = branch.returned
+          else if (viewMode === 'received') val = branch.received
+          else if (viewMode === 'instock') val = branch.instock
+          return val
+        }),
+        totalVal,
+      ]
+    })
 
     // Add Grand Total row to export
     const totalRow = [
@@ -225,7 +344,10 @@ const InventoryReport: React.FC = () => {
     const link = document.createElement('a')
     const url = URL.createObjectURL(blob)
     link.setAttribute('href', url)
-    link.setAttribute('download', `Inventory_Report_${new Date().toISOString().split('T')[0]}.csv`)
+    link.setAttribute(
+      'download',
+      `Inventory_Report_${viewMode}_${new Date().toISOString().split('T')[0]}.csv`,
+    )
     link.style.visibility = 'hidden'
     document.body.appendChild(link)
     link.click()
@@ -259,6 +381,14 @@ const InventoryReport: React.FC = () => {
       .map((b) => ({ value: b.id, label: b.name })),
   ]
 
+  const viewOptions = [
+    { value: 'stock', label: 'Current Stock' },
+    { value: 'billing', label: 'Billing' },
+    { value: 'return', label: 'Return' },
+    { value: 'received', label: 'REC Count' },
+    { value: 'instock', label: 'INS Count' },
+  ]
+
   return (
     <div className="inventory-report-container">
       <div className="report-header">
@@ -266,68 +396,69 @@ const InventoryReport: React.FC = () => {
           <h1>Inventory Report</h1>
         </div>
       </div>
-
       <div className="filters-row">
-        <div className="filter-group">
-          <label>Branch</label>
-          <Select
-            options={branchOptions}
-            value={branchOptions.find((o) => o.value === selectedBranch)}
-            onChange={(o) => setSelectedBranch(o?.value || 'all')}
-            className="react-select-container"
-            classNamePrefix="react-select"
+        <div>
+          <DatePicker
+            selected={toDate}
+            onChange={(date: Date | null) => setToDate(date)}
+            customInput={<CustomDateInput />}
+            dateFormat="dd MMM yyyy"
+            calendarClassName="custom-calendar"
           />
         </div>
-        <div className="filter-group">
-          <label>Department</label>
-          <Select
-            options={deptOptions}
-            value={deptOptions.find((o) => o.value === selectedDepartment)}
-            onChange={(o) => setSelectedDepartment(o?.value || 'all')}
-            className="react-select-container"
-            classNamePrefix="react-select"
-          />
-        </div>
-        <div className="filter-group">
-          <label>Category</label>
-          <Select
-            options={catOptions}
-            value={catOptions.find((o) => o.value === selectedCategory)}
-            onChange={(o) => setSelectedCategory(o?.value || 'all')}
-            className="react-select-container"
-            classNamePrefix="react-select"
-          />
-        </div>
-        <div className="filter-group">
-          <label>Product</label>
-          <Select
-            options={productOptions}
-            value={productOptions.find((o) => o.value === selectedProduct)}
-            onChange={(o) => setSelectedProduct(o?.value || 'all')}
-            className="react-select-container"
-            classNamePrefix="react-select"
-          />
-        </div>
-        <div className="filter-actions">
-          <button
-            onClick={handleZeroOutStock}
-            className="reset-stock-btn"
-            title="Reset selected stock to zero"
-          >
+        <Select
+          options={viewOptions}
+          value={viewOptions.find((o) => o.value === viewMode)}
+          onChange={(o) =>
+            setViewMode(
+              (o?.value as 'stock' | 'billing' | 'return' | 'received' | 'instock') || 'stock',
+            )
+          }
+          styles={customStyles}
+        />
+        <Select
+          options={branchOptions}
+          value={branchOptions.find((o) => o.value === selectedBranch)}
+          onChange={(o) => setSelectedBranch(o?.value || 'all')}
+          styles={customStyles}
+        />
+        <Select
+          options={deptOptions}
+          value={deptOptions.find((o) => o.value === selectedDepartment)}
+          onChange={(o) => setSelectedDepartment(o?.value || 'all')}
+          styles={customStyles}
+        />
+        <Select
+          options={catOptions}
+          value={catOptions.find((o) => o.value === selectedCategory)}
+          onChange={(o) => setSelectedCategory(o?.value || 'all')}
+          styles={customStyles}
+        />
+        <Select
+          options={productOptions}
+          value={productOptions.find((o) => o.value === selectedProduct)}
+          onChange={(o) => setSelectedProduct(o?.value || 'all')}
+          styles={customStyles}
+        />
+        <div
+          className="filter-actions"
+          style={{ display: 'flex', gap: '10px', alignItems: 'center' }}
+        >
+          <Button onClick={handleZeroOutStock} className="btn-error">
             Zero Out Stock
-          </button>
-          <button onClick={handleExportExcel} className="export-btn">
+          </Button>
+          <Button onClick={handleExportExcel} buttonStyle="primary">
             Export
-          </button>
-          <button
-            className="reset-btn"
+          </Button>
+          <Button
+            buttonStyle="secondary"
             onClick={() => {
               setSelectedBranch('all')
               setSelectedDepartment('all')
               setSelectedCategory('all')
               setSelectedProduct('all')
+              setViewMode('stock')
             }}
-            title="Reset Filters"
           >
             <svg
               width="20"
@@ -343,13 +474,11 @@ const InventoryReport: React.FC = () => {
               <path d="M1 20v-6h6"></path>
               <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
             </svg>
-          </button>
+          </Button>
         </div>
       </div>
-
       {loading && <p>Loading...</p>}
       {error && <p className="error">{error}</p>}
-
       {data && data.products.length > 0 && (
         <div className="table-container">
           <table className="report-table">
@@ -367,41 +496,71 @@ const InventoryReport: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {data.products.map((product: ProductInventory, index: number) => (
-                <tr key={product.id}>
-                  <td>{index + 1}</td>
-                  <td style={{ fontWeight: '600' }}>{product.name}</td>
-                  {/* Render branch-wise inventory */}
-                  {product.branches.map((branch: BranchInventory) => (
+              {data.products.map((product: ProductInventory, index: number) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const p = product as any
+                let totalVal = 0
+                if (viewMode === 'stock') totalVal = p.totalInventory
+                else if (viewMode === 'billing') totalVal = p.totalSold
+                else if (viewMode === 'return') totalVal = p.totalReturned
+                else if (viewMode === 'received') totalVal = p.totalReceived
+                else if (viewMode === 'instock') totalVal = p.totalInstock
+                return (
+                  <tr key={product.id}>
+                    <td>{index + 1}</td>
+                    <td style={{ fontWeight: '600' }}>{product.name}</td>
+                    {/* Render branch-wise inventory */}
+                    {product.branches.map((branch: BranchInventory) => {
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const b = branch as any
+                      let val = 0
+                      if (viewMode === 'stock') val = b.inventory
+                      else if (viewMode === 'billing') val = b.sold
+                      else if (viewMode === 'return') val = b.returned
+                      else if (viewMode === 'received') val = b.received
+                      else if (viewMode === 'instock') val = b.instock
+
+                      return (
+                        <td
+                          key={branch.id}
+                          className="text-right"
+                          style={{
+                            fontWeight: '700',
+                            fontSize: '18px',
+                            color:
+                              val > 0
+                                ? '#22c55e'
+                                : val < 0 && viewMode === 'stock'
+                                  ? '#ef4444'
+                                  : val === 0 && viewMode === 'stock'
+                                    ? '#ef4444'
+                                    : 'inherit',
+                          }}
+                        >
+                          {formatValue(val)}
+                        </td>
+                      )
+                    })}
                     <td
-                      key={branch.id}
                       className="text-right"
                       style={{
                         fontWeight: '700',
                         fontSize: '18px',
-                        color: branch.inventory > 0 ? '#22c55e' : '#ef4444',
+                        color:
+                          totalVal > 0
+                            ? '#22c55e'
+                            : totalVal < 0 && viewMode === 'stock'
+                              ? '#ef4444'
+                              : totalVal === 0 && viewMode === 'stock'
+                                ? '#ef4444'
+                                : 'inherit',
                       }}
                     >
-                      {formatValue(branch.inventory)}
+                      {formatValue(totalVal)}
                     </td>
-                  ))}
-                  <td
-                    className="text-right"
-                    style={{
-                      fontWeight: '700',
-                      fontSize: '18px',
-                      color:
-                        product.totalInventory < 0
-                          ? '#ef4444' // Red
-                          : product.totalInventory === 0
-                            ? '#ef4444' // Red
-                            : '#22c55e', // Green
-                    }}
-                  >
-                    {formatValue(product.totalInventory)}
-                  </td>
-                </tr>
-              ))}
+                  </tr>
+                )
+              })}
             </tbody>
             <tfoot>
               <tr className="grand-total-row">
@@ -417,14 +576,21 @@ const InventoryReport: React.FC = () => {
                         alignItems: 'flex-end',
                       }}
                     >
+                      {viewMode === 'stock' && (
+                        <span
+                          style={{
+                            color: columnTotals.branchValues[branch.id] < 0 ? 'red' : 'inherit',
+                          }}
+                        >
+                          {formatCurrency(columnTotals.branchValues[branch.id])}
+                        </span>
+                      )}
                       <span
                         style={{
-                          color: columnTotals.branchValues[branch.id] < 0 ? 'red' : 'inherit',
+                          fontSize: '1rem',
+                          color: viewMode === 'stock' ? 'var(--theme-elevation-400)' : 'inherit',
                         }}
                       >
-                        {formatCurrency(columnTotals.branchValues[branch.id])}
-                      </span>
-                      <span style={{ fontSize: '0.8em', color: 'var(--theme-elevation-400)' }}>
                         {formatValue(columnTotals.branchTotals[branch.id])}
                       </span>
                     </div>
@@ -439,14 +605,21 @@ const InventoryReport: React.FC = () => {
                       fontWeight: 'bold',
                     }}
                   >
+                    {viewMode === 'stock' && (
+                      <span
+                        style={{
+                          color: columnTotals.grandTotalValue < 0 ? 'red' : 'inherit',
+                        }}
+                      >
+                        {formatCurrency(columnTotals.grandTotalValue)}
+                      </span>
+                    )}
                     <span
                       style={{
-                        color: columnTotals.grandTotalValue < 0 ? 'red' : 'inherit',
+                        fontSize: '1rem',
+                        color: viewMode === 'stock' ? 'var(--theme-elevation-400)' : 'inherit',
                       }}
                     >
-                      {formatCurrency(columnTotals.grandTotalValue)}
-                    </span>
-                    <span style={{ fontSize: '0.8em', color: 'var(--theme-elevation-400)' }}>
                       {formatValue(columnTotals.grandTotal)}
                     </span>
                   </div>

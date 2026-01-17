@@ -210,15 +210,23 @@ export const getInventoryReportHandler: PayloadHandler = async (
     const instockStats = await InstockEntryModel.aggregate(instockPipeline)
 
     // 7. Combine Data
-    // 6. Combine Data
     const inventoryMap: Record<
       string,
       {
         name: string
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         product: any
-        totalInventory: number
-        branches: Record<string, number>
+        branches: Record<
+          string,
+          {
+            inventory: number
+            initial: number
+            received: number
+            sold: number
+            returned: number
+            instock: number
+          }
+        >
       }
     > = {}
 
@@ -226,11 +234,17 @@ export const getInventoryReportHandler: PayloadHandler = async (
       inventoryMap[p.id] = {
         name: p.name,
         product: p,
-        totalInventory: 0,
         branches: {},
       }
       branches.forEach((b) => {
-        inventoryMap[p.id].branches[b.id] = 0
+        inventoryMap[p.id].branches[b.id] = {
+          inventory: 0,
+          initial: 0,
+          received: 0,
+          sold: 0,
+          returned: 0,
+          instock: 0,
+        }
       })
     })
 
@@ -252,9 +266,10 @@ export const getInventoryReportHandler: PayloadHandler = async (
         branchId &&
         productId &&
         inventoryMap[productId] &&
-        inventoryMap[productId].branches[branchId] !== undefined
+        inventoryMap[productId].branches[branchId]
       ) {
-        inventoryMap[productId].branches[branchId] += inStock
+        inventoryMap[productId].branches[branchId].initial += inStock
+        inventoryMap[productId].branches[branchId].inventory += inStock
       }
     })
 
@@ -268,9 +283,10 @@ export const getInventoryReportHandler: PayloadHandler = async (
         branchId &&
         productId &&
         inventoryMap[productId] &&
-        inventoryMap[productId].branches[branchId] !== undefined
+        inventoryMap[productId].branches[branchId]
       ) {
-        inventoryMap[productId].branches[branchId] += received
+        inventoryMap[productId].branches[branchId].received += received
+        inventoryMap[productId].branches[branchId].inventory += received
       }
     })
 
@@ -284,9 +300,10 @@ export const getInventoryReportHandler: PayloadHandler = async (
         branchId &&
         productId &&
         inventoryMap[productId] &&
-        inventoryMap[productId].branches[branchId] !== undefined
+        inventoryMap[productId].branches[branchId]
       ) {
-        inventoryMap[productId].branches[branchId] -= sold
+        inventoryMap[productId].branches[branchId].sold += sold
+        inventoryMap[productId].branches[branchId].inventory -= sold
       }
     })
 
@@ -300,9 +317,10 @@ export const getInventoryReportHandler: PayloadHandler = async (
         branchId &&
         productId &&
         inventoryMap[productId] &&
-        inventoryMap[productId].branches[branchId] !== undefined
+        inventoryMap[productId].branches[branchId]
       ) {
-        inventoryMap[productId].branches[branchId] -= returned
+        inventoryMap[productId].branches[branchId].returned += returned
+        inventoryMap[productId].branches[branchId].inventory -= returned
       }
     })
 
@@ -316,18 +334,31 @@ export const getInventoryReportHandler: PayloadHandler = async (
         branchId &&
         productId &&
         inventoryMap[productId] &&
-        inventoryMap[productId].branches[branchId] !== undefined
+        inventoryMap[productId].branches[branchId]
       ) {
-        inventoryMap[productId].branches[branchId] += instock
+        inventoryMap[productId].branches[branchId].instock += instock
+        inventoryMap[productId].branches[branchId].inventory += instock
       }
     })
 
     // Calculate Totals and Format Output
     const reportData = Object.entries(inventoryMap).map(([productId, data]) => {
-      const totalInventory = Object.values(data.branches).reduce((a, b) => a + b, 0)
+      const totalInventory = Object.values(data.branches).reduce((a, b) => a + b.inventory, 0)
+      const totalSold = Object.values(data.branches).reduce((a, b) => a + b.sold, 0)
+      const totalReturned = Object.values(data.branches).reduce((a, b) => a + b.returned, 0)
+      const totalReceived = Object.values(data.branches).reduce((a, b) => a + b.received, 0)
+      const totalInstock = Object.values(data.branches).reduce((a, b) => a + b.instock, 0)
 
       const branchDetails = branches.map((b) => {
-        const inventory = data.branches[b.id] || 0
+        const stats = data.branches[b.id] || {
+          inventory: 0,
+          initial: 0,
+          received: 0,
+          sold: 0,
+          returned: 0,
+          instock: 0,
+        }
+        const inventory = stats.inventory
 
         // Calculate Value
         let rate = data.product.defaultPriceDetails?.rate || 0
@@ -349,6 +380,11 @@ export const getInventoryReportHandler: PayloadHandler = async (
           name: b.name,
           inventory,
           value,
+          sold: stats.sold,
+          returned: stats.returned,
+          received: stats.received,
+          instock: stats.instock,
+          initial: stats.initial,
         }
       })
 
@@ -359,6 +395,10 @@ export const getInventoryReportHandler: PayloadHandler = async (
         name: data.name,
         totalInventory,
         totalValue,
+        totalSold,
+        totalReturned,
+        totalReceived,
+        totalInstock,
         branches: branchDetails,
       }
     })

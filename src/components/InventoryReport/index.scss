@@ -6,17 +6,28 @@
     padding-bottom: 1.5rem;
     border-bottom: 1px solid var(--theme-elevation-100);
 
+    .header-left {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
     h1 {
       margin: 0;
       font-size: 1.75rem;
       font-weight: 600;
+      white-space: nowrap;
     }
   }
 
   .filters-row {
     display: flex;
-    align-items: flex-end;
-    gap: 1.5rem;
+    position: relative;
+    z-index: 200;
+    align-items: center;
+    gap: 12px;
     margin-bottom: 2rem;
     flex-wrap: wrap;
 
@@ -85,60 +96,25 @@
 
     .filter-actions {
       display: flex;
-      gap: 1rem;
+      gap: 1.5rem; /* Increased gap */
       align-items: center;
 
-      .reset-btn,
-      .export-btn,
-      .reset-stock-btn {
-        height: 42px;
-        padding: 0 1.2rem;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-        border: 1px solid var(--theme-elevation-200);
-        background: var(--theme-elevation-50);
-        color: var(--theme-text-primary);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        white-space: nowrap;
+      button,
+      .btn-error {
+        margin-right: 15px; /* Explicit margin as fallback/enforcement */
 
-        &:hover {
-          background: var(--theme-elevation-100);
-          border-color: var(--theme-elevation-300);
+        &:last-child {
+          margin-right: 0;
         }
       }
 
-      .reset-btn {
-        width: 42px;
-        padding: 0;
-      }
-
-      .reset-btn:hover {
-        background: var(--theme-error-500);
-        color: white;
-        border-color: var(--theme-error-500);
-      }
-
-      .export-btn {
-        background: var(--theme-success-500);
-        color: white;
-        border: none;
+      .btn-error {
+        background-color: var(--theme-error-500) !important;
+        color: white !important;
+        border: none !important;
 
         &:hover {
-          background: var(--theme-success-600);
-        }
-      }
-
-      .reset-stock-btn {
-        background: var(--theme-error-500);
-        color: white;
-        border: none;
-
-        &:hover {
-          background: var(--theme-error-600);
+          background-color: var(--theme-error-600) !important;
         }
       }
     }
@@ -260,5 +236,72 @@
         }
       }
     }
+  }
+}
+
+// Custom Date Input Style
+.custom-date-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 38px;
+  border: 1px solid #27272a;
+  border-radius: 6px;
+  background-color: #18181b;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+  min-width: 140px;
+  justify-content: space-between;
+
+  &:hover {
+    border-color: #52525b;
+  }
+
+  .icon {
+    color: #a1a1aa;
+    width: 16px;
+    height: 16px;
+  }
+}
+
+// Global Calendar Override
+:global(.react-datepicker-popper) {
+  z-index: 99999 !important;
+}
+
+.custom-calendar {
+  font-family: inherit;
+  border: 1px solid #27272a !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  padding: 1rem;
+  border-radius: 6px !important;
+  display: inline-block;
+
+  .react-datepicker__header {
+    background-color: transparent !important;
+    border-bottom: none !important;
+  }
+
+  .react-datepicker__current-month,
+  .react-datepicker-time__header,
+  .react-datepicker-year-header,
+  .react-datepicker__day-name,
+  .react-datepicker__day {
+    color: #ffffff !important;
+  }
+
+  .react-datepicker__day:hover {
+    background-color: #27272a !important;
+  }
+
+  .react-datepicker__day--selected,
+  .react-datepicker__day--in-range {
+    background-color: #3b82f6 !important;
+    color: white !important;
   }
 }

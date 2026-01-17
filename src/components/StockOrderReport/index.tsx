@@ -14,6 +14,12 @@ const formatTime = (iso?: string) => {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
+const formatQty = (val: number) => {
+  const n = Number(val)
+  if (Math.abs(n) % 1 === 0) return n.toFixed(0)
+  return n.toFixed(2)
+}
+
 const getStatusColor = (currentQty: number, targetQty: number, currentTime?: string) => {
   if (currentQty > targetQty) return '#FA8603'
   if (currentQty < targetQty && currentTime) return '#ef4444'
@@ -1187,7 +1193,7 @@ const StockOrderReport: React.FC = () => {
                                       }}
                                     >
                                       <div style={{ fontWeight: '700', fontSize: '22px' }}>
-                                        {item.ordQty}
+                                        {formatQty(item.ordQty)}
                                       </div>
                                       <div
                                         style={{
@@ -1221,7 +1227,7 @@ const StockOrderReport: React.FC = () => {
                                           ),
                                         }}
                                       >
-                                        {item.sntQty}
+                                        {formatQty(item.sntQty)}
                                       </div>
                                       <div
                                         style={{
@@ -1258,7 +1264,7 @@ const StockOrderReport: React.FC = () => {
                                           ),
                                         }}
                                       >
-                                        {item.conQty}
+                                        {formatQty(item.conQty)}
                                       </div>
                                       <div
                                         style={{
@@ -1295,7 +1301,7 @@ const StockOrderReport: React.FC = () => {
                                           ),
                                         }}
                                       >
-                                        {item.picQty}
+                                        {formatQty(item.picQty)}
                                       </div>
                                       <div
                                         style={{
@@ -1332,7 +1338,7 @@ const StockOrderReport: React.FC = () => {
                                           ),
                                         }}
                                       >
-                                        {item.recQty}
+                                        {formatQty(item.recQty)}
                                       </div>
                                       <div
                                         style={{
@@ -1358,9 +1364,7 @@ const StockOrderReport: React.FC = () => {
                                         padding: '12px 8px',
                                       }}
                                     >
-                                      {Math.abs(Number(item.difQty)) % 1 === 0
-                                        ? Math.abs(Number(item.difQty)).toFixed(0)
-                                        : Math.abs(Number(item.difQty)).toFixed(2)}
+                                      {formatQty(Math.abs(item.difQty))}
                                     </td>
                                   </tr>
                                 ))}
@@ -1446,7 +1450,9 @@ const ProductDetailPopup = ({
 
                   {/* ORD */}
                   <td style={{ textAlign: 'center', padding: '12px 8px' }}>
-                    <div style={{ fontWeight: '700', fontSize: '22px' }}>{item.ordQty}</div>
+                    <div style={{ fontWeight: '700', fontSize: '22px' }}>
+                      {formatQty(item.ordQty)}
+                    </div>
                     <div style={{ fontSize: '0.75em', color: 'var(--theme-elevation-450)' }}>
                       {formatTime(item.ordTime)}
                     </div>
@@ -1465,7 +1471,7 @@ const ProductDetailPopup = ({
                         ...getStatusQtyStyle(item.sntQty, item.ordQty, item.sntTime),
                       }}
                     >
-                      {item.sntQty}
+                      {formatQty(item.sntQty)}
                     </div>
                     <div
                       style={{
@@ -1491,7 +1497,7 @@ const ProductDetailPopup = ({
                         ...getStatusQtyStyle(item.conQty, item.sntQty, item.conTime),
                       }}
                     >
-                      {item.conQty}
+                      {formatQty(item.conQty)}
                     </div>
                     <div
                       style={{
@@ -1516,7 +1522,7 @@ const ProductDetailPopup = ({
                         ...getStatusQtyStyle(item.picQty, item.conQty, item.picTime),
                       }}
                     >
-                      {item.picQty}
+                      {formatQty(item.picQty)}
                     </div>
                     <div
                       style={{
@@ -1541,7 +1547,7 @@ const ProductDetailPopup = ({
                         ...getStatusQtyStyle(item.recQty, item.picQty, item.recTime),
                       }}
                     >
-                      {item.recQty}
+                      {formatQty(item.recQty)}
                     </div>
                     <div
                       style={{
@@ -1563,9 +1569,7 @@ const ProductDetailPopup = ({
                       padding: '12px 8px',
                     }}
                   >
-                    {Math.abs(Number(item.difQty)) % 1 === 0
-                      ? Math.abs(Number(item.difQty)).toFixed(0)
-                      : Math.abs(Number(item.difQty)).toFixed(2)}
+                    {formatQty(Math.abs(item.difQty))}
                   </td>
                 </tr>
               ))}

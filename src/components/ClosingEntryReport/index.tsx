@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import Select from 'react-select'
 import './index.scss'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -51,7 +52,22 @@ const ClosingEntryReport: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showZeroHighlight, setShowZeroHighlight] = useState<boolean>(false)
-  const [selectedBranch, setSelectedBranch] = useState<string | null>(null)
+  const [expandedBranch, setExpandedBranch] = useState<string | null>(null)
+  const [branches, setBranches] = useState<any[]>([])
+  const [filterBranch, setFilterBranch] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchBranches = async () => {
+      try {
+        const res = await fetch('/api/branches?limit=1000&sort=name')
+        const json = await res.json()
+        setBranches(json.docs || [])
+      } catch (err) {
+        console.error('Error fetching branches', err)
+      }
+    }
+    fetchBranches()
+  }, [])
 
   const formatValue = (val: number) => {
     const fixed = val.toFixed(2)
@@ -144,8 +160,56 @@ const ClosingEntryReport: React.FC = () => {
   )
   CustomInput.displayName = 'CustomInput'
 
+  const filteredStats = data?.stats.filter((row) => {
+    if (!filterBranch) return true
+    return row.branchName === filterBranch
+  })
+
+  // Recalculate totals based on filteredStats
+  const filteredTotals = React.useMemo(() => {
+    if (!data)
+      return {
+        systemSales: 0,
+        totalBills: 0,
+        manualSales: 0,
+        onlineSales: 0,
+        totalSales: 0,
+        expenses: 0,
+        cash: 0,
+        upi: 0,
+        card: 0,
+      }
+
+    if (!filterBranch) return data.totals
+
+    return (filteredStats || []).reduce(
+      (acc, row) => ({
+        systemSales: acc.systemSales + row.systemSales,
+        totalBills: acc.totalBills + row.totalBills,
+        manualSales: acc.manualSales + row.manualSales,
+        onlineSales: acc.onlineSales + row.onlineSales,
+        totalSales: acc.totalSales + row.totalSales,
+        expenses: acc.expenses + row.expenses,
+        cash: acc.cash + row.cash,
+        upi: acc.upi + row.upi,
+        card: acc.card + row.card,
+      }),
+      {
+        systemSales: 0,
+        totalBills: 0,
+        manualSales: 0,
+        onlineSales: 0,
+        totalSales: 0,
+        expenses: 0,
+        cash: 0,
+        upi: 0,
+        card: 0,
+      },
+    )
+  }, [data, filteredStats, filterBranch])
+
   const handleExportExcel = () => {
-    if (!data) return
+    if (!data || !filteredStats) return
     const csvRows = []
     // Header
     const headers = [
@@ -166,7 +230,7 @@ const ClosingEntryReport: React.FC = () => {
     csvRows.push(headers.join(','))
 
     // Rows
-    data.stats.forEach((row, index) => {
+    filteredStats.forEach((row, index) => {
       const calculatedTotal = row.expenses + row.cash + row.upi + row.card
       csvRows.push(
         [
@@ -192,16 +256,18 @@ const ClosingEntryReport: React.FC = () => {
       [
         '',
         'TOTAL',
-        formatValue(data.totals.systemSales),
-        data.totals.totalBills,
-        formatValue(data.totals.manualSales),
-        formatValue(data.totals.onlineSales),
-        formatValue(data.totals.totalSales),
-        formatValue(data.totals.expenses),
-        formatValue(data.totals.cash),
-        formatValue(data.totals.upi),
-        formatValue(data.totals.card),
-        formatValue(data.totals.expenses + data.totals.cash + data.totals.upi + data.totals.card),
+        formatValue(filteredTotals.systemSales),
+        filteredTotals.totalBills,
+        formatValue(filteredTotals.manualSales),
+        formatValue(filteredTotals.onlineSales),
+        formatValue(filteredTotals.totalSales),
+        formatValue(filteredTotals.expenses),
+        formatValue(filteredTotals.cash),
+        formatValue(filteredTotals.upi),
+        formatValue(filteredTotals.card),
+        formatValue(
+          filteredTotals.expenses + filteredTotals.cash + filteredTotals.upi + filteredTotals.card,
+        ),
       ].join(','),
     )
 
@@ -271,6 +337,51 @@ const ClosingEntryReport: React.FC = () => {
             />
           </div>
 
+          <div className="filter-group" style={{ minWidth: '200px' }}>
+            <Select
+              options={[
+                { value: '', label: 'All Branches' },
+                ...branches.map((b) => ({ value: b.name, label: b.name })),
+              ]}
+              value={
+                filterBranch
+                  ? { value: filterBranch, label: filterBranch }
+                  : { value: '', label: 'All Branches' }
+              }
+              onChange={(option) => setFilterBranch(option?.value || null)}
+              placeholder="All Branches"
+              isClearable
+              styles={{
+                control: (base) => ({
+                  ...base,
+                  backgroundColor: '#18181b',
+                  borderColor: '#27272a',
+                  color: '#ffffff',
+                }),
+                menu: (base) => ({
+                  ...base,
+                  backgroundColor: '#18181b',
+                  border: '1px solid #27272a',
+                  zIndex: 9999,
+                }),
+                option: (base, state) => ({
+                  ...base,
+                  backgroundColor: state.isFocused ? '#27272a' : '#18181b',
+                  color: '#ffffff',
+                  cursor: 'pointer',
+                }),
+                singleValue: (base) => ({
+                  ...base,
+                  color: '#ffffff',
+                }),
+                input: (base) => ({
+                  ...base,
+                  color: '#ffffff',
+                }),
+              }}
+            />
+          </div>
+
           <div className="filter-group">
             <button className="export-btn" onClick={handleExportExcel} title="Export to Excel">
               Export Excel
@@ -282,6 +393,7 @@ const ClosingEntryReport: React.FC = () => {
             <button
               onClick={() => {
                 setDateRange([new Date(), new Date()]) // Reset to Today
+                setFilterBranch(null)
               }}
               title="Reset Filters"
               style={{
@@ -337,14 +449,14 @@ const ClosingEntryReport: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {data.stats.map((row, index) => {
+              {filteredStats?.map((row, index) => {
                 const calculatedTotal = row.expenses + row.cash + row.upi + row.card
                 return (
                   <React.Fragment key={row.branchName}>
                     <tr
                       key={row.branchName}
                       onClick={() =>
-                        setSelectedBranch(selectedBranch === row.branchName ? null : row.branchName)
+                        setExpandedBranch(expandedBranch === row.branchName ? null : row.branchName)
                       }
                       style={{ cursor: 'pointer' }}
                     >
@@ -403,7 +515,7 @@ const ClosingEntryReport: React.FC = () => {
                         {formatValue(calculatedTotal - row.totalSales)}
                       </td>
                     </tr>
-                    {selectedBranch === row.branchName &&
+                    {expandedBranch === row.branchName &&
                       row.entries?.map((entry, i) => {
                         const entryTotal =
                           (entry.expenses || 0) +
@@ -420,10 +532,8 @@ const ClosingEntryReport: React.FC = () => {
                           <tr
                             key={`${row.branchName}-entry-${i}`}
                             style={{
-                              backgroundColor:
-                                i % 2 === 0
-                                  ? 'var(--theme-elevation-100)'
-                                  : 'var(--theme-elevation-150)',
+                              backgroundColor: '#ffcedf',
+                              color: 'black',
                             }}
                           >
                             <td></td>
@@ -431,8 +541,8 @@ const ClosingEntryReport: React.FC = () => {
                               <div
                                 style={{
                                   fontSize: '1rem',
-                                  color: '#FFFFFF',
-                                  fontWeight: 600,
+                                  color: 'black',
+                                  fontWeight: 'bold',
                                   display: 'flex',
                                   alignItems: 'center',
                                   whiteSpace: 'nowrap',
@@ -444,7 +554,8 @@ const ClosingEntryReport: React.FC = () => {
                                     marginLeft: '8px',
                                     fontSize: '0.9rem', // Slightly increased relative to parent
                                     opacity: 0.9,
-                                    color: '#FFFFFF',
+                                    color: 'black',
+                                    fontWeight: 'bold',
                                   }}
                                 >
                                   {new Date(entry.createdAt).toLocaleTimeString([], {
@@ -455,24 +566,99 @@ const ClosingEntryReport: React.FC = () => {
                                 </span>
                               </div>
                             </td>
-                            <td style={getStyle(entry.systemSales)}>
+                            <td
+                              style={{
+                                ...getStyle(entry.systemSales),
+                                fontWeight: 'bold',
+                                color: entry.systemSales < 0 ? '#ef4444' : 'black',
+                              }}
+                            >
                               {formatValue(entry.systemSales)}
                             </td>
-                            <td style={getStyle(entry.manualSales)}>
+                            <td
+                              style={{
+                                ...getStyle(entry.manualSales),
+                                fontWeight: 'bold',
+                                color: entry.manualSales < 0 ? '#ef4444' : 'black',
+                              }}
+                            >
                               {formatValue(entry.manualSales)}
                             </td>
-                            <td style={getStyle(entry.onlineSales)}>
+                            <td
+                              style={{
+                                ...getStyle(entry.onlineSales),
+                                fontWeight: 'bold',
+                                color: entry.onlineSales < 0 ? '#ef4444' : 'black',
+                              }}
+                            >
                               {formatValue(entry.onlineSales)}
                             </td>
-                            <td style={getStyle(entry.totalSales)}>
+                            <td
+                              style={{
+                                ...getStyle(entry.totalSales),
+                                fontWeight: 'bold',
+                                color: entry.totalSales < 0 ? '#ef4444' : 'black',
+                              }}
+                            >
                               {formatValue(entry.totalSales)}
                             </td>
-                            <td style={getStyle(entry.expenses)}>{formatValue(entry.expenses)}</td>
-                            <td style={getStyle(entry.cash)}>{formatValue(entry.cash)}</td>
-                            <td style={getStyle(entry.upi)}>{formatValue(entry.upi)}</td>
-                            <td style={getStyle(entry.card)}>{formatValue(entry.card)}</td>
-                            <td style={getStyle(entryTotal)}>{formatValue(entryTotal)}</td>
-                            <td style={getStyle(entryTotal - entry.totalSales)}>
+                            <td
+                              style={{
+                                ...getStyle(entry.expenses),
+                                fontWeight: 'bold',
+                                color: entry.expenses < 0 ? '#ef4444' : 'black',
+                              }}
+                            >
+                              {formatValue(entry.expenses)}
+                            </td>
+                            <td
+                              style={{
+                                ...getStyle(entry.cash),
+                                fontWeight: 'bold',
+                                color: entry.cash < 0 ? '#ef4444' : 'black',
+                              }}
+                            >
+                              {formatValue(entry.cash)}
+                            </td>
+                            <td
+                              style={{
+                                ...getStyle(entry.upi),
+                                fontWeight: 'bold',
+                                color: entry.upi < 0 ? '#ef4444' : 'black',
+                              }}
+                            >
+                              {formatValue(entry.upi)}
+                            </td>
+                            <td
+                              style={{
+                                ...getStyle(entry.card),
+                                fontWeight: 'bold',
+                                color: entry.card < 0 ? '#ef4444' : 'black',
+                              }}
+                            >
+                              {formatValue(entry.card)}
+                            </td>
+                            <td
+                              style={{
+                                ...getStyle(entryTotal),
+                                fontWeight: 'bold',
+                                color:
+                                  entryTotal > entry.totalSales
+                                    ? '#006400'
+                                    : entryTotal < entry.totalSales
+                                      ? '#ef4444'
+                                      : 'black',
+                              }}
+                            >
+                              {formatValue(entryTotal)}
+                            </td>
+                            <td
+                              style={{
+                                ...getStyle(entryTotal - entry.totalSales),
+                                fontWeight: 'bold',
+                                color: entryTotal - entry.totalSales < 0 ? '#ef4444' : 'black',
+                              }}
+                            >
                               {formatValue(entryTotal - entry.totalSales)}
                             </td>
                           </tr>
@@ -487,49 +673,57 @@ const ClosingEntryReport: React.FC = () => {
                 <td colSpan={2}>
                   <strong>Total</strong>
                 </td>
-                <td style={getSystemSalesStyle(data.totals.systemSales)}>
-                  <div>{formatValue(data.totals.systemSales)}</div>
+                <td style={getSystemSalesStyle(filteredTotals.systemSales)}>
+                  <div>{formatValue(filteredTotals.systemSales)}</div>
                   <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>
-                    {data.totals.totalBills} Bills
+                    {filteredTotals.totalBills} Bills
                   </div>
                 </td>
-                <td style={getStyle(data.totals.manualSales)}>
-                  {formatValue(data.totals.manualSales)}
+                <td style={getStyle(filteredTotals.manualSales)}>
+                  {formatValue(filteredTotals.manualSales)}
                 </td>
-                <td style={getStyle(data.totals.onlineSales)}>
-                  {formatValue(data.totals.onlineSales)}
+                <td style={getStyle(filteredTotals.onlineSales)}>
+                  {formatValue(filteredTotals.onlineSales)}
                 </td>
-                <td style={getStyle(data.totals.totalSales)}>
-                  {formatValue(data.totals.totalSales)}
+                <td style={getStyle(filteredTotals.totalSales)}>
+                  {formatValue(filteredTotals.totalSales)}
                 </td>
-                <td style={getStyle(data.totals.expenses)}>{formatValue(data.totals.expenses)}</td>
-                <td style={getStyle(data.totals.cash)}>{formatValue(data.totals.cash)}</td>
-                <td style={getStyle(data.totals.upi)}>{formatValue(data.totals.upi)}</td>
-                <td style={getStyle(data.totals.card)}>{formatValue(data.totals.card)}</td>
+                <td style={getStyle(filteredTotals.expenses)}>
+                  {formatValue(filteredTotals.expenses)}
+                </td>
+                <td style={getStyle(filteredTotals.cash)}>{formatValue(filteredTotals.cash)}</td>
+                <td style={getStyle(filteredTotals.upi)}>{formatValue(filteredTotals.upi)}</td>
+                <td style={getStyle(filteredTotals.card)}>{formatValue(filteredTotals.card)}</td>
                 <td
                   style={getStyle(
-                    data.totals.expenses + data.totals.cash + data.totals.upi + data.totals.card,
+                    filteredTotals.expenses +
+                      filteredTotals.cash +
+                      filteredTotals.upi +
+                      filteredTotals.card,
                   )}
                 >
                   {formatValue(
-                    data.totals.expenses + data.totals.cash + data.totals.upi + data.totals.card,
+                    filteredTotals.expenses +
+                      filteredTotals.cash +
+                      filteredTotals.upi +
+                      filteredTotals.card,
                   )}
                 </td>
                 <td
                   style={getStyle(
-                    data.totals.expenses +
-                      data.totals.cash +
-                      data.totals.upi +
-                      data.totals.card -
-                      data.totals.totalSales,
+                    filteredTotals.expenses +
+                      filteredTotals.cash +
+                      filteredTotals.upi +
+                      filteredTotals.card -
+                      filteredTotals.totalSales,
                   )}
                 >
                   {formatValue(
-                    data.totals.expenses +
-                      data.totals.cash +
-                      data.totals.upi +
-                      data.totals.card -
-                      data.totals.totalSales,
+                    filteredTotals.expenses +
+                      filteredTotals.cash +
+                      filteredTotals.upi +
+                      filteredTotals.card -
+                      filteredTotals.totalSales,
                   )}
                 </td>
               </tr>
