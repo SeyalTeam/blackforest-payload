@@ -7,6 +7,7 @@ import './index.scss' // reusing the same scss or creating new one? Let's assume
 // For now, I will assume I need to create a basic scss file or use inline styles for simplicity if scss is not shared.
 // Actually, I'll create a scss file for it to be safe.
 
+import Select from 'react-select'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 
@@ -35,6 +36,11 @@ const AfterstockCustomerReport: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const [branches, setBranches] = useState<any[]>([])
+  const [selectedBranch, setSelectedBranch] = useState('all')
+  const [waiters, setWaiters] = useState<any[]>([])
+  const [selectedWaiter, setSelectedWaiter] = useState('all')
+
   const [showExportMenu, setShowExportMenu] = useState(false)
 
   const toLocalDateStr = (d: Date) => {
@@ -50,15 +56,44 @@ const AfterstockCustomerReport: React.FC = () => {
   }
 
   useEffect(() => {
+    const fetchMetadata = async () => {
+      try {
+        const [branchRes, waiterRes] = await Promise.all([
+          fetch('/api/branches?limit=100&pagination=false'),
+          fetch('/api/users?where[role][equals]=waiter&limit=1000&pagination=false'),
+        ])
+
+        if (branchRes.ok) {
+          const json = await branchRes.json()
+          setBranches(json.docs)
+        }
+        if (waiterRes.ok) {
+          const json = await waiterRes.json()
+          setWaiters(json.docs)
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    fetchMetadata()
+  }, [])
+
+  useEffect(() => {
     const fetchReport = async (start: Date, end: Date) => {
       setLoading(true)
       setError('')
       try {
         const startStr = toLocalDateStr(start)
         const endStr = toLocalDateStr(end)
-        const res = await fetch(
-          `/api/reports/afterstock-customer?startDate=${startStr}&endDate=${endStr}`,
-        )
+        let url = `/api/reports/afterstock-customer?startDate=${startStr}&endDate=${endStr}`
+        if (selectedBranch !== 'all') {
+          url += `&branch=${selectedBranch}`
+        }
+        if (selectedWaiter !== 'all') {
+          url += `&waiter=${selectedWaiter}`
+        }
+
+        const res = await fetch(url)
         if (!res.ok) throw new Error('Failed to fetch report')
         const json: ReportData = await res.json()
         setData(json)
@@ -73,7 +108,7 @@ const AfterstockCustomerReport: React.FC = () => {
     if (startDate && endDate) {
       fetchReport(startDate, endDate)
     }
-  }, [startDate, endDate])
+  }, [startDate, endDate, selectedBranch, selectedWaiter])
 
   const handleExportExcel = () => {
     if (!data) return
@@ -143,6 +178,64 @@ const AfterstockCustomerReport: React.FC = () => {
   )
   CustomInput.displayName = 'CustomInput'
 
+  const branchOptions = [
+    { value: 'all', label: 'All Branches' },
+    ...branches.map((b) => ({ value: b.id, label: b.name })),
+  ]
+
+  const waiterOptions = [
+    { value: 'all', label: 'All Waiters' },
+    ...waiters.map((w) => ({ value: w.id, label: (w.name || 'Unknown').toUpperCase() })),
+  ]
+
+  const customStyles = {
+    control: (base: Record<string, unknown>, state: { isFocused: boolean }) => ({
+      ...base,
+      backgroundColor: 'var(--theme-input-bg, var(--theme-elevation-50))',
+      borderColor: state.isFocused ? 'var(--theme-info-500)' : 'var(--theme-elevation-400)',
+      borderRadius: '8px',
+      height: '42px',
+      minHeight: '42px',
+      minWidth: '200px',
+      padding: '0',
+      boxShadow: state.isFocused ? '0 0 0 1px var(--theme-info-500)' : 'none',
+      color: 'var(--theme-text-primary)',
+      '&:hover': {
+        borderColor: 'var(--theme-info-750)',
+      },
+    }),
+    singleValue: (base: Record<string, unknown>) => ({
+      ...base,
+      color: 'var(--theme-text-primary)',
+      fontWeight: '600',
+    }),
+    option: (
+      base: Record<string, unknown>,
+      state: { isSelected: boolean; isFocused: boolean },
+    ) => ({
+      ...base,
+      backgroundColor: state.isSelected
+        ? 'var(--theme-info-500)'
+        : state.isFocused
+          ? 'var(--theme-elevation-100)'
+          : 'var(--theme-input-bg, var(--theme-elevation-50))',
+      color: state.isSelected ? '#fff' : 'var(--theme-text-primary)',
+      cursor: 'pointer',
+    }),
+    menu: (base: Record<string, unknown>) => ({
+      ...base,
+      backgroundColor: 'var(--theme-input-bg, var(--theme-elevation-50))',
+      border: '1px solid var(--theme-elevation-150)',
+      zIndex: 9999,
+      minWidth: '200px',
+    }),
+    input: (base: Record<string, unknown>) => ({
+      ...base,
+      color: 'var(--theme-text-primary)',
+      fontWeight: '600',
+    }),
+  }
+
   return (
     <div className="product-report-container">
       <div className="report-header">
@@ -164,6 +257,36 @@ const AfterstockCustomerReport: React.FC = () => {
               customInput={<CustomInput />}
               calendarClassName="custom-calendar"
               popperPlacement="bottom-start"
+            />
+          </div>
+
+          <div className="filter-group select-group">
+            <Select
+              instanceId="branch-select"
+              options={branchOptions}
+              value={branchOptions.find((o) => o.value === selectedBranch)}
+              onChange={(option: { value: string; label: string } | null) =>
+                setSelectedBranch(option?.value || 'all')
+              }
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Select Branch..."
+              isSearchable={true}
+            />
+          </div>
+
+          <div className="filter-group select-group">
+            <Select
+              instanceId="waiter-select"
+              options={waiterOptions}
+              value={waiterOptions.find((o) => o.value === selectedWaiter)}
+              onChange={(option: { value: string; label: string } | null) =>
+                setSelectedWaiter(option?.value || 'all')
+              }
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Select Waiter..."
+              isSearchable={true}
             />
           </div>
 
@@ -203,6 +326,8 @@ const AfterstockCustomerReport: React.FC = () => {
             <button
               onClick={() => {
                 setDateRange([new Date(), new Date()])
+                setSelectedBranch('all')
+                setSelectedWaiter('all')
               }}
               title="Reset Filters"
               style={{

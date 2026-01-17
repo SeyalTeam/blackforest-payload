@@ -30,6 +30,8 @@ const run = async () => {
           count10: 0,
           count5: 0,
         },
+        closingNumber: '1', // Dummy value to satisfy type check
+        returnTotal: 0,
       },
     })
 

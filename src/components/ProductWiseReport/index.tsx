@@ -47,6 +47,9 @@ const ProductWiseReport: React.FC = () => {
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
   const [selectedDepartment, setSelectedDepartment] = useState('all')
 
+  const [products, setProducts] = useState<{ id: string; name: string }[]>([])
+  const [selectedProduct, setSelectedProduct] = useState('all')
+
   const [showZeroHighlight, setShowZeroHighlight] = useState<boolean>(false)
   const [showTopSaleHighlight, setShowTopSaleHighlight] = useState<boolean>(false)
   const [showLowSaleHighlight, setShowLowSaleHighlight] = useState<boolean>(false)
@@ -126,6 +129,11 @@ const ProductWiseReport: React.FC = () => {
     ...departments.map((d) => ({ value: d.id, label: d.name })),
   ]
 
+  const productOptions = [
+    { value: 'all', label: 'All Products' },
+    ...products.map((p) => ({ value: p.id, label: p.name })),
+  ]
+
   const customStyles = {
     control: (base: Record<string, unknown>, state: { isFocused: boolean }) => ({
       ...base,
@@ -177,10 +185,11 @@ const ProductWiseReport: React.FC = () => {
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
-        const [branchRes, categoryRes, departmentRes] = await Promise.all([
+        const [branchRes, categoryRes, departmentRes, productRes] = await Promise.all([
           fetch('/api/branches?limit=100&pagination=false'),
           fetch('/api/categories?limit=100&pagination=false'),
           fetch('/api/departments?limit=100&pagination=false'),
+          fetch('/api/products?limit=1000&pagination=false'),
         ])
 
         if (branchRes.ok) {
@@ -194,6 +203,10 @@ const ProductWiseReport: React.FC = () => {
         if (departmentRes.ok) {
           const json = await departmentRes.json()
           setDepartments(json.docs)
+        }
+        if (productRes?.ok) {
+          const json = await productRes.json()
+          setProducts(json.docs)
         }
       } catch (e) {
         console.error(e)
@@ -216,6 +229,7 @@ const ProductWiseReport: React.FC = () => {
     branchId: string,
     categoryId: string,
     departmentId: string,
+    productId: string,
   ) => {
     setLoading(true)
     setError('')
@@ -223,7 +237,7 @@ const ProductWiseReport: React.FC = () => {
       const startStr = toLocalDateStr(start)
       const endStr = toLocalDateStr(end)
       const res = await fetch(
-        `/api/reports/product-wise?startDate=${startStr}&endDate=${endStr}&branch=${branchId}&category=${categoryId}&department=${departmentId}`,
+        `/api/reports/product-wise?startDate=${startStr}&endDate=${endStr}&branch=${branchId}&category=${categoryId}&department=${departmentId}&product=${productId}`,
       )
       if (!res.ok) throw new Error('Failed to fetch report')
       const json: ReportData = await res.json()
@@ -254,9 +268,16 @@ const ProductWiseReport: React.FC = () => {
   // Sync dateRange changes to backend fetch
   useEffect(() => {
     if (startDate && endDate) {
-      fetchReport(startDate, endDate, selectedBranch, selectedCategory, selectedDepartment)
+      fetchReport(
+        startDate,
+        endDate,
+        selectedBranch,
+        selectedCategory,
+        selectedDepartment,
+        selectedProduct,
+      )
     }
-  }, [startDate, endDate, selectedBranch, selectedCategory, selectedDepartment])
+  }, [startDate, endDate, selectedBranch, selectedCategory, selectedDepartment, selectedProduct])
 
   const CustomInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
     ({ value, onClick }, ref) => {
@@ -294,7 +315,7 @@ const ProductWiseReport: React.FC = () => {
   return (
     <div className="product-report-container">
       <div className="report-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
           <h1>Product Wise Report</h1>
           <button
             title="Toggle Zero Highlight"
@@ -332,6 +353,79 @@ const ProductWiseReport: React.FC = () => {
               padding: 0,
             }}
           />
+
+          {/* Export Button */}
+          <div className="filter-group" style={{ marginLeft: 'auto' }}>
+            <div className="export-container">
+              <button
+                className="export-btn"
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                title="Export Report"
+              >
+                <span>Export</span>
+                <span className="icon">↓</span>
+              </button>
+              {showExportMenu && (
+                <div className="export-menu">
+                  <button onClick={handleExportExcel}>Excel</button>
+                  {/* <button onClick={handleExportPDF}>PDF</button> */}
+                </div>
+              )}
+            </div>
+            {/* Backdrop to close menu */}
+            {showExportMenu && (
+              <div
+                className="export-backdrop"
+                onClick={() => setShowExportMenu(false)}
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  zIndex: 9998,
+                  cursor: 'default',
+                }}
+              />
+            )}
+          </div>
+          <div className="filter-group">
+            <button
+              onClick={() => {
+                setDateRange([new Date(), new Date()])
+                setSelectedBranch('all')
+                setSelectedDepartment('all')
+                setSelectedCategory('all')
+                setSelectedProduct('all')
+              }}
+              title="Reset Filters"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '0 0 0 10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--theme-text-primary)',
+              }}
+            >
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M23 4v6h-6"></path>
+                <path d="M1 20v-6h6"></path>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+            </button>
+          </div>
         </div>
         <div className="date-filter">
           <div className="filter-group">
@@ -396,76 +490,19 @@ const ProductWiseReport: React.FC = () => {
             />
           </div>
 
-          {/* Export Button */}
-          <div className="filter-group">
-            <div className="export-container">
-              <button
-                className="export-btn"
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                title="Export Report"
-              >
-                <span>Export</span>
-                <span className="icon">↓</span>
-              </button>
-              {showExportMenu && (
-                <div className="export-menu">
-                  <button onClick={handleExportExcel}>Excel</button>
-                  {/* <button onClick={handleExportPDF}>PDF</button> */}
-                </div>
-              )}
-            </div>
-            {/* Backdrop to close menu */}
-            {showExportMenu && (
-              <div
-                className="export-backdrop"
-                onClick={() => setShowExportMenu(false)}
-                style={{
-                  position: 'fixed',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  zIndex: 9998,
-                  cursor: 'default',
-                }}
-              />
-            )}
-          </div>
-          <div className="filter-group">
-            <button
-              onClick={() => {
-                setDateRange([new Date(), new Date()])
-                setSelectedBranch('all')
-                setSelectedDepartment('all')
-                setSelectedCategory('all')
-              }}
-              title="Reset Filters"
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '0 0 0 10px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--theme-text-primary)',
-              }}
-            >
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M23 4v6h-6"></path>
-                <path d="M1 20v-6h6"></path>
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-              </svg>
-            </button>
+          <div className="filter-group select-group">
+            <Select
+              instanceId="product-select"
+              options={productOptions}
+              value={productOptions.find((o) => o.value === selectedProduct)}
+              onChange={(option: { value: string; label: string } | null) =>
+                setSelectedProduct(option?.value || 'all')
+              }
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Select Product..."
+              isSearchable={true}
+            />
           </div>
         </div>
       </div>

@@ -21,6 +21,9 @@ export const getAfterstockCustomerReportHandler: PayloadHandler = async (
       ? req.query.endDate
       : new Date().toISOString().split('T')[0]
 
+  const branchParam = typeof req.query.branch === 'string' ? req.query.branch : null
+  const waiterParam = typeof req.query.waiter === 'string' ? req.query.waiter : null
+
   // Start of day (00:00:00) for startDate
   const startAndYear = parseInt(startDateParam.split('-')[0])
   const startAndMonth = parseInt(startDateParam.split('-')[1])
@@ -56,6 +59,8 @@ export const getAfterstockCustomerReportHandler: PayloadHandler = async (
           // Filter out cancelled bills? Usually reports exclude cancelled
           status: { $ne: 'cancelled' },
           'customerDetails.phoneNumber': { $exists: true, $ne: null },
+          ...(branchParam ? { branch: branchParam } : {}),
+          ...(waiterParam ? { createdBy: waiterParam } : {}),
         },
       },
       {
