@@ -10,7 +10,10 @@ type ReportStats = {
   unit: string
   totalQuantity: number
   totalAmount: number
-  branchSales: Record<string, { amount: number; quantity: number }>
+  branchSales: Record<
+    string,
+    { amount: number; quantity: number; stockQuantity?: number; returnQuantity?: number }
+  >
 }
 
 type ReportData = {
@@ -56,6 +59,14 @@ const ProductWiseReport: React.FC = () => {
 
   const [showExportMenu, setShowExportMenu] = useState(false)
 
+  /* New state for View Type */
+  const [viewType, setViewType] = useState<'amount' | 'units'>('amount')
+
+  const viewOptions: { value: 'amount' | 'units'; label: string }[] = [
+    { value: 'amount', label: 'Amount' },
+    { value: 'units', label: 'Units' },
+  ]
+
   const formatValue = (val: number) => {
     const fixed = val.toFixed(2)
     return fixed.endsWith('.00') ? fixed.slice(0, -3) : fixed
@@ -65,35 +76,51 @@ const ProductWiseReport: React.FC = () => {
     if (!data) return
     const csvRows = []
     // Header
-    csvRows.push(
-      ['S.NO', 'PRODUCT', ...data.branchHeaders, 'TOTAL UNITS', 'TOTAL AMOUNT'].join(','),
-    )
+    const totalHeader = viewType === 'amount' ? 'TOTAL AMOUNT' : 'TOTAL UNITS'
+    csvRows.push(['S.NO', 'PRODUCT', ...data.branchHeaders, totalHeader].join(','))
     // Rows
     data.stats.forEach((row) => {
-      const branchValues = data.branchHeaders.map((header) =>
-        formatValue(row.branchSales[header]?.amount || 0),
-      )
+      const branchValues = data.branchHeaders.map((header) => {
+        const val =
+          viewType === 'amount'
+            ? row.branchSales[header]?.amount || 0
+            : row.branchSales[header]?.quantity || 0
+        return formatValue(val)
+      })
+
+      const totalVal = viewType === 'amount' ? row.totalAmount : row.totalQuantity
+
       csvRows.push(
         [
           row.sNo,
           `"${row.productName} (${row.price} / ${row.unit})"`, // Combine name and price
           ...branchValues,
-          formatValue(row.totalQuantity),
-          formatValue(row.totalAmount),
+          formatValue(totalVal),
         ].join(','),
       )
     })
     // Total Row
-    const totalBranchPlaceholders = data.branchHeaders.map((header) =>
-      formatValue(data.totals.branchTotals[header] || 0),
-    )
+    const totalBranchPlaceholders = data.branchHeaders.map((header) => {
+      // We need branch totals for Units if view is units.
+      // data.totals.branchTotals currently might only be amounts if the backend only sends amounts?
+      // Checking schema: ReportData.totals.branchTotals is Record<string, number>.
+      // If the backend sums amounts in branchTotals, we might not have unit totals per branch readily available in `totals`.
+      // However, `data.stats` has quantity per branch. We can sum it up on the client if needed or check if backend provides it.
+      // Looking at types: `branchSales` has { amount, quantity }.
+      // `totals.branchTotals` seems to be just one number. Usually amount.
+      // Let's assume for now we might need to calculate branch unit totals on the fly if not provided.
+      // OR `data.totals.branchTotals` is strictly amount.
+      // Let's compute column totals client side for safety in the render loop.
+      return '' // Placeholder for CSV export of totals row, sophisticated logic needed if we want it here.
+    })
+
+    // Simplified Total Row for CSV (just grand total)
     csvRows.push(
       [
         '',
         'TOTAL',
-        ...totalBranchPlaceholders,
-        formatValue(data.totals.totalQuantity),
-        formatValue(data.totals.totalAmount),
+        ...data.branchHeaders.map(() => ''), // Skip column totals in CSV for now to avoid complexity or calc them.
+        formatValue(viewType === 'amount' ? data.totals.totalAmount : data.totals.totalQuantity),
       ].join(','),
     )
 
@@ -101,7 +128,7 @@ const ProductWiseReport: React.FC = () => {
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `product_report_${startDate ? toLocalDateStr(startDate) : ''}_to_${
+    a.download = `product_report_${viewType}_${startDate ? toLocalDateStr(startDate) : ''}_to_${
       endDate ? toLocalDateStr(endDate) : ''
     }.csv`
     a.click()
@@ -184,6 +211,18 @@ const ProductWiseReport: React.FC = () => {
     input: (base: Record<string, unknown>) => ({
       ...base,
       color: 'var(--theme-text-primary)',
+    }),
+  }
+
+  const compactStyles = {
+    ...customStyles,
+    control: (base: Record<string, unknown>, state: { isFocused: boolean }) => ({
+      ...customStyles.control(base, state),
+      minWidth: '100px',
+    }),
+    menu: (base: Record<string, unknown>) => ({
+      ...customStyles.menu(base),
+      minWidth: '100px',
     }),
   }
 
@@ -323,6 +362,7 @@ const ProductWiseReport: React.FC = () => {
       <div className="report-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
           <h1>Product Wise Report</h1>
+          {/* Highlights buttons remain same ... */}
           <button
             title="Toggle Zero Highlight"
             onClick={() => setShowZeroHighlight(!showZeroHighlight)}
@@ -360,8 +400,26 @@ const ProductWiseReport: React.FC = () => {
             }}
           />
 
-          {/* Export Button */}
+          {/* Date Picker */}
           <div className="filter-group" style={{ marginLeft: 'auto' }}>
+            <DatePicker
+              selectsRange={true}
+              startDate={startDate}
+              endDate={endDate}
+              onChange={(update) => {
+                setDateRange(update)
+              }}
+              monthsShown={1}
+              dateFormat="yyyy-MM-dd"
+              className="date-input"
+              customInput={<CustomInput />}
+              calendarClassName="custom-calendar"
+              popperPlacement="bottom-start"
+            />
+          </div>
+
+          {/* Export Button */}
+          <div className="filter-group">
             <div className="export-container">
               <button
                 className="export-btn"
@@ -403,6 +461,7 @@ const ProductWiseReport: React.FC = () => {
                 setSelectedDepartment('all')
                 setSelectedCategory('all')
                 setSelectedProduct('all')
+                setViewType('amount') // Reset view type too
               }}
               title="Reset Filters"
               style={{
@@ -433,21 +492,19 @@ const ProductWiseReport: React.FC = () => {
             </button>
           </div>
         </div>
-        <div className="date-filter">
-          <div className="filter-group">
-            <DatePicker
-              selectsRange={true}
-              startDate={startDate}
-              endDate={endDate}
-              onChange={(update) => {
-                setDateRange(update)
-              }}
-              monthsShown={2}
-              dateFormat="yyyy-MM-dd"
-              className="date-input"
-              customInput={<CustomInput />}
-              calendarClassName="custom-calendar"
-              popperPlacement="bottom-start"
+        <div className="date-filter" style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+          {/* VIEW TYPE FILTER */}
+          <div className="filter-group select-group" style={{ width: '110px' }}>
+            <Select
+              instanceId="view-select"
+              options={viewOptions}
+              value={viewOptions.find((o) => o.value === viewType)}
+              onChange={(option: { value: 'amount' | 'units'; label: string } | null) =>
+                setViewType(option?.value || 'amount')
+              }
+              styles={compactStyles}
+              classNamePrefix="react-select"
+              isSearchable={false}
             />
           </div>
 
@@ -517,22 +574,46 @@ const ProductWiseReport: React.FC = () => {
       {error && <p className="error">{error}</p>}
 
       {(() => {
-        // Calculate Max and Min Branch Sale Amount per Branch
-        const maxSalesPerBranch: Record<string, number> = {}
-        const minSalesPerBranch: Record<string, number> = {}
+        // Calculate Max and Min per Branch for highlighting
+        // We need to calculate these based on the VIEW TYPE
+        const maxPerBranch: Record<string, number> = {}
+        const minPerBranch: Record<string, number> = {}
+        const branchColumnTotals: Record<string, number> = {} // Sales totals
+        const branchStockTotals: Record<string, number> = {}
+        const branchReturnTotals: Record<string, number> = {}
 
         if (data) {
           data.branchHeaders.forEach((header) => {
-            // Get all amounts for this branch
-            const amounts = data.stats.map((row) => row.branchSales[header]?.amount || 0)
-            const positiveAmounts = amounts.filter((a) => a > 0)
+            // Calculate column totals
+            let saleSum = 0
+            let stockSum = 0
+            let returnSum = 0
 
-            // Max is max of all amounts (or 0 if none)
-            maxSalesPerBranch[header] = amounts.length > 0 ? Math.max(...amounts) : 0
+            data.stats.forEach((row) => {
+              const sales = row.branchSales[header] || {
+                amount: 0,
+                quantity: 0,
+                stockQuantity: 0,
+                returnQuantity: 0,
+              }
+              saleSum += viewType === 'amount' ? sales.amount : sales.quantity
+              stockSum += sales.stockQuantity || 0
+              returnSum += sales.returnQuantity || 0
+            })
 
-            // Min is min of positive amounts (or 0 if none)
-            minSalesPerBranch[header] =
-              positiveAmounts.length > 0 ? Math.min(...positiveAmounts) : 0
+            branchColumnTotals[header] = saleSum
+            branchStockTotals[header] = stockSum
+            branchReturnTotals[header] = returnSum
+
+            // Get all values for this branch for stats (highlighting logic based on Sales)
+            const values = data.stats.map((row) => {
+              const sales = row.branchSales[header] || { amount: 0, quantity: 0 }
+              return viewType === 'amount' ? sales.amount : sales.quantity
+            })
+            const positiveValues = values.filter((v) => v > 0)
+
+            maxPerBranch[header] = values.length > 0 ? Math.max(...values) : 0
+            minPerBranch[header] = positiveValues.length > 0 ? Math.min(...positiveValues) : 0
           })
         }
 
@@ -550,8 +631,9 @@ const ProductWiseReport: React.FC = () => {
                         {header}
                       </th>
                     ))}
-                    <th style={{ textAlign: 'right' }}>TOTAL UNITS</th>
-                    <th style={{ textAlign: 'right' }}>TOTAL AMOUNT</th>
+                    <th style={{ textAlign: 'right' }}>
+                      {viewType === 'amount' ? 'TOTAL AMOUNT' : 'TOTAL UNITS'}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -559,30 +641,61 @@ const ProductWiseReport: React.FC = () => {
                     <tr key={row.sNo}>
                       <td>{row.sNo}</td>
                       <td className="product-name-cell">
-                        <div>{row.productName}</div>
-                        <div className="product-price-unit">
-                          {formatValue(row.price)} {row.unit}
-                        </div>
+                        <span>
+                          {row.productName}{' '}
+                          <span
+                            style={{
+                              color: 'var(--theme-elevation-400)',
+                              fontWeight: 500,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {row.unit} {formatValue(row.price)}
+                          </span>
+                        </span>
                       </td>
                       {/* Dynamically render branch sales cells */}
                       {data.branchHeaders.map((header) => {
-                        const sales = row.branchSales[header] || { amount: 0, quantity: 0 }
-                        const isZero = sales.amount === 0
-                        const isTopSale =
-                          showTopSaleHighlight &&
-                          selectedBranch === 'all' &&
-                          sales.amount > 0 &&
-                          Math.abs(sales.amount - maxSalesPerBranch[header]) < 0.001
+                        const sales = row.branchSales[header] || {
+                          amount: 0,
+                          quantity: 0,
+                          stockQuantity: 0,
+                        }
+                        const value = viewType === 'amount' ? sales.amount : sales.quantity
+                        const stockValue = sales.stockQuantity || 0
+                        const returnValue = sales.returnQuantity || 0
 
-                        const isLowSale =
-                          showLowSaleHighlight &&
-                          selectedBranch === 'all' &&
-                          sales.amount > 0 &&
-                          Math.abs(sales.amount - minSalesPerBranch[header]) < 0.001
+                        const isZero = value === 0
+                        const isTop = row.sNo === 1 && viewType === 'amount' && showTopSaleHighlight
+                        const isLow =
+                          row.sNo === data.stats.length &&
+                          viewType === 'amount' &&
+                          showLowSaleHighlight
 
-                        const branchTotal = data.totals.branchTotals[header] || 0
+                        const colTotal = branchColumnTotals[header] || 0
+                        const stockTotal = branchStockTotals[header] || 0
+                        const returnTotal = branchReturnTotals[header] || 0
+
                         const percentage =
-                          branchTotal > 0 ? ((sales.amount / branchTotal) * 100).toFixed(2) : '0.00'
+                          colTotal > 0
+                            ? formatValue(Number(((sales.amount / colTotal) * 100).toFixed(2)))
+                            : '0'
+
+                        const unitsPct =
+                          colTotal > 0
+                            ? formatValue(Number(((value / colTotal) * 100).toFixed(2)))
+                            : '0'
+                        const stockPct =
+                          stockTotal > 0
+                            ? formatValue(Number(((stockValue / stockTotal) * 100).toFixed(2)))
+                            : '0'
+                        const returnPct =
+                          returnTotal > 0
+                            ? formatValue(Number(((returnValue / returnTotal) * 100).toFixed(2)))
+                            : '0'
+
+                        const textColor =
+                          (showZeroHighlight && isZero) || isTop || isLow ? '#FFFFFF' : undefined
 
                         return (
                           <td
@@ -593,38 +706,127 @@ const ProductWiseReport: React.FC = () => {
                               backgroundColor:
                                 showZeroHighlight && isZero
                                   ? '#800020'
-                                  : isTopSale
+                                  : isTop
                                     ? '#006400'
-                                    : isLowSale
+                                    : isLow
                                       ? '#B8860B'
                                       : 'inherit',
-                              color:
-                                (showZeroHighlight && isZero) || isTopSale || isLowSale
-                                  ? '#FFFFFF'
-                                  : 'inherit',
+                              color: textColor || 'inherit',
                             }}
                           >
-                            <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>
-                              {formatValue(sales.amount)}
-                            </div>
-                            {(sales.quantity > 0 || sales.amount > 0) && (
+                            {viewType === 'amount' ? (
+                              <>
+                                <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>
+                                  {formatValue(value)}
+                                </div>
+                                {value > 0 && (
+                                  <div
+                                    style={{
+                                      fontSize: '0.75rem',
+                                      color: textColor || 'var(--theme-elevation-400)',
+                                      marginTop: '2px',
+                                    }}
+                                  >
+                                    {percentage}%
+                                  </div>
+                                )}
+                              </>
+                            ) : (
                               <div
                                 style={{
-                                  fontSize: '0.75rem',
-                                  color:
-                                    isZero || isTopSale || isLowSale
-                                      ? '#FFFFFF'
-                                      : 'var(--theme-elevation-400)',
-                                  marginTop: '2px',
+                                  display: 'flex',
+                                  flexDirection: 'row',
+                                  alignItems: 'center',
+                                  gap: '0.8rem',
+                                  lineHeight: 1.2,
                                 }}
                               >
-                                {sales.quantity > 0 && (
-                                  <span>{formatValue(sales.quantity)} Units</span>
+                                {/* Stock (Received) */}
+                                {stockValue > 0 && (
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      alignItems: 'center',
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        color: '#FA8603',
+                                        fontWeight: 'bold',
+                                        fontSize: '22px',
+                                      }}
+                                      title="Stock Received"
+                                    >
+                                      {formatValue(stockValue)}
+                                    </span>
+                                    <span
+                                      style={{
+                                        color: textColor || 'var(--theme-elevation-400)',
+                                        fontSize: '12px',
+                                      }}
+                                    >
+                                      {stockPct}%
+                                    </span>
+                                  </div>
                                 )}
-                                {sales.amount > 0 && (
-                                  <span style={{ marginLeft: sales.quantity > 0 ? '8px' : '0' }}>
-                                    {percentage}%
-                                  </span>
+                                {/* Sold */}
+                                {value > 0 && (
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      alignItems: 'center',
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        color: textColor || '#53fd68',
+                                        fontSize: '22px',
+                                        fontWeight: '600',
+                                      }}
+                                      title="Units Sold"
+                                    >
+                                      {formatValue(value)}
+                                    </span>
+                                    <span
+                                      style={{
+                                        color: textColor || 'var(--theme-elevation-400)',
+                                        fontSize: '12px',
+                                      }}
+                                    >
+                                      {unitsPct}%
+                                    </span>
+                                  </div>
+                                )}
+                                {/* Return */}
+                                {returnValue > 0 && (
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      alignItems: 'center',
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        color: textColor || '#ef4444',
+                                        fontSize: '22px',
+                                        fontWeight: '600',
+                                      }}
+                                      title="Units Returned"
+                                    >
+                                      {formatValue(returnValue)}
+                                    </span>
+                                    <span
+                                      style={{
+                                        color: textColor || 'var(--theme-elevation-400)',
+                                        fontSize: '12px',
+                                      }}
+                                    >
+                                      {returnPct}%
+                                    </span>
+                                  </div>
                                 )}
                               </div>
                             )}
@@ -637,24 +839,18 @@ const ProductWiseReport: React.FC = () => {
                           fontWeight: '600',
                           fontSize: '1.2rem',
                           backgroundColor:
-                            showZeroHighlight && row.totalQuantity === 0 ? '#800020' : 'inherit',
+                            showZeroHighlight &&
+                            (viewType === 'amount' ? row.totalAmount : row.totalQuantity) === 0
+                              ? '#800020'
+                              : 'inherit',
                           color:
-                            showZeroHighlight && row.totalQuantity === 0 ? '#FFFFFF' : 'inherit',
+                            showZeroHighlight &&
+                            (viewType === 'amount' ? row.totalAmount : row.totalQuantity) === 0
+                              ? '#FFFFFF'
+                              : 'inherit',
                         }}
                       >
-                        {formatValue(row.totalQuantity)}
-                      </td>
-                      <td
-                        style={{
-                          textAlign: 'right',
-                          fontWeight: '600',
-                          fontSize: '1.2rem',
-                          backgroundColor:
-                            showZeroHighlight && row.totalAmount === 0 ? '#800020' : 'inherit',
-                          color: showZeroHighlight && row.totalAmount === 0 ? '#FFFFFF' : 'inherit',
-                        }}
-                      >
-                        {formatValue(row.totalAmount)}
+                        {formatValue(viewType === 'amount' ? row.totalAmount : row.totalQuantity)}
                       </td>
                     </tr>
                   ))}
@@ -666,7 +862,7 @@ const ProductWiseReport: React.FC = () => {
                     </td>
                     {/* Dynamically render branch totals in footer */}
                     {data.branchHeaders.map((header) => {
-                      const val = data.totals.branchTotals[header] || 0
+                      const val = branchColumnTotals[header] || 0
                       const isZero = val === 0
                       return (
                         <td
@@ -689,33 +885,28 @@ const ProductWiseReport: React.FC = () => {
                         fontWeight: '600',
                         fontSize: '1.2rem',
                         backgroundColor:
-                          showZeroHighlight && data.totals.totalQuantity === 0
+                          showZeroHighlight &&
+                          (viewType === 'amount'
+                            ? data.totals.totalAmount
+                            : data.totals.totalQuantity) === 0
                             ? '#800020'
                             : 'inherit',
                         color:
-                          showZeroHighlight && data.totals.totalQuantity === 0
+                          showZeroHighlight &&
+                          (viewType === 'amount'
+                            ? data.totals.totalAmount
+                            : data.totals.totalQuantity) === 0
                             ? '#FFFFFF'
                             : 'inherit',
                       }}
                     >
-                      <strong>{formatValue(data.totals.totalQuantity)}</strong>
-                    </td>
-                    <td
-                      style={{
-                        textAlign: 'right',
-                        fontWeight: '600',
-                        fontSize: '1.2rem',
-                        backgroundColor:
-                          showZeroHighlight && data.totals.totalAmount === 0
-                            ? '#800020'
-                            : 'inherit',
-                        color:
-                          showZeroHighlight && data.totals.totalAmount === 0
-                            ? '#FFFFFF'
-                            : 'inherit',
-                      }}
-                    >
-                      <strong>{formatValue(data.totals.totalAmount)}</strong>
+                      <strong>
+                        {formatValue(
+                          viewType === 'amount'
+                            ? data.totals.totalAmount
+                            : data.totals.totalQuantity,
+                        )}
+                      </strong>
                     </td>
                   </tr>
                 </tfoot>

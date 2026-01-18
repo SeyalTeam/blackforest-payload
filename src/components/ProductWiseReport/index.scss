@@ -38,6 +38,11 @@
         align-items: center;
         gap: 0.75rem;
         flex-shrink: 0; // Prevent shrinking
+        margin-right: 1.5rem !important; // FORCE spacing since gap is failing
+
+        &:last-child {
+          margin-right: 0 !important;
+        }
 
         label {
           font-weight: 500;
@@ -152,9 +157,14 @@
       }
     }
 
-    // Zebra Striping
-    tbody tr:nth-child(even) {
-      background-color: var(--theme-elevation-50);
+    // Plain Background (No Zebra)
+    tbody tr {
+      background-color: #000000;
+      transition: background-color 0.2s;
+    }
+
+    tbody tr:hover {
+      background-color: #27272a;
     }
 
     .grand-total {

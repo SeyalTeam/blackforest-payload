@@ -75,13 +75,11 @@ export const getProductWiseReportHandler: PayloadHandler = async (
     })
 
     const BillingModel = payload.db.collections['billings']
-    // Provide a default empty aggregation if BillingModel is undefined, though it shouldn't be
     if (!BillingModel) {
       throw new Error('Billings collection not found')
     }
 
     // Construct match query
-    // Construct matchQuery
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const matchQuery: Record<string, any> = {
       createdAt: {
@@ -96,7 +94,7 @@ export const getProductWiseReportHandler: PayloadHandler = async (
       }
     }
 
-    // 2. Aggregate Data
+    // 2. Aggregate Data (Billings)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const aggregationPipeline: any[] = [
       {
@@ -129,16 +127,12 @@ export const getProductWiseReportHandler: PayloadHandler = async (
       },
     ]
 
-    // Apply Category Filter if present
+    // Apply Filter to Aggregation Pipeline
     if (categoryParam && categoryParam !== 'all') {
       aggregationPipeline.push({
-        $match: {
-          'categoryDetails._id': { $eq: new mongoose.Types.ObjectId(categoryParam) },
-        },
+        $match: { 'categoryDetails._id': { $eq: new mongoose.Types.ObjectId(categoryParam) } },
       })
     }
-
-    // Apply Department Filter if present
     if (departmentParam && departmentParam !== 'all') {
       aggregationPipeline.push({
         $match: {
@@ -146,13 +140,9 @@ export const getProductWiseReportHandler: PayloadHandler = async (
         },
       })
     }
-
-    // Apply Product Filter if present
     if (productParam && productParam !== 'all') {
       aggregationPipeline.push({
-        $match: {
-          'items.product': { $eq: new mongoose.Types.ObjectId(productParam) },
-        },
+        $match: { 'items.product': { $eq: new mongoose.Types.ObjectId(productParam) } },
       })
     }
 
@@ -201,8 +191,109 @@ export const getProductWiseReportHandler: PayloadHandler = async (
       },
     )
 
-    // Cast the result to unknown first, then to our expected type, to avoid 'any' lint errors
-    const rawStats = (await BillingModel.aggregate(aggregationPipeline)) as unknown as RawStat[]
+    // 2b. Fetch Stock & Return Data
+    // ensuring consistency with StockOrderReport logic
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const stockWhere: any = {
+      deliveryDate: {
+        greater_than_equal: startOfDay.toISOString(),
+        less_than_equal: endOfDay.toISOString(),
+      },
+    }
+
+    // Return Orders Where Clause
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const returnWhere: any = {
+      createdAt: {
+        greater_than_equal: startOfDay.toISOString(),
+        less_than_equal: endOfDay.toISOString(),
+      },
+      status: {
+        not_equals: 'cancelled',
+      },
+    }
+
+    if (branchParam && branchParam !== 'all') {
+      stockWhere.branch = { equals: branchParam }
+      returnWhere.branch = { equals: branchParam }
+    }
+
+    // Execute Billing, Stock, and Return Fetches in parallel
+    const [rawStatsResult, stockOrdersResult, returnOrdersResult] = await Promise.all([
+      BillingModel.aggregate(aggregationPipeline),
+      payload.find({
+        collection: 'stock-orders',
+        where: stockWhere,
+        depth: 2, // Populate Product -> Category -> Dept
+        limit: 5000,
+        pagination: false,
+      }),
+      payload.find({
+        collection: 'return-orders',
+        where: returnWhere,
+        depth: 2,
+        limit: 5000,
+        pagination: false,
+      }),
+    ])
+
+    const rawStats = rawStatsResult as unknown as RawStat[]
+    const stockOrders = stockOrdersResult.docs
+    const returnOrders = returnOrdersResult.docs
+
+    // Map Stock Stats: Key = "ProductName_BranchId" -> Quantity
+    const stockMap = new Map<string, number>()
+    // Map Return Stats: Key = "ProductName_BranchId" -> Quantity
+    const returnMap = new Map<string, number>()
+
+    const processItems = (
+      items: any[],
+      branchId: string,
+      map: Map<string, number>,
+      field: string,
+    ) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      items.forEach((item: any) => {
+        const product = item.product
+        if (!product || typeof product !== 'object') return
+
+        // Memory Filters
+        if (productParam && productParam !== 'all' && product.id !== productParam) return
+        if (categoryParam && categoryParam !== 'all') {
+          const catId =
+            typeof product.category === 'object' ? product.category?.id : product.category
+          if (catId !== categoryParam) return
+        }
+        if (departmentParam && departmentParam !== 'all') {
+          const cat = typeof product.category === 'object' ? product.category : null
+          const deptId =
+            cat && typeof cat.department === 'object' ? cat.department?.id : cat?.department
+          if (deptId !== departmentParam) return
+        }
+
+        const qty = item[field] || 0
+        if (qty > 0) {
+          const key = `${product.name}_${branchId}`
+          map.set(key, (map.get(key) || 0) + qty)
+        }
+      })
+    }
+
+    stockOrders.forEach((order) => {
+      const bId = typeof order.branch === 'object' ? order.branch?.id : order.branch
+      if (!bId) return
+      if (order.items && Array.isArray(order.items)) {
+        processItems(order.items, bId, stockMap, 'receivedQty')
+      }
+    })
+
+    returnOrders.forEach((order) => {
+      const bId = typeof order.branch === 'object' ? order.branch?.id : order.branch
+      if (!bId) return
+      if (order.items && Array.isArray(order.items)) {
+        processItems(order.items, bId, returnMap, 'quantity')
+      }
+    })
 
     // 3. Calculate Branch Totals to Sort Headers
     const branchTotals: Record<string, number> = {}
@@ -225,13 +316,59 @@ export const getProductWiseReportHandler: PayloadHandler = async (
 
     // 5. Format Stats with Sorted Columns
     const formattedStats = rawStats.map((item, index) => {
-      const branchSales: Record<string, { amount: number; quantity: number }> = {}
+      const branchSales: Record<
+        string,
+        { amount: number; quantity: number; stockQuantity: number; returnQuantity: number }
+      > = {}
 
       item.branchData.forEach((b) => {
         const bId = b.branchId.toString()
         if (branchMap[bId]) {
           const code = branchMap[bId]
-          branchSales[code] = { amount: b.amount, quantity: b.quantity }
+
+          // Get Stock Qty
+          const key = `${item.productName}_${bId}`
+          const stockQty = stockMap.get(key) || 0
+          const returnQty = returnMap.get(key) || 0
+
+          branchSales[code] = {
+            amount: b.amount,
+            quantity: b.quantity,
+            stockQuantity: stockQty,
+            returnQuantity: returnQty,
+          }
+        }
+      })
+
+      // Ensure all headers have data
+      branchHeaders.forEach((headerCode) => {
+        if (!branchSales[headerCode]) {
+          // Find branch ID for this code
+          let bId = ''
+          for (const [id, code] of Object.entries(branchMap)) {
+            if (code === headerCode) {
+              bId = id
+              break
+            }
+          }
+          if (bId) {
+            const key = `${item.productName}_${bId}`
+            const stockQty = stockMap.get(key) || 0
+            const returnQty = returnMap.get(key) || 0
+            branchSales[headerCode] = {
+              amount: 0,
+              quantity: 0,
+              stockQuantity: stockQty,
+              returnQuantity: returnQty,
+            }
+          } else {
+            branchSales[headerCode] = {
+              amount: 0,
+              quantity: 0,
+              stockQuantity: 0,
+              returnQuantity: 0,
+            }
+          }
         }
       })
 
