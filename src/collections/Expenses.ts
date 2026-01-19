@@ -16,7 +16,7 @@ const Expenses: CollectionConfig = {
       name: 'invoiceNumber',
       type: 'text',
       unique: true,
-      required: true,
+      required: false,
       admin: {
         readOnly: true,
       },

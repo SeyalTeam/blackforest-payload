@@ -11,6 +11,7 @@ const createExpense = async () => {
   const expense = await payload.create({
     collection: 'expenses',
     data: {
+      invoiceNumber: 'TEMP', // Will be overwritten by beforeChange hook
       date: targetDate.toISOString(),
       branch: '68fcf95338714903fbd03e27', // VVD branch
       details: [

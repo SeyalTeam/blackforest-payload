@@ -518,7 +518,7 @@ export interface ClosingEntry {
  */
 export interface Expense {
   id: string;
-  invoiceNumber: string;
+  invoiceNumber?: string | null;
   branch: string | Branch;
   details: {
     source:
