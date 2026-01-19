@@ -10,10 +10,7 @@ type ReportStats = {
   unit: string
   totalQuantity: number
   totalAmount: number
-  branchSales: Record<
-    string,
-    { amount: number; quantity: number; stockQuantity?: number; returnQuantity?: number }
-  >
+  branchSales: Record<string, { amount: number; quantity: number }>
 }
 
 type ReportData = {
@@ -30,7 +27,41 @@ type ReportData = {
 
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
-import Select from 'react-select'
+import Select, { components, OptionProps } from 'react-select'
+
+const CheckboxOption = (props: OptionProps<any>) => {
+  return (
+    <components.Option {...props}>
+      <input
+        type="checkbox"
+        checked={props.isSelected}
+        onChange={() => null}
+        style={{ marginRight: 8 }}
+      />
+      {props.label}
+    </components.Option>
+  )
+}
+
+const CustomValueContainer = ({ children, ...props }: any) => {
+  const { getValue, hasValue, selectProps } = props
+  const selected = getValue()
+  const count = selected.length
+  const isTyping = selectProps.inputValue && selectProps.inputValue.length > 0
+
+  return (
+    <components.ValueContainer {...props}>
+      {hasValue && count > 0 && selected[0].value !== 'all' && !isTyping && (
+        <div style={{ paddingLeft: '8px', position: 'absolute', pointerEvents: 'none' }}>
+          {count === 1 ? selected[0].label : `${count} Selected`}
+        </div>
+      )}
+      {children}
+    </components.ValueContainer>
+  )
+}
+
+const MultiValue = () => null
 
 const ProductWiseReport: React.FC = () => {
   // Combine start and end date into a single range state for the picker
@@ -42,30 +73,24 @@ const ProductWiseReport: React.FC = () => {
   const [error, setError] = useState('')
 
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([])
-  const [selectedBranch, setSelectedBranch] = useState('all')
+  const [selectedBranch, setSelectedBranch] = useState<string[]>(['all'])
 
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
-  const [selectedCategory, setSelectedCategory] = useState('all')
+  const [selectedCategory, setSelectedCategory] = useState<string[]>(['all'])
 
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
   const [selectedDepartment, setSelectedDepartment] = useState('all')
 
   const [products, setProducts] = useState<{ id: string; name: string }[]>([])
-  const [selectedProduct, setSelectedProduct] = useState('all')
+  const [selectedProduct, setSelectedProduct] = useState<string[]>(['all'])
+
+  const [sortBy, setSortBy] = useState<'amount' | 'units'>('amount')
 
   const [showZeroHighlight, setShowZeroHighlight] = useState<boolean>(false)
   const [showTopSaleHighlight, setShowTopSaleHighlight] = useState<boolean>(false)
   const [showLowSaleHighlight, setShowLowSaleHighlight] = useState<boolean>(false)
 
   const [showExportMenu, setShowExportMenu] = useState(false)
-
-  /* New state for View Type */
-  const [viewType, setViewType] = useState<'amount' | 'units'>('amount')
-
-  const viewOptions: { value: 'amount' | 'units'; label: string }[] = [
-    { value: 'amount', label: 'Amount' },
-    { value: 'units', label: 'Units' },
-  ]
 
   const formatValue = (val: number) => {
     const fixed = val.toFixed(2)
@@ -76,51 +101,35 @@ const ProductWiseReport: React.FC = () => {
     if (!data) return
     const csvRows = []
     // Header
-    const totalHeader = viewType === 'amount' ? 'TOTAL AMOUNT' : 'TOTAL UNITS'
-    csvRows.push(['S.NO', 'PRODUCT', ...data.branchHeaders, totalHeader].join(','))
+    csvRows.push(
+      ['S.NO', 'PRODUCT', ...data.branchHeaders, 'TOTAL UNITS', 'TOTAL AMOUNT'].join(','),
+    )
     // Rows
     data.stats.forEach((row) => {
-      const branchValues = data.branchHeaders.map((header) => {
-        const val =
-          viewType === 'amount'
-            ? row.branchSales[header]?.amount || 0
-            : row.branchSales[header]?.quantity || 0
-        return formatValue(val)
-      })
-
-      const totalVal = viewType === 'amount' ? row.totalAmount : row.totalQuantity
-
+      const branchValues = data.branchHeaders.map((header) =>
+        formatValue(row.branchSales[header]?.amount || 0),
+      )
       csvRows.push(
         [
           row.sNo,
           `"${row.productName} (${row.price} / ${row.unit})"`, // Combine name and price
           ...branchValues,
-          formatValue(totalVal),
+          formatValue(row.totalQuantity),
+          formatValue(row.totalAmount),
         ].join(','),
       )
     })
     // Total Row
-    const totalBranchPlaceholders = data.branchHeaders.map((header) => {
-      // We need branch totals for Units if view is units.
-      // data.totals.branchTotals currently might only be amounts if the backend only sends amounts?
-      // Checking schema: ReportData.totals.branchTotals is Record<string, number>.
-      // If the backend sums amounts in branchTotals, we might not have unit totals per branch readily available in `totals`.
-      // However, `data.stats` has quantity per branch. We can sum it up on the client if needed or check if backend provides it.
-      // Looking at types: `branchSales` has { amount, quantity }.
-      // `totals.branchTotals` seems to be just one number. Usually amount.
-      // Let's assume for now we might need to calculate branch unit totals on the fly if not provided.
-      // OR `data.totals.branchTotals` is strictly amount.
-      // Let's compute column totals client side for safety in the render loop.
-      return '' // Placeholder for CSV export of totals row, sophisticated logic needed if we want it here.
-    })
-
-    // Simplified Total Row for CSV (just grand total)
+    const totalBranchPlaceholders = data.branchHeaders.map((header) =>
+      formatValue(data.totals.branchTotals[header] || 0),
+    )
     csvRows.push(
       [
         '',
         'TOTAL',
-        ...data.branchHeaders.map(() => ''), // Skip column totals in CSV for now to avoid complexity or calc them.
-        formatValue(viewType === 'amount' ? data.totals.totalAmount : data.totals.totalQuantity),
+        ...totalBranchPlaceholders,
+        formatValue(data.totals.totalQuantity),
+        formatValue(data.totals.totalAmount),
       ].join(','),
     )
 
@@ -128,7 +137,7 @@ const ProductWiseReport: React.FC = () => {
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `product_report_${viewType}_${startDate ? toLocalDateStr(startDate) : ''}_to_${
+    a.download = `product_report_${startDate ? toLocalDateStr(startDate) : ''}_to_${
       endDate ? toLocalDateStr(endDate) : ''
     }.csv`
     a.click()
@@ -160,11 +169,16 @@ const ProductWiseReport: React.FC = () => {
     { value: 'all', label: 'All Products' },
     ...products
       .filter((p: any) => {
-        if (selectedCategory === 'all') return true
+        if (selectedCategory.includes('all')) return true
         const pCatId = typeof p.category === 'object' ? p.category?.id : p.category
-        return pCatId === selectedCategory
+        return selectedCategory.includes(pCatId)
       })
       .map((p) => ({ value: p.id, label: p.name })),
+  ]
+
+  const sortOptions = [
+    { value: 'amount', label: 'Amount' },
+    { value: 'units', label: 'Units' },
   ]
 
   const customStyles = {
@@ -175,13 +189,22 @@ const ProductWiseReport: React.FC = () => {
       borderRadius: '8px',
       height: '42px', // Match fixed height of datepicker
       minHeight: '42px',
-      minWidth: '200px',
+      width: '200px', // Fixed width
+      maxWidth: '200px', // Enforce max width
       padding: '0',
       boxShadow: state.isFocused ? '0 0 0 1px var(--theme-info-500)' : 'none',
       color: 'var(--theme-text-primary)',
       '&:hover': {
         borderColor: 'var(--theme-info-750)',
       },
+      flexWrap: 'nowrap' as any, // Prevent wrapping
+    }),
+    valueContainer: (base: Record<string, unknown>) => ({
+      ...base,
+      flexWrap: 'nowrap' as any,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
     }),
     singleValue: (base: Record<string, unknown>) => ({
       ...base,
@@ -211,18 +234,6 @@ const ProductWiseReport: React.FC = () => {
     input: (base: Record<string, unknown>) => ({
       ...base,
       color: 'var(--theme-text-primary)',
-    }),
-  }
-
-  const compactStyles = {
-    ...customStyles,
-    control: (base: Record<string, unknown>, state: { isFocused: boolean }) => ({
-      ...customStyles.control(base, state),
-      minWidth: '100px',
-    }),
-    menu: (base: Record<string, unknown>) => ({
-      ...customStyles.menu(base),
-      minWidth: '100px',
     }),
   }
 
@@ -271,23 +282,27 @@ const ProductWiseReport: React.FC = () => {
   const fetchReport = async (
     start: Date,
     end: Date,
-    branchId: string,
-    categoryId: string,
+    branchIds: string[],
+    categoryIds: string[],
     departmentId: string,
-    productId: string,
+    productIds: string[],
   ) => {
     setLoading(true)
     setError('')
     try {
       const startStr = toLocalDateStr(start)
       const endStr = toLocalDateStr(end)
+      const branchParam = branchIds.includes('all') ? 'all' : branchIds.join(',')
+      const categoryParam = categoryIds.includes('all') ? 'all' : categoryIds.join(',')
+      const productParam = productIds.includes('all') ? 'all' : productIds.join(',')
       const res = await fetch(
-        `/api/reports/product-wise?startDate=${startStr}&endDate=${endStr}&branch=${branchId}&category=${categoryId}&department=${departmentId}&product=${productId}`,
+        `/api/reports/product-wise?startDate=${startStr}&endDate=${endStr}&branch=${branchParam}&category=${categoryParam}&department=${departmentId}&product=${productParam}`,
       )
       if (!res.ok) throw new Error('Failed to fetch report')
       const json: ReportData = await res.json()
 
-      // Automatically enable zero highlight if there are zero values
+      // Automatically enable zero highlight if there are zero values -- REMOVED per user request
+      /*
       const hasStatsZero = json.stats.some(
         (row) =>
           json.branchHeaders.some((h) => (row.branchSales[h]?.amount || 0) === 0) ||
@@ -301,6 +316,9 @@ const ProductWiseReport: React.FC = () => {
         json.branchHeaders.some((h) => (json.totals.branchTotals[h] || 0) === 0)
 
       setShowZeroHighlight(hasStatsZero || hasTotalZero)
+      */
+      // Default to false now
+      setShowZeroHighlight(false)
       setData(json)
     } catch (err) {
       console.error(err)
@@ -362,7 +380,6 @@ const ProductWiseReport: React.FC = () => {
       <div className="report-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
           <h1>Product Wise Report</h1>
-          {/* Highlights buttons remain same ... */}
           <button
             title="Toggle Zero Highlight"
             onClick={() => setShowZeroHighlight(!showZeroHighlight)}
@@ -400,7 +417,6 @@ const ProductWiseReport: React.FC = () => {
             }}
           />
 
-          {/* Date Picker */}
           <div className="filter-group" style={{ marginLeft: 'auto' }}>
             <DatePicker
               selectsRange={true}
@@ -409,12 +425,12 @@ const ProductWiseReport: React.FC = () => {
               onChange={(update) => {
                 setDateRange(update)
               }}
-              monthsShown={1}
+              monthsShown={2}
               dateFormat="yyyy-MM-dd"
               className="date-input"
               customInput={<CustomInput />}
               calendarClassName="custom-calendar"
-              popperPlacement="bottom-start"
+              popperPlacement="bottom-end"
             />
           </div>
 
@@ -457,11 +473,12 @@ const ProductWiseReport: React.FC = () => {
             <button
               onClick={() => {
                 setDateRange([new Date(), new Date()])
-                setSelectedBranch('all')
+                setSelectedBranch(['all'])
                 setSelectedDepartment('all')
-                setSelectedCategory('all')
-                setSelectedProduct('all')
-                setViewType('amount') // Reset view type too
+                setSelectedDepartment('all')
+                setSelectedCategory(['all'])
+                setSelectedProduct(['all'])
+                setSortBy('amount')
               }}
               title="Reset Filters"
               style={{
@@ -492,18 +509,18 @@ const ProductWiseReport: React.FC = () => {
             </button>
           </div>
         </div>
-        <div className="date-filter" style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-          {/* VIEW TYPE FILTER */}
-          <div className="filter-group select-group" style={{ width: '110px' }}>
+        <div className="date-filter">
+          <div className="filter-group select-group">
             <Select
-              instanceId="view-select"
-              options={viewOptions}
-              value={viewOptions.find((o) => o.value === viewType)}
-              onChange={(option: { value: 'amount' | 'units'; label: string } | null) =>
-                setViewType(option?.value || 'amount')
+              instanceId="sort-select"
+              options={sortOptions}
+              value={sortOptions.find((o) => o.value === sortBy)}
+              onChange={(option: { value: string; label: string } | null) =>
+                setSortBy((option?.value as 'amount' | 'units') || 'amount')
               }
-              styles={compactStyles}
+              styles={customStyles}
               classNamePrefix="react-select"
+              placeholder="Sort By..."
               isSearchable={false}
             />
           </div>
@@ -512,14 +529,34 @@ const ProductWiseReport: React.FC = () => {
             <Select
               instanceId="branch-select"
               options={branchOptions}
-              value={branchOptions.find((o) => o.value === selectedBranch)}
-              onChange={(option: { value: string; label: string } | null) =>
-                setSelectedBranch(option?.value || 'all')
-              }
+              isMulti
+              value={branchOptions.filter((o) => selectedBranch.includes(o.value))}
+              onChange={(newValue) => {
+                const selected = newValue ? newValue.map((x) => x.value) : []
+                const wasAll = selectedBranch.includes('all')
+                const hasAll = selected.includes('all')
+
+                let final = selected
+                if (hasAll && !wasAll) {
+                  final = ['all']
+                } else if (hasAll && wasAll && selected.length > 1) {
+                  final = selected.filter((x) => x !== 'all')
+                } else if (final.length === 0) {
+                  final = ['all']
+                }
+                setSelectedBranch(final)
+              }}
               styles={customStyles}
               classNamePrefix="react-select"
               placeholder="Select Branch..."
               isSearchable={true}
+              closeMenuOnSelect={false}
+              hideSelectedOptions={false}
+              components={{
+                Option: CheckboxOption,
+                ValueContainer: CustomValueContainer,
+                MultiValue,
+              }}
             />
           </div>
 
@@ -542,14 +579,34 @@ const ProductWiseReport: React.FC = () => {
             <Select
               instanceId="category-select"
               options={categoryOptions}
-              value={categoryOptions.find((o) => o.value === selectedCategory)}
-              onChange={(option: { value: string; label: string } | null) =>
-                setSelectedCategory(option?.value || 'all')
-              }
+              isMulti
+              value={categoryOptions.filter((o) => selectedCategory.includes(o.value))}
+              onChange={(newValue) => {
+                const selected = newValue ? newValue.map((x) => x.value) : []
+                const wasAll = selectedCategory.includes('all')
+                const hasAll = selected.includes('all')
+
+                let final = selected
+                if (hasAll && !wasAll) {
+                  final = ['all']
+                } else if (hasAll && wasAll && selected.length > 1) {
+                  final = selected.filter((x) => x !== 'all')
+                } else if (final.length === 0) {
+                  final = ['all']
+                }
+                setSelectedCategory(final)
+              }}
               styles={customStyles}
               classNamePrefix="react-select"
               placeholder="Select Category..."
               isSearchable={true}
+              closeMenuOnSelect={false}
+              hideSelectedOptions={false}
+              components={{
+                Option: CheckboxOption,
+                ValueContainer: CustomValueContainer,
+                MultiValue,
+              }}
             />
           </div>
 
@@ -557,65 +614,132 @@ const ProductWiseReport: React.FC = () => {
             <Select
               instanceId="product-select"
               options={productOptions}
-              value={productOptions.find((o) => o.value === selectedProduct)}
-              onChange={(option: { value: string; label: string } | null) =>
-                setSelectedProduct(option?.value || 'all')
-              }
+              isMulti
+              value={productOptions.filter((o) => selectedProduct.includes(o.value))}
+              onChange={(newValue) => {
+                const selected = newValue ? newValue.map((x) => x.value) : []
+                const wasAll = selectedProduct.includes('all')
+                const hasAll = selected.includes('all')
+
+                let final = selected
+                if (hasAll && !wasAll) {
+                  final = ['all']
+                } else if (hasAll && wasAll && selected.length > 1) {
+                  final = selected.filter((x) => x !== 'all')
+                } else if (final.length === 0) {
+                  final = ['all']
+                }
+                setSelectedProduct(final)
+              }}
               styles={customStyles}
               classNamePrefix="react-select"
               placeholder="Select Product..."
               isSearchable={true}
+              closeMenuOnSelect={false}
+              hideSelectedOptions={false}
+              components={{
+                Option: CheckboxOption,
+                ValueContainer: CustomValueContainer,
+                MultiValue,
+              }}
             />
           </div>
         </div>
       </div>
 
+      {!selectedCategory.includes('all') && selectedCategory.length > 0 && (
+        <div style={{ padding: '0 0 10px 0', marginTop: '-15px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {selectedCategory.map((catId) => {
+              const cat = categoryOptions.find((c) => c.value === catId)
+              if (!cat) return null
+              return (
+                <div
+                  key={catId}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    backgroundColor: 'var(--theme-elevation-150)',
+                    padding: '4px 12px',
+                    borderRadius: '4px',
+                    fontSize: '0.85rem',
+                    color: 'var(--theme-text-primary)',
+                    border: '1px solid var(--theme-elevation-200)',
+                  }}
+                >
+                  <span style={{ marginRight: '6px' }}>{cat.label}</span>
+                  <button
+                    onClick={() => {
+                      const newSelected = selectedCategory.filter((id) => id !== catId)
+                      setSelectedCategory(newSelected.length > 0 ? newSelected : ['all'])
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--theme-text-secondary)',
+                      width: '16px',
+                      height: '16px',
+                      borderRadius: '50%',
+                    }}
+                    title="Remove category"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {loading && <p>Loading...</p>}
       {error && <p className="error">{error}</p>}
 
       {(() => {
-        // Calculate Max and Min per Branch for highlighting
-        // We need to calculate these based on the VIEW TYPE
-        const maxPerBranch: Record<string, number> = {}
-        const minPerBranch: Record<string, number> = {}
-        const branchColumnTotals: Record<string, number> = {} // Sales totals
-        const branchStockTotals: Record<string, number> = {}
-        const branchReturnTotals: Record<string, number> = {}
+        // Calculate Max and Min Branch Sale Amount per Branch
+        const maxSalesPerBranch: Record<string, number> = {}
+        const minSalesPerBranch: Record<string, number> = {}
 
         if (data) {
           data.branchHeaders.forEach((header) => {
-            // Calculate column totals
-            let saleSum = 0
-            let stockSum = 0
-            let returnSum = 0
+            // Get all amounts for this branch
+            const amounts = data.stats.map((row) => row.branchSales[header]?.amount || 0)
+            const positiveAmounts = amounts.filter((a) => a > 0)
 
-            data.stats.forEach((row) => {
-              const sales = row.branchSales[header] || {
-                amount: 0,
-                quantity: 0,
-                stockQuantity: 0,
-                returnQuantity: 0,
-              }
-              saleSum += viewType === 'amount' ? sales.amount : sales.quantity
-              stockSum += sales.stockQuantity || 0
-              returnSum += sales.returnQuantity || 0
-            })
+            // Max is max of all amounts (or 0 if none)
+            maxSalesPerBranch[header] = amounts.length > 0 ? Math.max(...amounts) : 0
 
-            branchColumnTotals[header] = saleSum
-            branchStockTotals[header] = stockSum
-            branchReturnTotals[header] = returnSum
-
-            // Get all values for this branch for stats (highlighting logic based on Sales)
-            const values = data.stats.map((row) => {
-              const sales = row.branchSales[header] || { amount: 0, quantity: 0 }
-              return viewType === 'amount' ? sales.amount : sales.quantity
-            })
-            const positiveValues = values.filter((v) => v > 0)
-
-            maxPerBranch[header] = values.length > 0 ? Math.max(...values) : 0
-            minPerBranch[header] = positiveValues.length > 0 ? Math.min(...positiveValues) : 0
+            // Min is min of positive amounts (or 0 if none)
+            minSalesPerBranch[header] =
+              positiveAmounts.length > 0 ? Math.min(...positiveAmounts) : 0
           })
         }
+
+        const sortedStats = data
+          ? [...data.stats].sort((a, b) => {
+              if (sortBy === 'units') {
+                return b.totalQuantity - a.totalQuantity
+              }
+              return b.totalAmount - a.totalAmount
+            })
+          : []
 
         return (
           data && (
@@ -631,71 +755,39 @@ const ProductWiseReport: React.FC = () => {
                         {header}
                       </th>
                     ))}
-                    <th style={{ textAlign: 'right' }}>
-                      {viewType === 'amount' ? 'TOTAL AMOUNT' : 'TOTAL UNITS'}
-                    </th>
+                    <th style={{ textAlign: 'right' }}>TOTAL UNITS</th>
+                    <th style={{ textAlign: 'right' }}>TOTAL AMOUNT</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.stats.map((row) => (
+                  {sortedStats.map((row) => (
                     <tr key={row.sNo}>
                       <td>{row.sNo}</td>
                       <td className="product-name-cell">
-                        <span>
-                          {row.productName}{' '}
-                          <span
-                            style={{
-                              color: 'var(--theme-elevation-400)',
-                              fontWeight: 500,
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {row.unit} {formatValue(row.price)}
-                          </span>
-                        </span>
+                        <div>{row.productName}</div>
+                        <div className="product-price-unit">
+                          {formatValue(row.price)} {row.unit}
+                        </div>
                       </td>
                       {/* Dynamically render branch sales cells */}
                       {data.branchHeaders.map((header) => {
-                        const sales = row.branchSales[header] || {
-                          amount: 0,
-                          quantity: 0,
-                          stockQuantity: 0,
-                        }
-                        const value = viewType === 'amount' ? sales.amount : sales.quantity
-                        const stockValue = sales.stockQuantity || 0
-                        const returnValue = sales.returnQuantity || 0
+                        const sales = row.branchSales[header] || { amount: 0, quantity: 0 }
+                        const isZero = sales.amount === 0
+                        const isTopSale =
+                          showTopSaleHighlight &&
+                          selectedBranch === 'all' &&
+                          sales.amount > 0 &&
+                          Math.abs(sales.amount - maxSalesPerBranch[header]) < 0.001
 
-                        const isZero = value === 0
-                        const isTop = row.sNo === 1 && viewType === 'amount' && showTopSaleHighlight
-                        const isLow =
-                          row.sNo === data.stats.length &&
-                          viewType === 'amount' &&
-                          showLowSaleHighlight
+                        const isLowSale =
+                          showLowSaleHighlight &&
+                          selectedBranch === 'all' &&
+                          sales.amount > 0 &&
+                          Math.abs(sales.amount - minSalesPerBranch[header]) < 0.001
 
-                        const colTotal = branchColumnTotals[header] || 0
-                        const stockTotal = branchStockTotals[header] || 0
-                        const returnTotal = branchReturnTotals[header] || 0
-
+                        const branchTotal = data.totals.branchTotals[header] || 0
                         const percentage =
-                          colTotal > 0
-                            ? formatValue(Number(((sales.amount / colTotal) * 100).toFixed(2)))
-                            : '0'
-
-                        const unitsPct =
-                          colTotal > 0
-                            ? formatValue(Number(((value / colTotal) * 100).toFixed(2)))
-                            : '0'
-                        const stockPct =
-                          stockTotal > 0
-                            ? formatValue(Number(((stockValue / stockTotal) * 100).toFixed(2)))
-                            : '0'
-                        const returnPct =
-                          returnTotal > 0
-                            ? formatValue(Number(((returnValue / returnTotal) * 100).toFixed(2)))
-                            : '0'
-
-                        const textColor =
-                          (showZeroHighlight && isZero) || isTop || isLow ? '#FFFFFF' : undefined
+                          branchTotal > 0 ? ((sales.amount / branchTotal) * 100).toFixed(2) : '0.00'
 
                         return (
                           <td
@@ -706,127 +798,38 @@ const ProductWiseReport: React.FC = () => {
                               backgroundColor:
                                 showZeroHighlight && isZero
                                   ? '#800020'
-                                  : isTop
+                                  : isTopSale
                                     ? '#006400'
-                                    : isLow
+                                    : isLowSale
                                       ? '#B8860B'
                                       : 'inherit',
-                              color: textColor || 'inherit',
+                              color:
+                                (showZeroHighlight && isZero) || isTopSale || isLowSale
+                                  ? '#FFFFFF'
+                                  : 'inherit',
                             }}
                           >
-                            {viewType === 'amount' ? (
-                              <>
-                                <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>
-                                  {formatValue(value)}
-                                </div>
-                                {value > 0 && (
-                                  <div
-                                    style={{
-                                      fontSize: '0.75rem',
-                                      color: textColor || 'var(--theme-elevation-400)',
-                                      marginTop: '2px',
-                                    }}
-                                  >
-                                    {percentage}%
-                                  </div>
-                                )}
-                              </>
-                            ) : (
+                            <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>
+                              {formatValue(sales.amount)}
+                            </div>
+                            {(sales.quantity > 0 || sales.amount > 0) && (
                               <div
                                 style={{
-                                  display: 'flex',
-                                  flexDirection: 'row',
-                                  alignItems: 'center',
-                                  gap: '0.8rem',
-                                  lineHeight: 1.2,
+                                  fontSize: '0.75rem',
+                                  color:
+                                    isZero || isTopSale || isLowSale
+                                      ? '#FFFFFF'
+                                      : 'var(--theme-elevation-400)',
+                                  marginTop: '2px',
                                 }}
                               >
-                                {/* Stock (Received) */}
-                                {stockValue > 0 && (
-                                  <div
-                                    style={{
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                      alignItems: 'center',
-                                    }}
-                                  >
-                                    <span
-                                      style={{
-                                        color: '#FA8603',
-                                        fontWeight: 'bold',
-                                        fontSize: '22px',
-                                      }}
-                                      title="Stock Received"
-                                    >
-                                      {formatValue(stockValue)}
-                                    </span>
-                                    <span
-                                      style={{
-                                        color: textColor || 'var(--theme-elevation-400)',
-                                        fontSize: '12px',
-                                      }}
-                                    >
-                                      {stockPct}%
-                                    </span>
-                                  </div>
+                                {sales.quantity > 0 && (
+                                  <span>{formatValue(sales.quantity)} Units</span>
                                 )}
-                                {/* Sold */}
-                                {value > 0 && (
-                                  <div
-                                    style={{
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                      alignItems: 'center',
-                                    }}
-                                  >
-                                    <span
-                                      style={{
-                                        color: textColor || '#53fd68',
-                                        fontSize: '22px',
-                                        fontWeight: '600',
-                                      }}
-                                      title="Units Sold"
-                                    >
-                                      {formatValue(value)}
-                                    </span>
-                                    <span
-                                      style={{
-                                        color: textColor || 'var(--theme-elevation-400)',
-                                        fontSize: '12px',
-                                      }}
-                                    >
-                                      {unitsPct}%
-                                    </span>
-                                  </div>
-                                )}
-                                {/* Return */}
-                                {returnValue > 0 && (
-                                  <div
-                                    style={{
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                      alignItems: 'center',
-                                    }}
-                                  >
-                                    <span
-                                      style={{
-                                        color: textColor || '#ef4444',
-                                        fontSize: '22px',
-                                        fontWeight: '600',
-                                      }}
-                                      title="Units Returned"
-                                    >
-                                      {formatValue(returnValue)}
-                                    </span>
-                                    <span
-                                      style={{
-                                        color: textColor || 'var(--theme-elevation-400)',
-                                        fontSize: '12px',
-                                      }}
-                                    >
-                                      {returnPct}%
-                                    </span>
-                                  </div>
+                                {sales.amount > 0 && (
+                                  <span style={{ marginLeft: sales.quantity > 0 ? '8px' : '0' }}>
+                                    {percentage}%
+                                  </span>
                                 )}
                               </div>
                             )}
@@ -839,18 +842,24 @@ const ProductWiseReport: React.FC = () => {
                           fontWeight: '600',
                           fontSize: '1.2rem',
                           backgroundColor:
-                            showZeroHighlight &&
-                            (viewType === 'amount' ? row.totalAmount : row.totalQuantity) === 0
-                              ? '#800020'
-                              : 'inherit',
+                            showZeroHighlight && row.totalQuantity === 0 ? '#800020' : 'inherit',
                           color:
-                            showZeroHighlight &&
-                            (viewType === 'amount' ? row.totalAmount : row.totalQuantity) === 0
-                              ? '#FFFFFF'
-                              : 'inherit',
+                            showZeroHighlight && row.totalQuantity === 0 ? '#FFFFFF' : 'inherit',
                         }}
                       >
-                        {formatValue(viewType === 'amount' ? row.totalAmount : row.totalQuantity)}
+                        {formatValue(row.totalQuantity)}
+                      </td>
+                      <td
+                        style={{
+                          textAlign: 'right',
+                          fontWeight: '600',
+                          fontSize: '1.2rem',
+                          backgroundColor:
+                            showZeroHighlight && row.totalAmount === 0 ? '#800020' : 'inherit',
+                          color: showZeroHighlight && row.totalAmount === 0 ? '#FFFFFF' : 'inherit',
+                        }}
+                      >
+                        {formatValue(row.totalAmount)}
                       </td>
                     </tr>
                   ))}
@@ -862,7 +871,7 @@ const ProductWiseReport: React.FC = () => {
                     </td>
                     {/* Dynamically render branch totals in footer */}
                     {data.branchHeaders.map((header) => {
-                      const val = branchColumnTotals[header] || 0
+                      const val = data.totals.branchTotals[header] || 0
                       const isZero = val === 0
                       return (
                         <td
@@ -885,28 +894,33 @@ const ProductWiseReport: React.FC = () => {
                         fontWeight: '600',
                         fontSize: '1.2rem',
                         backgroundColor:
-                          showZeroHighlight &&
-                          (viewType === 'amount'
-                            ? data.totals.totalAmount
-                            : data.totals.totalQuantity) === 0
+                          showZeroHighlight && data.totals.totalQuantity === 0
                             ? '#800020'
                             : 'inherit',
                         color:
-                          showZeroHighlight &&
-                          (viewType === 'amount'
-                            ? data.totals.totalAmount
-                            : data.totals.totalQuantity) === 0
+                          showZeroHighlight && data.totals.totalQuantity === 0
                             ? '#FFFFFF'
                             : 'inherit',
                       }}
                     >
-                      <strong>
-                        {formatValue(
-                          viewType === 'amount'
-                            ? data.totals.totalAmount
-                            : data.totals.totalQuantity,
-                        )}
-                      </strong>
+                      <strong>{formatValue(data.totals.totalQuantity)}</strong>
+                    </td>
+                    <td
+                      style={{
+                        textAlign: 'right',
+                        fontWeight: '600',
+                        fontSize: '1.2rem',
+                        backgroundColor:
+                          showZeroHighlight && data.totals.totalAmount === 0
+                            ? '#800020'
+                            : 'inherit',
+                        color:
+                          showZeroHighlight && data.totals.totalAmount === 0
+                            ? '#FFFFFF'
+                            : 'inherit',
+                      }}
+                    >
+                      <strong>{formatValue(data.totals.totalAmount)}</strong>
                     </td>
                   </tr>
                 </tfoot>
