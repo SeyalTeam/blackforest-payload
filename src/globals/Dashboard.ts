@@ -2,7 +2,7 @@ import { GlobalConfig } from 'payload'
 
 export const DashboardGlobal: GlobalConfig = {
   slug: 'general-dashboard',
-  label: 'Dashboard',
+  label: 'Overall',
   access: {
     read: () => true,
   },

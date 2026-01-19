@@ -172,7 +172,8 @@ export const getDashboardStatsHandler: PayloadHandler = async (
     ])
 
     // --- Combine Data ---
-    const productStats = products.map((p) => {
+    const productStats = products.map((pDoc) => {
+      const p = pDoc as Product
       const pid = p.id
       const getSum = (arr: any[]) => arr.find((x) => String(x._id) === pid)?.total || 0
 
