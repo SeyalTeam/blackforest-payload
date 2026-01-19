@@ -7,7 +7,7 @@ const Expenses: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: () => true,
+    create: () => false,
     update: () => true,
     delete: () => true,
   },
