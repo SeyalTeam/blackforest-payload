@@ -51,7 +51,7 @@ const CustomValueContainer = ({ children, ...props }: any) => {
 
   return (
     <components.ValueContainer {...props}>
-      {hasValue && count > 0 && selected[0].value !== 'all' && !isTyping && (
+      {hasValue && count > 0 && !isTyping && (
         <div style={{ paddingLeft: '8px', position: 'absolute', pointerEvents: 'none' }}>
           {count === 1 ? selected[0].label : `${count} Selected`}
         </div>
