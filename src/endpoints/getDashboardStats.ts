@@ -2,6 +2,7 @@ import { PayloadHandler, PayloadRequest } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
+import mongoose from 'mongoose'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -53,7 +54,7 @@ export const getDashboardStatsHandler: PayloadHandler = async (
     // 3. Helper for Aggregation Matches
     // Common match: branch (if selected), status (not cancelled)
     const commonMatch: any = { status: { $ne: 'cancelled' } }
-    if (branch) commonMatch.branch = branch
+    if (branch) commonMatch.branch = new mongoose.Types.ObjectId(branch)
 
     // Helper to generate pipelines
     const createPipeline = (
