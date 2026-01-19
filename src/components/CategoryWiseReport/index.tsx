@@ -764,7 +764,7 @@ const CategoryWiseReport: React.FC = () => {
                     </th>
                     {/* Dynamically render branch headers */}
                     {data.branchHeaders.map((header) => (
-                      <th key={header} style={{ textAlign: 'left' }}>
+                      <th key={header} style={{ textAlign: 'center' }}>
                         {header}
                       </th>
                     ))}
@@ -802,11 +802,20 @@ const CategoryWiseReport: React.FC = () => {
                         const percentage =
                           branchTotal > 0 ? ((sales.amount / branchTotal) * 100).toFixed(2) : '0.00'
 
+                        const isUnitsSort = sortBy === 'units'
+                        const mainValue = isUnitsSort
+                          ? formatValue(sales.quantity)
+                          : formatValue(sales.amount)
+
+                        const subValue = isUnitsSort
+                          ? `₹${formatValue(sales.amount)}`
+                          : `${formatValue(sales.quantity)} Units`
+
                         return (
                           <td
                             key={header}
                             style={{
-                              textAlign: 'left',
+                              textAlign: 'center',
                               verticalAlign: 'top',
                               backgroundColor:
                                 showZeroHighlight && isZero
@@ -822,26 +831,23 @@ const CategoryWiseReport: React.FC = () => {
                                   : 'inherit',
                             }}
                           >
-                            <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>
-                              {formatValue(sales.amount)}
-                            </div>
+                            <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>{mainValue}</div>
                             {(sales.quantity > 0 || sales.amount > 0) && (
                               <div
                                 style={{
-                                  fontSize: '0.75rem',
+                                  fontSize: '0.85rem',
                                   color:
                                     isZero || isTopSale || isLowSale
                                       ? '#FFFFFF'
                                       : 'var(--theme-elevation-400)',
-                                  marginTop: '2px',
+                                  marginTop: '4px',
                                   display: 'flex',
                                   flexDirection: 'column',
-                                  gap: '1px',
+                                  alignItems: 'center',
+                                  gap: '2px',
                                 }}
                               >
-                                {sales.quantity > 0 && (
-                                  <div>{formatValue(sales.quantity)} Units</div>
-                                )}
+                                <div>{subValue}</div>
                                 {sales.amount > 0 && <div>{percentage}%</div>}
                               </div>
                             )}

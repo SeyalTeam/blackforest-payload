@@ -84,6 +84,9 @@ const ProductWiseReport: React.FC = () => {
   const [products, setProducts] = useState<{ id: string; name: string }[]>([])
   const [selectedProduct, setSelectedProduct] = useState<string[]>(['all'])
 
+  const [dateRangePreset, setDateRangePreset] = useState<string>('today')
+  const [firstBillDate, setFirstBillDate] = useState<Date | null>(null)
+
   const [sortBy, setSortBy] = useState<'amount' | 'units'>('amount')
 
   const [showZeroHighlight, setShowZeroHighlight] = useState<boolean>(false)
@@ -142,6 +145,97 @@ const ProductWiseReport: React.FC = () => {
     }.csv`
     a.click()
     setShowExportMenu(false)
+    setShowExportMenu(false)
+  }
+
+  const getQuarterDates = (date: Date) => {
+    const currQuarter = Math.floor((date.getMonth() + 3) / 3)
+    const prevQuarter = currQuarter - 1
+    let startMonth = 0
+    let year = date.getFullYear()
+
+    if (prevQuarter === 0) {
+      startMonth = 9 // Oct
+      year -= 1
+    } else {
+      startMonth = (prevQuarter - 1) * 3
+    }
+    const endMonth = startMonth + 2
+
+    // Start of quarter
+    const start = new Date(year, startMonth, 1)
+    // End of quarter (last day of endMonth)
+    const end = new Date(year, endMonth + 1, 0)
+
+    return { start, end }
+  }
+
+  const dateRangeOptions = [
+    { value: 'till_now', label: 'Till Now' },
+    { value: 'today', label: 'Today' },
+    { value: 'yesterday', label: 'Yesterday' },
+    { value: 'last_7_days', label: 'Last 7 Days' },
+    { value: 'this_month', label: 'This Month' },
+    { value: 'last_30_days', label: 'Last 30 Days' },
+    { value: 'last_month', label: 'Last Month' },
+    { value: 'last_quarter', label: 'Last Quarter' },
+  ]
+
+  const handleDatePresetChange = (value: string) => {
+    setDateRangePreset(value)
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+    let start: Date | null = null
+    let end: Date | null = today
+
+    switch (value) {
+      case 'till_now':
+        if (firstBillDate) {
+          start = firstBillDate
+        }
+        break
+      case 'today':
+        start = today
+        end = today
+        break
+      case 'yesterday':
+        const yest = new Date(today)
+        yest.setDate(yest.getDate() - 1)
+        start = yest
+        end = yest
+        break
+      case 'last_7_days':
+        const last7 = new Date(today)
+        last7.setDate(last7.getDate() - 6)
+        start = last7
+        break
+      case 'this_month':
+        const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+        start = thisMonthStart
+        end = today
+        break
+      case 'last_30_days':
+        const last30 = new Date(today)
+        last30.setDate(last30.getDate() - 29)
+        start = last30
+        break
+      case 'last_month':
+        const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+        const prevMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0)
+        start = prevMonthStart
+        end = prevMonthEnd
+        break
+      case 'last_quarter':
+        const { start: qStart, end: qEnd } = getQuarterDates(today)
+        start = qStart
+        end = qEnd
+        break
+    }
+
+    if (start && end) {
+      setDateRange([start, end])
+    }
   }
 
   // TODO: Add PDF export if backend supports it for Product Report
@@ -241,11 +335,12 @@ const ProductWiseReport: React.FC = () => {
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
-        const [branchRes, categoryRes, departmentRes, productRes] = await Promise.all([
+        const [branchRes, categoryRes, departmentRes, productRes, billRes] = await Promise.all([
           fetch('/api/branches?limit=100&pagination=false'),
           fetch('/api/categories?limit=100&pagination=false'),
           fetch('/api/departments?limit=100&pagination=false'),
           fetch('/api/products?limit=1000&pagination=false'),
+          fetch('/api/billings?sort=createdAt&limit=1'),
         ])
 
         if (branchRes.ok) {
@@ -264,6 +359,17 @@ const ProductWiseReport: React.FC = () => {
           const json = await productRes.json()
           setProducts(json.docs)
         }
+        if (billRes.ok) {
+          const json = await billRes.json()
+          if (json.docs && json.docs.length > 0) {
+            const firstDate = new Date(json.docs[0].createdAt)
+            setFirstBillDate(firstDate)
+          }
+        }
+        // Set default range to Today
+        const now = new Date()
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        setDateRange([today, today])
       } catch (e) {
         console.error(e)
       }
@@ -441,6 +547,7 @@ const ProductWiseReport: React.FC = () => {
                 className="export-btn"
                 onClick={() => setShowExportMenu(!showExportMenu)}
                 title="Export Report"
+                style={{ border: '1px solid #555' }}
               >
                 <span>Export</span>
                 <span className="icon">↓</span>
@@ -469,47 +576,23 @@ const ProductWiseReport: React.FC = () => {
               />
             )}
           </div>
-          <div className="filter-group">
-            <button
-              onClick={() => {
-                setDateRange([new Date(), new Date()])
-                setSelectedBranch(['all'])
-                setSelectedDepartment('all')
-                setSelectedDepartment('all')
-                setSelectedCategory(['all'])
-                setSelectedProduct(['all'])
-                setSortBy('amount')
-              }}
-              title="Reset Filters"
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '0 0 0 10px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--theme-text-primary)',
-              }}
-            >
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M23 4v6h-6"></path>
-                <path d="M1 20v-6h6"></path>
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-              </svg>
-            </button>
-          </div>
         </div>
         <div className="date-filter">
+          <div className="filter-group select-group">
+            <Select
+              instanceId="date-preset-select"
+              options={dateRangeOptions}
+              value={dateRangeOptions.find((o) => o.value === dateRangePreset)}
+              onChange={(option: { value: string; label: string } | null) => {
+                if (option) handleDatePresetChange(option.value)
+              }}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Date Range..."
+              isSearchable={false}
+            />
+          </div>
+
           <div className="filter-group select-group">
             <Select
               instanceId="sort-select"
@@ -644,6 +727,46 @@ const ProductWiseReport: React.FC = () => {
               }}
             />
           </div>
+
+          <div className="filter-group">
+            <button
+              onClick={() => {
+                setDateRange([new Date(), new Date()])
+                setSelectedBranch(['all'])
+                setSelectedDepartment('all')
+                setSelectedDepartment('all')
+                setSelectedCategory(['all'])
+                setSelectedProduct(['all'])
+                setSortBy('amount')
+              }}
+              title="Reset Filters"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '0 0 0 10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--theme-text-primary)',
+              }}
+            >
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M23 4v6h-6"></path>
+                <path d="M1 20v-6h6"></path>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -751,7 +874,7 @@ const ProductWiseReport: React.FC = () => {
                     <th>PRODUCT</th>
                     {/* Dynamically render branch headers */}
                     {data.branchHeaders.map((header) => (
-                      <th key={header} style={{ textAlign: 'left' }}>
+                      <th key={header} style={{ textAlign: 'center' }}>
                         {header}
                       </th>
                     ))}
@@ -789,11 +912,20 @@ const ProductWiseReport: React.FC = () => {
                         const percentage =
                           branchTotal > 0 ? ((sales.amount / branchTotal) * 100).toFixed(2) : '0.00'
 
+                        // Determine Main and Sub values based on Sort By filter
+                        const isUnitsSort = sortBy === 'units'
+                        const mainValue = isUnitsSort
+                          ? formatValue(sales.quantity)
+                          : formatValue(sales.amount)
+                        const subValue = isUnitsSort
+                          ? `₹${formatValue(sales.amount)}`
+                          : `${formatValue(sales.quantity)} Units`
+
                         return (
                           <td
                             key={header}
                             style={{
-                              textAlign: 'left',
+                              textAlign: 'center',
                               verticalAlign: 'top',
                               backgroundColor:
                                 showZeroHighlight && isZero
@@ -809,28 +941,24 @@ const ProductWiseReport: React.FC = () => {
                                   : 'inherit',
                             }}
                           >
-                            <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>
-                              {formatValue(sales.amount)}
-                            </div>
+                            <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>{mainValue}</div>
                             {(sales.quantity > 0 || sales.amount > 0) && (
                               <div
                                 style={{
-                                  fontSize: '0.75rem',
+                                  fontSize: '0.85rem',
                                   color:
                                     isZero || isTopSale || isLowSale
                                       ? '#FFFFFF'
                                       : 'var(--theme-elevation-400)',
-                                  marginTop: '2px',
+                                  marginTop: '4px',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center',
+                                  gap: '2px',
                                 }}
                               >
-                                {sales.quantity > 0 && (
-                                  <span>{formatValue(sales.quantity)} Units</span>
-                                )}
-                                {sales.amount > 0 && (
-                                  <span style={{ marginLeft: sales.quantity > 0 ? '8px' : '0' }}>
-                                    {percentage}%
-                                  </span>
-                                )}
+                                <div>{subValue}</div>
+                                {sales.amount > 0 && <div>{percentage}%</div>}
                               </div>
                             )}
                           </td>
