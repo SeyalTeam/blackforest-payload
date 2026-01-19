@@ -6,6 +6,7 @@ import './index.scss'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import Select from 'react-select'
+import { Calendar, RotateCw } from 'lucide-react'
 
 interface StockStat {
   name: string
@@ -28,7 +29,9 @@ const CustomInput = React.forwardRef<HTMLButtonElement, { value?: string; onClic
           →
         </span>
         <span className="date-text">{end || start}</span>
-        <span className="icon">📅</span>
+        <span className="icon">
+          <Calendar size={15} />
+        </span>
       </button>
     )
   },
@@ -226,6 +229,10 @@ const Dashboard: React.FC = () => {
     document.body.removeChild(link)
   }
 
+  const [selectedColumn, setSelectedColumn] = useState('')
+
+  // ... (keep existing effects)
+
   const handleReset = () => {
     setDatePreset('today')
     setDateRange([new Date(), new Date()])
@@ -233,6 +240,7 @@ const Dashboard: React.FC = () => {
     setSelectedDept('')
     setSelectedCat('')
     setSelectedProd('')
+    setSelectedColumn('')
   }
 
   const dateOptions = [
@@ -244,12 +252,37 @@ const Dashboard: React.FC = () => {
     { value: 'custom', label: 'Custom' },
   ]
 
+  const columnOptions = [
+    { value: 'ois', label: 'Starting Instock' },
+    { value: 'rec', label: 'Received' },
+    { value: 'rtn', label: 'Returned' },
+    { value: 'tot', label: 'Total Available' },
+    { value: 'bill', label: 'Billing' },
+    { value: 'cis', label: 'Current Instock' },
+  ]
+
+  // Helper to check visibility
+  const isVisible = (col: string) => !selectedColumn || selectedColumn === col
+
+  const visibleStats = stats.filter((stat) => {
+    if (!selectedColumn) return true
+    return (stat as any)[selectedColumn] !== 0
+  })
+
   return (
     <div className="dashboard-page">
       <Gutter>
         <div className="header-row">
           <h1>Overall Report</h1>
           <div className="top-actions">
+            <Select
+              options={dateOptions}
+              value={dateOptions.find((o) => o.value === datePreset)}
+              onChange={handleDatePresetChange}
+              styles={customStyles}
+              isSearchable={false}
+              className="filter-select-container"
+            />
             <DatePicker
               selectsRange={true}
               startDate={startDate}
@@ -266,15 +299,6 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div className="filters-row">
-          <Select
-            options={dateOptions}
-            value={dateOptions.find((o) => o.value === datePreset)}
-            onChange={handleDatePresetChange}
-            styles={customStyles}
-            isSearchable={false}
-            className="filter-select-container"
-          />
-
           <Select
             options={[
               { value: '', label: 'All Branches' },
@@ -294,6 +318,17 @@ const Dashboard: React.FC = () => {
             isClearable
             className="filter-select-container"
           />
+
+          <Select
+            options={[{ value: '', label: 'All Columns' }, ...columnOptions]}
+            value={selectedColumn ? columnOptions.find((o) => o.value === selectedColumn) : null}
+            onChange={(opt: any) => setSelectedColumn(opt?.value || '')}
+            placeholder="All Columns"
+            styles={customStyles}
+            isClearable
+            className="filter-select-container"
+          />
+
           <Select
             options={[
               { value: '', label: 'All Departments' },
@@ -347,7 +382,7 @@ const Dashboard: React.FC = () => {
           />
 
           <button className="reset-btn" onClick={handleReset} title="Reset">
-            🔄
+            <RotateCw size={18} />
           </button>
         </div>
 
@@ -361,27 +396,29 @@ const Dashboard: React.FC = () => {
                   <th className="text-cell" style={{ width: '50px' }}>
                     S.NO
                   </th>
-                  <th className="text-cell">PRODUCT</th>
-                  <th>OIS</th>
-                  <th>REC</th>
-                  <th>RTN</th>
-                  <th>TOT</th>
-                  <th>BILL</th>
-                  <th>CIS</th>
+                  <th className="text-cell" style={{ width: '100px', maxWidth: '100px' }}>
+                    PRODUCT
+                  </th>
+                  {isVisible('ois') && <th style={{ width: '80px' }}>OIS</th>}
+                  {isVisible('rec') && <th style={{ width: '80px' }}>REC</th>}
+                  {isVisible('rtn') && <th style={{ width: '80px' }}>RTN</th>}
+                  {isVisible('tot') && <th style={{ width: '80px' }}>TOT</th>}
+                  {isVisible('bill') && <th style={{ width: '80px' }}>BILL</th>}
+                  {isVisible('cis') && <th style={{ width: '80px' }}>CIS</th>}
                 </tr>
               </thead>
               <tbody>
-                {stats.length > 0 ? (
-                  stats.map((stat, index) => (
+                {visibleStats.length > 0 ? (
+                  visibleStats.map((stat, index) => (
                     <tr key={index}>
                       <td className="text-cell">{index + 1}</td>
                       <td className="text-cell">{stat.name}</td>
-                      <td>{stat.ois}</td>
-                      <td>{stat.rec}</td>
-                      <td>{stat.rtn}</td>
-                      <td>{stat.tot}</td>
-                      <td>{stat.bill}</td>
-                      <td>{stat.cis}</td>
+                      {isVisible('ois') && <td>{stat.ois}</td>}
+                      {isVisible('rec') && <td>{stat.rec}</td>}
+                      {isVisible('rtn') && <td>{stat.rtn}</td>}
+                      {isVisible('tot') && <td>{stat.tot}</td>}
+                      {isVisible('bill') && <td>{stat.bill}</td>}
+                      {isVisible('cis') && <td>{stat.cis}</td>}
                     </tr>
                   ))
                 ) : (
