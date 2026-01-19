@@ -25,7 +25,41 @@ type ReportData = {
 
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
-import Select from 'react-select'
+import Select, { components, OptionProps } from 'react-select'
+
+const CheckboxOption = (props: OptionProps<any>) => {
+  return (
+    <components.Option {...props}>
+      <input
+        type="checkbox"
+        checked={props.isSelected}
+        onChange={() => null}
+        style={{ marginRight: 8 }}
+      />
+      {props.label}
+    </components.Option>
+  )
+}
+
+const CustomValueContainer = ({ children, ...props }: any) => {
+  const { getValue, hasValue, selectProps } = props
+  const selected = getValue()
+  const count = selected.length
+  const isTyping = selectProps.inputValue && selectProps.inputValue.length > 0
+
+  return (
+    <components.ValueContainer {...props}>
+      {hasValue && count > 0 && !isTyping && (
+        <div style={{ paddingLeft: '8px', position: 'absolute', pointerEvents: 'none' }}>
+          {count === 1 ? selected[0].label : `${count} Selected`}
+        </div>
+      )}
+      {children}
+    </components.ValueContainer>
+  )
+}
+
+const MultiValue = () => null
 
 // ... existing code ...
 
@@ -39,7 +73,10 @@ const CategoryWiseReport: React.FC = () => {
   const [error, setError] = useState('')
 
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([])
-  const [selectedBranch, setSelectedBranch] = useState('all')
+  const [selectedBranch, setSelectedBranch] = useState<string[]>(['all'])
+
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
+  const [selectedCategory, setSelectedCategory] = useState<string[]>(['all'])
 
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
   const [selectedDepartment, setSelectedDepartment] = useState('all')
@@ -173,6 +210,12 @@ const CategoryWiseReport: React.FC = () => {
           const json = await deptRes.json()
           setDepartments(json.docs)
         }
+        // Fetch Categories too
+        const catRes = await fetch('/api/categories?limit=100&pagination=false')
+        if (catRes.ok) {
+          const json = await catRes.json()
+          setCategories(json.docs)
+        }
       } catch (e) {
         console.error(e)
       }
@@ -188,14 +231,22 @@ const CategoryWiseReport: React.FC = () => {
     return `${year}-${month}-${day}`
   }
 
-  const fetchReport = async (start: Date, end: Date, branchId: string, deptId: string) => {
+  const fetchReport = async (
+    start: Date,
+    end: Date,
+    branchIds: string[],
+    categoryIds: string[],
+    deptId: string,
+  ) => {
     setLoading(true)
     setError('')
     try {
       const startStr = toLocalDateStr(start)
       const endStr = toLocalDateStr(end)
+      const branchParam = branchIds.includes('all') ? 'all' : branchIds.join(',')
+      const categoryParam = categoryIds.includes('all') ? 'all' : categoryIds.join(',')
       const res = await fetch(
-        `/api/reports/category-wise?startDate=${startStr}&endDate=${endStr}&branch=${branchId}&department=${deptId}`,
+        `/api/reports/category-wise?startDate=${startStr}&endDate=${endStr}&branch=${branchParam}&category=${categoryParam}&department=${deptId}`,
       )
       if (!res.ok) throw new Error('Failed to fetch report')
       const json: ReportData = await res.json()
@@ -226,9 +277,9 @@ const CategoryWiseReport: React.FC = () => {
   // Sync dateRange changes to backend fetch
   useEffect(() => {
     if (startDate && endDate) {
-      fetchReport(startDate, endDate, selectedBranch, selectedDepartment)
+      fetchReport(startDate, endDate, selectedBranch, selectedCategory, selectedDepartment)
     }
-  }, [dateRange, selectedBranch, selectedDepartment])
+  }, [dateRange, selectedBranch, selectedCategory, selectedDepartment])
 
   const CustomInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
     ({ value, onClick }, ref) => {
@@ -326,12 +377,66 @@ const CategoryWiseReport: React.FC = () => {
           <div className="filter-group">
             <Select
               options={branchOptions}
-              value={branchOptions.find((o) => o.value === selectedBranch)}
-              onChange={(option: any) => setSelectedBranch(option?.value || 'all')}
+              isMulti
+              value={branchOptions.filter((o) => selectedBranch.includes(o.value))}
+              onChange={(newValue) => {
+                const selected = newValue ? newValue.map((x) => x.value) : []
+                const wasAll = selectedBranch.includes('all')
+                const hasAll = selected.includes('all')
+                let final = selected
+                if (hasAll && !wasAll) final = ['all']
+                else if (hasAll && wasAll && selected.length > 1)
+                  final = selected.filter((x) => x !== 'all')
+                else if (final.length === 0) final = ['all']
+                setSelectedBranch(final)
+              }}
               styles={customStyles}
               classNamePrefix="react-select"
               placeholder="Select Branch..."
               isSearchable={true}
+              closeMenuOnSelect={false}
+              hideSelectedOptions={false}
+              components={{
+                Option: CheckboxOption,
+                ValueContainer: CustomValueContainer,
+                MultiValue,
+              }}
+            />
+          </div>
+
+          <div className="filter-group">
+            <Select
+              options={[
+                { value: 'all', label: 'All Categories' },
+                ...categories.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+              isMulti
+              value={[
+                { value: 'all', label: 'All Categories' },
+                ...categories.map((c) => ({ value: c.id, label: c.name })),
+              ].filter((o) => selectedCategory.includes(o.value))}
+              onChange={(newValue) => {
+                const selected = newValue ? newValue.map((x) => x.value) : []
+                const wasAll = selectedCategory.includes('all')
+                const hasAll = selected.includes('all')
+                let final = selected
+                if (hasAll && !wasAll) final = ['all']
+                else if (hasAll && wasAll && selected.length > 1)
+                  final = selected.filter((x) => x !== 'all')
+                else if (final.length === 0) final = ['all']
+                setSelectedCategory(final)
+              }}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Select Category..."
+              isSearchable={true}
+              closeMenuOnSelect={false}
+              hideSelectedOptions={false}
+              components={{
+                Option: CheckboxOption,
+                ValueContainer: CustomValueContainer,
+                MultiValue,
+              }}
             />
           </div>
 
@@ -386,7 +491,8 @@ const CategoryWiseReport: React.FC = () => {
             <button
               onClick={() => {
                 setDateRange([new Date(), new Date()])
-                setSelectedBranch('all')
+                setSelectedBranch(['all'])
+                setSelectedCategory(['all'])
                 setSelectedDepartment('all')
               }}
               title="Reset Filters"
@@ -419,6 +525,68 @@ const CategoryWiseReport: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {!selectedCategory.includes('all') && selectedCategory.length > 0 && (
+        <div style={{ padding: '0 0 10px 0', marginTop: '-15px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {selectedCategory.map((catId) => {
+              const cat = categories.find((c) => c.id === catId)
+              if (!cat) return null
+              return (
+                <div
+                  key={catId}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    backgroundColor: 'var(--theme-elevation-150)',
+                    padding: '4px 12px',
+                    borderRadius: '4px',
+                    fontSize: '0.85rem',
+                    color: 'var(--theme-text-primary)',
+                    border: '1px solid var(--theme-elevation-200)',
+                  }}
+                >
+                  <span style={{ marginRight: '6px' }}>{cat.name}</span>
+                  <button
+                    onClick={() => {
+                      const newSelected = selectedCategory.filter((id) => id !== catId)
+                      setSelectedCategory(newSelected.length > 0 ? newSelected : ['all'])
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--theme-text-secondary)',
+                      width: '16px',
+                      height: '16px',
+                      borderRadius: '50%',
+                    }}
+                    title="Remove category"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {loading && <p>Loading...</p>}
       {error && <p className="error">{error}</p>}
@@ -479,13 +647,13 @@ const CategoryWiseReport: React.FC = () => {
                         const isZero = sales.amount === 0
                         const isTopSale =
                           showTopSaleHighlight &&
-                          selectedBranch === 'all' &&
+                          selectedBranch.includes('all') &&
                           sales.amount > 0 &&
                           Math.abs(sales.amount - maxSalesPerBranch[header]) < 0.001
 
                         const isLowSale =
                           showLowSaleHighlight &&
-                          selectedBranch === 'all' &&
+                          selectedBranch.includes('all') &&
                           sales.amount > 0 &&
                           Math.abs(sales.amount - minSalesPerBranch[header]) < 0.001
 

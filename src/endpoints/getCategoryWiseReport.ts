@@ -2,6 +2,7 @@ import { PayloadRequest, PayloadHandler } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
+import mongoose from 'mongoose'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -67,10 +68,14 @@ export const getCategoryWiseReportHandler: PayloadHandler = async (
       },
     }
 
+    const categoryParam = typeof req.query.category === 'string' ? req.query.category : ''
+
     if (branchParam && branchParam !== 'all') {
-      // Use $expr to match string ID against ObjectId
-      matchQuery.$expr = {
-        $eq: [{ $toString: '$branch' }, branchParam],
+      const branchIds = branchParam.split(',').filter(Boolean)
+      if (branchIds.length > 0) {
+        matchQuery.$expr = {
+          $in: [{ $toString: '$branch' }, branchIds],
+        }
       }
     }
 
@@ -105,6 +110,20 @@ export const getCategoryWiseReportHandler: PayloadHandler = async (
         $unwind: '$categoryDetails',
       },
     ]
+
+    // Apply Category Filter if present
+    if (categoryParam && categoryParam !== 'all') {
+      const catIds = categoryParam.split(',').filter(Boolean)
+      if (catIds.length > 0) {
+        pipeline.push({
+          $match: {
+            'categoryDetails._id': {
+              $in: catIds.map((id) => new mongoose.Types.ObjectId(id)),
+            },
+          },
+        })
+      }
+    }
 
     // Optional Department Filter
     if (departmentParam && departmentParam !== 'all') {
