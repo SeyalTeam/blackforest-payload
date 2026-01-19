@@ -537,9 +537,9 @@ export interface Expense {
       | 'OTHERS';
     reason: string;
     amount: number;
+    image?: (string | null) | Media;
     id?: string | null;
   }[];
-  billImage?: (string | null) | Media;
   total: number;
   date: string;
   updatedAt: string;
@@ -1097,9 +1097,9 @@ export interface ExpensesSelect<T extends boolean = true> {
         source?: T;
         reason?: T;
         amount?: T;
+        image?: T;
         id?: T;
       };
-  billImage?: T;
   total?: T;
   date?: T;
   updatedAt?: T;

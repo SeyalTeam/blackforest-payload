@@ -67,13 +67,13 @@ const Expenses: CollectionConfig = {
           type: 'number',
           required: true,
         },
+        {
+          name: 'image',
+          type: 'relationship',
+          relationTo: 'media',
+          required: false,
+        },
       ],
-    },
-    {
-      name: 'billImage',
-      type: 'relationship',
-      relationTo: 'media',
-      required: false,
     },
     {
       name: 'total',
