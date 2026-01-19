@@ -670,6 +670,18 @@ const ClosingEntryReport: React.FC = () => {
             <tbody>
               {filteredStats?.map((row, index) => {
                 const calculatedTotal = row.expenses + row.cash + row.upi + row.card
+
+                const today = new Date()
+                const yesterday = new Date(today)
+                yesterday.setDate(yesterday.getDate() - 1)
+
+                const sStr = startDate ? toLocalDateStr(startDate) : ''
+                const eStr = endDate ? toLocalDateStr(endDate) : ''
+                const tStr = toLocalDateStr(today)
+                const yStr = toLocalDateStr(yesterday)
+
+                const showTime =
+                  (sStr === tStr && eStr === tStr) || (sStr === yStr && eStr === yStr)
                 return (
                   <React.Fragment key={row.branchName}>
                     <tr
@@ -682,39 +694,39 @@ const ClosingEntryReport: React.FC = () => {
                       <td>{index + 1}</td>
                       <td className="branch-name-cell">
                         <div>{row.branchName.toUpperCase()}</div>
-                        <div
-                          style={{
-                            fontSize: '0.8rem',
-                            color: '#888',
-                            marginTop: '4px',
-                            display: 'flex',
-                            // flexWrap: 'wrap', // Removed to prevent wrapping
-                            whiteSpace: 'nowrap', // Force single line
-                            alignItems: 'center',
-                          }}
-                        >
-                          <span>
-                            {row.closingNumbers
-                              ?.map((num) => {
-                                const parts = num.split('-')
-                                // Expected format: SAW-CLO-271225-01
-                                if (parts.length >= 4) {
-                                  return `${parts[0]}-${parts[parts.length - 1]}`
-                                }
-                                return num
-                              })
-                              .join(', ')}
-                          </span>
-                          {row.lastUpdated && (
-                            <span style={{ marginLeft: '8px' }}>
-                              {new Date(row.lastUpdated).toLocaleTimeString([], {
-                                hour: 'numeric',
-                                minute: '2-digit',
-                                hour12: true,
-                              })}
+                        {showTime && (
+                          <div
+                            style={{
+                              fontSize: '0.8rem',
+                              color: '#888',
+                              marginTop: '4px',
+                              display: 'flex',
+                              whiteSpace: 'nowrap',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <span>
+                              {row.closingNumbers
+                                ?.map((num) => {
+                                  const parts = num.split('-')
+                                  if (parts.length >= 4) {
+                                    return `${parts[0]}-${parts[parts.length - 1]}`
+                                  }
+                                  return num
+                                })
+                                .join(', ')}
                             </span>
-                          )}
-                        </div>
+                            {row.lastUpdated && (
+                              <span style={{ marginLeft: '8px' }}>
+                                {new Date(row.lastUpdated).toLocaleTimeString([], {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                  hour12: true,
+                                })}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td style={getSystemSalesStyle(row.systemSales)}>
                         <div>{formatValue(row.systemSales)}</div>
@@ -732,12 +744,34 @@ const ClosingEntryReport: React.FC = () => {
                       <td
                         style={{
                           ...getStyle(calculatedTotal),
-                          color: calculatedTotal > row.totalSales ? '#25D366' : 'inherit',
+                          fontWeight:
+                            calculatedTotal > row.totalSales || calculatedTotal < row.totalSales
+                              ? 'bold'
+                              : 'normal',
+                          backgroundColor:
+                            calculatedTotal > row.totalSales
+                              ? '#53161D'
+                              : calculatedTotal < row.totalSales
+                                ? '#960018'
+                                : 'inherit',
+                          color:
+                            calculatedTotal > row.totalSales
+                              ? '#F5EBD0'
+                              : calculatedTotal < row.totalSales
+                                ? 'white'
+                                : 'inherit',
                         }}
                       >
                         {formatValue(calculatedTotal)}
                       </td>
-                      <td style={getStyle(calculatedTotal - row.totalSales)}>
+                      <td
+                        style={{
+                          ...getStyle(calculatedTotal - row.totalSales),
+                          backgroundColor:
+                            calculatedTotal - row.totalSales < 0 ? '#960018' : 'inherit',
+                          color: calculatedTotal - row.totalSales < 0 ? 'white' : 'inherit',
+                        }}
+                      >
                         {formatValue(calculatedTotal - row.totalSales)}
                       </td>
                     </tr>
@@ -784,7 +818,10 @@ const ClosingEntryReport: React.FC = () => {
                                     fontWeight: 'bold',
                                   }}
                                 >
-                                  {new Date(entry.createdAt).toLocaleTimeString([], {
+                                  {new Date(entry.createdAt).toLocaleString([], {
+                                    year: 'numeric',
+                                    month: '2-digit',
+                                    day: '2-digit',
                                     hour: 'numeric',
                                     minute: '2-digit',
                                     hour12: true,
@@ -796,7 +833,7 @@ const ClosingEntryReport: React.FC = () => {
                               style={{
                                 ...getStyle(entry.systemSales),
                                 fontWeight: 'bold',
-                                color: entry.systemSales < 0 ? '#ef4444' : 'black',
+                                color: entry.systemSales < 0 ? '#960018' : 'black',
                               }}
                             >
                               {formatValue(entry.systemSales)}
@@ -805,7 +842,7 @@ const ClosingEntryReport: React.FC = () => {
                               style={{
                                 ...getStyle(entry.manualSales),
                                 fontWeight: 'bold',
-                                color: entry.manualSales < 0 ? '#ef4444' : 'black',
+                                color: entry.manualSales < 0 ? '#960018' : 'black',
                               }}
                             >
                               {formatValue(entry.manualSales)}
@@ -814,7 +851,7 @@ const ClosingEntryReport: React.FC = () => {
                               style={{
                                 ...getStyle(entry.onlineSales),
                                 fontWeight: 'bold',
-                                color: entry.onlineSales < 0 ? '#ef4444' : 'black',
+                                color: entry.onlineSales < 0 ? '#960018' : 'black',
                               }}
                             >
                               {formatValue(entry.onlineSales)}
@@ -823,7 +860,7 @@ const ClosingEntryReport: React.FC = () => {
                               style={{
                                 ...getStyle(entry.totalSales),
                                 fontWeight: 'bold',
-                                color: entry.totalSales < 0 ? '#ef4444' : 'black',
+                                color: entry.totalSales < 0 ? '#960018' : 'black',
                               }}
                             >
                               {formatValue(entry.totalSales)}
@@ -832,7 +869,7 @@ const ClosingEntryReport: React.FC = () => {
                               style={{
                                 ...getStyle(entry.expenses),
                                 fontWeight: 'bold',
-                                color: entry.expenses < 0 ? '#ef4444' : 'black',
+                                color: entry.expenses < 0 ? '#960018' : 'black',
                               }}
                             >
                               {formatValue(entry.expenses)}
@@ -841,7 +878,7 @@ const ClosingEntryReport: React.FC = () => {
                               style={{
                                 ...getStyle(entry.cash),
                                 fontWeight: 'bold',
-                                color: entry.cash < 0 ? '#ef4444' : 'black',
+                                color: entry.cash < 0 ? '#960018' : 'black',
                               }}
                             >
                               {formatValue(entry.cash)}
@@ -850,7 +887,7 @@ const ClosingEntryReport: React.FC = () => {
                               style={{
                                 ...getStyle(entry.upi),
                                 fontWeight: 'bold',
-                                color: entry.upi < 0 ? '#ef4444' : 'black',
+                                color: entry.upi < 0 ? '#960018' : 'black',
                               }}
                             >
                               {formatValue(entry.upi)}
@@ -859,7 +896,7 @@ const ClosingEntryReport: React.FC = () => {
                               style={{
                                 ...getStyle(entry.card),
                                 fontWeight: 'bold',
-                                color: entry.card < 0 ? '#ef4444' : 'black',
+                                color: entry.card < 0 ? '#960018' : 'black',
                               }}
                             >
                               {formatValue(entry.card)}
@@ -868,11 +905,17 @@ const ClosingEntryReport: React.FC = () => {
                               style={{
                                 ...getStyle(entryTotal),
                                 fontWeight: 'bold',
+                                backgroundColor:
+                                  entryTotal > entry.totalSales
+                                    ? '#53161D'
+                                    : entryTotal < entry.totalSales
+                                      ? '#960018'
+                                      : '#FBF8EF',
                                 color:
                                   entryTotal > entry.totalSales
-                                    ? '#25D366'
+                                    ? '#F5EBD0'
                                     : entryTotal < entry.totalSales
-                                      ? '#ef4444'
+                                      ? 'white'
                                       : 'black',
                               }}
                             >
@@ -882,7 +925,9 @@ const ClosingEntryReport: React.FC = () => {
                               style={{
                                 ...getStyle(entryTotal - entry.totalSales),
                                 fontWeight: 'bold',
-                                color: entryTotal - entry.totalSales < 0 ? '#ef4444' : 'black',
+                                backgroundColor:
+                                  entryTotal - entry.totalSales < 0 ? '#960018' : '#FBF8EF',
+                                color: entryTotal - entry.totalSales < 0 ? 'white' : 'black',
                               }}
                             >
                               {formatValue(entryTotal - entry.totalSales)}
@@ -928,14 +973,47 @@ const ClosingEntryReport: React.FC = () => {
                         filteredTotals.upi +
                         filteredTotals.card,
                     ),
+                    fontWeight:
+                      filteredTotals.expenses +
+                        filteredTotals.cash +
+                        filteredTotals.upi +
+                        filteredTotals.card >
+                        filteredTotals.totalSales ||
+                      filteredTotals.expenses +
+                        filteredTotals.cash +
+                        filteredTotals.upi +
+                        filteredTotals.card <
+                        filteredTotals.totalSales
+                        ? 'bold'
+                        : 'normal',
+                    backgroundColor:
+                      filteredTotals.expenses +
+                        filteredTotals.cash +
+                        filteredTotals.upi +
+                        filteredTotals.card >
+                      filteredTotals.totalSales
+                        ? '#53161D'
+                        : filteredTotals.expenses +
+                              filteredTotals.cash +
+                              filteredTotals.upi +
+                              filteredTotals.card <
+                            filteredTotals.totalSales
+                          ? '#960018'
+                          : 'inherit',
                     color:
                       filteredTotals.expenses +
                         filteredTotals.cash +
                         filteredTotals.upi +
                         filteredTotals.card >
                       filteredTotals.totalSales
-                        ? '#25D366'
-                        : 'inherit',
+                        ? '#F5EBD0'
+                        : filteredTotals.expenses +
+                              filteredTotals.cash +
+                              filteredTotals.upi +
+                              filteredTotals.card <
+                            filteredTotals.totalSales
+                          ? 'white'
+                          : 'inherit',
                   }}
                 >
                   {formatValue(
@@ -946,13 +1024,33 @@ const ClosingEntryReport: React.FC = () => {
                   )}
                 </td>
                 <td
-                  style={getStyle(
-                    filteredTotals.expenses +
-                      filteredTotals.cash +
-                      filteredTotals.upi +
-                      filteredTotals.card -
-                      filteredTotals.totalSales,
-                  )}
+                  style={{
+                    ...getStyle(
+                      filteredTotals.expenses +
+                        filteredTotals.cash +
+                        filteredTotals.upi +
+                        filteredTotals.card -
+                        filteredTotals.totalSales,
+                    ),
+                    backgroundColor:
+                      filteredTotals.expenses +
+                        filteredTotals.cash +
+                        filteredTotals.upi +
+                        filteredTotals.card -
+                        filteredTotals.totalSales <
+                      0
+                        ? '#960018'
+                        : 'inherit',
+                    color:
+                      filteredTotals.expenses +
+                        filteredTotals.cash +
+                        filteredTotals.upi +
+                        filteredTotals.card -
+                        filteredTotals.totalSales <
+                      0
+                        ? 'white'
+                        : 'inherit',
+                  }}
                 >
                   {formatValue(
                     filteredTotals.expenses +
