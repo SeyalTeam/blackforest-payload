@@ -51,6 +51,7 @@ import InstockEntries from './collections/InstockEntries'
 import { getInstockEntryReportHandler } from './endpoints/getInstockEntryReport'
 import { updateInstockStatusHandler } from './endpoints/updateInstockStatus'
 import { InstockEntryReportGlobal } from './globals/InstockEntryReport'
+import { getDashboardStatsHandler } from './endpoints/getDashboardStats'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -164,6 +165,11 @@ export default buildConfig({
       path: '/inventory/reset',
       method: 'post',
       handler: resetInventoryHandler,
+    },
+    {
+      path: '/dashboard-stats',
+      method: 'get',
+      handler: getDashboardStatsHandler,
     },
   ],
 
