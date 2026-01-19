@@ -775,13 +775,13 @@ const ProductWiseReport: React.FC = () => {
                         const isZero = sales.amount === 0
                         const isTopSale =
                           showTopSaleHighlight &&
-                          selectedBranch === 'all' &&
+                          selectedBranch.includes('all') &&
                           sales.amount > 0 &&
                           Math.abs(sales.amount - maxSalesPerBranch[header]) < 0.001
 
                         const isLowSale =
                           showLowSaleHighlight &&
-                          selectedBranch === 'all' &&
+                          selectedBranch.includes('all') &&
                           sales.amount > 0 &&
                           Math.abs(sales.amount - minSalesPerBranch[header]) < 0.001
 
