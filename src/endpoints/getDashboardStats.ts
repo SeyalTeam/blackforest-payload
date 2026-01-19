@@ -3,6 +3,7 @@ import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import mongoose from 'mongoose'
+import { Product } from '../payload-types'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)

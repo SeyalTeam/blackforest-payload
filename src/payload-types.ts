@@ -539,6 +539,7 @@ export interface Expense {
     amount: number;
     id?: string | null;
   }[];
+  billImage?: (string | null) | Media;
   total: number;
   date: string;
   updatedAt: string;
@@ -1098,6 +1099,7 @@ export interface ExpensesSelect<T extends boolean = true> {
         amount?: T;
         id?: T;
       };
+  billImage?: T;
   total?: T;
   date?: T;
   updatedAt?: T;

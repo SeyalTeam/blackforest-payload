@@ -16,6 +16,8 @@ export const DashboardGlobal: GlobalConfig = {
           },
         },
       },
+      // Note: Custom Icon support might require a different approach or is not standard in this version for Globals
+      // Removing 'graphics' to fix linter/build error.
     },
   },
   fields: [],

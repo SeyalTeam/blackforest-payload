@@ -70,6 +70,12 @@ const Expenses: CollectionConfig = {
       ],
     },
     {
+      name: 'billImage',
+      type: 'relationship',
+      relationTo: 'media',
+      required: false,
+    },
+    {
       name: 'total',
       type: 'number',
       required: true,
