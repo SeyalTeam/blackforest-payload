@@ -25,6 +25,7 @@ type ReportData = {
 
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
+import './index.scss'
 import Select, { components, OptionProps } from 'react-select'
 
 const CheckboxOption = (props: OptionProps<any>) => {
@@ -80,6 +81,11 @@ const CategoryWiseReport: React.FC = () => {
 
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
   const [selectedDepartment, setSelectedDepartment] = useState('all')
+
+  const [dateRangePreset, setDateRangePreset] = useState<string>('today')
+  const [firstBillDate, setFirstBillDate] = useState<Date | null>(null)
+
+  const [sortBy, setSortBy] = useState<'amount' | 'units'>('amount')
 
   const [showZeroHighlight, setShowZeroHighlight] = useState<boolean>(false)
   const [showTopSaleHighlight, setShowTopSaleHighlight] = useState<boolean>(false)
@@ -139,6 +145,96 @@ const CategoryWiseReport: React.FC = () => {
     setShowExportMenu(false)
   }
 
+  const getQuarterDates = (date: Date) => {
+    const currQuarter = Math.floor((date.getMonth() + 3) / 3)
+    const prevQuarter = currQuarter - 1
+    let startMonth = 0
+    let year = date.getFullYear()
+
+    if (prevQuarter === 0) {
+      startMonth = 9 // Oct
+      year -= 1
+    } else {
+      startMonth = (prevQuarter - 1) * 3
+    }
+    const endMonth = startMonth + 2
+
+    // Start of quarter
+    const start = new Date(year, startMonth, 1)
+    // End of quarter (last day of endMonth)
+    const end = new Date(year, endMonth + 1, 0)
+
+    return { start, end }
+  }
+
+  const dateRangeOptions = [
+    { value: 'till_now', label: 'Till Now' },
+    { value: 'today', label: 'Today' },
+    { value: 'yesterday', label: 'Yesterday' },
+    { value: 'last_7_days', label: 'Last 7 Days' },
+    { value: 'this_month', label: 'This Month' },
+    { value: 'last_30_days', label: 'Last 30 Days' },
+    { value: 'last_month', label: 'Last Month' },
+    { value: 'last_quarter', label: 'Last Quarter' },
+  ]
+
+  const handleDatePresetChange = (value: string) => {
+    setDateRangePreset(value)
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+    let start: Date | null = null
+    let end: Date | null = today
+
+    switch (value) {
+      case 'till_now':
+        if (firstBillDate) {
+          start = firstBillDate
+        }
+        break
+      case 'today':
+        start = today
+        end = today
+        break
+      case 'yesterday':
+        const yest = new Date(today)
+        yest.setDate(yest.getDate() - 1)
+        start = yest
+        end = yest
+        break
+      case 'last_7_days':
+        const last7 = new Date(today)
+        last7.setDate(last7.getDate() - 6)
+        start = last7
+        break
+      case 'this_month':
+        const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+        start = thisMonthStart
+        end = today
+        break
+      case 'last_30_days':
+        const last30 = new Date(today)
+        last30.setDate(last30.getDate() - 29)
+        start = last30
+        break
+      case 'last_month':
+        const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+        const prevMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0)
+        start = prevMonthStart
+        end = prevMonthEnd
+        break
+      case 'last_quarter':
+        const { start: qStart, end: qEnd } = getQuarterDates(today)
+        start = qStart
+        end = qEnd
+        break
+    }
+
+    if (start && end) {
+      setDateRange([start, end])
+    }
+  }
+
   const branchOptions = [
     { value: 'all', label: 'All Branches' },
     ...branches.map((b) => ({ value: b.id, label: b.name })),
@@ -147,6 +243,11 @@ const CategoryWiseReport: React.FC = () => {
   const departmentOptions = [
     { value: 'all', label: 'All Departments' },
     ...departments.map((d) => ({ value: d.id, label: d.name })),
+  ]
+
+  const sortOptions = [
+    { value: 'amount', label: 'Amount' },
+    { value: 'units', label: 'Units' },
   ]
 
   const customStyles = {
@@ -197,9 +298,10 @@ const CategoryWiseReport: React.FC = () => {
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
-        const [branchRes, deptRes] = await Promise.all([
+        const [branchRes, deptRes, billRes] = await Promise.all([
           fetch('/api/branches?limit=100&pagination=false'),
           fetch('/api/departments?limit=100&pagination=false'),
+          fetch('/api/billings?sort=createdAt&limit=1'),
         ])
 
         if (branchRes.ok) {
@@ -216,6 +318,19 @@ const CategoryWiseReport: React.FC = () => {
           const json = await catRes.json()
           setCategories(json.docs)
         }
+        // Set date range from first bill
+        // Set first bill date state but default view is Today
+        if (billRes.ok) {
+          const json = await billRes.json()
+          if (json.docs && json.docs.length > 0) {
+            const firstDate = new Date(json.docs[0].createdAt)
+            setFirstBillDate(firstDate)
+          }
+        }
+        // Set default range to Today
+        const now = new Date()
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        setDateRange([today, today])
       } catch (e) {
         console.error(e)
       }
@@ -251,20 +366,6 @@ const CategoryWiseReport: React.FC = () => {
       if (!res.ok) throw new Error('Failed to fetch report')
       const json: ReportData = await res.json()
 
-      // Automatically enable zero highlight if there are zero values
-      const hasStatsZero = json.stats.some(
-        (row) =>
-          json.branchHeaders.some((h) => (row.branchSales[h]?.amount || 0) === 0) ||
-          row.totalAmount === 0 ||
-          row.totalQuantity === 0,
-      )
-
-      const hasTotalZero =
-        json.totals.totalQuantity === 0 ||
-        json.totals.totalAmount === 0 ||
-        json.branchHeaders.some((h) => (json.totals.branchTotals[h] || 0) === 0)
-
-      setShowZeroHighlight(hasStatsZero || hasTotalZero)
       setData(json)
     } catch (err) {
       console.error(err)
@@ -291,7 +392,14 @@ const CategoryWiseReport: React.FC = () => {
           <span className="date-text">{start}</span>
           <span className="separator">→</span>
           <span className="date-text">{end || start}</span>
-          <span className="icon">
+          <span
+            className="icon"
+            onClick={(e) => {
+              e.stopPropagation()
+              setDateRange([null, null])
+            }}
+            style={{ cursor: 'pointer' }}
+          >
             <svg
               width="20"
               height="20"
@@ -302,10 +410,8 @@ const CategoryWiseReport: React.FC = () => {
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="16" y1="2" x2="16" y2="6"></line>
-              <line x1="8" y1="2" x2="8" y2="6"></line>
-              <line x1="3" y1="10" x2="21" y2="10"></line>
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
           </span>
         </button>
@@ -317,7 +423,7 @@ const CategoryWiseReport: React.FC = () => {
   return (
     <div className="category-report-container">
       <div className="report-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
           <h1>Category Wise Report</h1>
           <button
             title="Toggle Zero Highlight"
@@ -355,9 +461,7 @@ const CategoryWiseReport: React.FC = () => {
               padding: 0,
             }}
           />
-        </div>
-        <div className="date-filter">
-          <div className="filter-group">
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <DatePicker
               selectsRange={true}
               startDate={startDate}
@@ -365,12 +469,74 @@ const CategoryWiseReport: React.FC = () => {
               onChange={(update) => {
                 setDateRange(update)
               }}
-              monthsShown={2}
+              monthsShown={1}
               dateFormat="yyyy-MM-dd"
               className="date-input"
               customInput={<CustomInput />}
               calendarClassName="custom-calendar"
-              popperPlacement="bottom-start"
+            />
+            {/* Export Button */}
+            <div className="export-container">
+              <button
+                className="export-btn"
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                title="Export Report"
+              >
+                <span>Export</span>
+                <span className="icon">↓</span>
+              </button>
+              {showExportMenu && (
+                <div className="export-menu">
+                  <button onClick={handleExportExcel}>Excel</button>
+                </div>
+              )}
+            </div>
+            {/* Backdrop */}
+            {showExportMenu && (
+              <div
+                className="export-backdrop"
+                onClick={() => setShowExportMenu(false)}
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  zIndex: 9998,
+                  cursor: 'default',
+                }}
+              />
+            )}
+          </div>
+        </div>
+        <div className="date-filter">
+          <div className="filter-group">
+            <Select
+              instanceId="date-preset-select"
+              options={dateRangeOptions}
+              value={dateRangeOptions.find((o) => o.value === dateRangePreset)}
+              onChange={(option: { value: string; label: string } | null) => {
+                if (option) handleDatePresetChange(option.value)
+              }}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Date Range..."
+              isSearchable={false}
+            />
+          </div>
+
+          <div className="filter-group">
+            <Select
+              instanceId="sort-select"
+              options={sortOptions}
+              value={sortOptions.find((o) => o.value === sortBy)}
+              onChange={(option: { value: string; label: string } | null) =>
+                setSortBy((option?.value as 'amount' | 'units') || 'amount')
+              }
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Sort By..."
+              isSearchable={false}
             />
           </div>
 
@@ -452,41 +618,6 @@ const CategoryWiseReport: React.FC = () => {
             />
           </div>
 
-          {/* Export Button */}
-          <div className="filter-group">
-            <div className="export-container">
-              <button
-                className="export-btn"
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                title="Export Report"
-              >
-                <span>Export</span>
-                <span className="icon">↓</span>
-              </button>
-              {showExportMenu && (
-                <div className="export-menu">
-                  <button onClick={handleExportExcel}>Excel</button>
-                </div>
-              )}
-            </div>
-            {/* Backdrop */}
-            {showExportMenu && (
-              <div
-                className="export-backdrop"
-                onClick={() => setShowExportMenu(false)}
-                style={{
-                  position: 'fixed',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  zIndex: 9998,
-                  cursor: 'default',
-                }}
-              />
-            )}
-          </div>
-
           <div className="filter-group">
             <button
               onClick={() => {
@@ -494,6 +625,7 @@ const CategoryWiseReport: React.FC = () => {
                 setSelectedBranch(['all'])
                 setSelectedCategory(['all'])
                 setSelectedDepartment('all')
+                setSortBy('amount')
               }}
               title="Reset Filters"
               style={{
@@ -611,6 +743,15 @@ const CategoryWiseReport: React.FC = () => {
           })
         }
 
+        const sortedStats = data
+          ? [...data.stats].sort((a, b) => {
+              if (sortBy === 'units') {
+                return b.totalQuantity - a.totalQuantity
+              }
+              return b.totalAmount - a.totalAmount
+            })
+          : []
+
         return (
           data && (
             <div className="table-container">
@@ -638,7 +779,7 @@ const CategoryWiseReport: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.stats.map((row) => (
+                  {sortedStats.map((row) => (
                     <tr key={row.sNo}>
                       <td>{row.sNo}</td>
                       <td style={{ whiteSpace: 'normal' }}>{row.categoryName}</td>
@@ -693,16 +834,15 @@ const CategoryWiseReport: React.FC = () => {
                                       ? '#FFFFFF'
                                       : 'var(--theme-elevation-400)',
                                   marginTop: '2px',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '1px',
                                 }}
                               >
                                 {sales.quantity > 0 && (
-                                  <span>{formatValue(sales.quantity)} Units</span>
+                                  <div>{formatValue(sales.quantity)} Units</div>
                                 )}
-                                {sales.amount > 0 && (
-                                  <span style={{ marginLeft: sales.quantity > 0 ? '8px' : '0' }}>
-                                    {percentage}%
-                                  </span>
-                                )}
+                                {sales.amount > 0 && <div>{percentage}%</div>}
                               </div>
                             )}
                           </td>
