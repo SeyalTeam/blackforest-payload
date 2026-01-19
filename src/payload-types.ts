@@ -116,6 +116,7 @@ export interface Config {
   };
   globals: {
     'ip-settings': IpSetting;
+    'general-dashboard': GeneralDashboard;
     'branch-billing-report': BranchBillingReport;
     'category-wise-report': CategoryWiseReport;
     'product-wise-report': ProductWiseReport;
@@ -129,6 +130,7 @@ export interface Config {
   };
   globalsSelect: {
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
+    'general-dashboard': GeneralDashboardSelect<false> | GeneralDashboardSelect<true>;
     'branch-billing-report': BranchBillingReportSelect<false> | BranchBillingReportSelect<true>;
     'category-wise-report': CategoryWiseReportSelect<false> | CategoryWiseReportSelect<true>;
     'product-wise-report': ProductWiseReportSelect<false> | ProductWiseReportSelect<true>;
@@ -1264,6 +1266,15 @@ export interface IpSetting {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "general-dashboard".
+ */
+export interface GeneralDashboard {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "branch-billing-report".
  */
 export interface BranchBillingReport {
@@ -1370,6 +1381,15 @@ export interface IpSettingsSelect<T extends boolean = true> {
             };
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "general-dashboard_select".
+ */
+export interface GeneralDashboardSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

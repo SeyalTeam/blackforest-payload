@@ -46,28 +46,118 @@ type ReportData = {
 }
 
 const ClosingEntryReport: React.FC = () => {
+  const [dateRangePreset, setDateRangePreset] = useState<string>('today')
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()])
   const [startDate, endDate] = dateRange
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [showZeroHighlight, setShowZeroHighlight] = useState<boolean>(false)
   const [expandedBranch, setExpandedBranch] = useState<string | null>(null)
   const [branches, setBranches] = useState<any[]>([])
-  const [filterBranch, setFilterBranch] = useState<string | null>(null)
+  const [selectedBranch, setSelectedBranch] = useState<string[]>(['all'])
+  const [firstClosingDate, setFirstClosingDate] = useState<Date | null>(null)
 
   useEffect(() => {
-    const fetchBranches = async () => {
+    const fetchMetadata = async () => {
       try {
-        const res = await fetch('/api/branches?limit=1000&sort=name')
-        const json = await res.json()
-        setBranches(json.docs || [])
+        const [branchesRes, closingRes] = await Promise.all([
+          fetch('/api/branches?limit=1000&sort=name'),
+          fetch('/api/closing-entries?sort=createdAt&limit=1'),
+        ])
+        const branchesJson = await branchesRes.json()
+        setBranches(branchesJson.docs || [])
+
+        const closingJson = await closingRes.json()
+        if (closingJson.docs && closingJson.docs.length > 0) {
+          setFirstClosingDate(new Date(closingJson.docs[0].createdAt))
+        }
       } catch (err) {
-        console.error('Error fetching branches', err)
+        console.error('Error fetching metadata', err)
       }
     }
-    fetchBranches()
+    fetchMetadata()
   }, [])
+
+  const getQuarterDates = (date: Date) => {
+    const currQuarter = Math.floor((date.getMonth() + 3) / 3)
+    const prevQuarter = currQuarter - 1
+    let startMonth = 0
+    let year = date.getFullYear()
+
+    if (prevQuarter === 0) {
+      startMonth = 9 // Oct
+      year -= 1
+    } else {
+      startMonth = (prevQuarter - 1) * 3
+    }
+    const endMonth = startMonth + 2
+
+    // Start of quarter
+    const start = new Date(year, startMonth, 1)
+    // End of quarter (last day of endMonth)
+    const end = new Date(year, endMonth + 1, 0)
+
+    return { start, end }
+  }
+
+  const handleDatePresetChange = (value: string) => {
+    setDateRangePreset(value)
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+    let start: Date | null = null
+    let end: Date | null = today
+
+    switch (value) {
+      case 'till_now':
+        if (firstClosingDate) {
+          start = firstClosingDate
+        }
+        break
+      case 'today':
+        start = today
+        end = today
+        break
+      case 'yesterday': {
+        const y = new Date(today)
+        y.setDate(y.getDate() - 1)
+        start = y
+        end = y
+        break
+      }
+      case 'last_7_days': {
+        const d7 = new Date(today)
+        d7.setDate(d7.getDate() - 6)
+        start = d7
+        break
+      }
+      case 'this_month': {
+        const mStart = new Date(today.getFullYear(), today.getMonth(), 1)
+        start = mStart
+        break
+      }
+      case 'last_30_days': {
+        const d30 = new Date(today)
+        d30.setDate(d30.getDate() - 29)
+        start = d30
+        break
+      }
+      case 'last_month': {
+        const lmStart = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+        const lmEnd = new Date(today.getFullYear(), today.getMonth(), 0)
+        start = lmStart
+        end = lmEnd
+        break
+      }
+      case 'last_quarter': {
+        const { start: qStart, end: qEnd } = getQuarterDates(today)
+        start = qStart
+        end = qEnd
+        break
+      }
+    }
+    setDateRange([start, end])
+  }
 
   const formatValue = (val: number) => {
     const fixed = val.toFixed(2)
@@ -92,23 +182,6 @@ const ClosingEntryReport: React.FC = () => {
       if (!res.ok) throw new Error('Failed to fetch report')
       const json: ReportData = await res.json()
 
-      // Automatically enable zero highlight if there are zero amounts in totals
-      const hasZero =
-        json.stats.some(
-          (row) =>
-            row.systemSales === 0 ||
-            row.manualSales === 0 ||
-            row.onlineSales === 0 ||
-            row.totalSales === 0 ||
-            row.totalBills === 0,
-        ) ||
-        json.totals.systemSales === 0 ||
-        json.totals.manualSales === 0 ||
-        json.totals.onlineSales === 0 ||
-        json.totals.totalSales === 0 ||
-        json.totals.totalBills === 0
-
-      setShowZeroHighlight(hasZero)
       setData(json)
     } catch (err) {
       console.error(err)
@@ -124,6 +197,13 @@ const ClosingEntryReport: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange])
+
+  // Initial load: set default date range (Today)
+  useEffect(() => {
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    setDateRange([today, today])
+  }, [])
 
   const CustomInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
     ({ value, onClick }, ref) => {
@@ -161,8 +241,8 @@ const ClosingEntryReport: React.FC = () => {
   CustomInput.displayName = 'CustomInput'
 
   const filteredStats = data?.stats.filter((row) => {
-    if (!filterBranch) return true
-    return row.branchName === filterBranch
+    if (selectedBranch.includes('all')) return true
+    return selectedBranch.includes(row.branchName)
   })
 
   // Recalculate totals based on filteredStats
@@ -180,7 +260,7 @@ const ClosingEntryReport: React.FC = () => {
         card: 0,
       }
 
-    if (!filterBranch) return data.totals
+    if (selectedBranch.includes('all')) return data.totals
 
     return (filteredStats || []).reduce(
       (acc, row) => ({
@@ -206,7 +286,7 @@ const ClosingEntryReport: React.FC = () => {
         card: 0,
       },
     )
-  }, [data, filteredStats, filterBranch])
+  }, [data, filteredStats, selectedBranch])
 
   const handleExportExcel = () => {
     if (!data || !filteredStats) return
@@ -286,13 +366,13 @@ const ClosingEntryReport: React.FC = () => {
 
   // Helper for zero highlighting
   const getStyle = (val: number) => ({
-    textAlign: 'right' as const,
+    textAlign: 'center' as const,
     fontWeight: '600' as const,
     fontSize: '1.2rem' as const,
     verticalAlign: 'middle' as const, // Ensure vertical centering
     padding: '8px', // Ensure padding matches
-    backgroundColor: showZeroHighlight && val === 0 ? '#800020' : 'inherit',
-    color: showZeroHighlight && val === 0 ? '#FFFFFF' : 'inherit',
+    backgroundColor: 'inherit',
+    color: 'inherit',
   })
 
   // Specific style for System Sales to handle stacked content
@@ -302,25 +382,177 @@ const ClosingEntryReport: React.FC = () => {
     // Content will handle its own alignment via text-align: right
   })
 
+  const dateRangeOptions = [
+    { value: 'till_now', label: 'Till Now' },
+    { value: 'today', label: 'Today' },
+    { value: 'yesterday', label: 'Yesterday' },
+    { value: 'last_7_days', label: 'Last 7 Days' },
+    { value: 'this_month', label: 'This Month' },
+    { value: 'last_30_days', label: 'Last 30 Days' },
+    { value: 'last_month', label: 'Last Month' },
+    { value: 'last_quarter', label: 'Last Quarter' },
+  ]
+
+  const branchOptions = [
+    { value: 'all', label: 'All Branches' },
+    ...branches.map((b) => ({ value: b.name, label: b.name })),
+  ]
+
+  const customStyles = {
+    control: (base: Record<string, unknown>, state: { isFocused: boolean }) => ({
+      ...base,
+      backgroundColor: 'var(--theme-input-bg, var(--theme-elevation-50))',
+      borderColor: state.isFocused ? 'var(--theme-info-500)' : 'var(--theme-elevation-400)',
+      borderRadius: '8px',
+      height: '42px', // Match fixed height of datepicker
+      minHeight: '42px',
+      boxShadow: 'none',
+      '&:hover': {
+        borderColor: 'var(--theme-info-500)',
+      },
+      width: '180px', // Uniform width for dropdowns
+    }),
+    singleValue: (base: Record<string, unknown>) => ({
+      ...base,
+      color: 'var(--theme-text-primary, #fff)',
+    }),
+    placeholder: (base: Record<string, unknown>) => ({
+      ...base,
+      color: 'var(--theme-text-secondary, #888)',
+    }),
+    menu: (base: Record<string, unknown>) => ({
+      ...base,
+      backgroundColor: 'var(--theme-elevation-100)',
+      border: '1px solid var(--theme-elevation-300)',
+      zIndex: 9999,
+    }),
+    option: (
+      base: Record<string, unknown>,
+      state: { isFocused: boolean; isSelected: boolean },
+    ) => ({
+      ...base,
+      backgroundColor: state.isSelected
+        ? 'var(--theme-info-500)'
+        : state.isFocused
+          ? 'var(--theme-elevation-200)'
+          : 'transparent',
+      color: 'var(--theme-text-primary, #fff)',
+      cursor: 'pointer',
+      '&:active': {
+        backgroundColor: 'var(--theme-info-600)',
+      },
+    }),
+    input: (base: Record<string, unknown>) => ({
+      ...base,
+      color: 'var(--theme-text-primary, #fff)',
+    }),
+    multiValue: (base: Record<string, unknown>) => ({
+      ...base,
+      backgroundColor: 'var(--theme-elevation-200)',
+      borderRadius: '4px',
+    }),
+    multiValueLabel: (base: Record<string, unknown>) => ({
+      ...base,
+      color: 'var(--theme-text-primary, #fff)',
+    }),
+    multiValueRemove: (base: Record<string, unknown>) => ({
+      ...base,
+      color: 'var(--theme-text-primary, #fff)',
+      ':hover': {
+        backgroundColor: 'var(--theme-error-500)',
+        color: 'white',
+      },
+    }),
+  }
+
+  // Custom Option component with checkbox
+  const CheckboxOption = (props: any) => {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          padding: '8px 12px',
+          cursor: 'pointer',
+          backgroundColor: props.isFocused ? 'var(--theme-elevation-200)' : 'transparent',
+          color: 'var(--theme-text-primary)',
+        }}
+        onClick={() => props.selectOption(props.data)}
+      >
+        <input
+          type="checkbox"
+          checked={props.isSelected}
+          onChange={() => null}
+          style={{
+            marginRight: '10px',
+            accentColor: 'var(--theme-info-500)',
+            cursor: 'pointer',
+          }}
+        />
+        <label style={{ cursor: 'pointer', flex: 1 }}>{props.label}</label>
+      </div>
+    )
+  }
+
+  // Custom Value Container to show "X Selected"
+  const CustomValueContainer = (props: any) => {
+    const selectedCount = props.getValue().length
+    const allSelected = props.getValue().some((v: any) => v.value === 'all')
+    const { children, ...rest } = props
+
+    // We still want to render the input for search functionality
+    const input = React.Children.toArray(children).find(
+      (child: any) => child.key && child.key.includes('input'),
+    )
+
+    return (
+      <div
+        {...rest.innerProps}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 8px',
+          color: 'var(--theme-text-primary)',
+          overflow: 'hidden',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {allSelected ? (
+          'All Branches'
+        ) : selectedCount > 0 ? (
+          `${selectedCount} Selected`
+        ) : (
+          <span style={{ color: 'var(--theme-text-secondary, #888)' }}>Select Branch...</span>
+        )}
+        <div style={{ margin: 0, padding: 0, visibility: 'visible', width: 0, height: 0 }}>
+          {input}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="branch-report-container">
       <div className="report-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <h1>Closing Entry Report</h1>
-          <button
-            title="Toggle Zero Highlight"
-            onClick={() => setShowZeroHighlight(!showZeroHighlight)}
-            style={{
-              width: '16px',
-              height: '16px',
-              backgroundColor: '#800020',
-              border: showZeroHighlight ? '1px solid #ffffff' : '1px solid #800020',
-              cursor: 'pointer',
-              padding: 0,
-            }}
-          />
         </div>
         <div className="date-filter">
+          <div className="filter-group">
+            <Select
+              instanceId="date-preset-select"
+              options={dateRangeOptions}
+              value={dateRangeOptions.find((o) => o.value === dateRangePreset)}
+              onChange={(option: { value: string; label: string } | null) => {
+                if (option) handleDatePresetChange(option.value)
+              }}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Date Range..."
+              isSearchable={false}
+            />
+          </div>
+
           <div className="filter-group">
             <DatePicker
               selectsRange={true}
@@ -329,7 +561,7 @@ const ClosingEntryReport: React.FC = () => {
               onChange={(update) => {
                 setDateRange(update)
               }}
-              monthsShown={2}
+              monthsShown={1}
               dateFormat="yyyy-MM-dd"
               customInput={<CustomInput />}
               calendarClassName="custom-calendar"
@@ -337,47 +569,31 @@ const ClosingEntryReport: React.FC = () => {
             />
           </div>
 
-          <div className="filter-group" style={{ minWidth: '200px' }}>
+          <div className="filter-group">
             <Select
-              options={[
-                { value: '', label: 'All Branches' },
-                ...branches.map((b) => ({ value: b.name, label: b.name })),
-              ]}
-              value={
-                filterBranch
-                  ? { value: filterBranch, label: filterBranch }
-                  : { value: '', label: 'All Branches' }
-              }
-              onChange={(option) => setFilterBranch(option?.value || null)}
-              placeholder="All Branches"
-              isClearable
-              styles={{
-                control: (base) => ({
-                  ...base,
-                  backgroundColor: '#18181b',
-                  borderColor: '#27272a',
-                  color: '#ffffff',
-                }),
-                menu: (base) => ({
-                  ...base,
-                  backgroundColor: '#18181b',
-                  border: '1px solid #27272a',
-                  zIndex: 9999,
-                }),
-                option: (base, state) => ({
-                  ...base,
-                  backgroundColor: state.isFocused ? '#27272a' : '#18181b',
-                  color: '#ffffff',
-                  cursor: 'pointer',
-                }),
-                singleValue: (base) => ({
-                  ...base,
-                  color: '#ffffff',
-                }),
-                input: (base) => ({
-                  ...base,
-                  color: '#ffffff',
-                }),
+              options={branchOptions}
+              isMulti
+              value={branchOptions.filter((o) => selectedBranch.includes(o.value))}
+              onChange={(newValue) => {
+                const selected = newValue ? newValue.map((x) => x.value) : []
+                const wasAll = selectedBranch.includes('all')
+                const hasAll = selected.includes('all')
+                let final = selected
+                if (hasAll && !wasAll) final = ['all']
+                else if (hasAll && wasAll && selected.length > 1)
+                  final = selected.filter((x) => x !== 'all')
+                else if (final.length === 0) final = ['all']
+                setSelectedBranch(final)
+              }}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Select Branch..."
+              isSearchable={true}
+              closeMenuOnSelect={false}
+              hideSelectedOptions={false}
+              components={{
+                Option: CheckboxOption,
+                ValueContainer: CustomValueContainer,
               }}
             />
           </div>
@@ -392,8 +608,11 @@ const ClosingEntryReport: React.FC = () => {
           <div className="filter-group">
             <button
               onClick={() => {
-                setDateRange([new Date(), new Date()]) // Reset to Today
-                setFilterBranch(null)
+                setDateRangePreset('today')
+                const now = new Date()
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+                setDateRange([today, today])
+                setSelectedBranch(['all'])
               }}
               title="Reset Filters"
               style={{
@@ -510,7 +729,14 @@ const ClosingEntryReport: React.FC = () => {
                       <td style={getStyle(row.cash)}>{formatValue(row.cash)}</td>
                       <td style={getStyle(row.upi)}>{formatValue(row.upi)}</td>
                       <td style={getStyle(row.card)}>{formatValue(row.card)}</td>
-                      <td style={getStyle(calculatedTotal)}>{formatValue(calculatedTotal)}</td>
+                      <td
+                        style={{
+                          ...getStyle(calculatedTotal),
+                          color: calculatedTotal > row.totalSales ? '#25D366' : 'inherit',
+                        }}
+                      >
+                        {formatValue(calculatedTotal)}
+                      </td>
                       <td style={getStyle(calculatedTotal - row.totalSales)}>
                         {formatValue(calculatedTotal - row.totalSales)}
                       </td>
@@ -532,7 +758,7 @@ const ClosingEntryReport: React.FC = () => {
                           <tr
                             key={`${row.branchName}-entry-${i}`}
                             style={{
-                              backgroundColor: '#ffcedf',
+                              backgroundColor: '#FBF8EF',
                               color: 'black',
                             }}
                           >
@@ -644,7 +870,7 @@ const ClosingEntryReport: React.FC = () => {
                                 fontWeight: 'bold',
                                 color:
                                   entryTotal > entry.totalSales
-                                    ? '#006400'
+                                    ? '#25D366'
                                     : entryTotal < entry.totalSales
                                       ? '#ef4444'
                                       : 'black',
@@ -695,12 +921,22 @@ const ClosingEntryReport: React.FC = () => {
                 <td style={getStyle(filteredTotals.upi)}>{formatValue(filteredTotals.upi)}</td>
                 <td style={getStyle(filteredTotals.card)}>{formatValue(filteredTotals.card)}</td>
                 <td
-                  style={getStyle(
-                    filteredTotals.expenses +
-                      filteredTotals.cash +
-                      filteredTotals.upi +
-                      filteredTotals.card,
-                  )}
+                  style={{
+                    ...getStyle(
+                      filteredTotals.expenses +
+                        filteredTotals.cash +
+                        filteredTotals.upi +
+                        filteredTotals.card,
+                    ),
+                    color:
+                      filteredTotals.expenses +
+                        filteredTotals.cash +
+                        filteredTotals.upi +
+                        filteredTotals.card >
+                      filteredTotals.totalSales
+                        ? '#25D366'
+                        : 'inherit',
+                  }}
                 >
                   {formatValue(
                     filteredTotals.expenses +

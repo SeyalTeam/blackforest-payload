@@ -24,6 +24,7 @@ import ClosingEntries from './collections/ClosingEntries'
 import Expenses from './collections/Expenses'
 import StockOrders from './collections/StockOrders'
 import { IPSettings } from './globals/IPSettings'
+import { DashboardGlobal } from './globals/Dashboard'
 import { BranchBillingReportGlobal } from './globals/BranchBillingReport'
 import { CategoryWiseReportGlobal } from './globals/CategoryWiseReport'
 import { ProductWiseReportGlobal } from './globals/ProductWiseReport'
@@ -62,6 +63,11 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
     components: {
+      // views: {
+      //   Dashboard: {
+      //     Component: '/components/Dashboard/index.tsx#default',
+      //   },
+      // },
       // beforeNavLinks: [],
     },
   },
@@ -163,6 +169,7 @@ export default buildConfig({
 
   globals: [
     IPSettings,
+    DashboardGlobal,
     BranchBillingReportGlobal,
     CategoryWiseReportGlobal,
     ProductWiseReportGlobal,
