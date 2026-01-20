@@ -629,7 +629,7 @@ const ExpenseReport: React.FC = () => {
                 <div className="overall-report-total">
                   <div className="total-info">
                     <div className="total-label">OVERALL TOTAL</div>
-                    <span className="total-count">{data.meta.totalItems} items</span>
+                    <span className="total-count">{data.meta.totalCount} items</span>
                   </div>
                   <div className="total-amount">
                     ₹{data.meta.grandTotal.toLocaleString('en-IN')}
