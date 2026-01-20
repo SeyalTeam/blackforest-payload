@@ -905,17 +905,12 @@ const ClosingEntryReport: React.FC = () => {
                               style={{
                                 ...getStyle(entryTotal),
                                 fontWeight: 'bold',
-                                backgroundColor:
+                                backgroundColor: '#FBF8EF',
+                                color:
                                   entryTotal > entry.totalSales
                                     ? '#53161D'
                                     : entryTotal < entry.totalSales
                                       ? '#960018'
-                                      : '#FBF8EF',
-                                color:
-                                  entryTotal > entry.totalSales
-                                    ? '#F5EBD0'
-                                    : entryTotal < entry.totalSales
-                                      ? 'white'
                                       : 'black',
                               }}
                             >
@@ -925,9 +920,8 @@ const ClosingEntryReport: React.FC = () => {
                               style={{
                                 ...getStyle(entryTotal - entry.totalSales),
                                 fontWeight: 'bold',
-                                backgroundColor:
-                                  entryTotal - entry.totalSales < 0 ? '#960018' : '#FBF8EF',
-                                color: entryTotal - entry.totalSales < 0 ? 'white' : 'black',
+                                backgroundColor: '#FBF8EF',
+                                color: entryTotal - entry.totalSales < 0 ? '#960018' : 'black',
                               }}
                             >
                               {formatValue(entryTotal - entry.totalSales)}

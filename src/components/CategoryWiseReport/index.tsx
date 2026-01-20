@@ -803,9 +803,8 @@ const CategoryWiseReport: React.FC = () => {
                           branchTotal > 0 ? ((sales.amount / branchTotal) * 100).toFixed(2) : '0.00'
 
                         const isUnitsSort = sortBy === 'units'
-                        const mainValue = isUnitsSort
-                          ? formatValue(sales.quantity)
-                          : formatValue(sales.amount)
+                        const numValue = isUnitsSort ? sales.quantity : sales.amount
+                        const mainValue = numValue === 0 ? '' : formatValue(numValue)
 
                         const subValue = isUnitsSort
                           ? `₹${formatValue(sales.amount)}`
@@ -865,7 +864,7 @@ const CategoryWiseReport: React.FC = () => {
                             showZeroHighlight && row.totalQuantity === 0 ? '#FFFFFF' : 'inherit',
                         }}
                       >
-                        {formatValue(row.totalQuantity)}
+                        {row.totalQuantity === 0 ? '' : formatValue(row.totalQuantity)}
                       </td>
                       <td
                         style={{
@@ -877,7 +876,7 @@ const CategoryWiseReport: React.FC = () => {
                           color: showZeroHighlight && row.totalAmount === 0 ? '#FFFFFF' : 'inherit',
                         }}
                       >
-                        {formatValue(row.totalAmount)}
+                        {row.totalAmount === 0 ? '' : formatValue(row.totalAmount)}
                       </td>
                     </tr>
                   ))}
@@ -902,7 +901,7 @@ const CategoryWiseReport: React.FC = () => {
                             color: showZeroHighlight && isZero ? '#FFFFFF' : 'inherit',
                           }}
                         >
-                          {formatValue(val)}
+                          {val === 0 ? '' : formatValue(val)}
                         </td>
                       )
                     })}
@@ -921,7 +920,9 @@ const CategoryWiseReport: React.FC = () => {
                             : 'inherit',
                       }}
                     >
-                      {formatValue(data.totals.totalQuantity)}
+                      {data.totals.totalQuantity === 0
+                        ? ''
+                        : formatValue(data.totals.totalQuantity)}
                     </td>
                     <td
                       style={{
@@ -938,7 +939,7 @@ const CategoryWiseReport: React.FC = () => {
                             : 'inherit',
                       }}
                     >
-                      {formatValue(data.totals.totalAmount)}
+                      {data.totals.totalAmount === 0 ? '' : formatValue(data.totals.totalAmount)}
                     </td>
                   </tr>
                 </tfoot>
