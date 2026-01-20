@@ -565,6 +565,17 @@ const ExpenseReport: React.FC = () => {
         {!loading && data && (
           <div className="report-main-layout">
             <div className="branch-groups">
+              {data.groups.length > 0 && (
+                <div className="overall-report-total">
+                  <div className="total-info">
+                    <div className="total-label">OVERALL TOTAL</div>
+                    <span className="total-count">{data.meta.totalCount} items</span>
+                  </div>
+                  <div className="total-amount">
+                    ₹{data.meta.grandTotal.toLocaleString('en-IN')}
+                  </div>
+                </div>
+              )}
               {data.groups.map((group) => (
                 <div key={group._id} className="branch-section">
                   <div className="branch-header">
@@ -624,18 +635,6 @@ const ExpenseReport: React.FC = () => {
                 </div>
               ))}
               {data.groups.length === 0 && <div className="no-data">No expenses found.</div>}
-
-              {data.groups.length > 0 && (
-                <div className="overall-report-total">
-                  <div className="total-info">
-                    <div className="total-label">OVERALL TOTAL</div>
-                    <span className="total-count">{data.meta.totalCount} items</span>
-                  </div>
-                  <div className="total-amount">
-                    ₹{data.meta.grandTotal.toLocaleString('en-IN')}
-                  </div>
-                </div>
-              )}
             </div>
 
             <CategorySummary

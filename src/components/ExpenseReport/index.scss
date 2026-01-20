@@ -217,7 +217,7 @@
       padding: 1.25rem 1.5rem; // Match branch header padding
       background: var(--theme-elevation-100); // Match branch header background
       border-radius: 12px;
-      margin-top: 1rem;
+      margin-bottom: 2rem;
       border: 1px solid #56cfe1;
       box-shadow: 0 4px 15px rgba(86, 207, 225, 0.15);
 
@@ -330,6 +330,7 @@
             &.amount-cell {
               font-weight: 700;
               text-align: right;
+              font-size: 1.15rem;
             }
 
             &.time-cell {
