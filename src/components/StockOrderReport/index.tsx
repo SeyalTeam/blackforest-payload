@@ -23,13 +23,13 @@ const formatQty = (val: number) => {
 const getStatusColor = (currentQty: number, targetQty: number, currentTime?: string) => {
   if (currentQty > targetQty) return '#FA8603'
   if (currentQty < targetQty && currentTime) return '#ef4444'
-  if (currentTime) return '#53fd68'
+  if (currentTime) return '#a856f6'
   return undefined
 }
 const getDifColor = (val: number) => {
   if (val < 0) return '#FA8603'
   if (val > 0) return '#ef4444'
-  return '#53fd68'
+  return '#a856f6'
 }
 
 const getStatusCellStyle = (currentQty: number, targetQty: number, currentTime?: string) => {
@@ -890,7 +890,7 @@ const StockOrderReport: React.FC = () => {
                   gap: '15px',
                 }}
               >
-                <h3 style={{ margin: 0 }}>Product Order Details</h3>
+                <h3 style={{ margin: 0, color: 'white' }}>Product Order Details</h3>
               </div>
 
               <div className="table-container details-table">
