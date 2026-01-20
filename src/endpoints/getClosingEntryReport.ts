@@ -60,6 +60,7 @@ export const getClosingEntryReportHandler: PayloadHandler = async (
               cash: '$cash',
               upi: '$upi',
               card: '$creditCard',
+              denominations: '$denominations',
             },
           },
           systemSales: { $sum: '$systemSales' },
@@ -74,6 +75,13 @@ export const getClosingEntryReportHandler: PayloadHandler = async (
           cash: { $sum: '$cash' },
           upi: { $sum: '$upi' },
           card: { $sum: '$creditCard' },
+          count2000: { $sum: { $ifNull: ['$denominations.count2000', 0] } },
+          count500: { $sum: { $ifNull: ['$denominations.count500', 0] } },
+          count200: { $sum: { $ifNull: ['$denominations.count200', 0] } },
+          count100: { $sum: { $ifNull: ['$denominations.count100', 0] } },
+          count50: { $sum: { $ifNull: ['$denominations.count50', 0] } },
+          count10: { $sum: { $ifNull: ['$denominations.count10', 0] } },
+          count5: { $sum: { $ifNull: ['$denominations.count5', 0] } },
         },
       },
       // Lookup Branch Details
@@ -93,7 +101,7 @@ export const getClosingEntryReportHandler: PayloadHandler = async (
       },
       {
         $project: {
-          _id: 0,
+          _id: 1,
           branchName: { $ifNull: ['$branchDetails.name', 'Unknown Branch'] },
           totalEntries: 1,
           closingNumbers: 1,
@@ -111,6 +119,13 @@ export const getClosingEntryReportHandler: PayloadHandler = async (
           cash: 1,
           upi: 1,
           card: 1,
+          count2000: 1,
+          count500: 1,
+          count200: 1,
+          count100: 1,
+          count50: 1,
+          count10: 1,
+          count5: 1,
         },
       },
       // Sort by Branch Name
@@ -153,16 +168,124 @@ export const getClosingEntryReportHandler: PayloadHandler = async (
       },
     )
 
-    // Add Serial Number
-    const statsWithSn = stats.map((item, index) => ({
-      ...item,
-      sNo: index + 1,
-    }))
+    // 4. Fetch all expenses for the range to enrich the stats
+    const expensesRes = await payload.find({
+      collection: 'expenses',
+      where: {
+        and: [
+          { date: { greater_than_equal: startOfDay.toISOString() } },
+          { date: { less_than_equal: endOfDay.toISOString() } },
+        ],
+      },
+      limit: 1000,
+      pagination: false,
+      depth: 2,
+    })
+    const allExpenses = expensesRes.docs
+
+    // Add Serial Number and Expense Details
+    const statsWithEnrichment = stats.map((item, index) => {
+      const branchId = item._id
+      if (!branchId) {
+        return { ...item, sNo: index + 1, entries: item.entries || [] }
+      }
+      // Sort entries by createdAt to handle temporal attribution
+      const sortedEntries = [...(item.entries || [])].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      )
+
+      const branchExpenses = allExpenses.filter((ex) => {
+        const exBranchId = typeof ex.branch === 'object' ? ex.branch.id : ex.branch
+        return exBranchId === branchId.toString()
+      })
+
+      // Calculate categorized expenses for each entry
+      const entriesWithExpenses = sortedEntries.map((entry, idx) => {
+        const entryTime = new Date(entry.createdAt).getTime()
+        const prevTime =
+          idx === 0
+            ? new Date(startOfDay).getTime()
+            : new Date(sortedEntries[idx - 1].createdAt).getTime()
+
+        const relevantExpenses = branchExpenses.filter((ex) => {
+          const exTime = new Date(ex.date).getTime()
+          return exTime > prevTime && exTime <= entryTime
+        })
+
+        const expenseDetails: {
+          category: string
+          reason: string
+          amount: number
+          imageUrl: string
+          date: string
+        }[] = []
+        relevantExpenses.forEach((ex) => {
+          if (ex.details) {
+            ex.details.forEach((det: any) => {
+              let imageUrl = ''
+              if (det.image) {
+                if (typeof det.image === 'object' && det.image.url) {
+                  imageUrl = det.image.url
+                }
+              }
+
+              expenseDetails.push({
+                category: det.source || 'OTHERS',
+                reason: det.reason || '(No reason)',
+                amount: det.amount || 0,
+                imageUrl,
+                date: ex.date,
+              })
+            })
+          }
+        })
+
+        return {
+          ...entry,
+          expenseDetails,
+        }
+      })
+
+      // Branch total expense details (Individual items, no grouping for full detail)
+      const branchExpenseDetails: {
+        category: string
+        reason: string
+        amount: number
+        imageUrl: string
+        date: string
+      }[] = []
+      branchExpenses.forEach((ex) => {
+        if (ex.details) {
+          ex.details.forEach((det: any) => {
+            let imageUrl = ''
+            if (det.image) {
+              if (typeof det.image === 'object' && det.image.url) {
+                imageUrl = det.image.url
+              }
+            }
+            branchExpenseDetails.push({
+              category: det.source || 'OTHERS',
+              reason: det.reason || '(No reason)',
+              amount: det.amount || 0,
+              imageUrl,
+              date: ex.date,
+            })
+          })
+        }
+      })
+
+      return {
+        ...item,
+        sNo: index + 1,
+        entries: entriesWithExpenses,
+        expenseDetails: branchExpenseDetails,
+      }
+    })
 
     return Response.json({
       startDate: startDateParam,
       endDate: endDateParam,
-      stats: statsWithSn,
+      stats: statsWithEnrichment,
       totals,
     })
   } catch (error) {

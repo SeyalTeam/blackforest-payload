@@ -100,15 +100,19 @@
 
     th,
     td {
-      padding: 1rem;
-      border-bottom: 1px solid var(--theme-elevation-100);
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--theme-elevation-250);
       text-align: left;
       color: var(--theme-text-primary);
-      border-right: 1px solid var(--theme-elevation-100);
+      border-right: 1px solid var(--theme-elevation-250);
       vertical-align: middle; // Ensure all cells center vertically
 
       &:first-child {
-        border-left: 1px solid var(--theme-elevation-100);
+        border-left: 1px solid var(--theme-elevation-250);
+      }
+
+      &:last-child {
+        border-right: 1px solid var(--theme-elevation-250);
       }
 
       &.branch-name-cell {
