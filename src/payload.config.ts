@@ -52,6 +52,8 @@ import { getInstockEntryReportHandler } from './endpoints/getInstockEntryReport'
 import { updateInstockStatusHandler } from './endpoints/updateInstockStatus'
 import { InstockEntryReportGlobal } from './globals/InstockEntryReport'
 import { getDashboardStatsHandler } from './endpoints/getDashboardStats'
+import { getExpenseReportHandler } from './endpoints/getExpenseReport'
+import { ExpenseReportGlobal } from './globals/ExpenseReport'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -171,6 +173,11 @@ export default buildConfig({
       method: 'get',
       handler: getDashboardStatsHandler,
     },
+    {
+      path: '/reports/expense',
+      method: 'get',
+      handler: getExpenseReportHandler,
+    },
   ],
 
   globals: [
@@ -186,6 +193,7 @@ export default buildConfig({
     AfterstockCustomerReportGlobal,
     ReviewReportGlobal,
     InstockEntryReportGlobal,
+    ExpenseReportGlobal,
   ],
 
   // Collections
