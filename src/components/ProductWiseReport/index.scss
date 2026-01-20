@@ -1,9 +1,9 @@
 .product-report-container {
-  padding: 2rem;
+  padding: 1rem;
   background: var(--theme-elevation-0);
   border-radius: var(--style-radius-m);
   box-shadow: var(--theme-shadow-success);
-  margin: 2rem;
+  margin: 1rem;
 
   color: var(--theme-text-primary);
 
@@ -93,12 +93,13 @@
 
   .table-container {
     /* Remove constraints to allow viewport sticky behavior */
-    width: 85%;
+    width: fit-content;
+    max-width: 100%;
     overflow-x: auto;
   }
 
   .report-table {
-    width: 100%;
+    width: auto;
     border-collapse: collapse;
     white-space: nowrap; /* Prevent wrapping in headers */
 
