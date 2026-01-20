@@ -93,7 +93,8 @@
 
   .table-container {
     /* Remove constraints to allow viewport sticky behavior */
-    width: 100%;
+    width: 85%;
+    overflow-x: auto;
   }
 
   .report-table {
@@ -103,7 +104,7 @@
 
     th,
     td {
-      padding: 1rem;
+      padding: 0.85rem 1rem;
       border-bottom: 1px solid var(--theme-elevation-100);
       border-right: 1px solid var(--theme-elevation-100); // Vertical separator
       text-align: left;

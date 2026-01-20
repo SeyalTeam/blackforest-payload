@@ -523,7 +523,22 @@ const ProductWiseReport: React.FC = () => {
             }}
           />
 
-          <div className="filter-group" style={{ marginLeft: 'auto' }}>
+          <div className="filter-group select-group" style={{ marginLeft: 'auto' }}>
+            <Select
+              instanceId="date-preset-select"
+              options={dateRangeOptions}
+              value={dateRangeOptions.find((o) => o.value === dateRangePreset)}
+              onChange={(option: { value: string; label: string } | null) => {
+                if (option) handleDatePresetChange(option.value)
+              }}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Date Range..."
+              isSearchable={false}
+            />
+          </div>
+
+          <div className="filter-group">
             <DatePicker
               selectsRange={true}
               startDate={startDate}
@@ -578,21 +593,6 @@ const ProductWiseReport: React.FC = () => {
           </div>
         </div>
         <div className="date-filter">
-          <div className="filter-group select-group">
-            <Select
-              instanceId="date-preset-select"
-              options={dateRangeOptions}
-              value={dateRangeOptions.find((o) => o.value === dateRangePreset)}
-              onChange={(option: { value: string; label: string } | null) => {
-                if (option) handleDatePresetChange(option.value)
-              }}
-              styles={customStyles}
-              classNamePrefix="react-select"
-              placeholder="Date Range..."
-              isSearchable={false}
-            />
-          </div>
-
           <div className="filter-group select-group">
             <Select
               instanceId="sort-select"
@@ -878,8 +878,8 @@ const ProductWiseReport: React.FC = () => {
                         {header}
                       </th>
                     ))}
-                    <th style={{ textAlign: 'right' }}>TOTAL UNITS</th>
-                    <th style={{ textAlign: 'right' }}>TOTAL AMOUNT</th>
+                    <th style={{ textAlign: 'center', minWidth: '100px' }}>TOT UNITS</th>
+                    <th style={{ textAlign: 'center', minWidth: '100px' }}>TOT AMT</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -914,9 +914,8 @@ const ProductWiseReport: React.FC = () => {
 
                         // Determine Main and Sub values based on Sort By filter
                         const isUnitsSort = sortBy === 'units'
-                        const mainValue = isUnitsSort
-                          ? formatValue(sales.quantity)
-                          : formatValue(sales.amount)
+                        const numValue = isUnitsSort ? sales.quantity : sales.amount
+                        const mainValue = numValue === 0 ? '' : formatValue(numValue)
                         const subValue = isUnitsSort
                           ? `₹${formatValue(sales.amount)}`
                           : `${formatValue(sales.quantity)} Units`
@@ -966,7 +965,7 @@ const ProductWiseReport: React.FC = () => {
                       })}
                       <td
                         style={{
-                          textAlign: 'right',
+                          textAlign: 'center',
                           fontWeight: '600',
                           fontSize: '1.2rem',
                           backgroundColor:
@@ -975,11 +974,11 @@ const ProductWiseReport: React.FC = () => {
                             showZeroHighlight && row.totalQuantity === 0 ? '#FFFFFF' : 'inherit',
                         }}
                       >
-                        {formatValue(row.totalQuantity)}
+                        {row.totalQuantity === 0 ? '' : formatValue(row.totalQuantity)}
                       </td>
                       <td
                         style={{
-                          textAlign: 'right',
+                          textAlign: 'center',
                           fontWeight: '600',
                           fontSize: '1.2rem',
                           backgroundColor:
@@ -987,7 +986,7 @@ const ProductWiseReport: React.FC = () => {
                           color: showZeroHighlight && row.totalAmount === 0 ? '#FFFFFF' : 'inherit',
                         }}
                       >
-                        {formatValue(row.totalAmount)}
+                        {row.totalAmount === 0 ? '' : formatValue(row.totalAmount)}
                       </td>
                     </tr>
                   ))}
@@ -1012,13 +1011,13 @@ const ProductWiseReport: React.FC = () => {
                             color: showZeroHighlight && isZero ? '#FFFFFF' : 'inherit',
                           }}
                         >
-                          <strong>{formatValue(val)}</strong>
+                          <strong>{val === 0 ? '' : formatValue(val)}</strong>
                         </td>
                       )
                     })}
                     <td
                       style={{
-                        textAlign: 'right',
+                        textAlign: 'center',
                         fontWeight: '600',
                         fontSize: '1.2rem',
                         backgroundColor:
@@ -1031,11 +1030,15 @@ const ProductWiseReport: React.FC = () => {
                             : 'inherit',
                       }}
                     >
-                      <strong>{formatValue(data.totals.totalQuantity)}</strong>
+                      <strong>
+                        {data.totals.totalQuantity === 0
+                          ? ''
+                          : formatValue(data.totals.totalQuantity)}
+                      </strong>
                     </td>
                     <td
                       style={{
-                        textAlign: 'right',
+                        textAlign: 'center',
                         fontWeight: '600',
                         fontSize: '1.2rem',
                         backgroundColor:
@@ -1048,7 +1051,9 @@ const ProductWiseReport: React.FC = () => {
                             : 'inherit',
                       }}
                     >
-                      <strong>{formatValue(data.totals.totalAmount)}</strong>
+                      <strong>
+                        {data.totals.totalAmount === 0 ? '' : formatValue(data.totals.totalAmount)}
+                      </strong>
                     </td>
                   </tr>
                 </tfoot>
