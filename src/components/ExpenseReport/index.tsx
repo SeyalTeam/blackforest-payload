@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import Select, { components, OptionProps, ValueContainerProps } from 'react-select'
@@ -8,6 +8,12 @@ import dayjs from 'dayjs'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import './index.scss'
 import ExpenseTrendGraph from './ExpenseTrendGraph'
+import Image from 'next/image'
+
+type SelectOption = {
+  value: string
+  label: string
+}
 
 export type ExpenseItem = {
   category: string
@@ -44,7 +50,7 @@ type ReportData = {
   }
 }
 
-const CheckboxOption = (props: OptionProps<any>) => {
+const CheckboxOption = (props: OptionProps<SelectOption>) => {
   return (
     <components.Option {...props}>
       <input
@@ -58,7 +64,7 @@ const CheckboxOption = (props: OptionProps<any>) => {
   )
 }
 
-const CustomValueContainer = ({ children, ...props }: ValueContainerProps<any, true>) => {
+const CustomValueContainer = ({ children, ...props }: ValueContainerProps<SelectOption, true>) => {
   const { getValue, hasValue, selectProps } = props
   const selected = getValue()
   const count = selected.length
@@ -78,23 +84,47 @@ const CustomValueContainer = ({ children, ...props }: ValueContainerProps<any, t
 
 const MultiValue = () => null
 
+const getStableColor = (category: string) => {
+  const categoryColors: Record<string, string> = {
+    'RAW MATERIAL': '#8b5cf6', // Purple
+    'OC PRODUCTS': '#10b981', // Green
+    ADVANCE: '#06b6d4', // Cyan
+    COMPLEMENTARY: '#ec4899', // Pink
+    TRANSPORT: '#f59e0b', // Orange
+    MAINTENANCE: '#ef4444', // Red
+    FUEL: '#f43f5e', // Crimson
+    SALARY: '#6366f1', // Indigo
+    'STAFF WELFARE': '#84cc16', // Lime
+    'PACKING MATERIAL': '#fbbf24', // Amber
+    MARKETING: '#3b82f6', // Blue
+    UTILITIES: '#db2777', // Deep Pink
+    ALL: '#56CFE1', // Default Cyan
+  }
+
+  const normalized = category.toUpperCase()
+  if (categoryColors[normalized]) return categoryColors[normalized]
+
+  // Fallback: simple hash to pick from the palette
+  let hash = 0
+  for (let i = 0; i < normalized.length; i++) {
+    hash = normalized.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const colors = ['#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#ec4899']
+  return colors[Math.abs(hash) % colors.length]
+}
+
 const CategorySummary: React.FC<{
   stats: ReportCategoryStat[]
   groups: BranchGroup[]
   onCategoryClick: (category: string) => void
   activeCategory: string
 }> = ({ stats, groups, onCategoryClick, activeCategory }) => {
-  const getColor = (index: number) => {
-    const colors = ['#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#ec4899']
-    return colors[index % colors.length]
-  }
-
   return (
     <div className="category-summary">
       <div className="summary-title">Category Occupancy</div>
       <div className="stats-list">
-        {stats.map((stat, idx) => {
-          const color = getColor(idx)
+        {stats.map((stat) => {
+          const color = getStableColor(stat.category)
           const isActive = activeCategory === (stat.category === 'ALL' ? 'all' : stat.category)
           // Circular progress math
           const radius = 35
@@ -106,7 +136,10 @@ const CategorySummary: React.FC<{
               key={stat.category}
               className={`stat-card ${isActive ? 'active' : ''}`}
               onClick={() => onCategoryClick(stat.category === 'ALL' ? 'all' : stat.category)}
-              style={{ cursor: 'pointer' }}
+              style={{
+                cursor: 'pointer',
+                borderColor: isActive ? color : 'transparent',
+              }}
             >
               <div className="stat-visual">
                 <svg width="60" height="60" viewBox="0 0 100 100" className="circular-progress">
@@ -155,33 +188,40 @@ const CategorySummary: React.FC<{
       </div>
 
       <div className="branch-summary-section" style={{ marginTop: '2.5rem' }}>
-        <div className="summary-title" style={{ color: '#56CFE1' }}>
+        <div
+          className="summary-title"
+          style={{ color: activeCategory !== 'all' ? getStableColor(activeCategory) : '#56CFE1' }}
+        >
           Branch Summary
         </div>
         <div
           className="branch-stats-list"
           style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
         >
-          {groups.map((group) => (
-            <div
-              key={group.branchName}
-              className="branch-stat-item"
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '10px 14px',
-                background: 'var(--theme-elevation-100)',
-                borderRadius: '8px',
-                borderLeft: '4px solid #56CFE1',
-              }}
-            >
-              <span style={{ fontWeight: '600', fontSize: '0.9rem' }}>{group.branchName}</span>
-              <span style={{ fontWeight: '800', color: '#56CFE1', fontSize: '1.1rem' }}>
-                ₹{group.total.toLocaleString('en-IN')}
-              </span>
-            </div>
-          ))}
+          {groups.map((group) => {
+            const highlightColor =
+              activeCategory !== 'all' ? getStableColor(activeCategory) : '#56CFE1'
+            return (
+              <div
+                key={group.branchName}
+                className="branch-stat-item"
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '10px 14px',
+                  background: 'var(--theme-elevation-100)',
+                  borderRadius: '8px',
+                  borderLeft: `4px solid ${highlightColor}`,
+                }}
+              >
+                <span style={{ fontWeight: '600', fontSize: '0.9rem' }}>{group.branchName}</span>
+                <span style={{ fontWeight: '800', color: highlightColor, fontSize: '1.1rem' }}>
+                  ₹{group.total.toLocaleString('en-IN')}
+                </span>
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>
@@ -203,12 +243,28 @@ const ExpenseReport: React.FC = () => {
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([])
   const [selectedBranch, setSelectedBranch] = useState<string[]>(['all'])
   const [showScrollBottom, setShowScrollBottom] = useState(true)
+  const lastScrollY = useRef(0)
 
   useEffect(() => {
     const handleScroll = () => {
+      const currentScrollY = window.scrollY
       const scrolledToBottom =
-        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 100
-      setShowScrollBottom(!scrolledToBottom)
+        window.innerHeight + currentScrollY >= document.documentElement.scrollHeight - 100
+      const scrolledToTop = currentScrollY < 100
+
+      if (scrolledToTop) {
+        setShowScrollBottom(true)
+      } else if (scrolledToBottom) {
+        setShowScrollBottom(false)
+      } else {
+        // Direct detection of scroll direction
+        if (currentScrollY > lastScrollY.current) {
+          setShowScrollBottom(true) // Scrolling down
+        } else if (currentScrollY < lastScrollY.current) {
+          setShowScrollBottom(false) // Scrolling up
+        }
+      }
+      lastScrollY.current = currentScrollY
     }
 
     window.addEventListener('scroll', handleScroll)
@@ -343,7 +399,7 @@ const ExpenseReport: React.FC = () => {
       '&:hover': {
         borderColor: 'var(--theme-info-750)',
       },
-      flexWrap: 'nowrap' as any,
+      flexWrap: 'nowrap' as const,
     }),
     singleValue: (base: Record<string, unknown>) => ({
       ...base,
@@ -372,7 +428,7 @@ const ExpenseReport: React.FC = () => {
     }),
     valueContainer: (base: Record<string, unknown>) => ({
       ...base,
-      flexWrap: 'nowrap' as any,
+      flexWrap: 'nowrap' as const,
       overflow: 'hidden',
       textOverflow: 'ellipsis',
       whiteSpace: 'nowrap',
@@ -566,12 +622,18 @@ const ExpenseReport: React.FC = () => {
           <div className="report-main-layout">
             <div className="branch-groups">
               {data.groups.length > 0 && (
-                <div className="overall-report-total">
+                <div
+                  className="overall-report-total"
+                  style={{
+                    borderColor: getStableColor(activeCategory),
+                    boxShadow: `0 4px 15px ${getStableColor(activeCategory)}26`,
+                  }}
+                >
                   <div className="total-info">
                     <div className="total-label">OVERALL TOTAL</div>
                     <span className="total-count">{data.meta.totalCount} items</span>
                   </div>
-                  <div className="total-amount">
+                  <div className="total-amount" style={{ color: getStableColor(activeCategory) }}>
                     ₹{data.meta.grandTotal.toLocaleString('en-IN')}
                   </div>
                 </div>
@@ -583,7 +645,9 @@ const ExpenseReport: React.FC = () => {
                       <h2>{group.branchName}</h2>
                       <span className="item-count">{group.count} items</span>
                     </div>
-                    <div className="branch-total">{group.total.toLocaleString('en-IN')}</div>
+                    <div className="branch-total" style={{ color: getStableColor(activeCategory) }}>
+                      {group.total.toLocaleString('en-IN')}
+                    </div>
                   </div>
                   <div className="branch-items-table">
                     <table>
@@ -598,37 +662,40 @@ const ExpenseReport: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {group.items.map((item, idx) => (
-                          <tr key={idx}>
-                            <td style={{ opacity: 0.5, fontSize: '0.8rem' }}>{idx + 1}</td>
-                            <td className="category-cell">{item.category}</td>
-                            <td className="reason-cell">{item.reason}</td>
-                            <td className="amount-cell">{item.amount.toLocaleString('en-IN')}</td>
-                            <td className="time-cell">{dayjs(item.time).format('HH:mm')}</td>
-                            <td className="image-cell" style={{ textAlign: 'center' }}>
-                              <button
-                                className={`image-view-btn ${item.imageUrl ? 'active' : 'inactive'}`}
-                                disabled={!item.imageUrl}
-                                onClick={() => item.imageUrl && setPreviewImage(item.imageUrl)}
-                                title={item.imageUrl ? 'View Image' : 'No Image'}
-                              >
-                                <svg
-                                  width="20"
-                                  height="20"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
+                        {group.items
+                          .slice()
+                          .reverse()
+                          .map((item, idx) => (
+                            <tr key={idx}>
+                              <td style={{ opacity: 0.5, fontSize: '0.8rem' }}>{idx + 1}</td>
+                              <td className="category-cell">{item.category}</td>
+                              <td className="reason-cell">{item.reason}</td>
+                              <td className="amount-cell">{item.amount.toLocaleString('en-IN')}</td>
+                              <td className="time-cell">{dayjs(item.time).format('HH:mm')}</td>
+                              <td className="image-cell" style={{ textAlign: 'center' }}>
+                                <button
+                                  className={`image-view-btn ${item.imageUrl ? 'active' : 'inactive'}`}
+                                  disabled={!item.imageUrl}
+                                  onClick={() => item.imageUrl && setPreviewImage(item.imageUrl)}
+                                  title={item.imageUrl ? 'View Image' : 'No Image'}
                                 >
-                                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                                  <circle cx="12" cy="13" r="4"></circle>
-                                </svg>
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                                  <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
+                                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                                    <circle cx="12" cy="13" r="4"></circle>
+                                  </svg>
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
                       </tbody>
                     </table>
                   </div>
@@ -656,7 +723,13 @@ const ExpenseReport: React.FC = () => {
       {previewImage && (
         <div className="image-preview-modal" onClick={() => setPreviewImage(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <img src={previewImage} alt="Expense" />
+            <Image
+              src={previewImage}
+              alt="Expense"
+              width={1200}
+              height={1200}
+              style={{ objectFit: 'contain', width: '100%', height: 'auto' }}
+            />
             <button className="close-btn" onClick={() => setPreviewImage(null)}>
               &times;
             </button>

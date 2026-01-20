@@ -19,18 +19,50 @@ interface ExpenseTrendGraphProps {
   preset?: string
 }
 
+type TimeBucket = {
+  time: string
+  timestamp: number
+  displayTime: string
+  displayDate: string
+  totalBucketAmount: number
+  breakdown: Record<string, Record<string, number>>
+} & Record<string, string | number | Record<string, Record<string, number>>>
+
 const CATEGORY_COLORS: Record<string, string> = {
-  'RAW MATERIAL': '#8b5cf6',
-  MAINTENANCE: '#10b981',
-  TRANSPORT: '#f59e0b',
-  FUEL: '#ef4444',
-  'STAFF WELFARE': '#3b82f6',
-  Supplies: '#ec4899',
-  PACKING: '#06b6d4',
-  OTHERS: '#71717a',
+  'RAW MATERIAL': '#8b5cf6', // Purple
+  'OC PRODUCTS': '#10b981', // Green
+  ADVANCE: '#06b6d4', // Cyan
+  COMPLEMENTARY: '#ec4899', // Pink
+  TRANSPORT: '#f59e0b', // Orange
+  MAINTENANCE: '#ef4444', // Red
+  FUEL: '#f43f5e', // Crimson
+  SALARY: '#6366f1', // Indigo
+  'STAFF WELFARE': '#84cc16', // Lime
+  'PACKING MATERIAL': '#fbbf24', // Amber
+  OTHERS: '#71717a', // Zinc
 }
 
-const DEFAULT_COLOR = '#94a3b8'
+const getCategoryColor = (category: string) => {
+  const normalized = category.toUpperCase()
+  if (CATEGORY_COLORS[normalized]) return CATEGORY_COLORS[normalized]
+
+  // Stable hash fallback for any category not in the map
+  let hash = 0
+  for (let i = 0; i < normalized.length; i++) {
+    hash = normalized.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const palette = [
+    '#F472B6', // Pink
+    '#2DD4BF', // Teal
+    '#A78BFA', // Violet
+    '#FBBF24', // Amber
+    '#60A5FA', // Blue
+    '#34D399', // Emerald
+    '#F87171', // Red
+    '#818CF8', // Indigo
+  ]
+  return palette[Math.abs(hash) % palette.length]
+}
 
 const ExpenseTrendGraph: React.FC<ExpenseTrendGraphProps> = ({ groups, preset }) => {
   // Extract all unique categories present in the data
@@ -61,21 +93,49 @@ const ExpenseTrendGraph: React.FC<ExpenseTrendGraphProps> = ({ groups, preset })
 
   // Aggregate data by hour and category
   const aggregatedData = useMemo(() => {
-    const timeBuckets: Record<string, any> = {}
+    const timeBuckets: Record<string, TimeBucket> = {}
 
     groups.forEach((group: BranchGroup) => {
       group.items.forEach((item: ExpenseItem) => {
         if (!item.time) return
 
-        // Bucket by hour (e.g., "2026-01-20 14:00")
-        const bucketKey = dayjs(item.time).format('YYYY-MM-DD HH:00')
+        // Bucket by hour for daily views, otherwise bucket by day
+        const bucketKey =
+          preset === 'today' || preset === 'yesterday'
+            ? dayjs(item.time).format('YYYY-MM-DD HH:00')
+            : dayjs(item.time).format('YYYY-MM-DD')
 
         if (!timeBuckets[bucketKey]) {
+          const mTime = dayjs(bucketKey)
+          let displayLabel = mTime.format('MM-DD')
+          let displaySubLabel = ''
+
+          if (preset === 'today' || preset === 'yesterday') {
+            displayLabel = mTime.format('HH:mm')
+            displaySubLabel = ''
+          } else if (preset === 'last_7_days' || preset === 'last_30_days') {
+            displayLabel = mTime.format('DD')
+            displaySubLabel = mTime.format('ddd').toUpperCase()
+          } else if (preset === 'this_month' || preset === 'last_month') {
+            displayLabel = mTime.format('DD')
+            displaySubLabel = mTime.format('MMM').toUpperCase()
+          } else if (
+            preset?.includes('quarter') ||
+            preset === 'this_year' ||
+            preset === 'last_year'
+          ) {
+            displayLabel = mTime.format('MMM').toUpperCase()
+            displaySubLabel = mTime.format('YYYY')
+          }
+
           timeBuckets[bucketKey] = {
             time: bucketKey,
-            timestamp: dayjs(bucketKey).valueOf(),
-            displayTime: dayjs(bucketKey).format('HH:mm'),
-            displayDate: dayjs(bucketKey).format('MM-DD'),
+            timestamp: mTime.valueOf(),
+            displayTime: mTime.format('HH:mm'),
+            displayDate: mTime.format('MM-DD'),
+            displayLabel,
+            displaySubLabel,
+            totalBucketAmount: 0,
             breakdown: {},
           }
           // Initialize categories with 0
@@ -85,7 +145,12 @@ const ExpenseTrendGraph: React.FC<ExpenseTrendGraphProps> = ({ groups, preset })
           })
         }
 
-        timeBuckets[bucketKey][item.category] += item.amount
+        if (typeof timeBuckets[bucketKey][item.category] === 'number') {
+          ;(timeBuckets[bucketKey][item.category] as number) += item.amount
+        } else {
+          timeBuckets[bucketKey][item.category] = item.amount
+        }
+        ;(timeBuckets[bucketKey].totalBucketAmount as number) += item.amount
 
         // Branch breakdown for tooltip
         if (!timeBuckets[bucketKey].breakdown[item.category][group.branchName]) {
@@ -96,7 +161,7 @@ const ExpenseTrendGraph: React.FC<ExpenseTrendGraphProps> = ({ groups, preset })
     })
 
     return Object.values(timeBuckets).sort((a, b) => a.timestamp - b.timestamp)
-  }, [groups, allCategories])
+  }, [groups, allCategories, preset])
 
   // Calculate totals for summary cards
   const categoryTotals = useMemo(() => {
@@ -113,7 +178,7 @@ const ExpenseTrendGraph: React.FC<ExpenseTrendGraphProps> = ({ groups, preset })
 
   const SummaryCard = ({ category, total }: { category: string; total: number }) => {
     const active = visibility[category]
-    const color = CATEGORY_COLORS[category] || DEFAULT_COLOR
+    const color = getCategoryColor(category)
 
     return (
       <div
@@ -174,7 +239,32 @@ const ExpenseTrendGraph: React.FC<ExpenseTrendGraphProps> = ({ groups, preset })
     )
   }
 
-  const isTimeOnly = preset === 'today' || preset === 'yesterday'
+  const CustomAxisTick = (props: any) => {
+    const { x, y, payload } = props
+    const dataItem = aggregatedData[payload.index]
+    if (!dataItem) return null
+
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text x={0} y={0} dy={16} textAnchor="middle" fill="#e4e4e7" fontSize={11} fontWeight="700">
+          {dataItem.displayLabel as string}
+        </text>
+        {dataItem.displaySubLabel && (
+          <text
+            x={0}
+            y={0}
+            dy={28}
+            textAnchor="middle"
+            fill="#a1a1aa"
+            fontSize={9}
+            fontWeight="500"
+          >
+            {dataItem.displaySubLabel as string}
+          </text>
+        )}
+      </g>
+    )
+  }
 
   return (
     <div
@@ -214,11 +304,12 @@ const ExpenseTrendGraph: React.FC<ExpenseTrendGraphProps> = ({ groups, preset })
               opacity={0.2}
             />
             <XAxis
-              dataKey={isTimeOnly ? 'displayTime' : 'displayDate'}
-              tick={{ fill: '#e4e4e7', fontSize: 11, fontWeight: '500' }}
+              dataKey="timestamp"
+              tick={<CustomAxisTick />}
               axisLine={{ stroke: 'var(--theme-elevation-400)' }}
               tickLine={false}
-              dy={10}
+              interval={0}
+              minTickGap={10}
             />
             <YAxis
               tick={{ fill: '#e4e4e7', fontSize: 11, fontWeight: '500' }}
@@ -244,19 +335,36 @@ const ExpenseTrendGraph: React.FC<ExpenseTrendGraphProps> = ({ groups, preset })
                     >
                       <div
                         style={{
-                          fontSize: '0.85rem',
-                          fontWeight: 'bold',
-                          color: 'var(--theme-text-primary)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px',
                           marginBottom: '0.75rem',
                           borderBottom: '1px solid var(--theme-elevation-200)',
-                          paddingBottom: '0.5rem',
+                          paddingBottom: '0.75rem',
                         }}
                       >
-                        Time: {label}
+                        <div
+                          style={{
+                            fontSize: '0.9rem',
+                            fontWeight: 'bold',
+                            color: '#fff',
+                          }}
+                        >
+                          {dayjs(label).format('MMM DD, YYYY')}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: '0.85rem',
+                            fontWeight: '600',
+                            color: 'var(--theme-info-500)',
+                          }}
+                        >
+                          TOTAL AMT: ₹{(data.totalBucketAmount as number).toLocaleString('en-IN')}
+                        </div>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {payload.map((p: any) => {
-                          const cat = p.name
+                        {payload.map((p) => {
+                          const cat = p.name as string
                           const branchData = data.breakdown[cat] || {}
                           return (
                             <div
@@ -275,7 +383,7 @@ const ExpenseTrendGraph: React.FC<ExpenseTrendGraphProps> = ({ groups, preset })
                                   ₹{p.value.toLocaleString('en-IN')}
                                 </span>
                               </div>
-                              {Object.entries(branchData).map(([branch, amount]: [string, any]) => (
+                              {Object.entries(branchData).map(([branch, amount]) => (
                                 <div
                                   key={branch}
                                   style={{
@@ -287,7 +395,7 @@ const ExpenseTrendGraph: React.FC<ExpenseTrendGraphProps> = ({ groups, preset })
                                   }}
                                 >
                                   <span>{branch}</span>
-                                  <span>₹{amount.toLocaleString('en-IN')}</span>
+                                  <span>₹{(amount as number).toLocaleString('en-IN')}</span>
                                 </div>
                               ))}
                             </div>
@@ -308,7 +416,7 @@ const ExpenseTrendGraph: React.FC<ExpenseTrendGraphProps> = ({ groups, preset })
                     type="monotone"
                     dataKey={cat}
                     name={cat}
-                    stroke={CATEGORY_COLORS[cat] || DEFAULT_COLOR}
+                    stroke={getCategoryColor(cat)}
                     strokeWidth={3}
                     dot={{ r: 0 }}
                     activeDot={{ r: 6, strokeWidth: 0 }}

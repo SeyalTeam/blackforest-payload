@@ -86,9 +86,9 @@
           }
 
           &.active {
-            background: #000;
+            background: #06b6d4;
             color: #fff;
-            border-color: #000;
+            border-color: #06b6d4;
           }
         }
       }
@@ -163,13 +163,8 @@
             }
 
             &.active {
-              background: var(--theme-info-100);
-              border-color: var(--theme-info-500);
-              box-shadow: 0 4px 12px rgba(var(--theme-info-500-rgb, 0, 0, 0), 0.2);
-
-              .stat-name {
-                color: var(--theme-info-700);
-              }
+              background: var(--theme-elevation-200);
+              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
             }
 
             .stat-visual {
@@ -217,7 +212,6 @@
       padding: 1.25rem 1.5rem; // Match branch header padding
       background: var(--theme-elevation-100); // Match branch header background
       border-radius: 12px;
-      margin-bottom: 2rem;
       border: 1px solid #56cfe1;
       box-shadow: 0 4px 15px rgba(86, 207, 225, 0.15);
 
