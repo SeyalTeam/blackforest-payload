@@ -1,25 +1,47 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import dayjs from 'dayjs'
-import './index.scss'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
-import Select, { components, OptionProps } from 'react-select'
+import Select, { components, OptionProps, ValueContainerProps } from 'react-select'
+import dayjs from 'dayjs'
+import { ChevronDown, ChevronUp } from 'lucide-react'
+import './index.scss'
+import ExpenseTrendGraph from './ExpenseTrendGraph'
 
-type ReportStats = {
+export type ExpenseItem = {
+  category: string
+  reason: string
+  amount: number
+  time: string
+  imageUrl?: string
+}
+
+export type BranchGroup = {
+  _id: string
   branchName: string
-  [key: string]: any // For dynamic category columns
   total: number
-  sNo?: number
+  count: number
+  items: ExpenseItem[]
+}
+
+type ReportCategoryStat = {
+  category: string
+  total: number
+  count: number
+  percentage: number
 }
 
 type ReportData = {
   startDate: string
   endDate: string
-  stats: ReportStats[]
-  totals: Record<string, number>
-  categories: string[]
+  groups: BranchGroup[]
+  meta: {
+    grandTotal: number
+    totalCount: number
+    categories: string[]
+    categoryStats: ReportCategoryStat[]
+  }
 }
 
 const CheckboxOption = (props: OptionProps<any>) => {
@@ -36,7 +58,7 @@ const CheckboxOption = (props: OptionProps<any>) => {
   )
 }
 
-const CustomValueContainer = ({ children, ...props }: any) => {
+const CustomValueContainer = ({ children, ...props }: ValueContainerProps<any, true>) => {
   const { getValue, hasValue, selectProps } = props
   const selected = getValue()
   const count = selected.length
@@ -56,64 +78,258 @@ const CustomValueContainer = ({ children, ...props }: any) => {
 
 const MultiValue = () => null
 
+const CategorySummary: React.FC<{
+  stats: ReportCategoryStat[]
+  groups: BranchGroup[]
+  onCategoryClick: (category: string) => void
+  activeCategory: string
+}> = ({ stats, groups, onCategoryClick, activeCategory }) => {
+  const getColor = (index: number) => {
+    const colors = ['#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#ec4899']
+    return colors[index % colors.length]
+  }
+
+  return (
+    <div className="category-summary">
+      <div className="summary-title">Category Occupancy</div>
+      <div className="stats-list">
+        {stats.map((stat, idx) => {
+          const color = getColor(idx)
+          const isActive = activeCategory === (stat.category === 'ALL' ? 'all' : stat.category)
+          // Circular progress math
+          const radius = 35
+          const circumference = 2 * Math.PI * radius
+          const offset = circumference - (stat.percentage / 100) * circumference
+
+          return (
+            <div
+              key={stat.category}
+              className={`stat-card ${isActive ? 'active' : ''}`}
+              onClick={() => onCategoryClick(stat.category === 'ALL' ? 'all' : stat.category)}
+              style={{ cursor: 'pointer' }}
+            >
+              <div className="stat-visual">
+                <svg width="60" height="60" viewBox="0 0 100 100" className="circular-progress">
+                  <circle
+                    className="progress-bg"
+                    cx="50"
+                    cy="50"
+                    r={radius}
+                    fill="none"
+                    stroke="var(--theme-elevation-200)"
+                    strokeWidth="10"
+                  />
+                  <circle
+                    className="progress-bar"
+                    cx="50"
+                    cy="50"
+                    r={radius}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth="10"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={offset}
+                    strokeLinecap="round"
+                    transform="rotate(-90 50 50)"
+                  />
+                  <text
+                    x="50"
+                    y="58"
+                    textAnchor="middle"
+                    fontSize="18"
+                    fontWeight="bold"
+                    fill="#fff"
+                  >
+                    {Math.round(stat.percentage)}%
+                  </text>
+                </svg>
+              </div>
+              <div className="stat-info">
+                <div className="stat-value">₹{stat.total.toLocaleString('en-IN')}</div>
+                <div className="stat-count">{stat.count} items</div>
+                <div className="stat-name">{stat.category}</div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="branch-summary-section" style={{ marginTop: '2.5rem' }}>
+        <div className="summary-title" style={{ color: '#56CFE1' }}>
+          Branch Summary
+        </div>
+        <div
+          className="branch-stats-list"
+          style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+        >
+          {groups.map((group) => (
+            <div
+              key={group.branchName}
+              className="branch-stat-item"
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '10px 14px',
+                background: 'var(--theme-elevation-100)',
+                borderRadius: '8px',
+                borderLeft: '4px solid #56CFE1',
+              }}
+            >
+              <span style={{ fontWeight: '600', fontSize: '0.9rem' }}>{group.branchName}</span>
+              <span style={{ fontWeight: '800', color: '#56CFE1', fontSize: '1.1rem' }}>
+                ₹{group.total.toLocaleString('en-IN')}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const ExpenseReport: React.FC = () => {
+  // Initialize with Today's date
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()])
   const [startDate, endDate] = dateRange
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const [activeCategory, setActiveCategory] = useState<string>('all')
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
+  const [dateRangePreset, setDateRangePreset] = useState<string>('today')
+
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([])
   const [selectedBranch, setSelectedBranch] = useState<string[]>(['all'])
-  const [selectedCategory, setSelectedCategory] = useState<string[]>(['all'])
-  const [dateRangePreset, setDateRangePreset] = useState<string>('today')
-  const [selectedDrillDown, setSelectedDrillDown] = useState<{
-    branchId: string
-    branchName: string
-    category: string
-  } | null>(null)
-  const [drillDownData, setDrillDownData] = useState<any[]>([])
-  const [loadingDrillDown, setLoadingDrillDown] = useState(false)
+  const [showScrollBottom, setShowScrollBottom] = useState(true)
 
-  const categoryMap: Record<string, string> = {
-    MAINTENANCE: 'MAINT',
-    TRANSPORT: 'TRANS',
-    FUEL: 'FUEL',
-    PACKING: 'PACK',
-    'STAFF WELFARE': 'WELFARE',
-    Supplies: 'SUPP',
-    ADVERTISEMENT: 'ADVT',
-    ADVANCE: 'ADV',
-    COMPLEMENTARY: 'COMP',
-    'RAW MATERIAL': 'RAW',
-    SALARY: 'SAL',
-    'OC PRODUCTS': 'OC',
-    OTHERS: 'OTRS',
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrolledToBottom =
+        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 100
+      setShowScrollBottom(!scrolledToBottom)
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  const scrollToToggle = () => {
+    if (showScrollBottom) {
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior: 'smooth',
+      })
+    } else {
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth',
+      })
+    }
   }
 
-  const allCategories = Object.keys(categoryMap)
+  const toLocalDateStr = (d: Date) => {
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const getQuarterDates = (date: Date) => {
+    const currQuarter = Math.floor((date.getMonth() + 3) / 3)
+    const prevQuarter = currQuarter - 1
+    let startMonth = 0
+    let year = date.getFullYear()
+
+    if (prevQuarter === 0) {
+      startMonth = 9 // Oct
+      year -= 1
+    } else {
+      startMonth = (prevQuarter - 1) * 3
+    }
+    const endMonth = startMonth + 2
+
+    // Start of quarter
+    const start = new Date(year, startMonth, 1)
+    // End of quarter (last day of endMonth)
+    const end = new Date(year, endMonth + 1, 0)
+
+    return { start, end }
+  }
 
   const dateRangeOptions = [
+    { value: 'till_now', label: 'Till Now' },
     { value: 'today', label: 'Today' },
     { value: 'yesterday', label: 'Yesterday' },
     { value: 'last_7_days', label: 'Last 7 Days' },
     { value: 'this_month', label: 'This Month' },
     { value: 'last_30_days', label: 'Last 30 Days' },
     { value: 'last_month', label: 'Last Month' },
+    { value: 'last_quarter', label: 'Last Quarter' },
   ]
 
-  const branchOptions = [
-    { value: 'all', label: 'All Branches' },
-    ...branches.map((b) => ({ value: b.id, label: b.name })),
-  ]
+  const handleDatePresetChange = (value: string) => {
+    setDateRangePreset(value)
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
-  const categoryOptions = [
-    { value: 'all', label: 'All Categories' },
-    ...allCategories.map((c) => ({ value: c, label: c })),
-  ]
+    let start: Date | null = null
+    let end: Date | null = today
+
+    switch (value) {
+      case 'till_now':
+        // logic for till now if needed, for now just use today or a far past date
+        // defaulting to last 365 days for "till now" context if no specific first bill date
+        const farPast = new Date(today)
+        farPast.setDate(farPast.getDate() - 365)
+        start = farPast
+        break
+      case 'today':
+        start = today
+        end = today
+        break
+      case 'yesterday':
+        const yest = new Date(today)
+        yest.setDate(yest.getDate() - 1)
+        start = yest
+        end = yest
+        break
+      case 'last_7_days':
+        const last7 = new Date(today)
+        last7.setDate(last7.getDate() - 6)
+        start = last7
+        break
+      case 'this_month':
+        const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+        start = thisMonthStart
+        end = today
+        break
+      case 'last_30_days':
+        const last30 = new Date(today)
+        last30.setDate(last30.getDate() - 29)
+        start = last30
+        break
+      case 'last_month':
+        const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+        const prevMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0)
+        start = prevMonthStart
+        end = prevMonthEnd
+        break
+      case 'last_quarter':
+        const { start: qStart, end: qEnd } = getQuarterDates(today)
+        start = qStart
+        end = qEnd
+        break
+    }
+
+    if (start && end) {
+      setDateRange([start, end])
+    }
+  }
 
   const customStyles = {
-    control: (base: any, state: any) => ({
+    control: (base: Record<string, unknown>, state: { isFocused: boolean }) => ({
       ...base,
       backgroundColor: 'var(--theme-input-bg, var(--theme-elevation-50))',
       borderColor: state.isFocused ? 'var(--theme-info-500)' : 'var(--theme-elevation-400)',
@@ -129,19 +345,15 @@ const ExpenseReport: React.FC = () => {
       },
       flexWrap: 'nowrap' as any,
     }),
-    valueContainer: (base: any) => ({
-      ...base,
-      flexWrap: 'nowrap' as any,
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap',
-    }),
-    singleValue: (base: any) => ({
+    singleValue: (base: Record<string, unknown>) => ({
       ...base,
       color: 'var(--theme-text-primary)',
       fontWeight: '600',
     }),
-    option: (base: any, state: any) => ({
+    option: (
+      base: Record<string, unknown>,
+      state: { isSelected: boolean; isFocused: boolean },
+    ) => ({
       ...base,
       backgroundColor: state.isSelected
         ? 'var(--theme-info-500)'
@@ -151,14 +363,23 @@ const ExpenseReport: React.FC = () => {
       color: state.isSelected ? '#fff' : 'var(--theme-text-primary)',
       cursor: 'pointer',
     }),
-    menu: (base: any) => ({
+    menu: (base: Record<string, unknown>) => ({
       ...base,
       backgroundColor: 'var(--theme-input-bg, var(--theme-elevation-50))',
       border: '1px solid var(--theme-elevation-150)',
       zIndex: 9999,
+      minWidth: '200px',
+    }),
+    valueContainer: (base: Record<string, unknown>) => ({
+      ...base,
+      flexWrap: 'nowrap' as any,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
     }),
   }
 
+  // Fetch branches
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
@@ -174,31 +395,19 @@ const ExpenseReport: React.FC = () => {
     fetchMetadata()
   }, [])
 
-  const formatValue = (val: number) => {
-    if (val === undefined || val === null) return '0'
-    const fixed = val.toFixed(2)
-    return fixed.endsWith('.00') ? fixed.slice(0, -3) : fixed
-  }
-
-  const toLocalDateStr = (d: Date) => {
-    const year = d.getFullYear()
-    const month = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-  }
-
   const fetchReport = React.useCallback(
-    async (start: Date, end: Date, branchIds: string[], categoryNames: string[]) => {
+    async (start: Date, end: Date, category: string, branchIds: string[]) => {
       setLoading(true)
       setError('')
       try {
         const startStr = toLocalDateStr(start)
         const endStr = toLocalDateStr(end)
+        // Pass 'all' explicitly if needed, but UI uses specific category mostly
+        const categoryParam = category
         const branchParam = branchIds.includes('all') ? 'all' : branchIds.join(',')
-        const categoryParam = categoryNames.includes('all') ? 'all' : categoryNames.join(',')
 
         const res = await fetch(
-          `/api/reports/expense?startDate=${startStr}&endDate=${endStr}&branch=${branchParam}&category=${categoryParam}`,
+          `/api/reports/expense?startDate=${startStr}&endDate=${endStr}&category=${categoryParam}&branch=${branchParam}`,
         )
         if (!res.ok) throw new Error('Failed to fetch report')
         const json: ReportData = await res.json()
@@ -215,68 +424,9 @@ const ExpenseReport: React.FC = () => {
 
   useEffect(() => {
     if (startDate && endDate) {
-      fetchReport(startDate, endDate, selectedBranch, selectedCategory)
+      fetchReport(startDate, endDate, activeCategory, selectedBranch)
     }
-  }, [startDate, endDate, selectedBranch, selectedCategory, fetchReport])
-
-  useEffect(() => {
-    if (selectedDrillDown) {
-      const fetchDrillDown = async () => {
-        setLoadingDrillDown(true)
-        try {
-          const startStr = toLocalDateStr(startDate!)
-          const endStr = toLocalDateStr(endDate!)
-          const res = await fetch(
-            `/api/reports/expense?details=true&branchId=${selectedDrillDown.branchId}&category=${selectedDrillDown.category}&startDate=${startStr}&endDate=${endStr}`,
-          )
-          const json = await res.json()
-          setDrillDownData(json.details || [])
-        } catch (err) {
-          console.error('Error fetching drill down data', err)
-        } finally {
-          setLoadingDrillDown(false)
-        }
-      }
-      fetchDrillDown()
-    }
-  }, [selectedDrillDown, startDate, endDate])
-
-  const handleDatePresetChange = (value: string) => {
-    setDateRangePreset(value)
-    const now = new Date()
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    let start: Date = today
-    let end: Date = today
-
-    switch (value) {
-      case 'today':
-        break
-      case 'yesterday':
-        const yest = new Date(today)
-        yest.setDate(yest.getDate() - 1)
-        start = yest
-        end = yest
-        break
-      case 'last_7_days':
-        const last7 = new Date(today)
-        last7.setDate(last7.getDate() - 6)
-        start = last7
-        break
-      case 'this_month':
-        start = new Date(today.getFullYear(), today.getMonth(), 1)
-        break
-      case 'last_30_days':
-        const last30 = new Date(today)
-        last30.setDate(last30.getDate() - 29)
-        start = last30
-        break
-      case 'last_month':
-        start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
-        end = new Date(today.getFullYear(), today.getMonth(), 0)
-        break
-    }
-    setDateRange([start, end])
-  }
+  }, [startDate, endDate, activeCategory, selectedBranch, fetchReport])
 
   const CustomInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
     ({ value, onClick }, ref) => {
@@ -309,42 +459,42 @@ const ExpenseReport: React.FC = () => {
   )
   CustomInput.displayName = 'CustomInput'
 
-  const handleExportExcel = () => {
-    if (!data) return
-    const csvRows = []
-    const headers = [
-      'S.No',
-      'Branch Name',
-      ...data.categories.map((cat) => categoryMap[cat] || cat),
-      'Total',
-    ]
-    csvRows.push(headers.join(','))
+  const categories = [
+    'ALL',
+    'ADVANCE',
+    'COMPLEMENTARY',
+    'FUEL',
+    'MAINTENANCE',
+    'OC PRODUCTS',
+    'OTHERS',
+    'PACKING',
+    'RAW MATERIAL',
+    'SALARY',
+    'STAFF WELFARE',
+    'TRANSPORT',
+  ]
 
-    data.stats.forEach((row, index) => {
-      const categoryValues = data.categories.map((cat) => formatValue((row as any)[cat]))
-      csvRows.push(
-        [index + 1, `"${row.branchName}"`, ...categoryValues, formatValue(row.total)].join(','),
-      )
-    })
-
-    const totalCategoryValues = data.categories.map((cat) => formatValue((data.totals as any)[cat]))
-    csvRows.push(['', 'TOTAL', ...totalCategoryValues, formatValue(data.totals.total)].join(','))
-
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `expense_report_${startDate ? toLocalDateStr(startDate) : ''}_to_${endDate ? toLocalDateStr(endDate) : ''}.csv`
-    a.click()
-  }
+  const branchOptions = [
+    { value: 'all', label: 'All Branches' },
+    ...branches.map((b) => ({ value: b.id, label: b.name })),
+  ]
 
   return (
-    <div className="expense-report-container">
-      <div className="report-header">
-        <div className="header-top">
-          <h1>Expense Report</h1>
-          <div className="header-actions">
-            <div className="filter-group">
+    <div className="expense-report-container-v2">
+      <div className="report-header-v2">
+        <div className="header-controls">
+          <div className="date-controls">
+            <Select
+              options={dateRangeOptions}
+              value={dateRangeOptions.find((o) => o.value === dateRangePreset)}
+              onChange={(option: { value: string; label: string } | null) => {
+                if (option) handleDatePresetChange(option.value)
+              }}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              isSearchable={false}
+            />
+            <div className="date-picker-wrapper">
               <DatePicker
                 selectsRange={true}
                 startDate={startDate}
@@ -356,31 +506,10 @@ const ExpenseReport: React.FC = () => {
                 dateFormat="yyyy-MM-dd"
                 customInput={<CustomInput />}
                 calendarClassName="custom-calendar"
-                popperPlacement="bottom-end"
+                popperPlacement="bottom-start"
               />
             </div>
-            <button className="export-btn" onClick={handleExportExcel} title="Export to Excel">
-              <span>Export</span>
-              <span className="icon">↓</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="filters-row">
-          <div className="filter-group">
             <Select
-              options={dateRangeOptions}
-              value={dateRangeOptions.find((o) => o.value === dateRangePreset)}
-              onChange={(opt: any) => handleDatePresetChange(opt.value)}
-              styles={customStyles}
-              placeholder="Date Range..."
-              isSearchable={false}
-            />
-          </div>
-
-          <div className="filter-group">
-            <Select
-              instanceId="branch-select"
               options={branchOptions}
               isMulti
               value={branchOptions.filter((o) => selectedBranch.includes(o.value))}
@@ -390,13 +519,17 @@ const ExpenseReport: React.FC = () => {
                 const hasAll = selected.includes('all')
 
                 let final = selected
-                if (hasAll && !wasAll) final = ['all']
-                else if (hasAll && wasAll && selected.length > 1)
+                if (hasAll && !wasAll) {
+                  final = ['all']
+                } else if (hasAll && wasAll && selected.length > 1) {
                   final = selected.filter((x) => x !== 'all')
-                else if (final.length === 0) final = ['all']
+                } else if (final.length === 0) {
+                  final = ['all']
+                }
                 setSelectedBranch(final)
               }}
               styles={customStyles}
+              classNamePrefix="react-select"
               placeholder="Select Branch..."
               isSearchable={true}
               closeMenuOnSelect={false}
@@ -408,316 +541,137 @@ const ExpenseReport: React.FC = () => {
               }}
             />
           </div>
-
-          <div className="filter-group">
-            <Select
-              instanceId="category-select"
-              options={categoryOptions}
-              isMulti
-              value={categoryOptions.filter((o) => selectedCategory.includes(o.value))}
-              onChange={(newValue) => {
-                const selected = newValue ? newValue.map((x) => x.value) : []
-                const wasAll = selectedCategory.includes('all')
-                const hasAll = selected.includes('all')
-
-                let final = selected
-                if (hasAll && !wasAll) final = ['all']
-                else if (hasAll && wasAll && selected.length > 1)
-                  final = selected.filter((x) => x !== 'all')
-                else if (final.length === 0) final = ['all']
-                setSelectedCategory(final)
-              }}
-              styles={customStyles}
-              placeholder="Select Category..."
-              isSearchable={true}
-              closeMenuOnSelect={false}
-              hideSelectedOptions={false}
-              components={{
-                Option: CheckboxOption,
-                ValueContainer: CustomValueContainer,
-                MultiValue,
-              }}
-            />
-          </div>
-
-          <button
-            onClick={() => {
-              setDateRange([new Date(), new Date()])
-              setSelectedBranch(['all'])
-              setSelectedCategory(['all'])
-              setDateRangePreset('today')
-            }}
-            title="Reset Filters"
-            className="reset-btn"
-          >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M23 4v6h-6"></path>
-              <path d="M1 20v-6h6"></path>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-            </svg>
-          </button>
-        </div>
-
-        {!selectedCategory.includes('all') && selectedCategory.length > 0 && (
-          <div className="selected-filters-tags">
-            {selectedCategory.map((cat) => (
-              <div key={cat} className="filter-tag">
-                <span>{cat}</span>
-                <button
-                  onClick={() => {
-                    const next = selectedCategory.filter((c) => c !== cat)
-                    setSelectedCategory(next.length > 0 ? next : ['all'])
-                  }}
-                  className="remove-tag"
-                  title={`Remove ${cat}`}
-                >
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                  </svg>
-                </button>
-              </div>
+          <div className="category-tabs">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                className={`category-tab ${activeCategory === (cat === 'ALL' ? 'all' : cat) ? 'active' : ''}`}
+                onClick={() => {
+                  const target = cat === 'ALL' ? 'all' : cat
+                  setActiveCategory(activeCategory === target ? 'all' : target)
+                }}
+              >
+                {cat}
+              </button>
             ))}
           </div>
+        </div>
+      </div>
+
+      <div className="report-content">
+        {loading && <div className="loading-state">Loading...</div>}
+        {error && <div className="error-message">{error}</div>}
+
+        {!loading && data && (
+          <div className="report-main-layout">
+            <div className="branch-groups">
+              {data.groups.map((group) => (
+                <div key={group._id} className="branch-section">
+                  <div className="branch-header">
+                    <div className="branch-info">
+                      <h2>{group.branchName}</h2>
+                      <span className="item-count">{group.count} items</span>
+                    </div>
+                    <div className="branch-total">{group.total.toLocaleString('en-IN')}</div>
+                  </div>
+                  <div className="branch-items-table">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '5%' }}>S.NO</th>
+                          <th style={{ width: '15%' }}>Category</th>
+                          <th style={{ width: '17.5%' }}>Reason</th>
+                          <th style={{ width: '15%', textAlign: 'right' }}>Amount</th>
+                          <th style={{ width: '15%', textAlign: 'right' }}>Time</th>
+                          <th style={{ width: '15%', textAlign: 'center' }}>Image</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.items.map((item, idx) => (
+                          <tr key={idx}>
+                            <td style={{ opacity: 0.5, fontSize: '0.8rem' }}>{idx + 1}</td>
+                            <td className="category-cell">{item.category}</td>
+                            <td className="reason-cell">{item.reason}</td>
+                            <td className="amount-cell">{item.amount.toLocaleString('en-IN')}</td>
+                            <td className="time-cell">{dayjs(item.time).format('HH:mm')}</td>
+                            <td className="image-cell" style={{ textAlign: 'center' }}>
+                              <button
+                                className={`image-view-btn ${item.imageUrl ? 'active' : 'inactive'}`}
+                                disabled={!item.imageUrl}
+                                onClick={() => item.imageUrl && setPreviewImage(item.imageUrl)}
+                                title={item.imageUrl ? 'View Image' : 'No Image'}
+                              >
+                                <svg
+                                  width="20"
+                                  height="20"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                                  <circle cx="12" cy="13" r="4"></circle>
+                                </svg>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+              {data.groups.length === 0 && <div className="no-data">No expenses found.</div>}
+
+              {data.groups.length > 0 && (
+                <div className="overall-report-total">
+                  <div className="total-info">
+                    <div className="total-label">OVERALL TOTAL</div>
+                    <span className="total-count">{data.meta.totalItems} items</span>
+                  </div>
+                  <div className="total-amount">
+                    ₹{data.meta.grandTotal.toLocaleString('en-IN')}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <CategorySummary
+              stats={data.meta.categoryStats}
+              groups={data.groups}
+              onCategoryClick={(target) =>
+                setActiveCategory(activeCategory === target ? 'all' : target)
+              }
+              activeCategory={activeCategory}
+            />
+          </div>
+        )}
+
+        {!loading && data && data.groups.length > 0 && (
+          <ExpenseTrendGraph groups={data.groups} preset={dateRangePreset} />
         )}
       </div>
 
-      {loading && <div className="loading-state">Loading...</div>}
-      {error && <div className="error-message">{error}</div>}
-
-      {data && !loading && (
-        <div className="table-container">
-          <table className="report-table">
-            <thead>
-              <tr>
-                <th style={{ width: '50px' }}>S.NO</th>
-                <th>BRANCH NAME</th>
-                {data.categories.map((cat) => (
-                  <th key={cat} style={{ textAlign: 'right' }}>
-                    {categoryMap[cat] || cat}
-                  </th>
-                ))}
-                <th style={{ textAlign: 'right' }}>TOTAL</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.stats.length > 0 ? (
-                data.stats.map((row, index) => (
-                  <tr key={row.branchName}>
-                    <td>{index + 1}</td>
-                    <td className="branch-name-cell">{row.branchName.toUpperCase()}</td>
-                    {data.categories.map((cat) => (
-                      <td
-                        key={cat}
-                        style={{ textAlign: 'right', cursor: 'pointer' }}
-                        className="amount-cell"
-                        onClick={() =>
-                          setSelectedDrillDown({
-                            branchId: row.branchId,
-                            branchName: row.branchName,
-                            category: cat,
-                          })
-                        }
-                      >
-                        {formatValue(row[cat])}
-                      </td>
-                    ))}
-                    <td
-                      style={{ textAlign: 'right', fontWeight: 'bold', cursor: 'pointer' }}
-                      className="amount-cell"
-                      onClick={() =>
-                        setSelectedDrillDown({
-                          branchId: row.branchId,
-                          branchName: row.branchName,
-                          category: 'all',
-                        })
-                      }
-                    >
-                      {formatValue(row.total)}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={data.categories.length + 3} style={{ textAlign: 'center' }}>
-                    No data found for the selected filters.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-            {data.stats.length > 0 && (
-              <tfoot>
-                <tr className="grand-total">
-                  <td colSpan={2}>
-                    <strong>Total</strong>
-                  </td>
-                  {data.categories.map((cat) => (
-                    <td
-                      key={cat}
-                      style={{ textAlign: 'right', fontWeight: 'bold', cursor: 'pointer' }}
-                      className="amount-cell"
-                      onClick={() =>
-                        setSelectedDrillDown({
-                          branchId: 'all',
-                          branchName: 'ALL',
-                          category: cat,
-                        })
-                      }
-                    >
-                      {formatValue(data.totals[cat])}
-                    </td>
-                  ))}
-                  <td
-                    style={{ textAlign: 'right', fontWeight: 'bold', cursor: 'pointer' }}
-                    className="amount-cell"
-                    onClick={() =>
-                      setSelectedDrillDown({
-                        branchId: 'all',
-                        branchName: 'ALL',
-                        category: 'all',
-                      })
-                    }
-                  >
-                    {formatValue(data.totals.total)}
-                  </td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-      )}
-      {selectedDrillDown && (
-        <ExpenseDetailPopup
-          branchName={selectedDrillDown.branchName}
-          category={selectedDrillDown.category}
-          data={drillDownData}
-          loading={loadingDrillDown}
-          onClose={() => setSelectedDrillDown(null)}
-        />
-      )}
-    </div>
-  )
-}
-
-const ExpenseDetailPopup = ({
-  branchName,
-  category,
-  data,
-  loading,
-  onClose,
-}: {
-  branchName: string
-  category: string
-  data: any[]
-  loading: boolean
-  onClose: () => void
-}) => {
-  const formatDateTime = (iso: string) => {
-    const d = dayjs(iso)
-    return d.format('DD-MM-YY HH:mm')
-  }
-
-  return (
-    <div className="popup-overlay" onClick={onClose}>
-      <div className="popup-container" onClick={(e) => e.stopPropagation()}>
-        <div className="popup-header">
-          <div className="header-info">
-            <h2>{branchName.toUpperCase()} Expense Details</h2>
-            <div className="sub-header">
-              <span className="info-value category-value">
-                {category === 'all' ? 'ALL' : category}
-              </span>
-            </div>
+      {previewImage && (
+        <div className="image-preview-modal" onClick={() => setPreviewImage(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <img src={previewImage} alt="Expense" />
+            <button className="close-btn" onClick={() => setPreviewImage(null)}>
+              &times;
+            </button>
           </div>
-          <button className="close-btn" onClick={onClose}>
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
         </div>
+      )}
 
-        <div className="popup-body">
-          {loading ? (
-            <div className="popup-loading">Loading details...</div>
-          ) : data.length > 0 ? (
-            <div className="popup-table-wrapper">
-              <table className="report-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '140px' }}>DATE & TIME</th>
-                    {branchName === 'ALL' && <th style={{ width: '120px' }}>BRANCH</th>}
-                    {category === 'all' && <th style={{ width: '100px' }}>CAT</th>}
-                    <th style={{ width: '250px' }}>REASON</th>
-                    <th style={{ width: '100px', textAlign: 'right' }}>AMOUNT</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.map((item, idx) => (
-                    <tr key={idx}>
-                      <td className="date-cell">{formatDateTime(item.time)}</td>
-                      {branchName === 'ALL' && (
-                        <td style={{ fontSize: '0.8rem', fontWeight: '600' }}>{item.branchName}</td>
-                      )}
-                      {category === 'all' && (
-                        <td style={{ fontSize: '0.8rem', fontWeight: '600', opacity: 0.8 }}>
-                          {item.category}
-                        </td>
-                      )}
-                      <td className="reason-cell">{item.reason}</td>
-                      <td
-                        className="amount-cell"
-                        style={{ textAlign: 'right', fontWeight: 'bold' }}
-                      >
-                        ₹ {item.amount.toLocaleString('en-IN')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td colSpan={2 + (branchName === 'ALL' ? 1 : 0) + (category === 'all' ? 1 : 0)}>
-                      <strong>Total</strong>
-                    </td>
-                    <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                      ₹ {data.reduce((sum, item) => sum + item.amount, 0).toLocaleString('en-IN')}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          ) : (
-            <div className="no-data">No expense records found.</div>
-          )}
-        </div>
-      </div>
+      <button
+        className="floating-scroll-btn"
+        onClick={scrollToToggle}
+        title={showScrollBottom ? 'Scroll to Bottom' : 'Scroll to Top'}
+      >
+        {showScrollBottom ? <ChevronDown size={22} /> : <ChevronUp size={22} />}
+      </button>
     </div>
   )
 }

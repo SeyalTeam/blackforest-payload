@@ -119,9 +119,6 @@ const Expenses: CollectionConfig = {
               const yy = entryDate.getFullYear().toString().slice(-2)
               const dateStr = `${dd}${mm}${yy}`
 
-              // Normalize date to start of day for consistency
-              data.date = new Date(entryDate.setHours(0, 0, 0, 0)).toISOString()
-
               // Calculate start and end of day for query
               const startOfDay = new Date(entryDate.setHours(0, 0, 0, 0)).toISOString()
               const endOfDay = new Date(entryDate.setHours(23, 59, 59, 999)).toISOString()
