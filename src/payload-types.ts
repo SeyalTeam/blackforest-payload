@@ -229,12 +229,6 @@ export interface Branch {
    * Public IP for auto-detecting branch on login (e.g., 192.0.2.1). Fetch via whatismyip.com at branch.
    */
   ipAddress?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
-  /**
-   * Distance in meters around the branch location where login is allowed.
-   */
-  radius?: number | null;
   /**
    * IP address of the network printer for this branch (e.g., 192.168.1.100). Used for printing bills directly over the local network.
    */
@@ -827,9 +821,6 @@ export interface BranchesSelect<T extends boolean = true> {
   phone?: T;
   email?: T;
   ipAddress?: T;
-  latitude?: T;
-  longitude?: T;
-  radius?: T;
   printerIp?: T;
   inventoryResetDate?: T;
   productResets?:
