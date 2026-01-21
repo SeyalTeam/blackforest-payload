@@ -20,8 +20,12 @@ export const getExpenseReportHandler: PayloadHandler = async (
   const branchParam = req.query.branch as string
   const categoryParam = req.query.category as string
 
-  const startOfDay = dayjs.tz(startDateParam, 'YYYY-MM-DD', 'Asia/Kolkata').startOf('day').toDate()
-  const endOfDay = dayjs.tz(endDateParam, 'YYYY-MM-DD', 'Asia/Kolkata').endOf('day').toDate()
+  // Ensure we are working with the start and end of the day in UTC for database matching
+  // FIX: The database stores dates as "Local Time but marked as UTC" (e.g., 23:44 IST is stored as 23:44 Z).
+  // Therefore, to find records for "2026-01-21", we must query for 2026-01-21 00:00 Z to 2026-01-21 23:59 Z.
+  // We should NOT apply any timezone conversion (like shifting to 18:30 previous day).
+  const startOfDay = dayjs.utc(startDateParam).startOf('day').toDate()
+  const endOfDay = dayjs.utc(endDateParam).endOf('day').toDate()
 
   try {
     const ExpenseModel = payload.db.collections['expenses']

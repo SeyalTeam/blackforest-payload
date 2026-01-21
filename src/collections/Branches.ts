@@ -47,6 +47,38 @@ export const Branches: CollectionConfig = {
       },
     },
     {
+      type: 'collapsible',
+      label: 'Location Settings',
+      fields: [
+        {
+          type: 'row',
+          fields: [
+            {
+              name: 'latitude',
+              type: 'number',
+              label: 'Latitude',
+              required: false,
+            },
+            {
+              name: 'longitude',
+              type: 'number',
+              label: 'Longitude',
+              required: false,
+            },
+          ],
+        },
+        {
+          name: 'radius',
+          type: 'number',
+          label: 'Allowed Radius (meters)',
+          defaultValue: 100,
+          admin: {
+            description: 'Distance in meters around the branch location where login is allowed.',
+          },
+        },
+      ],
+    },
+    {
       name: 'printerIp',
       type: 'text',
       label: 'Printer IP Address',

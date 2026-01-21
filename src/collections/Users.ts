@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { isIPAllowed } from '../utilities/ipCheck'
+import { getDistanceFromLatLonInM } from '../utilities/geo'
 import type { IpSetting } from '../payload-types'
 
 export const Users: CollectionConfig = {
@@ -121,6 +122,73 @@ export const Users: CollectionConfig = {
     beforeLogin: [
       async ({ req, user }) => {
         if (user.role === 'superadmin') return
+
+        // 1. Branch-Specific Checks (Location / IP)
+        if (user.branch) {
+          const userBranchId =
+            typeof user.branch === 'string' ? user.branch : (user.branch as { id: string }).id
+
+          if (userBranchId) {
+            const branch = await req.payload.findByID({
+              collection: 'branches',
+              id: userBranchId,
+            })
+
+            if (branch) {
+              const forwarded = req.headers.get('x-forwarded-for')
+              const clientIp =
+                typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : '127.0.0.1'
+
+              // Location headers
+              const latHeader = req.headers.get('x-user-lat')
+              const longHeader = req.headers.get('x-user-long')
+              const clientLat = latHeader ? parseFloat(latHeader) : null
+              const clientLong = longHeader ? parseFloat(longHeader) : null
+
+              const hasIpRestriction = !!branch.ipAddress
+              const hasLocationRestriction =
+                branch.latitude != null && branch.longitude != null && branch.radius != null
+
+              if (hasIpRestriction || hasLocationRestriction) {
+                let isIpAllowed = false
+                let isLocationAllowed = false
+
+                // Check IP
+                if (branch.ipAddress && branch.ipAddress === clientIp) {
+                  isIpAllowed = true
+                }
+
+                // Check Location
+                if (
+                  branch.latitude != null &&
+                  branch.longitude != null &&
+                  branch.radius != null &&
+                  clientLat != null &&
+                  clientLong != null
+                ) {
+                  const dist = getDistanceFromLatLonInM(
+                    branch.latitude,
+                    branch.longitude,
+                    clientLat,
+                    clientLong,
+                  )
+                  if (dist <= branch.radius) {
+                    isLocationAllowed = true
+                  }
+                }
+
+                if (!isIpAllowed && !isLocationAllowed) {
+                  throw new Error(
+                    'Login denied: You must be at the branch location or connected to the branch Wi-Fi.',
+                  )
+                }
+
+                // If allowed by Branch rules, we return early (skipping Global IP Settings)
+                return
+              }
+            }
+          }
+        }
 
         const ipSettings: IpSetting = await req.payload.findGlobal({
           slug: 'ip-settings',

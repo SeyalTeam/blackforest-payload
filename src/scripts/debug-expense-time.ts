@@ -1,38 +1,24 @@
-import 'dotenv/config'
+import config from '@payload-config'
 import { getPayload } from 'payload'
-import config from '../payload.config'
-import dayjs from 'dayjs'
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
 
-dayjs.extend(utc)
-dayjs.extend(timezone)
-
-async function debug() {
+const debugExpense = async () => {
   const payload = await getPayload({ config })
-
-  const { docs: latestExpenses } = await payload.find({
+  const expense = await payload.find({
     collection: 'expenses',
-    sort: '-createdAt',
-    limit: 5,
+    where: {
+      id: {
+        equals: '696fc61ea6d8c3cce44049c1'
+      }
+    }
   })
 
-  console.log('--- Latest 5 Expenses ---')
-  latestExpenses.forEach((exp) => {
-    console.log(`ID: ${exp.id}`)
-    console.log(`Invoice: ${exp.invoiceNumber}`)
-    console.log(`Raw Date Field: ${exp.date}`)
-    console.log(`Created At: ${exp.createdAt}`)
-    console.log(
-      `Formatted Date (Asia/Kolkata): ${dayjs(exp.date).tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss')}`,
-    )
-    console.log(
-      `Formatted Created (Asia/Kolkata): ${dayjs(exp.createdAt).tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss')}`,
-    )
-    console.log('-------------------------')
-  })
-
+  if (expense.docs.length > 0) {
+    console.log('Expense Date (Raw):', expense.docs[0].date)
+    console.log('Expense Details:', JSON.stringify(expense.docs[0].details, null, 2))
+  } else {
+    console.log('Expense not found')
+  }
   process.exit(0)
 }
 
-debug()
+debugExpense()

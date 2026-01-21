@@ -5,8 +5,14 @@ import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import Select, { components, OptionProps, ValueContainerProps } from 'react-select'
 import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import './index.scss'
+
+dayjs.extend(utc)
+dayjs.extend(timezone)
+dayjs.tz.setDefault('Asia/Kolkata')
 import ExpenseTrendGraph from './ExpenseTrendGraph'
 import Image from 'next/image'
 
@@ -671,7 +677,9 @@ const ExpenseReport: React.FC = () => {
                               <td className="category-cell">{item.category}</td>
                               <td className="reason-cell">{item.reason}</td>
                               <td className="amount-cell">{item.amount.toLocaleString('en-IN')}</td>
-                              <td className="time-cell">{dayjs(item.time).format('HH:mm')}</td>
+                              <td className="time-cell" title={item.time}>
+                                {dayjs.utc(item.time).format('DD-MM-YY hh:mm A')}
+                              </td>
                               <td className="image-cell" style={{ textAlign: 'center' }}>
                                 <button
                                   className={`image-view-btn ${item.imageUrl ? 'active' : 'inactive'}`}
