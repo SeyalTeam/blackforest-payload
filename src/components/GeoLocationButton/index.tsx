@@ -32,27 +32,54 @@ export const GeoLocationButton: React.FC<{ path: string }> = ({ path }) => {
       return
     }
 
+    const successCallback = (position: GeolocationPosition) => {
+      dispatch({
+        type: 'UPDATE',
+        path: latitudeFieldPath,
+        value: position.coords.latitude,
+      })
+      dispatch({
+        type: 'UPDATE',
+        path: longitudeFieldPath,
+        value: position.coords.longitude,
+      })
+      setLoading(false)
+    }
+
+    // Try high accuracy first
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        dispatch({
-          type: 'UPDATE',
-          path: latitudeFieldPath,
-          value: position.coords.latitude,
-        })
-        dispatch({
-          type: 'UPDATE',
-          path: longitudeFieldPath,
-          value: position.coords.longitude,
-        })
-        setLoading(false)
-      },
-      (err) => {
-        setError(`Error: ${err.message}`)
-        setLoading(false)
+      successCallback,
+      (highAccuracyError) => {
+        console.warn('High accuracy geolocation failed:', highAccuracyError)
+
+        // Fallback to low accuracy
+        navigator.geolocation.getCurrentPosition(
+          successCallback,
+          (lowAccuracyError) => {
+            console.error('Low accuracy geolocation failed:', lowAccuracyError)
+            let errorMessage = `Error: ${lowAccuracyError.message}`
+
+            if (lowAccuracyError.code === lowAccuracyError.TIMEOUT) {
+              errorMessage = 'Location request timed out. Please check your network.'
+            } else if (lowAccuracyError.code === lowAccuracyError.POSITION_UNAVAILABLE) {
+              errorMessage = 'Position unavailable. Check if location services are enabled.'
+            } else if (lowAccuracyError.code === lowAccuracyError.PERMISSION_DENIED) {
+              errorMessage = 'Location permission denied.'
+            }
+
+            setError(errorMessage)
+            setLoading(false)
+          },
+          {
+            enableHighAccuracy: false,
+            timeout: 20000,
+            maximumAge: 0,
+          },
+        )
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
+        timeout: 10000, // Short timeout for high accuracy
         maximumAge: 0,
       },
     )
