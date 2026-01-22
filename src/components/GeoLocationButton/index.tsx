@@ -32,7 +32,17 @@ export const GeoLocationButton: React.FC<{ path: string }> = ({ path }) => {
       return
     }
 
+    // Check for Secure Context (HTTPS or localhost)
+    if (!window.isSecureContext) {
+      setError(
+        'Geolocation requires a secure context (HTTPS). Please check your connection security.',
+      )
+      setLoading(false)
+      return
+    }
+
     const successCallback = (position: GeolocationPosition) => {
+      console.log('Geolocation success:', position.coords)
       dispatch({
         type: 'UPDATE',
         path: latitudeFieldPath,
@@ -46,30 +56,40 @@ export const GeoLocationButton: React.FC<{ path: string }> = ({ path }) => {
       setLoading(false)
     }
 
+    const errorCallback = (err: GeolocationPositionError, method: string) => {
+      console.error(`${method} geolocation error:`, err)
+
+      // Don't set error yet if it's the first attempt (high accuracy)
+      if (method === 'High accuracy') return
+
+      let errorMessage = `Error (${err.code}): ${err.message}`
+
+      if (err.code === err.TIMEOUT) {
+        errorMessage =
+          'Location request timed out. Please check if your device has a clear GPS signal.'
+      } else if (err.code === err.POSITION_UNAVAILABLE) {
+        errorMessage =
+          'Position unavailable. Please ensure Location Services are enabled in your OS/Browser settings.'
+      } else if (err.code === err.PERMISSION_DENIED) {
+        errorMessage = 'Location permission denied. Please allow location access for this site.'
+      }
+
+      setError(errorMessage)
+      setLoading(false)
+    }
+
+    console.log('Requesting high accuracy location...')
     // Try high accuracy first
     navigator.geolocation.getCurrentPosition(
       successCallback,
       (highAccuracyError) => {
-        console.warn('High accuracy geolocation failed:', highAccuracyError)
+        errorCallback(highAccuracyError, 'High accuracy')
 
+        console.log('Falling back to low accuracy location...')
         // Fallback to low accuracy
         navigator.geolocation.getCurrentPosition(
           successCallback,
-          (lowAccuracyError) => {
-            console.error('Low accuracy geolocation failed:', lowAccuracyError)
-            let errorMessage = `Error: ${lowAccuracyError.message}`
-
-            if (lowAccuracyError.code === lowAccuracyError.TIMEOUT) {
-              errorMessage = 'Location request timed out. Please check your network.'
-            } else if (lowAccuracyError.code === lowAccuracyError.POSITION_UNAVAILABLE) {
-              errorMessage = 'Position unavailable. Check if location services are enabled.'
-            } else if (lowAccuracyError.code === lowAccuracyError.PERMISSION_DENIED) {
-              errorMessage = 'Location permission denied.'
-            }
-
-            setError(errorMessage)
-            setLoading(false)
-          },
+          (lowAccuracyError) => errorCallback(lowAccuracyError, 'Low accuracy'),
           {
             enableHighAccuracy: false,
             timeout: 20000,
@@ -79,7 +99,7 @@ export const GeoLocationButton: React.FC<{ path: string }> = ({ path }) => {
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000, // Short timeout for high accuracy
+        timeout: 10000,
         maximumAge: 0,
       },
     )
