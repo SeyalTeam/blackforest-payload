@@ -152,19 +152,30 @@ export const Users: CollectionConfig = {
           const privateIp = typeof privateIpHeader === 'string' ? privateIpHeader.trim() : null
 
           if (user.branch) {
-            const userBranchId =
+            const userBranchId = (
               typeof user.branch === 'string' ? user.branch : (user.branch as { id: string }).id
+            ).toString()
+            console.log(`[Login Debug] User Branch ID: ${userBranchId}, Public IP: ${publicIp}`)
 
             // A. Check Branch-specific IP from BranchGeoSettings (New)
             if (geoSettings?.locations) {
               const branchGeo = geoSettings.locations.find((loc: any) => {
-                const locBranchId = typeof loc.branch === 'string' ? loc.branch : loc.branch?.id
+                const locBranchId = (
+                  typeof loc.branch === 'string' ? loc.branch : loc.branch?.id
+                )?.toString()
                 return locBranchId === userBranchId
               })
 
-              if (branchGeo?.ipAddress && isIPAllowed(publicIp, [branchGeo.ipAddress])) {
-                console.log(`Login authorized by BranchGeoSettings IP/Range: ${publicIp}`)
-                isIpAuthorized = true
+              if (branchGeo?.ipAddress) {
+                console.log(
+                  `[Login Debug] Found GeoSetting IP config for branch: ${branchGeo.ipAddress}`,
+                )
+                if (isIPAllowed(publicIp, [branchGeo.ipAddress])) {
+                  console.log(`[Login Debug] SUCCESS: Authorized by BranchGeoSettings IP/Range`)
+                  isIpAuthorized = true
+                }
+              } else {
+                console.log(`[Login Debug] No GeoSetting IP config found for branch.`)
               }
             }
 
@@ -174,9 +185,14 @@ export const Users: CollectionConfig = {
                 collection: 'branches',
                 id: userBranchId,
               })
-              if (branchDoc?.ipAddress && isIPAllowed(publicIp, [branchDoc.ipAddress])) {
-                console.log(`Login authorized by Branches collection IP/Range: ${publicIp}`)
-                isIpAuthorized = true
+              if (branchDoc?.ipAddress) {
+                console.log(
+                  `[Login Debug] Found Branch collection IP config: ${branchDoc.ipAddress}`,
+                )
+                if (isIPAllowed(publicIp, [branchDoc.ipAddress])) {
+                  console.log(`[Login Debug] SUCCESS: Authorized by Branches collection IP/Range`)
+                  isIpAuthorized = true
+                }
               }
             }
           }
@@ -202,18 +218,20 @@ export const Users: CollectionConfig = {
               isIPAllowed(privateIp, privateAllowedRanges)
 
             if (isPublicAllowed || isPrivateAllowed) {
+              console.log(`[Login Debug] SUCCESS: Authorized by Global Role Restrictions`)
               isIpAuthorized = true
             } else {
               console.warn(
-                `IP Check Failed for ${user.role}. Public: ${publicIp}, Private: ${privateIp}`,
+                `[Login Debug] Global IP Check Failed for ${user.role}. Public: ${publicIp}, Private: ${privateIp}`,
               )
             }
-          } else if (!restriction) {
+          } else if (!restriction && !isIpAuthorized) {
             // No restriction for this role -> default authorized
+            console.log(`[Login Debug] SUCCESS: No role restrictions found.`)
             isIpAuthorized = true
           }
         } catch (error) {
-          console.error('IP Check Error:', error)
+          console.error('[Login Debug] IP Check Error:', error)
           // Fallback to Geo if IP check fails or encounters error
         }
 
