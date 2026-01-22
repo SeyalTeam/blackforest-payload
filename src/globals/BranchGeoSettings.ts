@@ -7,7 +7,7 @@ export const BranchGeoSettings: GlobalConfig = {
     group: 'Settings',
   },
   access: {
-    read: ({ req }) => ['superadmin', 'admin'].includes(req.user?.role || ''),
+    read: () => true,
     update: ({ req }) => req.user?.role === 'superadmin',
   },
   fields: [
