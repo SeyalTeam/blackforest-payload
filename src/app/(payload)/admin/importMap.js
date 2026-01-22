@@ -12,6 +12,7 @@ import { default as default_b041205a7c55420476e32a6bc72ba118 } from '../../../co
 import { default as default_140b8e69630a9ff5b0533c7021cd6bfe } from '../../../components/ReviewReport/index.tsx'
 import { default as default_438fefb174500fb3c1feb8d44211cf3b } from '../../../components/InstockEntryReport/index.tsx'
 import { default as default_7b71facc026c06bd9c34422308b32867 } from '../../../components/ExpenseReport/index.tsx'
+import { GeoLocationButton as GeoLocationButton_c6abd8fffba800c90850c15956a40d8c } from '../../../components/GeoLocationButton/index.tsx'
 import { VercelBlobClientUploadHandler as VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e } from '@payloadcms/storage-vercel-blob/client'
 
 export const importMap = {
@@ -29,5 +30,6 @@ export const importMap = {
   "/components/ReviewReport/index.tsx#default": default_140b8e69630a9ff5b0533c7021cd6bfe,
   "/components/InstockEntryReport/index.tsx#default": default_438fefb174500fb3c1feb8d44211cf3b,
   "/components/ExpenseReport/index.tsx#default": default_7b71facc026c06bd9c34422308b32867,
+  "/components/GeoLocationButton/index.tsx#GeoLocationButton": GeoLocationButton_c6abd8fffba800c90850c15956a40d8c,
   "@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler": VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e
 }

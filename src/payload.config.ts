@@ -54,6 +54,7 @@ import { InstockEntryReportGlobal } from './globals/InstockEntryReport'
 import { getDashboardStatsHandler } from './endpoints/getDashboardStats'
 import { getExpenseReportHandler } from './endpoints/getExpenseReport'
 import { ExpenseReportGlobal } from './globals/ExpenseReport'
+import { BranchGeoSettings } from './globals/BranchGeoSettings'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -87,6 +88,7 @@ export default buildConfig({
     'http://127.0.0.1:5500',
     'https://blackforest.vseyal.com', // your domain
     'https://superadmin.theblackforestcakes.com',
+    'http://192.168.29.173:3000', // Local Network IP
   ],
 
   csrf: [
@@ -100,6 +102,7 @@ export default buildConfig({
     'http://127.0.0.1:5500',
     'https://blackforest.vseyal.com',
     'https://superadmin.theblackforestcakes.com',
+    'http://192.168.29.173:3000', // Local Network IP
   ],
 
   endpoints: [
@@ -194,6 +197,7 @@ export default buildConfig({
     ReviewReportGlobal,
     InstockEntryReportGlobal,
     ExpenseReportGlobal,
+    BranchGeoSettings,
   ],
 
   // Collections

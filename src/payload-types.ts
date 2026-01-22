@@ -128,6 +128,7 @@ export interface Config {
     'review-report': ReviewReport;
     'instock-entry-report': InstockEntryReport;
     'expense-report': ExpenseReport;
+    'branch-geo-settings': BranchGeoSetting;
   };
   globalsSelect: {
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
@@ -143,6 +144,7 @@ export interface Config {
     'review-report': ReviewReportSelect<false> | ReviewReportSelect<true>;
     'instock-entry-report': InstockEntryReportSelect<false> | InstockEntryReportSelect<true>;
     'expense-report': ExpenseReportSelect<false> | ExpenseReportSelect<true>;
+    'branch-geo-settings': BranchGeoSettingsSelect<false> | BranchGeoSettingsSelect<true>;
   };
   locale: null;
   user: User & {
@@ -1378,6 +1380,35 @@ export interface ExpenseReport {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "branch-geo-settings".
+ */
+export interface BranchGeoSetting {
+  id: string;
+  locations?:
+    | {
+        branch: string | Branch;
+        latitude: number;
+        longitude: number;
+        /**
+         * Allowed distance in meters
+         */
+        radius: number;
+        /**
+         * Public IP required for login (optional override)
+         */
+        ipAddress?: string | null;
+        /**
+         * Local Network IP for printers
+         */
+        printerIp?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "ip-settings_select".
  */
 export interface IpSettingsSelect<T extends boolean = true> {
@@ -1502,6 +1533,26 @@ export interface InstockEntryReportSelect<T extends boolean = true> {
  * via the `definition` "expense-report_select".
  */
 export interface ExpenseReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "branch-geo-settings_select".
+ */
+export interface BranchGeoSettingsSelect<T extends boolean = true> {
+  locations?:
+    | T
+    | {
+        branch?: T;
+        latitude?: T;
+        longitude?: T;
+        radius?: T;
+        ipAddress?: T;
+        printerIp?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
