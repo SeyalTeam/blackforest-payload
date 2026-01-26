@@ -89,19 +89,35 @@ const Billings: CollectionConfig = {
       },
     ],
     beforeChange: [
-      async ({ data, req, operation }) => {
+      async ({ data, req, operation, originalDoc }) => {
         if (!data) return
-        if (operation === 'create') {
-          // 🧾 Final Invoice Number generation
+        if (
+          operation === 'create' ||
+          (operation === 'update' &&
+            data.status &&
+            data.status !== 'pending' &&
+            originalDoc?.status === 'pending')
+        ) {
+          // 🧾 Invoice Number generation
           const date = new Date()
           const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, '')
 
-          if (data.branch) {
+          const status = data.status || originalDoc?.status || 'pending'
+          const isKOT = status === 'pending'
+
+          // Only generate a new number if it's a creation OR if we're moving out of pending status
+          // and currently have a KOT number (or no number yet).
+          const currentInvoiceNumber = data.invoiceNumber || originalDoc?.invoiceNumber
+          const needsNewNumber =
+            operation === 'create' || (isKOT === false && currentInvoiceNumber?.includes('-KOT'))
+
+          if (needsNewNumber && (data.branch || originalDoc?.branch)) {
             let branchId: string
-            if (typeof data.branch === 'string') {
-              branchId = data.branch
-            } else if (typeof data.branch === 'object' && data.branch !== null) {
-              branchId = data.branch.id
+            const branchRef = data.branch || originalDoc.branch
+            if (typeof branchRef === 'string') {
+              branchId = branchRef
+            } else if (typeof branchRef === 'object' && branchRef !== null) {
+              branchId = branchRef.id
             } else {
               return data
             }
@@ -114,11 +130,26 @@ const Billings: CollectionConfig = {
 
             if (branch?.name) {
               const prefix = branch.name.substring(0, 3).toUpperCase()
-              const existingCount = await req.payload.db.collections.billings.countDocuments({
-                invoiceNumber: { $regex: `^${prefix}-${formattedDate}-` },
-              })
-              const seq = (existingCount + 1).toString().padStart(3, '0')
-              data.invoiceNumber = `${prefix}-${formattedDate}-${seq}`
+
+              if (isKOT) {
+                // KOT Numbering: PREFIX-YYYYMMDD-KOTxx
+                const existingKOTCount = await req.payload.db.collections.billings.countDocuments({
+                  invoiceNumber: { $regex: `^${prefix}-${formattedDate}-KOT` },
+                })
+                const seq = (existingKOTCount + 1).toString().padStart(2, '0')
+                data.invoiceNumber = `${prefix}-${formattedDate}-KOT${seq}`
+              } else {
+                // Regular Numbering: PREFIX-YYYYMMDD-xxx (independent of KOT)
+                const existingRegularCount =
+                  await req.payload.db.collections.billings.countDocuments({
+                    invoiceNumber: {
+                      $regex: `^${prefix}-${formattedDate}-`,
+                      $not: /-KOT/,
+                    },
+                  })
+                const seq = (existingRegularCount + 1).toString().padStart(3, '0')
+                data.invoiceNumber = `${prefix}-${formattedDate}-${seq}`
+              }
             }
           }
         }
