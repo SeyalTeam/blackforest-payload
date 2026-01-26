@@ -55,6 +55,9 @@ import { getDashboardStatsHandler } from './endpoints/getDashboardStats'
 import { getExpenseReportHandler } from './endpoints/getExpenseReport'
 import { ExpenseReportGlobal } from './globals/ExpenseReport'
 import { BranchGeoSettings } from './globals/BranchGeoSettings'
+import { NetworkStatus } from './globals/NetworkStatus'
+import { getNetworkStatusHandler } from './endpoints/getNetworkStatus'
+import { downloadHandler, uploadHandler, pingHandler } from './endpoints/speedtest'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -181,6 +184,26 @@ export default buildConfig({
       method: 'get',
       handler: getExpenseReportHandler,
     },
+    {
+      path: '/network-status',
+      method: 'get',
+      handler: getNetworkStatusHandler,
+    },
+    {
+      path: '/speedtest/download',
+      method: 'get',
+      handler: downloadHandler,
+    },
+    {
+      path: '/speedtest/upload',
+      method: 'post',
+      handler: uploadHandler,
+    },
+    {
+      path: '/speedtest/ping',
+      method: 'get',
+      handler: pingHandler,
+    },
   ],
 
   globals: [
@@ -198,6 +221,7 @@ export default buildConfig({
     InstockEntryReportGlobal,
     ExpenseReportGlobal,
     BranchGeoSettings,
+    NetworkStatus,
   ],
 
   // Collections

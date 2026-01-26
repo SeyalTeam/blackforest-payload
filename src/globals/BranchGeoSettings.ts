@@ -78,10 +78,50 @@ export const BranchGeoSettings: GlobalConfig = {
             {
               name: 'printerIp',
               type: 'text',
-              label: 'Printer IP Address (Local)',
+              label: 'Default Printer IP',
               admin: {
                 width: '50%',
-                description: 'Local Network IP for printers',
+                description: 'Default Local Network IP for billing printer',
+              },
+            },
+          ],
+        },
+        {
+          name: 'kotPrinters',
+          type: 'array',
+          label: 'KOT Printers (Category Based)',
+          fields: [
+            {
+              type: 'row',
+              fields: [
+                {
+                  name: 'categories',
+                  type: 'relationship',
+                  relationTo: 'categories',
+                  hasMany: true,
+                  required: true,
+                  admin: {
+                    width: '50%',
+                  },
+                },
+                {
+                  name: 'printerIp',
+                  type: 'text',
+                  label: 'Printer IP',
+                  required: true,
+                  admin: {
+                    width: '50%',
+                    description: 'Local IP for this category group',
+                  },
+                },
+              ],
+            },
+            {
+              name: 'label',
+              type: 'text',
+              label: 'Printer Name/Label',
+              admin: {
+                description: 'e.g. Kitchen, Bar, Juice Counter',
               },
             },
           ],

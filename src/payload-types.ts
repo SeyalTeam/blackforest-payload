@@ -129,6 +129,7 @@ export interface Config {
     'instock-entry-report': InstockEntryReport;
     'expense-report': ExpenseReport;
     'branch-geo-settings': BranchGeoSetting;
+    'network-status': NetworkStatus;
   };
   globalsSelect: {
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
@@ -145,6 +146,7 @@ export interface Config {
     'instock-entry-report': InstockEntryReportSelect<false> | InstockEntryReportSelect<true>;
     'expense-report': ExpenseReportSelect<false> | ExpenseReportSelect<true>;
     'branch-geo-settings': BranchGeoSettingsSelect<false> | BranchGeoSettingsSelect<true>;
+    'network-status': NetworkStatusSelect<false> | NetworkStatusSelect<true>;
   };
   locale: null;
   user: User & {
@@ -322,6 +324,7 @@ export interface Category {
   isBilling?: boolean | null;
   isCake?: boolean | null;
   isStock?: boolean | null;
+  isKitchen?: boolean | null;
   company?: (string | Company)[] | null;
   department?: (string | null) | Department;
   updatedAt: string;
@@ -855,6 +858,7 @@ export interface CategoriesSelect<T extends boolean = true> {
   isBilling?: T;
   isCake?: T;
   isStock?: T;
+  isKitchen?: T;
   company?: T;
   department?: T;
   updatedAt?: T;
@@ -1398,12 +1402,35 @@ export interface BranchGeoSetting {
          */
         ipAddress?: string | null;
         /**
-         * Local Network IP for printers
+         * Default Local Network IP for billing printer
          */
         printerIp?: string | null;
+        kotPrinters?:
+          | {
+              categories: (string | Category)[];
+              /**
+               * Local IP for this category group
+               */
+              printerIp: string;
+              /**
+               * e.g. Kitchen, Bar, Juice Counter
+               */
+              label?: string | null;
+              id?: string | null;
+            }[]
+          | null;
         id?: string | null;
       }[]
     | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "network-status".
+ */
+export interface NetworkStatus {
+  id: string;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -1551,8 +1578,25 @@ export interface BranchGeoSettingsSelect<T extends boolean = true> {
         radius?: T;
         ipAddress?: T;
         printerIp?: T;
+        kotPrinters?:
+          | T
+          | {
+              categories?: T;
+              printerIp?: T;
+              label?: T;
+              id?: T;
+            };
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "network-status_select".
+ */
+export interface NetworkStatusSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

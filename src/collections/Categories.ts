@@ -11,7 +11,7 @@ const Categories: CollectionConfig = {
   admin: {
     useAsTitle: 'name',
     group: 'Inventory',
-    defaultColumns: ['name', 'company', 'isBilling', 'isCake', 'isStock'],
+    defaultColumns: ['name', 'company', 'isBilling', 'isCake', 'isStock', 'isKitchen'],
   },
   access: {
     read: () => true,
@@ -34,19 +34,42 @@ const Categories: CollectionConfig = {
       required: false,
     },
     {
-      name: 'isBilling', // Consistent with your JSON; rename if typo
-      type: 'checkbox',
-      defaultValue: false,
-    },
-    {
-      name: 'isCake',
-      type: 'checkbox',
-      defaultValue: false,
-    },
-    {
-      name: 'isStock',
-      type: 'checkbox',
-      defaultValue: false,
+      type: 'row',
+      fields: [
+        {
+          name: 'isBilling',
+          type: 'checkbox',
+          defaultValue: false,
+          admin: {
+            width: '10%',
+          },
+        },
+        {
+          name: 'isCake',
+          type: 'checkbox',
+          defaultValue: false,
+          admin: {
+            width: '10%',
+          },
+        },
+        {
+          name: 'isStock',
+          type: 'checkbox',
+          defaultValue: false,
+          admin: {
+            width: '10%',
+          },
+        },
+        {
+          name: 'isKitchen',
+          label: 'Is Kitchen',
+          type: 'checkbox',
+          defaultValue: false,
+          admin: {
+            width: '20%',
+          },
+        },
+      ],
     },
     {
       name: 'company',
