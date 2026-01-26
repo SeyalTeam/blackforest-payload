@@ -133,8 +133,9 @@ const Billings: CollectionConfig = {
 
               if (isKOT) {
                 // KOT Numbering: PREFIX-YYYYMMDD-KOTxx
+                // We count against kotNumber because invoiceNumber changes after approval
                 const existingKOTCount = await req.payload.db.collections.billings.countDocuments({
-                  invoiceNumber: { $regex: `^${prefix}-${formattedDate}-KOT` },
+                  kotNumber: { $regex: `^${prefix}-${formattedDate}-KOT` },
                 })
                 const seq = (existingKOTCount + 1).toString().padStart(2, '0')
                 const kotNum = `${prefix}-${formattedDate}-KOT${seq}`
