@@ -137,7 +137,9 @@ const Billings: CollectionConfig = {
                   invoiceNumber: { $regex: `^${prefix}-${formattedDate}-KOT` },
                 })
                 const seq = (existingKOTCount + 1).toString().padStart(2, '0')
-                data.invoiceNumber = `${prefix}-${formattedDate}-KOT${seq}`
+                const kotNum = `${prefix}-${formattedDate}-KOT${seq}`
+                data.invoiceNumber = kotNum
+                data.kotNumber = kotNum
               } else {
                 // Regular Numbering: PREFIX-YYYYMMDD-xxx (independent of KOT)
                 const existingRegularCount =
@@ -250,6 +252,15 @@ const Billings: CollectionConfig = {
       unique: true,
       required: true,
       admin: { readOnly: true },
+    },
+    {
+      name: 'kotNumber',
+      type: 'text',
+      admin: {
+        readOnly: true,
+        position: 'sidebar',
+      },
+      label: 'KOT Invoice Number',
     },
     {
       name: 'items',
