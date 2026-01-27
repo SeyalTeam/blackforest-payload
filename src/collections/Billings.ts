@@ -161,6 +161,22 @@ const Billings: CollectionConfig = {
           }
         }
 
+        // 📝 Distribute root notes to items if applicable (e.g. "Product: Note")
+        if (data.notes && data.items && Array.isArray(data.items)) {
+          data.items = data.items.map((item: any) => {
+            if (!item.notes && data.notes.startsWith(item.name + ':')) {
+              const parts = data.notes.split(':')
+              if (parts.length > 1) {
+                item.notes = parts[1].trim()
+              }
+            } else if (!item.notes && data.items.length === 1 && !data.notes.includes(':')) {
+              // If only one item and no colon, assume it's for that item
+              item.notes = data.notes
+            }
+            return item
+          })
+        }
+
         // 🧮 Final subtotal & total calculation
         if (data.items && Array.isArray(data.items)) {
           data.items = data.items.map(
