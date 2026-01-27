@@ -285,6 +285,14 @@ const Billings: CollectionConfig = {
           required: true,
         },
         {
+          name: 'notes',
+          type: 'text',
+          label: 'Instructions',
+          admin: {
+            placeholder: 'e.g., More sugar, Less spicy',
+          },
+        },
+        {
           // ✅ Fractional quantities (e.g. 0.5 kg)
           name: 'quantity',
           type: 'number',

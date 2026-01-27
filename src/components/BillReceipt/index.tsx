@@ -7,6 +7,7 @@ import { Product } from '@/payload-types'
 export type BillItem = {
   product?: string | Product | null
   name?: string | null
+  notes?: string | null
   quantity: number
   unitPrice: number
   subtotal: number
@@ -315,7 +316,21 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
               return (
                 <React.Fragment key={index}>
                   <tr>
-                    <td>{item.name}</td>
+                    <td>
+                      {item.name}
+                      {item.notes && (
+                        <div
+                          style={{
+                            fontSize: '11px',
+                            fontStyle: 'italic',
+                            color: '#666',
+                            marginTop: '2px',
+                          }}
+                        >
+                          Note: {item.notes}
+                        </div>
+                      )}
+                    </td>
                     <td className="item-qty">
                       {item.quantity} x {item.unitPrice}
                     </td>

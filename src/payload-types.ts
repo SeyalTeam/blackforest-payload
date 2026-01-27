@@ -431,9 +431,11 @@ export interface Employee {
 export interface Billing {
   id: string;
   invoiceNumber: string;
+  kotNumber?: string | null;
   items: {
     product: string | Product;
     name: string;
+    notes?: string | null;
     quantity: number;
     unitPrice: number;
     subtotal: number;
@@ -1003,11 +1005,13 @@ export interface EmployeesSelect<T extends boolean = true> {
  */
 export interface BillingsSelect<T extends boolean = true> {
   invoiceNumber?: T;
+  kotNumber?: T;
   items?:
     | T
     | {
         product?: T;
         name?: T;
+        notes?: T;
         quantity?: T;
         unitPrice?: T;
         subtotal?: T;
