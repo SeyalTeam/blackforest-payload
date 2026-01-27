@@ -108,7 +108,12 @@ const Billings: CollectionConfig = {
           // Only generate a new number if it's a creation OR if we're moving out of pending status
           // and currently have a KOT number (or no number yet).
           const currentInvoiceNumber = data.invoiceNumber || originalDoc?.invoiceNumber
-          const needsNewNumber = operation === 'create' || !currentInvoiceNumber
+          const needsNewNumber =
+            operation === 'create' ||
+            (data.status === 'completed' &&
+              originalDoc?.status === 'pending' &&
+              currentInvoiceNumber?.includes('-KOT')) ||
+            !currentInvoiceNumber
 
           if (needsNewNumber && (data.branch || originalDoc?.branch)) {
             let branchId: string
