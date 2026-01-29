@@ -137,25 +137,65 @@ const Billings: CollectionConfig = {
 
               if (isKOT) {
                 // KOT Numbering: PREFIX-YYYYMMDD-KOTxx
-                // We count against kotNumber because invoiceNumber changes after approval
-                const existingKOTCount = await req.payload.db.collections.billings.countDocuments({
-                  kotNumber: { $regex: `^${prefix}-${formattedDate}-KOT` },
+                // We find the latest KOT number to avoid collisions if documents were deleted
+                const lastKOT = await req.payload.find({
+                  collection: 'billings',
+                  where: {
+                    kotNumber: {
+                      like: `${prefix}-${formattedDate}-KOT`,
+                    },
+                  },
+                  sort: '-kotNumber',
+                  limit: 1,
+                  depth: 0,
                 })
-                const seq = (existingKOTCount + 1).toString().padStart(2, '0')
-                const kotNum = `${prefix}-${formattedDate}-KOT${seq}`
+
+                let seq = 1
+                if (lastKOT.docs.length > 0) {
+                  const lastNumStr = lastKOT.docs[0].kotNumber?.split('KOT')[1]
+                  if (lastNumStr) {
+                    seq = parseInt(lastNumStr, 10) + 1
+                  }
+                }
+
+                const kotNum = `${prefix}-${formattedDate}-KOT${seq.toString().padStart(2, '0')}`
                 data.invoiceNumber = kotNum
                 data.kotNumber = kotNum
               } else {
                 // Regular Numbering: PREFIX-YYYYMMDD-xxx (independent of KOT)
-                const existingRegularCount =
-                  await req.payload.db.collections.billings.countDocuments({
-                    invoiceNumber: {
-                      $regex: `^${prefix}-${formattedDate}-`,
-                      $not: /-KOT/,
-                    },
-                  })
-                const seq = (existingRegularCount + 1).toString().padStart(3, '0')
-                data.invoiceNumber = `${prefix}-${formattedDate}-${seq}`
+                const lastInvoice = await req.payload.find({
+                  collection: 'billings',
+                  where: {
+                    and: [
+                      {
+                        invoiceNumber: {
+                          like: `${prefix}-${formattedDate}-`,
+                        },
+                      },
+                      {
+                        invoiceNumber: {
+                          not_like: '-KOT',
+                        },
+                      },
+                    ],
+                  },
+                  sort: '-invoiceNumber',
+                  limit: 1,
+                  depth: 0,
+                })
+
+                let seq = 1
+                if (lastInvoice.docs.length > 0) {
+                  const lastInvoiceNumber = lastInvoice.docs[0].invoiceNumber
+                  if (lastInvoiceNumber) {
+                    const parts = lastInvoiceNumber.split('-')
+                    const lastSeq = parts[parts.length - 1]
+                    if (lastSeq && !isNaN(parseInt(lastSeq, 10))) {
+                      seq = parseInt(lastSeq, 10) + 1
+                    }
+                  }
+                }
+                data.invoiceNumber = `${prefix}-${formattedDate}-${seq.toString().padStart(3, '0')}`
               }
             }
           }
