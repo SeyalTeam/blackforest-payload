@@ -35,7 +35,41 @@ type ReportData = {
 
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
-import Select from 'react-select'
+import Select, { components, OptionProps } from 'react-select'
+
+const CheckboxOption = (props: OptionProps<any>) => {
+  return (
+    <components.Option {...props}>
+      <input
+        type="checkbox"
+        checked={props.isSelected}
+        onChange={() => null}
+        style={{ marginRight: 8 }}
+      />
+      {props.label}
+    </components.Option>
+  )
+}
+
+const CustomValueContainer = ({ children, ...props }: any) => {
+  const { getValue, hasValue, selectProps } = props
+  const selected = getValue()
+  const count = selected.length
+  const isTyping = selectProps.inputValue && selectProps.inputValue.length > 0
+
+  return (
+    <components.ValueContainer {...props}>
+      {hasValue && count > 0 && !isTyping && (
+        <div style={{ paddingLeft: '8px', position: 'absolute', pointerEvents: 'none' }}>
+          {count === 1 ? selected[0].label : `${count} Selected`}
+        </div>
+      )}
+      {children}
+    </components.ValueContainer>
+  )
+}
+
+const MultiValue = () => null
 
 /* Helper to format time (e.g. 2:30 pm) */
 const formatTime = (isoString?: string) => {
@@ -54,11 +88,14 @@ const WaiterWiseBillingReport: React.FC = () => {
   const [error, setError] = useState('')
 
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([])
-  const [selectedBranch, setSelectedBranch] = useState('all')
+  const [selectedBranch, setSelectedBranch] = useState<string[]>(['all'])
 
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const [waiters, setWaiters] = useState<{ id: string; name: string; employee?: any }[]>([])
-  const [selectedWaiter, setSelectedWaiter] = useState('all')
+  const [selectedWaiter, setSelectedWaiter] = useState<string[]>(['all'])
+
+  const [dateRangePreset, setDateRangePreset] = useState<string>('today')
+  const [firstBillDate, setFirstBillDate] = useState<Date | null>(null)
 
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [selectedWaiterStats, setSelectedWaiterStats] = useState<ReportStats | null>(null)
@@ -131,6 +168,68 @@ const WaiterWiseBillingReport: React.FC = () => {
     }.csv`
     a.click()
     setShowExportMenu(false)
+  }
+
+  const dateRangeOptions = [
+    { value: 'till_now', label: 'Till Now' },
+    { value: 'today', label: 'Today' },
+    { value: 'yesterday', label: 'Yesterday' },
+    { value: 'last_7_days', label: 'Last 7 Days' },
+    { value: 'this_month', label: 'This Month' },
+    { value: 'last_30_days', label: 'Last 30 Days' },
+    { value: 'last_month', label: 'Last Month' },
+  ]
+
+  const handleDatePresetChange = (value: string) => {
+    setDateRangePreset(value)
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+    let start: Date | null = null
+    let end: Date | null = today
+
+    switch (value) {
+      case 'till_now':
+        if (firstBillDate) {
+          start = firstBillDate
+        }
+        break
+      case 'today':
+        start = today
+        end = today
+        break
+      case 'yesterday':
+        const yest = new Date(today)
+        yest.setDate(yest.getDate() - 1)
+        start = yest
+        end = yest
+        break
+      case 'last_7_days':
+        const last7 = new Date(today)
+        last7.setDate(last7.getDate() - 6)
+        start = last7
+        break
+      case 'this_month':
+        const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+        start = thisMonthStart
+        end = today
+        break
+      case 'last_30_days':
+        const last30 = new Date(today)
+        last30.setDate(last30.getDate() - 29)
+        start = last30
+        break
+      case 'last_month':
+        const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+        const prevMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0)
+        start = prevMonthStart
+        end = prevMonthEnd
+        break
+    }
+
+    if (start && end) {
+      setDateRange([start, end])
+    }
   }
 
   const branchOptions = [
@@ -217,11 +316,11 @@ const WaiterWiseBillingReport: React.FC = () => {
 
       // Construct URL with filters
       let url = `/api/reports/waiter-wise?startDate=${startStr}&endDate=${endStr}`
-      if (selectedBranch !== 'all') {
-        url += `&branch=${selectedBranch}`
+      if (!selectedBranch.includes('all')) {
+        url += `&branch=${selectedBranch.join(',')}`
       }
-      if (selectedWaiter !== 'all') {
-        url += `&waiter=${selectedWaiter}`
+      if (!selectedWaiter.includes('all')) {
+        url += `&waiter=${selectedWaiter.join(',')}`
       }
       if (selectedHour !== null) {
         url += `&hour=${selectedHour}`
@@ -250,12 +349,8 @@ const WaiterWiseBillingReport: React.FC = () => {
 
         // 2. Waiters: Use the stats to find unique waiters who worked.
         // NOTE: If a waiter filter is applied, the response only contains that waiter.
-        // To keep the full list available, checking against "all" selection or we might need a separate "active waiters" metadata.
-        // However, the user request implies showing "which waiter is worked for the date".
-        // If we filter by waiter, we likely entered a specific view.
-        // For now, if waiter is 'all', we update the list. If specific, we keep the previous list to allow switching back?
-        // Let's populate from the stats if selectedWaiter is 'all'.
-        if (selectedWaiter === 'all' && json.stats) {
+        // To keep the full list available, checking against "all" selection
+        if (selectedWaiter.includes('all') && json.stats) {
           const uniqueWaitersMap = new Map()
           json.stats.forEach((row: any) => {
             if (!uniqueWaitersMap.has(row.waiterId)) {
@@ -278,6 +373,20 @@ const WaiterWiseBillingReport: React.FC = () => {
   }, [startDate, endDate, selectedBranch, selectedWaiter, selectedHour])
 
   useEffect(() => {
+    const fetchMetadata = async () => {
+      try {
+        const billRes = await fetch('/api/billings?sort=createdAt&limit=1')
+        if (billRes.ok) {
+          const json = await billRes.json()
+          if (json.docs && json.docs.length > 0) {
+            setFirstBillDate(new Date(json.docs[0].createdAt))
+          }
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    fetchMetadata()
     fetchReport()
   }, [fetchReport])
 
@@ -405,19 +514,34 @@ const WaiterWiseBillingReport: React.FC = () => {
   return (
     <div className="waiter-report-container">
       <div className="report-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div className="title-row">
           <h1>Waiter Wise Billing Report</h1>
         </div>
         <div className="date-filter">
+          <div className="filter-group">
+            <Select
+              instanceId="date-preset-select"
+              options={dateRangeOptions}
+              value={dateRangeOptions.find((o) => o.value === dateRangePreset)}
+              onChange={(option: { value: string; label: string } | null) => {
+                if (option) handleDatePresetChange(option.value)
+              }}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Date Range..."
+              isSearchable={false}
+            />
+          </div>
+
           <div className="filter-group">
             <DatePicker
               selectsRange={true}
               startDate={startDate}
               endDate={endDate}
-              onChange={(update) => {
+              onChange={(update: [Date | null, Date | null]) => {
                 setDateRange(update)
               }}
-              monthsShown={2}
+              monthsShown={1}
               dateFormat="yyyy-MM-dd"
               className="date-input"
               customInput={<CustomInput />}
@@ -430,14 +554,30 @@ const WaiterWiseBillingReport: React.FC = () => {
             <Select
               instanceId="branch-select"
               options={branchOptions}
-              value={branchOptions.find((o) => o.value === selectedBranch)}
-              onChange={(option: { value: string; label: string } | null) =>
-                setSelectedBranch(option?.value || 'all')
-              }
+              isMulti
+              value={branchOptions.filter((o) => selectedBranch.includes(o.value))}
+              onChange={(newValue) => {
+                const selected = newValue ? (newValue as any).map((x: any) => x.value) : []
+                const wasAll = selectedBranch.includes('all')
+                const hasAll = selected.includes('all')
+                let final = selected
+                if (hasAll && !wasAll) final = ['all']
+                else if (hasAll && wasAll && selected.length > 1)
+                  final = selected.filter((x: any) => x !== 'all')
+                else if (final.length === 0) final = ['all']
+                setSelectedBranch(final)
+              }}
               styles={customStyles}
               classNamePrefix="react-select"
               placeholder="Select Branch..."
               isSearchable={true}
+              closeMenuOnSelect={false}
+              hideSelectedOptions={false}
+              components={{
+                Option: CheckboxOption,
+                ValueContainer: CustomValueContainer,
+                MultiValue,
+              }}
             />
           </div>
 
@@ -445,18 +585,33 @@ const WaiterWiseBillingReport: React.FC = () => {
             <Select
               instanceId="waiter-select"
               options={waiterOptions}
-              value={waiterOptions.find((o) => o.value === selectedWaiter)}
-              onChange={(option: { value: string; label: string } | null) =>
-                setSelectedWaiter(option?.value || 'all')
-              }
+              isMulti
+              value={waiterOptions.filter((o) => selectedWaiter.includes(o.value))}
+              onChange={(newValue) => {
+                const selected = newValue ? (newValue as any).map((x: any) => x.value) : []
+                const wasAll = selectedWaiter.includes('all')
+                const hasAll = selected.includes('all')
+                let final = selected
+                if (hasAll && !wasAll) final = ['all']
+                else if (hasAll && wasAll && selected.length > 1)
+                  final = selected.filter((x: any) => x !== 'all')
+                else if (final.length === 0) final = ['all']
+                setSelectedWaiter(final)
+              }}
               styles={customStyles}
               classNamePrefix="react-select"
               placeholder="Select Waiter..."
               isSearchable={true}
+              closeMenuOnSelect={false}
+              hideSelectedOptions={false}
+              components={{
+                Option: CheckboxOption,
+                ValueContainer: CustomValueContainer,
+                MultiValue,
+              }}
             />
           </div>
 
-          {/* Export Button */}
           <div className="filter-group">
             <div className="export-container">
               <button
@@ -490,12 +645,16 @@ const WaiterWiseBillingReport: React.FC = () => {
               />
             )}
           </div>
+
           <div className="filter-group">
             <button
               onClick={() => {
-                setDateRange([new Date(), new Date()])
-                setSelectedBranch('all')
-                setSelectedWaiter('all')
+                const now = new Date()
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+                setDateRange([today, today])
+                setDateRangePreset('today')
+                setSelectedBranch(['all'])
+                setSelectedWaiter(['all'])
                 setSelectedHour(null)
               }}
               title="Reset Filters"
@@ -542,105 +701,75 @@ const WaiterWiseBillingReport: React.FC = () => {
               <tr>
                 <th style={{ width: '50px' }}>S.NO</th>
                 <th>WAITER NAME</th>
-                <th className="text-right">AVG (BILL)</th>
-                <th className="text-right">TOTAL BILLS</th>
-                <th className="text-right">TOTAL AMOUNT</th>
+                <th className="text-center">AVG (BILL)</th>
+                <th className="text-center">TOTAL BILLS</th>
+                <th className="text-center">TOTAL AMOUNT</th>
+                <th>BRANCH</th>
               </tr>
             </thead>
             <tbody>
               {data.stats.map((row, index) => (
-                <tr key={row.waiterId || Math.random().toString()}>
+                <tr
+                  key={row.waiterId || Math.random().toString()}
+                  className="clickable-row"
+                  onClick={() => setSelectedWaiterStats(row)}
+                  style={{ cursor: 'pointer' }}
+                >
                   <td>{index + 1}</td>
-                  <td
-                    className="clickable-row"
-                    onClick={() => setSelectedWaiterStats(row)}
-                    style={{ cursor: 'pointer' }}
-                  >
+                  <td>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <div style={{ fontWeight: 'bold', fontSize: '1.05em' }}>
-                        <span
-                          style={{
-                            color: 'var(--theme-text-secondary)',
-                            marginRight: '6px',
-                            fontWeight: 'normal',
-                          }}
-                        >
-                          {row.employeeId || 'ID'}
-                        </span>
+                      <div style={{ fontWeight: 'bold' }}>
                         <span style={{ color: 'var(--theme-text-primary)' }}>
                           {row.waiterName?.toUpperCase()}
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          marginTop: '4px',
-                          color: 'var(--theme-text-secondary)',
-                          fontSize: '0.85em',
-                        }}
-                      >
-                        {row.lastBillTime && (
-                          <span style={{ marginRight: '6px' }}>
-                            Last Bill: {formatTime(row.lastBillTime)}
-                          </span>
-                        )}
-                        <span style={{ textTransform: 'uppercase' }}>
-                          {row.branchNames
-                            ?.map((name) => name.substring(0, 3).toUpperCase())
-                            .join(', ') || 'UNK'}
                         </span>
                       </div>
                     </div>
                   </td>
                   {(() => {
                     const waiterAvg = row.totalBills > 0 ? row.totalAmount / row.totalBills : 0
-                    const branchIds = row.branchIds || []
-                    const benchmarkTotal = branchIds.reduce((acc, id) => {
-                      const b = data.branchBenchmarks?.find((x: any) => x._id === id)
-                      return acc + (b ? b.totalAmount : 0)
-                    }, 0)
-
-                    // We use total bills of branches to check data existence, but user wants Branch Total Sales vs Waiter Total Sales
-                    // So we just check if benchmarkTotal > 0
-                    const hasBenchmark = benchmarkTotal > 0
-                    // Logic simplified above
-                    // Using hasBenchmark check instead of branchAvg calculation
-                    const showBenchmark = hasBenchmark
                     return (
-                      <td className="text-right">
+                      <td className="text-center">
                         <div
                           style={{
                             display: 'flex',
                             flexDirection: 'column',
-                            alignItems: 'flex-end',
+                            alignItems: 'center',
                           }}
                         >
                           <span style={{ fontWeight: 'bold' }}>{formatValue(waiterAvg)}</span>
-                          {showBenchmark && (
-                            <span
-                              style={{ color: 'var(--theme-text-secondary)', fontSize: '0.85em' }}
-                            >
-                              {((row.totalAmount / (benchmarkTotal || 1)) * 100).toFixed(0)}%
-                            </span>
-                          )}
                         </div>
                       </td>
                     )
                   })()}
-                  <td className="text-right">{row.totalBills}</td>
-                  <td className="text-right amount-cell">{formatValue(row.totalAmount)}</td>
+                  <td className="text-center">{row.totalBills}</td>
+                  <td className="text-center amount-cell">{formatValue(row.totalAmount)}</td>
+                  <td>
+                    <div
+                      style={{
+                        color: 'var(--theme-text-secondary)',
+                        textTransform: 'uppercase',
+                        fontWeight: '600',
+                      }}
+                    >
+                      {row.branchNames
+                        ?.map((name) => name.substring(0, 3).toUpperCase())
+                        .join(', ') || 'UNK'}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="grand-total">
                 <td colSpan={2}>TOTAL</td>
-                <td className="text-right">
+                <td className="text-center">
                   {data.totals.totalBills > 0
                     ? formatValue(data.totals.totalAmount / data.totals.totalBills)
                     : '0.00'}
                 </td>
-                <td className="text-right">{data.totals.totalBills}</td>
-                <td className="text-right amount-cell">{formatValue(data.totals.totalAmount)}</td>
+                <td className="text-center">{data.totals.totalBills}</td>
+                <td className="text-center amount-cell">{formatValue(data.totals.totalAmount)}</td>
+                <td></td>
               </tr>
             </tfoot>
           </table>
@@ -650,12 +779,59 @@ const WaiterWiseBillingReport: React.FC = () => {
             <div className="breakdown-modal-overlay" onClick={() => setSelectedWaiterStats(null)}>
               <div className="breakdown-modal-content" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
-                  <h3>Payment Breakdown: {selectedWaiterStats.waiterName?.toUpperCase()}</h3>
+                  <h3>
+                    {selectedWaiterStats.employeeId} {selectedWaiterStats.waiterName?.toUpperCase()}
+                  </h3>
                   <button className="close-btn" onClick={() => setSelectedWaiterStats(null)}>
                     &times;
                   </button>
                 </div>
                 <div className="modal-body">
+                  {(() => {
+                    const waiterAvg =
+                      selectedWaiterStats.totalBills > 0
+                        ? selectedWaiterStats.totalAmount / selectedWaiterStats.totalBills
+                        : 0
+                    const branchIds = selectedWaiterStats.branchIds || []
+                    const benchTotalAmount = branchIds.reduce((acc, id) => {
+                      const b = data.branchBenchmarks?.find((x: any) => x._id === id)
+                      return acc + (b ? b.totalAmount : 0)
+                    }, 0)
+                    const benchTotalBills = branchIds.reduce((acc, id) => {
+                      const b = data.branchBenchmarks?.find((x: any) => x._id === id)
+                      return acc + (b ? b.totalBills : 0)
+                    }, 0)
+                    const branchAvg = benchTotalBills > 0 ? benchTotalAmount / benchTotalBills : 0
+                    const avgPercentage =
+                      branchAvg > 0 ? ((waiterAvg / branchAvg) * 100).toFixed(0) : '0'
+
+                    return (
+                      <>
+                        <div className="breakdown-item" style={{ marginBottom: '15px' }}>
+                          <span style={{ color: 'var(--theme-text-secondary)', fontSize: '0.9em' }}>
+                            LAST BILL
+                          </span>
+                          <span style={{ fontWeight: 'bold' }}>
+                            {selectedWaiterStats.lastBillTime
+                              ? formatTime(selectedWaiterStats.lastBillTime)
+                              : '--'}{' '}
+                            {selectedWaiterStats.branchNames
+                              ?.map((name) => name.substring(0, 3).toUpperCase())
+                              .join(', ')}
+                          </span>
+                        </div>
+                        <div className="breakdown-item" style={{ marginBottom: '15px' }}>
+                          <span style={{ color: 'var(--theme-text-secondary)', fontSize: '0.9em' }}>
+                            AVG (BILL)
+                          </span>
+                          <span style={{ fontWeight: 'bold' }}>
+                            {formatValue(waiterAvg)} ({avgPercentage}%)
+                          </span>
+                        </div>
+                      </>
+                    )
+                  })()}
+                  <hr />
                   <div className="breakdown-item">
                     <span>CASH</span>
                     <span className="amount">{formatValue(selectedWaiterStats.cashAmount)}</span>

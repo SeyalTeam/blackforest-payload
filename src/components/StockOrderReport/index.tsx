@@ -773,113 +773,6 @@ const StockOrderReport: React.FC = () => {
 
             {/* Main Content */}
             <div className="main-content">
-              <div className="table-container summary-table">
-                <table className="report-table">
-                  <thead>
-                    <tr>
-                      <th style={{ minWidth: '150px', position: 'sticky', left: 0, zIndex: 2 }}>
-                        METRIC
-                      </th>
-                      {data.stats.map((row) => (
-                        <th key={row.branchName} style={{ textAlign: 'center' }}>
-                          {row.branchName.substring(0, 3).toUpperCase()}
-                        </th>
-                      ))}
-                      <th style={{ textAlign: 'center', minWidth: '100px', fontWeight: 'bold' }}>
-                        TOTAL
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Stock Orders Row */}
-                    <tr>
-                      <td
-                        style={{
-                          fontWeight: '600',
-                          position: 'sticky',
-                          left: 0,
-                          backgroundColor: 'var(--theme-elevation-50)',
-                          zIndex: 1,
-                          borderRight: '1px solid var(--theme-elevation-200)',
-                        }}
-                      >
-                        Stock Orders
-                      </td>
-                      {data.stats.map((row) => (
-                        <td key={row.branchName} style={{ textAlign: 'center' }}>
-                          {row.stockOrders}
-                        </td>
-                      ))}
-                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                        {data.totals.stockOrders}
-                      </td>
-                    </tr>
-
-                    {/* Live Orders Row */}
-                    <tr>
-                      <td
-                        style={{
-                          fontWeight: '600',
-                          position: 'sticky',
-                          left: 0,
-                          backgroundColor: 'var(--theme-elevation-50)',
-                          zIndex: 1,
-                          borderRight: '1px solid var(--theme-elevation-200)',
-                        }}
-                      >
-                        Live Orders
-                      </td>
-                      {data.stats.map((row) => (
-                        <td key={row.branchName} style={{ textAlign: 'center' }}>
-                          {row.liveOrders}
-                        </td>
-                      ))}
-                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                        {data.totals.liveOrders}
-                      </td>
-                    </tr>
-
-                    {/* Total Orders Row */}
-                    <tr
-                      style={{
-                        backgroundColor: 'var(--theme-elevation-100)',
-                        fontWeight: 'bold',
-                      }}
-                    >
-                      <td
-                        style={{
-                          position: 'sticky',
-                          left: 0,
-                          backgroundColor: 'var(--theme-elevation-100)',
-                          zIndex: 1,
-                          borderRight: '1px solid var(--theme-elevation-200)',
-                        }}
-                      >
-                        Total Orders
-                      </td>
-                      {data.stats.map((row) => (
-                        <td key={row.branchName} style={{ textAlign: 'center' }}>
-                          {row.totalOrders}
-                        </td>
-                      ))}
-                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                        {data.totals.totalOrders}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div style={{ marginBottom: '20px', marginTop: '30px' }}>
-                <StockOrderGraph
-                  items={
-                    selectedInvoice
-                      ? data.details.filter((item) => item.invoiceNumber === selectedInvoice)
-                      : data.details
-                  }
-                />
-              </div>
-
               <div
                 className="table-title"
                 style={{
@@ -1358,13 +1251,19 @@ const StockOrderReport: React.FC = () => {
                                     <td
                                       style={{
                                         textAlign: 'center',
-                                        color: getDifColor(item.difQty),
-                                        fontWeight: item.difQty !== 0 ? '700' : '700',
-                                        fontSize: '22px',
+                                        fontSize: '13px',
                                         padding: '12px 8px',
                                       }}
                                     >
-                                      {formatQty(Math.abs(item.difQty))}
+                                      <div
+                                        style={{
+                                          fontWeight: '700',
+                                          fontSize: '22px',
+                                          color: getDifColor(item.difQty),
+                                        }}
+                                      >
+                                        {formatQty(item.difQty)}
+                                      </div>
                                     </td>
                                   </tr>
                                 ))}
@@ -1383,6 +1282,113 @@ const StockOrderReport: React.FC = () => {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="table-container summary-table" style={{ marginTop: '40px' }}>
+                <table className="report-table">
+                  <thead>
+                    <tr>
+                      <th style={{ minWidth: '150px', position: 'sticky', left: 0, zIndex: 2 }}>
+                        METRIC
+                      </th>
+                      {data.stats.map((row) => (
+                        <th key={row.branchName} style={{ textAlign: 'center' }}>
+                          {row.branchName.substring(0, 3).toUpperCase()}
+                        </th>
+                      ))}
+                      <th style={{ textAlign: 'center', minWidth: '100px', fontWeight: 'bold' }}>
+                        TOTAL
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Stock Orders Row */}
+                    <tr>
+                      <td
+                        style={{
+                          fontWeight: '600',
+                          position: 'sticky',
+                          left: 0,
+                          backgroundColor: 'var(--theme-elevation-50)',
+                          zIndex: 1,
+                          borderRight: '1px solid var(--theme-elevation-200)',
+                        }}
+                      >
+                        Stock Orders
+                      </td>
+                      {data.stats.map((row) => (
+                        <td key={row.branchName} style={{ textAlign: 'center' }}>
+                          {row.stockOrders}
+                        </td>
+                      ))}
+                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                        {data.totals.stockOrders}
+                      </td>
+                    </tr>
+
+                    {/* Live Orders Row */}
+                    <tr>
+                      <td
+                        style={{
+                          fontWeight: '600',
+                          position: 'sticky',
+                          left: 0,
+                          backgroundColor: 'var(--theme-elevation-50)',
+                          zIndex: 1,
+                          borderRight: '1px solid var(--theme-elevation-200)',
+                        }}
+                      >
+                        Live Orders
+                      </td>
+                      {data.stats.map((row) => (
+                        <td key={row.branchName} style={{ textAlign: 'center' }}>
+                          {row.liveOrders}
+                        </td>
+                      ))}
+                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                        {data.totals.liveOrders}
+                      </td>
+                    </tr>
+
+                    {/* Total Orders Row */}
+                    <tr
+                      style={{
+                        backgroundColor: 'var(--theme-elevation-100)',
+                        fontWeight: 'bold',
+                      }}
+                    >
+                      <td
+                        style={{
+                          position: 'sticky',
+                          left: 0,
+                          backgroundColor: 'var(--theme-elevation-100)',
+                          zIndex: 1,
+                          borderRight: '1px solid var(--theme-elevation-200)',
+                        }}
+                      >
+                        Total Orders
+                      </td>
+                      {data.stats.map((row) => (
+                        <td key={row.branchName} style={{ textAlign: 'center' }}>
+                          {row.totalOrders}
+                        </td>
+                      ))}
+                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                        {data.totals.totalOrders}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ marginBottom: '20px', marginTop: '30px' }}>
+                <StockOrderGraph
+                  items={
+                    selectedInvoice
+                      ? data.details.filter((item) => item.invoiceNumber === selectedInvoice)
+                      : data.details
+                  }
+                />
               </div>
             </div>
           </div>

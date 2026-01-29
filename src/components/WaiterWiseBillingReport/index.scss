@@ -1,20 +1,19 @@
 .waiter-report-container {
-  padding: 2rem;
+  padding: 0.5rem;
   background: var(--theme-elevation-0);
   border-radius: var(--style-radius-m);
   box-shadow: var(--theme-shadow-success);
-  margin: 2rem;
+  margin: 0;
 
   color: var(--theme-text-primary);
 
   .report-header {
     display: flex;
-    flex-direction: column; // Stack title and filters vertically
-    justify-content: flex-start;
-    align-items: flex-start; // Align both to the left
-    gap: 1.5rem; // Gap between Title and Filters
-    margin-bottom: 2rem;
-    padding-bottom: 1.5rem;
+    flex-direction: column; // Keep title on top, filters on bottom
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
     border-bottom: 1px solid var(--theme-elevation-100);
     position: relative;
     z-index: 500;
@@ -29,9 +28,10 @@
     .date-filter {
       display: flex;
       align-items: center;
-      gap: 1.5rem; // More space between controls
+      gap: 1rem;
       color: var(--theme-text-primary);
       flex-wrap: wrap;
+      width: 100%;
 
       .filter-group {
         display: flex;
@@ -101,12 +101,23 @@
     border-collapse: collapse;
     white-space: nowrap; /* Prevent wrapping in headers */
 
+    tr {
+      &.clickable-row {
+        cursor: pointer;
+
+        &:hover {
+          background-color: var(--theme-elevation-50);
+        }
+      }
+    }
+
     th,
     td {
       padding: 1rem;
       border-bottom: 1px solid var(--theme-elevation-100);
       border-right: 1px solid var(--theme-elevation-100); // Vertical separator
       text-align: left;
+      font-size: 1.2rem;
       color: var(--theme-text-primary);
 
       &:first-child {
@@ -119,6 +130,10 @@
 
       &.text-right {
         text-align: right;
+      }
+
+      &.text-center {
+        text-align: center;
       }
 
       &.amount-cell {
