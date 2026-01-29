@@ -123,7 +123,7 @@
 
       &.amount-cell {
         font-weight: 600;
-        font-size: 1rem;
+        font-size: 1.2rem;
       }
     }
 
@@ -162,12 +162,97 @@
       td {
         border-top: 2px solid var(--theme-border-color);
         background: var(--theme-elevation-100); // Ensure opaque background
+        font-size: 1.2rem;
       }
     }
   }
 
   .error {
     color: var(--theme-error-500);
+  }
+
+  /* Breakdown Modal Styles */
+  .breakdown-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+  }
+
+  .breakdown-modal-content {
+    background: var(--theme-elevation-50);
+    padding: 1.5rem;
+    border-radius: 12px;
+    width: 350px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--theme-elevation-200);
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--theme-elevation-100);
+      padding-bottom: 0.75rem;
+
+      h3 {
+        margin: 0;
+        font-size: 1.1rem;
+        color: var(--theme-text-primary);
+      }
+
+      .close-btn {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        color: var(--theme-text-secondary);
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+
+        &:hover {
+          color: var(--theme-text-primary);
+        }
+      }
+    }
+
+    .modal-body {
+      .breakdown-item {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+        font-size: 1rem;
+        color: var(--theme-text-secondary);
+
+        .amount {
+          font-weight: 600;
+          color: var(--theme-text-primary);
+        }
+
+        &.total {
+          margin-top: 1rem;
+          font-weight: bold;
+          font-size: 1.1rem;
+          color: var(--theme-text-primary);
+
+          .amount {
+            color: #d1004a;
+          }
+        }
+      }
+
+      hr {
+        border: none;
+        border-top: 1px solid var(--theme-elevation-150);
+        margin: 1rem 0;
+      }
+    }
   }
 }
 

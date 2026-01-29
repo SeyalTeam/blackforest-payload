@@ -84,6 +84,7 @@ export interface Config {
     reviews: Review;
     customers: Customer;
     'instock-entries': InstockEntry;
+    tables: Table;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -107,6 +108,7 @@ export interface Config {
     reviews: ReviewsSelect<false> | ReviewsSelect<true>;
     customers: CustomersSelect<false> | CustomersSelect<true>;
     'instock-entries': InstockEntriesSelect<false> | InstockEntriesSelect<true>;
+    tables: TablesSelect<false> | TablesSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -662,6 +664,24 @@ export interface InstockEntry {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tables".
+ */
+export interface Table {
+  id: string;
+  /**
+   * Select the branch this table configuration belongs to.
+   */
+  branch: string | Branch;
+  sections: {
+    name: string;
+    tableCount: number;
+    id?: string | null;
+  }[];
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -734,6 +754,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'instock-entries';
         value: string | InstockEntry;
+      } | null)
+    | ({
+        relationTo: 'tables';
+        value: string | Table;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1217,6 +1241,22 @@ export interface InstockEntriesSelect<T extends boolean = true> {
   createdBy?: T;
   company?: T;
   status?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tables_select".
+ */
+export interface TablesSelect<T extends boolean = true> {
+  branch?: T;
+  sections?:
+    | T
+    | {
+        name?: T;
+        tableCount?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }

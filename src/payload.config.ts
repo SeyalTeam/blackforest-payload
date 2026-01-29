@@ -58,6 +58,7 @@ import { BranchGeoSettings } from './globals/BranchGeoSettings'
 import { NetworkStatus } from './globals/NetworkStatus'
 import { getNetworkStatusHandler } from './endpoints/getNetworkStatus'
 import { downloadHandler, uploadHandler, pingHandler } from './endpoints/speedtest'
+import Tables from './collections/Tables'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -243,6 +244,7 @@ export default buildConfig({
     Reviews,
     Customers,
     InstockEntries,
+    Tables,
   ],
 
   editor: lexicalEditor(),

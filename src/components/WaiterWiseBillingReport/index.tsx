@@ -61,6 +61,7 @@ const WaiterWiseBillingReport: React.FC = () => {
   const [selectedWaiter, setSelectedWaiter] = useState('all')
 
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [selectedWaiterStats, setSelectedWaiterStats] = useState<ReportStats | null>(null)
 
   const formatValue = (val: number) => {
     return val.toLocaleString('en-IN', {
@@ -535,15 +536,12 @@ const WaiterWiseBillingReport: React.FC = () => {
       {error && <p className="error">{error}</p>}
 
       {data && (
-        <div className="table-container">
+        <div className="table-container" style={{ width: '55%', margin: '0 0' }}>
           <table className="report-table">
             <thead>
               <tr>
                 <th style={{ width: '50px' }}>S.NO</th>
                 <th>WAITER NAME</th>
-                <th className="text-right">CASH</th>
-                <th className="text-right">UPI</th>
-                <th className="text-right">CARD</th>
                 <th className="text-right">AVG (BILL)</th>
                 <th className="text-right">TOTAL BILLS</th>
                 <th className="text-right">TOTAL AMOUNT</th>
@@ -553,7 +551,11 @@ const WaiterWiseBillingReport: React.FC = () => {
               {data.stats.map((row, index) => (
                 <tr key={row.waiterId || Math.random().toString()}>
                   <td>{index + 1}</td>
-                  <td>
+                  <td
+                    className="clickable-row"
+                    onClick={() => setSelectedWaiterStats(row)}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                       <div style={{ fontWeight: 'bold', fontSize: '1.05em' }}>
                         <span
@@ -589,9 +591,6 @@ const WaiterWiseBillingReport: React.FC = () => {
                       </div>
                     </div>
                   </td>
-                  <td className="text-right amount-cell">{formatValue(row.cashAmount)}</td>
-                  <td className="text-right amount-cell">{formatValue(row.upiAmount)}</td>
-                  <td className="text-right amount-cell">{formatValue(row.cardAmount)}</td>
                   {(() => {
                     const waiterAvg = row.totalBills > 0 ? row.totalAmount / row.totalBills : 0
                     const branchIds = row.branchIds || []
@@ -635,9 +634,6 @@ const WaiterWiseBillingReport: React.FC = () => {
             <tfoot>
               <tr className="grand-total">
                 <td colSpan={2}>TOTAL</td>
-                <td className="text-right amount-cell">{formatValue(data.totals.cashAmount)}</td>
-                <td className="text-right amount-cell">{formatValue(data.totals.upiAmount)}</td>
-                <td className="text-right amount-cell">{formatValue(data.totals.cardAmount)}</td>
                 <td className="text-right">
                   {data.totals.totalBills > 0
                     ? formatValue(data.totals.totalAmount / data.totals.totalBills)
@@ -648,6 +644,39 @@ const WaiterWiseBillingReport: React.FC = () => {
               </tr>
             </tfoot>
           </table>
+
+          {/* Breakdown Popup */}
+          {selectedWaiterStats && (
+            <div className="breakdown-modal-overlay" onClick={() => setSelectedWaiterStats(null)}>
+              <div className="breakdown-modal-content" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                  <h3>Payment Breakdown: {selectedWaiterStats.waiterName?.toUpperCase()}</h3>
+                  <button className="close-btn" onClick={() => setSelectedWaiterStats(null)}>
+                    &times;
+                  </button>
+                </div>
+                <div className="modal-body">
+                  <div className="breakdown-item">
+                    <span>CASH</span>
+                    <span className="amount">{formatValue(selectedWaiterStats.cashAmount)}</span>
+                  </div>
+                  <div className="breakdown-item">
+                    <span>UPI</span>
+                    <span className="amount">{formatValue(selectedWaiterStats.upiAmount)}</span>
+                  </div>
+                  <div className="breakdown-item">
+                    <span>CARD</span>
+                    <span className="amount">{formatValue(selectedWaiterStats.cardAmount)}</span>
+                  </div>
+                  <hr />
+                  <div className="breakdown-item total">
+                    <span>TOTAL</span>
+                    <span className="amount">{formatValue(selectedWaiterStats.totalAmount)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
