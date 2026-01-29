@@ -828,6 +828,14 @@ const WaiterWiseBillingReport: React.FC = () => {
                             {formatValue(waiterAvg)} ({avgPercentage}%)
                           </span>
                         </div>
+                        <div className="breakdown-item" style={{ marginBottom: '15px' }}>
+                          <span style={{ color: 'var(--theme-text-secondary)', fontSize: '0.9em' }}>
+                            TOTAL BILLS
+                          </span>
+                          <span style={{ fontWeight: 'bold' }}>
+                            {selectedWaiterStats.totalBills}
+                          </span>
+                        </div>
                       </>
                     )
                   })()}
