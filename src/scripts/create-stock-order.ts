@@ -17,7 +17,7 @@ dayjs.extend(utc)
 dayjs.extend(timezone)
 
 const branchId = '69724ad6f91273ae0b1e121f'
-const orderItems = [
+const _orderItems = [
   { name: 'Veg puff', qty: 30 },
   { name: 'Egg puff', qty: 30 },
   { name: 'Chicken puff', qty: 30 },
@@ -49,7 +49,7 @@ async function run() {
   })
 
   const items = []
-  for (const item of orderItems) {
+  for (const item of _orderItems) {
     const productId = productMap.get(item.name.toLowerCase().trim())
     if (!productId) {
       console.error(`Product not found: ${item.name}`)
@@ -60,7 +60,7 @@ async function run() {
       name: item.name,
       inStock: 0,
       requiredQty: item.qty,
-      status: 'ordered',
+      status: 'ordered' as any,
     })
   }
 
@@ -88,8 +88,8 @@ async function run() {
         deliveryDate,
         items,
         status: 'ordered',
-        createdBy: '67484df89240361247d56693', // Assuming a superadmin ID or valid user ID is needed, I'll check if I can omit it or use an existing one. Actually StockOrders.ts has defaultValue for createdBy.
-      },
+        createdBy: '67484df89240361247d56693',
+      } as any,
       // Skip access control to use Local API as superuser
       user: {
         id: '67484df89240361247d56693', // Provided ID from typical superadmin in this project or dummy

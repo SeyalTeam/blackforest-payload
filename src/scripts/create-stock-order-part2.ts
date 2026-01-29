@@ -18,7 +18,7 @@ dayjs.extend(timezone)
 
 const branchId = '69724ad6f91273ae0b1e121f'
 // Names matched with the database list
-const orderItems = [
+const _orderItems = [
   { name: 'VEG PUFFS', qty: 30 },
   { name: 'EGG PUFFS', qty: 30 },
   { name: 'CHICKEN PUFFS', qty: 30 },
@@ -78,7 +78,7 @@ async function run() {
       name: found.name,
       inStock: 0,
       requiredQty: item.qty,
-      status: 'ordered',
+      status: 'ordered' as any,
     })
   }
 
@@ -107,7 +107,7 @@ async function run() {
         items,
         status: 'ordered',
         createdBy: '67484df89240361247d56693',
-      },
+      } as any,
       user: {
         id: '67484df89240361247d56693',
         role: 'superadmin',

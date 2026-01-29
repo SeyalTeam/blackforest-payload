@@ -1,7 +1,12 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { ChevronDown, ChevronRight, X, Search } from 'lucide-react'
+import {
+  ChevronDown as _ChevronDown,
+  ChevronRight as _ChevronRight,
+  X as _X,
+  Search as _Search,
+} from 'lucide-react'
 import StockOrderGraph from './StockOrderGraph'
 import './index.scss'
 import DatePicker from 'react-datepicker'
@@ -32,7 +37,7 @@ const getDifColor = (val: number) => {
   return '#a856f6'
 }
 
-const getStatusCellStyle = (currentQty: number, targetQty: number, currentTime?: string) => {
+const getStatusCellStyle = (_currentQty: number, _targetQty: number, _currentTime?: string) => {
   return { backgroundColor: 'transparent', color: 'inherit' }
 }
 
@@ -45,7 +50,7 @@ const getStatusQtyStyle = (currentQty: number, targetQty: number, currentTime?: 
   }
 }
 
-const getStatusTimeStyle = (currentQty: number, targetQty: number, currentTime?: string) => {
+const getStatusTimeStyle = (_currentQty: number, _targetQty: number, _currentTime?: string) => {
   return {
     color: 'var(--theme-elevation-450)',
   }

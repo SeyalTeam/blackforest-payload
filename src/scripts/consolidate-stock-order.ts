@@ -88,7 +88,7 @@ async function run() {
       name: found.name,
       inStock: 0,
       requiredQty: item.qty,
-      status: 'ordered',
+      status: 'ordered' as any,
     })
   }
 
@@ -111,7 +111,7 @@ async function run() {
         items,
         status: 'ordered',
         createdBy: '67484df89240361247d56693',
-      },
+      } as any,
       user: {
         id: '67484df89240361247d56693',
         role: 'superadmin',
