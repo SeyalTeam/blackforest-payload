@@ -8,19 +8,9 @@ const Tables: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: ({ req }) => req.user?.role === 'superadmin',
-    update: ({ req }): boolean | import('payload').Where => {
-      if (!req.user) return false
-      if (req.user.role === 'superadmin') return true
-      if (req.user.role === 'branch') {
-        if (!req.user.branch) return false
-        const userBranchId =
-          typeof req.user.branch === 'object' ? req.user.branch.id : req.user.branch
-        return { branch: { equals: userBranchId } }
-      }
-      return false
-    },
-    delete: ({ req }) => req.user?.role === 'superadmin',
+    create: () => true,
+    update: () => true,
+    delete: () => true,
   },
   fields: [
     {
