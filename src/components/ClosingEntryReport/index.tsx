@@ -66,6 +66,11 @@ type Denominations = {
   count5: number
 }
 
+type Branch = {
+  id: string
+  name: string
+}
+
 type ReportData = {
   startDate: string
   endDate: string
@@ -80,8 +85,9 @@ const ClosingEntryReport: React.FC = () => {
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [expandedBranch, setExpandedBranch] = useState<string | null>(null)
-  const [branches, setBranches] = useState<any[]>([])
+  const [viewMode, setViewMode] = useState<'combined' | 'detailed'>('combined')
+
+  const [branches, setBranches] = useState<Branch[]>([])
   const [selectedBranch, setSelectedBranch] = useState<string[]>(['all'])
   const [firstClosingDate, setFirstClosingDate] = useState<Date | null>(null)
 
@@ -402,23 +408,7 @@ const ClosingEntryReport: React.FC = () => {
     document.body.removeChild(link)
   }
 
-  // Helper for zero highlighting
-  const getStyle = (_val: number) => ({
-    textAlign: 'center' as const,
-    fontWeight: '600' as const,
-    fontSize: '1.2rem' as const,
-    verticalAlign: 'middle' as const, // Ensure vertical centering
-    padding: '0.85rem 1rem', // Match SCSS padding
-    backgroundColor: 'inherit',
-    color: 'inherit',
-  })
-
   // Specific style for System Sales to handle stacked content
-  const getSystemSalesStyle = (_val: number) => ({
-    ...getStyle(_val),
-    // Removed display: flex to allow table-cell behavior (full height background)
-    // Content will handle its own alignment via text-align: right
-  })
 
   const dateRangeOptions = [
     { value: 'till_now', label: 'Till Now' },
@@ -504,7 +494,13 @@ const ClosingEntryReport: React.FC = () => {
   }
 
   // Custom Option component with checkbox
-  const CheckboxOption = (props: any) => {
+  const CheckboxOption = (props: {
+    isFocused: boolean
+    isSelected: boolean
+    selectOption: (data: unknown) => void
+    data: unknown
+    label: string
+  }) => {
     return (
       <div
         style={{
@@ -533,7 +529,11 @@ const ClosingEntryReport: React.FC = () => {
   }
 
   // Custom Value Container to show "X Selected"
-  const CustomValueContainer = (props: any) => {
+  const CustomValueContainer = (props: {
+    getValue: () => { value: string }[]
+    children: React.ReactNode
+    innerProps: React.HTMLAttributes<HTMLDivElement>
+  }) => {
     const selectedCount = props.getValue().length
     const allSelected = props.getValue().some((v: any) => v.value === 'all')
     const { children, ...rest } = props
@@ -576,6 +576,65 @@ const ClosingEntryReport: React.FC = () => {
           <h1>Closing Entry Report</h1>
         </div>
         <div className="date-filter">
+          {/* View Mode Toggle */}
+          <button
+            className="view-mode-toggle"
+            onClick={() => setViewMode(viewMode === 'combined' ? 'detailed' : 'combined')}
+            title={viewMode === 'combined' ? 'Switch to Detailed View' : 'Switch to Combined View'}
+            style={{
+              background: 'none',
+              border: '1px solid #444',
+              borderRadius: '4px',
+              padding: '8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              marginRight: '1rem',
+              width: '42px',
+              height: '42px',
+            }}
+          >
+            {viewMode === 'combined' ? (
+              // Grid/List Icon for "Go to Detailed"
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+              </svg>
+            ) : (
+              // Table/List Icon for "Go to Combined"
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="8" y1="6" x2="21" y2="6"></line>
+                <line x1="8" y1="12" x2="21" y2="12"></line>
+                <line x1="8" y1="18" x2="21" y2="18"></line>
+                <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                <line x1="3" y1="18" x2="3.01" y2="18"></line>
+              </svg>
+            )}
+          </button>
+
           <div className="filter-group">
             <Select
               instanceId="date-preset-select"
@@ -651,6 +710,7 @@ const ClosingEntryReport: React.FC = () => {
                 const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
                 setDateRange([today, today])
                 setSelectedBranch(['all'])
+                setViewMode('combined')
               }}
               title="Reset Filters"
               style={{
@@ -687,96 +747,88 @@ const ClosingEntryReport: React.FC = () => {
       {error && <p className="error">{error}</p>}
 
       {data && (
-        <div className="table-container">
-          <table className="report-table">
-            <thead>
-              <tr>
-                <th style={{ width: '50px' }}>S.NO</th>
-                <th>BRANCH NAME</th>
-                <th style={{ textAlign: 'center' }}>SYSTEM BILLS</th>
-                <th style={{ textAlign: 'center' }}>MANUAL BILLS</th>
-                <th style={{ textAlign: 'center' }}>ONLINE BILLS</th>
-                <th style={{ textAlign: 'center' }}>TOTAL BILLS</th>
-                <th style={{ textAlign: 'center' }}>EXPENSES</th>
-                <th style={{ textAlign: 'center' }}>CASH</th>
-                <th style={{ textAlign: 'center' }}>UPI</th>
-                <th style={{ textAlign: 'center' }}>CARD</th>
-                <th style={{ textAlign: 'center' }}>TOTAL SALES</th>
-                <th style={{ textAlign: 'center' }}>SALES DIF</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredStats?.map((row, index) => {
+        <>
+          {viewMode === 'combined' ? (
+            <div className="cards-grid">
+              {filteredStats?.map((row) => {
                 const calculatedTotal = row.expenses + row.cash + row.upi + row.card
+                const salesDiff = calculatedTotal - row.totalSales
 
-                const today = new Date()
-                const yesterday = new Date(today)
-                yesterday.setDate(yesterday.getDate() - 1)
+                // Branch Code and Time Logic
+                const showClosingIds = ['today', 'yesterday'].includes(dateRangePreset)
 
-                const sStr = startDate ? toLocalDateStr(startDate) : ''
-                const eStr = endDate ? toLocalDateStr(endDate) : ''
-                const tStr = toLocalDateStr(today)
-                const yStr = toLocalDateStr(yesterday)
-
-                const showTime =
-                  (sStr === tStr && eStr === tStr) || (sStr === yStr && eStr === yStr)
-                return (
-                  <React.Fragment key={row.branchName}>
-                    <tr
-                      key={row.branchName}
-                      onClick={() =>
-                        setExpandedBranch(expandedBranch === row.branchName ? null : row.branchName)
+                const closingIds = showClosingIds
+                  ? row.closingNumbers?.map((num) => {
+                      const parts = num.split('-')
+                      if (parts.length >= 4) {
+                        return `${parts[0]}-${parts[parts.length - 1]}`
                       }
-                      style={{ cursor: 'pointer' }}
-                    >
-                      <td>{index + 1}</td>
-                      <td className="branch-name-cell">
-                        <div>{row.branchName.toUpperCase()}</div>
-                        {showTime && (
-                          <div
-                            style={{
-                              fontSize: '0.8rem',
-                              color: '#888',
-                              marginTop: '4px',
-                              display: 'flex',
-                              whiteSpace: 'nowrap',
-                              alignItems: 'center',
-                            }}
-                          >
-                            <span>
-                              {row.closingNumbers
-                                ?.map((num) => {
-                                  const parts = num.split('-')
-                                  if (parts.length >= 4) {
-                                    return `${parts[0]}-${parts[parts.length - 1]}`
-                                  }
-                                  return num
-                                })
-                                .join(', ')}
-                            </span>
-                            {row.lastUpdated && (
-                              <span style={{ marginLeft: '8px' }}>
-                                {new Date(row.lastUpdated).toLocaleTimeString([], {
-                                  hour: 'numeric',
-                                  minute: '2-digit',
-                                  hour12: true,
-                                })}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                      <td style={getSystemSalesStyle(row.systemSales)}>
-                        <div>{formatValue(row.systemSales)}</div>
-                        <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>
-                          {row.totalBills} Bills
-                        </div>
-                      </td>
-                      <td style={getStyle(row.manualSales)}>{formatValue(row.manualSales)}</td>
-                      <td style={getStyle(row.onlineSales)}>{formatValue(row.onlineSales)}</td>
-                      <td style={getStyle(row.totalSales)}>{formatValue(row.totalSales)}</td>
-                      <td
-                        style={{ ...getStyle(row.expenses), cursor: 'pointer' }}
+                      return num
+                    }) || []
+                  : []
+                const closingIdStr = closingIds.join(', ')
+
+                const timeStr = row.lastUpdated
+                  ? new Date(row.lastUpdated).toLocaleTimeString([], {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      hour12: true,
+                    })
+                  : ''
+
+                // Placeholders (matching detailed view for visual consistency)
+                const stockOrders = 0
+                const returnTotal = 0
+                const productTotal = 0
+                const productDiff = 0
+                const netAmount = salesDiff // Using salesDiff as netAmount for combined view mainly
+
+                return (
+                  <div
+                    key={row.branchName}
+                    className="detail-card"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => {
+                      setSelectedBranch([row.branchName])
+                      setViewMode('detailed')
+                    }}
+                  >
+                    {/* Card Header */}
+                    <div className="card-header">
+                      <span className="card-title">{row.branchName.toUpperCase()}</span>
+                      <span
+                        className="card-time"
+                        style={{ fontSize: '0.75rem', textAlign: 'right' }}
+                      >
+                        <div>{closingIdStr}</div>
+                        <div>{timeStr}</div>
+                      </span>
+                    </div>
+
+                    {/* Section 1: Bills */}
+                    <div className="card-section">
+                      <div className="row-flex">
+                        <span>System Bills</span>
+                        <span>₹{formatValue(row.systemSales)}</span>
+                      </div>
+                      <div className="row-flex">
+                        <span>Manual Bills</span>
+                        <span>₹{formatValue(row.manualSales)}</span>
+                      </div>
+                      <div className="row-flex">
+                        <span>Online Bills</span>
+                        <span>₹{formatValue(row.onlineSales)}</span>
+                      </div>
+                      <div className="section-total">
+                        <span>Total Bills: ({row.totalBills})</span>
+                        <span>{formatValue(row.totalSales)}</span>
+                      </div>
+                    </div>
+
+                    {/* Section 2: Collections */}
+                    <div className="card-section">
+                      <div
+                        className="row-flex clickable"
                         onClick={(e) => {
                           e.stopPropagation()
                           setExpensePopupData({
@@ -785,10 +837,11 @@ const ClosingEntryReport: React.FC = () => {
                           })
                         }}
                       >
-                        {formatValue(row.expenses)}
-                      </td>
-                      <td
-                        style={{ ...getStyle(row.cash), cursor: 'pointer' }}
+                        <span>Expenses</span>
+                        <span>₹{formatValue(row.expenses)}</span>
+                      </div>
+                      <div
+                        className="row-flex clickable"
                         onClick={(e) => {
                           e.stopPropagation()
                           setCashPopupData({
@@ -805,351 +858,256 @@ const ClosingEntryReport: React.FC = () => {
                           })
                         }}
                       >
-                        {formatValue(row.cash)}
-                      </td>
-                      <td style={getStyle(row.upi)}>{formatValue(row.upi)}</td>
-                      <td style={getStyle(row.card)}>{formatValue(row.card)}</td>
-                      <td
+                        <span>Cash</span>
+                        <span>₹{formatValue(row.cash)}</span>
+                      </div>
+                      <div className="row-flex">
+                        <span>UPI</span>
+                        <span>₹{formatValue(row.upi)}</span>
+                      </div>
+                      <div className="row-flex">
+                        <span>Card</span>
+                        <span>₹{formatValue(row.card)}</span>
+                      </div>
+                      <div className="section-total">
+                        <span>Total Collection:</span>
+                        <span>{formatValue(calculatedTotal)}</span>
+                      </div>
+                      <div
+                        className="section-total"
                         style={{
-                          ...getStyle(calculatedTotal),
-                          fontWeight:
-                            calculatedTotal > row.totalSales || calculatedTotal < row.totalSales
-                              ? 'bold'
-                              : 'normal',
-                          backgroundColor:
-                            calculatedTotal > row.totalSales
-                              ? '#53161D'
-                              : calculatedTotal < row.totalSales
-                                ? '#960018'
-                                : 'inherit',
-                          color:
-                            calculatedTotal > row.totalSales
-                              ? '#F5EBD0'
-                              : calculatedTotal < row.totalSales
-                                ? 'white'
-                                : 'inherit',
+                          borderTop: 'none',
+                          marginTop: 0,
+                          marginBottom: '8px',
+                          color: '#fff',
                         }}
                       >
-                        {formatValue(calculatedTotal)}
-                      </td>
-                      <td
-                        style={{
-                          ...getStyle(calculatedTotal - row.totalSales),
-                          backgroundColor:
-                            calculatedTotal - row.totalSales < 0 ? '#960018' : 'inherit',
-                          color: calculatedTotal - row.totalSales < 0 ? 'white' : 'inherit',
-                        }}
-                      >
-                        {formatValue(calculatedTotal - row.totalSales)}
-                      </td>
-                    </tr>
-                    {expandedBranch === row.branchName &&
-                      row.entries?.map((entry, i) => {
-                        const entryTotal =
-                          (entry.expenses || 0) +
-                          (entry.cash || 0) +
-                          (entry.upi || 0) +
-                          (entry.card || 0)
-                        const parts = entry.closingNumber.split('-')
-                        const displayNo =
-                          parts.length >= 4
-                            ? `${parts[0]}-${parts[parts.length - 1]}`
-                            : entry.closingNumber
+                        <span style={{ color: '#4caf50' }}>Sales Dif</span>
+                        <span
+                          style={{
+                            color: salesDiff >= 0 ? '#4caf50' : '#ef5350',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          {salesDiff > 0 ? '↑' : salesDiff < 0 ? '↓' : ''} {formatValue(salesDiff)}
+                        </span>
+                      </div>
+                    </div>
 
-                        return (
-                          <tr
-                            key={`${row.branchName}-entry-${i}`}
-                            style={{
-                              backgroundColor: '#FBF8EF',
-                              color: 'black',
-                            }}
-                          >
-                            <td></td>
-                            <td className="branch-name-cell">
-                              <div
-                                style={{
-                                  fontSize: '1rem',
-                                  color: 'black',
-                                  fontWeight: 'bold',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                <span>{displayNo}</span>
-                                <span
-                                  style={{
-                                    marginLeft: '8px',
-                                    fontSize: '0.9rem', // Slightly increased relative to parent
-                                    opacity: 0.9,
-                                    color: 'black',
-                                    fontWeight: 'bold',
-                                  }}
-                                >
-                                  {new Date(entry.createdAt).toLocaleString([], {
-                                    year: 'numeric',
-                                    month: '2-digit',
-                                    day: '2-digit',
-                                    hour: 'numeric',
-                                    minute: '2-digit',
-                                    hour12: true,
-                                  })}
-                                </span>
-                              </div>
-                            </td>
-                            <td
-                              style={{
-                                ...getStyle(entry.systemSales),
-                                fontWeight: 'bold',
-                                color: entry.systemSales < 0 ? '#960018' : 'black',
-                              }}
-                            >
-                              {formatValue(entry.systemSales)}
-                            </td>
-                            <td
-                              style={{
-                                ...getStyle(entry.manualSales),
-                                fontWeight: 'bold',
-                                color: entry.manualSales < 0 ? '#960018' : 'black',
-                              }}
-                            >
-                              {formatValue(entry.manualSales)}
-                            </td>
-                            <td
-                              style={{
-                                ...getStyle(entry.onlineSales),
-                                fontWeight: 'bold',
-                                color: entry.onlineSales < 0 ? '#960018' : 'black',
-                              }}
-                            >
-                              {formatValue(entry.onlineSales)}
-                            </td>
-                            <td
-                              style={{
-                                ...getStyle(entry.totalSales),
-                                fontWeight: 'bold',
-                                color: entry.totalSales < 0 ? '#960018' : 'black',
-                              }}
-                            >
-                              {formatValue(entry.totalSales)}
-                            </td>
-                            <td
-                              style={{
-                                ...getStyle(entry.expenses),
-                                fontWeight: 'bold',
-                                color: entry.expenses < 0 ? '#960018' : 'black',
-                                cursor: 'pointer',
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setExpensePopupData({
-                                  title: `Expenses - ${displayNo}`,
-                                  details: entry.expenseDetails || [],
-                                })
-                              }}
-                            >
-                              {formatValue(entry.expenses)}
-                            </td>
-                            <td
-                              style={{
-                                ...getStyle(entry.cash),
-                                fontWeight: 'bold',
-                                color: entry.cash < 0 ? '#960018' : 'black',
-                                cursor: 'pointer',
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setCashPopupData({
-                                  title: `Cash Denominations - ${displayNo}`,
-                                  denominations: entry.denominations || {
-                                    count2000: 0,
-                                    count500: 0,
-                                    count200: 0,
-                                    count100: 0,
-                                    count50: 0,
-                                    count10: 0,
-                                    count5: 0,
-                                  },
-                                })
-                              }}
-                            >
-                              {formatValue(entry.cash)}
-                            </td>
-                            <td
-                              style={{
-                                ...getStyle(entry.upi),
-                                fontWeight: 'bold',
-                                color: entry.upi < 0 ? '#960018' : 'black',
-                              }}
-                            >
-                              {formatValue(entry.upi)}
-                            </td>
-                            <td
-                              style={{
-                                ...getStyle(entry.card),
-                                fontWeight: 'bold',
-                                color: entry.card < 0 ? '#960018' : 'black',
-                              }}
-                            >
-                              {formatValue(entry.card)}
-                            </td>
-                            <td
-                              style={{
-                                ...getStyle(entryTotal),
-                                fontWeight: 'bold',
-                                backgroundColor: '#FBF8EF',
-                                color:
-                                  entryTotal > entry.totalSales
-                                    ? '#53161D'
-                                    : entryTotal < entry.totalSales
-                                      ? '#960018'
-                                      : 'black',
-                              }}
-                            >
-                              {formatValue(entryTotal)}
-                            </td>
-                            <td
-                              style={{
-                                ...getStyle(entryTotal - entry.totalSales),
-                                fontWeight: 'bold',
-                                backgroundColor: '#FBF8EF',
-                                color: entryTotal - entry.totalSales < 0 ? '#960018' : 'black',
-                              }}
-                            >
-                              {formatValue(entryTotal - entry.totalSales)}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                  </React.Fragment>
+                    {/* Section 3: Reconciliation and Extras */}
+                    <div className="card-section">
+                      <div className="row-flex">
+                        <span>Stock Orders</span>
+                        <span>₹{stockOrders}</span>
+                      </div>
+                      <div className="row-flex">
+                        <span>Return Total</span>
+                        <span>₹{returnTotal}</span>
+                      </div>
+                      <div className="row-flex">
+                        <span>Product Total</span>
+                        <span>₹{productTotal}</span>
+                      </div>
+                    </div>
+
+                    {/* Footer: Final Stats */}
+                    <div className="card-footer-stats">
+                      <div className="stat-row">
+                        <span>Product Dif:</span>
+                        <span className={productDiff < 0 ? 'negative' : ''}>
+                          {formatValue(productDiff)}
+                        </span>
+                      </div>
+                      <div className="stat-row net-amount">
+                        <span>Net Amount:</span>
+                        <span>₹{formatValue(netAmount)}</span>
+                      </div>
+                    </div>
+                  </div>
                 )
               })}
-            </tbody>
-            <tfoot>
-              <tr className="grand-total">
-                <td colSpan={2}>
-                  <strong>Total</strong>
-                </td>
-                <td style={getSystemSalesStyle(filteredTotals.systemSales)}>
-                  <div>{formatValue(filteredTotals.systemSales)}</div>
-                  <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>
-                    {filteredTotals.totalBills} Bills
-                  </div>
-                </td>
-                <td style={getStyle(filteredTotals.manualSales)}>
-                  {formatValue(filteredTotals.manualSales)}
-                </td>
-                <td style={getStyle(filteredTotals.onlineSales)}>
-                  {formatValue(filteredTotals.onlineSales)}
-                </td>
-                <td style={getStyle(filteredTotals.totalSales)}>
-                  {formatValue(filteredTotals.totalSales)}
-                </td>
-                <td style={getStyle(filteredTotals.expenses)}>
-                  {formatValue(filteredTotals.expenses)}
-                </td>
-                <td style={getStyle(filteredTotals.cash)}>{formatValue(filteredTotals.cash)}</td>
-                <td style={getStyle(filteredTotals.upi)}>{formatValue(filteredTotals.upi)}</td>
-                <td style={getStyle(filteredTotals.card)}>{formatValue(filteredTotals.card)}</td>
-                <td
-                  style={{
-                    ...getStyle(
-                      filteredTotals.expenses +
-                        filteredTotals.cash +
-                        filteredTotals.upi +
-                        filteredTotals.card,
-                    ),
-                    fontWeight:
-                      filteredTotals.expenses +
-                        filteredTotals.cash +
-                        filteredTotals.upi +
-                        filteredTotals.card >
-                        filteredTotals.totalSales ||
-                      filteredTotals.expenses +
-                        filteredTotals.cash +
-                        filteredTotals.upi +
-                        filteredTotals.card <
-                        filteredTotals.totalSales
-                        ? 'bold'
-                        : 'normal',
-                    backgroundColor:
-                      filteredTotals.expenses +
-                        filteredTotals.cash +
-                        filteredTotals.upi +
-                        filteredTotals.card >
-                      filteredTotals.totalSales
-                        ? '#53161D'
-                        : filteredTotals.expenses +
-                              filteredTotals.cash +
-                              filteredTotals.upi +
-                              filteredTotals.card <
-                            filteredTotals.totalSales
-                          ? '#960018'
-                          : 'inherit',
-                    color:
-                      filteredTotals.expenses +
-                        filteredTotals.cash +
-                        filteredTotals.upi +
-                        filteredTotals.card >
-                      filteredTotals.totalSales
-                        ? '#F5EBD0'
-                        : filteredTotals.expenses +
-                              filteredTotals.cash +
-                              filteredTotals.upi +
-                              filteredTotals.card <
-                            filteredTotals.totalSales
-                          ? 'white'
-                          : 'inherit',
-                  }}
-                >
-                  {formatValue(
-                    filteredTotals.expenses +
-                      filteredTotals.cash +
-                      filteredTotals.upi +
-                      filteredTotals.card,
-                  )}
-                </td>
-                <td
-                  style={{
-                    ...getStyle(
-                      filteredTotals.expenses +
-                        filteredTotals.cash +
-                        filteredTotals.upi +
-                        filteredTotals.card -
-                        filteredTotals.totalSales,
-                    ),
-                    backgroundColor:
-                      filteredTotals.expenses +
-                        filteredTotals.cash +
-                        filteredTotals.upi +
-                        filteredTotals.card -
-                        filteredTotals.totalSales <
-                      0
-                        ? '#960018'
-                        : 'inherit',
-                    color:
-                      filteredTotals.expenses +
-                        filteredTotals.cash +
-                        filteredTotals.upi +
-                        filteredTotals.card -
-                        filteredTotals.totalSales <
-                      0
-                        ? 'white'
-                        : 'inherit',
-                  }}
-                >
-                  {formatValue(
-                    filteredTotals.expenses +
-                      filteredTotals.cash +
-                      filteredTotals.upi +
-                      filteredTotals.card -
-                      filteredTotals.totalSales,
-                  )}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+            </div>
+          ) : (
+            <div className="cards-grid">
+              {filteredStats?.map((row) => {
+                // Check if entries exist
+                if (!row.entries || row.entries.length === 0) return null
+
+                return row.entries.map((entry, i) => {
+                  const entryCollectionTotal =
+                    (entry.expenses || 0) + (entry.cash || 0) + (entry.upi || 0) + (entry.card || 0)
+                  const salesDiff = entryCollectionTotal - entry.totalSales
+
+                  const parts = entry.closingNumber.split('-')
+                  const displayNo =
+                    parts.length >= 4
+                      ? `${parts[0]}-${parts[parts.length - 1]}`
+                      : entry.closingNumber
+
+                  // Placeholders
+                  const stockOrders = 0
+                  const returnTotal = 0
+                  const productTotal = 0
+                  const productDiff = 0
+                  const netAmount = productDiff
+
+                  const showShortId = ['today', 'yesterday'].includes(dateRangePreset)
+                  const entryDate = new Date(entry.createdAt)
+
+                  return (
+                    <div key={`${row.branchName}-entry-${i}`} className="detail-card">
+                      {/* Card Header */}
+                      <div className="card-header">
+                        <span className="card-title">
+                          {row.branchName.toUpperCase()} {showShortId ? `#${displayNo}` : ''}
+                        </span>
+                        <span className="card-time">
+                          {!showShortId && (
+                            <>
+                              {entryDate.toLocaleDateString([], {
+                                day: 'numeric',
+                                month: 'short',
+                              })}{' '}
+                            </>
+                          )}
+                          {entryDate.toLocaleTimeString([], {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true,
+                          })}
+                        </span>
+                      </div>
+
+                      {/* Section 1: Bills */}
+                      <div className="card-section">
+                        <div className="row-flex">
+                          <span>System Bills</span>
+                          <span>₹{formatValue(entry.systemSales)}</span>
+                        </div>
+                        <div className="row-flex">
+                          <span>Manual Bills</span>
+                          <span>₹{formatValue(entry.manualSales)}</span>
+                        </div>
+                        <div className="row-flex">
+                          <span>Online Bills</span>
+                          <span>₹{formatValue(entry.onlineSales)}</span>
+                        </div>
+                        <div className="section-total">
+                          <span>Total Bills:</span>
+                          <span>{formatValue(entry.totalSales)}</span>
+                        </div>
+                      </div>
+
+                      {/* Section 2: Collections */}
+                      <div className="card-section">
+                        <div
+                          className="row-flex clickable"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setExpensePopupData({
+                              title: `Expenses - ${displayNo}`,
+                              details: entry.expenseDetails || [],
+                            })
+                          }}
+                        >
+                          <span>Expenses</span>
+                          <span>₹{formatValue(entry.expenses)}</span>
+                        </div>
+                        <div
+                          className="row-flex clickable"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setCashPopupData({
+                              title: `Cash Denominations - ${displayNo}`,
+                              denominations: entry.denominations || {
+                                count2000: 0,
+                                count500: 0,
+                                count200: 0,
+                                count100: 0,
+                                count50: 0,
+                                count10: 0,
+                                count5: 0,
+                              },
+                            })
+                          }}
+                        >
+                          <span>Cash</span>
+                          <span>₹{formatValue(entry.cash)}</span>
+                        </div>
+                        <div className="row-flex">
+                          <span>UPI</span>
+                          <span>₹{formatValue(entry.upi)}</span>
+                        </div>
+                        <div className="row-flex">
+                          <span>Card</span>
+                          <span>₹{formatValue(entry.card)}</span>
+                        </div>
+                        <div className="section-total">
+                          <span>Total Collection:</span>
+                          <span>{formatValue(entryCollectionTotal)}</span>
+                        </div>
+                        <div
+                          className="section-total"
+                          style={{
+                            borderTop: 'none',
+                            marginTop: 0,
+                            marginBottom: '8px',
+                            color: '#fff',
+                          }}
+                        >
+                          <span style={{ color: '#4caf50' }}>Sales Dif</span>
+                          <span
+                            style={{
+                              color: salesDiff >= 0 ? '#4caf50' : '#ef5350',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            {salesDiff > 0 ? '↑' : salesDiff < 0 ? '↓' : ''}{' '}
+                            {formatValue(salesDiff)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Section 3: Reconciliation and Extras */}
+                      <div className="card-section">
+                        <div className="row-flex">
+                          <span>Stock Orders</span>
+                          <span>₹{stockOrders}</span>
+                        </div>
+                        <div className="row-flex">
+                          <span>Return Total</span>
+                          <span>₹{returnTotal}</span>
+                        </div>
+                        <div className="row-flex">
+                          <span>Product Total</span>
+                          <span>₹{productTotal}</span>
+                        </div>
+                      </div>
+
+                      {/* Footer: Final Stats */}
+                      <div className="card-footer-stats">
+                        <div className="stat-row">
+                          <span>Product Dif:</span>
+                          <span className={productDiff < 0 ? 'negative' : ''}>
+                            {formatValue(productDiff)}
+                          </span>
+                        </div>
+                        <div className="stat-row net-amount">
+                          <span>Net Amount:</span>
+                          <span>₹{formatValue(netAmount)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              })}
+            </div>
+          )}
+        </>
       )}
       {expensePopupData && (
         <div
