@@ -766,7 +766,8 @@ const ClosingEntryReport: React.FC = () => {
                       return num
                     }) || []
                   : []
-                const closingIdStr = closingIds.join(', ')
+                const uniqueClosingIds = Array.from(new Set(closingIds))
+                const closingIdStr = uniqueClosingIds.join(', ')
 
                 const timeStr = row.lastUpdated
                   ? new Date(row.lastUpdated).toLocaleTimeString([], {
