@@ -28,6 +28,11 @@
         display: flex;
         align-items: center;
         gap: 10px;
+
+        // Ensure Select is consistent with other header elements
+        .react-select__control {
+          min-width: 140px;
+        }
       }
 
       .custom-date-input {
@@ -40,6 +45,8 @@
         color: #ffffff;
         cursor: pointer;
         font-size: 14px;
+        height: 38px; // Match Select height
+        box-sizing: border-box;
         transition: all 0.2s;
 
         &:hover {
@@ -47,6 +54,7 @@
         }
 
         .separator {
+          margin: 0 8px;
           color: #a1a1aa;
         }
 
@@ -67,6 +75,7 @@
         border-radius: 6px;
         cursor: pointer;
         font-weight: 500;
+        height: 38px; // Match Select height
         transition: all 0.2s;
 
         &:hover {
@@ -74,6 +83,11 @@
         }
       }
     }
+  }
+
+  // React DatePicker Portal Styles (z-index fix)
+  :global(.react-datepicker-popper) {
+    z-index: 10000 !important;
   }
 
   .filters-row {
@@ -234,9 +248,12 @@
     }
 
     // Zebra Striping
-    // Plain Black Background
-    tbody tr {
-      background-color: #000000;
+    tbody tr:nth-child(even) {
+      background-color: #1c1c1f;
+    }
+
+    tbody tr:nth-child(odd) {
+      background-color: #0c0c0e;
     }
 
     tr:hover td {

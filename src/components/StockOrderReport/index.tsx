@@ -45,7 +45,7 @@ const getStatusQtyStyle = (currentQty: number, targetQty: number, currentTime?: 
   const color = getStatusColor(currentQty, targetQty, currentTime)
   return {
     fontWeight: '700',
-    fontSize: '22px',
+    fontSize: '1.2rem',
     color: color || 'inherit',
   }
 }
@@ -53,6 +53,7 @@ const getStatusQtyStyle = (currentQty: number, targetQty: number, currentTime?: 
 const getStatusTimeStyle = (_currentQty: number, _targetQty: number, _currentTime?: string) => {
   return {
     color: 'var(--theme-elevation-450)',
+    fontSize: '0.8rem',
   }
 }
 
@@ -106,6 +107,7 @@ const StockOrderReport: React.FC = () => {
   // ... (existing state)
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()])
   const [startDate, endDate] = dateRange
+  const [dateRangePreset, setDateRangePreset] = useState<string>('today')
   const [data, setData] = useState<ReportData | null>(null)
 
   const [loading, setLoading] = useState(false)
@@ -178,6 +180,62 @@ const StockOrderReport: React.FC = () => {
       ...base,
       color: '#a1a1aa',
     }),
+  }
+
+  const dateRangeOptions = [
+    { value: 'today', label: 'Today' },
+    { value: 'yesterday', label: 'Yesterday' },
+    { value: 'last_7_days', label: 'Last 7 Days' },
+    { value: 'this_month', label: 'This Month' },
+    { value: 'last_30_days', label: 'Last 30 Days' },
+    { value: 'last_month', label: 'Last Month' },
+  ]
+
+  const handleDatePresetChange = (value: string) => {
+    setDateRangePreset(value)
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+    let start: Date | null = null
+    let end: Date | null = today
+
+    switch (value) {
+      case 'today':
+        start = today
+        end = today
+        break
+      case 'yesterday':
+        const yest = new Date(today)
+        yest.setDate(yest.getDate() - 1)
+        start = yest
+        end = yest
+        break
+      case 'last_7_days':
+        const last7 = new Date(today)
+        last7.setDate(last7.getDate() - 6)
+        start = last7
+        break
+      case 'this_month':
+        const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+        start = thisMonthStart
+        end = today
+        break
+      case 'last_30_days':
+        const last30 = new Date(today)
+        last30.setDate(last30.getDate() - 29)
+        start = last30
+        break
+      case 'last_month':
+        const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+        const prevMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0)
+        start = prevMonthStart
+        end = prevMonthEnd
+        break
+    }
+
+    if (start && end) {
+      setDateRange([start, end])
+    }
   }
 
   // Options Lists
@@ -527,6 +585,21 @@ const StockOrderReport: React.FC = () => {
 
         <div className="date-filter">
           <div className="filter-group">
+            <Select
+              instanceId="date-preset-select"
+              options={dateRangeOptions}
+              value={dateRangeOptions.find((o) => o.value === dateRangePreset)}
+              onChange={(option: { value: string; label: string } | null) => {
+                if (option) handleDatePresetChange(option.value)
+              }}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Date Range..."
+              isSearchable={false}
+            />
+          </div>
+
+          <div className="filter-group">
             <DatePicker
               selectsRange={true}
               startDate={startDate}
@@ -534,11 +607,12 @@ const StockOrderReport: React.FC = () => {
               onChange={(update: [Date | null, Date | null]) => {
                 setDateRange(update)
               }}
-              monthsShown={2}
+              monthsShown={1}
               dateFormat="yyyy-MM-dd"
               customInput={<CustomInput />}
               calendarClassName="custom-calendar"
               popperPlacement="bottom-start"
+              portalId="root"
             />
           </div>
 
@@ -1077,7 +1151,7 @@ const StockOrderReport: React.FC = () => {
                                     <td
                                       style={{
                                         textAlign: 'right',
-                                        fontSize: '13px',
+                                        fontSize: '0.8rem',
                                         padding: '12px 8px',
                                       }}
                                     >
@@ -1086,16 +1160,16 @@ const StockOrderReport: React.FC = () => {
                                     <td
                                       style={{
                                         textAlign: 'center',
-                                        fontSize: '13px',
+                                        fontSize: '0.8rem',
                                         padding: '12px 8px',
                                       }}
                                     >
-                                      <div style={{ fontWeight: '700', fontSize: '22px' }}>
+                                      <div style={{ fontWeight: '700', fontSize: '1.2rem' }}>
                                         {formatQty(item.ordQty)}
                                       </div>
                                       <div
                                         style={{
-                                          fontSize: '13px',
+                                          fontSize: '0.8rem',
                                           fontWeight: '600',
                                           color: 'var(--theme-elevation-450)',
                                         }}
@@ -1107,7 +1181,7 @@ const StockOrderReport: React.FC = () => {
                                     <td
                                       style={{
                                         textAlign: 'center',
-                                        fontSize: '13px',
+                                        fontSize: '0.8rem',
                                         padding: '12px 8px',
                                         ...getStatusCellStyle(
                                           item.sntQty,
@@ -1129,7 +1203,6 @@ const StockOrderReport: React.FC = () => {
                                       </div>
                                       <div
                                         style={{
-                                          fontSize: '13px',
                                           fontWeight: '600',
                                           ...getStatusTimeStyle(
                                             item.sntQty,
@@ -1144,7 +1217,7 @@ const StockOrderReport: React.FC = () => {
                                     <td
                                       style={{
                                         textAlign: 'center',
-                                        fontSize: '13px',
+                                        fontSize: '0.8rem',
                                         padding: '12px 8px',
                                         ...getStatusCellStyle(
                                           item.conQty,
@@ -1166,7 +1239,6 @@ const StockOrderReport: React.FC = () => {
                                       </div>
                                       <div
                                         style={{
-                                          fontSize: '13px',
                                           fontWeight: '600',
                                           ...getStatusTimeStyle(
                                             item.conQty,
@@ -1181,7 +1253,7 @@ const StockOrderReport: React.FC = () => {
                                     <td
                                       style={{
                                         textAlign: 'center',
-                                        fontSize: '13px',
+                                        fontSize: '0.8rem',
                                         padding: '12px 8px',
                                         ...getStatusCellStyle(
                                           item.picQty,
@@ -1203,7 +1275,6 @@ const StockOrderReport: React.FC = () => {
                                       </div>
                                       <div
                                         style={{
-                                          fontSize: '13px',
                                           fontWeight: '600',
                                           ...getStatusTimeStyle(
                                             item.picQty,
@@ -1218,7 +1289,7 @@ const StockOrderReport: React.FC = () => {
                                     <td
                                       style={{
                                         textAlign: 'center',
-                                        fontSize: '13px',
+                                        fontSize: '0.8rem',
                                         padding: '12px 8px',
                                         ...getStatusCellStyle(
                                           item.recQty,
@@ -1240,7 +1311,6 @@ const StockOrderReport: React.FC = () => {
                                       </div>
                                       <div
                                         style={{
-                                          fontSize: '13px',
                                           fontWeight: '600',
                                           ...getStatusTimeStyle(
                                             item.recQty,
@@ -1256,14 +1326,14 @@ const StockOrderReport: React.FC = () => {
                                     <td
                                       style={{
                                         textAlign: 'center',
-                                        fontSize: '13px',
+                                        fontSize: '0.8rem',
                                         padding: '12px 8px',
                                       }}
                                     >
                                       <div
                                         style={{
                                           fontWeight: '700',
-                                          fontSize: '22px',
+                                          fontSize: '1.2rem',
                                           color: getDifColor(item.difQty),
                                         }}
                                       >
@@ -1461,10 +1531,10 @@ const ProductDetailPopup = ({
 
                   {/* ORD */}
                   <td style={{ textAlign: 'center', padding: '12px 8px' }}>
-                    <div style={{ fontWeight: '700', fontSize: '22px' }}>
+                    <div style={{ fontWeight: '700', fontSize: '1.2rem' }}>
                       {formatQty(item.ordQty)}
                     </div>
-                    <div style={{ fontSize: '0.75em', color: 'var(--theme-elevation-450)' }}>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-elevation-450)' }}>
                       {formatTime(item.ordTime)}
                     </div>
                   </td>
@@ -1486,7 +1556,6 @@ const ProductDetailPopup = ({
                     </div>
                     <div
                       style={{
-                        fontSize: '13px',
                         fontWeight: '600',
                         ...getStatusTimeStyle(item.sntQty, item.ordQty, item.sntTime),
                       }}
@@ -1512,7 +1581,6 @@ const ProductDetailPopup = ({
                     </div>
                     <div
                       style={{
-                        fontSize: '13px',
                         fontWeight: '600',
                         ...getStatusTimeStyle(item.conQty, item.sntQty, item.conTime),
                       }}
@@ -1537,7 +1605,6 @@ const ProductDetailPopup = ({
                     </div>
                     <div
                       style={{
-                        fontSize: '13px',
                         fontWeight: '600',
                         ...getStatusTimeStyle(item.picQty, item.conQty, item.picTime),
                       }}
@@ -1562,7 +1629,6 @@ const ProductDetailPopup = ({
                     </div>
                     <div
                       style={{
-                        fontSize: '13px',
                         fontWeight: '600',
                         ...getStatusTimeStyle(item.recQty, item.picQty, item.recTime),
                       }}
@@ -1576,7 +1642,7 @@ const ProductDetailPopup = ({
                       textAlign: 'center',
                       color: getDifColor(item.difQty),
                       fontWeight: item.difQty !== 0 ? '700' : '700',
-                      fontSize: '22px',
+                      fontSize: '1.2rem',
                       padding: '12px 8px',
                     }}
                   >

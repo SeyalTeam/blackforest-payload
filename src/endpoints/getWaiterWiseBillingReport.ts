@@ -210,6 +210,20 @@ export const getWaiterWiseBillingReportHandler: PayloadHandler = async (
               $cond: [{ $eq: ['$paymentMethod', 'card'] }, '$totalAmount', 0],
             },
           },
+          customerCount: {
+            $sum: {
+              $cond: [
+                {
+                  $or: [
+                    { $ne: [{ $ifNull: ['$customerDetails.name', ''] }, ''] },
+                    { $ne: [{ $ifNull: ['$customerDetails.phoneNumber', ''] }, ''] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
         },
       },
       // Lookup Branch details using the captured billingBranchIds
@@ -246,6 +260,7 @@ export const getWaiterWiseBillingReportHandler: PayloadHandler = async (
           cashAmount: 1,
           upiAmount: 1,
           cardAmount: 1,
+          customerCount: 1,
         },
       },
       {

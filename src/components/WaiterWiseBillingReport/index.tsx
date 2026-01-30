@@ -15,6 +15,7 @@ type ReportStats = {
   cashAmount: number
   upiAmount: number
   cardAmount: number
+  customerCount?: number
 }
 
 type ReportData = {
@@ -851,6 +852,10 @@ const WaiterWiseBillingReport: React.FC = () => {
                   <div className="breakdown-item">
                     <span>CARD</span>
                     <span className="amount">{formatValue(selectedWaiterStats.cardAmount)}</span>
+                  </div>
+                  <div className="breakdown-item">
+                    <span>CUSTOMERS COLLECTED</span>
+                    <span className="amount">{selectedWaiterStats.customerCount || 0}</span>
                   </div>
                   <hr />
                   <div className="breakdown-item total">
