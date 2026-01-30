@@ -78,6 +78,11 @@ type ReportData = {
   totals: Omit<ReportStats, 'branchName' | 'sNo' | 'entries' | 'closingNumbers' | 'lastUpdated'>
 }
 
+interface BranchOption {
+  value: string
+  label: string
+}
+
 const ClosingEntryReport: React.FC = () => {
   const [dateRangePreset, setDateRangePreset] = useState<string>('today')
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()])
@@ -530,17 +535,17 @@ const ClosingEntryReport: React.FC = () => {
 
   // Custom Value Container to show "X Selected"
   const CustomValueContainer = (props: {
-    getValue: () => { value: string }[]
+    getValue: () => BranchOption[]
     children: React.ReactNode
     innerProps: React.HTMLAttributes<HTMLDivElement>
   }) => {
     const selectedCount = props.getValue().length
-    const allSelected = props.getValue().some((v: any) => v.value === 'all')
+    const allSelected = props.getValue().some((v) => v.value === 'all')
     const { children, ...rest } = props
 
     // We still want to render the input for search functionality
     const input = React.Children.toArray(children).find(
-      (child: any) => child.key && child.key.includes('input'),
+      (child) => React.isValidElement(child) && child.key && String(child.key).includes('input'),
     )
 
     return (
@@ -667,12 +672,12 @@ const ClosingEntryReport: React.FC = () => {
           </div>
 
           <div className="filter-group">
-            <Select
+            <Select<BranchOption, true>
               options={branchOptions}
               isMulti
               value={branchOptions.filter((o) => selectedBranch.includes(o.value))}
               onChange={(newValue) => {
-                const selected = newValue ? newValue.map((x) => x.value) : []
+                const selected = newValue ? (newValue as BranchOption[]).map((x) => x.value) : []
                 const wasAll = selectedBranch.includes('all')
                 const hasAll = selected.includes('all')
                 let final = selected
@@ -1532,7 +1537,9 @@ const ClosingEntryReport: React.FC = () => {
                 </thead>
                 <tbody>
                   {[2000, 500, 200, 100, 50, 10, 5].map((val) => {
-                    const count = (cashPopupData.denominations as any)[`count${val}`] || 0
+                    const count =
+                      cashPopupData.denominations[`count${val}` as keyof Denominations] || 0
+
                     if (count === 0) return null
                     return (
                       <tr
@@ -1596,9 +1603,12 @@ const ClosingEntryReport: React.FC = () => {
                     >
                       ₹
                       {formatValue(
-                        [2000, 500, 200, 100, 50, 10, 5].reduce(
+                        ([2000, 500, 200, 100, 50, 10, 5] as const).reduce(
                           (sum, val) =>
-                            sum + val * ((cashPopupData.denominations as any)[`count${val}`] || 0),
+                            sum +
+                            val *
+                              (cashPopupData.denominations[`count${val}` as keyof Denominations] ||
+                                0),
                           0,
                         ),
                       )}
