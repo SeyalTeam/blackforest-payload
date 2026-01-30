@@ -96,7 +96,8 @@
   }
 
   .report-table {
-    width: 100%;
+    width: 70%;
+    margin: 0;
     border-collapse: collapse;
     white-space: nowrap; /* Prevent wrapping in headers */
 
@@ -106,6 +107,7 @@
       border-bottom: 1px solid var(--theme-elevation-100);
       border-right: 1px solid var(--theme-elevation-100); // Standard vertical separator
       text-align: left;
+      font-size: 1.2rem;
       color: var(--theme-text-primary);
 
       &:first-child {
@@ -447,5 +449,94 @@
   body {
     background: #fff !important;
     color: #000 !important;
+  }
+  .breakdown-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+  }
+
+  .breakdown-modal-content {
+    background: var(--theme-elevation-50, #1c1c1f);
+    padding: 2rem;
+    border-radius: 12px;
+    width: 400px;
+    max-width: 90%;
+    color: var(--theme-text-primary);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--theme-elevation-100);
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--theme-elevation-100);
+      padding-bottom: 1rem;
+
+      h3 {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      .close-btn {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        color: var(--theme-text-secondary);
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+
+        &:hover {
+          color: var(--theme-text-primary);
+        }
+      }
+    }
+
+    .modal-body {
+      .breakdown-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+        font-size: 1rem;
+
+        span:first-child {
+          opacity: 0.8;
+          font-weight: 500;
+        }
+
+        .amount {
+          font-weight: 700;
+          color: var(--theme-info-500);
+        }
+
+        &.total {
+          margin-top: 1rem;
+          font-size: 1.1rem;
+          font-weight: bold;
+
+          .amount {
+            color: var(--theme-success-500, #10b981);
+          }
+        }
+      }
+
+      hr {
+        border: none;
+        border-top: 1px solid var(--theme-elevation-100);
+        margin: 1rem 0;
+      }
+    }
   }
 }

@@ -92,6 +92,7 @@ const ProductWiseReport: React.FC = () => {
   const [showZeroHighlight, setShowZeroHighlight] = useState<boolean>(false)
   const [showTopSaleHighlight, setShowTopSaleHighlight] = useState<boolean>(false)
   const [showLowSaleHighlight, setShowLowSaleHighlight] = useState<boolean>(false)
+  const [expandedProduct, setExpandedProduct] = useState<string | null>(null)
 
   const [showExportMenu, setShowExportMenu] = useState(false)
 
@@ -105,7 +106,7 @@ const ProductWiseReport: React.FC = () => {
     const csvRows = []
     // Header
     csvRows.push(
-      ['S.NO', 'PRODUCT', ...data.branchHeaders, 'TOTAL UNITS', 'TOTAL AMOUNT'].join(','),
+      ['S.NO', 'PRODUCT', 'PRICE', ...data.branchHeaders, 'TOTAL UNITS', 'TOTAL AMOUNT'].join(','),
     )
     // Rows
     data.stats.forEach((row) => {
@@ -115,7 +116,8 @@ const ProductWiseReport: React.FC = () => {
       csvRows.push(
         [
           row.sNo,
-          `"${row.productName} (${row.price} / ${row.unit})"`, // Combine name and price
+          `"${row.productName}"`,
+          `"${row.price} / ${row.unit}"`,
           ...branchValues,
           formatValue(row.totalQuantity),
           formatValue(row.totalAmount),
@@ -130,6 +132,7 @@ const ProductWiseReport: React.FC = () => {
       [
         '',
         'TOTAL',
+        '',
         ...totalBranchPlaceholders,
         formatValue(data.totals.totalQuantity),
         formatValue(data.totals.totalAmount),
@@ -872,6 +875,7 @@ const ProductWiseReport: React.FC = () => {
                   <tr>
                     <th style={{ width: '50px' }}>S.NO</th>
                     <th>PRODUCT</th>
+                    <th style={{ textAlign: 'center' }}>PRICE</th>
                     {/* Dynamically render branch headers */}
                     {data.branchHeaders.map((header) => (
                       <th key={header} style={{ textAlign: 'center' }}>
@@ -886,11 +890,30 @@ const ProductWiseReport: React.FC = () => {
                   {sortedStats.map((row) => (
                     <tr key={row.sNo}>
                       <td>{row.sNo}</td>
-                      <td className="product-name-cell">
+                      <td
+                        className="product-name-cell"
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => {
+                          setExpandedProduct(
+                            expandedProduct === row.productName ? null : row.productName,
+                          )
+                        }}
+                      >
                         <div>{row.productName}</div>
-                        <div className="product-price-unit">
-                          {formatValue(row.price)} {row.unit}
-                        </div>
+                      </td>
+                      <td
+                        style={{
+                          textAlign: 'center',
+                          cursor: 'pointer',
+                          fontWeight: '600',
+                        }}
+                        onClick={() => {
+                          setExpandedProduct(
+                            expandedProduct === row.productName ? null : row.productName,
+                          )
+                        }}
+                      >
+                        {formatValue(row.price)} {row.unit}
                       </td>
                       {/* Dynamically render branch sales cells */}
                       {data.branchHeaders.map((header) => {
@@ -920,6 +943,8 @@ const ProductWiseReport: React.FC = () => {
                           ? `₹${formatValue(sales.amount)}`
                           : `${formatValue(sales.quantity)} Units`
 
+                        const isExpanded = expandedProduct === row.productName
+
                         return (
                           <td
                             key={header}
@@ -938,10 +963,17 @@ const ProductWiseReport: React.FC = () => {
                                 (showZeroHighlight && isZero) || isTopSale || isLowSale
                                   ? '#FFFFFF'
                                   : 'inherit',
+                              cursor:
+                                sales.quantity > 0 || sales.amount > 0 ? 'pointer' : 'default',
+                            }}
+                            onClick={() => {
+                              setExpandedProduct(
+                                expandedProduct === row.productName ? null : row.productName,
+                              )
                             }}
                           >
                             <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>{mainValue}</div>
-                            {(sales.quantity > 0 || sales.amount > 0) && (
+                            {isExpanded && (sales.quantity > 0 || sales.amount > 0) && (
                               <div
                                 style={{
                                   fontSize: '0.85rem',
@@ -972,6 +1004,12 @@ const ProductWiseReport: React.FC = () => {
                             showZeroHighlight && row.totalQuantity === 0 ? '#800020' : 'inherit',
                           color:
                             showZeroHighlight && row.totalQuantity === 0 ? '#FFFFFF' : 'inherit',
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => {
+                          setExpandedProduct(
+                            expandedProduct === row.productName ? null : row.productName,
+                          )
                         }}
                       >
                         {row.totalQuantity === 0 ? '' : formatValue(row.totalQuantity)}
@@ -984,6 +1022,12 @@ const ProductWiseReport: React.FC = () => {
                           backgroundColor:
                             showZeroHighlight && row.totalAmount === 0 ? '#800020' : 'inherit',
                           color: showZeroHighlight && row.totalAmount === 0 ? '#FFFFFF' : 'inherit',
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => {
+                          setExpandedProduct(
+                            expandedProduct === row.productName ? null : row.productName,
+                          )
                         }}
                       >
                         {row.totalAmount === 0 ? '' : formatValue(row.totalAmount)}
@@ -993,7 +1037,7 @@ const ProductWiseReport: React.FC = () => {
                 </tbody>
                 <tfoot>
                   <tr className="grand-total">
-                    <td colSpan={2}>
+                    <td colSpan={3}>
                       <strong>Total</strong>
                     </td>
                     {/* Dynamically render branch totals in footer */}

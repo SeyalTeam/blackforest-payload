@@ -92,6 +92,7 @@ const CategoryWiseReport: React.FC = () => {
   const [showLowSaleHighlight, setShowLowSaleHighlight] = useState<boolean>(false)
 
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null)
 
   const formatValue = (val: number) => {
     const fixed = val.toFixed(2)
@@ -462,6 +463,20 @@ const CategoryWiseReport: React.FC = () => {
             }}
           />
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="filter-group">
+              <Select
+                instanceId="date-preset-select"
+                options={dateRangeOptions}
+                value={dateRangeOptions.find((o) => o.value === dateRangePreset)}
+                onChange={(option: { value: string; label: string } | null) => {
+                  if (option) handleDatePresetChange(option.value)
+                }}
+                styles={customStyles}
+                classNamePrefix="react-select"
+                placeholder="Date Range..."
+                isSearchable={false}
+              />
+            </div>
             <DatePicker
               selectsRange={true}
               startDate={startDate}
@@ -510,21 +525,6 @@ const CategoryWiseReport: React.FC = () => {
           </div>
         </div>
         <div className="date-filter">
-          <div className="filter-group">
-            <Select
-              instanceId="date-preset-select"
-              options={dateRangeOptions}
-              value={dateRangeOptions.find((o) => o.value === dateRangePreset)}
-              onChange={(option: { value: string; label: string } | null) => {
-                if (option) handleDatePresetChange(option.value)
-              }}
-              styles={customStyles}
-              classNamePrefix="react-select"
-              placeholder="Date Range..."
-              isSearchable={false}
-            />
-          </div>
-
           <div className="filter-group">
             <Select
               instanceId="sort-select"
@@ -770,19 +770,28 @@ const CategoryWiseReport: React.FC = () => {
                     ))}
                     <th
                       style={{
-                        textAlign: 'right',
+                        textAlign: 'center',
                       }}
                     >
                       TOTAL UNITS
                     </th>
-                    <th style={{ textAlign: 'right' }}>TOTAL AMOUNT</th>
+                    <th style={{ textAlign: 'center' }}>TOTAL AMOUNT</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedStats.map((row) => (
                     <tr key={row.sNo}>
                       <td>{row.sNo}</td>
-                      <td style={{ whiteSpace: 'normal' }}>{row.categoryName}</td>
+                      <td
+                        style={{ whiteSpace: 'normal', cursor: 'pointer' }}
+                        onClick={() => {
+                          setExpandedCategory(
+                            expandedCategory === row.categoryName ? null : row.categoryName,
+                          )
+                        }}
+                      >
+                        {row.categoryName}
+                      </td>
                       {data.branchHeaders.map((header) => {
                         const sales = row.branchSales[header] || { amount: 0, quantity: 0 }
                         const isZero = sales.amount === 0
@@ -810,6 +819,8 @@ const CategoryWiseReport: React.FC = () => {
                           ? `₹${formatValue(sales.amount)}`
                           : `${formatValue(sales.quantity)} Units`
 
+                        const isExpanded = expandedCategory === row.categoryName
+
                         return (
                           <td
                             key={header}
@@ -828,10 +839,17 @@ const CategoryWiseReport: React.FC = () => {
                                 (showZeroHighlight && isZero) || isTopSale || isLowSale
                                   ? '#FFFFFF'
                                   : 'inherit',
+                              cursor:
+                                sales.quantity > 0 || sales.amount > 0 ? 'pointer' : 'default',
+                            }}
+                            onClick={() => {
+                              setExpandedCategory(
+                                expandedCategory === row.categoryName ? null : row.categoryName,
+                              )
                             }}
                           >
                             <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>{mainValue}</div>
-                            {(sales.quantity > 0 || sales.amount > 0) && (
+                            {isExpanded && (sales.quantity > 0 || sales.amount > 0) && (
                               <div
                                 style={{
                                   fontSize: '0.85rem',
@@ -855,28 +873,66 @@ const CategoryWiseReport: React.FC = () => {
                       })}
                       <td
                         style={{
-                          textAlign: 'right',
+                          textAlign: 'center',
                           fontWeight: '600',
                           fontSize: '1.2rem',
                           backgroundColor:
                             showZeroHighlight && row.totalQuantity === 0 ? '#800020' : 'inherit',
                           color:
                             showZeroHighlight && row.totalQuantity === 0 ? '#FFFFFF' : 'inherit',
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => {
+                          setExpandedCategory(
+                            expandedCategory === row.categoryName ? null : row.categoryName,
+                          )
                         }}
                       >
-                        {row.totalQuantity === 0 ? '' : formatValue(row.totalQuantity)}
+                        <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>
+                          {row.totalQuantity === 0 ? '' : formatValue(row.totalQuantity)}
+                        </div>
+                        {expandedCategory === row.categoryName && row.totalQuantity > 0 && (
+                          <div
+                            style={{
+                              fontSize: '0.85rem',
+                              color: 'var(--theme-elevation-400)',
+                              marginTop: '4px',
+                            }}
+                          >
+                            {((row.totalQuantity / data.totals.totalQuantity) * 100).toFixed(2)}%
+                          </div>
+                        )}
                       </td>
                       <td
                         style={{
-                          textAlign: 'right',
+                          textAlign: 'center',
                           fontWeight: '600',
                           fontSize: '1.2rem',
                           backgroundColor:
                             showZeroHighlight && row.totalAmount === 0 ? '#800020' : 'inherit',
                           color: showZeroHighlight && row.totalAmount === 0 ? '#FFFFFF' : 'inherit',
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => {
+                          setExpandedCategory(
+                            expandedCategory === row.categoryName ? null : row.categoryName,
+                          )
                         }}
                       >
-                        {row.totalAmount === 0 ? '' : formatValue(row.totalAmount)}
+                        <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>
+                          {row.totalAmount === 0 ? '' : formatValue(row.totalAmount)}
+                        </div>
+                        {expandedCategory === row.categoryName && row.totalAmount > 0 && (
+                          <div
+                            style={{
+                              fontSize: '0.85rem',
+                              color: 'var(--theme-elevation-400)',
+                              marginTop: '4px',
+                            }}
+                          >
+                            {((row.totalAmount / data.totals.totalAmount) * 100).toFixed(2)}%
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -907,7 +963,7 @@ const CategoryWiseReport: React.FC = () => {
                     })}
                     <td
                       style={{
-                        textAlign: 'right',
+                        textAlign: 'center',
                         fontWeight: '600',
                         fontSize: '1.2rem',
                         backgroundColor:
@@ -926,7 +982,7 @@ const CategoryWiseReport: React.FC = () => {
                     </td>
                     <td
                       style={{
-                        textAlign: 'right',
+                        textAlign: 'center',
                         fontWeight: '600',
                         fontSize: '1.2rem',
                         backgroundColor:
