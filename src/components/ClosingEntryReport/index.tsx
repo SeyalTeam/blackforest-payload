@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import Select from 'react-select'
+import Select, { OptionProps, ValueContainerProps, GroupBase, components } from 'react-select'
 import './index.scss'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -499,13 +499,7 @@ const ClosingEntryReport: React.FC = () => {
   }
 
   // Custom Option component with checkbox
-  const CheckboxOption = (props: {
-    isFocused: boolean
-    isSelected: boolean
-    selectOption: (data: unknown) => void
-    data: unknown
-    label: string
-  }) => {
+  const CheckboxOption = (props: OptionProps<BranchOption, true, GroupBase<BranchOption>>) => {
     return (
       <div
         style={{
@@ -534,11 +528,9 @@ const ClosingEntryReport: React.FC = () => {
   }
 
   // Custom Value Container to show "X Selected"
-  const CustomValueContainer = (props: {
-    getValue: () => BranchOption[]
-    children: React.ReactNode
-    innerProps: React.HTMLAttributes<HTMLDivElement>
-  }) => {
+  const CustomValueContainer = (
+    props: ValueContainerProps<BranchOption, true, GroupBase<BranchOption>>,
+  ) => {
     const selectedCount = props.getValue().length
     const allSelected = props.getValue().some((v) => v.value === 'all')
     const { children, ...rest } = props
@@ -672,12 +664,12 @@ const ClosingEntryReport: React.FC = () => {
           </div>
 
           <div className="filter-group">
-            <Select<BranchOption, true>
+            <Select<BranchOption, true, GroupBase<BranchOption>>
               options={branchOptions}
               isMulti
               value={branchOptions.filter((o) => selectedBranch.includes(o.value))}
               onChange={(newValue) => {
-                const selected = newValue ? (newValue as BranchOption[]).map((x) => x.value) : []
+                const selected = newValue ? newValue.map((x) => x.value) : []
                 const wasAll = selectedBranch.includes('all')
                 const hasAll = selected.includes('all')
                 let final = selected
