@@ -237,7 +237,7 @@ const AfterstockCustomerReport: React.FC = () => {
   }
 
   return (
-    <div className="product-report-container">
+    <div className="customer-report-container">
       <div className="report-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <h1>Customer Report</h1>

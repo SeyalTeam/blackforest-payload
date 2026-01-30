@@ -116,7 +116,7 @@ const ProductWiseReport: React.FC = () => {
       csvRows.push(
         [
           row.sNo,
-          `"${row.productName}"`,
+          `"${row.productName.toUpperCase()}"`,
           `"${row.price} / ${row.unit}"`,
           ...branchValues,
           formatValue(row.totalQuantity),
@@ -873,23 +873,27 @@ const ProductWiseReport: React.FC = () => {
               <table className="report-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '50px' }}>S.NO</th>
-                    <th>PRODUCT</th>
-                    <th style={{ textAlign: 'center' }}>PRICE</th>
+                    <th style={{ width: '50px', fontSize: '1.2rem' }}>S.NO</th>
+                    <th style={{ fontSize: '1.2rem' }}>PRODUCT</th>
+                    <th style={{ textAlign: 'center', fontSize: '1.2rem' }}>PRICE</th>
                     {/* Dynamically render branch headers */}
                     {data.branchHeaders.map((header) => (
-                      <th key={header} style={{ textAlign: 'center' }}>
+                      <th key={header} style={{ textAlign: 'center', fontSize: '1.2rem' }}>
                         {header}
                       </th>
                     ))}
-                    <th style={{ textAlign: 'center', minWidth: '100px' }}>TOT UNITS</th>
-                    <th style={{ textAlign: 'center', minWidth: '100px' }}>TOT AMT</th>
+                    <th style={{ textAlign: 'center', minWidth: '100px', fontSize: '1.2rem' }}>
+                      TOT UNITS
+                    </th>
+                    <th style={{ textAlign: 'center', minWidth: '100px', fontSize: '1.2rem' }}>
+                      TOT AMT
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedStats.map((row) => (
                     <tr key={row.sNo}>
-                      <td>{row.sNo}</td>
+                      <td style={{ fontSize: '1.2rem' }}>{row.sNo}</td>
                       <td
                         className="product-name-cell"
                         style={{ cursor: 'pointer' }}
@@ -906,6 +910,7 @@ const ProductWiseReport: React.FC = () => {
                           textAlign: 'center',
                           cursor: 'pointer',
                           fontWeight: '600',
+                          fontSize: '1.2rem',
                         }}
                         onClick={() => {
                           setExpandedProduct(
@@ -1037,7 +1042,7 @@ const ProductWiseReport: React.FC = () => {
                 </tbody>
                 <tfoot>
                   <tr className="grand-total">
-                    <td colSpan={3}>
+                    <td colSpan={3} style={{ fontSize: '1.2rem' }}>
                       <strong>Total</strong>
                     </td>
                     {/* Dynamically render branch totals in footer */}

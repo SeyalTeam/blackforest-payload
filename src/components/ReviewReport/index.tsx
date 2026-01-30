@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import '../AfterstockCustomerReport/index.scss' // Reusing styles from Customer Report
+import './index.scss'
 
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -340,7 +340,7 @@ const ReviewReport: React.FC = () => {
   CustomInput.displayName = 'CustomInput'
 
   return (
-    <div className="product-report-container">
+    <div className="review-report-container">
       <div className="report-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <h1>Review Report</h1>

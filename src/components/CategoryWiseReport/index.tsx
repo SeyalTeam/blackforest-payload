@@ -758,32 +758,40 @@ const CategoryWiseReport: React.FC = () => {
               <table className="report-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '50px' }}>S.NO</th>
-                    <th style={{ width: '180px', maxWidth: '180px', whiteSpace: 'normal' }}>
+                    <th style={{ width: '50px', fontSize: '1.2rem' }}>S.NO</th>
+                    <th
+                      style={{
+                        width: '180px',
+                        maxWidth: '180px',
+                        whiteSpace: 'normal',
+                        fontSize: '1.2rem',
+                      }}
+                    >
                       CATEGORY
                     </th>
                     {/* Dynamically render branch headers */}
                     {data.branchHeaders.map((header) => (
-                      <th key={header} style={{ textAlign: 'center' }}>
+                      <th key={header} style={{ textAlign: 'center', fontSize: '1.2rem' }}>
                         {header}
                       </th>
                     ))}
                     <th
                       style={{
                         textAlign: 'center',
+                        fontSize: '1.2rem',
                       }}
                     >
                       TOTAL UNITS
                     </th>
-                    <th style={{ textAlign: 'center' }}>TOTAL AMOUNT</th>
+                    <th style={{ textAlign: 'center', fontSize: '1.2rem' }}>TOTAL AMOUNT</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedStats.map((row) => (
                     <tr key={row.sNo}>
-                      <td>{row.sNo}</td>
+                      <td style={{ fontSize: '1.2rem' }}>{row.sNo}</td>
                       <td
-                        style={{ whiteSpace: 'normal', cursor: 'pointer' }}
+                        style={{ whiteSpace: 'normal', cursor: 'pointer', fontSize: '1.2rem' }}
                         onClick={() => {
                           setExpandedCategory(
                             expandedCategory === row.categoryName ? null : row.categoryName,

@@ -121,11 +121,12 @@
       }
 
       &.product-name-cell {
-        font-size: 1.1rem;
+        font-size: 1.2rem;
         font-weight: 600;
         white-space: normal; // Allow text wrapping
         max-width: 250px; // Increased width as it's cleaner now
         min-width: 180px;
+        text-transform: uppercase;
       }
     }
 
