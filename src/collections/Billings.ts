@@ -120,12 +120,12 @@ const Billings: CollectionConfig = {
           const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, '')
 
           const status = data.status || originalDoc?.status || 'ordered'
-          const isKOT = ['ordered', 'preparing', 'delivered'].includes(status)
+          const isKOT = ['ordered', 'confirmed', 'prepared', 'delivered'].includes(status)
 
           // Only generate a new number if it's a creation OR if we're moving out of a KOT status
           // and currently have a KOT number (or no number yet).
           const currentInvoiceNumber = data.invoiceNumber || originalDoc?.invoiceNumber
-          const wasKOT = ['ordered', 'preparing', 'delivered', 'pending'].includes(
+          const wasKOT = ['ordered', 'confirmed', 'prepared', 'delivered', 'pending'].includes(
             originalDoc?.status || '',
           )
 
@@ -368,7 +368,8 @@ const Billings: CollectionConfig = {
           defaultValue: 'ordered',
           options: [
             { label: 'Ordered', value: 'ordered' },
-            { label: 'Preparing', value: 'preparing' },
+            { label: 'Confirmed', value: 'confirmed' },
+            { label: 'Prepared', value: 'prepared' },
             { label: 'Delivered', value: 'delivered' },
           ],
         },
@@ -479,7 +480,8 @@ const Billings: CollectionConfig = {
       defaultValue: 'ordered',
       options: [
         { label: 'Ordered', value: 'ordered' },
-        { label: 'Preparing', value: 'preparing' },
+        { label: 'Confirmed', value: 'confirmed' },
+        { label: 'Prepared', value: 'prepared' },
         { label: 'Delivered', value: 'delivered' },
         { label: 'Completed', value: 'completed' },
         { label: 'Cancelled', value: 'cancelled' },
