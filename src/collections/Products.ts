@@ -234,6 +234,14 @@ const Products: CollectionConfig = {
           defaultValue: true,
           label: 'Is Available',
         },
+        {
+          name: 'expiryDays',
+          type: 'number',
+          label: 'Expiry Days',
+          admin: {
+            description: 'Number of days the product is valid for after production/purchase.',
+          },
+        },
       ],
     },
     {
