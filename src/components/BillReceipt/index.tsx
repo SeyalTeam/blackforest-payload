@@ -53,6 +53,10 @@ export type BillData = {
       }
     | string
     | null
+  tableDetails?: {
+    section?: string | null
+    tableNumber?: string | null
+  } | null
 }
 
 import { updateCustomer } from '@/app/actions/updateCustomer'
@@ -72,6 +76,7 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
     createdBy,
     company,
     existingReviews,
+    tableDetails,
   } = data
 
   // Local state for customer details (initially from props)
@@ -264,8 +269,15 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>Assigned By: {creatorName}</span>
+            {tableDetails && (
+              <span>
+                Table: {tableDetails.section && `${tableDetails.section} - `}
+                {tableDetails.tableNumber}
+              </span>
+            )}
             {paymentMethod && <span>Pay Mode: {paymentMethod.toUpperCase()}</span>}
           </div>
+
           {(localCustomerDetails?.name ||
             localCustomerDetails?.phoneNumber ||
             localCustomerDetails?.address) && (

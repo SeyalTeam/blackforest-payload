@@ -450,6 +450,29 @@ const Billings: CollectionConfig = {
       type: 'textarea',
     },
     {
+      name: 'tableDetails',
+      type: 'group',
+      fields: [
+        {
+          name: 'section',
+          type: 'text',
+          admin: {
+            placeholder: 'e.g., AC, Non-AC',
+          },
+        },
+        {
+          name: 'tableNumber',
+          type: 'text',
+          admin: {
+            placeholder: 'e.g., 01, 10',
+          },
+        },
+      ],
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
       name: 'billDetailView',
       type: 'ui',
       admin: {
