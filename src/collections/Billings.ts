@@ -28,9 +28,22 @@ const Billings: CollectionConfig = {
           }
         }
 
-        // 🔄 Backward compatibility: Map 'pending' status to 'ordered'
+        // 🔄 Backward compatibility: Map legacy statuses
         if (data.status === 'pending') {
           data.status = 'ordered'
+        }
+        if (data.status === 'preparing') {
+          data.status = 'prepared'
+        }
+
+        // 🍱 Map item statuses for backward compatibility
+        if (data.items && Array.isArray(data.items)) {
+          data.items = data.items.map((item: any) => {
+            if (item.status === 'preparing') {
+              return { ...item, status: 'prepared' }
+            }
+            return item
+          })
         }
 
         // 1️⃣ Fix missing data for validation (Auto-set fields early)
@@ -111,9 +124,10 @@ const Billings: CollectionConfig = {
         if (
           operation === 'create' ||
           (operation === 'update' &&
-            data.status &&
-            data.status !== 'pending' &&
-            originalDoc?.status === 'pending')
+            data.status === 'completed' &&
+            ['ordered', 'confirmed', 'prepared', 'delivered', 'pending'].includes(
+              originalDoc?.status || '',
+            ))
         ) {
           // 🧾 Invoice Number generation
           const date = new Date()
