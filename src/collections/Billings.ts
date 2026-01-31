@@ -17,7 +17,19 @@ const Billings: CollectionConfig = {
     beforeValidate: [
       async ({ data, req, operation, originalDoc }) => {
         if (!data) return
+
+        // 🪑 Map table details from Flutter app (top-level section/tableNumber) to nested group
+        const rawData = data as any
+        if (rawData.section || rawData.tableNumber) {
+          data.tableDetails = {
+            ...data.tableDetails,
+            section: rawData.section || data.tableDetails?.section,
+            tableNumber: rawData.tableNumber || data.tableDetails?.tableNumber,
+          }
+        }
+
         // 1️⃣ Fix missing data for validation (Auto-set fields early)
+
         if (operation === 'create') {
           // 🏢 Auto-set company from branch early to pass validation
           const branchId = data.branch
