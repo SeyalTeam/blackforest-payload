@@ -436,6 +436,7 @@ export interface Billing {
   kotNumber?: string | null;
   items: {
     product: string | Product;
+    status?: ('ordered' | 'preparing' | 'delivered') | null;
     name: string;
     notes?: string | null;
     quantity: number;
@@ -454,8 +455,12 @@ export interface Billing {
     phoneNumber?: string | null;
     address?: string | null;
   };
-  status?: ('pending' | 'completed' | 'cancelled') | null;
+  status?: ('ordered' | 'preparing' | 'delivered' | 'completed' | 'cancelled') | null;
   notes?: string | null;
+  tableDetails?: {
+    section?: string | null;
+    tableNumber?: string | null;
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -1034,6 +1039,7 @@ export interface BillingsSelect<T extends boolean = true> {
     | T
     | {
         product?: T;
+        status?: T;
         name?: T;
         notes?: T;
         quantity?: T;
@@ -1056,6 +1062,12 @@ export interface BillingsSelect<T extends boolean = true> {
       };
   status?: T;
   notes?: T;
+  tableDetails?:
+    | T
+    | {
+        section?: T;
+        tableNumber?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }

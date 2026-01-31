@@ -28,6 +28,11 @@ const Billings: CollectionConfig = {
           }
         }
 
+        // 🔄 Backward compatibility: Map 'pending' status to 'ordered'
+        if (data.status === 'pending') {
+          data.status = 'ordered'
+        }
+
         // 1️⃣ Fix missing data for validation (Auto-set fields early)
 
         if (operation === 'create') {
@@ -114,18 +119,28 @@ const Billings: CollectionConfig = {
           const date = new Date()
           const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, '')
 
-          const status = data.status || originalDoc?.status || 'pending'
-          const isKOT = status === 'pending'
+          const status = data.status || originalDoc?.status || 'ordered'
+          const isKOT = ['ordered', 'preparing', 'delivered'].includes(status)
 
-          // Only generate a new number if it's a creation OR if we're moving out of pending status
+          // Only generate a new number if it's a creation OR if we're moving out of a KOT status
           // and currently have a KOT number (or no number yet).
           const currentInvoiceNumber = data.invoiceNumber || originalDoc?.invoiceNumber
+          const wasKOT = ['ordered', 'preparing', 'delivered', 'pending'].includes(
+            originalDoc?.status || '',
+          )
+
           const needsNewNumber =
             operation === 'create' ||
-            (data.status === 'completed' &&
-              originalDoc?.status === 'pending' &&
-              currentInvoiceNumber?.includes('-KOT')) ||
+            (data.status === 'completed' && wasKOT && currentInvoiceNumber?.includes('-KOT')) ||
             !currentInvoiceNumber
+
+          // 🍱 Ensure each item has a status (Ordered by default)
+          if (data.items && Array.isArray(data.items)) {
+            data.items = data.items.map((item: any) => ({
+              ...item,
+              status: item.status || 'ordered',
+            }))
+          }
 
           if (needsNewNumber && (data.branch || originalDoc?.branch)) {
             let branchId: string
@@ -348,6 +363,17 @@ const Billings: CollectionConfig = {
           required: true,
         },
         {
+          name: 'status',
+          type: 'select',
+          defaultValue: 'ordered',
+          options: [
+            { label: 'Ordered', value: 'ordered' },
+            { label: 'Preparing', value: 'preparing' },
+            { label: 'Delivered', value: 'delivered' },
+          ],
+        },
+
+        {
           name: 'name',
           type: 'text',
           required: true,
@@ -450,13 +476,16 @@ const Billings: CollectionConfig = {
     {
       name: 'status',
       type: 'select',
-      defaultValue: 'pending',
+      defaultValue: 'ordered',
       options: [
-        { label: 'Pending', value: 'pending' },
+        { label: 'Ordered', value: 'ordered' },
+        { label: 'Preparing', value: 'preparing' },
+        { label: 'Delivered', value: 'delivered' },
         { label: 'Completed', value: 'completed' },
         { label: 'Cancelled', value: 'cancelled' },
       ],
     },
+
     {
       name: 'notes',
       type: 'textarea',
