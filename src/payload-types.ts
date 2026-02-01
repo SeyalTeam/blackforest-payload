@@ -288,6 +288,10 @@ export interface Product {
   upc?: string | null;
   isVeg?: boolean | null;
   isAvailable?: boolean | null;
+  /**
+   * Number of days the product is valid for after production/purchase.
+   */
+  expiryDays?: number | null;
   defaultPriceDetails: {
     price: number;
     rate: number;
@@ -436,7 +440,7 @@ export interface Billing {
   kotNumber?: string | null;
   items: {
     product: string | Product;
-    status?: ('ordered' | 'preparing' | 'delivered') | null;
+    status?: ('ordered' | 'confirmed' | 'prepared' | 'delivered') | null;
     name: string;
     notes?: string | null;
     quantity: number;
@@ -455,7 +459,7 @@ export interface Billing {
     phoneNumber?: string | null;
     address?: string | null;
   };
-  status?: ('ordered' | 'preparing' | 'delivered' | 'completed' | 'cancelled') | null;
+  status?: ('ordered' | 'confirmed' | 'prepared' | 'delivered' | 'completed' | 'cancelled') | null;
   notes?: string | null;
   tableDetails?: {
     section?: string | null;
@@ -914,6 +918,7 @@ export interface ProductsSelect<T extends boolean = true> {
   upc?: T;
   isVeg?: T;
   isAvailable?: T;
+  expiryDays?: T;
   defaultPriceDetails?:
     | T
     | {

@@ -111,24 +111,78 @@ export const getProductWiseReportHandler: PayloadHandler = async (
       {
         $lookup: {
           from: 'products',
-          localField: 'items.product',
-          foreignField: '_id',
+          let: { productId: '$items.product' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $or: [
+                    { $eq: ['$_id', '$$productId'] },
+                    { $eq: [{ $toString: '$_id' }, '$$productId'] },
+                    {
+                      $eq: [
+                        '$_id',
+                        {
+                          $convert: {
+                            input: '$$productId',
+                            to: 'objectId',
+                            onError: null,
+                            onNull: null,
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          ],
           as: 'productDetails',
         },
       },
       {
-        $unwind: '$productDetails',
+        $unwind: {
+          path: '$productDetails',
+          preserveNullAndEmptyArrays: true,
+        },
       },
       {
         $lookup: {
           from: 'categories',
-          localField: 'productDetails.category',
-          foreignField: '_id',
+          let: { categoryId: '$productDetails.category' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $or: [
+                    { $eq: ['$_id', '$$categoryId'] },
+                    { $eq: [{ $toString: '$_id' }, '$$categoryId'] },
+                    {
+                      $eq: [
+                        '$_id',
+                        {
+                          $convert: {
+                            input: '$$categoryId',
+                            to: 'objectId',
+                            onError: null,
+                            onNull: null,
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          ],
           as: 'categoryDetails',
         },
       },
       {
-        $unwind: '$categoryDetails',
+        $unwind: {
+          path: '$categoryDetails',
+          preserveNullAndEmptyArrays: true,
+        },
       },
     ]
 
@@ -144,6 +198,17 @@ export const getProductWiseReportHandler: PayloadHandler = async (
           },
         })
       }
+    } else {
+      // If "all" categories, we still might want to exclude items that failed lookup if they are invalid
+      // But typically we show what we found.
+      // However, the original code had $unwind which dropped items without products/categories.
+      // To maintain similar behavior (only show items with valid products/categories) when not filtering:
+      aggregationPipeline.push({
+        $match: {
+          'productDetails._id': { $exists: true },
+          'categoryDetails._id': { $exists: true },
+        },
+      })
     }
 
     // Apply Department Filter if present
