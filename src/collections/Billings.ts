@@ -94,6 +94,9 @@ const Billings: CollectionConfig = {
               const productId = typeof item.product === 'object' ? item.product.id : item.product
               if (!productId) continue
 
+              // 🚫 Skip inventory check for cancelled items
+              if (item.status === 'cancelled') continue
+
               const currentStock = await getProductStock(req.payload, productId, branchId)
 
               // If it's an update, we need to account for the quantity already in this document
@@ -397,6 +400,7 @@ const Billings: CollectionConfig = {
             { label: 'Confirmed', value: 'confirmed' },
             { label: 'Prepared', value: 'prepared' },
             { label: 'Delivered', value: 'delivered' },
+            { label: 'Cancelled', value: 'cancelled' },
           ],
           admin: {
             condition: (data) =>
