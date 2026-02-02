@@ -20,12 +20,23 @@ const Billings: CollectionConfig = {
 
         // 🪑 Map table details from Flutter app (top-level section/tableNumber) to nested group
         const rawData = data as any
+        const hasTableDetails =
+          rawData.section ||
+          rawData.tableNumber ||
+          data.tableDetails?.section ||
+          data.tableDetails?.tableNumber
+
         if (rawData.section || rawData.tableNumber) {
           data.tableDetails = {
             ...data.tableDetails,
             section: rawData.section || data.tableDetails?.section,
             tableNumber: rawData.tableNumber || data.tableDetails?.tableNumber,
           }
+        }
+
+        // 🎯 Ensure default status for table/KOT orders
+        if (hasTableDetails && (!data.status || data.status === 'pending')) {
+          data.status = 'ordered'
         }
 
         // 🔄 Backward compatibility: Map legacy statuses
@@ -121,6 +132,15 @@ const Billings: CollectionConfig = {
     beforeChange: [
       async ({ data, req, operation, originalDoc }) => {
         if (!data) return
+
+        // 🍱 Ensure each item has a status (Ordered by default)
+        if (data.items && Array.isArray(data.items)) {
+          data.items = data.items.map((item: any) => ({
+            ...item,
+            status: item.status || 'ordered',
+          }))
+        }
+
         if (
           operation === 'create' ||
           (operation === 'update' &&
@@ -147,14 +167,6 @@ const Billings: CollectionConfig = {
             operation === 'create' ||
             (data.status === 'completed' && wasKOT && currentInvoiceNumber?.includes('-KOT')) ||
             !currentInvoiceNumber
-
-          // 🍱 Ensure each item has a status (Ordered by default)
-          if (data.items && Array.isArray(data.items)) {
-            data.items = data.items.map((item: any) => ({
-              ...item,
-              status: item.status || 'ordered',
-            }))
-          }
 
           if (needsNewNumber && (data.branch || originalDoc?.branch)) {
             let branchId: string
@@ -386,6 +398,10 @@ const Billings: CollectionConfig = {
             { label: 'Prepared', value: 'prepared' },
             { label: 'Delivered', value: 'delivered' },
           ],
+          admin: {
+            condition: (data) =>
+              ['ordered', 'confirmed', 'prepared', 'delivered'].includes(data.status),
+          },
         },
 
         {
