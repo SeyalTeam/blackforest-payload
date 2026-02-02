@@ -9,11 +9,16 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
       return Response.json({ error: 'Invalid request' }, { status: 400 })
     }
     const body = await json()
+    console.log('[updateItemStatus] Received body:', body)
 
-    const { itemId, status } = body
+    const itemId = body.itemId || body.id
+    const status = body.status
 
-    if (!itemId || !status) {
-      return Response.json({ error: 'Missing itemId or status' }, { status: 400 })
+    if (!itemId) {
+      return Response.json({ error: 'Missing itemId (or id)' }, { status: 400 })
+    }
+    if (!status) {
+      return Response.json({ error: 'Missing status' }, { status: 400 })
     }
 
     // 1. Fetch the bill
@@ -26,6 +31,8 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
     if (!bill) {
       return Response.json({ error: 'Bill not found' }, { status: 404 })
     }
+
+    console.log('[updateItemStatus] Fetched bill items:', JSON.stringify(bill.items, null, 2))
 
     // 2. Find and update the item status
     let itemFound = false
@@ -43,6 +50,11 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
     if (!itemFound) {
       return Response.json({ error: 'Item not found in bill' }, { status: 404 })
     }
+
+    console.log(
+      '[updateItemStatus] Items payload for update:',
+      JSON.stringify(updatedItems, null, 2),
+    )
 
     // 3. Save the updated bill
     const updatedBill = await payload.update({
