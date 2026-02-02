@@ -1,5 +1,6 @@
 import { CollectionConfig } from 'payload'
 import { getProductStock } from '../utilities/inventory'
+import { updateItemStatus } from '../endpoints/updateItemStatus'
 
 const Billings: CollectionConfig = {
   slug: 'billings',
@@ -13,6 +14,13 @@ const Billings: CollectionConfig = {
       user?.role != null && ['branch', 'waiter', 'superadmin'].includes(user.role),
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
+  endpoints: [
+    {
+      path: '/:id/items/status',
+      method: 'patch',
+      handler: updateItemStatus,
+    },
+  ],
   hooks: {
     beforeValidate: [
       async ({ data, req, operation, originalDoc }) => {
