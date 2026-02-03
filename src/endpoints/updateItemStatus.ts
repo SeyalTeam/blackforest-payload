@@ -46,10 +46,15 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
 
         const currentStatus = item.status || 'ordered'
         const newStatus = status
+        const now = new Date().toISOString()
 
         // ✅ Allow 'cancelled' at any time
         if (newStatus === 'cancelled') {
-          return { ...item, status: newStatus }
+          return {
+            ...item,
+            status: newStatus,
+            cancelledAt: now,
+          }
         }
 
         // 🛑 Validate linear transition
@@ -67,6 +72,7 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
         return {
           ...item,
           status: newStatus,
+          [`${newStatus}At`]: now,
         }
       }
       return item

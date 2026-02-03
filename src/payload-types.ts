@@ -440,12 +440,17 @@ export interface Billing {
   kotNumber?: string | null;
   items: {
     product: string | Product;
-    status?: ('ordered' | 'confirmed' | 'prepared' | 'delivered') | null;
+    status?: ('ordered' | 'confirmed' | 'prepared' | 'delivered' | 'cancelled') | null;
     name: string;
     notes?: string | null;
     quantity: number;
     unitPrice: number;
     subtotal: number;
+    orderedAt?: string | null;
+    confirmedAt?: string | null;
+    preparedAt?: string | null;
+    deliveredAt?: string | null;
+    cancelledAt?: string | null;
     branchOverride?: boolean | null;
     id?: string | null;
   }[];
@@ -1050,6 +1055,11 @@ export interface BillingsSelect<T extends boolean = true> {
         quantity?: T;
         unitPrice?: T;
         subtotal?: T;
+        orderedAt?: T;
+        confirmedAt?: T;
+        preparedAt?: T;
+        deliveredAt?: T;
+        cancelledAt?: T;
         branchOverride?: T;
         id?: T;
       };

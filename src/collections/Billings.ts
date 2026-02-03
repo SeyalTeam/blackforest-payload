@@ -144,12 +144,24 @@ const Billings: CollectionConfig = {
       async ({ data, req, operation, originalDoc }) => {
         if (!data) return
 
-        // 🍱 Ensure each item has a status (Ordered by default)
+        // 🍱 Ensure each item has a status (Ordered by default) and timestamps
         if (data.items && Array.isArray(data.items)) {
-          data.items = data.items.map((item: any) => ({
-            ...item,
-            status: item.status || 'ordered',
-          }))
+          const now = new Date().toISOString()
+          data.items = data.items.map((item: any) => {
+            const status = item.status || 'ordered'
+            const updatedItem = {
+              ...item,
+              status,
+            }
+
+            // Automatically set the timestamp for the current status if not already set
+            const timestampField = `${status}At`
+            if (!updatedItem[timestampField]) {
+              updatedItem[timestampField] = now
+            }
+
+            return updatedItem
+          })
         }
 
         if (
@@ -456,6 +468,32 @@ const Billings: CollectionConfig = {
           min: 0,
           admin: { readOnly: true },
         },
+        {
+          name: 'orderedAt',
+          type: 'date',
+          admin: { readOnly: true, position: 'sidebar' },
+        },
+        {
+          name: 'confirmedAt',
+          type: 'date',
+          admin: { readOnly: true, position: 'sidebar' },
+        },
+        {
+          name: 'preparedAt',
+          type: 'date',
+          admin: { readOnly: true, position: 'sidebar' },
+        },
+        {
+          name: 'deliveredAt',
+          type: 'date',
+          admin: { readOnly: true, position: 'sidebar' },
+        },
+        {
+          name: 'cancelledAt',
+          type: 'date',
+          admin: { readOnly: true, position: 'sidebar' },
+        },
+
         {
           name: 'branchOverride',
           type: 'checkbox',
