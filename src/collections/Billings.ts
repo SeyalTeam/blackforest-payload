@@ -146,7 +146,7 @@ const Billings: CollectionConfig = {
 
         // 🍱 Ensure each item has a status (Ordered by default) and timestamps
         if (data.items && Array.isArray(data.items)) {
-          const now = new Date().toISOString()
+          const now = new Date().toLocaleTimeString('en-GB') // 🕒 HH:mm:ss format
           data.items = data.items.map((item: any) => {
             const status = item.status || 'ordered'
             const updatedItem = {
@@ -470,27 +470,27 @@ const Billings: CollectionConfig = {
         },
         {
           name: 'orderedAt',
-          type: 'date',
+          type: 'text',
           admin: { readOnly: true, position: 'sidebar' },
         },
         {
           name: 'confirmedAt',
-          type: 'date',
+          type: 'text',
           admin: { readOnly: true, position: 'sidebar' },
         },
         {
           name: 'preparedAt',
-          type: 'date',
+          type: 'text',
           admin: { readOnly: true, position: 'sidebar' },
         },
         {
           name: 'deliveredAt',
-          type: 'date',
+          type: 'text',
           admin: { readOnly: true, position: 'sidebar' },
         },
         {
           name: 'cancelledAt',
-          type: 'date',
+          type: 'text',
           admin: { readOnly: true, position: 'sidebar' },
         },
 

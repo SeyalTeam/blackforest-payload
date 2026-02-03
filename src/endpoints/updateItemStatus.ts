@@ -46,7 +46,7 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
 
         const currentStatus = item.status || 'ordered'
         const newStatus = status
-        const now = new Date().toISOString()
+        const now = new Date().toLocaleTimeString('en-GB') // 🕒 HH:mm:ss format
 
         // ✅ Allow 'cancelled' at any time
         if (newStatus === 'cancelled') {
