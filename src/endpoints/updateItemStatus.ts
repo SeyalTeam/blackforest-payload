@@ -26,22 +26,47 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
       collection: 'billings',
       id,
       depth: 0,
+      overrideAccess: true, // 🔓 Bypass access control to get full data publicly
     })
 
     if (!bill) {
       return Response.json({ error: 'Bill not found' }, { status: 404 })
     }
 
-    console.log('[updateItemStatus] Fetched bill items:', JSON.stringify(bill.items, null, 2))
+    // 🚦 Define strict status sequence
+    const statusSequence = ['ordered', 'confirmed', 'prepared', 'delivered']
 
     // 2. Find and update the item status
     let itemFound = false
+    let transitionError: string | null = null
+
     const updatedItems = (bill.items || []).map((item: any) => {
       if (item.id === itemId) {
         itemFound = true
+
+        const currentStatus = item.status || 'ordered'
+        const newStatus = status
+
+        // ✅ Allow 'cancelled' at any time
+        if (newStatus === 'cancelled') {
+          return { ...item, status: newStatus }
+        }
+
+        // 🛑 Validate linear transition
+        const currentIndex = statusSequence.indexOf(currentStatus)
+        const newIndex = statusSequence.indexOf(newStatus)
+
+        if (currentIndex === -1) {
+          transitionError = `Current status "${currentStatus}" is not in the valid sequence.`
+        } else if (newIndex === -1) {
+          transitionError = `New status "${newStatus}" is not in the valid sequence.`
+        } else if (newIndex !== currentIndex + 1) {
+          transitionError = `Invalid transition: Cannot go from "${currentStatus}" to "${newStatus}". Must follow: ${statusSequence.join(' -> ')}`
+        }
+
         return {
           ...item,
-          status: status,
+          status: newStatus,
         }
       }
       return item
@@ -51,10 +76,9 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
       return Response.json({ error: 'Item not found in bill' }, { status: 404 })
     }
 
-    console.log(
-      '[updateItemStatus] Items payload for update:',
-      JSON.stringify(updatedItems, null, 2),
-    )
+    if (transitionError) {
+      return Response.json({ error: transitionError }, { status: 400 })
+    }
 
     // 3. Save the updated bill
     const updatedBill = await payload.update({
@@ -63,6 +87,7 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
       data: {
         items: updatedItems,
       },
+      overrideAccess: true, // 🔓 Bypass access control to preserve all fields publicly
     })
 
     return Response.json(updatedBill, { status: 200 })
