@@ -149,27 +149,7 @@ const AutomateSettings: React.FC = () => {
                     onChange={(date: Date | null) => setDeliveryDate(date || new Date())}
                     className="custom-date-picker"
                     dateFormat="yyyy-MM-dd"
-                    customInput={React.createElement(
-                      React.forwardRef<HTMLInputElement, any>(({ value, onClick }, ref) => (
-                        <div className="input-wrapper" onClick={onClick}>
-                          <input
-                            ref={ref}
-                            type="text"
-                            value={value}
-                            readOnly
-                            style={{
-                              width: '100%',
-                              background: '#18181b',
-                              border: '1px solid #27272a',
-                              borderRadius: '0.5rem',
-                              padding: '0.75rem',
-                              color: '#fff',
-                              cursor: 'pointer',
-                            }}
-                          />
-                        </div>
-                      )),
-                    )}
+                    customInput={<CustomDateInput />}
                   />
                 </div>
                 <div className="form-group">
