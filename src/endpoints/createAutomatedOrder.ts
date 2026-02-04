@@ -59,6 +59,26 @@ export const createAutomatedOrderHandler: PayloadHandler = async (req): Promise<
 
     const categoryNames = new Set(categories.map((c: any) => c.name.toLowerCase().trim()))
 
+    const wordMatches = (w1: string, w2: string) => {
+      w1 = w1.toLowerCase().replace(/[^a-z0-9]/g, '')
+      w2 = w2.toLowerCase().replace(/[^a-z0-9]/g, '')
+      if (!w1 || !w2) return false
+      if (w1 === w2) return true
+      const vany = ['vanila', 'vanilla', 'vennila']
+      if (vany.includes(w1) && vany.includes(w2)) return true
+      if (w1.endsWith('s') && w1.slice(0, -1) === w2) return true
+      if (w2.endsWith('s') && w2.slice(0, -1) === w1) return true
+      return false
+    }
+
+    const matchesCategory = (text: string) => {
+      const lower = text.toLowerCase().trim()
+      if (categoryNames.has(lower)) return true
+      if (lower.endsWith('s') && categoryNames.has(lower.slice(0, -1))) return true
+      if (!lower.endsWith('s') && categoryNames.has(lower + 's')) return true
+      return false
+    }
+
     // 2. Parse Message
     const lines = message.split(/\r?\n/)
     const items: any[] = []
@@ -68,36 +88,36 @@ export const createAutomatedOrderHandler: PayloadHandler = async (req): Promise<
       const trimmedLine = line.trim()
       if (!trimmedLine) continue
 
-      // Detection: is it a leaf (has hyphen and quantity)?
-      // Regex: Something - Number (at end)
       const leafMatch = trimmedLine.match(/^(.*?)\s*[-:]\s*(\d+)$/)
 
       if (leafMatch) {
         const productNamePart = leafMatch[1].trim()
         const qty = Number(leafMatch[2])
 
-        // Build list of search candidates (from most specific to least specific)
         const candidates = []
         for (let i = 0; i < contextStack.length; i++) {
           candidates.push([...contextStack.slice(i), productNamePart].join(' ').trim())
         }
         candidates.push(productNamePart)
+
         let foundProduct = null
+
+        // Pass 1: Direct matches and Word-based matches
         for (const candidate of candidates) {
-          if (!candidate) continue
           const lowerCandidate = candidate.toLowerCase()
+          const candidateWords = lowerCandidate.split(/\s+/)
 
-          // Direct match
-          foundProduct = productMap.get(lowerCandidate)
-          if (foundProduct) break
-
-          // Fuzzy match
           for (const [name, data] of productMap.entries()) {
-            if (
-              name === lowerCandidate ||
-              name.includes(lowerCandidate) ||
-              lowerCandidate.includes(name)
-            ) {
+            const productWords = name
+              .replace(/rs\.\d+/gi, '')
+              .split(/[\s-]+/)
+              .filter((w: string) => w.length > 0)
+
+            const matchScore = productWords.filter((pw: string) =>
+              candidateWords.some((cw: string) => wordMatches(pw, cw)),
+            ).length
+
+            if (matchScore === productWords.length && productWords.length > 0) {
               foundProduct = data
               break
             }
@@ -115,14 +135,9 @@ export const createAutomatedOrderHandler: PayloadHandler = async (req): Promise<
           })
         }
       } else {
-        // It's a context line (category or sub-header)
-        const lowerLine = trimmedLine.toLowerCase()
-
-        // If it perfectly matches a category, RESET the stack
-        if (categoryNames.has(lowerLine)) {
+        if (matchesCategory(trimmedLine)) {
           contextStack = [trimmedLine]
         } else {
-          // If the stack is too deep, keep it manageable (max 2 levels)
           if (contextStack.length >= 2) {
             contextStack.pop()
           }
