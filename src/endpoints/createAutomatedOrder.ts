@@ -37,7 +37,7 @@ export const createAutomatedOrderHandler: PayloadHandler = async (req): Promise<
   }
 
   try {
-    // 1. Fetch all products for matching
+    // 1. Fetch all products and categories for matching
     const { docs: products } = await req.payload.find({
       collection: 'products',
       pagination: false,
@@ -45,55 +45,89 @@ export const createAutomatedOrderHandler: PayloadHandler = async (req): Promise<
       limit: 5000,
     })
 
+    const { docs: categories } = await req.payload.find({
+      collection: 'categories',
+      pagination: false,
+      depth: 0,
+      limit: 500,
+    })
+
     const productMap = new Map()
     products.forEach((p: any) => {
       productMap.set(p.name.toLowerCase().trim(), { id: p.id, name: p.name })
     })
 
+    const categoryNames = new Set(categories.map((c: any) => c.name.toLowerCase().trim()))
+
     // 2. Parse Message
-    // Split by newlines or comma
-    const lines = message.split(/\r?\n|,/)
+    const lines = message.split(/\r?\n/)
     const items: any[] = []
+    let contextStack: string[] = []
 
     for (const line of lines) {
-      if (!line.trim()) continue
+      const trimmedLine = line.trim()
+      if (!trimmedLine) continue
 
-      // Try to extract quantity and product name
-      // Example: "Veg puff 30" or "30 Veg puff"
-      const match = line.match(/^(.*?)\s+(\d+)$/) || line.match(/^(\d+)\s+(.*)$/)
+      // Detection: is it a leaf (has hyphen and quantity)?
+      // Regex: Something - Number (at end)
+      const leafMatch = trimmedLine.match(/^(.*?)\s*[-:]\s*(\d+)$/)
 
-      let searchName = line.trim()
-      let qty = 1
+      if (leafMatch) {
+        const productNamePart = leafMatch[1].trim()
+        const qty = Number(leafMatch[2])
 
-      if (match) {
-        if (isNaN(Number(match[1]))) {
-          searchName = match[1].trim()
-          qty = Number(match[2])
-        } else {
-          qty = Number(match[1])
-          searchName = match[2].trim()
+        // Build list of search candidates (from most specific to least specific)
+        const candidates = []
+        for (let i = 0; i < contextStack.length; i++) {
+          candidates.push([...contextStack.slice(i), productNamePart].join(' ').trim())
         }
-      }
+        candidates.push(productNamePart)
+        let foundProduct = null
+        for (const candidate of candidates) {
+          if (!candidate) continue
+          const lowerCandidate = candidate.toLowerCase()
 
-      // Fuzzy matching
-      let found = productMap.get(searchName.toLowerCase())
-      if (!found) {
-        for (const [name, data] of productMap.entries()) {
-          if (name.includes(searchName.toLowerCase()) || searchName.toLowerCase().includes(name)) {
-            found = data
-            break
+          // Direct match
+          foundProduct = productMap.get(lowerCandidate)
+          if (foundProduct) break
+
+          // Fuzzy match
+          for (const [name, data] of productMap.entries()) {
+            if (
+              name === lowerCandidate ||
+              name.includes(lowerCandidate) ||
+              lowerCandidate.includes(name)
+            ) {
+              foundProduct = data
+              break
+            }
           }
+          if (foundProduct) break
         }
-      }
 
-      if (found) {
-        items.push({
-          product: found.id,
-          name: found.name,
-          inStock: 0,
-          requiredQty: qty,
-          status: 'ordered',
-        })
+        if (foundProduct) {
+          items.push({
+            product: foundProduct.id,
+            name: foundProduct.name,
+            inStock: 0,
+            requiredQty: qty,
+            status: 'ordered',
+          })
+        }
+      } else {
+        // It's a context line (category or sub-header)
+        const lowerLine = trimmedLine.toLowerCase()
+
+        // If it perfectly matches a category, RESET the stack
+        if (categoryNames.has(lowerLine)) {
+          contextStack = [trimmedLine]
+        } else {
+          // If the stack is too deep, keep it manageable (max 2 levels)
+          if (contextStack.length >= 2) {
+            contextStack.pop()
+          }
+          contextStack.push(trimmedLine)
+        }
       }
     }
 
