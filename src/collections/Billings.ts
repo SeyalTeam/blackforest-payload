@@ -1,4 +1,4 @@
-import { CollectionConfig } from 'payload'
+import { CollectionConfig, APIError } from 'payload'
 import { getProductStock } from '../utilities/inventory'
 import { updateItemStatus } from '../endpoints/updateItemStatus'
 
@@ -132,6 +132,42 @@ const Billings: CollectionConfig = {
                 //   `Insufficient stock for ${item.name}. Current stock: ${currentStock}, Requested: ${requestedQty}${operation === 'update' ? ` (Additional: ${additionalQtyNeeded})` : ''}`,
                 //   400,
                 // )
+              }
+            }
+          }
+        }
+
+        // 🚦 Enforce Global Linear Status Transitions
+        if (
+          operation === 'update' &&
+          data.items &&
+          Array.isArray(data.items) &&
+          originalDoc?.items
+        ) {
+          const statusSequence = ['ordered', 'confirmed', 'prepared', 'delivered']
+          for (const item of data.items) {
+            // Only validate items that existed in the original document
+            const originalItems = (originalDoc.items as any[]) || []
+            const originalItem = originalItems.find((oi) => oi.id === item.id)
+
+            if (originalItem) {
+              const currentStatus = originalItem.status || 'ordered'
+              const newStatus = item.status || 'ordered'
+
+              if (
+                newStatus !== 'cancelled' &&
+                currentStatus !== 'cancelled' &&
+                currentStatus !== newStatus
+              ) {
+                const currentIndex = statusSequence.indexOf(currentStatus)
+                const newIndex = statusSequence.indexOf(newStatus)
+
+                if (currentIndex !== -1 && newIndex !== -1 && newIndex < currentIndex) {
+                  throw new APIError(
+                    `Cannot reverse status for ${item.name || 'item'} from "${currentStatus}" back to "${newStatus}".`,
+                    400,
+                  )
+                }
               }
             }
           }
