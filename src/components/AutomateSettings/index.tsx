@@ -7,6 +7,30 @@ import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import './index.scss'
 
+const CustomDateInput = React.forwardRef<
+  HTMLInputElement,
+  { value?: string; onClick?: () => void }
+>(({ value, onClick }, ref) => (
+  <div className="input-wrapper" onClick={onClick}>
+    <input
+      ref={ref}
+      type="text"
+      value={value}
+      readOnly
+      style={{
+        width: '100%',
+        background: '#18181b',
+        border: '1px solid #27272a',
+        borderRadius: '0.5rem',
+        padding: '0.75rem',
+        color: '#fff',
+        cursor: 'pointer',
+      }}
+    />
+  </div>
+))
+CustomDateInput.displayName = 'CustomDateInput'
+
 const AutomateSettings: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [loading, setLoading] = useState(false)
