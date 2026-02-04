@@ -52,12 +52,26 @@ export const createAutomatedOrderHandler: PayloadHandler = async (req): Promise<
       limit: 500,
     })
 
-    const productMap = new Map()
+    const productMap = new Map<string, any[]>()
     products.forEach((p: any) => {
-      productMap.set(p.name.toLowerCase().trim(), { id: p.id, name: p.name })
+      const lowerName = p.name.toLowerCase().trim()
+      if (!productMap.has(lowerName)) {
+        productMap.set(lowerName, [])
+      }
+      productMap.get(lowerName)?.push({
+        id: p.id,
+        name: p.name,
+        categoryId: typeof p.category === 'object' ? p.category.id : p.category,
+      })
     })
 
-    const categoryNames = new Set(categories.map((c: any) => c.name.toLowerCase().trim()))
+    const categoryIdToName = new Map<string, string>()
+    const categoryNameToId = new Map<string, string>()
+    categories.forEach((c: any) => {
+      const lowerName = c.name.toLowerCase().trim()
+      categoryIdToName.set(c.id, lowerName)
+      categoryNameToId.set(lowerName, c.id)
+    })
 
     const wordMatches = (w1: string, w2: string) => {
       w1 = w1.toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -73,9 +87,9 @@ export const createAutomatedOrderHandler: PayloadHandler = async (req): Promise<
 
     const matchesCategory = (text: string) => {
       const lower = text.toLowerCase().trim()
-      if (categoryNames.has(lower)) return true
-      if (lower.endsWith('s') && categoryNames.has(lower.slice(0, -1))) return true
-      if (!lower.endsWith('s') && categoryNames.has(lower + 's')) return true
+      if (categoryNameToId.has(lower)) return true
+      if (lower.endsWith('s') && categoryNameToId.has(lower.slice(0, -1))) return true
+      if (!lower.endsWith('s') && categoryNameToId.has(lower + 's')) return true
       return false
     }
 
@@ -87,7 +101,7 @@ export const createAutomatedOrderHandler: PayloadHandler = async (req): Promise<
     for (const line of lines) {
       const trimmedLine = line.trim()
       if (!trimmedLine) {
-        contextStack = [] // Reset context on empty lines between groups
+        // Do not reset context anymore, as per user request to handle "FC BASIC MODEL" with spacers
         continue
       }
 
@@ -103,35 +117,69 @@ export const createAutomatedOrderHandler: PayloadHandler = async (req): Promise<
         }
         candidates.push(productNamePart)
 
-        let foundProduct = null
+        let bestProduct = null
+        let highestScore = -1000
 
-        // Pass 1: Direct matches and Word-based matches
+        const contextLower = contextStack.map((s) => s.toLowerCase())
+
         for (const candidate of candidates) {
           const lowerCandidate = candidate.toLowerCase()
           const candidateWords = lowerCandidate.split(/\s+/)
 
-          for (const [name, data] of productMap.entries()) {
+          for (const [name, matches] of productMap.entries()) {
             const productWords = name
               .replace(/rs\.\d+/gi, '')
               .split(/[\s-]+/)
               .filter((w: string) => w.length > 0)
 
-            const matchScore = productWords.filter((pw: string) =>
+            // SOFT MATCH: Candidate contains product OR product contains candidate
+            const candInProd = candidateWords.every((cw: string) =>
+              productWords.some((pw: string) => wordMatches(pw, cw)),
+            )
+            const prodInCand = productWords.every((pw: string) =>
               candidateWords.some((cw: string) => wordMatches(pw, cw)),
-            ).length
+            )
 
-            if (matchScore === productWords.length && productWords.length > 0) {
-              foundProduct = data
-              break
+            if (candInProd || prodInCand) {
+              for (const pm of matches) {
+                let score = 0
+                const catName = categoryIdToName.get(pm.categoryId)
+
+                // 1. Category Match Priority
+                if (
+                  catName &&
+                  contextLower.some((cl: string) => cl.includes(catName) || catName.includes(cl))
+                ) {
+                  score += 100
+                  if (catName === contextLower[0]) score += 50 // Prefer top-level category match
+                }
+
+                // 2. Specificity points (matching more words)
+                const matchedWords = productWords.filter((pw: string) =>
+                  candidateWords.some((cw: string) => wordMatches(pw, cw)),
+                )
+                score += matchedWords.length * 20
+
+                // 3. Specificity penalty (prefer products whose words are all satisfied)
+                const extraWords = productWords.length - matchedWords.length
+                score -= extraWords * 5
+
+                // 4. Penalty for absolute length difference (tie-breaker)
+                score -= Math.abs(productWords.length - candidateWords.length)
+
+                if (score > highestScore) {
+                  highestScore = score
+                  bestProduct = pm
+                }
+              }
             }
           }
-          if (foundProduct) break
         }
 
-        if (foundProduct) {
+        if (bestProduct) {
           items.push({
-            product: foundProduct.id,
-            name: foundProduct.name,
+            product: bestProduct.id,
+            name: bestProduct.name,
             inStock: 0,
             requiredQty: qty,
             status: 'ordered',
