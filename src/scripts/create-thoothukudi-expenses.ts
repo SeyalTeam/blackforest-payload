@@ -82,7 +82,7 @@ const createExpenses = async () => {
         },
       ],
       total: 19277,
-    },
+    } as any,
   })
 
   console.log('Expense entry created successfully:')

@@ -22,7 +22,7 @@ const createExpense = async () => {
         },
       ],
       total: 2000, // Explicitly setting it, though beforeChange should handle it
-    },
+    } as any,
   })
 
   console.log('Expense created successfully:')
