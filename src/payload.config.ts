@@ -59,6 +59,8 @@ import { NetworkStatus } from './globals/NetworkStatus'
 import { getNetworkStatusHandler } from './endpoints/getNetworkStatus'
 import { downloadHandler, uploadHandler, pingHandler } from './endpoints/speedtest'
 import Tables from './collections/Tables'
+import { AutomateGlobal } from './globals/Automate'
+import { createAutomatedOrderHandler } from './endpoints/createAutomatedOrder'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -205,6 +207,11 @@ export default buildConfig({
       method: 'get',
       handler: pingHandler,
     },
+    {
+      path: '/automate/create-order',
+      method: 'post',
+      handler: createAutomatedOrderHandler,
+    },
   ],
 
   globals: [
@@ -223,6 +230,7 @@ export default buildConfig({
     ExpenseReportGlobal,
     BranchGeoSettings,
     NetworkStatus,
+    AutomateGlobal,
   ],
 
   // Collections

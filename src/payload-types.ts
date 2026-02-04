@@ -132,6 +132,7 @@ export interface Config {
     'expense-report': ExpenseReport;
     'branch-geo-settings': BranchGeoSetting;
     'network-status': NetworkStatus;
+    'automate-settings': AutomateSetting;
   };
   globalsSelect: {
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
@@ -149,6 +150,7 @@ export interface Config {
     'expense-report': ExpenseReportSelect<false> | ExpenseReportSelect<true>;
     'branch-geo-settings': BranchGeoSettingsSelect<false> | BranchGeoSettingsSelect<true>;
     'network-status': NetworkStatusSelect<false> | NetworkStatusSelect<true>;
+    'automate-settings': AutomateSettingsSelect<false> | AutomateSettingsSelect<true>;
   };
   locale: null;
   user: User & {
@@ -562,7 +564,7 @@ export interface Expense {
       | 'OTHERS';
     reason: string;
     amount: number;
-    image?: (string | null) | Media;
+    image: string | Media;
     id?: string | null;
   }[];
   total: number;
@@ -1507,6 +1509,15 @@ export interface NetworkStatus {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "automate-settings".
+ */
+export interface AutomateSetting {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "ip-settings_select".
  */
 export interface IpSettingsSelect<T extends boolean = true> {
@@ -1668,6 +1679,15 @@ export interface BranchGeoSettingsSelect<T extends boolean = true> {
  * via the `definition` "network-status_select".
  */
 export interface NetworkStatusSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "automate-settings_select".
+ */
+export interface AutomateSettingsSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
