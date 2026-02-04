@@ -86,7 +86,10 @@ export const createAutomatedOrderHandler: PayloadHandler = async (req): Promise<
 
     for (const line of lines) {
       const trimmedLine = line.trim()
-      if (!trimmedLine) continue
+      if (!trimmedLine) {
+        contextStack = [] // Reset context on empty lines between groups
+        continue
+      }
 
       const leafMatch = trimmedLine.match(/^(.*?)\s*[-:]\s*(\d+)$/)
 
