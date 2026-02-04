@@ -74,14 +74,19 @@ export const createAutomatedOrderHandler: PayloadHandler = async (req): Promise<
     })
 
     const wordMatches = (w1: string, w2: string) => {
-      w1 = w1.toLowerCase().replace(/[^a-z0-9]/g, '')
-      w2 = w2.toLowerCase().replace(/[^a-z0-9]/g, '')
+      w1 = w1.toLowerCase().replace(/[^a-z0-0]/g, '')
+      w2 = w2.toLowerCase().replace(/[^a-z0-0]/g, '')
       if (!w1 || !w2) return false
       if (w1 === w2) return true
       const vany = ['vanila', 'vanilla', 'vennila']
       if (vany.includes(w1) && vany.includes(w2)) return true
       if (w1.endsWith('s') && w1.slice(0, -1) === w2) return true
       if (w2.endsWith('s') && w2.slice(0, -1) === w1) return true
+
+      // Handle combined words (e.g. butterscotch matching butter or scotch)
+      if (w1.length > 3 && w2.length > 3) {
+        if (w1.includes(w2) || w2.includes(w1)) return true
+      }
       return false
     }
 
@@ -146,12 +151,18 @@ export const createAutomatedOrderHandler: PayloadHandler = async (req): Promise<
                 const catName = categoryIdToName.get(pm.categoryId)
 
                 // 1. Category Match Priority
-                if (
+                const isCatMatch =
                   catName &&
                   contextLower.some((cl: string) => cl.includes(catName) || catName.includes(cl))
-                ) {
+
+                if (isCatMatch) {
                   score += 100
                   if (catName === contextLower[0]) score += 50 // Prefer top-level category match
+                } else if (contextLower.length > 0 && catName) {
+                  // 1b. CROSS-CATEGORY PENALTY
+                  // If user explicitly said "BC..." but product is "FC..."
+                  if (contextLower[0].startsWith('bc') && catName.startsWith('fc')) score -= 200
+                  if (contextLower[0].startsWith('fc') && catName.startsWith('bc')) score -= 200
                 }
 
                 // 2. Specificity points (matching more words)
