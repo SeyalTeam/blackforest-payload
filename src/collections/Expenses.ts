@@ -71,7 +71,7 @@ const Expenses: CollectionConfig = {
           name: 'image',
           type: 'relationship',
           relationTo: 'media',
-          required: false,
+          required: true,
         },
       ],
     },
