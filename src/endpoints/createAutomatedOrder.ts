@@ -126,6 +126,7 @@ export const createAutomatedOrderHandler: PayloadHandler = async (req): Promise<
 
     const order = await req.payload.create({
       collection: 'stock-orders',
+      user: req.user,
       data: {
         branch: branchId,
         deliveryDate: finalDeliveryDate,
