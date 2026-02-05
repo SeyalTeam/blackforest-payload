@@ -182,7 +182,10 @@ const Billings: CollectionConfig = {
 
         // 🍱 Ensure each item has a status (Ordered by default) and timestamps
         if (data.items && Array.isArray(data.items)) {
-          const now = new Date().toLocaleTimeString('en-GB') // 🕒 HH:mm:ss format
+          const now = new Date().toLocaleTimeString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            hour12: false,
+          })
           data.items = data.items.map((item: any) => {
             const status = item.status || 'ordered'
             const updatedItem = {

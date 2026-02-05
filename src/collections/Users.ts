@@ -88,13 +88,17 @@ export const Users: CollectionConfig = {
       required: false,
       admin: {
         condition: ({ role }) =>
-          ['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef'].includes(role),
+          ['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef', 'kitchen'].includes(
+            role,
+          ),
       },
       filterOptions: ({ siblingData }) => {
         const role = (siblingData as { role?: string }).role
         if (
           !role ||
-          !['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef'].includes(role)
+          !['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef', 'kitchen'].includes(
+            role,
+          )
         ) {
           return false
         }

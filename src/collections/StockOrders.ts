@@ -11,6 +11,7 @@ const StockOrders: CollectionConfig = {
   slug: 'stock-orders',
   admin: {
     useAsTitle: 'invoiceNumber',
+    defaultColumns: ['invoiceNumber', 'branch', 'deliveryDate', 'status', 'createdAt'],
   },
   access: {
     read: () => true,

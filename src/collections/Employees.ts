@@ -85,9 +85,20 @@ const Employees: CollectionConfig = {
         { label: 'Manager', value: 'manager' },
         { label: 'Supervisor', value: 'supervisor' },
         { label: 'Delivery', value: 'delivery' },
+        { label: 'Kitchen', value: 'kitchen' },
       ],
       required: true,
       admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'kitchen',
+      type: 'relationship',
+      relationTo: 'kitchens',
+      required: false,
+      admin: {
+        condition: ({ team }) => team === 'kitchen',
         position: 'sidebar',
       },
     },
@@ -112,7 +123,12 @@ const Employees: CollectionConfig = {
   ],
   hooks: {
     beforeChange: [
-      async ({ operation: _operation, data, req: _req }) => {
+      async ({ operation, data, req: _req }) => {
+        if (operation === 'create' || operation === 'update') {
+          if (data.name === 'Kitchen') {
+            data.team = 'kitchen'
+          }
+        }
         return data
       },
     ],

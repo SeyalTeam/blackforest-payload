@@ -85,6 +85,7 @@ export interface Config {
     customers: Customer;
     'instock-entries': InstockEntry;
     tables: Table;
+    kitchens: Kitchen;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -109,6 +110,7 @@ export interface Config {
     customers: CustomersSelect<false> | CustomersSelect<true>;
     'instock-entries': InstockEntriesSelect<false> | InstockEntriesSelect<true>;
     tables: TablesSelect<false> | TablesSelect<true>;
+    kitchens: KitchensSelect<false> | KitchensSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -426,9 +428,22 @@ export interface Employee {
   email?: string | null;
   address?: string | null;
   status: 'active' | 'inactive';
-  team: 'waiter' | 'chef' | 'driver' | 'cashier' | 'manager' | 'supervisor' | 'delivery';
+  team: 'waiter' | 'chef' | 'driver' | 'cashier' | 'manager' | 'supervisor' | 'delivery' | 'kitchen';
+  kitchen?: (string | null) | Kitchen;
   aadhaarPhoto?: (string | null) | Media;
   photo?: (string | null) | Media;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "kitchens".
+ */
+export interface Kitchen {
+  id: string;
+  name: string;
+  department: string | Department;
+  categories: (string | Category)[];
   updatedAt: string;
   createdAt: string;
 }
@@ -774,6 +789,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'tables';
         value: string | Table;
+      } | null)
+    | ({
+        relationTo: 'kitchens';
+        value: string | Kitchen;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1035,6 +1054,7 @@ export interface EmployeesSelect<T extends boolean = true> {
   address?: T;
   status?: T;
   team?: T;
+  kitchen?: T;
   aadhaarPhoto?: T;
   photo?: T;
   updatedAt?: T;
@@ -1286,6 +1306,17 @@ export interface TablesSelect<T extends boolean = true> {
         tableCount?: T;
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "kitchens_select".
+ */
+export interface KitchensSelect<T extends boolean = true> {
+  name?: T;
+  department?: T;
+  categories?: T;
   updatedAt?: T;
   createdAt?: T;
 }
