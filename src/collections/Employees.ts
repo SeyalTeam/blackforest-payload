@@ -93,16 +93,6 @@ const Employees: CollectionConfig = {
       },
     },
     {
-      name: 'kitchen',
-      type: 'relationship',
-      relationTo: 'kitchens',
-      required: false,
-      admin: {
-        condition: ({ team }) => team === 'kitchen',
-        position: 'sidebar',
-      },
-    },
-    {
       name: 'aadhaarPhoto',
       type: 'upload',
       relationTo: 'media',

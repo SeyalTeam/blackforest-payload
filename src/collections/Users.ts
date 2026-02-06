@@ -55,6 +55,19 @@ export const Users: CollectionConfig = {
       },
     },
     {
+      name: 'kitchen',
+      type: 'relationship',
+      relationTo: 'kitchens',
+      required: false,
+      admin: {
+        condition: ({ role }) => role === 'kitchen',
+      },
+      access: {
+        create: ({ req }) => req.user?.role === 'superadmin',
+        update: ({ req }) => req.user?.role === 'superadmin',
+      },
+    },
+    {
       name: 'company',
       type: 'relationship',
       relationTo: 'companies',
