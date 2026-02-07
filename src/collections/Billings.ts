@@ -53,8 +53,18 @@ const Billings: CollectionConfig = {
           const itemMap = new Map<string, any>()
 
           for (const item of data.items) {
-            // Only merge if status is 'ordered' (or undefined/null which defaults to ordered)
-            const status = item.status || 'ordered'
+            // Only merge if status is 'ordered'
+            // CRITICAL FIX: If status is missing in payload, check originalDoc for existing status.
+            // Do NOT default to 'ordered' if the item already exists with a different status (e.g. prepared).
+            let status = item.status
+            if (!status && item.id && originalDoc?.items && Array.isArray(originalDoc.items)) {
+              const originalItem = originalDoc.items.find((oi: any) => oi.id === item.id)
+              if (originalItem) {
+                status = originalItem.status
+              }
+            }
+            // If still no status (new item or existing without status in DB), default to 'ordered'
+            status = status || 'ordered'
 
             if (status === 'ordered') {
               // Create a unique key based on product ID and notes
