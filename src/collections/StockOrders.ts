@@ -88,6 +88,37 @@ const StockOrders: CollectionConfig = {
           // Status forced to 'ordered' at end of hook
         }
 
+        // Fetch branch workflow settings
+        let branchWorkflow = { skipSupervisor: false, skipDriver: false }
+        try {
+          let branchToFetch: string | null = null
+          if (typeof data.branch === 'string') {
+            branchToFetch = data.branch
+          } else if (
+            typeof data.branch === 'object' &&
+            data.branch !== null &&
+            'id' in data.branch
+          ) {
+            branchToFetch = (data.branch as { id: string }).id
+          } else if (originalDoc?.branch) {
+            branchToFetch =
+              typeof originalDoc.branch === 'string' ? originalDoc.branch : originalDoc.branch.id
+          }
+
+          if (branchToFetch) {
+            const branch = await req.payload.findByID({
+              collection: 'branches',
+              id: branchToFetch,
+              depth: 0,
+            })
+            if (branch?.stockOrderWorkflow) {
+              branchWorkflow = branch.stockOrderWorkflow
+            }
+          }
+        } catch (error) {
+          console.error('[StockOrders hook] Error fetching branch workflow:', error)
+        }
+
         // Process items: calculate amounts, set dates, calculate difference
         if (data.items && data.items.length > 0) {
           const now = new Date().toISOString()
@@ -122,7 +153,7 @@ const StockOrders: CollectionConfig = {
             item.differenceQty = (item.requiredQty || 0) - (item.receivedQty || 0)
             item.differenceAmount = item.differenceQty * price
 
-            // Set timestamps
+            // Set timestamps and handle skipped steps
             const originalItem = originalDoc?.items?.[i]
             if (operation === 'create') {
               if (item.requiredQty > 0) item.requiredDate = now
@@ -136,20 +167,60 @@ const StockOrders: CollectionConfig = {
             } else if (operation === 'update') {
               if (item.requiredQty !== originalItem?.requiredQty && item.requiredQty > 0)
                 item.requiredDate = now
-              if (item.sendingQty !== originalItem?.sendingQty) {
-                if (item.sendingQty > 0) item.sendingDate = now
+
+              // Logic for automation based on Chef's update (sendingQty)
+              if (item.sendingQty !== originalItem?.sendingQty && item.sendingQty > 0) {
+                item.sendingDate = now
                 if (req.user) item.sendingUpdatedBy = req.user.id
+                item.status = 'sending'
+
+                // Auto-skip Supervisor (Confirmation)
+                if (branchWorkflow.skipSupervisor) {
+                  item.confirmedQty = item.sendingQty
+                  item.confirmedDate = now
+                  if (req.user) item.confirmedUpdatedBy = req.user.id
+                  item.status = 'confirmed'
+                }
+
+                // Auto-skip Driver (Picking)
+                if (
+                  branchWorkflow.skipDriver &&
+                  (branchWorkflow.skipSupervisor || item.confirmedQty > 0)
+                ) {
+                  item.pickedQty = item.confirmedQty || item.sendingQty
+                  item.pickedDate = now
+                  if (req.user) item.pickedUpdatedBy = req.user.id
+                  item.status = 'picked'
+                }
+              } else {
+                // Manual updates to other fields if not skipped
+                if (item.confirmedQty !== originalItem?.confirmedQty) {
+                  if (item.confirmedQty > 0) {
+                    item.confirmedDate = now
+                    if (req.user) item.confirmedUpdatedBy = req.user.id
+                    item.status = 'confirmed'
+
+                    // If supervisor is NOT skipped but driver IS skipped, auto-pick on confirmation
+                    if (branchWorkflow.skipDriver) {
+                      item.pickedQty = item.confirmedQty
+                      item.pickedDate = now
+                      if (req.user) item.pickedUpdatedBy = req.user.id
+                      item.status = 'picked'
+                    }
+                  }
+                }
+                if (item.pickedQty !== originalItem?.pickedQty) {
+                  if (item.pickedQty > 0) {
+                    item.pickedDate = now
+                    if (req.user) item.pickedUpdatedBy = req.user.id
+                    item.status = 'picked'
+                  }
+                }
+                if (item.receivedQty !== originalItem?.receivedQty && item.receivedQty > 0) {
+                  item.receivedDate = now
+                  item.status = 'received'
+                }
               }
-              if (item.confirmedQty !== originalItem?.confirmedQty) {
-                if (item.confirmedQty > 0) item.confirmedDate = now
-                if (req.user) item.confirmedUpdatedBy = req.user.id
-              }
-              if (item.pickedQty !== originalItem?.pickedQty) {
-                if (item.pickedQty > 0) item.pickedDate = now
-                if (req.user) item.pickedUpdatedBy = req.user.id
-              }
-              if (item.receivedQty !== originalItem?.receivedQty && item.receivedQty > 0)
-                item.receivedDate = now
             }
           }
         }

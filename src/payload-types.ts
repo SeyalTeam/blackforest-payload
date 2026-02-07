@@ -202,6 +202,7 @@ export interface User {
     | 'supervisor'
     | 'driver';
   branch?: (string | null) | Branch;
+  kitchen?: (string | null) | Kitchen;
   company?: (string | null) | Company;
   factory_companies?: (string | Company)[] | null;
   employee?: (string | null) | Employee;
@@ -257,6 +258,13 @@ export interface Branch {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Customize the stock order process for this branch.
+   */
+  stockOrderWorkflow?: {
+    skipSupervisor?: boolean | null;
+    skipDriver?: boolean | null;
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -418,6 +426,18 @@ export interface Dealer {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "kitchens".
+ */
+export interface Kitchen {
+  id: string;
+  name: string;
+  department: string | Department;
+  categories: (string | Category)[];
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "employees".
  */
 export interface Employee {
@@ -429,21 +449,8 @@ export interface Employee {
   address?: string | null;
   status: 'active' | 'inactive';
   team: 'waiter' | 'chef' | 'driver' | 'cashier' | 'manager' | 'supervisor' | 'delivery' | 'kitchen';
-  kitchen?: (string | null) | Kitchen;
   aadhaarPhoto?: (string | null) | Media;
   photo?: (string | null) | Media;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "kitchens".
- */
-export interface Kitchen {
-  id: string;
-  name: string;
-  department: string | Department;
-  categories: (string | Category)[];
   updatedAt: string;
   createdAt: string;
 }
@@ -844,6 +851,7 @@ export interface UsersSelect<T extends boolean = true> {
   name?: T;
   role?: T;
   branch?: T;
+  kitchen?: T;
   company?: T;
   factory_companies?: T;
   employee?: T;
@@ -895,6 +903,12 @@ export interface BranchesSelect<T extends boolean = true> {
         product?: T;
         resetDate?: T;
         id?: T;
+      };
+  stockOrderWorkflow?:
+    | T
+    | {
+        skipSupervisor?: T;
+        skipDriver?: T;
       };
   updatedAt?: T;
   createdAt?: T;
@@ -1054,7 +1068,6 @@ export interface EmployeesSelect<T extends boolean = true> {
   address?: T;
   status?: T;
   team?: T;
-  kitchen?: T;
   aadhaarPhoto?: T;
   photo?: T;
   updatedAt?: T;

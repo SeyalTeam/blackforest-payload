@@ -83,6 +83,33 @@ export const Branches: CollectionConfig = {
         description: 'Granular reset dates for specific products.',
       },
     },
+    {
+      name: 'stockOrderWorkflow',
+      label: 'Stock Order Workflow',
+      type: 'group',
+      fields: [
+        {
+          type: 'row',
+          fields: [
+            {
+              name: 'skipSupervisor',
+              label: 'Skip Supervisor (Confirmation)',
+              type: 'checkbox',
+              defaultValue: false,
+            },
+            {
+              name: 'skipDriver',
+              label: 'Skip Driver (Picking)',
+              type: 'checkbox',
+              defaultValue: false,
+            },
+          ],
+        },
+      ],
+      admin: {
+        description: 'Customize the stock order process for this branch.',
+      },
+    },
   ],
   access: {
     create: ({ req }) => req.user?.role === 'superadmin',
