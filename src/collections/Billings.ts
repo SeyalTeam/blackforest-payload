@@ -47,6 +47,66 @@ const Billings: CollectionConfig = {
           data.status = 'ordered'
         }
 
+        // 🧬 Pre-process: Split Quantity Increases on Non-Ordered Items
+        // If an item is already Prepared/Confirmed but the payload has a higher quantity,
+        // we assume the difference is a NEW 'ordered' item.
+        if (
+          data.items &&
+          Array.isArray(data.items) &&
+          originalDoc?.items &&
+          Array.isArray(originalDoc.items)
+        ) {
+          const processedItems: any[] = []
+          for (const item of data.items) {
+            // 1. Recover Status from DB if missing (crucial for accurate check)
+            if (!item.status && item.id) {
+              const originalItem = originalDoc.items.find((oi: any) => oi.id === item.id)
+              if (originalItem) {
+                item.status = originalItem.status
+              }
+            }
+
+            // 2. Check for Split Condition
+            // Trigger if: Item exists, Status is NOT ordered/cancelled, and Quantity increased
+            if (item.id && item.status !== 'ordered' && item.status !== 'cancelled') {
+              const originalItem = originalDoc.items.find((oi: any) => oi.id === item.id)
+
+              if (originalItem) {
+                const newQty =
+                  typeof item.quantity === 'string' ? parseFloat(item.quantity) : item.quantity || 0
+                const oldQty =
+                  typeof originalItem.quantity === 'string'
+                    ? parseFloat(originalItem.quantity)
+                    : originalItem.quantity || 0
+
+                if (newQty > oldQty) {
+                  const diff = newQty - oldQty
+
+                  // A. Restore existing item to original quantity
+                  // We must clone because we might modify `item` otherwise or it's a ref
+                  const keptItem = { ...item, quantity: oldQty, status: originalItem.status } // Force status to original just in case
+                  processedItems.push(keptItem)
+
+                  // B. Create new item for the difference
+                  const newItem = {
+                    ...item,
+                    id: undefined, // NEW ITEM
+                    quantity: diff,
+                    status: 'ordered', // ALWAYS ORDERED
+                    subtotal: undefined, // Let calc regenerate
+                  }
+                  processedItems.push(newItem)
+                  continue // processed, move to next
+                }
+              }
+            }
+
+            // Default: keep item as is
+            processedItems.push(item)
+          }
+          data.items = processedItems
+        }
+
         // 🧬 Merge identical items that are in 'ordered' status
         if (data.items && Array.isArray(data.items)) {
           const mergedItems: any[] = []
