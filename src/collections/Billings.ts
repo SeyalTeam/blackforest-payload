@@ -47,6 +47,61 @@ const Billings: CollectionConfig = {
           data.status = 'ordered'
         }
 
+        // 🧬 Merge identical items that are in 'ordered' status
+        if (data.items && Array.isArray(data.items)) {
+          const mergedItems: any[] = []
+          const itemMap = new Map<string, any>()
+
+          for (const item of data.items) {
+            // Only merge if status is 'ordered' (or undefined/null which defaults to ordered)
+            const status = item.status || 'ordered'
+
+            if (status === 'ordered') {
+              // Create a unique key based on product ID and notes
+              const productId = typeof item.product === 'object' ? item.product.id : item.product
+              const noteKey = (item.notes || '').trim()
+              const key = `${productId}-${noteKey}`
+
+              if (itemMap.has(key)) {
+                // Merge quantity into existing item
+                const existingItem = itemMap.get(key)
+                existingItem.quantity = (existingItem.quantity || 0) + (item.quantity || 0)
+                // Update subtotal if present (will be recalculated later anyway, but good for consistency)
+                if (item.subtotal && existingItem.subtotal) {
+                  existingItem.subtotal += item.subtotal
+                }
+              } else {
+                // Add new item to map
+                // Ensure we clone the item to avoid reference issues
+                const newItem = { ...item, status: 'ordered' }
+                itemMap.set(key, newItem)
+                mergedItems.push(newItem)
+              }
+            } else {
+              // Non-ordered items are just added directly
+              mergedItems.push(item)
+            }
+          }
+
+          // We need to preserve the order, but our map logic puts merged ordered items first if we iterate map?
+          // Actually, the loop `for (const item of data.items)` iterates in order.
+          // If we encounter a duplicate ordered item later, we merge it into the *first* occurrence.
+          // This effectively removes the later duplicate from the list.
+          // The `mergedItems` array will contain the items in order of first appearance,
+          // but since I'm pushing to `mergedItems` inside the `else` (new item) block,
+          // and NOT pushing when merging, the order of distinct items is preserved.
+          // Wait, the `itemMap` logic above:
+          // 1. If key exists, update existing item in Map. The existing item is ALREADY in `mergedItems` (by reference).
+          // 2. If key doesn't exist, set in Map AND push to `mergedItems`.
+          // 3. Non-ordered items are always pushed to `mergedItems`.
+          // So yes, `mergedItems` will contain:
+          // - First occurrence of an ordered product (with accumulated qty)
+          // - All non-ordered items in their original relative positions
+          // - It effectively "pulls" later ordered items into the earlier one.
+
+          data.items = mergedItems
+        }
+
         // 🔄 Backward compatibility: Map legacy statuses
         if (data.status === 'pending') {
           data.status = 'ordered'

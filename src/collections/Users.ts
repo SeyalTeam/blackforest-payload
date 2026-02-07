@@ -125,9 +125,9 @@ export const Users: CollectionConfig = {
   ],
   access: {
     create: ({ req }) => req.user?.role === 'superadmin',
-    read: ({ req, id }) => {
+    read: ({ req }) => {
       if (!req.user) return false
-      return req.user.role === 'superadmin' || req.user.role === 'admin' || req.user.id === id
+      return true // Allow all authenticated users to read
     },
     update: ({ req, id }) => {
       if (!req.user) return false
