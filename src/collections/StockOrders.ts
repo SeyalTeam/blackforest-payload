@@ -112,7 +112,10 @@ const StockOrders: CollectionConfig = {
               depth: 0,
             })
             if (branch?.stockOrderWorkflow) {
-              branchWorkflow = branch.stockOrderWorkflow
+              branchWorkflow = {
+                skipSupervisor: !!branch.stockOrderWorkflow.skipSupervisor,
+                skipDriver: !!branch.stockOrderWorkflow.skipDriver,
+              }
             }
           }
         } catch (error) {
