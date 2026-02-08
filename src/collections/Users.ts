@@ -354,7 +354,11 @@ export const Users: CollectionConfig = {
                           `Login authorized by Geo-location. Distance: ${distance.toFixed(2)}m`,
                         )
                       } else {
-                        console.warn(`Geo Check Failed: Distance ${distance}m > ${allowedRadius}m`)
+                        console.warn(
+                          `Geo Check Failed: User at (${userLat}, ${userLon}) is ${distance.toFixed(
+                            2,
+                          )}m away, max allowed is ${allowedRadius}m. Target: (${targetLat}, ${targetLon})`,
+                        )
                       }
                     }
                   }
@@ -384,7 +388,7 @@ export const Users: CollectionConfig = {
         // Therefore, we DENY login.
         if (isIpRestrictedRole || (geoCheckRequiredRoles.includes(user.role) && user.branch)) {
           console.warn(
-            `[Login Denied] User ${user.email} (${user.role}) denied. IP Auth: ${isIpAuthorized}, Geo Auth: ${isGeoAuthorized}, Restricted: ${isIpRestrictedRole}`,
+            `[Login Denied] User ${user.email} (${user.role}) denied. IP Auth: ${isIpAuthorized}, Geo Auth: ${isGeoAuthorized}, Restricted: ${isIpRestrictedRole}, Geo Required: ${geoCheckRequiredRoles.includes(user.role)}`,
           )
           throw new Error(
             'Login Failed: You must be connected to the Branch WiFi OR be at the shop location (GPS enabled).',
