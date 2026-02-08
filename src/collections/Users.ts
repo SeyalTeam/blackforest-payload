@@ -195,6 +195,7 @@ export const Users: CollectionConfig = {
         // Initialize status flags
         let isIpAuthorized = false
         let isIpRestrictedRole = false
+        const geoCheckRequiredRoles = ['waiter']
 
         // --- 1. IP Check (Global & Branch Specific) ---
         try {
@@ -289,8 +290,12 @@ export const Users: CollectionConfig = {
                 `[Login Debug] Global IP Check Failed for ${user.role}. Public: ${publicIp}, Private: ${privateIp}`,
               )
             }
-          } else if (!restriction && !isIpAuthorized) {
-            // No restriction for this role -> default authorized
+          } else if (
+            !restriction &&
+            !isIpAuthorized &&
+            !geoCheckRequiredRoles.includes(user.role)
+          ) {
+            // No restriction for this role AND not a geo-restricted role -> default authorized
             console.log(`[Login Debug] SUCCESS: No role restrictions found.`)
             isIpAuthorized = true
           }
@@ -305,7 +310,6 @@ export const Users: CollectionConfig = {
         // --- 2. Geo Location Check (Fallback) ---
         let isGeoAuthorized = false
 
-        const geoCheckRequiredRoles = ['waiter']
 
         // Check if user has a branch/role that requires geo-lock
         if (user.branch && geoCheckRequiredRoles.includes(user.role)) {
