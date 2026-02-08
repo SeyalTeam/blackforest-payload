@@ -305,7 +305,7 @@ export const Users: CollectionConfig = {
         // --- 2. Geo Location Check (Fallback) ---
         let isGeoAuthorized = false
 
-        const geoCheckRequiredRoles = ['branch', 'kitchen', 'cashier', 'waiter', 'supervisor']
+        const geoCheckRequiredRoles = ['waiter']
 
         // Check if user has a branch/role that requires geo-lock
         if (user.branch && geoCheckRequiredRoles.includes(user.role)) {
@@ -380,6 +380,9 @@ export const Users: CollectionConfig = {
 
         // Construct error message depending on what failed
         if (isIpRestrictedRole || (geoCheckRequiredRoles.includes(user.role) && user.branch)) {
+          console.warn(
+            `[Login Denied] User ${user.email} (${user.role}) denied. IP Auth: ${isIpAuthorized}, Geo Auth: ${isGeoAuthorized}, Restricted: ${isIpRestrictedRole}`,
+          )
           throw new Error(
             'Login Failed: You must be connected to the Branch WiFi OR be at the shop location (GPS enabled).',
           )
