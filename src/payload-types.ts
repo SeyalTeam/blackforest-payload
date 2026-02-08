@@ -86,6 +86,7 @@ export interface Config {
     'instock-entries': InstockEntry;
     tables: Table;
     kitchens: Kitchen;
+    attendance: Attendance;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -111,6 +112,7 @@ export interface Config {
     'instock-entries': InstockEntriesSelect<false> | InstockEntriesSelect<true>;
     tables: TablesSelect<false> | TablesSelect<true>;
     kitchens: KitchensSelect<false> | KitchensSelect<true>;
+    attendance: AttendanceSelect<false> | AttendanceSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -206,6 +208,7 @@ export interface User {
   company?: (string | null) | Company;
   factory_companies?: (string | Company)[] | null;
   employee?: (string | null) | Employee;
+  deviceId?: string | null;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -720,6 +723,24 @@ export interface Table {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "attendance".
+ */
+export interface Attendance {
+  id: string;
+  user: string | User;
+  type: 'in' | 'out' | 'break-start' | 'break-end';
+  timestamp: string;
+  ipAddress?: string | null;
+  device?: string | null;
+  location?: {
+    latitude?: number | null;
+    longitude?: number | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -800,6 +821,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'kitchens';
         value: string | Kitchen;
+      } | null)
+    | ({
+        relationTo: 'attendance';
+        value: string | Attendance;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -855,6 +880,7 @@ export interface UsersSelect<T extends boolean = true> {
   company?: T;
   factory_companies?: T;
   employee?: T;
+  deviceId?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -1330,6 +1356,25 @@ export interface KitchensSelect<T extends boolean = true> {
   name?: T;
   department?: T;
   categories?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "attendance_select".
+ */
+export interface AttendanceSelect<T extends boolean = true> {
+  user?: T;
+  type?: T;
+  timestamp?: T;
+  ipAddress?: T;
+  device?: T;
+  location?:
+    | T
+    | {
+        latitude?: T;
+        longitude?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }
