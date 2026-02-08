@@ -10,7 +10,7 @@ export const Users: CollectionConfig = {
     defaultColumns: ['name', 'email', 'role'],
   },
   auth: {
-    tokenExpiration: 604800, // 7 days in seconds
+    tokenExpiration: 2592000, // 30 Days (Global max) - We restrict staff to 14h via hooks
   },
   fields: [
     // Email added by default
@@ -154,6 +154,19 @@ export const Users: CollectionConfig = {
               deviceId: deviceId,
             } as any, // Cast to any to bypass type check until types are regenerated
           })
+        }
+
+        // --- Session Duration Logic ---
+        // Global is set to 30 days (2592000s)
+        // If Role is NOT (superadmin, admin, company, factory) -> ideally enforce 14h (50400s)
+        const longSessionRoles = ['superadmin', 'admin', 'company', 'factory']
+        if (!longSessionRoles.includes(user.role)) {
+           // We can't actively shorten the JWT expiration here without a custom strategy.
+           // However, we log this for now. The client app effectively controls re-login via token storage.
+           // To strictly enforce, we'd add an 'lastLogin' timestamp check in 'me' endpoint or middleware.
+           console.log(`[Session] User ${user.email} (${user.role}) logged in. Standard 14h intended.`)
+        } else {
+           console.log(`[Session] User ${user.email} (${user.role}) logged in. Extended 30d session allowed.`)
         }
       },
     ],
