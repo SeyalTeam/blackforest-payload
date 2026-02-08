@@ -188,14 +188,13 @@ export const Users: CollectionConfig = {
         if (user.role === 'superadmin') return
 
         // Skip IP check in development mode
-        // if (process.env.NODE_ENV === 'development') {
-        //   return
-        // }
+        if (process.env.NODE_ENV === 'development') {
+          return
+        }
 
         // Initialize status flags
         let isIpAuthorized = false
         let isIpRestrictedRole = false
-        const geoCheckRequiredRoles = ['waiter']
 
         // --- 1. IP Check (Global & Branch Specific) ---
         try {
@@ -211,12 +210,8 @@ export const Users: CollectionConfig = {
 
           // Detect IPs
           const forwarded = req.headers.get('x-forwarded-for')
-          let publicIp =
+          const publicIp =
             typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : '127.0.0.1'
-          if (publicIp.startsWith('::ffff:')) {
-            publicIp = publicIp.substring(7)
-          }
-
           const privateIpHeader = req.headers.get('x-private-ip')
           const privateIp = typeof privateIpHeader === 'string' ? privateIpHeader.trim() : null
 
@@ -239,7 +234,6 @@ export const Users: CollectionConfig = {
                 console.log(
                   `[Login Debug] Found GeoSetting IP config for branch: ${branchGeo.ipAddress}`,
                 )
-                console.log(`[Login Debug] Checking IP: ${publicIp} against ${branchGeo.ipAddress}`)
                 if (isIPAllowed(publicIp, [branchGeo.ipAddress])) {
                   console.log(`[Login Debug] SUCCESS: Authorized by BranchGeoSettings IP/Range`)
                   isIpAuthorized = true
@@ -295,12 +289,8 @@ export const Users: CollectionConfig = {
                 `[Login Debug] Global IP Check Failed for ${user.role}. Public: ${publicIp}, Private: ${privateIp}`,
               )
             }
-          } else if (
-            !restriction &&
-            !isIpAuthorized &&
-            !geoCheckRequiredRoles.includes(user.role)
-          ) {
-            // No restriction for this role AND not a geo-restricted role -> default authorized
+          } else if (!restriction && !isIpAuthorized) {
+            // No restriction for this role -> default authorized
             console.log(`[Login Debug] SUCCESS: No role restrictions found.`)
             isIpAuthorized = true
           }
@@ -315,6 +305,7 @@ export const Users: CollectionConfig = {
         // --- 2. Geo Location Check (Fallback) ---
         let isGeoAuthorized = false
 
+        const geoCheckRequiredRoles = ['branch', 'kitchen', 'cashier', 'waiter', 'supervisor']
 
         // Check if user has a branch/role that requires geo-lock
         if (user.branch && geoCheckRequiredRoles.includes(user.role)) {
@@ -344,11 +335,6 @@ export const Users: CollectionConfig = {
                   const headerLat = req.headers.get('x-latitude')
                   const headerLon = req.headers.get('x-longitude')
 
-                  console.log(
-                    `[Geo Debug] User: ${user.email}, Branch: ${userBranchId}, Target: (${targetLat}, ${targetLon}, r=${radius})`,
-                  )
-                  console.log(`[Geo Debug] Headers - Lat: ${headerLat}, Lon: ${headerLon}`)
-
                   if (headerLat && headerLon) {
                     const userLat = parseFloat(headerLat)
                     const userLon = parseFloat(headerLon)
@@ -368,11 +354,7 @@ export const Users: CollectionConfig = {
                           `Login authorized by Geo-location. Distance: ${distance.toFixed(2)}m`,
                         )
                       } else {
-                        console.warn(
-                          `Geo Check Failed: User at (${userLat}, ${userLon}) is ${distance.toFixed(
-                            2,
-                          )}m away, max allowed is ${allowedRadius}m. Target: (${targetLat}, ${targetLon})`,
-                        )
+                        console.warn(`Geo Check Failed: Distance ${distance}m > ${allowedRadius}m`)
                       }
                     }
                   }
@@ -397,13 +379,7 @@ export const Users: CollectionConfig = {
         // So we only reach here if isIpAuthorized is false (meaning restriction existed and failed).
 
         // Construct error message depending on what failed
-        // For 'waiter' role (in geoCheckRequiredRoles), if we reached here, 
-        // it means BOTH IP Check (Branch WiFi) AND Geo Check (Location) have FAILED.
-        // Therefore, we DENY login.
-        if (isIpRestrictedRole || geoCheckRequiredRoles.includes(user.role)) {
-          console.warn(
-            `[Login Denied] User ${user.email} (${user.role}) denied. IP Auth: ${isIpAuthorized}, Geo Auth: ${isGeoAuthorized}, Restricted: ${isIpRestrictedRole}, Geo Required: ${geoCheckRequiredRoles.includes(user.role)}`,
-          )
+        if (isIpRestrictedRole || (geoCheckRequiredRoles.includes(user.role) && user.branch)) {
           throw new Error(
             'Login Failed: You must be connected to the Branch WiFi OR be at the shop location (GPS enabled).',
           )
