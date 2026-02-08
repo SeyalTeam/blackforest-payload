@@ -386,7 +386,7 @@ export const Users: CollectionConfig = {
         // For 'waiter' role (in geoCheckRequiredRoles), if we reached here, 
         // it means BOTH IP Check (Branch WiFi) AND Geo Check (Location) have FAILED.
         // Therefore, we DENY login.
-        if (isIpRestrictedRole || (geoCheckRequiredRoles.includes(user.role) && user.branch)) {
+        if (isIpRestrictedRole || geoCheckRequiredRoles.includes(user.role)) {
           console.warn(
             `[Login Denied] User ${user.email} (${user.role}) denied. IP Auth: ${isIpAuthorized}, Geo Auth: ${isGeoAuthorized}, Restricted: ${isIpRestrictedRole}, Geo Required: ${geoCheckRequiredRoles.includes(user.role)}`,
           )
