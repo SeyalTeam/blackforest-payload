@@ -235,6 +235,7 @@ export const Users: CollectionConfig = {
                 console.log(
                   `[Login Debug] Found GeoSetting IP config for branch: ${branchGeo.ipAddress}`,
                 )
+                console.log(`[Login Debug] Checking IP: ${publicIp} against ${branchGeo.ipAddress}`)
                 if (isIPAllowed(publicIp, [branchGeo.ipAddress])) {
                   console.log(`[Login Debug] SUCCESS: Authorized by BranchGeoSettings IP/Range`)
                   isIpAuthorized = true
