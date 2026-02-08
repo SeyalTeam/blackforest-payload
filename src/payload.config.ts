@@ -60,6 +60,7 @@ import { getNetworkStatusHandler } from './endpoints/getNetworkStatus'
 import { downloadHandler, uploadHandler, pingHandler } from './endpoints/speedtest'
 import Tables from './collections/Tables'
 import Kitchens from './collections/Kitchens'
+import Attendance from './collections/Attendance'
 import { AutomateGlobal } from './globals/Automate'
 import { createAutomatedOrderHandler } from './endpoints/createAutomatedOrder'
 
@@ -255,6 +256,7 @@ export default buildConfig({
     InstockEntries,
     Tables,
     Kitchens,
+    Attendance,
   ],
 
   editor: lexicalEditor(),
