@@ -211,8 +211,12 @@ export const Users: CollectionConfig = {
 
           // Detect IPs
           const forwarded = req.headers.get('x-forwarded-for')
-          const publicIp =
+          let publicIp =
             typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : '127.0.0.1'
+          if (publicIp.startsWith('::ffff:')) {
+            publicIp = publicIp.substring(7)
+          }
+
           const privateIpHeader = req.headers.get('x-private-ip')
           const privateIp = typeof privateIpHeader === 'string' ? privateIpHeader.trim() : null
 
