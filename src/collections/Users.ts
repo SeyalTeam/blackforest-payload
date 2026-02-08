@@ -122,6 +122,13 @@ export const Users: CollectionConfig = {
         update: ({ req }) => req.user?.role === 'superadmin',
       },
     },
+    {
+      name: 'deviceId',
+      type: 'text',
+      admin: {
+        readOnly: true,
+      },
+    },
   ],
   access: {
     create: ({ req }) => req.user?.role === 'superadmin',
@@ -136,6 +143,20 @@ export const Users: CollectionConfig = {
     delete: ({ req }) => req.user?.role === 'superadmin',
   },
   hooks: {
+    afterLogin: [
+      async ({ req, user }) => {
+        const deviceId = req.headers.get('x-device-id')
+        if (deviceId && user.id) {
+          await req.payload.update({
+            collection: 'users',
+            id: user.id,
+            data: {
+              deviceId: deviceId,
+            } as any, // Cast to any to bypass type check until types are regenerated
+          })
+        }
+      },
+    ],
     beforeLogin: [
       async ({ req, user }) => {
         if (user.role === 'superadmin') return
