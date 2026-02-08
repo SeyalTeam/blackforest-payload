@@ -339,6 +339,11 @@ export const Users: CollectionConfig = {
                   const headerLat = req.headers.get('x-latitude')
                   const headerLon = req.headers.get('x-longitude')
 
+                  console.log(
+                    `[Geo Debug] User: ${user.email}, Branch: ${userBranchId}, Target: (${targetLat}, ${targetLon}, r=${radius})`,
+                  )
+                  console.log(`[Geo Debug] Headers - Lat: ${headerLat}, Lon: ${headerLon}`)
+
                   if (headerLat && headerLon) {
                     const userLat = parseFloat(headerLat)
                     const userLon = parseFloat(headerLon)
