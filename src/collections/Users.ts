@@ -188,9 +188,9 @@ export const Users: CollectionConfig = {
         if (user.role === 'superadmin') return
 
         // Skip IP check in development mode
-        if (process.env.NODE_ENV === 'development') {
-          return
-        }
+        // if (process.env.NODE_ENV === 'development') {
+        //   return
+        // }
 
         // Initialize status flags
         let isIpAuthorized = false
