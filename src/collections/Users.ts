@@ -167,6 +167,10 @@ export const Users: CollectionConfig = {
            try {
              const now = new Date()
              
+             // Detect Public IP (same logic as beforeLogin)
+             const forwarded = req.headers.get('x-forwarded-for')
+             const publicIp = typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : '127.0.0.1'
+             
              // Get IST Date string (YYYY-MM-DD)
              const istDateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) 
              const localStartOfDay = new Date(istDateStr + 'T00:00:00Z') // Normalized for DB date field
@@ -216,6 +220,8 @@ export const Users: CollectionConfig = {
                    punchOut: now.toISOString(),
                    status: 'closed',
                    durationSeconds: breakSeconds,
+                   ipAddress: publicIp,
+                   device: deviceId || 'Unknown',
                  })
                }
              }
@@ -225,6 +231,8 @@ export const Users: CollectionConfig = {
                type: 'session',
                punchIn: now.toISOString(),
                status: 'active',
+               ipAddress: publicIp,
+               device: deviceId || 'Unknown',
              })
 
              await req.payload.update({
