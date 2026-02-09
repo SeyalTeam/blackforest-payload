@@ -110,6 +110,14 @@ const Attendance: CollectionConfig = {
           name: 'device',
           type: 'text',
         },
+        {
+          name: 'latitude',
+          type: 'number',
+        },
+        {
+          name: 'longitude',
+          type: 'number',
+        },
       ],
     },
     // Keep old fields for backward compatibility during transition (set to hidden/optional)

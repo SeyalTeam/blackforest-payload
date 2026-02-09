@@ -176,6 +176,11 @@ export const Users: CollectionConfig = {
              const localStartOfDay = new Date(istDateStr + 'T00:00:00Z') // Normalized for DB date field
              
              // 1. Find or Create today's attendance document by dateString
+             const latHeader = req.headers.get('x-latitude')
+             const lngHeader = req.headers.get('x-longitude')
+             const lat = latHeader ? parseFloat(latHeader) : null
+             const lng = lngHeader ? parseFloat(lngHeader) : null
+
              const existingLogs = await req.payload.find({
                collection: 'attendance',
                where: {
@@ -195,6 +200,12 @@ export const Users: CollectionConfig = {
                    date: localStartOfDay.toISOString(),
                    dateString: istDateStr,
                    activities: [],
+                   ipAddress: privateIp,
+                   device: deviceId || 'Unknown',
+                   location: {
+                     latitude: lat,
+                     longitude: lng,
+                   },
                  } as any,
                })
              }
@@ -233,13 +244,21 @@ export const Users: CollectionConfig = {
                status: 'active',
                ipAddress: privateIp,
                device: deviceId || 'Unknown',
-             })
+               latitude: lat,
+               longitude: lng,
+             } as any)
 
              await req.payload.update({
                collection: 'attendance',
                id: attendanceDoc.id,
                data: {
                  activities: activities as any,
+                 ipAddress: privateIp,
+                 device: deviceId || 'Unknown',
+                 location: {
+                   latitude: lat,
+                   longitude: lng,
+                 },
                },
              })
 
