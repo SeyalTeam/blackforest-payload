@@ -24,8 +24,15 @@ const Attendance: CollectionConfig = {
       } as any
     },
     create: ({ req: { user } }) => !!user, // Any logged in user can create an entry (punch)
-    update: ({ req: { user } }) =>
-      user?.role ? ['superadmin', 'admin'].includes(user.role) : false, // Only admins edit history
+    update: ({ req: { user } }) => {
+      if (!user) return false
+      if (['superadmin', 'admin'].includes(user.role)) return true
+      return {
+        user: {
+          equals: user.id,
+        },
+      } as any
+    },
     delete: ({ req: { user } }) =>
       user?.role ? ['superadmin', 'admin'].includes(user.role) : false,
   },
