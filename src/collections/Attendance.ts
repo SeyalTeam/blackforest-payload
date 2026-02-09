@@ -45,21 +45,74 @@ const Attendance: CollectionConfig = {
       index: true,
     },
     {
-      name: 'punchIn',
+      name: 'date',
       type: 'date',
-      required: false,
+      required: true,
       index: true,
       admin: {
-        description: 'Time when the user punched in',
+        description: 'The local date this log represents (normalized to midnight)',
       },
+      defaultValue: () => {
+        const d = new Date()
+        d.setHours(0, 0, 0, 0)
+        return d
+      },
+    },
+    {
+      name: 'activities',
+      type: 'array',
+      fields: [
+        {
+          name: 'type',
+          type: 'select',
+          options: [
+            { label: 'Session', value: 'session' },
+            { label: 'Break', value: 'break' },
+          ],
+          required: true,
+        },
+        {
+          name: 'punchIn',
+          type: 'date',
+          required: true,
+        },
+        {
+          name: 'punchOut',
+          type: 'date',
+        },
+        {
+          name: 'status',
+          type: 'select',
+          options: [
+            { label: 'Active', value: 'active' },
+            { label: 'Closed', value: 'closed' },
+          ],
+          defaultValue: 'active',
+        },
+        {
+          name: 'durationSeconds',
+          type: 'number',
+        },
+        {
+          name: 'ipAddress',
+          type: 'text',
+        },
+        {
+          name: 'device',
+          type: 'text',
+        },
+      ],
+    },
+    // Keep old fields for backward compatibility during transition (set to hidden/optional)
+    {
+      name: 'punchIn',
+      type: 'date',
+      admin: { hidden: true },
     },
     {
       name: 'punchOut',
       type: 'date',
-      required: false,
-      admin: {
-        description: 'Time when the user punched out',
-      },
+      admin: { hidden: true },
     },
     {
       name: 'status',
@@ -68,8 +121,7 @@ const Attendance: CollectionConfig = {
         { label: 'Active', value: 'active' },
         { label: 'Closed', value: 'closed' },
       ],
-      defaultValue: 'active',
-      index: true,
+      admin: { hidden: true },
     },
     {
       name: 'type',
@@ -77,22 +129,13 @@ const Attendance: CollectionConfig = {
       options: [
         { label: 'Login (Punch In)', value: 'in' },
         { label: 'Logout (Punch Out)', value: 'out' },
-        { label: 'Break Start', value: 'break-start' },
-        { label: 'Break End', value: 'break-end' },
       ],
-      required: false, // Made optional for backward compat
-      admin: {
-        hidden: true,
-      },
+      admin: { hidden: true },
     },
     {
       name: 'timestamp',
       type: 'date',
-      required: false, // Made optional for backward compat
-      defaultValue: () => new Date(),
-      admin: {
-        hidden: true,
-      },
+      admin: { hidden: true },
     },
     {
       name: 'ipAddress',

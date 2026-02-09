@@ -163,36 +163,73 @@ export const Users: CollectionConfig = {
         if (!longSessionRoles.includes(user.role)) {
            console.log(`[Session] User ${user.email} (${user.role}) logged in. Standard 14h intended.`)
            
-           // Log Attendance Session (Punch In)
+           // Log Attendance Daily Log (Punch In)
            try {
              const now = new Date()
-             const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
+             const localStartOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
              
-             // Check if user already has an active session today to avoid duplicates
-             const existing = await req.payload.find({
+             // 1. Find or Create today's attendance document
+             const existingLogs = await req.payload.find({
                collection: 'attendance',
                where: {
                  user: { equals: user.id },
-                 status: { equals: 'active' },
-                 punchIn: { greater_than: startOfDay },
+                 date: { equals: localStartOfDay.toISOString() },
                },
              })
 
-             if (existing.docs.length === 0) {
-               await req.payload.create({
+             let attendanceDoc
+             if (existingLogs.docs.length > 0) {
+               attendanceDoc = existingLogs.docs[0]
+             } else {
+               attendanceDoc = await req.payload.create({
                  collection: 'attendance',
                  data: {
                    user: user.id,
-                   punchIn: now.toISOString(),
-                   status: 'active',
+                   date: localStartOfDay.toISOString(),
+                   activities: [],
                  } as any,
                })
-               console.log(`[Attendance] Created NEW session for ${user.email}`)
-             } else {
-               console.log(`[Attendance] User ${user.email} already has an active session today.`)
              }
+
+             const activities = [...(attendanceDoc.activities || [])]
+             
+             // 2. Check for Break (gap between last punchOut and now)
+             if (activities.length > 0) {
+               const lastActivity = activities[activities.length - 1]
+               if (lastActivity.punchOut) {
+                 const lastOut = new Date(lastActivity.punchOut)
+                 const breakSeconds = Math.floor((now.getTime() - lastOut.getTime()) / 1000)
+                 
+                 if (breakSeconds >= 30) {
+                   activities.push({
+                     type: 'break',
+                     punchIn: lastOut.toISOString(),
+                     punchOut: now.toISOString(),
+                     status: 'closed',
+                     durationSeconds: breakSeconds,
+                   })
+                 }
+               }
+             }
+
+             // 3. Append NEW Session activity
+             activities.push({
+               type: 'session',
+               punchIn: now.toISOString(),
+               status: 'active',
+             })
+
+             await req.payload.update({
+               collection: 'attendance',
+               id: attendanceDoc.id,
+               data: {
+                 activities: activities as any,
+               },
+             })
+
+             console.log(`[Attendance] Managed Daily Log for ${user.email}`)
            } catch (e) {
-             console.error(`[Attendance] Failed to manage session for ${user.email}:`, e)
+             console.error(`[Attendance] Failed to manage Daily Log for ${user.email}:`, e)
            }
 
         } else {

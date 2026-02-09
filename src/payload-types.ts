@@ -729,15 +729,25 @@ export interface Attendance {
   id: string;
   user: string | User;
   /**
-   * Time when the user punched in
+   * The local date this log represents (normalized to midnight)
    */
+  date: string;
+  activities?:
+    | {
+        type: 'session' | 'break';
+        punchIn: string;
+        punchOut?: string | null;
+        status?: ('active' | 'closed') | null;
+        durationSeconds?: number | null;
+        ipAddress?: string | null;
+        device?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   punchIn?: string | null;
-  /**
-   * Time when the user punched out
-   */
   punchOut?: string | null;
   status?: ('active' | 'closed') | null;
-  type?: ('in' | 'out' | 'break-start' | 'break-end') | null;
+  type?: ('in' | 'out') | null;
   timestamp?: string | null;
   ipAddress?: string | null;
   device?: string | null;
@@ -1374,6 +1384,19 @@ export interface KitchensSelect<T extends boolean = true> {
  */
 export interface AttendanceSelect<T extends boolean = true> {
   user?: T;
+  date?: T;
+  activities?:
+    | T
+    | {
+        type?: T;
+        punchIn?: T;
+        punchOut?: T;
+        status?: T;
+        durationSeconds?: T;
+        ipAddress?: T;
+        device?: T;
+        id?: T;
+      };
   punchIn?: T;
   punchOut?: T;
   status?: T;
