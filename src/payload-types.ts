@@ -732,6 +732,10 @@ export interface Attendance {
    * The local date this log represents (normalized to midnight)
    */
   date: string;
+  /**
+   * YYYY-MM-DD format (timezone independent)
+   */
+  dateString: string;
   activities?:
     | {
         type: 'session' | 'break';
@@ -1385,6 +1389,7 @@ export interface KitchensSelect<T extends boolean = true> {
 export interface AttendanceSelect<T extends boolean = true> {
   user?: T;
   date?: T;
+  dateString?: T;
   activities?:
     | T
     | {

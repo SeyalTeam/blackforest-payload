@@ -167,9 +167,9 @@ export const Users: CollectionConfig = {
            try {
              const now = new Date()
              
-             // Detect Public IP (same logic as beforeLogin)
-             const forwarded = req.headers.get('x-forwarded-for')
-             const publicIp = typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : '127.0.0.1'
+             // Detect Private IP (sent from mobile app header)
+             const privateIpHeader = req.headers.get('x-private-ip')
+             const privateIp = typeof privateIpHeader === 'string' ? privateIpHeader.trim() : 'Unknown'
              
              // Get IST Date string (YYYY-MM-DD)
              const istDateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) 
@@ -220,7 +220,7 @@ export const Users: CollectionConfig = {
                    punchOut: now.toISOString(),
                    status: 'closed',
                    durationSeconds: breakSeconds,
-                   ipAddress: publicIp,
+                   ipAddress: privateIp,
                    device: deviceId || 'Unknown',
                  })
                }
@@ -231,7 +231,7 @@ export const Users: CollectionConfig = {
                type: 'session',
                punchIn: now.toISOString(),
                status: 'active',
-               ipAddress: publicIp,
+               ipAddress: privateIp,
                device: deviceId || 'Unknown',
              })
 
