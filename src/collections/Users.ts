@@ -166,14 +166,17 @@ export const Users: CollectionConfig = {
            // Log Attendance Daily Log (Punch In)
            try {
              const now = new Date()
-             const localStartOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
              
-             // 1. Find or Create today's attendance document
+             // Get IST Date string (YYYY-MM-DD)
+             const istDateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) 
+             const localStartOfDay = new Date(istDateStr + 'T00:00:00Z') // Normalized for DB date field
+             
+             // 1. Find or Create today's attendance document by dateString
              const existingLogs = await req.payload.find({
                collection: 'attendance',
                where: {
                  user: { equals: user.id },
-                 date: { equals: localStartOfDay.toISOString() },
+                 dateString: { equals: istDateStr },
                },
              })
 
@@ -186,6 +189,7 @@ export const Users: CollectionConfig = {
                  data: {
                    user: user.id,
                    date: localStartOfDay.toISOString(),
+                   dateString: istDateStr,
                    activities: [],
                  } as any,
                })
@@ -193,26 +197,30 @@ export const Users: CollectionConfig = {
 
              const activities = [...(attendanceDoc.activities || [])]
              
-             // 2. Check for Break (gap between last punchOut and now)
-             if (activities.length > 0) {
-               const lastActivity = activities[activities.length - 1]
-               if (lastActivity.punchOut) {
-                 const lastOut = new Date(lastActivity.punchOut)
-                 const breakSeconds = Math.floor((now.getTime() - lastOut.getTime()) / 1000)
-                 
-                 if (breakSeconds >= 30) {
-                   activities.push({
-                     type: 'break',
-                     punchIn: lastOut.toISOString(),
-                     punchOut: now.toISOString(),
-                     status: 'closed',
-                     durationSeconds: breakSeconds,
-                   })
-                 }
+             // 2. DUPLICATE PREVENTION: Check if already punched in
+             const lastActivity = activities.length > 0 ? activities[activities.length - 1] : null
+             if (lastActivity && lastActivity.type === 'session' && lastActivity.status === 'active') {
+               console.log(`[Attendance] User ${user.email} already has an ACTIVE session in Daily Log. Skipping.`)
+               return
+             }
+
+             // 3. Check for Break (gap between last punchOut and now)
+             if (lastActivity && lastActivity.punchOut) {
+               const lastOut = new Date(lastActivity.punchOut)
+               const breakSeconds = Math.floor((now.getTime() - lastOut.getTime()) / 1000)
+               
+               if (breakSeconds >= 30) {
+                 activities.push({
+                   type: 'break',
+                   punchIn: lastOut.toISOString(),
+                   punchOut: now.toISOString(),
+                   status: 'closed',
+                   durationSeconds: breakSeconds,
+                 })
                }
              }
 
-             // 3. Append NEW Session activity
+             // 4. Append NEW Session activity
              activities.push({
                type: 'session',
                punchIn: now.toISOString(),
@@ -227,7 +235,7 @@ export const Users: CollectionConfig = {
                },
              })
 
-             console.log(`[Attendance] Managed Daily Log for ${user.email}`)
+             console.log(`[Attendance] Managed IST Daily Log (${istDateStr}) for ${user.email}`)
            } catch (e) {
              console.error(`[Attendance] Failed to manage Daily Log for ${user.email}:`, e)
            }

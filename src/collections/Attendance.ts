@@ -3,8 +3,8 @@ import type { CollectionConfig } from 'payload'
 const Attendance: CollectionConfig = {
   slug: 'attendance',
   admin: {
-    useAsTitle: 'punchIn',
-    defaultColumns: ['user', 'punchIn', 'punchOut', 'status', 'ipAddress'],
+    useAsTitle: 'date',
+    defaultColumns: ['user', 'date', 'activities'],
   },
   access: {
     read: ({ req: { user } }) => {
@@ -56,6 +56,15 @@ const Attendance: CollectionConfig = {
         const d = new Date()
         d.setHours(0, 0, 0, 0)
         return d
+      },
+    },
+    {
+      name: 'dateString',
+      type: 'text',
+      required: true,
+      index: true,
+      admin: {
+        description: 'YYYY-MM-DD format (timezone independent)',
       },
     },
     {
