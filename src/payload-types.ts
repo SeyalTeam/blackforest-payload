@@ -728,8 +728,17 @@ export interface Table {
 export interface Attendance {
   id: string;
   user: string | User;
-  type: 'in' | 'out' | 'break-start' | 'break-end';
-  timestamp: string;
+  /**
+   * Time when the user punched in
+   */
+  punchIn?: string | null;
+  /**
+   * Time when the user punched out
+   */
+  punchOut?: string | null;
+  status?: ('active' | 'closed') | null;
+  type?: ('in' | 'out' | 'break-start' | 'break-end') | null;
+  timestamp?: string | null;
   ipAddress?: string | null;
   device?: string | null;
   location?: {
@@ -1365,6 +1374,9 @@ export interface KitchensSelect<T extends boolean = true> {
  */
 export interface AttendanceSelect<T extends boolean = true> {
   user?: T;
+  punchIn?: T;
+  punchOut?: T;
+  status?: T;
   type?: T;
   timestamp?: T;
   ipAddress?: T;

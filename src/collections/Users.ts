@@ -163,19 +163,36 @@ export const Users: CollectionConfig = {
         if (!longSessionRoles.includes(user.role)) {
            console.log(`[Session] User ${user.email} (${user.role}) logged in. Standard 14h intended.`)
            
-           // Log Attendance Punch In
+           // Log Attendance Session (Punch In)
            try {
-             await req.payload.create({
+             const now = new Date()
+             const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
+             
+             // Check if user already has an active session today to avoid duplicates
+             const existing = await req.payload.find({
                collection: 'attendance',
-               data: {
-                 user: user.id,
-                 type: 'in',
-                 timestamp: new Date().toISOString(),
-               } as any,
+               where: {
+                 user: { equals: user.id },
+                 status: { equals: 'active' },
+                 punchIn: { greater_than: startOfDay },
+               },
              })
-             console.log(`[Attendance] Logged IN for ${user.email}`)
+
+             if (existing.docs.length === 0) {
+               await req.payload.create({
+                 collection: 'attendance',
+                 data: {
+                   user: user.id,
+                   punchIn: now.toISOString(),
+                   status: 'active',
+                 } as any,
+               })
+               console.log(`[Attendance] Created NEW session for ${user.email}`)
+             } else {
+               console.log(`[Attendance] User ${user.email} already has an active session today.`)
+             }
            } catch (e) {
-             console.error(`[Attendance] Failed to log IN for ${user.email}:`, e)
+             console.error(`[Attendance] Failed to manage session for ${user.email}:`, e)
            }
 
         } else {

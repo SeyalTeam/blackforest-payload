@@ -3,8 +3,8 @@ import type { CollectionConfig } from 'payload'
 const Attendance: CollectionConfig = {
   slug: 'attendance',
   admin: {
-    useAsTitle: 'timestamp',
-    defaultColumns: ['user', 'type', 'timestamp', 'ipAddress'],
+    useAsTitle: 'punchIn',
+    defaultColumns: ['user', 'punchIn', 'punchOut', 'status', 'ipAddress'],
   },
   access: {
     read: ({ req: { user } }) => {
@@ -38,21 +38,54 @@ const Attendance: CollectionConfig = {
       index: true,
     },
     {
+      name: 'punchIn',
+      type: 'date',
+      required: false,
+      index: true,
+      admin: {
+        description: 'Time when the user punched in',
+      },
+    },
+    {
+      name: 'punchOut',
+      type: 'date',
+      required: false,
+      admin: {
+        description: 'Time when the user punched out',
+      },
+    },
+    {
+      name: 'status',
+      type: 'select',
+      options: [
+        { label: 'Active', value: 'active' },
+        { label: 'Closed', value: 'closed' },
+      ],
+      defaultValue: 'active',
+      index: true,
+    },
+    {
       name: 'type',
       type: 'select',
       options: [
         { label: 'Login (Punch In)', value: 'in' },
         { label: 'Logout (Punch Out)', value: 'out' },
-        { label: 'Break Start', value: 'break-start' }, // Reserved for explicit breaks
-        { label: 'Break End', value: 'break-end' }, // Reserved for explicit breaks
+        { label: 'Break Start', value: 'break-start' },
+        { label: 'Break End', value: 'break-end' },
       ],
-      required: true,
+      required: false, // Made optional for backward compat
+      admin: {
+        hidden: true,
+      },
     },
     {
       name: 'timestamp',
       type: 'date',
-      required: true,
+      required: false, // Made optional for backward compat
       defaultValue: () => new Date(),
+      admin: {
+        hidden: true,
+      },
     },
     {
       name: 'ipAddress',
