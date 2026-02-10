@@ -27,9 +27,9 @@ type ReportData = {
 
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
-import Select, { components, OptionProps } from 'react-select'
+import Select, { components, OptionProps, ValueContainerProps } from 'react-select'
 
-const CheckboxOption = (props: OptionProps) => {
+const CheckboxOption = (props: OptionProps<any>) => {
   return (
     <components.Option {...props}>
       <input
@@ -43,7 +43,7 @@ const CheckboxOption = (props: OptionProps) => {
   )
 }
 
-const CustomValueContainer = ({ children, ...props }: components.ValueContainerProps) => {
+const CustomValueContainer = ({ children, ...props }: ValueContainerProps<any>) => {
   const { getValue, hasValue, selectProps } = props
   const selected = getValue()
   const count = selected.length
@@ -81,7 +81,9 @@ const ProductWiseReport: React.FC = () => {
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
   const [selectedDepartment, setSelectedDepartment] = useState('all')
 
-  const [products, setProducts] = useState<{ id: string; name: string }[]>([])
+  const [products, setProducts] = useState<
+    { id: string; name: string; category?: string | { id: string } }[]
+  >([])
   const [selectedProduct, setSelectedProduct] = useState<string[]>(['all'])
 
   const [dateRangePreset, setDateRangePreset] = useState<string>('today')
@@ -265,10 +267,10 @@ const ProductWiseReport: React.FC = () => {
   const productOptions = [
     { value: 'all', label: 'All Products' },
     ...products
-      .filter((p: any) => {
+      .filter((p) => {
         if (selectedCategory.includes('all')) return true
         const pCatId = typeof p.category === 'object' ? p.category?.id : p.category
-        return selectedCategory.includes(pCatId)
+        return selectedCategory.includes(pCatId as string)
       })
       .map((p) => ({ value: p.id, label: p.name })),
   ]
@@ -294,11 +296,11 @@ const ProductWiseReport: React.FC = () => {
       '&:hover': {
         borderColor: 'var(--theme-info-750)',
       },
-      flexWrap: 'nowrap' as any, // Prevent wrapping
+      flexWrap: 'nowrap' as const, // Prevent wrapping
     }),
     valueContainer: (base: Record<string, unknown>) => ({
       ...base,
-      flexWrap: 'nowrap' as any,
+      flexWrap: 'nowrap' as const,
       overflow: 'hidden',
       textOverflow: 'ellipsis',
       whiteSpace: 'nowrap',
