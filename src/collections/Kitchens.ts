@@ -37,6 +37,14 @@ const Kitchens: CollectionConfig = {
       label: 'Department',
     },
     {
+      name: 'branches',
+      type: 'relationship',
+      relationTo: 'branches',
+      hasMany: true,
+      required: true,
+      label: 'Branches',
+    },
+    {
       name: 'categories',
       type: 'relationship',
       relationTo: 'categories',
