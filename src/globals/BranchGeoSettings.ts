@@ -89,15 +89,15 @@ export const BranchGeoSettings: GlobalConfig = {
         {
           name: 'kotPrinters',
           type: 'array',
-          label: 'KOT Printers (Category Based)',
+          label: 'KOT Printers (Kitchen Based)',
           fields: [
             {
               type: 'row',
               fields: [
                 {
-                  name: 'categories',
+                  name: 'kitchens',
                   type: 'relationship',
-                  relationTo: 'categories',
+                  relationTo: 'kitchens',
                   hasMany: true,
                   required: true,
                   admin: {
