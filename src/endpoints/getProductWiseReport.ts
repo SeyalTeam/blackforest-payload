@@ -1,5 +1,5 @@
 import { PayloadRequest, PayloadHandler } from 'payload'
-import mongoose from 'mongoose'
+import mongoose, { PipelineStage } from 'mongoose'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
@@ -80,28 +80,27 @@ export const getProductWiseReportHandler: PayloadHandler = async (
       throw new Error('Billings collection not found')
     }
 
-    // Construct match query
     // Construct matchQuery
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const matchQuery: Record<string, any> = {
+    const matchQuery: Record<string, unknown> = {
       createdAt: {
         $gte: startOfDay,
         $lte: endOfDay,
       },
+      status: { $not: { $eq: 'cancelled' } }, // Optional: exclude cancelled bills if needed,
+      // though items have their own status usually
     }
 
     if (branchParam && branchParam !== 'all') {
       const branchIds = branchParam.split(',').filter(Boolean)
       if (branchIds.length > 0) {
-        matchQuery.$expr = {
-          $in: [{ $toString: '$branch' }, branchIds],
+        matchQuery.branch = {
+          $in: branchIds.map((id) => new mongoose.Types.ObjectId(id)),
         }
       }
     }
 
     // 2. Aggregate Data
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const aggregationPipeline: any[] = [
+    const aggregationPipeline: PipelineStage[] = [
       {
         $match: matchQuery,
       },
@@ -109,34 +108,16 @@ export const getProductWiseReportHandler: PayloadHandler = async (
         $unwind: '$items',
       },
       {
+        // Exclude cancelled items early
+        $match: {
+          'items.status': { $ne: 'cancelled' },
+        },
+      },
+      {
         $lookup: {
           from: 'products',
-          let: { productId: '$items.product' },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $or: [
-                    { $eq: ['$_id', '$$productId'] },
-                    { $eq: [{ $toString: '$_id' }, '$$productId'] },
-                    {
-                      $eq: [
-                        '$_id',
-                        {
-                          $convert: {
-                            input: '$$productId',
-                            to: 'objectId',
-                            onError: null,
-                            onNull: null,
-                          },
-                        },
-                      ],
-                    },
-                  ],
-                },
-              },
-            },
-          ],
+          localField: 'items.product',
+          foreignField: '_id',
           as: 'productDetails',
         },
       },
@@ -149,32 +130,8 @@ export const getProductWiseReportHandler: PayloadHandler = async (
       {
         $lookup: {
           from: 'categories',
-          let: { categoryId: '$productDetails.category' },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $or: [
-                    { $eq: ['$_id', '$$categoryId'] },
-                    { $eq: [{ $toString: '$_id' }, '$$categoryId'] },
-                    {
-                      $eq: [
-                        '$_id',
-                        {
-                          $convert: {
-                            input: '$$categoryId',
-                            to: 'objectId',
-                            onError: null,
-                            onNull: null,
-                          },
-                        },
-                      ],
-                    },
-                  ],
-                },
-              },
-            },
-          ],
+          localField: 'productDetails.category',
+          foreignField: '_id',
           as: 'categoryDetails',
         },
       },
@@ -199,10 +156,7 @@ export const getProductWiseReportHandler: PayloadHandler = async (
         })
       }
     } else {
-      // If "all" categories, we still might want to exclude items that failed lookup if they are invalid
-      // But typically we show what we found.
-      // However, the original code had $unwind which dropped items without products/categories.
-      // To maintain similar behavior (only show items with valid products/categories) when not filtering:
+      // Ensure we only show items with valid products/categories
       aggregationPipeline.push({
         $match: {
           'productDetails._id': { $exists: true },

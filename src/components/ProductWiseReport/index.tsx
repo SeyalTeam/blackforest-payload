@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import './index.scss'
 
 type ReportStats = {
@@ -29,7 +29,7 @@ import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import Select, { components, OptionProps } from 'react-select'
 
-const CheckboxOption = (props: OptionProps<any>) => {
+const CheckboxOption = (props: OptionProps) => {
   return (
     <components.Option {...props}>
       <input
@@ -43,7 +43,7 @@ const CheckboxOption = (props: OptionProps<any>) => {
   )
 }
 
-const CustomValueContainer = ({ children, ...props }: any) => {
+const CustomValueContainer = ({ children, ...props }: components.ValueContainerProps) => {
   const { getValue, hasValue, selectProps } = props
   const selected = getValue()
   const count = selected.length
@@ -388,30 +388,31 @@ const ProductWiseReport: React.FC = () => {
     return `${year}-${month}-${day}`
   }
 
-  const fetchReport = async (
-    start: Date,
-    end: Date,
-    branchIds: string[],
-    categoryIds: string[],
-    departmentId: string,
-    productIds: string[],
-  ) => {
-    setLoading(true)
-    setError('')
-    try {
-      const startStr = toLocalDateStr(start)
-      const endStr = toLocalDateStr(end)
-      const branchParam = branchIds.includes('all') ? 'all' : branchIds.join(',')
-      const categoryParam = categoryIds.includes('all') ? 'all' : categoryIds.join(',')
-      const productParam = productIds.includes('all') ? 'all' : productIds.join(',')
-      const res = await fetch(
-        `/api/reports/product-wise?startDate=${startStr}&endDate=${endStr}&branch=${branchParam}&category=${categoryParam}&department=${departmentId}&product=${productParam}`,
-      )
-      if (!res.ok) throw new Error('Failed to fetch report')
-      const json: ReportData = await res.json()
+  const fetchReport = useCallback(
+    async (
+      start: Date,
+      end: Date,
+      branchIds: string[],
+      categoryIds: string[],
+      departmentId: string,
+      productIds: string[],
+    ) => {
+      setLoading(true)
+      setError('')
+      try {
+        const startStr = toLocalDateStr(start)
+        const endStr = toLocalDateStr(end)
+        const branchParam = branchIds.includes('all') ? 'all' : branchIds.join(',')
+        const categoryParam = categoryIds.includes('all') ? 'all' : categoryIds.join(',')
+        const productParam = productIds.includes('all') ? 'all' : productIds.join(',')
+        const res = await fetch(
+          `/api/reports/product-wise?startDate=${startStr}&endDate=${endStr}&branch=${branchParam}&category=${categoryParam}&department=${departmentId}&product=${productParam}`,
+        )
+        if (!res.ok) throw new Error('Failed to fetch report')
+        const json: ReportData = await res.json()
 
-      // Automatically enable zero highlight if there are zero values -- REMOVED per user request
-      /*
+        // Automatically enable zero highlight if there are zero values -- REMOVED per user request
+        /*
       const hasStatsZero = json.stats.some(
         (row) =>
           json.branchHeaders.some((h) => (row.branchSales[h]?.amount || 0) === 0) ||
@@ -426,16 +427,18 @@ const ProductWiseReport: React.FC = () => {
 
       setShowZeroHighlight(hasStatsZero || hasTotalZero)
       */
-      // Default to false now
-      setShowZeroHighlight(false)
-      setData(json)
-    } catch (err) {
-      console.error(err)
-      setError('Error loading report data')
-    } finally {
-      setLoading(false)
-    }
-  }
+        // Default to false now
+        setShowZeroHighlight(false)
+        setData(json)
+      } catch (err) {
+        console.error(err)
+        setError('Error loading report data')
+      } finally {
+        setLoading(false)
+      }
+    },
+    [],
+  )
 
   // Sync dateRange changes to backend fetch
   useEffect(() => {
@@ -449,7 +452,15 @@ const ProductWiseReport: React.FC = () => {
         selectedProduct,
       )
     }
-  }, [startDate, endDate, selectedBranch, selectedCategory, selectedDepartment, selectedProduct])
+  }, [
+    startDate,
+    endDate,
+    selectedBranch,
+    selectedCategory,
+    selectedDepartment,
+    selectedProduct,
+    fetchReport,
+  ])
 
   const CustomInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
     ({ value, onClick }, ref) => {
@@ -483,6 +494,33 @@ const ProductWiseReport: React.FC = () => {
     },
   )
   CustomInput.displayName = 'CustomInput'
+
+  // Calculate Max and Min Branch Sale Amount per Branch
+  const maxSalesPerBranch: Record<string, number> = {}
+  const minSalesPerBranch: Record<string, number> = {}
+
+  if (data) {
+    data.branchHeaders.forEach((header) => {
+      // Get all amounts for this branch
+      const amounts = data.stats.map((row) => row.branchSales[header]?.amount || 0)
+      const positiveAmounts = amounts.filter((a) => a > 0)
+
+      // Max is max of all amounts (or 0 if none)
+      maxSalesPerBranch[header] = amounts.length > 0 ? Math.max(...amounts) : 0
+
+      // Min is min of positive amounts (or 0 if none)
+      minSalesPerBranch[header] = positiveAmounts.length > 0 ? Math.min(...positiveAmounts) : 0
+    })
+  }
+
+  const sortedStats = data
+    ? [...data.stats].sort((a, b) => {
+        if (sortBy === 'units') {
+          return b.totalQuantity - a.totalQuantity
+        }
+        return b.totalAmount - a.totalAmount
+      })
+    : []
 
   return (
     <div className="product-report-container">
@@ -736,10 +774,9 @@ const ProductWiseReport: React.FC = () => {
               onClick={() => {
                 setDateRange([new Date(), new Date()])
                 setSelectedBranch(['all'])
-                setSelectedDepartment('all')
-                setSelectedDepartment('all')
                 setSelectedCategory(['all'])
                 setSelectedProduct(['all'])
+                setSelectedDepartment('all')
                 setSortBy('amount')
               }}
               title="Reset Filters"
@@ -835,232 +872,152 @@ const ProductWiseReport: React.FC = () => {
         </div>
       )}
 
-      {loading && <p>Loading...</p>}
       {error && <p className="error">{error}</p>}
 
-      {(() => {
-        // Calculate Max and Min Branch Sale Amount per Branch
-        const maxSalesPerBranch: Record<string, number> = {}
-        const minSalesPerBranch: Record<string, number> = {}
+      <div style={{ position: 'relative', minHeight: '300px' }}>
+        {loading && (
+          <div className="report-loading-overlay">
+            <div className="spinner"></div>
+            <p>Loading Report Data...</p>
+          </div>
+        )}
 
-        if (data) {
-          data.branchHeaders.forEach((header) => {
-            // Get all amounts for this branch
-            const amounts = data.stats.map((row) => row.branchSales[header]?.amount || 0)
-            const positiveAmounts = amounts.filter((a) => a > 0)
+        {!loading && data && data.stats.length === 0 && (
+          <div className="no-data-message">
+            <div className="icon">📂</div>
+            <h3>No Data Found</h3>
+            <p>Adjust your filters or date range to see results.</p>
+          </div>
+        )}
 
-            // Max is max of all amounts (or 0 if none)
-            maxSalesPerBranch[header] = amounts.length > 0 ? Math.max(...amounts) : 0
-
-            // Min is min of positive amounts (or 0 if none)
-            minSalesPerBranch[header] =
-              positiveAmounts.length > 0 ? Math.min(...positiveAmounts) : 0
-          })
-        }
-
-        const sortedStats = data
-          ? [...data.stats].sort((a, b) => {
-              if (sortBy === 'units') {
-                return b.totalQuantity - a.totalQuantity
-              }
-              return b.totalAmount - a.totalAmount
-            })
-          : []
-
-        return (
-          data && (
-            <div className="table-container">
-              <table className="report-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '50px', fontSize: '1.2rem' }}>S.NO</th>
-                    <th style={{ fontSize: '1.2rem' }}>PRODUCT</th>
-                    <th style={{ textAlign: 'center', fontSize: '1.2rem' }}>PRICE</th>
-                    {/* Dynamically render branch headers */}
-                    {data.branchHeaders.map((header) => (
-                      <th key={header} style={{ textAlign: 'center', fontSize: '1.2rem' }}>
-                        {header}
-                      </th>
-                    ))}
-                    <th style={{ textAlign: 'center', minWidth: '100px', fontSize: '1.2rem' }}>
-                      TOT UNITS
+        {data && (
+          <div className="table-container">
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '50px', fontSize: '1.2rem' }}>S.NO</th>
+                  <th style={{ fontSize: '1.2rem' }}>PRODUCT</th>
+                  <th style={{ textAlign: 'center', fontSize: '1.2rem' }}>PRICE</th>
+                  {/* Dynamically render branch headers */}
+                  {data.branchHeaders.map((header) => (
+                    <th key={header} style={{ textAlign: 'center', fontSize: '1.2rem' }}>
+                      {header}
                     </th>
-                    <th style={{ textAlign: 'center', minWidth: '100px', fontSize: '1.2rem' }}>
-                      TOT AMT
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedStats.map((row) => (
-                    <tr key={row.sNo}>
-                      <td style={{ fontSize: '1.2rem' }}>{row.sNo}</td>
-                      <td
-                        className="product-name-cell"
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => {
-                          setExpandedProduct(
-                            expandedProduct === row.productName ? null : row.productName,
-                          )
-                        }}
-                      >
-                        <div>{row.productName}</div>
-                      </td>
-                      <td
-                        style={{
-                          textAlign: 'center',
-                          cursor: 'pointer',
-                          fontWeight: '600',
-                          fontSize: '1.2rem',
-                        }}
-                        onClick={() => {
-                          setExpandedProduct(
-                            expandedProduct === row.productName ? null : row.productName,
-                          )
-                        }}
-                      >
-                        {formatValue(row.price)} {row.unit}
-                      </td>
-                      {/* Dynamically render branch sales cells */}
-                      {data.branchHeaders.map((header) => {
-                        const sales = row.branchSales[header] || { amount: 0, quantity: 0 }
-                        const isZero = sales.amount === 0
-                        const isTopSale =
-                          showTopSaleHighlight &&
-                          selectedBranch.includes('all') &&
-                          sales.amount > 0 &&
-                          Math.abs(sales.amount - maxSalesPerBranch[header]) < 0.001
-
-                        const isLowSale =
-                          showLowSaleHighlight &&
-                          selectedBranch.includes('all') &&
-                          sales.amount > 0 &&
-                          Math.abs(sales.amount - minSalesPerBranch[header]) < 0.001
-
-                        const branchTotal = data.totals.branchTotals[header] || 0
-                        const percentage =
-                          branchTotal > 0 ? ((sales.amount / branchTotal) * 100).toFixed(2) : '0.00'
-
-                        // Determine Main and Sub values based on Sort By filter
-                        const isUnitsSort = sortBy === 'units'
-                        const numValue = isUnitsSort ? sales.quantity : sales.amount
-                        const mainValue = numValue === 0 ? '' : formatValue(numValue)
-                        const subValue = isUnitsSort
-                          ? `₹${formatValue(sales.amount)}`
-                          : `${formatValue(sales.quantity)} Units`
-
-                        const isExpanded = expandedProduct === row.productName
-
-                        return (
-                          <td
-                            key={header}
-                            style={{
-                              textAlign: 'center',
-                              verticalAlign: 'top',
-                              backgroundColor:
-                                showZeroHighlight && isZero
-                                  ? '#800020'
-                                  : isTopSale
-                                    ? '#006400'
-                                    : isLowSale
-                                      ? '#B8860B'
-                                      : 'inherit',
-                              color:
-                                (showZeroHighlight && isZero) || isTopSale || isLowSale
-                                  ? '#FFFFFF'
-                                  : 'inherit',
-                              cursor:
-                                sales.quantity > 0 || sales.amount > 0 ? 'pointer' : 'default',
-                            }}
-                            onClick={() => {
-                              setExpandedProduct(
-                                expandedProduct === row.productName ? null : row.productName,
-                              )
-                            }}
-                          >
-                            <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>{mainValue}</div>
-                            {isExpanded && (sales.quantity > 0 || sales.amount > 0) && (
-                              <div
-                                style={{
-                                  fontSize: '0.85rem',
-                                  color:
-                                    isZero || isTopSale || isLowSale
-                                      ? '#FFFFFF'
-                                      : 'var(--theme-elevation-400)',
-                                  marginTop: '4px',
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  alignItems: 'center',
-                                  gap: '2px',
-                                }}
-                              >
-                                <div>{subValue}</div>
-                                {sales.amount > 0 && <div>{percentage}%</div>}
-                              </div>
-                            )}
-                          </td>
-                        )
-                      })}
-                      <td
-                        style={{
-                          textAlign: 'center',
-                          fontWeight: '600',
-                          fontSize: '1.2rem',
-                          backgroundColor:
-                            showZeroHighlight && row.totalQuantity === 0 ? '#800020' : 'inherit',
-                          color:
-                            showZeroHighlight && row.totalQuantity === 0 ? '#FFFFFF' : 'inherit',
-                          cursor: 'pointer',
-                        }}
-                        onClick={() => {
-                          setExpandedProduct(
-                            expandedProduct === row.productName ? null : row.productName,
-                          )
-                        }}
-                      >
-                        {row.totalQuantity === 0 ? '' : formatValue(row.totalQuantity)}
-                      </td>
-                      <td
-                        style={{
-                          textAlign: 'center',
-                          fontWeight: '600',
-                          fontSize: '1.2rem',
-                          backgroundColor:
-                            showZeroHighlight && row.totalAmount === 0 ? '#800020' : 'inherit',
-                          color: showZeroHighlight && row.totalAmount === 0 ? '#FFFFFF' : 'inherit',
-                          cursor: 'pointer',
-                        }}
-                        onClick={() => {
-                          setExpandedProduct(
-                            expandedProduct === row.productName ? null : row.productName,
-                          )
-                        }}
-                      >
-                        {row.totalAmount === 0 ? '' : formatValue(row.totalAmount)}
-                      </td>
-                    </tr>
                   ))}
-                </tbody>
-                <tfoot>
-                  <tr className="grand-total">
-                    <td colSpan={3} style={{ fontSize: '1.2rem' }}>
-                      <strong>Total</strong>
+                  <th style={{ textAlign: 'center', minWidth: '100px', fontSize: '1.2rem' }}>
+                    TOT UNITS
+                  </th>
+                  <th style={{ textAlign: 'center', minWidth: '100px', fontSize: '1.2rem' }}>
+                    TOT AMT
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedStats.map((row) => (
+                  <tr key={row.sNo}>
+                    <td style={{ fontSize: '1.2rem' }}>{row.sNo}</td>
+                    <td
+                      className="product-name-cell"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => {
+                        setExpandedProduct(
+                          expandedProduct === row.productName ? null : row.productName,
+                        )
+                      }}
+                    >
+                      <div>{row.productName}</div>
                     </td>
-                    {/* Dynamically render branch totals in footer */}
+                    <td
+                      style={{
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        fontWeight: '600',
+                        fontSize: '1.2rem',
+                      }}
+                      onClick={() => {
+                        setExpandedProduct(
+                          expandedProduct === row.productName ? null : row.productName,
+                        )
+                      }}
+                    >
+                      {formatValue(row.price)} {row.unit}
+                    </td>
+                    {/* Dynamically render branch sales cells */}
                     {data.branchHeaders.map((header) => {
-                      const val = data.totals.branchTotals[header] || 0
-                      const isZero = val === 0
+                      const sales = row.branchSales[header] || { amount: 0, quantity: 0 }
+                      const isZero = sales.amount === 0
+                      const isTopSale =
+                        showTopSaleHighlight &&
+                        selectedBranch.includes('all') &&
+                        sales.amount > 0 &&
+                        Math.abs(sales.amount - maxSalesPerBranch[header]) < 0.001
+
+                      const isLowSale =
+                        showLowSaleHighlight &&
+                        selectedBranch.includes('all') &&
+                        sales.amount > 0 &&
+                        Math.abs(sales.amount - minSalesPerBranch[header]) < 0.001
+
+                      const branchTotal = data.totals.branchTotals[header] || 0
+                      const percentage =
+                        branchTotal > 0 ? ((sales.amount / branchTotal) * 100).toFixed(2) : '0.00'
+
+                      // Determine Main and Sub values based on Sort By filter
+                      const isUnitsSort = sortBy === 'units'
+                      const numValue = isUnitsSort ? sales.quantity : sales.amount
+                      const mainValue = numValue === 0 ? '' : formatValue(numValue)
+                      const subValue = isUnitsSort
+                        ? `₹${formatValue(sales.amount)}`
+                        : `${formatValue(sales.quantity)} Units`
+
+                      const isExpanded = expandedProduct === row.productName
+
                       return (
                         <td
                           key={header}
                           style={{
-                            textAlign: 'left',
-                            fontWeight: 'bold',
-                            fontSize: '1.2rem',
-                            backgroundColor: showZeroHighlight && isZero ? '#800020' : 'inherit',
-                            color: showZeroHighlight && isZero ? '#FFFFFF' : 'inherit',
+                            textAlign: 'center',
+                            verticalAlign: 'top',
+                            backgroundColor:
+                              showZeroHighlight && isZero
+                                ? '#800020'
+                                : isTopSale
+                                  ? '#006400'
+                                  : isLowSale
+                                    ? '#B8860B'
+                                    : 'inherit',
+                            color:
+                              (showZeroHighlight && isZero) || isTopSale || isLowSale
+                                ? '#FFFFFF'
+                                : 'inherit',
+                            cursor: sales.quantity > 0 || sales.amount > 0 ? 'pointer' : 'default',
+                          }}
+                          onClick={() => {
+                            setExpandedProduct(
+                              expandedProduct === row.productName ? null : row.productName,
+                            )
                           }}
                         >
-                          <strong>{val === 0 ? '' : formatValue(val)}</strong>
+                          <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>{mainValue}</div>
+                          {isExpanded && (sales.quantity > 0 || sales.amount > 0) && (
+                            <div
+                              style={{
+                                fontSize: '0.85rem',
+                                color:
+                                  isZero || isTopSale || isLowSale
+                                    ? '#FFFFFF'
+                                    : 'var(--theme-elevation-400)',
+                                marginTop: '4px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '2px',
+                              }}
+                            >
+                              <div>{subValue}</div>
+                              {sales.amount > 0 && <div>{percentage}%</div>}
+                            </div>
+                          )}
                         </td>
                       )
                     })}
@@ -1070,20 +1027,17 @@ const ProductWiseReport: React.FC = () => {
                         fontWeight: '600',
                         fontSize: '1.2rem',
                         backgroundColor:
-                          showZeroHighlight && data.totals.totalQuantity === 0
-                            ? '#800020'
-                            : 'inherit',
-                        color:
-                          showZeroHighlight && data.totals.totalQuantity === 0
-                            ? '#FFFFFF'
-                            : 'inherit',
+                          showZeroHighlight && row.totalQuantity === 0 ? '#800020' : 'inherit',
+                        color: showZeroHighlight && row.totalQuantity === 0 ? '#FFFFFF' : 'inherit',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => {
+                        setExpandedProduct(
+                          expandedProduct === row.productName ? null : row.productName,
+                        )
                       }}
                     >
-                      <strong>
-                        {data.totals.totalQuantity === 0
-                          ? ''
-                          : formatValue(data.totals.totalQuantity)}
-                      </strong>
+                      {row.totalQuantity === 0 ? '' : formatValue(row.totalQuantity)}
                     </td>
                     <td
                       style={{
@@ -1091,26 +1045,87 @@ const ProductWiseReport: React.FC = () => {
                         fontWeight: '600',
                         fontSize: '1.2rem',
                         backgroundColor:
-                          showZeroHighlight && data.totals.totalAmount === 0
-                            ? '#800020'
-                            : 'inherit',
-                        color:
-                          showZeroHighlight && data.totals.totalAmount === 0
-                            ? '#FFFFFF'
-                            : 'inherit',
+                          showZeroHighlight && row.totalAmount === 0 ? '#800020' : 'inherit',
+                        color: showZeroHighlight && row.totalAmount === 0 ? '#FFFFFF' : 'inherit',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => {
+                        setExpandedProduct(
+                          expandedProduct === row.productName ? null : row.productName,
+                        )
                       }}
                     >
-                      <strong>
-                        {data.totals.totalAmount === 0 ? '' : formatValue(data.totals.totalAmount)}
-                      </strong>
+                      {row.totalAmount === 0 ? '' : formatValue(row.totalAmount)}
                     </td>
                   </tr>
-                </tfoot>
-              </table>
-            </div>
-          )
-        )
-      })()}
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="grand-total">
+                  <td colSpan={3} style={{ fontSize: '1.2rem' }}>
+                    <strong>Total</strong>
+                  </td>
+                  {/* Dynamically render branch totals in footer */}
+                  {data.branchHeaders.map((header) => {
+                    const val = data.totals.branchTotals[header] || 0
+                    const isZero = val === 0
+                    return (
+                      <td
+                        key={header}
+                        style={{
+                          textAlign: 'left',
+                          fontWeight: 'bold',
+                          fontSize: '1.2rem',
+                          backgroundColor: showZeroHighlight && isZero ? '#800020' : 'inherit',
+                          color: showZeroHighlight && isZero ? '#FFFFFF' : 'inherit',
+                        }}
+                      >
+                        <strong>{val === 0 ? '' : formatValue(val)}</strong>
+                      </td>
+                    )
+                  })}
+                  <td
+                    style={{
+                      textAlign: 'center',
+                      fontWeight: '600',
+                      fontSize: '1.2rem',
+                      backgroundColor:
+                        showZeroHighlight && data.totals.totalQuantity === 0
+                          ? '#800020'
+                          : 'inherit',
+                      color:
+                        showZeroHighlight && data.totals.totalQuantity === 0
+                          ? '#FFFFFF'
+                          : 'inherit',
+                    }}
+                  >
+                    <strong>
+                      {data.totals.totalQuantity === 0
+                        ? ''
+                        : formatValue(data.totals.totalQuantity)}
+                    </strong>
+                  </td>
+                  <td
+                    style={{
+                      textAlign: 'center',
+                      fontWeight: '600',
+                      fontSize: '1.2rem',
+                      backgroundColor:
+                        showZeroHighlight && data.totals.totalAmount === 0 ? '#800020' : 'inherit',
+                      color:
+                        showZeroHighlight && data.totals.totalAmount === 0 ? '#FFFFFF' : 'inherit',
+                    }}
+                  >
+                    <strong>
+                      {data.totals.totalAmount === 0 ? '' : formatValue(data.totals.totalAmount)}
+                    </strong>
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

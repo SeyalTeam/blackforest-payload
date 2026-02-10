@@ -435,6 +435,7 @@ export interface Kitchen {
   id: string;
   name: string;
   department: string | Department;
+  branches: (string | Branch)[];
   categories: (string | Category)[];
   updatedAt: string;
   createdAt: string;
@@ -745,6 +746,8 @@ export interface Attendance {
         durationSeconds?: number | null;
         ipAddress?: string | null;
         device?: string | null;
+        latitude?: number | null;
+        longitude?: number | null;
         id?: string | null;
       }[]
     | null;
@@ -1378,6 +1381,7 @@ export interface TablesSelect<T extends boolean = true> {
 export interface KitchensSelect<T extends boolean = true> {
   name?: T;
   department?: T;
+  branches?: T;
   categories?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -1400,6 +1404,8 @@ export interface AttendanceSelect<T extends boolean = true> {
         durationSeconds?: T;
         ipAddress?: T;
         device?: T;
+        latitude?: T;
+        longitude?: T;
         id?: T;
       };
   punchIn?: T;
@@ -1609,7 +1615,7 @@ export interface BranchGeoSetting {
         printerIp?: string | null;
         kotPrinters?:
           | {
-              categories: (string | Category)[];
+              kitchens: (string | Kitchen)[];
               /**
                * Local IP for this category group
                */
@@ -1792,7 +1798,7 @@ export interface BranchGeoSettingsSelect<T extends boolean = true> {
         kotPrinters?:
           | T
           | {
-              categories?: T;
+              kitchens?: T;
               printerIp?: T;
               label?: T;
               id?: T;
