@@ -62,6 +62,16 @@ export const Users: CollectionConfig = {
       admin: {
         condition: ({ role }) => role === 'kitchen',
       },
+      filterOptions: ({ data }) => {
+        if (data?.branch) {
+          return {
+            branches: {
+              contains: typeof data.branch === 'object' ? data.branch.id : data.branch,
+            },
+          }
+        }
+        return true
+      },
       access: {
         create: ({ req }) => req.user?.role === 'superadmin',
         update: ({ req }) => req.user?.role === 'superadmin',
@@ -161,114 +171,124 @@ export const Users: CollectionConfig = {
         // If Role is NOT (superadmin, admin, company, factory) -> ideally enforce 14h (50400s)
         const longSessionRoles = ['superadmin', 'admin', 'company', 'factory']
         if (!longSessionRoles.includes(user.role)) {
-           console.log(`[Session] User ${user.email} (${user.role}) logged in. Standard 14h intended.`)
-           
-           // Log Attendance Daily Log (Punch In)
-           try {
-             const now = new Date()
-             
-             // Detect Private IP (sent from mobile app header)
-             const privateIpHeader = req.headers.get('x-private-ip')
-             const privateIp = typeof privateIpHeader === 'string' ? privateIpHeader.trim() : 'Unknown'
-             
-             // Get IST Date string (YYYY-MM-DD)
-             const istDateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) 
-             const localStartOfDay = new Date(istDateStr + 'T00:00:00Z') // Normalized for DB date field
-             
-             // 1. Find or Create today's attendance document by dateString
-             const latHeader = req.headers.get('x-latitude')
-             const lngHeader = req.headers.get('x-longitude')
-             const lat = latHeader ? parseFloat(latHeader) : null
-             const lng = lngHeader ? parseFloat(lngHeader) : null
+          console.log(
+            `[Session] User ${user.email} (${user.role}) logged in. Standard 14h intended.`,
+          )
 
-             const existingLogs = await req.payload.find({
-               collection: 'attendance',
-               where: {
-                 user: { equals: user.id },
-                 dateString: { equals: istDateStr },
-               },
-             })
+          // Log Attendance Daily Log (Punch In)
+          try {
+            const now = new Date()
 
-             let attendanceDoc
-             if (existingLogs.docs.length > 0) {
-               attendanceDoc = existingLogs.docs[0]
-             } else {
-               attendanceDoc = await req.payload.create({
-                 collection: 'attendance',
-                 data: {
-                   user: user.id,
-                   date: localStartOfDay.toISOString(),
-                   dateString: istDateStr,
-                   activities: [],
-                   ipAddress: privateIp,
-                   device: deviceId || 'Unknown',
-                   location: {
-                     latitude: lat,
-                     longitude: lng,
-                   },
-                 } as any,
-               })
-             }
+            // Detect Private IP (sent from mobile app header)
+            const privateIpHeader = req.headers.get('x-private-ip')
+            const privateIp =
+              typeof privateIpHeader === 'string' ? privateIpHeader.trim() : 'Unknown'
 
-             const activities = [...(attendanceDoc.activities || [])]
-             
-             // 2. DUPLICATE PREVENTION: Check if already punched in
-             const lastActivity = activities.length > 0 ? activities[activities.length - 1] : null
-             if (lastActivity && lastActivity.type === 'session' && lastActivity.status === 'active') {
-               console.log(`[Attendance] User ${user.email} already has an ACTIVE session in Daily Log. Skipping.`)
-               return
-             }
+            // Get IST Date string (YYYY-MM-DD)
+            const istDateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+            const localStartOfDay = new Date(istDateStr + 'T00:00:00Z') // Normalized for DB date field
 
-             // 3. Check for Break (gap between last punchOut and now)
-             if (lastActivity && lastActivity.punchOut) {
-               const lastOut = new Date(lastActivity.punchOut)
-               const breakSeconds = Math.floor((now.getTime() - lastOut.getTime()) / 1000)
-               
-               if (breakSeconds >= 30) {
-                 activities.push({
-                   type: 'break',
-                   punchIn: lastOut.toISOString(),
-                   punchOut: now.toISOString(),
-                   status: 'closed',
-                   durationSeconds: breakSeconds,
-                   ipAddress: privateIp,
-                   device: deviceId || 'Unknown',
-                 })
-               }
-             }
+            // 1. Find or Create today's attendance document by dateString
+            const latHeader = req.headers.get('x-latitude')
+            const lngHeader = req.headers.get('x-longitude')
+            const lat = latHeader ? parseFloat(latHeader) : null
+            const lng = lngHeader ? parseFloat(lngHeader) : null
 
-             // 4. Append NEW Session activity
-             activities.push({
-               type: 'session',
-               punchIn: now.toISOString(),
-               status: 'active',
-               ipAddress: privateIp,
-               device: deviceId || 'Unknown',
-               latitude: lat,
-               longitude: lng,
-             } as any)
+            const existingLogs = await req.payload.find({
+              collection: 'attendance',
+              where: {
+                user: { equals: user.id },
+                dateString: { equals: istDateStr },
+              },
+            })
 
-             await req.payload.update({
-               collection: 'attendance',
-               id: attendanceDoc.id,
-               data: {
-                 activities: activities as any,
-                 ipAddress: privateIp,
-                 device: deviceId || 'Unknown',
-                 location: {
-                   latitude: lat,
-                   longitude: lng,
-                 },
-               },
-             })
+            let attendanceDoc
+            if (existingLogs.docs.length > 0) {
+              attendanceDoc = existingLogs.docs[0]
+            } else {
+              attendanceDoc = await req.payload.create({
+                collection: 'attendance',
+                data: {
+                  user: user.id,
+                  date: localStartOfDay.toISOString(),
+                  dateString: istDateStr,
+                  activities: [],
+                  ipAddress: privateIp,
+                  device: deviceId || 'Unknown',
+                  location: {
+                    latitude: lat,
+                    longitude: lng,
+                  },
+                } as any,
+              })
+            }
 
-             console.log(`[Attendance] Managed IST Daily Log (${istDateStr}) for ${user.email}`)
-           } catch (e) {
-             console.error(`[Attendance] Failed to manage Daily Log for ${user.email}:`, e)
-           }
+            const activities = [...(attendanceDoc.activities || [])]
 
+            // 2. DUPLICATE PREVENTION: Check if already punched in
+            const lastActivity = activities.length > 0 ? activities[activities.length - 1] : null
+            if (
+              lastActivity &&
+              lastActivity.type === 'session' &&
+              lastActivity.status === 'active'
+            ) {
+              console.log(
+                `[Attendance] User ${user.email} already has an ACTIVE session in Daily Log. Skipping.`,
+              )
+              return
+            }
+
+            // 3. Check for Break (gap between last punchOut and now)
+            if (lastActivity && lastActivity.punchOut) {
+              const lastOut = new Date(lastActivity.punchOut)
+              const breakSeconds = Math.floor((now.getTime() - lastOut.getTime()) / 1000)
+
+              if (breakSeconds >= 30) {
+                activities.push({
+                  type: 'break',
+                  punchIn: lastOut.toISOString(),
+                  punchOut: now.toISOString(),
+                  status: 'closed',
+                  durationSeconds: breakSeconds,
+                  ipAddress: privateIp,
+                  device: deviceId || 'Unknown',
+                })
+              }
+            }
+
+            // 4. Append NEW Session activity
+            activities.push({
+              type: 'session',
+              punchIn: now.toISOString(),
+              status: 'active',
+              ipAddress: privateIp,
+              device: deviceId || 'Unknown',
+              latitude: lat,
+              longitude: lng,
+            } as any)
+
+            await req.payload.update({
+              collection: 'attendance',
+              id: attendanceDoc.id,
+              data: {
+                activities: activities as any,
+                ipAddress: privateIp,
+                device: deviceId || 'Unknown',
+                location: {
+                  latitude: lat,
+                  longitude: lng,
+                },
+              },
+            })
+
+            console.log(`[Attendance] Managed IST Daily Log (${istDateStr}) for ${user.email}`)
+          } catch (e) {
+            console.error(`[Attendance] Failed to manage Daily Log for ${user.email}:`, e)
+          }
         } else {
-           console.log(`[Session] User ${user.email} (${user.role}) logged in. Extended 30d session allowed.`)
+          console.log(
+            `[Session] User ${user.email} (${user.role}) logged in. Extended 30d session allowed.`,
+          )
         }
       },
     ],
