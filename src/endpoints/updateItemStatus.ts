@@ -34,7 +34,12 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
     }
 
     // 🚦 Define strict status sequence
-    const statusSequence = ['ordered', 'confirmed', 'prepared', 'delivered']
+    const statusSequence = ['ordered', 'prepared', 'delivered']
+    const normalizeStatus = (input?: string) => {
+      if (!input || input === 'pending') return 'ordered'
+      if (input === 'preparing' || input === 'confirmed') return 'prepared'
+      return input
+    }
 
     // 2. Find and update the item status
     let itemFound = false
@@ -44,8 +49,8 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
       if (item.id === itemId) {
         itemFound = true
 
-        const currentStatus = item.status || 'ordered'
-        const newStatus = status
+        const currentStatus = normalizeStatus(item.status || 'ordered')
+        const newStatus = normalizeStatus(status)
         const now = new Date().toLocaleTimeString('en-IN', {
           timeZone: 'Asia/Kolkata',
           hour12: false,

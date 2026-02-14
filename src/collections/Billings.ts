@@ -54,11 +54,17 @@ const Billings: CollectionConfig = {
         if (data.status === 'preparing') {
           data.status = 'prepared'
         }
+        if (data.status === 'confirmed') {
+          data.status = 'prepared'
+        }
 
         // 🍱 Map item statuses for backward compatibility
         if (data.items && Array.isArray(data.items)) {
           data.items = data.items.map((item: any) => {
             if (item.status === 'preparing') {
+              return { ...item, status: 'prepared' }
+            }
+            if (item.status === 'confirmed') {
               return { ...item, status: 'prepared' }
             }
             return item
@@ -144,15 +150,20 @@ const Billings: CollectionConfig = {
           Array.isArray(data.items) &&
           originalDoc?.items
         ) {
-          const statusSequence = ['ordered', 'confirmed', 'prepared', 'delivered']
+          const statusSequence = ['ordered', 'prepared', 'delivered']
+          const normalizeStatus = (status?: string) => {
+            if (!status || status === 'pending') return 'ordered'
+            if (status === 'preparing' || status === 'confirmed') return 'prepared'
+            return status
+          }
           for (const item of data.items) {
             // Only validate items that existed in the original document
             const originalItems = (originalDoc.items as any[]) || []
             const originalItem = originalItems.find((oi) => oi.id === item.id)
 
             if (originalItem) {
-              const currentStatus = originalItem.status || 'ordered'
-              const newStatus = item.status || 'ordered'
+              const currentStatus = normalizeStatus(originalItem.status || 'ordered')
+              const newStatus = normalizeStatus(item.status || 'ordered')
 
               if (
                 newStatus !== 'cancelled' &&
@@ -216,7 +227,7 @@ const Billings: CollectionConfig = {
           const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, '')
 
           const status = data.status || originalDoc?.status || 'ordered'
-          const isKOT = ['ordered', 'confirmed', 'prepared', 'delivered'].includes(status)
+          const isKOT = ['ordered', 'prepared', 'delivered'].includes(status)
 
           // Only generate a new number if it's a creation OR if we're moving out of a KOT status
           // and currently have a KOT number (or no number yet).
@@ -456,14 +467,13 @@ const Billings: CollectionConfig = {
           defaultValue: 'ordered',
           options: [
             { label: 'Ordered', value: 'ordered' },
-            { label: 'Confirmed', value: 'confirmed' },
             { label: 'Prepared', value: 'prepared' },
             { label: 'Delivered', value: 'delivered' },
             { label: 'Cancelled', value: 'cancelled' },
           ],
           admin: {
             condition: (data) =>
-              ['ordered', 'confirmed', 'prepared', 'delivered'].includes(data.status),
+              ['ordered', 'prepared', 'delivered'].includes(data.status),
           },
         },
 
@@ -599,7 +609,6 @@ const Billings: CollectionConfig = {
       defaultValue: 'ordered',
       options: [
         { label: 'Ordered', value: 'ordered' },
-        { label: 'Confirmed', value: 'confirmed' },
         { label: 'Prepared', value: 'prepared' },
         { label: 'Delivered', value: 'delivered' },
         { label: 'Completed', value: 'completed' },
