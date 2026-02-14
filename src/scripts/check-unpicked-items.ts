@@ -17,8 +17,14 @@ const run = async () => {
       console.log('Order not found.')
     } else {
       const order = orders.docs[0]
+      const branchName =
+        typeof order.branch === 'object' && order.branch !== null
+          ? order.branch.name
+          : order.branch
+      const branchId =
+        typeof order.branch === 'object' && order.branch !== null ? order.branch.id : order.branch
       console.log(`Order: ${order.invoiceNumber}`)
-      console.log(`Branch: ${order.branch?.name} (${order.branch?.id})`)
+      console.log(`Branch: ${branchName || 'Unknown'} (${branchId || 'Unknown'})`)
 
       const unpicked = order.items.filter((i: any) => !i.pickedQty || i.pickedQty === 0)
       const picked = order.items.filter((i: any) => i.pickedQty > 0)
