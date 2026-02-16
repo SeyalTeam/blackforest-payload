@@ -307,6 +307,25 @@ export const Users: CollectionConfig = {
         }
       },
     ],
+    afterLogout: [
+      async ({ req }) => {
+        if (!req.user?.id) return
+
+        try {
+          await req.payload.update({
+            collection: 'users',
+            id: req.user.id,
+            data: {
+              sessions: [],
+              deviceId: null,
+            } as any,
+            overrideAccess: true,
+          })
+        } catch (error) {
+          console.error(`[Logout] Failed to clear all sessions for user ${req.user.id}:`, error)
+        }
+      },
+    ],
     beforeLogin: [
       async ({ req, user }) => {
         if (user.role === 'superadmin') return
