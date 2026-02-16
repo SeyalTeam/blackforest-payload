@@ -821,6 +821,18 @@ const ClosingEntryReport: React.FC = () => {
                 const calculatedTotal = row.expenses + row.cash + row.upi + row.card
                 const salesDiff = calculatedTotal - row.totalSales
                 const isAllBranchCard = row.branchName === 'All Branch'
+                const hasAnyNegativeEntry = (row.entries || []).some((entry) => {
+                  const entryCollectionTotal =
+                    (entry.expenses || 0) +
+                    (entry.cash || 0) +
+                    (entry.upi || 0) +
+                    (entry.card || 0)
+                  return entryCollectionTotal - (entry.totalSales || 0) < 0
+                })
+                const isNegativeDiffBranchCard =
+                  !isAllBranchCard && (salesDiff < 0 || hasAnyNegativeEntry)
+                const isPositiveDiffBranchCard =
+                  !isAllBranchCard && !isNegativeDiffBranchCard && salesDiff > 0
 
                 // Branch Code and Time Logic
                 const showClosingIds = ['today', 'yesterday'].includes(dateRangePreset)
@@ -855,7 +867,7 @@ const ClosingEntryReport: React.FC = () => {
                 return (
                   <div
                     key={row.branchName}
-                    className={`detail-card ${isAllBranchCard ? 'all-branch-card' : ''}`}
+                    className={`detail-card ${isAllBranchCard ? 'all-branch-card' : ''} ${isNegativeDiffBranchCard ? 'negative-diff-card' : ''} ${isPositiveDiffBranchCard ? 'positive-diff-card' : ''}`}
                     style={{ cursor: 'pointer' }}
                     onClick={() => {
                       if (isAllBranchCard) {
@@ -942,30 +954,20 @@ const ClosingEntryReport: React.FC = () => {
                         <span>Card</span>
                         <span>₹{formatValue(row.card)}</span>
                       </div>
-                      <div className="section-total">
-                        <span>Total Collection:</span>
-                        <span>{formatValue(calculatedTotal)}</span>
-                      </div>
-                      <div
-                        className="section-total"
-                        style={{
-                          borderTop: 'none',
-                          marginTop: 0,
-                          marginBottom: '8px',
-                          color: '#fff',
-                        }}
-                      >
-                        <span style={{ color: '#4caf50' }}>Sales Dif</span>
-                        <span
-                          style={{
-                            color: salesDiff >= 0 ? '#4caf50' : '#ef5350',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                          }}
-                        >
-                          {salesDiff > 0 ? '↑' : salesDiff < 0 ? '↓' : ''} {formatValue(salesDiff)}
-                        </span>
+                      <div className="collection-summary">
+                        <div className="section-total collection-total">
+                          <span>Total Collection:</span>
+                          <span>{formatValue(calculatedTotal)}</span>
+                        </div>
+                        <div className="section-total sales-diff-row">
+                          <span className="sales-diff-label">Sales Dif</span>
+                          <span
+                            className={`sales-diff-value ${salesDiff >= 0 ? 'positive' : 'negative'}`}
+                          >
+                            {salesDiff > 0 ? '↑' : salesDiff < 0 ? '↓' : ''}{' '}
+                            {formatValue(salesDiff)}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
@@ -1012,6 +1014,8 @@ const ClosingEntryReport: React.FC = () => {
                   const entryCollectionTotal =
                     (entry.expenses || 0) + (entry.cash || 0) + (entry.upi || 0) + (entry.card || 0)
                   const salesDiff = entryCollectionTotal - entry.totalSales
+                  const isNegativeDiffEntryCard = salesDiff < 0
+                  const isPositiveDiffEntryCard = salesDiff > 0
 
                   const parts = entry.closingNumber.split('-')
                   const displayNo =
@@ -1030,7 +1034,10 @@ const ClosingEntryReport: React.FC = () => {
                   const entryDate = new Date(entry.createdAt)
 
                   return (
-                    <div key={`${row.branchName}-entry-${i}`} className="detail-card">
+                    <div
+                      key={`${row.branchName}-entry-${i}`}
+                      className={`detail-card ${isNegativeDiffEntryCard ? 'negative-diff-card' : ''} ${isPositiveDiffEntryCard ? 'positive-diff-card' : ''}`}
+                    >
                       {/* Card Header */}
                       <div className="card-header">
                         <span className="card-title">
@@ -1117,31 +1124,20 @@ const ClosingEntryReport: React.FC = () => {
                           <span>Card</span>
                           <span>₹{formatValue(entry.card)}</span>
                         </div>
-                        <div className="section-total">
-                          <span>Total Collection:</span>
-                          <span>{formatValue(entryCollectionTotal)}</span>
-                        </div>
-                        <div
-                          className="section-total"
-                          style={{
-                            borderTop: 'none',
-                            marginTop: 0,
-                            marginBottom: '8px',
-                            color: '#fff',
-                          }}
-                        >
-                          <span style={{ color: '#4caf50' }}>Sales Dif</span>
-                          <span
-                            style={{
-                              color: salesDiff >= 0 ? '#4caf50' : '#ef5350',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                            }}
-                          >
-                            {salesDiff > 0 ? '↑' : salesDiff < 0 ? '↓' : ''}{' '}
-                            {formatValue(salesDiff)}
-                          </span>
+                        <div className="collection-summary">
+                          <div className="section-total collection-total">
+                            <span>Total Collection:</span>
+                            <span>{formatValue(entryCollectionTotal)}</span>
+                          </div>
+                          <div className="section-total sales-diff-row">
+                            <span className="sales-diff-label">Sales Dif</span>
+                            <span
+                              className={`sales-diff-value ${salesDiff >= 0 ? 'positive' : 'negative'}`}
+                            >
+                              {salesDiff > 0 ? '↑' : salesDiff < 0 ? '↓' : ''}{' '}
+                              {formatValue(salesDiff)}
+                            </span>
+                          </div>
                         </div>
                       </div>
 

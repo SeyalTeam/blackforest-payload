@@ -69,6 +69,8 @@
 
   // Card Styles
   .detail-card {
+    --summary-bg: rgba(9, 14, 22, 0.55);
+    --summary-divider: rgba(255, 255, 255, 0.12);
     background-color: #1a1a1a;
     border: 1px solid #333;
     border-radius: 8px;
@@ -136,6 +138,51 @@
         justify-content: space-between;
       }
 
+      .collection-summary {
+        margin-top: 8px;
+        margin-bottom: 8px;
+        border-radius: 8px;
+        overflow: hidden;
+        background-color: var(--summary-bg);
+        border: 1px solid var(--summary-divider);
+
+        .section-total {
+          margin: 0;
+          padding: 10px 12px;
+          border-top: 1px solid var(--summary-divider);
+        }
+
+        .section-total:first-child {
+          border-top: none;
+        }
+
+        .collection-total {
+          color: #4caf50;
+        }
+
+        .sales-diff-row {
+          color: #fff;
+        }
+
+        .sales-diff-label {
+          color: #4caf50;
+        }
+
+        .sales-diff-value {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+
+          &.positive {
+            color: #4caf50;
+          }
+
+          &.negative {
+            color: #ef5350;
+          }
+        }
+      }
+
       .clickable {
         cursor: pointer;
         &:hover {
@@ -172,6 +219,8 @@
     }
 
     &.all-branch-card {
+      --summary-bg: rgba(6, 25, 48, 0.82);
+      --summary-divider: rgba(109, 167, 233, 0.38);
       background: linear-gradient(180deg, #173a66 0%, #123158 42%, #0d2443 100%);
       border-color: #2f74c4;
       box-shadow:
@@ -200,6 +249,74 @@
       .card-footer-stats {
         background-color: #0b2140;
         border-top-color: rgba(83, 151, 230, 0.42);
+      }
+    }
+
+    &.negative-diff-card {
+      --summary-bg: rgba(56, 12, 18, 0.82);
+      --summary-divider: rgba(231, 112, 122, 0.38);
+      background: linear-gradient(180deg, #5b141a 0%, #471015 42%, #330a0e 100%);
+      border-color: #c5444f;
+      box-shadow:
+        0 6px 16px rgba(120, 20, 30, 0.45),
+        inset 0 1px 0 rgba(255, 180, 180, 0.16);
+
+      &:hover {
+        box-shadow:
+          0 10px 22px rgba(150, 25, 38, 0.55),
+          inset 0 1px 0 rgba(255, 180, 180, 0.22);
+      }
+
+      .card-header {
+        background: linear-gradient(90deg, #de4a57 0%, #b92e3c 100%);
+      }
+
+      .card-section {
+        background-color: rgba(66, 12, 18, 0.82);
+        border-bottom-color: rgba(231, 112, 122, 0.42);
+
+        .section-total {
+          border-top-color: rgba(231, 112, 122, 0.42);
+        }
+      }
+
+      .card-footer-stats {
+        background-color: #2d0a0f;
+        border-top-color: rgba(231, 112, 122, 0.42);
+      }
+    }
+
+    &.positive-diff-card {
+      --summary-bg: rgba(63, 48, 9, 0.82);
+      --summary-divider: rgba(236, 199, 93, 0.4);
+      background: linear-gradient(180deg, #5c4911 0%, #4a3a0d 42%, #342907 100%);
+      border-color: #d9a821;
+      box-shadow:
+        0 6px 16px rgba(138, 105, 15, 0.45),
+        inset 0 1px 0 rgba(255, 232, 170, 0.18);
+
+      &:hover {
+        box-shadow:
+          0 10px 22px rgba(170, 128, 16, 0.55),
+          inset 0 1px 0 rgba(255, 232, 170, 0.24);
+      }
+
+      .card-header {
+        background: linear-gradient(90deg, #e7bf2f 0%, #c89312 100%);
+      }
+
+      .card-section {
+        background-color: rgba(68, 52, 10, 0.82);
+        border-bottom-color: rgba(236, 199, 93, 0.42);
+
+        .section-total {
+          border-top-color: rgba(236, 199, 93, 0.42);
+        }
+      }
+
+      .card-footer-stats {
+        background-color: #2f2407;
+        border-top-color: rgba(236, 199, 93, 0.42);
       }
     }
   }
