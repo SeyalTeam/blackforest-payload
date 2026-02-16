@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import Select, { OptionProps, ValueContainerProps, GroupBase, components } from 'react-select'
+import Select, { OptionProps, ValueContainerProps, GroupBase } from 'react-select'
 import './index.scss'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -289,12 +289,15 @@ const ClosingEntryReport: React.FC = () => {
   )
   CustomInput.displayName = 'CustomInput'
 
-  const filteredStats = data?.stats.filter((row) => {
-    if (selectedBranch.includes('all')) return true
-    return selectedBranch.includes(row.branchName)
-  })
+  const filteredStats = React.useMemo(
+    () =>
+      (data?.stats || []).filter((row) => {
+        if (selectedBranch.includes('all')) return true
+        return selectedBranch.includes(row.branchName)
+      }),
+    [data?.stats, selectedBranch],
+  )
 
-  // Recalculate totals based on filteredStats
   const filteredTotals = React.useMemo(() => {
     if (!data)
       return {
@@ -337,8 +340,78 @@ const ClosingEntryReport: React.FC = () => {
     )
   }, [data, filteredStats, selectedBranch])
 
+  const displayStats = React.useMemo<ReportStats[]>(() => {
+    if (filteredStats.length === 0) return []
+
+    const combined = filteredStats.reduce<ReportStats>(
+      (acc, row) => {
+        acc.totalEntries += row.totalEntries || 0
+        acc.systemSales += row.systemSales || 0
+        acc.totalBills += row.totalBills || 0
+        acc.manualSales += row.manualSales || 0
+        acc.onlineSales += row.onlineSales || 0
+        acc.totalSales += row.totalSales || 0
+        acc.expenses += row.expenses || 0
+        acc.cash += row.cash || 0
+        acc.upi += row.upi || 0
+        acc.card += row.card || 0
+        acc.count2000 = (acc.count2000 || 0) + (row.count2000 || 0)
+        acc.count500 = (acc.count500 || 0) + (row.count500 || 0)
+        acc.count200 = (acc.count200 || 0) + (row.count200 || 0)
+        acc.count100 = (acc.count100 || 0) + (row.count100 || 0)
+        acc.count50 = (acc.count50 || 0) + (row.count50 || 0)
+        acc.count10 = (acc.count10 || 0) + (row.count10 || 0)
+        acc.count5 = (acc.count5 || 0) + (row.count5 || 0)
+        acc.closingNumbers.push(...(row.closingNumbers || []))
+        acc.entries.push(...(row.entries || []))
+        acc.expenseDetails = [...(acc.expenseDetails || []), ...(row.expenseDetails || [])]
+
+        const currentUpdated = row.lastUpdated ? new Date(row.lastUpdated).getTime() : 0
+        const latestUpdated = acc.lastUpdated ? new Date(acc.lastUpdated).getTime() : 0
+        if (currentUpdated > latestUpdated) {
+          acc.lastUpdated = row.lastUpdated
+        }
+        return acc
+      },
+      {
+        branchName: 'All Branch',
+        totalEntries: 0,
+        systemSales: 0,
+        totalBills: 0,
+        manualSales: 0,
+        onlineSales: 0,
+        totalSales: 0,
+        expenses: 0,
+        cash: 0,
+        upi: 0,
+        card: 0,
+        closingNumbers: [],
+        lastUpdated: '',
+        entries: [],
+        expenseDetails: [],
+        count2000: 0,
+        count500: 0,
+        count200: 0,
+        count100: 0,
+        count50: 0,
+        count10: 0,
+        count5: 0,
+      },
+    )
+
+    combined.closingNumbers = Array.from(new Set(combined.closingNumbers))
+    combined.entries = combined.entries.sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    )
+    combined.expenseDetails = [...(combined.expenseDetails || [])].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    )
+
+    return [combined, ...filteredStats]
+  }, [filteredStats])
+
   const handleExportExcel = () => {
-    if (!data || !filteredStats) return
+    if (!data || filteredStats.length === 0) return
     const csvRows = []
     // Header
     const headers = [
@@ -498,7 +571,6 @@ const ClosingEntryReport: React.FC = () => {
     }),
   }
 
-  // Custom Option component with checkbox
   const CheckboxOption = (props: OptionProps<BranchOption, true, GroupBase<BranchOption>>) => {
     return (
       <div
@@ -527,7 +599,6 @@ const ClosingEntryReport: React.FC = () => {
     )
   }
 
-  // Custom Value Container to show "X Selected"
   const CustomValueContainer = (
     props: ValueContainerProps<BranchOption, true, GroupBase<BranchOption>>,
   ) => {
@@ -535,7 +606,6 @@ const ClosingEntryReport: React.FC = () => {
     const allSelected = props.getValue().some((v) => v.value === 'all')
     const { children, ...rest } = props
 
-    // We still want to render the input for search functionality
     const input = React.Children.toArray(children).find(
       (child) => React.isValidElement(child) && child.key && String(child.key).includes('input'),
     )
@@ -747,14 +817,15 @@ const ClosingEntryReport: React.FC = () => {
         <>
           {viewMode === 'combined' ? (
             <div className="cards-grid">
-              {filteredStats?.map((row) => {
+              {displayStats.map((row) => {
                 const calculatedTotal = row.expenses + row.cash + row.upi + row.card
                 const salesDiff = calculatedTotal - row.totalSales
+                const isAllBranchCard = row.branchName === 'All Branch'
 
                 // Branch Code and Time Logic
                 const showClosingIds = ['today', 'yesterday'].includes(dateRangePreset)
 
-                const closingIds = showClosingIds
+                const closingIds = showClosingIds && !isAllBranchCard
                   ? row.closingNumbers?.map((num) => {
                       const parts = num.split('-')
                       if (parts.length >= 4) {
@@ -784,10 +855,14 @@ const ClosingEntryReport: React.FC = () => {
                 return (
                   <div
                     key={row.branchName}
-                    className="detail-card"
+                    className={`detail-card ${isAllBranchCard ? 'all-branch-card' : ''}`}
                     style={{ cursor: 'pointer' }}
                     onClick={() => {
-                      setSelectedBranch([row.branchName])
+                      if (isAllBranchCard) {
+                        setSelectedBranch(['all'])
+                      } else {
+                        setSelectedBranch([row.branchName])
+                      }
                       setViewMode('detailed')
                     }}
                   >
@@ -798,7 +873,7 @@ const ClosingEntryReport: React.FC = () => {
                         className="card-time"
                         style={{ fontSize: '0.75rem', textAlign: 'right' }}
                       >
-                        <div>{closingIdStr}</div>
+                        {!isAllBranchCard && <div>{closingIdStr}</div>}
                         <div>{timeStr}</div>
                       </span>
                     </div>
