@@ -3,7 +3,7 @@ import { mongooseAdapter } from '@payloadcms/db-mongodb'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import path from 'path'
 // Force rebuild
-import { buildConfig } from 'payload'
+import { buildConfig, type PayloadHandler } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
 import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob'
@@ -68,6 +68,16 @@ import { createAutomatedOrderHandler } from './endpoints/createAutomatedOrder'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
+const requireAuthenticatedUser = (handler: PayloadHandler): PayloadHandler => {
+  return async (req) => {
+    if (!req.user) {
+      return Response.json({ message: 'Unauthorized' }, { status: 401 })
+    }
+
+    return handler(req)
+  }
+}
+
 export default buildConfig({
   admin: {
     user: Users.slug,
@@ -117,82 +127,82 @@ export default buildConfig({
     {
       path: '/reports/branch-billing',
       method: 'get',
-      handler: getBranchBillingReportHandler,
+      handler: requireAuthenticatedUser(getBranchBillingReportHandler),
     },
     {
       path: '/reports/category-wise',
       method: 'get',
-      handler: getCategoryWiseReportHandler,
+      handler: requireAuthenticatedUser(getCategoryWiseReportHandler),
     },
     {
       path: '/reports/category-wise/export-pdf',
       method: 'get',
-      handler: getCategoryWiseReportPDFHandler,
+      handler: requireAuthenticatedUser(getCategoryWiseReportPDFHandler),
     },
     {
       path: '/reports/product-wise',
       method: 'get',
-      handler: getProductWiseReportHandler,
+      handler: requireAuthenticatedUser(getProductWiseReportHandler),
     },
     {
       path: '/reports/closing-entry',
       method: 'get',
-      handler: getClosingEntryReportHandler,
+      handler: requireAuthenticatedUser(getClosingEntryReportHandler),
     },
     {
       path: '/reports/waiter-wise',
       method: 'get',
-      handler: getWaiterWiseBillingReportHandler,
+      handler: requireAuthenticatedUser(getWaiterWiseBillingReportHandler),
     },
     {
       path: '/reports/inventory',
       method: 'get',
-      handler: getInventoryReportHandler,
+      handler: requireAuthenticatedUser(getInventoryReportHandler),
     },
     {
       path: '/reports/stock-order',
       method: 'get',
-      handler: getStockOrderReportHandler,
+      handler: requireAuthenticatedUser(getStockOrderReportHandler),
     },
     {
       path: '/reports/afterstock-customer',
       method: 'get',
-      handler: getAfterstockCustomerReportHandler,
+      handler: requireAuthenticatedUser(getAfterstockCustomerReportHandler),
     },
     {
       path: '/reports/instock-entry',
       method: 'get',
-      handler: getInstockEntryReportHandler,
+      handler: requireAuthenticatedUser(getInstockEntryReportHandler),
     },
     {
       path: '/instock-params/update-status', // Choosing a path
       method: 'post',
-      handler: updateInstockStatusHandler,
+      handler: requireAuthenticatedUser(updateInstockStatusHandler),
     },
     {
       path: '/reports/review',
       method: 'get',
-      handler: getReviewReportHandler,
+      handler: requireAuthenticatedUser(getReviewReportHandler),
     },
     {
       path: '/inventory/reset',
       method: 'post',
-      handler: resetInventoryHandler,
+      handler: requireAuthenticatedUser(resetInventoryHandler),
     },
     {
       path: '/dashboard-stats',
       method: 'get',
-      handler: getDashboardStatsHandler,
+      handler: requireAuthenticatedUser(getDashboardStatsHandler),
     },
     {
       path: '/reports/expense',
       method: 'get',
-      handler: getExpenseReportHandler,
+      handler: requireAuthenticatedUser(getExpenseReportHandler),
     },
     {
       path: '/network-status',
       method: 'get',
-      handler: getNetworkStatusHandler,
+      handler: requireAuthenticatedUser(getNetworkStatusHandler),
     },
     {
       path: '/speedtest/download',
@@ -212,7 +222,7 @@ export default buildConfig({
     {
       path: '/automate/create-order',
       method: 'post',
-      handler: createAutomatedOrderHandler,
+      handler: requireAuthenticatedUser(createAutomatedOrderHandler),
     },
   ],
 
