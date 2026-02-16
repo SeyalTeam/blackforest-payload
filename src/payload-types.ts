@@ -209,6 +209,10 @@ export interface User {
   factory_companies?: (string | Company)[] | null;
   employee?: (string | null) | Employee;
   deviceId?: string | null;
+  /**
+   * Turn this on and save to immediately log this user out from all devices. It auto-resets after save.
+   */
+  forceLogoutAllDevices?: boolean | null;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -468,7 +472,7 @@ export interface Billing {
   kotNumber?: string | null;
   items: {
     product: string | Product;
-    status?: ('ordered' | 'confirmed' | 'prepared' | 'delivered' | 'cancelled') | null;
+    status?: ('ordered' | 'prepared' | 'delivered' | 'cancelled') | null;
     name: string;
     notes?: string | null;
     quantity: number;
@@ -492,7 +496,7 @@ export interface Billing {
     phoneNumber?: string | null;
     address?: string | null;
   };
-  status?: ('ordered' | 'confirmed' | 'prepared' | 'delivered' | 'completed' | 'cancelled') | null;
+  status?: ('ordered' | 'prepared' | 'delivered' | 'completed' | 'cancelled') | null;
   notes?: string | null;
   tableDetails?: {
     section?: string | null;
@@ -907,6 +911,7 @@ export interface UsersSelect<T extends boolean = true> {
   factory_companies?: T;
   employee?: T;
   deviceId?: T;
+  forceLogoutAllDevices?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;

@@ -139,6 +139,21 @@ export const Users: CollectionConfig = {
         readOnly: true,
       },
     },
+    {
+      name: 'forceLogoutAllDevices',
+      type: 'checkbox',
+      defaultValue: false,
+      saveToJWT: false,
+      admin: {
+        description:
+          'Turn this on and save to immediately log this user out from all devices. It auto-resets after save.',
+      },
+      access: {
+        create: ({ req }) => req.user?.role === 'superadmin',
+        read: ({ req }) => req.user?.role === 'superadmin',
+        update: ({ req }) => req.user?.role === 'superadmin',
+      },
+    },
   ],
   access: {
     create: ({ req }) => req.user?.role === 'superadmin',
@@ -497,42 +512,58 @@ export const Users: CollectionConfig = {
     ],
     beforeChange: [
       async ({ data, req, operation }) => {
+        const nextData = data as typeof data & {
+          forceLogoutAllDevices?: boolean
+          sessions?: unknown[]
+          deviceId?: null | string
+        }
+
+        // Force logout all devices by removing all active sessions for this user.
+        if (operation === 'update' && nextData.forceLogoutAllDevices) {
+          nextData.sessions = []
+          nextData.deviceId = null
+          nextData.forceLogoutAllDevices = false
+        }
+
         if (operation === 'create' || operation === 'update') {
           // Auto-populate name from employee if not set
-          if (!data.name && data.employee) {
-            const employeeId = typeof data.employee === 'string' ? data.employee : data.employee.id
+          if (!nextData.name && nextData.employee) {
+            const employeeId =
+              typeof nextData.employee === 'string' ? nextData.employee : nextData.employee.id
             if (employeeId) {
               const employee = await req.payload.findByID({
                 collection: 'employees',
                 id: employeeId,
               })
               if (employee?.name) {
-                data.name = employee.name
+                nextData.name = employee.name
               }
             }
           }
-          if (['branch', 'kitchen'].includes(data.role) && !data.branch) {
+          if (['branch', 'kitchen'].includes(nextData.role) && !nextData.branch) {
             throw new Error('Branch is required for branch or kitchen role users')
           }
-          if (data.role === 'company' && !data.company) {
+          if (nextData.role === 'company' && !nextData.company) {
             throw new Error('Company is required for company role users')
           }
           if (
-            data.role === 'factory' &&
-            (!data.factory_companies || data.factory_companies.length === 0)
+            nextData.role === 'factory' &&
+            (!nextData.factory_companies || nextData.factory_companies.length === 0)
           ) {
             throw new Error('At least one company is required for factory role users')
           }
           if (
-            ['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef'].includes(data.role) &&
-            !data.employee
+            ['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef'].includes(
+              nextData.role,
+            ) &&
+            !nextData.employee
           ) {
             throw new Error(
               'Employee is required for waiter, cashier, supervisor, delivery, driver, or chef role users',
             )
           }
         }
-        return data
+        return nextData
       },
     ],
   },
