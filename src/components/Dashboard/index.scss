@@ -1,9 +1,8 @@
-// Dashboard Styles - Dark Theme Ref
 .dashboard-page {
   padding: 20px;
   min-height: 100vh;
-  color: #ffffff;
-  background-color: #09090b; // Match standard background if needed, or transparent if parent handles it
+  color: var(--theme-text-primary, var(--theme-text));
+  background-color: var(--theme-bg);
 
   .header-row {
     display: flex;
@@ -11,7 +10,7 @@
     align-items: center;
     margin-bottom: 20px;
     padding-bottom: 20px;
-    border-bottom: 1px solid #27272a;
+    border-bottom: 1px solid var(--theme-elevation-150);
 
     h1 {
       margin: 0;
@@ -42,17 +41,17 @@
     display: flex;
     align-items: center;
     padding: 8px 12px;
-    border: 1px solid #27272a;
+    border: 1px solid var(--theme-elevation-200);
     border-radius: 6px;
-    background-color: #18181b;
-    color: #ffffff;
+    background-color: var(--theme-input-bg, var(--theme-elevation-50));
+    color: var(--theme-text-primary, var(--theme-text));
     cursor: pointer;
     font-size: 14px;
     transition: all 0.2s;
     height: 38px;
 
     &:hover {
-      border-color: #52525b;
+      border-color: var(--theme-elevation-350);
     }
   }
 
@@ -62,15 +61,15 @@
     justify-content: center;
     padding: 0 16px;
     height: 38px;
-    background-color: #18181b;
-    border: 1px solid #27272a;
-    color: #ffffff;
+    background-color: var(--theme-input-bg, var(--theme-elevation-50));
+    border: 1px solid var(--theme-elevation-200);
+    color: var(--theme-text-primary, var(--theme-text));
     border-radius: 6px;
     cursor: pointer;
     font-weight: 500;
 
     &:hover {
-      background-color: #27272a;
+      background-color: var(--theme-elevation-100);
     }
   }
 
@@ -79,7 +78,7 @@
     border: none;
     font-size: 20px;
     cursor: pointer;
-    color: #ffffff;
+    color: var(--theme-text-primary, var(--theme-text));
     padding: 5px;
 
     &:hover {
@@ -89,7 +88,8 @@
 
   .table-container {
     overflow-x: auto;
-    background-color: #09090b;
+    background-color: var(--theme-elevation-0, var(--theme-bg));
+    border: 1px solid var(--theme-elevation-150);
     border-radius: 8px;
     width: 100%;
   }
@@ -97,22 +97,22 @@
   table {
     width: auto;
     border-collapse: collapse;
-    font-size: 14px; // Match StockOrderReport
-    color: #e4e4e7;
-    margin-top: 0; // Reset from previous custom style
+    font-size: 14px;
+    color: var(--theme-text-primary, var(--theme-text));
+    margin-top: 0;
 
     th,
     td {
-      padding: 6px 8px; // Reduced padding
-      border: 1px solid #27272a;
-      text-align: right; // Default right align for numbers
+      padding: 6px 8px;
+      border: 1px solid var(--theme-elevation-150);
+      text-align: right;
       white-space: nowrap;
     }
 
     th {
-      background-color: #18181b;
+      background-color: var(--theme-elevation-50);
       font-weight: 600;
-      color: #a1a1aa;
+      color: var(--theme-text-secondary, var(--theme-elevation-600));
       text-transform: uppercase;
       font-size: 12px;
       letter-spacing: 0.5px;
@@ -122,24 +122,26 @@
       z-index: 1;
     }
 
-    // Align text columns left
     td.text-cell,
     th.text-cell {
       text-align: left;
     }
 
-    // Zebra Striping & Hover
     tbody tr {
-      background-color: #000000;
+      background-color: var(--theme-elevation-0, var(--theme-bg));
+    }
+
+    tbody tr:nth-child(even) {
+      background-color: var(--theme-elevation-50);
     }
 
     tbody tr:hover td {
-      background-color: #27272a;
+      background-color: var(--theme-elevation-100);
     }
   }
 
   .loading-text {
-    color: #a1a1aa;
+    color: var(--theme-text-secondary, var(--theme-elevation-600));
     font-style: italic;
   }
 }

@@ -136,49 +136,55 @@ const StockOrderReport: React.FC = () => {
   const customStyles = {
     control: (base: any, state: { isFocused: boolean }) => ({
       ...base,
-      backgroundColor: '#18181b',
-      borderColor: state.isFocused ? '#3b82f6' : '#27272a',
+      backgroundColor: 'var(--theme-input-bg, var(--theme-elevation-50))',
+      borderColor: state.isFocused ? 'var(--theme-info-500)' : 'var(--theme-elevation-200)',
       borderRadius: '6px',
       height: '38px',
       minHeight: '38px',
       minWidth: '90px',
       padding: '0 2px',
       boxShadow: 'none',
-      color: '#ffffff',
+      color: 'var(--theme-text-primary, var(--theme-text))',
       '&:hover': {
-        borderColor: '#52525b',
+        borderColor: 'var(--theme-elevation-350)',
       },
     }),
     singleValue: (base: any) => ({
       ...base,
-      color: '#ffffff',
+      color: 'var(--theme-text-primary, var(--theme-text))',
       fontWeight: '500',
     }),
     option: (base: any, state: { isSelected: boolean; isFocused: boolean }) => ({
       ...base,
-      backgroundColor: state.isSelected ? '#3b82f6' : state.isFocused ? '#27272a' : '#18181b',
-      color: '#ffffff',
+      backgroundColor: state.isSelected
+        ? 'var(--theme-info-500)'
+        : state.isFocused
+          ? 'var(--theme-elevation-100)'
+          : 'var(--theme-input-bg, var(--theme-elevation-50))',
+      color: state.isSelected
+        ? 'var(--theme-text-invert, #fff)'
+        : 'var(--theme-text-primary, var(--theme-text))',
       cursor: 'pointer',
     }),
     menu: (base: any) => ({
       ...base,
-      backgroundColor: '#18181b',
-      border: '1px solid #27272a',
+      backgroundColor: 'var(--theme-input-bg, var(--theme-elevation-50))',
+      border: '1px solid var(--theme-elevation-150)',
       zIndex: 9999,
     }),
     input: (base: any) => ({
       ...base,
-      color: '#ffffff',
+      color: 'var(--theme-text-primary, var(--theme-text))',
     }),
     indicatorSeparator: () => ({ display: 'none' }),
     dropdownIndicator: (base: any) => ({
       ...base,
-      color: '#a1a1aa',
+      color: 'var(--theme-text-secondary, var(--theme-elevation-600))',
       padding: '4px',
     }),
     placeholder: (base: any) => ({
       ...base,
-      color: '#a1a1aa',
+      color: 'var(--theme-text-secondary, var(--theme-elevation-600))',
     }),
   }
 
@@ -683,7 +689,7 @@ const StockOrderReport: React.FC = () => {
               position: 'sticky',
               top: 0,
               zIndex: 10,
-              backgroundColor: '#18181b', // Dark background for sticky header
+              backgroundColor: 'var(--theme-elevation-50)', // Dark background for sticky header
               paddingTop: '10px',
               paddingBottom: '10px',
               borderBottom: '1px solid var(--theme-elevation-200)',
@@ -841,7 +847,7 @@ const StockOrderReport: React.FC = () => {
                       </span>
                     </div>
                     <div className="card-row amount">
-                      <span className="value" style={{ color: '#D8E4BC' }}>
+                      <span className="value" style={{ color: 'var(--theme-success-500)' }}>
                         Amt: ₹ {(inv.amount ?? 0).toLocaleString('en-IN')}
                       </span>
                     </div>
@@ -862,7 +868,7 @@ const StockOrderReport: React.FC = () => {
                   gap: '15px',
                 }}
               >
-                <h3 style={{ margin: 0, color: 'white' }}>Product Order Details</h3>
+                <h3 style={{ margin: 0, color: 'var(--theme-text-primary, var(--theme-text))' }}>Product Order Details</h3>
               </div>
 
               <div className="table-container details-table">
@@ -906,7 +912,7 @@ const StockOrderReport: React.FC = () => {
                       return (
                         <React.Fragment key={dept}>
                           {/* Department Header Row */}
-                          <tr style={{ backgroundColor: '#18181b' }}>
+                          <tr style={{ backgroundColor: 'var(--theme-elevation-50)' }}>
                             <td
                               colSpan={8}
                               style={{
@@ -916,8 +922,8 @@ const StockOrderReport: React.FC = () => {
                                 fontSize: '14px',
                                 textAlign: 'left',
                                 letterSpacing: '1px',
-                                borderTop: '1px solid #3f3f46',
-                                borderBottom: '1px solid #3f3f46',
+                                borderTop: '1px solid var(--theme-elevation-250)',
+                                borderBottom: '1px solid var(--theme-elevation-250)',
                                 textTransform: 'uppercase',
                               }}
                             >
@@ -982,7 +988,7 @@ const StockOrderReport: React.FC = () => {
                             return (
                               <React.Fragment key={category}>
                                 {/* Category Header Row */}
-                                <tr style={{ backgroundColor: '#27272a' }}>
+                                <tr style={{ backgroundColor: 'var(--theme-elevation-100)' }}>
                                   <td
                                     colSpan={8}
                                     style={{
@@ -992,8 +998,8 @@ const StockOrderReport: React.FC = () => {
                                       fontSize: '14px',
                                       textAlign: 'left',
                                       letterSpacing: '0.5px',
-                                      borderTop: '1px solid #3f3f46',
-                                      borderBottom: '1px solid #3f3f46',
+                                      borderTop: '1px solid var(--theme-elevation-250)',
+                                      borderBottom: '1px solid var(--theme-elevation-250)',
                                     }}
                                   >
                                     <div
@@ -1025,8 +1031,8 @@ const StockOrderReport: React.FC = () => {
                                 {/* Column Sub-headers */}
                                 <tr
                                   style={{
-                                    backgroundColor: '#202022',
-                                    borderBottom: '1px solid #3f3f46',
+                                    backgroundColor: 'var(--theme-elevation-150)',
+                                    borderBottom: '1px solid var(--theme-elevation-250)',
                                   }}
                                 >
                                   <th
@@ -1035,7 +1041,7 @@ const StockOrderReport: React.FC = () => {
                                       textAlign: 'left',
                                       padding: '8px 12px',
                                       fontSize: '11px',
-                                      color: '#a1a1aa',
+                                      color: 'var(--theme-text-secondary, var(--theme-elevation-600))',
                                       fontWeight: '600',
                                     }}
                                   >
@@ -1047,7 +1053,7 @@ const StockOrderReport: React.FC = () => {
                                       textAlign: 'right',
                                       padding: '8px',
                                       fontSize: '11px',
-                                      color: '#a1a1aa',
+                                      color: 'var(--theme-text-secondary, var(--theme-elevation-600))',
                                       fontWeight: '600',
                                     }}
                                   >
@@ -1059,7 +1065,7 @@ const StockOrderReport: React.FC = () => {
                                       textAlign: 'center',
                                       padding: '8px',
                                       fontSize: '11px',
-                                      color: '#a1a1aa',
+                                      color: 'var(--theme-text-secondary, var(--theme-elevation-600))',
                                       fontWeight: '600',
                                     }}
                                   >
@@ -1071,7 +1077,7 @@ const StockOrderReport: React.FC = () => {
                                       textAlign: 'center',
                                       padding: '8px',
                                       fontSize: '11px',
-                                      color: '#a1a1aa',
+                                      color: 'var(--theme-text-secondary, var(--theme-elevation-600))',
                                       fontWeight: '600',
                                     }}
                                   >
@@ -1083,7 +1089,7 @@ const StockOrderReport: React.FC = () => {
                                       textAlign: 'center',
                                       padding: '8px',
                                       fontSize: '11px',
-                                      color: '#a1a1aa',
+                                      color: 'var(--theme-text-secondary, var(--theme-elevation-600))',
                                       fontWeight: '600',
                                     }}
                                   >
@@ -1095,7 +1101,7 @@ const StockOrderReport: React.FC = () => {
                                       textAlign: 'center',
                                       padding: '8px',
                                       fontSize: '11px',
-                                      color: '#a1a1aa',
+                                      color: 'var(--theme-text-secondary, var(--theme-elevation-600))',
                                       fontWeight: '600',
                                     }}
                                   >
@@ -1107,7 +1113,7 @@ const StockOrderReport: React.FC = () => {
                                       textAlign: 'center',
                                       padding: '8px',
                                       fontSize: '11px',
-                                      color: '#a1a1aa',
+                                      color: 'var(--theme-text-secondary, var(--theme-elevation-600))',
                                       fontWeight: '600',
                                     }}
                                   >
@@ -1119,7 +1125,7 @@ const StockOrderReport: React.FC = () => {
                                       textAlign: 'center',
                                       padding: '8px',
                                       fontSize: '11px',
-                                      color: '#a1a1aa',
+                                      color: 'var(--theme-text-secondary, var(--theme-elevation-600))',
                                       fontWeight: '600',
                                     }}
                                   >
@@ -1523,7 +1529,7 @@ const ProductDetailPopup = ({
                 <tr key={idx}>
                   <td>
                     <div style={{ fontWeight: 600, padding: '12px 8px' }}>{item.branchName}</div>
-                    <div style={{ fontSize: '10px', color: '#a1a1aa', padding: '0 8px' }}>
+                    <div style={{ fontSize: '10px', color: 'var(--theme-text-secondary, var(--theme-elevation-600))', padding: '0 8px' }}>
                       {item.invoiceNumber}
                     </div>
                   </td>

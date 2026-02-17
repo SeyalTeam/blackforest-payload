@@ -798,7 +798,24 @@ const CategoryWiseReport: React.FC = () => {
                           )
                         }}
                       >
-                        {row.categoryName}
+                        <div>{row.categoryName}</div>
+                        <div
+                          style={{
+                            marginTop: '4px',
+                            fontSize: '0.85rem',
+                            color: '#87CEFA',
+                            fontWeight: 500,
+                          }}
+                        >
+                          {(() => {
+                            const compareTotal =
+                              sortBy === 'units' ? data.totals.totalQuantity : data.totals.totalAmount
+                            const rowValue = sortBy === 'units' ? row.totalQuantity : row.totalAmount
+                            const comparePct =
+                              compareTotal > 0 ? ((rowValue / compareTotal) * 100).toFixed(2) : '0.00'
+                            return `${comparePct}%`
+                          })()}
+                        </div>
                       </td>
                       {data.branchHeaders.map((header) => {
                         const sales = row.branchSales[header] || { amount: 0, quantity: 0 }
@@ -847,17 +864,11 @@ const CategoryWiseReport: React.FC = () => {
                                 (showZeroHighlight && isZero) || isTopSale || isLowSale
                                   ? '#FFFFFF'
                                   : 'inherit',
-                              cursor:
-                                sales.quantity > 0 || sales.amount > 0 ? 'pointer' : 'default',
-                            }}
-                            onClick={() => {
-                              setExpandedCategory(
-                                expandedCategory === row.categoryName ? null : row.categoryName,
-                              )
+                              cursor: 'default',
                             }}
                           >
                             <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>{mainValue}</div>
-                            {isExpanded && (sales.quantity > 0 || sales.amount > 0) && (
+                            {(sales.quantity > 0 || sales.amount > 0) && (
                               <div
                                 style={{
                                   fontSize: '0.85rem',
@@ -870,10 +881,11 @@ const CategoryWiseReport: React.FC = () => {
                                   flexDirection: 'column',
                                   alignItems: 'center',
                                   gap: '2px',
+                                  minHeight: '32px',
                                 }}
                               >
-                                <div>{subValue}</div>
-                                {sales.amount > 0 && <div>{percentage}%</div>}
+                                {isExpanded && <div>{subValue}</div>}
+                                {sales.amount > 0 && <div style={{ color: '#87CEFA' }}>{percentage}%</div>}
                               </div>
                             )}
                           </td>
@@ -899,11 +911,11 @@ const CategoryWiseReport: React.FC = () => {
                         <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>
                           {row.totalQuantity === 0 ? '' : formatValue(row.totalQuantity)}
                         </div>
-                        {expandedCategory === row.categoryName && row.totalQuantity > 0 && (
+                        {row.totalQuantity > 0 && (
                           <div
                             style={{
                               fontSize: '0.85rem',
-                              color: 'var(--theme-elevation-400)',
+                              color: '#87CEFA',
                               marginTop: '4px',
                             }}
                           >
@@ -930,11 +942,11 @@ const CategoryWiseReport: React.FC = () => {
                         <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>
                           {row.totalAmount === 0 ? '' : formatValue(row.totalAmount)}
                         </div>
-                        {expandedCategory === row.categoryName && row.totalAmount > 0 && (
+                        {row.totalAmount > 0 && (
                           <div
                             style={{
                               fontSize: '0.85rem',
-                              color: 'var(--theme-elevation-400)',
+                              color: '#87CEFA',
                               marginTop: '4px',
                             }}
                           >

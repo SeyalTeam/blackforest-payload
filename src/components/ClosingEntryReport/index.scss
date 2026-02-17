@@ -1,10 +1,10 @@
 .branch-report-container {
   padding: 2rem;
-  background: #111; // Dark background
+  background: var(--theme-bg); // Dark background
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
   margin: 2rem;
-  color: #fff;
+  color: var(--theme-text-primary, var(--theme-text));
   font-family: 'Inter', sans-serif;
   min-height: 80vh;
 
@@ -13,7 +13,7 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 2rem;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--theme-elevation-200);
     padding-bottom: 1.5rem;
     flex-wrap: wrap;
     gap: 1rem;
@@ -22,7 +22,7 @@
       margin: 0;
       font-size: 1.5rem;
       font-weight: 600;
-      color: #fff;
+      color: var(--theme-text-primary, var(--theme-text));
     }
 
     .date-filter {
@@ -37,24 +37,24 @@
         gap: 0.5rem;
 
         label {
-          color: #aaa;
+          color: var(--theme-text-secondary, var(--theme-elevation-600));
           font-size: 0.9rem;
         }
       }
     }
 
     .export-btn {
-      background-color: #222;
-      color: #fff;
-      border: 1px solid #444;
+      background-color: var(--theme-elevation-100);
+      color: var(--theme-text-primary, var(--theme-text));
+      border: 1px solid var(--theme-elevation-300);
       padding: 8px 16px;
       border-radius: 4px;
       cursor: pointer;
       font-weight: 500;
 
       &:hover {
-        background-color: #333;
-        border-color: #666;
+        background-color: var(--theme-elevation-200);
+        border-color: var(--theme-elevation-400);
       }
     }
   }
@@ -71,8 +71,12 @@
   .detail-card {
     --summary-bg: rgba(9, 14, 22, 0.55);
     --summary-divider: rgba(255, 255, 255, 0.12);
-    background-color: #1a1a1a;
-    border: 1px solid #333;
+    --summary-label-color: #f3f6fb;
+    --summary-value-color: #ffffff;
+    --summary-positive-color: #bff8cf;
+    --summary-negative-color: #ffc4cc;
+    background-color: var(--theme-elevation-50);
+    border: 1px solid var(--theme-elevation-200);
     border-radius: 8px;
     overflow: hidden;
     display: flex;
@@ -108,10 +112,10 @@
 
     .card-section {
       padding: 12px 16px;
-      border-bottom: 1px solid #333;
-      background-color: #1a1a1a;
+      border-bottom: 1px solid var(--theme-elevation-200);
+      background-color: var(--theme-elevation-50);
       font-size: 1.2rem;
-      color: #ddd;
+      color: var(--theme-text-primary, var(--theme-text));
       text-transform: uppercase;
 
       div {
@@ -133,39 +137,69 @@
         color: #4caf50; // Green for section totals
         margin-top: 8px;
         padding-top: 8px;
-        border-top: 1px dashed #333;
+        border-top: 1px dashed var(--theme-elevation-200);
         display: flex;
         justify-content: space-between;
+      }
+
+      .total-bills-row {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 6px;
+
+        span:first-child {
+          color: #fff;
+        }
+
+        span:last-child {
+          color: #fff;
+          font-size: 1.7rem;
+          line-height: 1;
+          font-weight: 800;
+        }
       }
 
       .collection-summary {
         margin-top: 8px;
         margin-bottom: 8px;
-        border-radius: 8px;
-        overflow: hidden;
-        background-color: var(--summary-bg);
-        border: 1px solid var(--summary-divider);
 
         .section-total {
           margin: 0;
-          padding: 10px 12px;
-          border-top: 1px solid var(--summary-divider);
-        }
-
-        .section-total:first-child {
-          border-top: none;
+          padding: 10px 0;
         }
 
         .collection-total {
-          color: #4caf50;
+          border-top: 1px dashed var(--summary-divider);
+          color: var(--summary-value-color);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          text-align: center;
+
+          span:first-child {
+            font-size: 1.05rem;
+            letter-spacing: 0.4px;
+          }
+
+          span:last-child {
+            font-size: 2.05rem;
+            line-height: 1;
+            font-weight: 800;
+          }
         }
 
         .sales-diff-row {
-          color: #fff;
+          border-top: 1px solid var(--summary-divider);
+          color: var(--summary-value-color);
         }
 
         .sales-diff-label {
-          color: #4caf50;
+          color: var(--summary-label-color);
         }
 
         .sales-diff-value {
@@ -174,11 +208,11 @@
           gap: 4px;
 
           &.positive {
-            color: #4caf50;
+            color: var(--summary-positive-color);
           }
 
           &.negative {
-            color: #ef5350;
+            color: var(--summary-negative-color);
           }
         }
       }
@@ -187,15 +221,15 @@
         cursor: pointer;
         &:hover {
           text-decoration: underline;
-          color: #fff;
+          color: var(--theme-text-primary, var(--theme-text));
         }
       }
     }
 
     .card-footer-stats {
       padding: 12px 16px;
-      background-color: #222;
-      border-top: 1px solid #333;
+      background-color: var(--theme-elevation-100);
+      border-top: 1px solid var(--theme-elevation-200);
       text-transform: uppercase;
 
       .stat-row {
@@ -203,13 +237,29 @@
         justify-content: space-between;
         margin-bottom: 5px;
         font-size: 0.9rem;
-        color: #aaa;
+        color: var(--theme-text-secondary, var(--theme-elevation-600));
 
         &.net-amount {
-          font-size: 1.2rem;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          text-align: center;
           font-weight: 700;
-          color: #fff;
+          color: var(--theme-text-primary, var(--theme-text));
           margin-top: 8px;
+
+          span:first-child {
+            font-size: 1.05rem;
+            letter-spacing: 0.4px;
+          }
+
+          span:last-child {
+            font-size: 2.05rem;
+            line-height: 1;
+            font-weight: 800;
+          }
         }
 
         .negative {
@@ -221,6 +271,10 @@
     &.all-branch-card {
       --summary-bg: rgba(6, 25, 48, 0.82);
       --summary-divider: rgba(109, 167, 233, 0.38);
+      --summary-label-color: #e7f1ff;
+      --summary-value-color: #ffffff;
+      --summary-positive-color: #c5f7d4;
+      --summary-negative-color: #ffd1d9;
       background: linear-gradient(180deg, #173a66 0%, #123158 42%, #0d2443 100%);
       border-color: #2f74c4;
       box-shadow:
@@ -253,94 +307,102 @@
     }
 
     &.negative-diff-card {
-      --summary-bg: rgba(56, 12, 18, 0.82);
-      --summary-divider: rgba(231, 112, 122, 0.38);
-      background: linear-gradient(180deg, #5b141a 0%, #471015 42%, #330a0e 100%);
-      border-color: #c5444f;
+      --summary-bg: rgba(60, 0, 0, 0.82);
+      --summary-divider: rgba(128, 0, 0, 0.38);
+      --summary-label-color: #ffe8eb;
+      --summary-value-color: #fff7f8;
+      --summary-positive-color: #d8ffdf;
+      --summary-negative-color: #ffc8d0;
+      background: linear-gradient(180deg, #5f0000 0%, #4a0000 42%, #320000 100%);
+      border-color: #800000;
       box-shadow:
-        0 6px 16px rgba(120, 20, 30, 0.45),
-        inset 0 1px 0 rgba(255, 180, 180, 0.16);
+        0 6px 16px rgba(128, 0, 0, 0.45),
+        inset 0 1px 0 rgba(196, 120, 120, 0.16);
 
       &:hover {
         box-shadow:
-          0 10px 22px rgba(150, 25, 38, 0.55),
-          inset 0 1px 0 rgba(255, 180, 180, 0.22);
+          0 10px 22px rgba(128, 0, 0, 0.55),
+          inset 0 1px 0 rgba(196, 120, 120, 0.22);
       }
 
       .card-header {
-        background: linear-gradient(90deg, #de4a57 0%, #b92e3c 100%);
+        background: linear-gradient(90deg, #800000 0%, #6a0000 100%);
       }
 
       .card-section {
-        background-color: rgba(66, 12, 18, 0.82);
-        border-bottom-color: rgba(231, 112, 122, 0.42);
+        background-color: rgba(62, 0, 0, 0.82);
+        border-bottom-color: rgba(128, 0, 0, 0.42);
 
         .section-total {
-          border-top-color: rgba(231, 112, 122, 0.42);
+          border-top-color: rgba(128, 0, 0, 0.42);
         }
       }
 
       .card-footer-stats {
-        background-color: #2d0a0f;
-        border-top-color: rgba(231, 112, 122, 0.42);
+        background-color: #300000;
+        border-top-color: rgba(128, 0, 0, 0.42);
       }
     }
 
     &.positive-diff-card {
-      --summary-bg: rgba(63, 48, 9, 0.82);
-      --summary-divider: rgba(236, 199, 93, 0.4);
-      background: linear-gradient(180deg, #5c4911 0%, #4a3a0d 42%, #342907 100%);
-      border-color: #d9a821;
+      --summary-bg: rgba(0, 120, 72, 0.82);
+      --summary-divider: rgba(0, 120, 72, 0.4);
+      --summary-label-color: #e9fff4;
+      --summary-value-color: #ffffff;
+      --summary-positive-color: #d3ffe1;
+      --summary-negative-color: #ffd2d8;
+      background: linear-gradient(180deg, #0a6e45 0%, #085b3a 42%, #06492f 100%);
+      border-color: #007848;
       box-shadow:
-        0 6px 16px rgba(138, 105, 15, 0.45),
-        inset 0 1px 0 rgba(255, 232, 170, 0.18);
+        0 6px 16px rgba(0, 120, 72, 0.35),
+        inset 0 1px 0 rgba(126, 209, 175, 0.18);
 
       &:hover {
         box-shadow:
-          0 10px 22px rgba(170, 128, 16, 0.55),
-          inset 0 1px 0 rgba(255, 232, 170, 0.24);
+          0 10px 22px rgba(0, 120, 72, 0.45),
+          inset 0 1px 0 rgba(126, 209, 175, 0.24);
       }
 
       .card-header {
-        background: linear-gradient(90deg, #e7bf2f 0%, #c89312 100%);
+        background: linear-gradient(90deg, #007848 0%, #005f39 100%);
       }
 
       .card-section {
-        background-color: rgba(68, 52, 10, 0.82);
-        border-bottom-color: rgba(236, 199, 93, 0.42);
+        background-color: rgba(6, 73, 47, 0.82);
+        border-bottom-color: rgba(0, 120, 72, 0.42);
 
         .section-total {
-          border-top-color: rgba(236, 199, 93, 0.42);
+          border-top-color: rgba(0, 120, 72, 0.42);
         }
       }
 
       .card-footer-stats {
-        background-color: #2f2407;
-        border-top-color: rgba(236, 199, 93, 0.42);
+        background-color: #06492f;
+        border-top-color: rgba(0, 120, 72, 0.42);
       }
     }
   }
 
   // React Select Overrides for Dark Mode
   .react-select__control {
-    background-color: #1a1a1a !important;
-    border-color: #333 !important;
-    color: #fff !important;
+    background-color: var(--theme-elevation-50) !important;
+    border-color: var(--theme-elevation-200) !important;
+    color: var(--theme-text-primary, var(--theme-text)) !important;
     min-width: 200px;
     &:hover {
-      border-color: #555;
+      border-color: var(--theme-elevation-350);
     }
   }
   .react-select__menu {
-    background-color: #1a1a1a !important;
-    border: 1px solid #333 !important;
+    background-color: var(--theme-elevation-50) !important;
+    border: 1px solid var(--theme-elevation-200) !important;
     z-index: 100 !important;
   }
   .react-select__option {
     background-color: transparent !important;
-    color: #fff !important;
+    color: var(--theme-text-primary, var(--theme-text)) !important;
     &:hover {
-      background-color: #333 !important;
+      background-color: var(--theme-elevation-200) !important;
     }
     &.react-select__option--is-selected {
       background-color: #2e7d32 !important;
@@ -348,22 +410,22 @@
   }
   .react-select__single-value,
   .react-select__input-container {
-    color: #fff !important;
+    color: var(--theme-text-primary, var(--theme-text)) !important;
   }
   .react-select__indicator {
-    color: #888;
+    color: var(--theme-text-secondary, var(--theme-elevation-500));
     &:hover {
-      color: #fff;
+      color: var(--theme-text-primary, var(--theme-text));
     }
   }
   .react-select__placeholder {
-    color: #666;
+    color: var(--theme-elevation-400);
   }
 
   // Combined View Table Styles
   .table-container {
     overflow-x: auto;
-    border: 1px solid #333;
+    border: 1px solid var(--theme-elevation-200);
     border-radius: 8px;
 
     .report-table {
@@ -373,19 +435,19 @@
       font-size: 0.95rem;
 
       thead {
-        background-color: #222;
+        background-color: var(--theme-elevation-100);
         position: sticky;
         top: 0;
         z-index: 10;
 
         th {
-          color: #aaa;
+          color: var(--theme-text-secondary, var(--theme-elevation-600));
           font-weight: 600;
           text-transform: uppercase;
           font-size: 0.8rem;
           padding: 12px 16px;
-          border-bottom: 2px solid #333;
-          border-right: 1px solid #333;
+          border-bottom: 2px solid var(--theme-elevation-200);
+          border-right: 1px solid var(--theme-elevation-200);
           white-space: nowrap;
           text-align: left;
 
@@ -403,18 +465,18 @@
 
       tbody {
         tr {
-          border-bottom: 1px solid #333;
-          background-color: #1a1a1a;
+          border-bottom: 1px solid var(--theme-elevation-200);
+          background-color: var(--theme-elevation-50);
           transition: background-color 0.2s;
 
           &:hover {
-            background-color: #2a2a2a;
+            background-color: var(--theme-elevation-150);
           }
 
           td {
             padding: 12px 16px;
-            border-right: 1px solid #333;
-            color: #ddd;
+            border-right: 1px solid var(--theme-elevation-200);
+            color: var(--theme-text-primary, var(--theme-text));
             vertical-align: middle;
 
             &:last-child {
@@ -423,22 +485,22 @@
 
             .branch-title {
               font-weight: 700;
-              color: #fff;
+              color: var(--theme-text-primary, var(--theme-text));
               font-size: 0.95rem;
             }
             .branch-subtext {
               font-size: 0.8rem;
-              color: #888;
+              color: var(--theme-text-secondary, var(--theme-elevation-500));
               margin-top: 4px;
             }
 
             .bill-amount {
               font-weight: 700;
-              color: #fff;
+              color: var(--theme-text-primary, var(--theme-text));
             }
             .bill-count {
               font-size: 0.8rem;
-              color: #888;
+              color: var(--theme-text-secondary, var(--theme-elevation-500));
             }
           }
 
@@ -468,15 +530,15 @@
       }
 
       tfoot {
-        background-color: #222;
+        background-color: var(--theme-elevation-100);
         font-weight: 700;
 
         tr {
-          border-top: 2px solid #444;
+          border-top: 2px solid var(--theme-elevation-300);
           td {
             padding: 16px;
-            color: #fff;
-            border-right: 1px solid #333;
+            color: var(--theme-text-primary, var(--theme-text));
+            border-right: 1px solid var(--theme-elevation-200);
 
             &.total-sales-cell {
               background-color: #3f0e12;
@@ -490,28 +552,28 @@
 
   // Toggle Button hover effect
   .view-mode-toggle:hover {
-    background-color: #333 !important;
-    border-color: #aaa !important;
+    background-color: var(--theme-elevation-200) !important;
+    border-color: var(--theme-text-secondary, var(--theme-elevation-600)) !important;
   }
 }
 
 // Global overrides
 .custom-calendar {
-  background-color: #1a1a1a !important;
-  border-color: #333 !important;
-  color: #fff !important;
+  background-color: var(--theme-elevation-50) !important;
+  border-color: var(--theme-elevation-200) !important;
+  color: var(--theme-text-primary, var(--theme-text)) !important;
 
   .react-datepicker__header {
-    background-color: #111 !important;
-    border-bottom: 1px solid #333 !important;
+    background-color: var(--theme-elevation-100) !important;
+    border-bottom: 1px solid var(--theme-elevation-200) !important;
     * {
-      color: #fff !important;
+      color: var(--theme-text-primary, var(--theme-text)) !important;
     }
   }
   .react-datepicker__day {
-    color: #fff !important;
+    color: var(--theme-text-primary, var(--theme-text)) !important;
     &:hover {
-      background-color: #333 !important;
+      background-color: var(--theme-elevation-200) !important;
     }
   }
   .react-datepicker__day--selected {

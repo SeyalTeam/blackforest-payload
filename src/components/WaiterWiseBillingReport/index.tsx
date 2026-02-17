@@ -31,7 +31,7 @@ type ReportData = {
   }
   activeBranches?: { id: string; name: string }[]
   timeline?: { minHour: number; maxHour: number }
-  branchBenchmarks?: { _id: string; totalAmount: number; totalBills: number }[]
+  branchBenchmarks?: { _id: string; totalAmount: number; totalBills: number; totalWaiters: number }[]
 }
 
 import DatePicker from 'react-datepicker'
@@ -108,6 +108,33 @@ const WaiterWiseBillingReport: React.FC = () => {
     })
   }
 
+  const getBranchBenchmark = (branchId: string) => {
+    if (!data?.branchBenchmarks) return undefined
+    return data.branchBenchmarks.find((benchmark) => String(benchmark._id) === String(branchId))
+  }
+
+  const getBranchPerformancePercentage = (row: ReportStats): number | null => {
+    const branchIds = row.branchIds || []
+    if (branchIds.length !== 1) return null
+
+    const benchmark = getBranchBenchmark(branchIds[0])
+    if (!benchmark || benchmark.totalAmount <= 0) return null
+    return (row.totalAmount / benchmark.totalAmount) * 100
+  }
+
+  const getTotalAvgLabel = () => {
+    if (!data || data.stats.length === 0) return '--'
+    const firstBranchId = data.stats[0].branchIds?.[0]
+    if (!firstBranchId) return '--'
+
+    const isSingleBranchData = data.stats.every((row) => {
+      const rowBranchIds = row.branchIds || []
+      return rowBranchIds.length === 1 && String(rowBranchIds[0]) === String(firstBranchId)
+    })
+
+    return isSingleBranchData ? '100%' : '--'
+  }
+
   const handleExportExcel = () => {
     if (!data) return
     const csvRows = []
@@ -118,6 +145,7 @@ const WaiterWiseBillingReport: React.FC = () => {
       'BRANCH',
       'LAST BILL TIME',
       'TOTAL BILLS',
+      'AVG',
       'CASH',
       'UPI',
       'CARD',
@@ -130,6 +158,7 @@ const WaiterWiseBillingReport: React.FC = () => {
       const waiterLabel = row.employeeId
         ? `${row.employeeId} - ${row.waiterName?.toUpperCase() || ''}`
         : row.waiterName?.toUpperCase() || ''
+      const avgComparison = getBranchPerformancePercentage(row)
 
       return [
         index + 1,
@@ -137,6 +166,7 @@ const WaiterWiseBillingReport: React.FC = () => {
         `"${row.branchNames?.join(', ').toUpperCase() || ''}"`,
         row.lastBillTime ? formatTime(row.lastBillTime) : '',
         row.totalBills,
+        avgComparison !== null ? `${avgComparison.toFixed(0)}%` : '--',
         row.cashAmount.toFixed(2),
         row.upiAmount.toFixed(2),
         row.cardAmount.toFixed(2),
@@ -153,6 +183,7 @@ const WaiterWiseBillingReport: React.FC = () => {
         '',
         '',
         data.totals.totalBills,
+        getTotalAvgLabel(),
         data.totals.cashAmount.toFixed(2),
         data.totals.upiAmount.toFixed(2),
         data.totals.cardAmount.toFixed(2),
@@ -704,61 +735,67 @@ const WaiterWiseBillingReport: React.FC = () => {
                 <th>WAITER NAME</th>
                 <th className="text-center">AVG (BILL)</th>
                 <th className="text-center">TOTAL BILLS</th>
+                <th className="text-center">AVG</th>
                 <th className="text-center">TOTAL AMOUNT</th>
                 <th>BRANCH</th>
               </tr>
             </thead>
             <tbody>
-              {data.stats.map((row, index) => (
-                <tr
-                  key={row.waiterId || Math.random().toString()}
-                  className="clickable-row"
-                  onClick={() => setSelectedWaiterStats(row)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <td>{index + 1}</td>
-                  <td>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <div style={{ fontWeight: 'bold' }}>
-                        <span style={{ color: 'var(--theme-text-primary)' }}>
-                          {row.waiterName?.toUpperCase()}
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  {(() => {
-                    const waiterAvg = row.totalBills > 0 ? row.totalAmount / row.totalBills : 0
-                    return (
-                      <td className="text-center">
-                        <div
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                          }}
-                        >
-                          <span style={{ fontWeight: 'bold' }}>{formatValue(waiterAvg)}</span>
+              {data.stats.map((row, index) => {
+                const waiterAvg = row.totalBills > 0 ? row.totalAmount / row.totalBills : 0
+                const avgComparison = getBranchPerformancePercentage(row)
+
+                return (
+                  <tr
+                    key={row.waiterId || Math.random().toString()}
+                    className="clickable-row"
+                    onClick={() => setSelectedWaiterStats(row)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <td>{index + 1}</td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ fontWeight: 'bold' }}>
+                          <span style={{ color: 'var(--theme-text-primary)' }}>
+                            {row.waiterName?.toUpperCase()}
+                          </span>
                         </div>
-                      </td>
-                    )
-                  })()}
-                  <td className="text-center">{row.totalBills}</td>
-                  <td className="text-center amount-cell">{formatValue(row.totalAmount)}</td>
-                  <td>
-                    <div
-                      style={{
-                        color: 'var(--theme-text-secondary)',
-                        textTransform: 'uppercase',
-                        fontWeight: '600',
-                      }}
-                    >
-                      {row.branchNames
-                        ?.map((name) => name.substring(0, 3).toUpperCase())
-                        .join(', ') || 'UNK'}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                      </div>
+                    </td>
+                    <td className="text-center">
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <span style={{ fontWeight: 'bold' }}>{formatValue(waiterAvg)}</span>
+                      </div>
+                    </td>
+                    <td className="text-center">{row.totalBills}</td>
+                    <td className="text-center">
+                      <span style={{ fontWeight: 'bold' }}>
+                        {avgComparison !== null ? `${avgComparison.toFixed(0)}%` : '--'}
+                      </span>
+                    </td>
+                    <td className="text-center amount-cell">{formatValue(row.totalAmount)}</td>
+                    <td>
+                      <div
+                        style={{
+                          color: 'var(--theme-text-secondary)',
+                          textTransform: 'uppercase',
+                          fontWeight: '600',
+                        }}
+                      >
+                        {row.branchNames
+                          ?.map((name) => name.substring(0, 3).toUpperCase())
+                          .join(', ') || 'UNK'}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
             <tfoot>
               <tr className="grand-total">
@@ -769,6 +806,7 @@ const WaiterWiseBillingReport: React.FC = () => {
                     : '0.00'}
                 </td>
                 <td className="text-center">{data.totals.totalBills}</td>
+                <td className="text-center">{getTotalAvgLabel()}</td>
                 <td className="text-center amount-cell">{formatValue(data.totals.totalAmount)}</td>
                 <td></td>
               </tr>
@@ -795,11 +833,11 @@ const WaiterWiseBillingReport: React.FC = () => {
                         : 0
                     const branchIds = selectedWaiterStats.branchIds || []
                     const benchTotalAmount = branchIds.reduce((acc, id) => {
-                      const b = data.branchBenchmarks?.find((x: any) => x._id === id)
+                      const b = getBranchBenchmark(id)
                       return acc + (b ? b.totalAmount : 0)
                     }, 0)
                     const benchTotalBills = branchIds.reduce((acc, id) => {
-                      const b = data.branchBenchmarks?.find((x: any) => x._id === id)
+                      const b = getBranchBenchmark(id)
                       return acc + (b ? b.totalBills : 0)
                     }, 0)
                     const branchAvg = benchTotalBills > 0 ? benchTotalAmount / benchTotalBills : 0

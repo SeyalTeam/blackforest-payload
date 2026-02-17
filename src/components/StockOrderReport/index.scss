@@ -2,7 +2,7 @@
 .stock-order-report-container {
   padding: 20px;
   min-height: 100vh;
-  color: #ffffff;
+  color: var(--theme-text-primary, var(--theme-text));
 
   .report-header {
     display: flex;
@@ -10,13 +10,13 @@
     align-items: center;
     margin-bottom: 20px;
     padding-bottom: 20px;
-    border-bottom: 1px solid #27272a;
+    border-bottom: 1px solid var(--theme-elevation-200);
 
     h1 {
       margin: 0;
       font-size: 24px;
       font-weight: 600;
-      color: #ffffff;
+      color: var(--theme-text-primary, var(--theme-text));
     }
 
     .date-filter {
@@ -39,10 +39,10 @@
         display: flex;
         align-items: center;
         padding: 8px 12px;
-        border: 1px solid #27272a;
+        border: 1px solid var(--theme-elevation-200);
         border-radius: 6px;
-        background-color: #18181b;
-        color: #ffffff;
+        background-color: var(--theme-elevation-50);
+        color: var(--theme-text-primary, var(--theme-text));
         cursor: pointer;
         font-size: 14px;
         height: 38px; // Match Select height
@@ -50,17 +50,17 @@
         transition: all 0.2s;
 
         &:hover {
-          border-color: #52525b;
+          border-color: var(--theme-elevation-350);
         }
 
         .separator {
           margin: 0 8px;
-          color: #a1a1aa;
+          color: var(--theme-text-secondary, var(--theme-elevation-600));
         }
 
         .icon {
           margin-left: 10px;
-          color: #a1a1aa;
+          color: var(--theme-text-secondary, var(--theme-elevation-600));
         }
       }
 
@@ -69,9 +69,9 @@
         align-items: center;
         gap: 8px;
         padding: 8px 16px;
-        background-color: #18181b;
-        border: 1px solid #27272a;
-        color: #ffffff;
+        background-color: var(--theme-elevation-50);
+        border: 1px solid var(--theme-elevation-200);
+        color: var(--theme-text-primary, var(--theme-text));
         border-radius: 6px;
         cursor: pointer;
         font-weight: 500;
@@ -79,7 +79,7 @@
         transition: all 0.2s;
 
         &:hover {
-          background-color: #27272a;
+          background-color: var(--theme-elevation-200);
         }
       }
     }
@@ -119,14 +119,14 @@
         width: 4px;
       }
       &::-webkit-scrollbar-thumb {
-        background-color: #3f3f46;
+        background-color: var(--theme-elevation-350);
         border-radius: 4px;
       }
     }
 
     .order-card {
-      background-color: #18181b;
-      border: 1px solid #27272a;
+      background-color: var(--theme-elevation-50);
+      border: 1px solid var(--theme-elevation-200);
       border-radius: 8px;
       padding: 12px;
       cursor: pointer;
@@ -140,8 +140,8 @@
       flex-shrink: 0; // Prevent shrinking in flex container
 
       &:hover {
-        border-color: #52525b;
-        background-color: #27272a;
+        border-color: var(--theme-elevation-350);
+        background-color: var(--theme-elevation-200);
       }
 
       &.active {
@@ -171,7 +171,7 @@
           margin: 0;
           font-size: 14px;
           font-weight: 600;
-          color: #ffffff;
+          color: var(--theme-text-primary, var(--theme-text));
           line-height: 1.4;
         }
       }
@@ -182,7 +182,7 @@
         gap: 6px;
         margin-bottom: 4px;
         font-size: 12px;
-        color: #a1a1aa;
+        color: var(--theme-text-secondary, var(--theme-elevation-600));
 
         &:last-child {
           margin-bottom: 0;
@@ -195,7 +195,7 @@
         }
 
         .value {
-          color: #d4d4d8;
+          color: var(--theme-text-primary, var(--theme-text));
         }
 
         &.amount {
@@ -216,7 +216,7 @@
 
   .table-container {
     overflow-x: auto;
-    background-color: #09090b;
+    background-color: var(--theme-elevation-0, var(--theme-bg));
     border-radius: 8px;
     width: 100%; // Fill flex parent
   }
@@ -225,20 +225,20 @@
     width: 100%; // Expand table to full width
     border-collapse: collapse;
     font-size: 14px;
-    color: #e4e4e7;
+    color: var(--theme-text-primary, var(--theme-text));
 
     th,
     td {
       padding: 6px 8px; // Reduced padding for compact view
-      border: 1px solid #27272a; // Grid borders
+      border: 1px solid var(--theme-elevation-200); // Grid borders
       text-align: left;
       white-space: nowrap;
     }
 
     th {
-      background-color: #18181b; // Dark header
+      background-color: var(--theme-elevation-50); // Dark header
       font-weight: 600;
-      color: #a1a1aa;
+      color: var(--theme-text-secondary, var(--theme-elevation-600));
       text-transform: uppercase;
       font-size: 12px;
       letter-spacing: 0.5px;
@@ -249,24 +249,24 @@
 
     // Zebra Striping
     tbody tr:nth-child(even) {
-      background-color: #1c1c1f;
+      background-color: var(--theme-elevation-50);
     }
 
     tbody tr:nth-child(odd) {
-      background-color: #0c0c0e;
+      background-color: var(--theme-elevation-0, var(--theme-bg));
     }
 
     tr:hover td {
-      background-color: #27272a;
+      background-color: var(--theme-elevation-200);
     }
 
     tfoot {
       tr {
-        background-color: #18181b;
+        background-color: var(--theme-elevation-50);
         font-weight: bold;
         td {
-          border-top: 2px solid #52525b;
-          color: #ffffff;
+          border-top: 2px solid var(--theme-elevation-350);
+          color: var(--theme-text-primary, var(--theme-text));
         }
       }
     }
@@ -288,10 +288,10 @@
 
 .custom-calendar {
   font-family: inherit;
-  border: 1px solid #27272a !important;
+  border: 1px solid var(--theme-elevation-200) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
-  background-color: #18181b !important;
-  color: #ffffff !important;
+  background-color: var(--theme-elevation-50) !important;
+  color: var(--theme-text-primary, var(--theme-text)) !important;
   padding: 1rem;
   border-radius: 6px !important;
   display: inline-block;
@@ -306,17 +306,17 @@
   .react-datepicker-year-header,
   .react-datepicker__day-name,
   .react-datepicker__day {
-    color: #ffffff !important;
+    color: var(--theme-text-primary, var(--theme-text)) !important;
   }
 
   .react-datepicker__day:hover {
-    background-color: #27272a !important;
+    background-color: var(--theme-elevation-200) !important;
   }
 
   .react-datepicker__day--selected,
   .react-datepicker__day--in-range {
     background-color: #3b82f6 !important;
-    color: white !important;
+    color: var(--theme-text-invert, #fff) !important;
   }
 }
 
@@ -325,10 +325,10 @@
   appearance: none;
   -webkit-appearance: none;
   padding: 8px 36px 8px 12px;
-  border: 1px solid #27272a;
+  border: 1px solid var(--theme-elevation-200);
   border-radius: 6px;
-  background-color: #18181b;
-  color: #ffffff;
+  background-color: var(--theme-elevation-50);
+  color: var(--theme-text-primary, var(--theme-text));
   font-size: 14px;
   min-width: 160px;
   cursor: pointer;
@@ -338,7 +338,7 @@
 
   &:focus {
     outline: none;
-    border-color: #52525b;
+    border-color: var(--theme-elevation-350);
   }
 }
 
@@ -358,8 +358,8 @@
 }
 
 .popup-container {
-  background-color: #18181b;
-  border: 1px solid #27272a;
+  background-color: var(--theme-elevation-50);
+  border: 1px solid var(--theme-elevation-200);
   border-radius: 8px;
   width: 90%;
   max-width: 1000px;
@@ -371,7 +371,7 @@
   box-shadow:
     0 20px 25px -5px rgba(0, 0, 0, 0.1),
     0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  color: #ffffff;
+  color: var(--theme-text-primary, var(--theme-text));
 
   .popup-header {
     display: flex;
@@ -379,18 +379,18 @@
     align-items: center;
     margin-bottom: 20px;
     padding-bottom: 15px;
-    border-bottom: 1px solid #27272a;
+    border-bottom: 1px solid var(--theme-elevation-200);
 
     h2 {
       margin: 0;
       font-size: 18px;
       font-weight: 600;
-      color: #ffffff;
+      color: var(--theme-text-primary, var(--theme-text));
     }
 
     button {
       background: none;
-      border: 1px solid #27272a;
+      border: 1px solid var(--theme-elevation-200);
       padding: 6px 12px;
       border-radius: 4px;
       font-size: 12px;
@@ -415,11 +415,11 @@
       height: 6px;
     }
     &::-webkit-scrollbar-thumb {
-      background-color: #3f3f46;
+      background-color: var(--theme-elevation-350);
       border-radius: 4px;
     }
     &::-webkit-scrollbar-track {
-      background-color: #18181b;
+      background-color: var(--theme-elevation-50);
     }
   }
 }

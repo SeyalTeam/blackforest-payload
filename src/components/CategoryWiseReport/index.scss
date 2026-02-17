@@ -136,6 +136,11 @@
       background-color: var(--theme-elevation-50);
     }
 
+    tbody tr:hover td {
+      background-color: rgba(144, 238, 144, 0.24) !important;
+      transition: background-color 0.15s ease-in-out;
+    }
+
     .grand-total {
       background: var(--theme-elevation-100);
       font-weight: bold;
@@ -160,10 +165,10 @@
 // This ensures styles apply even if the component is portalled or specificity issues arise
 .custom-calendar {
   font-family: inherit;
-  border: 1px solid #333 !important;
+  border: 1px solid var(--theme-elevation-200) !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
-  background-color: #0a0a0a !important; // Very dark background
-  color: #fff !important;
+  background-color: var(--theme-elevation-50) !important;
+  color: var(--theme-text-primary, var(--theme-text)) !important;
   padding: 16px;
   border-radius: 12px !important;
   display: inline-block;
@@ -179,7 +184,7 @@
 
   // Month/Year Title
   .react-datepicker__current-month {
-    color: #fff !important;
+    color: var(--theme-text-primary, var(--theme-text)) !important;
     font-size: 1.1rem;
     font-weight: 500;
     text-align: left;
@@ -196,7 +201,7 @@
 
     // Icon styling for newer react-datepicker versions
     .react-datepicker__navigation-icon::before {
-      border-color: #fff !important;
+      border-color: var(--theme-text-primary, var(--theme-text)) !important;
       border-width: 2px 2px 0 0 !important;
       height: 7px;
       width: 7px;
@@ -204,7 +209,7 @@
     }
 
     &:hover *::before {
-      border-color: #ccc !important;
+      border-color: var(--theme-text-secondary, var(--theme-elevation-500)) !important;
     }
   }
 
@@ -225,7 +230,7 @@
   }
 
   .react-datepicker__day-name {
-    color: #888 !important; // Gray for day names
+    color: var(--theme-text-secondary, var(--theme-elevation-500)) !important;
     width: 2.5rem;
     line-height: 2rem;
     margin: 0;
@@ -240,7 +245,7 @@
   }
 
   .react-datepicker__day {
-    color: #ccc !important; // Default day color
+    color: var(--theme-text-primary, var(--theme-text)) !important;
     width: 2.5rem;
     line-height: 2.5rem;
     margin: 1px;
@@ -252,18 +257,18 @@
     border: 2px solid transparent !important; // Reserve space for border
 
     &:hover {
-      background-color: #333 !important;
-      color: #fff !important;
+      background-color: var(--theme-elevation-200) !important;
+      color: var(--theme-text-primary, var(--theme-text)) !important;
     }
   }
 
   // Disabled / Outside Month
   .react-datepicker__day--disabled {
-    color: #444 !important;
+    color: var(--theme-elevation-400) !important;
     pointer-events: none;
   }
   .react-datepicker__day--outside-month {
-    color: #444 !important;
+    color: var(--theme-elevation-400) !important;
     pointer-events: none;
   }
 
@@ -272,24 +277,24 @@
   .react-datepicker__day--selected,
   .react-datepicker__day--range-start,
   .react-datepicker__day--range-end {
-    background-color: #e0e0e0 !important;
-    color: #000 !important;
+    background-color: var(--theme-elevation-100) !important;
+    color: var(--theme-text-primary, var(--theme-text)) !important;
     font-weight: 600;
     border-radius: 6px !important;
 
     &:hover {
-      background-color: #fff !important;
+      background-color: var(--theme-elevation-150) !important;
     }
   }
 
   // In Range (between start and end)
   .react-datepicker__day--in-range {
-    background-color: #333 !important;
-    color: #fff !important;
+    background-color: var(--theme-elevation-200) !important;
+    color: var(--theme-text-primary, var(--theme-text)) !important;
     border-radius: 6px !important;
 
     &:hover {
-      background-color: #444 !important;
+      background-color: var(--theme-elevation-300) !important;
     }
   }
 
@@ -301,7 +306,7 @@
     &:not(.react-datepicker__day--selected):not(.react-datepicker__day--in-range) {
       border: 2px solid #3b82f6 !important; // Blue border
       background-color: transparent !important;
-      color: #fff !important;
+      color: var(--theme-text-primary, var(--theme-text)) !important;
     }
 
     // Remove the dot I added previously
@@ -312,7 +317,7 @@
 
   .react-datepicker__day--keyboard-selected {
     background-color: transparent !important;
-    border: 1px solid #555 !important;
+    border: 1px solid var(--theme-elevation-350) !important;
   }
 }
 

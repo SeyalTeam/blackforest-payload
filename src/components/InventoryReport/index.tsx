@@ -147,47 +147,53 @@ const InventoryReport: React.FC = () => {
   const customStyles = {
     control: (base: any, state: { isFocused: boolean }) => ({
       ...base,
-      backgroundColor: '#18181b',
-      borderColor: state.isFocused ? '#3b82f6' : '#27272a',
+      backgroundColor: 'var(--theme-input-bg, var(--theme-elevation-50))',
+      borderColor: state.isFocused ? 'var(--theme-info-500)' : 'var(--theme-elevation-200)',
       borderRadius: '6px',
       height: '38px',
       minHeight: '38px',
       minWidth: '90px',
       padding: '0 2px',
       boxShadow: 'none',
-      color: '#ffffff',
+      color: 'var(--theme-text-primary, var(--theme-text))',
       '&:hover': {
-        borderColor: '#52525b',
+        borderColor: 'var(--theme-elevation-350)',
       },
     }),
     singleValue: (base: any) => ({
       ...base,
-      color: '#ffffff',
+      color: 'var(--theme-text-primary, var(--theme-text))',
       fontWeight: '500',
     }),
     option: (base: any, state: { isSelected: boolean; isFocused: boolean }) => ({
       ...base,
-      backgroundColor: state.isSelected ? '#3b82f6' : state.isFocused ? '#27272a' : '#18181b',
-      color: '#ffffff',
+      backgroundColor: state.isSelected
+        ? 'var(--theme-info-500)'
+        : state.isFocused
+          ? 'var(--theme-elevation-100)'
+          : 'var(--theme-input-bg, var(--theme-elevation-50))',
+      color: state.isSelected
+        ? 'var(--theme-text-invert, #fff)'
+        : 'var(--theme-text-primary, var(--theme-text))',
       cursor: 'pointer',
     }),
     menu: (base: any) => ({
       ...base,
-      backgroundColor: '#18181b',
-      border: '1px solid #27272a',
+      backgroundColor: 'var(--theme-input-bg, var(--theme-elevation-50))',
+      border: '1px solid var(--theme-elevation-150)',
       zIndex: 9999,
     }),
     input: (base: any) => ({
       ...base,
-      color: '#ffffff',
+      color: 'var(--theme-text-primary, var(--theme-text))',
     }),
     indicatorSeparator: () => ({ display: 'none' }),
     dropdownIndicator: (base: any) => ({
       ...base,
-      color: '#a1a1aa',
+      color: 'var(--theme-text-secondary, var(--theme-elevation-600))',
       padding: '4px',
       '&:hover': {
-        color: '#ffffff',
+        color: 'var(--theme-text-primary, var(--theme-text))',
       },
     }),
   }

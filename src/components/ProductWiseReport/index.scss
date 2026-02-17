@@ -125,7 +125,16 @@
         max-width: 250px; // Increased width as it's cleaner now
         min-width: 180px;
         text-transform: uppercase;
+
+        .product-meta-text {
+          margin-top: 0.2rem;
+          color: var(--theme-text-secondary);
+          font-size: 0.95rem;
+          font-weight: 500;
+          letter-spacing: 0.02em;
+        }
       }
+
     }
 
     th {
@@ -150,6 +159,11 @@
     // Zebra Striping
     tbody tr:nth-child(even) {
       background-color: var(--theme-elevation-50);
+    }
+
+    tbody tr:hover td {
+      background-color: rgba(144, 238, 144, 0.24) !important;
+      transition: background-color 0.15s ease-in-out;
     }
 
     .grand-total {

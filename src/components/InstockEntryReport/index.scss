@@ -24,9 +24,9 @@
   }
 
   .custom-date-input {
-    background-color: #18181b;
-    border: 1px solid #27272a;
-    color: #fff;
+    background-color: var(--theme-elevation-50);
+    border: 1px solid var(--theme-elevation-200);
+    color: var(--theme-text-primary, var(--theme-text));
     padding: 8px 12px;
     border-radius: 6px;
     display: flex;
@@ -38,20 +38,20 @@
     }
 
     .separator {
-      color: #71717a;
+      color: var(--theme-text-secondary, var(--theme-elevation-500));
     }
   }
 
   .reset-btn {
     background: transparent;
-    border: 1px solid #27272a;
-    color: #a1a1aa;
+    border: 1px solid var(--theme-elevation-200);
+    color: var(--theme-text-secondary, var(--theme-elevation-600));
     padding: 8px 12px;
     border-radius: 6px;
     cursor: pointer;
     &:hover {
-      border-color: #52525b;
-      color: #fff;
+      border-color: var(--theme-elevation-350);
+      color: var(--theme-text-primary, var(--theme-text));
     }
   }
 
@@ -61,7 +61,7 @@
     flex-wrap: wrap;
     margin-bottom: 20px;
     padding: 15px;
-    background-color: #18181b;
+    background-color: var(--theme-elevation-50);
     border-radius: 8px;
   }
 
@@ -71,7 +71,7 @@
       text-align: center;
       margin-top: 40px;
       font-size: 18px;
-      color: #a1a1aa;
+      color: var(--theme-text-secondary, var(--theme-elevation-600));
     }
   }
 
@@ -87,8 +87,8 @@
     width: 60%;
     border-radius: 8px;
     overflow: hidden;
-    border: 1px solid #27272a;
-    background-color: #18181b;
+    border: 1px solid var(--theme-elevation-200);
+    background-color: var(--theme-elevation-50);
   }
 
   .details-table {
@@ -97,25 +97,25 @@
     font-size: 14px;
 
     th {
-      background-color: #18181b;
+      background-color: var(--theme-elevation-50);
       font-weight: 600;
-      color: #a1a1aa;
+      color: var(--theme-text-secondary, var(--theme-elevation-600));
       text-transform: uppercase;
       font-size: 12px;
       letter-spacing: 0.5px;
       text-align: left;
       padding: 6px 8px;
-      border: 1px solid #27272a;
+      border: 1px solid var(--theme-elevation-200);
     }
 
     td {
       padding: 6px 8px;
-      border: 1px solid #27272a;
-      color: #fff;
+      border: 1px solid var(--theme-elevation-200);
+      color: var(--theme-text-primary, var(--theme-text));
     }
 
     .group-header {
-      background-color: #27272a;
+      background-color: var(--theme-elevation-200);
 
       &.dept-header td {
         font-weight: 700;
@@ -124,18 +124,18 @@
 
       &.cat-header td {
         font-weight: 600;
-        color: #e4e4e7;
-        background-color: #212124;
+        color: var(--theme-text-primary, var(--theme-text));
+        background-color: var(--theme-elevation-100);
       }
     }
 
     // Zebra Striping Match
     tbody tr {
-      background-color: #000000;
+      background-color: var(--theme-elevation-0, var(--theme-bg));
     }
 
     tr:hover td {
-      background-color: #27272a;
+      background-color: var(--theme-elevation-200);
     }
 
     .qty-cell {
@@ -147,7 +147,7 @@
     }
 
     .breakdown-cell {
-      color: #a1a1aa;
+      color: var(--theme-text-secondary, var(--theme-elevation-600));
       font-size: 13px;
     }
 
@@ -185,7 +185,7 @@
       h3 {
         margin: 0;
         font-size: 18px;
-        color: #e4e4e7;
+        color: var(--theme-text-primary, var(--theme-text));
       }
     }
 
@@ -202,17 +202,17 @@
         width: 6px;
       }
       &::-webkit-scrollbar-track {
-        background: #18181b;
+        background: var(--theme-elevation-50);
       }
       &::-webkit-scrollbar-thumb {
-        background: #3f3f46;
+        background: var(--theme-elevation-350);
         border-radius: 3px;
       }
     }
 
     .invoice-card {
-      background-color: #18181b;
-      border: 1px solid #27272a;
+      background-color: var(--theme-elevation-50);
+      border: 1px solid var(--theme-elevation-200);
       border-radius: 8px;
       padding: 15px;
       display: flex;
@@ -222,11 +222,11 @@
       transition: all 0.2s;
 
       &:hover {
-        border-color: #52525b;
+        border-color: var(--theme-elevation-350);
       }
 
       &.selected {
-        background-color: #27272a;
+        background-color: var(--theme-elevation-200);
         border-color: #3b82f6;
 
         .inv-title {
@@ -237,7 +237,7 @@
       .inv-title {
         font-size: 16px;
         font-weight: 700;
-        color: #fff;
+        color: var(--theme-text-primary, var(--theme-text));
         margin-bottom: 4px;
       }
 
@@ -246,10 +246,10 @@
         justify-content: flex-start;
         gap: 8px;
         font-size: 14px;
-        color: #d4d4d8;
+        color: var(--theme-text-primary, var(--theme-text));
 
         span {
-          color: #a1a1aa;
+          color: var(--theme-text-secondary, var(--theme-elevation-600));
         }
       }
 
@@ -269,10 +269,10 @@
 
 .custom-calendar {
   font-family: inherit;
-  border: 1px solid #27272a !important;
+  border: 1px solid var(--theme-elevation-200) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
-  background-color: #18181b !important;
-  color: #ffffff !important;
+  background-color: var(--theme-elevation-50) !important;
+  color: var(--theme-text-primary, var(--theme-text)) !important;
   padding: 1rem;
   border-radius: 6px !important;
   display: inline-block;
@@ -287,61 +287,61 @@
   .react-datepicker-year-header,
   .react-datepicker__day-name,
   .react-datepicker__day {
-    color: #ffffff !important;
+    color: var(--theme-text-primary, var(--theme-text)) !important;
   }
 
   .react-datepicker__day:hover {
-    background-color: #27272a !important;
+    background-color: var(--theme-elevation-200) !important;
   }
 
   .react-datepicker__day--selected,
   .react-datepicker__day--in-range {
     background-color: #3b82f6 !important;
-    color: white !important;
+    color: var(--theme-text-invert, #fff) !important;
   }
 }
 
 /* Custom Calendar Footer */
 .custom-calendar-popup {
-  border: 1px solid #27272a;
+  border: 1px solid var(--theme-elevation-200);
   border-radius: 8px;
   overflow: hidden;
   font-family: inherit;
-  background-color: #09090b; /* Darker bg for popup */
+  background-color: var(--theme-elevation-0, var(--theme-bg)); /* Darker bg for popup */
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
 
   .react-datepicker__header {
-    background-color: #09090b;
+    background-color: var(--theme-elevation-0, var(--theme-bg));
     border-bottom: none;
     padding-top: 15px;
   }
 
   .react-datepicker__current-month {
-    color: #fff;
+    color: var(--theme-text-primary, var(--theme-text));
     font-size: 16px;
     font-weight: 500;
   }
 
   .react-datepicker__day-name {
-    color: #a1a1aa;
+    color: var(--theme-text-secondary, var(--theme-elevation-600));
     width: 2.5rem;
   }
 
   .react-datepicker__day {
-    color: #cbd5e1;
+    color: var(--theme-text-primary, var(--theme-text));
     width: 2.5rem;
     line-height: 2.5rem;
     border-radius: 6px;
     &:hover {
-      background-color: #27272a;
-      color: #fff;
+      background-color: var(--theme-elevation-200);
+      color: var(--theme-text-primary, var(--theme-text));
     }
   }
 
   .react-datepicker__day--selected,
   .react-datepicker__day--in-range {
     background-color: #3b82f6;
-    color: #fff;
+    color: var(--theme-text-invert, #fff);
     border-radius: 6px;
   }
 
@@ -350,28 +350,28 @@
   }
 
   .react-datepicker__day--keyboard-selected {
-    background-color: #27272a;
-    color: #fff;
+    background-color: var(--theme-elevation-200);
+    color: var(--theme-text-primary, var(--theme-text));
   }
 
   /* Hide default time if sticking to footer inputs */
   .react-datepicker__time-container {
-    border-left: 1px solid #27272a;
+    border-left: 1px solid var(--theme-elevation-200);
   }
 }
 
 .custom-calendar-container {
   display: flex;
   flex-direction: column;
-  background-color: #09090b;
+  background-color: var(--theme-elevation-0, var(--theme-bg));
   border-radius: 8px;
 }
 
 .custom-calendar-footer {
   padding: 15px;
-  border-top: 1px solid #27272a;
-  background-color: #09090b;
-  color: #fff;
+  border-top: 1px solid var(--theme-elevation-200);
+  background-color: var(--theme-elevation-0, var(--theme-bg));
+  color: var(--theme-text-primary, var(--theme-text));
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -390,7 +390,7 @@
 
     label {
       font-size: 12px;
-      color: #a1a1aa;
+      color: var(--theme-text-secondary, var(--theme-elevation-600));
     }
 
     .input-pair {
@@ -399,9 +399,9 @@
     }
 
     input {
-      background-color: #18181b;
-      border: 1px solid #27272a;
-      color: #fff;
+      background-color: var(--theme-elevation-50);
+      border: 1px solid var(--theme-elevation-200);
+      color: var(--theme-text-primary, var(--theme-text));
       padding: 6px 8px;
       border-radius: 4px;
       font-size: 13px;
@@ -421,7 +421,7 @@
       }
 
       /* Webkit calendar icon fix for dark mode */
-      color-scheme: dark;
+      color-scheme: light dark;
     }
   }
 
@@ -433,7 +433,7 @@
 
     .timezone-info {
       font-size: 12px;
-      color: #71717a;
+      color: var(--theme-text-secondary, var(--theme-elevation-500));
       display: flex;
       align-items: center;
       gap: 4px;
@@ -445,9 +445,9 @@
     }
 
     .apply-btn {
-      background-color: #18181b;
-      color: #fff;
-      border: 1px solid #27272a;
+      background-color: var(--theme-elevation-50);
+      color: var(--theme-text-primary, var(--theme-text));
+      border: 1px solid var(--theme-elevation-200);
       padding: 6px 16px;
       border-radius: 6px;
       font-size: 13px;
@@ -459,8 +459,8 @@
       transition: all 0.2s;
 
       &:hover {
-        background-color: #27272a;
-        border-color: #52525b;
+        background-color: var(--theme-elevation-200);
+        border-color: var(--theme-elevation-350);
       }
     }
   }

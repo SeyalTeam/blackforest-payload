@@ -108,7 +108,7 @@ const ProductWiseReport: React.FC = () => {
     const csvRows = []
     // Header
     csvRows.push(
-      ['S.NO', 'PRODUCT', 'PRICE', ...data.branchHeaders, 'TOTAL UNITS', 'TOTAL AMOUNT'].join(','),
+      ['S.NO', 'PRODUCT', ...data.branchHeaders, 'TOTAL UNITS', 'TOTAL AMOUNT'].join(','),
     )
     // Rows
     data.stats.forEach((row) => {
@@ -118,8 +118,7 @@ const ProductWiseReport: React.FC = () => {
       csvRows.push(
         [
           row.sNo,
-          `"${row.productName.toUpperCase()}"`,
-          `"${row.price} / ${row.unit}"`,
+          `"${row.productName.toUpperCase()} (${row.unit})"`,
           ...branchValues,
           formatValue(row.totalQuantity),
           formatValue(row.totalAmount),
@@ -134,7 +133,6 @@ const ProductWiseReport: React.FC = () => {
       [
         '',
         'TOTAL',
-        '',
         ...totalBranchPlaceholders,
         formatValue(data.totals.totalQuantity),
         formatValue(data.totals.totalAmount),
@@ -605,7 +603,7 @@ const ProductWiseReport: React.FC = () => {
                 className="export-btn"
                 onClick={() => setShowExportMenu(!showExportMenu)}
                 title="Export Report"
-                style={{ border: '1px solid #555' }}
+                style={{ border: '1px solid var(--theme-elevation-350)' }}
               >
                 <span>Export</span>
                 <span className="icon">↓</span>
@@ -899,7 +897,6 @@ const ProductWiseReport: React.FC = () => {
                 <tr>
                   <th style={{ width: '50px', fontSize: '1.2rem' }}>S.NO</th>
                   <th style={{ fontSize: '1.2rem' }}>PRODUCT</th>
-                  <th style={{ textAlign: 'center', fontSize: '1.2rem' }}>PRICE</th>
                   {/* Dynamically render branch headers */}
                   {data.branchHeaders.map((header) => (
                     <th key={header} style={{ textAlign: 'center', fontSize: '1.2rem' }}>
@@ -928,21 +925,7 @@ const ProductWiseReport: React.FC = () => {
                       }}
                     >
                       <div>{row.productName}</div>
-                    </td>
-                    <td
-                      style={{
-                        textAlign: 'center',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        fontSize: '1.2rem',
-                      }}
-                      onClick={() => {
-                        setExpandedProduct(
-                          expandedProduct === row.productName ? null : row.productName,
-                        )
-                      }}
-                    >
-                      {formatValue(row.price)} {row.unit}
+                      <div className="product-meta-text">{formatValue(row.price)} {row.unit}</div>
                     </td>
                     {/* Dynamically render branch sales cells */}
                     {data.branchHeaders.map((header) => {
@@ -971,7 +954,6 @@ const ProductWiseReport: React.FC = () => {
                       const subValue = isUnitsSort
                         ? `₹${formatValue(sales.amount)}`
                         : `${formatValue(sales.quantity)} Units`
-
                       const isExpanded = expandedProduct === row.productName
 
                       return (
@@ -992,16 +974,11 @@ const ProductWiseReport: React.FC = () => {
                               (showZeroHighlight && isZero) || isTopSale || isLowSale
                                 ? '#FFFFFF'
                                 : 'inherit',
-                            cursor: sales.quantity > 0 || sales.amount > 0 ? 'pointer' : 'default',
-                          }}
-                          onClick={() => {
-                            setExpandedProduct(
-                              expandedProduct === row.productName ? null : row.productName,
-                            )
+                            cursor: 'default',
                           }}
                         >
                           <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>{mainValue}</div>
-                          {isExpanded && (sales.quantity > 0 || sales.amount > 0) && (
+                          {(sales.quantity > 0 || sales.amount > 0) && (
                             <div
                               style={{
                                 fontSize: '0.85rem',
@@ -1014,10 +991,11 @@ const ProductWiseReport: React.FC = () => {
                                 flexDirection: 'column',
                                 alignItems: 'center',
                                 gap: '2px',
+                                minHeight: '32px',
                               }}
                             >
-                              <div>{subValue}</div>
-                              {sales.amount > 0 && <div>{percentage}%</div>}
+                              {isExpanded && <div>{subValue}</div>}
+                              {sales.amount > 0 && <div style={{ color: '#87CEFA' }}>{percentage}%</div>}
                             </div>
                           )}
                         </td>
@@ -1039,7 +1017,20 @@ const ProductWiseReport: React.FC = () => {
                         )
                       }}
                     >
-                      {row.totalQuantity === 0 ? '' : formatValue(row.totalQuantity)}
+                      <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>
+                        {row.totalQuantity === 0 ? '' : formatValue(row.totalQuantity)}
+                      </div>
+                      {row.totalQuantity > 0 && (
+                        <div
+                          style={{
+                            fontSize: '0.85rem',
+                            color: '#87CEFA',
+                            marginTop: '4px',
+                          }}
+                        >
+                          {((row.totalQuantity / data.totals.totalQuantity) * 100).toFixed(2)}%
+                        </div>
+                      )}
                     </td>
                     <td
                       style={{
@@ -1057,14 +1048,27 @@ const ProductWiseReport: React.FC = () => {
                         )
                       }}
                     >
-                      {row.totalAmount === 0 ? '' : formatValue(row.totalAmount)}
+                      <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>
+                        {row.totalAmount === 0 ? '' : formatValue(row.totalAmount)}
+                      </div>
+                      {row.totalAmount > 0 && (
+                        <div
+                          style={{
+                            fontSize: '0.85rem',
+                            color: '#87CEFA',
+                            marginTop: '4px',
+                          }}
+                        >
+                          {((row.totalAmount / data.totals.totalAmount) * 100).toFixed(2)}%
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="grand-total">
-                  <td colSpan={3} style={{ fontSize: '1.2rem' }}>
+                  <td colSpan={2} style={{ fontSize: '1.2rem' }}>
                     <strong>Total</strong>
                   </td>
                   {/* Dynamically render branch totals in footer */}

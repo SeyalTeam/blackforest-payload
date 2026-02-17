@@ -131,6 +131,24 @@ export const getWaiterWiseBillingReportHandler: PayloadHandler = async (
           _id: '$branch', // Group by branch ID
           totalAmount: { $sum: '$totalAmount' },
           totalBills: { $sum: 1 },
+          waiterIds: { $addToSet: '$createdBy' },
+        },
+      },
+      {
+        $project: {
+          totalAmount: 1,
+          totalBills: 1,
+          totalWaiters: {
+            $size: {
+              $filter: {
+                input: '$waiterIds',
+                as: 'waiterId',
+                cond: {
+                  $and: [{ $ne: ['$$waiterId', null] }, { $ne: ['$$waiterId', ''] }],
+                },
+              },
+            },
+          },
         },
       },
     ])

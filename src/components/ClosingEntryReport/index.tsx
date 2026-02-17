@@ -650,14 +650,14 @@ const ClosingEntryReport: React.FC = () => {
             title={viewMode === 'combined' ? 'Switch to Detailed View' : 'Switch to Combined View'}
             style={{
               background: 'none',
-              border: '1px solid #444',
+              border: '1px solid var(--theme-elevation-300)',
               borderRadius: '4px',
               padding: '8px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#fff',
+              color: 'var(--theme-text-primary, var(--theme-text))',
               marginRight: '1rem',
               width: '42px',
               height: '42px',
@@ -904,7 +904,7 @@ const ClosingEntryReport: React.FC = () => {
                         <span>Online Bills</span>
                         <span>₹{formatValue(row.onlineSales)}</span>
                       </div>
-                      <div className="section-total">
+                      <div className="section-total total-bills-row">
                         <span>Total Bills: ({row.totalBills})</span>
                         <span>{formatValue(row.totalSales)}</span>
                       </div>
@@ -985,16 +985,14 @@ const ClosingEntryReport: React.FC = () => {
                         <span>Product Total</span>
                         <span>₹{productTotal}</span>
                       </div>
+                      <div className="row-flex">
+                        <span>Product Dif</span>
+                        <span>{formatValue(productDiff)}</span>
+                      </div>
                     </div>
 
                     {/* Footer: Final Stats */}
                     <div className="card-footer-stats">
-                      <div className="stat-row">
-                        <span>Product Dif:</span>
-                        <span className={productDiff < 0 ? 'negative' : ''}>
-                          {formatValue(productDiff)}
-                        </span>
-                      </div>
                       <div className="stat-row net-amount">
                         <span>Net Amount:</span>
                         <span>₹{formatValue(netAmount)}</span>
@@ -1074,7 +1072,7 @@ const ClosingEntryReport: React.FC = () => {
                           <span>Online Bills</span>
                           <span>₹{formatValue(entry.onlineSales)}</span>
                         </div>
-                        <div className="section-total">
+                        <div className="section-total total-bills-row">
                           <span>Total Bills:</span>
                           <span>{formatValue(entry.totalSales)}</span>
                         </div>
@@ -1155,16 +1153,14 @@ const ClosingEntryReport: React.FC = () => {
                           <span>Product Total</span>
                           <span>₹{productTotal}</span>
                         </div>
+                        <div className="row-flex">
+                          <span>Product Dif</span>
+                          <span>{formatValue(productDiff)}</span>
+                        </div>
                       </div>
 
                       {/* Footer: Final Stats */}
                       <div className="card-footer-stats">
-                        <div className="stat-row">
-                          <span>Product Dif:</span>
-                          <span className={productDiff < 0 ? 'negative' : ''}>
-                            {formatValue(productDiff)}
-                          </span>
-                        </div>
                         <div className="stat-row net-amount">
                           <span>Net Amount:</span>
                           <span>₹{formatValue(netAmount)}</span>
