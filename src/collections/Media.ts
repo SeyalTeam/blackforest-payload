@@ -104,6 +104,9 @@ export const Media: CollectionConfig = {
   },
   access: {
     read: () => true,
+    create: ({ req: { user } }) => user?.role != null,
+    update: ({ req: { user } }) => user?.role != null,
+    delete: ({ req: { user } }) => user?.role != null,
   },
   fields: [
     {

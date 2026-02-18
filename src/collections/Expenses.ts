@@ -27,7 +27,7 @@ const Expenses: CollectionConfig = {
       relationTo: 'branches',
       required: true,
       access: {
-        create: ({ req: { user } }) => user?.role !== 'branch',
+        create: ({ req: { user } }) => user?.role != null,
         update: () => false,
       },
     },
