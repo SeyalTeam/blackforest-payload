@@ -6,7 +6,6 @@ import path from 'path'
 import { buildConfig, type PayloadHandler } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
-import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob'
 
 // ✅ Import all your collections
 import { Users } from './collections/Users'
@@ -294,15 +293,5 @@ export default buildConfig({
 
   sharp,
 
-  plugins: [
-    vercelBlobStorage({
-      enabled: true,
-      collections: {
-        [Media.slug]: {
-          prefix: '',
-        },
-      },
-      token: process.env.blackforest_READ_WRITE_TOKEN || '',
-    }),
-  ],
+  plugins: [],
 })

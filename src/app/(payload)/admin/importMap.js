@@ -15,7 +15,6 @@ import { default as default_7b71facc026c06bd9c34422308b32867 } from '../../../co
 import { GeoLocationButton as GeoLocationButton_c6abd8fffba800c90850c15956a40d8c } from '../../../components/GeoLocationButton/index.tsx'
 import { default as default_33fb18e2b81f2b37393ae18281df6f35 } from '../../../components/NetworkStatus/index.tsx'
 import { default as default_a97029a42c389f45c5f87e7d295ae858 } from '../../../components/AutomateSettings/index.tsx'
-import { VercelBlobClientUploadHandler as VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e } from '@payloadcms/storage-vercel-blob/client'
 
 export const importMap = {
   "/components/BillDetailView/index.tsx#default": default_9c4c60e4f20d2fcb9e26d5fbef4e001d,
@@ -34,6 +33,5 @@ export const importMap = {
   "/components/ExpenseReport/index.tsx#default": default_7b71facc026c06bd9c34422308b32867,
   "/components/GeoLocationButton/index.tsx#GeoLocationButton": GeoLocationButton_c6abd8fffba800c90850c15956a40d8c,
   "/components/NetworkStatus/index.tsx#default": default_33fb18e2b81f2b37393ae18281df6f35,
-  "/components/AutomateSettings/index.tsx#default": default_a97029a42c389f45c5f87e7d295ae858,
-  "@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler": VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e
+  "/components/AutomateSettings/index.tsx#default": default_a97029a42c389f45c5f87e7d295ae858
 }
