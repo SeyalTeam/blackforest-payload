@@ -438,7 +438,7 @@ export interface Dealer {
 export interface Kitchen {
   id: string;
   name: string;
-  department: string | Department;
+  department: (string | Department)[];
   branches: (string | Branch)[];
   categories: (string | Category)[];
   updatedAt: string;

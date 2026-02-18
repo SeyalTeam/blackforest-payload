@@ -14,9 +14,9 @@ const ReturnOrders: CollectionConfig = {
     useAsTitle: 'returnNumber',
   },
   access: {
-    read: () => true,
+    read: ({ req: { user } }) => user?.role != null,
     create: ({ req: { user } }) => user?.role != null && ['branch', 'waiter'].includes(user.role),
-    update: () => true,
+    update: ({ req: { user } }) => user?.role != null,
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   hooks: {

@@ -7,10 +7,10 @@ const Tables: CollectionConfig = {
     defaultColumns: ['branch', 'updatedAt'],
   },
   access: {
-    read: () => true,
-    create: () => true,
-    update: () => true,
-    delete: () => true,
+    read: ({ req: { user } }) => user?.role != null,
+    create: ({ req: { user } }) => user?.role != null,
+    update: ({ req: { user } }) => user?.role != null,
+    delete: ({ req: { user } }) => user?.role != null,
   },
   fields: [
     {

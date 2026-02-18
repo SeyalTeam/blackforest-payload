@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import Select, { OptionProps, ValueContainerProps, GroupBase } from 'react-select'
+import Select, { OptionProps, ValueContainerProps, GroupBase, components } from 'react-select'
 import './index.scss'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -573,29 +573,27 @@ const ClosingEntryReport: React.FC = () => {
 
   const CheckboxOption = (props: OptionProps<BranchOption, true, GroupBase<BranchOption>>) => {
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          padding: '8px 12px',
-          cursor: 'pointer',
-          backgroundColor: props.isFocused ? 'var(--theme-elevation-200)' : 'transparent',
-          color: 'var(--theme-text-primary)',
-        }}
-        onClick={() => props.selectOption(props.data)}
-      >
-        <input
-          type="checkbox"
-          checked={props.isSelected}
-          onChange={() => null}
+      <components.Option {...props}>
+        <div
           style={{
-            marginRight: '10px',
-            accentColor: 'var(--theme-info-500)',
-            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            color: 'var(--theme-text-primary)',
           }}
-        />
-        <label style={{ cursor: 'pointer', flex: 1 }}>{props.label}</label>
-      </div>
+        >
+          <input
+            type="checkbox"
+            checked={props.isSelected}
+            readOnly
+            style={{
+              marginRight: '10px',
+              accentColor: 'var(--theme-info-500)',
+              cursor: 'pointer',
+            }}
+          />
+          <label style={{ cursor: 'pointer', flex: 1 }}>{props.label}</label>
+        </div>
+      </components.Option>
     )
   }
 
@@ -753,7 +751,8 @@ const ClosingEntryReport: React.FC = () => {
               classNamePrefix="react-select"
               placeholder="Select Branch..."
               isSearchable={true}
-              closeMenuOnSelect={false}
+              closeMenuOnSelect={true}
+              blurInputOnSelect={true}
               hideSelectedOptions={false}
               components={{
                 Option: CheckboxOption,

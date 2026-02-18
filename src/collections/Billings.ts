@@ -8,7 +8,7 @@ const Billings: CollectionConfig = {
     useAsTitle: 'invoiceNumber',
   },
   access: {
-    read: () => true,
+    read: ({ req: { user } }) => user?.role != null,
     create: ({ req: { user } }) => user?.role != null && ['branch', 'waiter'].includes(user.role),
     update: ({ req: { user } }) =>
       user?.role != null && ['branch', 'waiter', 'superadmin'].includes(user.role),

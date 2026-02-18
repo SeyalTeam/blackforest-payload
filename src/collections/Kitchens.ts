@@ -33,8 +33,9 @@ const Kitchens: CollectionConfig = {
       name: 'department',
       type: 'relationship',
       relationTo: 'departments',
+      hasMany: true,
       required: true,
-      label: 'Department',
+      label: 'Departments',
     },
     {
       name: 'branches',
@@ -52,10 +53,22 @@ const Kitchens: CollectionConfig = {
       required: true,
       label: 'Categories',
       filterOptions: ({ data }): Where | boolean => {
-        if (data?.department) {
+        const rawDepartments = data?.department
+        const selectedDepartmentIds = (Array.isArray(rawDepartments)
+          ? rawDepartments
+          : rawDepartments
+            ? [rawDepartments]
+            : []
+        )
+          .map((department) =>
+            typeof department === 'object' && department !== null ? department.id : department,
+          )
+          .filter(Boolean)
+
+        if (selectedDepartmentIds.length > 0) {
           return {
             department: {
-              equals: typeof data.department === 'object' ? data.department.id : data.department,
+              in: selectedDepartmentIds,
             },
           }
         }

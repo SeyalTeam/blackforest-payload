@@ -12,7 +12,7 @@ const InstockEntries: CollectionConfig = {
     useAsTitle: 'invoiceNumber',
   },
   access: {
-    read: () => true,
+    read: ({ req: { user } }) => user?.role != null,
     create: ({ req: { user } }) =>
       user?.role != null && ['branch', 'waiter', 'superadmin'].includes(user.role),
     update: ({ req: { user } }) =>
