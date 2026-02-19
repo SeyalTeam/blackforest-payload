@@ -2,6 +2,7 @@ import { PayloadRequest, PayloadHandler } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
+import { resolveReportBranchScope } from './reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -45,6 +46,9 @@ export const getWaiterWiseBillingReportHandler: PayloadHandler = async (
   const waiterParam = typeof req.query.waiter === 'string' ? req.query.waiter : ''
 
   try {
+    const { branchIds, errorResponse } = await resolveReportBranchScope(req, branchParam)
+    if (errorResponse) return errorResponse
+
     const BillingModel = payload.db.collections['billings']
     if (!BillingModel) {
       throw new Error('Billings collection not found')
@@ -61,11 +65,8 @@ export const getWaiterWiseBillingReportHandler: PayloadHandler = async (
     // Prepare $expr conditions array
     const exprConditions: any[] = []
 
-    if (branchParam && branchParam !== 'all') {
-      // Ideally branch should also be handled carefully if it's an ObjectId reference/string
-      // But user hasn't complained about branch filter yet.
-      // Existing logic: { $eq: [{ $toString: '$branch' }, branchParam] }
-      exprConditions.push({ $eq: [{ $toString: '$branch' }, branchParam] })
+    if (branchIds) {
+      exprConditions.push({ $in: [{ $toString: '$branch' }, branchIds] })
     }
 
     if (waiterParam && waiterParam !== 'all') {
@@ -105,8 +106,8 @@ export const getWaiterWiseBillingReportHandler: PayloadHandler = async (
       },
     }
 
-    if (branchParam && branchParam !== 'all') {
-      benchmarkExprConditions.push({ $eq: [{ $toString: '$branch' }, branchParam] })
+    if (branchIds) {
+      benchmarkExprConditions.push({ $in: [{ $toString: '$branch' }, branchIds] })
     }
 
     if (hourParam !== null && !isNaN(hourParam)) {
@@ -316,6 +317,9 @@ export const getWaiterWiseBillingReportHandler: PayloadHandler = async (
         $lte: endOfDay,
       },
       branch: { $exists: true, $ne: null },
+    }
+    if (branchIds) {
+      branchMatchQuery.$expr = { $in: [{ $toString: '$branch' }, branchIds] }
     }
 
     let timeline = { minHour: 6, maxHour: 23 } // Default 6 AM to 11 PM

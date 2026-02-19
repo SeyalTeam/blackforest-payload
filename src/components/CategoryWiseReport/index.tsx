@@ -300,7 +300,7 @@ const CategoryWiseReport: React.FC = () => {
     const fetchMetadata = async () => {
       try {
         const [branchRes, deptRes, billRes] = await Promise.all([
-          fetch('/api/branches?limit=100&pagination=false'),
+          fetch('/api/reports/branches'),
           fetch('/api/departments?limit=100&pagination=false'),
           fetch('/api/billings?sort=createdAt&limit=1'),
         ])

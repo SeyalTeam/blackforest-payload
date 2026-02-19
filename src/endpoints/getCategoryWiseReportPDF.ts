@@ -2,6 +2,7 @@ import { PayloadRequest, PayloadHandler } from 'payload'
 import PDFDocument from 'pdfkit'
 import path from 'path'
 import fs from 'fs'
+import { resolveReportBranchScope } from './reportScope'
 
 export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
   req: PayloadRequest,
@@ -27,6 +28,9 @@ export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
   const branchParam = typeof req.query.branch === 'string' ? req.query.branch : ''
 
   try {
+    const { branchIds, errorResponse } = await resolveReportBranchScope(req, branchParam)
+    if (errorResponse) return errorResponse
+
     payload.logger.info(
       `Generating Category Wise Report PDF for ${startDateParam} to ${endDateParam}`,
     )
@@ -45,6 +49,13 @@ export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
     // --- DATA FETCHING ---
     const branches = await payload.find({
       collection: 'branches',
+      where: branchIds
+        ? {
+            id: {
+              in: branchIds,
+            },
+          }
+        : undefined,
       limit: 100,
       pagination: false,
     })
@@ -62,9 +73,9 @@ export const getCategoryWiseReportPDFHandler: PayloadHandler = async (
       },
     }
 
-    if (branchParam && branchParam !== 'all') {
+    if (branchIds) {
       matchQuery.$expr = {
-        $eq: [{ $toString: '$branch' }, branchParam],
+        $in: [{ $toString: '$branch' }, branchIds],
       }
     }
 

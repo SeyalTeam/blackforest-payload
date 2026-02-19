@@ -2,6 +2,7 @@ import { PayloadHandler } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
+import { resolveReportBranchScope } from './reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -27,6 +28,7 @@ export const getStockOrderReportHandler: PayloadHandler = async (req): Promise<R
   const statusFilter = url.searchParams.get('status')
   const orderTypeFilter = url.searchParams.get('orderType') // 'stock' | 'live'
   const invoiceFilter = url.searchParams.get('invoice')
+  const hasExplicitBranchFilter = !!(branchFilter && branchFilter !== 'all')
 
   const start = startDateStr
     ? dayjs.tz(startDateStr, 'Asia/Kolkata').startOf('day')
@@ -36,6 +38,9 @@ export const getStockOrderReportHandler: PayloadHandler = async (req): Promise<R
     : dayjs().tz('Asia/Kolkata').endOf('day')
 
   try {
+    const { branchIds, errorResponse } = await resolveReportBranchScope(req, branchFilter)
+    if (errorResponse) return errorResponse
+
     // 1. Fetch Stock Orders
     const where: any = {
       deliveryDate: {
@@ -44,8 +49,8 @@ export const getStockOrderReportHandler: PayloadHandler = async (req): Promise<R
       },
     }
 
-    if (branchFilter) {
-      where.branch = { equals: branchFilter }
+    if (branchIds) {
+      where.branch = { in: branchIds }
     }
 
     const { docs: orders } = await req.payload.find({
@@ -286,10 +291,17 @@ export const getStockOrderReportHandler: PayloadHandler = async (req): Promise<R
     // If user wants to see ALL active branches even with 0 orders, we'd need to fetch branches separately.
     // Preserving existing logic: "Fetch All Branches" (removed in previous step optimization but useful for matrix)
     // To restore "All Branches in Matrix" even if 0:
-    if (!branchFilter) {
+    if (!hasExplicitBranchFilter) {
       // Only fetch all branches if we are not filtering by one
       const { docs: allBranches } = await req.payload.find({
         collection: 'branches',
+        where: branchIds
+          ? {
+              id: {
+                in: branchIds,
+              },
+            }
+          : undefined,
         limit: 1000,
         pagination: false,
       })

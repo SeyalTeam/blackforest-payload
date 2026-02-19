@@ -2,6 +2,7 @@ import { PayloadRequest, PayloadHandler } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
+import { resolveReportBranchScope } from './reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -20,6 +21,7 @@ export const getBranchBillingReportHandler: PayloadHandler = async (
     typeof req.query.endDate === 'string'
       ? req.query.endDate
       : new Date().toISOString().split('T')[0]
+  const branchParam = typeof req.query.branch === 'string' ? req.query.branch : null
 
   // Start of day (00:00:00) for startDate
   const startYear = parseInt(startDateParam.split('-')[0])
@@ -40,16 +42,26 @@ export const getBranchBillingReportHandler: PayloadHandler = async (
     .toDate()
 
   try {
+    const { branchIds, errorResponse } = await resolveReportBranchScope(req, branchParam)
+    if (errorResponse) return errorResponse
+
+    const matchQuery: Record<string, unknown> = {
+      createdAt: {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      },
+    }
+    if (branchIds) {
+      matchQuery.$expr = {
+        $in: [{ $toString: '$branch' }, branchIds],
+      }
+    }
+
     const BillingModel = payload.db.collections['billings']
     // MongoDB Aggregation Pipeline
     const stats = await BillingModel.aggregate([
       {
-        $match: {
-          createdAt: {
-            $gte: startOfDay,
-            $lte: endOfDay,
-          },
-        },
+        $match: matchQuery,
       },
       {
         $group: {

@@ -6,10 +6,10 @@ const Expenses: CollectionConfig = {
     useAsTitle: 'invoiceNumber',
   },
   access: {
-    read: ({ req: { user } }) => user?.role != null,
-    create: ({ req: { user } }) => user?.role != null,
-    update: ({ req: { user } }) => user?.role != null,
-    delete: ({ req: { user } }) => user?.role != null,
+    read: () => true,
+    create: () => true,
+    update: () => true,
+    delete: () => true,
   },
   fields: [
     {
@@ -27,7 +27,7 @@ const Expenses: CollectionConfig = {
       relationTo: 'branches',
       required: true,
       access: {
-        create: ({ req: { user } }) => user?.role != null,
+        create: ({ req: { user } }) => user?.role !== 'branch',
         update: () => false,
       },
     },

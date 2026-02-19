@@ -109,7 +109,7 @@ const Dashboard: React.FC = () => {
     const fetchOptions = async () => {
       try {
         const [resBranches, resDepts, resCats, resProds] = await Promise.all([
-          fetch('/api/branches?limit=1000&sort=name').then((res) => res.json()),
+          fetch('/api/reports/branches').then((res) => res.json()),
           fetch('/api/departments?limit=1000&sort=name').then((res) => res.json()),
           fetch('/api/categories?limit=1000&sort=name').then((res) => res.json()),
           fetch('/api/products?limit=1000&sort=name').then((res) => res.json()),

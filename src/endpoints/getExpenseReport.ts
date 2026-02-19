@@ -2,6 +2,7 @@ import { PayloadRequest, PayloadHandler } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
+import { resolveReportBranchScope } from './reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -28,6 +29,9 @@ export const getExpenseReportHandler: PayloadHandler = async (
   const endOfDay = dayjs.utc(endDateParam).endOf('day').toDate()
 
   try {
+    const { branchIds, errorResponse } = await resolveReportBranchScope(req, branchParam)
+    if (errorResponse) return errorResponse
+
     const ExpenseModel = payload.db.collections['expenses']
 
     // Categories based on Expenses.ts
@@ -47,8 +51,7 @@ export const getExpenseReportHandler: PayloadHandler = async (
       'OTHERS',
     ]
 
-    const selectedBranches =
-      typeof branchParam === 'string' && branchParam !== 'all' ? branchParam.split(',') : []
+    const selectedBranches = branchIds ?? []
 
     const selectedCategory =
       typeof categoryParam === 'string' && categoryParam !== 'all' ? categoryParam : 'all'

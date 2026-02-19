@@ -364,12 +364,6 @@ const WaiterWiseBillingReport: React.FC = () => {
       if (res.ok) {
         setData(json)
 
-        // Populate options DYNAMICALLY based on the date range.
-        // 1. Branches: Use the `activeBranches` returned by the API (which are distinct branches for the date range)
-        if (json.activeBranches && Array.isArray(json.activeBranches)) {
-          setBranches(json.activeBranches)
-        }
-
         // Timeline: Set range if available (and we are NOT currently filtering by hour,
         // to keep the timeline stable? No, backend calculates it independent of hour filter?
         // Yes, backend timeline calculation uses only branchMatchQuery which is date+branch.)
@@ -407,7 +401,16 @@ const WaiterWiseBillingReport: React.FC = () => {
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
-        const billRes = await fetch('/api/billings?sort=createdAt&limit=1')
+        const [billRes, branchRes] = await Promise.all([
+          fetch('/api/billings?sort=createdAt&limit=1'),
+          fetch('/api/reports/branches'),
+        ])
+
+        if (branchRes.ok) {
+          const branchJson = await branchRes.json()
+          setBranches(branchJson.docs || [])
+        }
+
         if (billRes.ok) {
           const json = await billRes.json()
           if (json.docs && json.docs.length > 0) {

@@ -3,7 +3,7 @@ import { mongooseAdapter } from '@payloadcms/db-mongodb'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import path from 'path'
 // Force rebuild
-import { buildConfig, type PayloadHandler } from 'payload'
+import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
 
@@ -62,20 +62,11 @@ import Kitchens from './collections/Kitchens'
 import Attendance from './collections/Attendance'
 import { AutomateGlobal } from './globals/Automate'
 import { createAutomatedOrderHandler } from './endpoints/createAutomatedOrder'
+import { getReportBranchesHandler } from './endpoints/getReportBranches'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
-
-const requireAuthenticatedUser = (handler: PayloadHandler): PayloadHandler => {
-  return async (req) => {
-    if (!req.user) {
-      return Response.json({ message: 'Unauthorized' }, { status: 401 })
-    }
-
-    return handler(req)
-  }
-}
 
 export default buildConfig({
   admin: {
@@ -126,82 +117,87 @@ export default buildConfig({
     {
       path: '/reports/branch-billing',
       method: 'get',
-      handler: requireAuthenticatedUser(getBranchBillingReportHandler),
+      handler: getBranchBillingReportHandler,
     },
     {
       path: '/reports/category-wise',
       method: 'get',
-      handler: requireAuthenticatedUser(getCategoryWiseReportHandler),
+      handler: getCategoryWiseReportHandler,
     },
     {
       path: '/reports/category-wise/export-pdf',
       method: 'get',
-      handler: requireAuthenticatedUser(getCategoryWiseReportPDFHandler),
+      handler: getCategoryWiseReportPDFHandler,
     },
     {
       path: '/reports/product-wise',
       method: 'get',
-      handler: requireAuthenticatedUser(getProductWiseReportHandler),
+      handler: getProductWiseReportHandler,
     },
     {
       path: '/reports/closing-entry',
       method: 'get',
-      handler: requireAuthenticatedUser(getClosingEntryReportHandler),
+      handler: getClosingEntryReportHandler,
     },
     {
       path: '/reports/waiter-wise',
       method: 'get',
-      handler: requireAuthenticatedUser(getWaiterWiseBillingReportHandler),
+      handler: getWaiterWiseBillingReportHandler,
     },
     {
       path: '/reports/inventory',
       method: 'get',
-      handler: requireAuthenticatedUser(getInventoryReportHandler),
+      handler: getInventoryReportHandler,
     },
     {
       path: '/reports/stock-order',
       method: 'get',
-      handler: requireAuthenticatedUser(getStockOrderReportHandler),
+      handler: getStockOrderReportHandler,
     },
     {
       path: '/reports/afterstock-customer',
       method: 'get',
-      handler: requireAuthenticatedUser(getAfterstockCustomerReportHandler),
+      handler: getAfterstockCustomerReportHandler,
     },
     {
       path: '/reports/instock-entry',
       method: 'get',
-      handler: requireAuthenticatedUser(getInstockEntryReportHandler),
+      handler: getInstockEntryReportHandler,
     },
     {
       path: '/instock-params/update-status', // Choosing a path
       method: 'post',
-      handler: requireAuthenticatedUser(updateInstockStatusHandler),
+      handler: updateInstockStatusHandler,
     },
     {
       path: '/reports/review',
       method: 'get',
-      handler: requireAuthenticatedUser(getReviewReportHandler),
+      handler: getReviewReportHandler,
     },
     {
       path: '/inventory/reset',
       method: 'post',
-      handler: requireAuthenticatedUser(resetInventoryHandler),
+      handler: resetInventoryHandler,
     },
     {
       path: '/dashboard-stats',
       method: 'get',
-      handler: requireAuthenticatedUser(getDashboardStatsHandler),
+      handler: getDashboardStatsHandler,
     },
     {
       path: '/reports/expense',
       method: 'get',
-      handler: requireAuthenticatedUser(getExpenseReportHandler),
+      handler: getExpenseReportHandler,
+    },
+    {
+      path: '/reports/branches',
+      method: 'get',
+      handler: getReportBranchesHandler,
     },
     {
       path: '/network-status',
       method: 'get',
-      handler: requireAuthenticatedUser(getNetworkStatusHandler),
+      handler: getNetworkStatusHandler,
     },
     {
       path: '/speedtest/download',
@@ -221,7 +217,7 @@ export default buildConfig({
     {
       path: '/automate/create-order',
       method: 'post',
-      handler: requireAuthenticatedUser(createAutomatedOrderHandler),
+      handler: createAutomatedOrderHandler,
     },
   ],
 

@@ -339,7 +339,7 @@ const ProductWiseReport: React.FC = () => {
     const fetchMetadata = async () => {
       try {
         const [branchRes, categoryRes, departmentRes, productRes, billRes] = await Promise.all([
-          fetch('/api/branches?limit=100&pagination=false'),
+          fetch('/api/reports/branches'),
           fetch('/api/categories?limit=100&pagination=false'),
           fetch('/api/departments?limit=100&pagination=false'),
           fetch('/api/products?limit=1000&pagination=false'),

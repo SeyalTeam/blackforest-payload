@@ -445,7 +445,7 @@ const ExpenseReport: React.FC = () => {
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
-        const branchRes = await fetch('/api/branches?limit=100&pagination=false')
+        const branchRes = await fetch('/api/reports/branches')
         if (branchRes.ok) {
           const json = await branchRes.json()
           setBranches(json.docs)

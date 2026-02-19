@@ -59,7 +59,7 @@ const AfterstockCustomerReport: React.FC = () => {
     const fetchMetadata = async () => {
       try {
         const [branchRes, waiterRes] = await Promise.all([
-          fetch('/api/branches?limit=100&pagination=false'),
+          fetch('/api/reports/branches'),
           fetch('/api/users?where[role][equals]=waiter&limit=1000&pagination=false'),
         ])
 

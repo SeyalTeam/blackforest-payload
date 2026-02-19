@@ -1,5 +1,6 @@
 import { PayloadHandler, PayloadRequest } from 'payload'
 import { addGranularMatch } from '../utilities/inventory'
+import { resolveReportBranchScope } from './reportScope'
 
 export const getInventoryReportHandler: PayloadHandler = async (
   req: PayloadRequest,
@@ -8,6 +9,11 @@ export const getInventoryReportHandler: PayloadHandler = async (
 
   try {
     const { department, category, product, branch } = req.query as Record<string, string>
+    const { branchIds: scopedBranchIds, errorResponse } = await resolveReportBranchScope(
+      req,
+      branch || null,
+    )
+    if (errorResponse) return errorResponse
 
     // 1. Handle Department filter (Products link to Category, Category links to Department)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -37,17 +43,19 @@ export const getInventoryReportHandler: PayloadHandler = async (
     // 2. Handle Branch filter
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const branchQuery: any = { and: [] }
-    if (branch && branch !== 'all') {
-      branchQuery.and.push({ id: { equals: branch } })
+    if (scopedBranchIds) {
+      branchQuery.and.push({ id: { in: scopedBranchIds } })
     }
 
-    // Enforce Company restriction
+    // Legacy company restriction for non-company users
     const allowedCompanies = [
       '68fcabc113ce32e6595e46ba',
       '68fcabf913ce32e6595e46cc',
       '68fcac0b13ce32e6595e46cf',
     ]
-    branchQuery.and.push({ company: { in: allowedCompanies } })
+    if (req.user?.role !== 'company') {
+      branchQuery.and.push({ company: { in: allowedCompanies } })
+    }
 
     if (branchQuery.and.length === 0) delete branchQuery.and
 

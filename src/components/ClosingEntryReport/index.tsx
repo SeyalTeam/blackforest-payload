@@ -110,7 +110,7 @@ const ClosingEntryReport: React.FC = () => {
     const fetchMetadata = async () => {
       try {
         const [branchesRes, closingRes] = await Promise.all([
-          fetch('/api/branches?limit=1000&sort=name'),
+          fetch('/api/reports/branches'),
           fetch('/api/closing-entries?sort=createdAt&limit=1'),
         ])
         const branchesJson = await branchesRes.json()

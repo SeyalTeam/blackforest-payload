@@ -14,7 +14,7 @@ const StockOrders: CollectionConfig = {
     defaultColumns: ['invoiceNumber', 'branch', 'deliveryDate', 'status', 'createdAt'],
   },
   access: {
-    read: ({ req: { user } }) => user?.role != null,
+    read: () => true,
     create: ({ req: { user } }) =>
       user?.role != null && ['branch', 'waiter', 'superadmin'].includes(user.role),
     update: ({ req: { user } }) =>

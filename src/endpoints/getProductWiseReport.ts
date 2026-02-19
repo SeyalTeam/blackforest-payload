@@ -3,6 +3,7 @@ import mongoose, { PipelineStage } from 'mongoose'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
+import { resolveReportBranchScope } from './reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -62,9 +63,19 @@ export const getProductWiseReportHandler: PayloadHandler = async (
   const productParam = typeof req.query.product === 'string' ? req.query.product : ''
 
   try {
+    const { branchIds, errorResponse } = await resolveReportBranchScope(req, branchParam)
+    if (errorResponse) return errorResponse
+
     // 1. Fetch all branches map (ID -> Code)
     const branches = await payload.find({
       collection: 'branches',
+      where: branchIds
+        ? {
+            id: {
+              in: branchIds,
+            },
+          }
+        : undefined,
       limit: 100,
       pagination: false,
     })
@@ -90,12 +101,9 @@ export const getProductWiseReportHandler: PayloadHandler = async (
       // though items have their own status usually
     }
 
-    if (branchParam && branchParam !== 'all') {
-      const branchIds = branchParam.split(',').filter(Boolean)
-      if (branchIds.length > 0) {
-        matchQuery.branch = {
-          $in: branchIds.map((id) => new mongoose.Types.ObjectId(id)),
-        }
+    if (branchIds) {
+      matchQuery.$expr = {
+        $in: [{ $toString: '$branch' }, branchIds],
       }
     }
 

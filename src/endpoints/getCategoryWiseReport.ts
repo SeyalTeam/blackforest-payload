@@ -3,6 +3,7 @@ import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import mongoose from 'mongoose'
+import { resolveReportBranchScope } from './reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -45,10 +46,20 @@ export const getCategoryWiseReportHandler: PayloadHandler = async (
   const departmentParam = typeof req.query.department === 'string' ? req.query.department : ''
 
   try {
+    const { branchIds, errorResponse } = await resolveReportBranchScope(req, branchParam)
+    if (errorResponse) return errorResponse
+
     // 1. Fetch all branches map (ID -> Code)
     // ... (rest of simple fetch) ...
     const branches = await payload.find({
       collection: 'branches',
+      where: branchIds
+        ? {
+            id: {
+              in: branchIds,
+            },
+          }
+        : undefined,
       limit: 100,
       pagination: false,
     })
@@ -70,12 +81,9 @@ export const getCategoryWiseReportHandler: PayloadHandler = async (
 
     const categoryParam = typeof req.query.category === 'string' ? req.query.category : ''
 
-    if (branchParam && branchParam !== 'all') {
-      const branchIds = branchParam.split(',').filter(Boolean)
-      if (branchIds.length > 0) {
-        matchQuery.$expr = {
-          $in: [{ $toString: '$branch' }, branchIds],
-        }
+    if (branchIds) {
+      matchQuery.$expr = {
+        $in: [{ $toString: '$branch' }, branchIds],
       }
     }
 

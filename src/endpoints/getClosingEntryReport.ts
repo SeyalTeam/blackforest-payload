@@ -1,4 +1,5 @@
 import { PayloadRequest, PayloadHandler } from 'payload'
+import { resolveReportBranchScope } from './reportScope'
 
 export const getClosingEntryReportHandler: PayloadHandler = async (
   req: PayloadRequest,
@@ -14,6 +15,7 @@ export const getClosingEntryReportHandler: PayloadHandler = async (
     typeof req.query.endDate === 'string'
       ? req.query.endDate
       : new Date().toISOString().split('T')[0]
+  const branchParam = typeof req.query.branch === 'string' ? req.query.branch : null
 
   // Start of day (00:00:00 UTC) for startDate
   const [startYear, startMonth, startDay] = startDateParam.split('-').map(Number)
@@ -30,16 +32,26 @@ export const getClosingEntryReportHandler: PayloadHandler = async (
   console.log('--------------------')
 
   try {
+    const { branchIds, errorResponse } = await resolveReportBranchScope(req, branchParam)
+    if (errorResponse) return errorResponse
+
+    const closingMatch: Record<string, unknown> = {
+      date: {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      },
+    }
+    if (branchIds) {
+      closingMatch.$expr = {
+        $in: [{ $toString: '$branch' }, branchIds],
+      }
+    }
+
     const ClosingModel = payload.db.collections['closing-entries']
     // MongoDB Aggregation Pipeline
     const stats = await ClosingModel.aggregate([
       {
-        $match: {
-          date: {
-            $gte: startOfDay,
-            $lte: endOfDay,
-          },
-        },
+        $match: closingMatch,
       },
       {
         $group: {
@@ -175,6 +187,15 @@ export const getClosingEntryReportHandler: PayloadHandler = async (
         and: [
           { date: { greater_than_equal: startOfDay.toISOString() } },
           { date: { less_than_equal: endOfDay.toISOString() } },
+          ...(branchIds
+            ? [
+                {
+                  branch: {
+                    in: branchIds,
+                  },
+                },
+              ]
+            : []),
         ],
       },
       limit: 1000,

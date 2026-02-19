@@ -3,6 +3,7 @@ import mongoose from 'mongoose'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
+import { resolveReportBranchScope } from './reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -44,25 +45,33 @@ export const getAfterstockCustomerReportHandler: PayloadHandler = async (
     .toDate()
 
   try {
+    const { branchIds, errorResponse } = await resolveReportBranchScope(req, branchParam)
+    if (errorResponse) return errorResponse
+
     const BillingModel = payload.db.collections['billings']
     if (!BillingModel) {
       throw new Error('Billings collection not found')
     }
 
+    const matchQuery: Record<string, unknown> = {
+      createdAt: {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      },
+      status: { $ne: 'cancelled' },
+      'customerDetails.phoneNumber': { $exists: true, $ne: null },
+    }
+    if (branchIds) {
+      matchQuery.$expr = { $in: [{ $toString: '$branch' }, branchIds] }
+    }
+    if (waiterParam) {
+      matchQuery.createdBy = new mongoose.Types.ObjectId(waiterParam)
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const aggregationPipeline: any[] = [
       {
-        $match: {
-          createdAt: {
-            $gte: startOfDay,
-            $lte: endOfDay,
-          },
-          // Filter out cancelled bills? Usually reports exclude cancelled
-          status: { $ne: 'cancelled' },
-          'customerDetails.phoneNumber': { $exists: true, $ne: null },
-          ...(branchParam ? { branch: new mongoose.Types.ObjectId(branchParam) } : {}),
-          ...(waiterParam ? { createdBy: new mongoose.Types.ObjectId(waiterParam) } : {}),
-        },
+        $match: matchQuery,
       },
       {
         $sort: { createdAt: -1 },

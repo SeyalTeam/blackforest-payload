@@ -2,8 +2,8 @@ import { PayloadHandler, PayloadRequest } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
-import mongoose from 'mongoose'
 import { Product } from '../payload-types'
+import { resolveReportBranchScope } from './reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -25,6 +25,9 @@ export const getDashboardStatsHandler: PayloadHandler = async (
   }
 
   try {
+    const { branchIds, errorResponse } = await resolveReportBranchScope(req, branch || null)
+    if (errorResponse) return errorResponse
+
     // 1. Define Range
     // If no dates provided, default to Today
     const start = startDate
@@ -55,7 +58,11 @@ export const getDashboardStatsHandler: PayloadHandler = async (
     // 3. Helper for Aggregation Matches
     // Common match: branch (if selected), status (not cancelled)
     const commonMatch: any = { status: { $ne: 'cancelled' } }
-    if (branch) commonMatch.branch = new mongoose.Types.ObjectId(branch)
+    if (branchIds) {
+      commonMatch.$expr = {
+        $in: [{ $toString: '$branch' }, branchIds],
+      }
+    }
 
     // Helper to generate pipelines
     const createPipeline = (

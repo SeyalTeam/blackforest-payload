@@ -2,6 +2,7 @@ import { PayloadHandler, PayloadRequest } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
+import { resolveReportBranchScope } from './reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -20,6 +21,7 @@ export const getReviewReportHandler: PayloadHandler = async (
     typeof req.query.endDate === 'string'
       ? req.query.endDate
       : new Date().toISOString().split('T')[0]
+  const branchParam = typeof req.query.branch === 'string' ? req.query.branch : null
 
   // Start of day (00:00:00) for startDate
   const startAndYear = parseInt(startDateParam.split('-')[0])
@@ -40,13 +42,29 @@ export const getReviewReportHandler: PayloadHandler = async (
     .toDate()
 
   try {
+    const { branchIds, errorResponse } = await resolveReportBranchScope(req, branchParam)
+    if (errorResponse) return errorResponse
+
     const reviews = await payload.find({
       collection: 'reviews',
       where: {
-        createdAt: {
-          greater_than_equal: startOfDay,
-          less_than_equal: endOfDay,
-        },
+        and: [
+          {
+            createdAt: {
+              greater_than_equal: startOfDay,
+              less_than_equal: endOfDay,
+            },
+          },
+          ...(branchIds
+            ? [
+                {
+                  branch: {
+                    in: branchIds,
+                  },
+                },
+              ]
+            : []),
+        ],
       },
       depth: 2, // Need depth 2 to get bill.invoiceNumber and items.product.name (if product is a relation)
       limit: 1000, // Reasonable limit for report

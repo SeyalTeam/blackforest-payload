@@ -2,6 +2,7 @@ import { PayloadHandler } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
+import { resolveReportBranchScope } from './reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -31,6 +32,9 @@ export const getInstockEntryReportHandler: PayloadHandler = async (req): Promise
     : dayjs().tz('Asia/Kolkata').endOf('day')
 
   try {
+    const { branchIds, errorResponse } = await resolveReportBranchScope(req, branchFilter)
+    if (errorResponse) return errorResponse
+
     // 1. Fetch Instock Entries
     const where: any = {
       date: {
@@ -39,8 +43,8 @@ export const getInstockEntryReportHandler: PayloadHandler = async (req): Promise
       },
     }
 
-    if (branchFilter) {
-      where.branch = { equals: branchFilter }
+    if (branchIds) {
+      where.branch = { in: branchIds }
     }
     if (dealerFilter) {
       where['items.dealer'] = { equals: dealerFilter }
