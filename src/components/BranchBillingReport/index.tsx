@@ -258,7 +258,7 @@ const BranchBillingReport: React.FC = () => {
             <tbody>
               {data.stats.map((row, index) => (
                 <tr key={row.branchName}>
-                  <td>{index + 1}</td>{' '}
+                  <td>{index + 1}</td>
                   {/* Using index + 1 for S.No as row.sNo is not defined in ReportStats */}
                   <td className="branch-name-cell">{row.branchName.toUpperCase()}</td>
                   <td style={{ textAlign: 'right' }}>{row.totalBills}</td>

@@ -7,7 +7,7 @@ export const Users: CollectionConfig = {
   slug: 'users',
   admin: {
     useAsTitle: 'name',
-    defaultColumns: ['name', 'email', 'role'],
+    defaultColumns: ['name', 'email', 'role', 'loginBlocked'],
   },
   auth: {
     tokenExpiration: 2592000, // 30 Days (Global max) - We restrict staff to 14h via hooks
@@ -137,6 +137,36 @@ export const Users: CollectionConfig = {
       type: 'text',
       admin: {
         readOnly: true,
+      },
+    },
+    {
+      name: 'forceLogoutAllDevices',
+      type: 'checkbox',
+      defaultValue: false,
+      saveToJWT: false,
+      admin: {
+        description:
+          'Enable and save to force logout this user from all devices. The value resets after save.',
+      },
+      access: {
+        create: ({ req }) => req.user?.role === 'superadmin',
+        read: ({ req }) => req.user?.role === 'superadmin',
+        update: ({ req }) => req.user?.role === 'superadmin',
+      },
+    },
+    {
+      name: 'loginBlocked',
+      type: 'checkbox',
+      defaultValue: false,
+      saveToJWT: false,
+      admin: {
+        description:
+          'When enabled, this user cannot login until a superadmin disables this block.',
+      },
+      access: {
+        create: ({ req }) => req.user?.role === 'superadmin',
+        read: ({ req }) => req.user?.role === 'superadmin',
+        update: ({ req }) => req.user?.role === 'superadmin',
       },
     },
   ],
@@ -294,6 +324,13 @@ export const Users: CollectionConfig = {
     ],
     beforeLogin: [
       async ({ req, user }) => {
+        const isLoginBlocked = Boolean(
+          (user as { loginBlocked?: boolean | null }).loginBlocked,
+        )
+        if (isLoginBlocked) {
+          throw new Error('Login blocked by superadmin. Please contact administrator.')
+        }
+
         if (user.role === 'superadmin') return
 
         // Skip IP check in development mode
@@ -497,42 +534,73 @@ export const Users: CollectionConfig = {
     ],
     beforeChange: [
       async ({ data, req, operation }) => {
+        const nextData = data as typeof data & {
+          forceLogoutAllDevices?: boolean
+          loginBlocked?: boolean
+          password?: string
+          sessions?: unknown[]
+          deviceId?: null | string
+        }
+
+        const isPasswordChange =
+          operation === 'update' &&
+          typeof nextData.password === 'string' &&
+          nextData.password.trim().length > 0
+
+        const isForceLogoutRequested =
+          operation === 'update' &&
+          req.user?.role === 'superadmin' &&
+          nextData.forceLogoutAllDevices === true
+
+        if (isPasswordChange || isForceLogoutRequested) {
+          nextData.sessions = []
+          nextData.deviceId = null
+        }
+
+        if (isForceLogoutRequested) {
+          nextData.forceLogoutAllDevices = false
+          nextData.loginBlocked = true
+        }
+
         if (operation === 'create' || operation === 'update') {
           // Auto-populate name from employee if not set
-          if (!data.name && data.employee) {
-            const employeeId = typeof data.employee === 'string' ? data.employee : data.employee.id
+          if (!nextData.name && nextData.employee) {
+            const employeeId =
+              typeof nextData.employee === 'string' ? nextData.employee : nextData.employee.id
             if (employeeId) {
               const employee = await req.payload.findByID({
                 collection: 'employees',
                 id: employeeId,
               })
               if (employee?.name) {
-                data.name = employee.name
+                nextData.name = employee.name
               }
             }
           }
-          if (['branch', 'kitchen'].includes(data.role) && !data.branch) {
+          if (['branch', 'kitchen'].includes(nextData.role) && !nextData.branch) {
             throw new Error('Branch is required for branch or kitchen role users')
           }
-          if (data.role === 'company' && !data.company) {
+          if (nextData.role === 'company' && !nextData.company) {
             throw new Error('Company is required for company role users')
           }
           if (
-            data.role === 'factory' &&
-            (!data.factory_companies || data.factory_companies.length === 0)
+            nextData.role === 'factory' &&
+            (!nextData.factory_companies || nextData.factory_companies.length === 0)
           ) {
             throw new Error('At least one company is required for factory role users')
           }
           if (
-            ['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef'].includes(data.role) &&
-            !data.employee
+            ['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef'].includes(
+              nextData.role,
+            ) &&
+            !nextData.employee
           ) {
             throw new Error(
               'Employee is required for waiter, cashier, supervisor, delivery, driver, or chef role users',
             )
           }
         }
-        return data
+        return nextData
       },
     ],
   },

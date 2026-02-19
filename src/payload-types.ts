@@ -209,6 +209,14 @@ export interface User {
   factory_companies?: (string | Company)[] | null;
   employee?: (string | null) | Employee;
   deviceId?: string | null;
+  /**
+   * Enable and save to force logout this user from all devices. The value resets after save.
+   */
+  forceLogoutAllDevices?: boolean | null;
+  /**
+   * When enabled, this user cannot login until a superadmin disables this block.
+   */
+  loginBlocked?: boolean | null;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -358,7 +366,6 @@ export interface Category {
 export interface Media {
   id: string;
   alt?: string | null;
-  prefix?: string | null;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -907,6 +914,8 @@ export interface UsersSelect<T extends boolean = true> {
   factory_companies?: T;
   employee?: T;
   deviceId?: T;
+  forceLogoutAllDevices?: T;
+  loginBlocked?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -1043,7 +1052,6 @@ export interface ProductsSelect<T extends boolean = true> {
  */
 export interface MediaSelect<T extends boolean = true> {
   alt?: T;
-  prefix?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;
