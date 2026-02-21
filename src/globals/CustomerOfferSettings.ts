@@ -1,5 +1,6 @@
 import type { GlobalConfig, Payload } from 'payload'
 import { DEFAULT_CUSTOMER_REWARD_SETTINGS } from '../utilities/customerRewards'
+import { withWriteConflictRetry } from '../utilities/mongoRetry'
 
 const toRelationshipID = (value: unknown): string | null => {
   if (typeof value === 'string' && value.trim().length > 0) return value
@@ -267,6 +268,30 @@ export const CustomerOfferSettings: GlobalConfig = {
 
         const shouldReselect = configChanged || Boolean(mutableDoc.reselectRandomCustomerOffer)
 
+        const scheduleSettingsRefresh = (updateData: Record<string, unknown>) => {
+          setTimeout(() => {
+            void withWriteConflictRetry(
+              () =>
+                req.payload.updateGlobal({
+                  slug: 'customer-offer-settings' as any,
+                  data: updateData as any,
+                  depth: 0,
+                  overrideAccess: true,
+                  context: {
+                    skipRandomOfferAssignment: true,
+                  },
+                }),
+              5,
+              150,
+            ).catch((error) => {
+              console.error(
+                '[CustomerOfferSettings] Failed deferred updateGlobal after random assignment.',
+                error,
+              )
+            })
+          }, 0)
+        }
+
         const clearCustomerAssignments = async (customerIDs: string[]) => {
           if (customerIDs.length === 0) return
 
@@ -294,20 +319,12 @@ export const CustomerOfferSettings: GlobalConfig = {
 
           await clearCustomerAssignments(idsToClear)
 
-          await req.payload.updateGlobal({
-            slug: 'customer-offer-settings' as any,
-            data: {
-              randomCustomerOfferAssignedCount: 0,
-              randomCustomerOfferRedeemedCount: 0,
-              randomCustomerOfferLastAssignedAt: null,
-              reselectRandomCustomerOffer: false,
-              randomCustomerOfferProducts: [],
-            } as any,
-            depth: 0,
-            overrideAccess: true,
-            context: {
-              skipRandomOfferAssignment: true,
-            },
+          scheduleSettingsRefresh({
+            randomCustomerOfferAssignedCount: 0,
+            randomCustomerOfferRedeemedCount: 0,
+            randomCustomerOfferLastAssignedAt: null,
+            reselectRandomCustomerOffer: false,
+            randomCustomerOfferProducts: [],
           })
 
           return doc
@@ -374,20 +391,12 @@ export const CustomerOfferSettings: GlobalConfig = {
           }
         })
 
-        await req.payload.updateGlobal({
-          slug: 'customer-offer-settings' as any,
-          data: {
-            randomCustomerOfferProducts: updatedRows,
-            randomCustomerOfferAssignedCount: assignedCustomerIDs.length,
-            randomCustomerOfferRedeemedCount: 0,
-            randomCustomerOfferLastAssignedAt: assignedAt,
-            reselectRandomCustomerOffer: false,
-          } as any,
-          depth: 0,
-          overrideAccess: true,
-          context: {
-            skipRandomOfferAssignment: true,
-          },
+        scheduleSettingsRefresh({
+          randomCustomerOfferProducts: updatedRows,
+          randomCustomerOfferAssignedCount: assignedCustomerIDs.length,
+          randomCustomerOfferRedeemedCount: 0,
+          randomCustomerOfferLastAssignedAt: assignedAt,
+          reselectRandomCustomerOffer: false,
         })
 
         return doc

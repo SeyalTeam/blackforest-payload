@@ -8,6 +8,7 @@ import {
   type ProductPriceOfferRule,
   type ProductToProductOfferRule,
 } from '../utilities/customerRewards'
+import { withWriteConflictRetry } from '../utilities/mongoRetry'
 
 const toSafeNonNegativeNumber = (value: unknown): number => {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
@@ -1173,15 +1174,17 @@ const Billings: CollectionConfig = {
                     }
                   })
 
-                  await req.payload.updateGlobal({
-                    slug: 'customer-offer-settings' as any,
-                    data: {
-                      randomCustomerOfferRedeemedCount: currentRedeemedCount + 1,
-                      randomCustomerOfferProducts: updatedRandomOfferRows,
-                    } as any,
-                    depth: 0,
-                    overrideAccess: true,
-                  })
+                  await withWriteConflictRetry(() =>
+                    req.payload.updateGlobal({
+                      slug: 'customer-offer-settings' as any,
+                      data: {
+                        randomCustomerOfferRedeemedCount: currentRedeemedCount + 1,
+                        randomCustomerOfferProducts: updatedRandomOfferRows,
+                      } as any,
+                      depth: 0,
+                      overrideAccess: true,
+                    }),
+                  )
                 }
               }
 
@@ -1333,18 +1336,20 @@ const Billings: CollectionConfig = {
                 }
 
                 if (settingsChanged) {
-                  await req.payload.updateGlobal({
-                    slug: 'customer-offer-settings' as any,
-                    data: {
-                      productToProductOffers: updatedProductToProductRules,
-                      productPriceOffers: updatedProductPriceRules,
-                      totalPercentageOfferGivenCount: nextTotalPercentageOfferGivenCount,
-                      totalPercentageOfferCustomerCount: nextTotalPercentageOfferCustomerCount,
-                      totalPercentageOfferCustomers: nextTotalPercentageOfferCustomers,
-                    } as any,
-                    depth: 0,
-                    overrideAccess: true,
-                  })
+                  await withWriteConflictRetry(() =>
+                    req.payload.updateGlobal({
+                      slug: 'customer-offer-settings' as any,
+                      data: {
+                        productToProductOffers: updatedProductToProductRules,
+                        productPriceOffers: updatedProductPriceRules,
+                        totalPercentageOfferGivenCount: nextTotalPercentageOfferGivenCount,
+                        totalPercentageOfferCustomerCount: nextTotalPercentageOfferCustomerCount,
+                        totalPercentageOfferCustomers: nextTotalPercentageOfferCustomers,
+                      } as any,
+                      depth: 0,
+                      overrideAccess: true,
+                    }),
+                  )
                 }
 
                 await req.payload.update({
@@ -1389,24 +1394,30 @@ const Billings: CollectionConfig = {
                 let rewardProgressAmount = toSafeNonNegativeNumber(customerDoc?.rewardProgressAmount)
                 const offerDiscount = toSafeNonNegativeNumber((doc as any).customerOfferDiscount)
                 const offerWasApplied = Boolean((doc as any).customerOfferApplied) && offerDiscount > 0
-
-                if (offerWasApplied && settings.resetOnRedeem) {
-                  rewardPoints = 0
-                  rewardProgressAmount = 0
-                }
-
                 const grossAmount = toSafeNonNegativeNumber((doc as any).grossAmount ?? doc.totalAmount)
-                const totalProgressAmount = rewardProgressAmount + grossAmount
-                const { earnedPoints, consumedAmount } = calculatePointsForSpend(
-                  totalProgressAmount,
-                  settings.spendAmountPerStep,
-                  settings.pointsPerStep,
-                )
+                const shouldResetProgressWithoutCarry = offerWasApplied && settings.resetOnRedeem
 
-                const updatedRewardPoints = rewardPoints + earnedPoints
-                const updatedProgressAmount = toMoneyValue(
-                  Math.max(0, totalProgressAmount - consumedAmount),
-                )
+                let earnedPointsForBill = 0
+                let updatedRewardPoints = rewardPoints
+                let updatedProgressAmount = toMoneyValue(rewardProgressAmount)
+
+                if (shouldResetProgressWithoutCarry) {
+                  updatedRewardPoints = 0
+                  updatedProgressAmount = 0
+                } else {
+                  const totalProgressAmount = rewardProgressAmount + grossAmount
+                  const { earnedPoints, consumedAmount } = calculatePointsForSpend(
+                    totalProgressAmount,
+                    settings.spendAmountPerStep,
+                    settings.pointsPerStep,
+                  )
+
+                  earnedPointsForBill = earnedPoints
+                  updatedRewardPoints = rewardPoints + earnedPoints
+                  updatedProgressAmount = toMoneyValue(
+                    Math.max(0, totalProgressAmount - consumedAmount),
+                  )
+                }
 
                 await req.payload.update({
                   collection: 'customers',
@@ -1428,7 +1439,7 @@ const Billings: CollectionConfig = {
                   id: doc.id,
                   data: {
                     customerRewardProcessed: true,
-                    customerRewardPointsEarned: earnedPoints,
+                    customerRewardPointsEarned: earnedPointsForBill,
                   } as any,
                   depth: 0,
                   overrideAccess: true,
