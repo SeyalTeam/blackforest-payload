@@ -1192,179 +1192,190 @@ const Billings: CollectionConfig = {
                 doc.status === 'completed' && !Boolean((doc as any).offerCountersProcessed)
 
               if (shouldProcessOfferCounters) {
-                const settings = await getSettings()
-                const customerID = typeof customerDoc?.id === 'string' ? customerDoc.id : null
-                const billItems = Array.isArray(doc.items) ? (doc.items as any[]) : []
+                try {
+                  const settings = await getSettings()
+                  const customerID = typeof customerDoc?.id === 'string' ? customerDoc.id : null
+                  const billItems = Array.isArray(doc.items) ? (doc.items as any[]) : []
 
-                const p2pUsageByRule = new Map<string, number>()
-                const priceUsageByRule = new Map<string, number>()
+                  const p2pUsageByRule = new Map<string, number>()
+                  const priceUsageByRule = new Map<string, number>()
 
-                const p2pRuleByKey = new Map(
-                  settings.productToProductOffers.map((rule) => [buildRuleKey(rule), rule]),
-                )
-                const priceRuleByKey = new Map(
-                  settings.productPriceOffers.map((rule) => [buildPriceOfferRuleKey(rule), rule]),
-                )
-
-                for (const item of billItems) {
-                  if (item?.isOfferFreeItem && typeof item?.offerRuleKey === 'string') {
-                    const rule = p2pRuleByKey.get(item.offerRuleKey)
-                    const quantity = toSafeNonNegativeNumber(item?.quantity)
-                    const divisor = rule?.freeQuantity ? Math.max(1, rule.freeQuantity) : 1
-                    const increment = quantity > 0 ? Math.max(1, Math.floor(quantity / divisor)) : 1
-                    p2pUsageByRule.set(
-                      item.offerRuleKey,
-                      (p2pUsageByRule.get(item.offerRuleKey) || 0) + increment,
-                    )
-                  }
-
-                  if (
-                    item?.isPriceOfferApplied &&
-                    !item?.isOfferFreeItem &&
-                    !item?.isRandomCustomerOfferItem &&
-                    typeof item?.priceOfferRuleKey === 'string'
-                  ) {
-                    const quantity = toSafeNonNegativeNumber(item?.quantity)
-                    const increment = quantity > 0 ? quantity : 1
-                    priceUsageByRule.set(
-                      item.priceOfferRuleKey,
-                      (priceUsageByRule.get(item.priceOfferRuleKey) || 0) + increment,
-                    )
-                  }
-                }
-
-                let settingsChanged = false
-
-                const updatedProductToProductRules = settings.productToProductOffers.map((rule) => {
-                  const key = buildRuleKey(rule)
-                  const usageIncrement = p2pUsageByRule.get(key) || 0
-                  const nextCustomers = [...rule.offerCustomers]
-
-                  if (usageIncrement > 0 && customerID && !nextCustomers.includes(customerID)) {
-                    nextCustomers.push(customerID)
-                  }
-
-                  const nextGivenCount =
-                    usageIncrement > 0 ? rule.offerGivenCount + usageIncrement : rule.offerGivenCount
-                  const nextCustomerCount = nextCustomers.length
-
-                  if (
-                    usageIncrement > 0 ||
-                    nextGivenCount !== rule.offerGivenCount ||
-                    nextCustomerCount !== rule.offerCustomerCount
-                  ) {
-                    settingsChanged = true
-                  }
-
-                  return {
-                    id: rule.id,
-                    enabled: rule.enabled,
-                    buyProduct: rule.buyProduct,
-                    buyQuantity: rule.buyQuantity,
-                    freeProduct: rule.freeProduct,
-                    freeQuantity: rule.freeQuantity,
-                    maxOfferCount: rule.maxOfferCount,
-                    maxCustomerCount: rule.maxCustomerCount,
-                    offerGivenCount: nextGivenCount,
-                    offerCustomerCount: nextCustomerCount,
-                    offerCustomers: nextCustomers,
-                  }
-                })
-
-                const updatedProductPriceRules = settings.productPriceOffers.map((rule) => {
-                  const key = buildPriceOfferRuleKey(rule)
-                  const usageIncrement = priceUsageByRule.get(key) || 0
-                  const nextCustomers = [...rule.offerCustomers]
-
-                  if (usageIncrement > 0 && customerID && !nextCustomers.includes(customerID)) {
-                    nextCustomers.push(customerID)
-                  }
-
-                  const nextGivenCount =
-                    usageIncrement > 0 ? rule.offerGivenCount + usageIncrement : rule.offerGivenCount
-                  const nextCustomerCount = nextCustomers.length
-
-                  if (
-                    usageIncrement > 0 ||
-                    nextGivenCount !== rule.offerGivenCount ||
-                    nextCustomerCount !== rule.offerCustomerCount
-                  ) {
-                    settingsChanged = true
-                  }
-
-                  return {
-                    id: rule.id,
-                    enabled: rule.enabled,
-                    product: rule.product,
-                    discountAmount: rule.discountAmount,
-                    maxOfferCount: rule.maxOfferCount,
-                    maxCustomerCount: rule.maxCustomerCount,
-                    offerGivenCount: nextGivenCount,
-                    offerCustomerCount: nextCustomerCount,
-                    offerCustomers: nextCustomers,
-                  }
-                })
-
-                const totalPercentageOfferUsageIncrement =
-                  Boolean((doc as any).totalPercentageOfferApplied) &&
-                  toSafeNonNegativeNumber((doc as any).totalPercentageOfferDiscount) > 0
-                    ? 1
-                    : 0
-
-                const nextTotalPercentageOfferCustomers = [...settings.totalPercentageOfferCustomers]
-                if (
-                  totalPercentageOfferUsageIncrement > 0 &&
-                  customerID &&
-                  !nextTotalPercentageOfferCustomers.includes(customerID)
-                ) {
-                  nextTotalPercentageOfferCustomers.push(customerID)
-                }
-
-                const nextTotalPercentageOfferGivenCount =
-                  totalPercentageOfferUsageIncrement > 0
-                    ? settings.totalPercentageOfferGivenCount + totalPercentageOfferUsageIncrement
-                    : settings.totalPercentageOfferGivenCount
-                const nextTotalPercentageOfferCustomerCount = nextTotalPercentageOfferCustomers.length
-
-                if (
-                  totalPercentageOfferUsageIncrement > 0 ||
-                  nextTotalPercentageOfferGivenCount !== settings.totalPercentageOfferGivenCount ||
-                  nextTotalPercentageOfferCustomerCount !==
-                    settings.totalPercentageOfferCustomerCount
-                ) {
-                  settingsChanged = true
-                }
-
-                if (settingsChanged) {
-                  await withWriteConflictRetry(() =>
-                    req.payload.updateGlobal({
-                      slug: 'customer-offer-settings' as any,
-                      data: {
-                        productToProductOffers: updatedProductToProductRules,
-                        productPriceOffers: updatedProductPriceRules,
-                        totalPercentageOfferGivenCount: nextTotalPercentageOfferGivenCount,
-                        totalPercentageOfferCustomerCount: nextTotalPercentageOfferCustomerCount,
-                        totalPercentageOfferCustomers: nextTotalPercentageOfferCustomers,
-                      } as any,
-                      depth: 0,
-                      overrideAccess: true,
-                    }),
+                  const p2pRuleByKey = new Map(
+                    settings.productToProductOffers.map((rule) => [buildRuleKey(rule), rule]),
                   )
-                }
+                  const priceRuleByKey = new Map(
+                    settings.productPriceOffers.map((rule) => [buildPriceOfferRuleKey(rule), rule]),
+                  )
 
-                await req.payload.update({
-                  collection: 'billings',
-                  id: doc.id,
-                  data: {
-                    offerCountersProcessed: true,
-                  } as any,
-                  depth: 0,
-                  overrideAccess: true,
-                  context: {
-                    skipCustomerRewardProcessing: true,
-                    skipOfferCounterProcessing: true,
-                  },
-                })
+                  for (const item of billItems) {
+                    if (item?.isOfferFreeItem && typeof item?.offerRuleKey === 'string') {
+                      const rule = p2pRuleByKey.get(item.offerRuleKey)
+                      const quantity = toSafeNonNegativeNumber(item?.quantity)
+                      const divisor = rule?.freeQuantity ? Math.max(1, rule.freeQuantity) : 1
+                      const increment = quantity > 0 ? Math.max(1, Math.floor(quantity / divisor)) : 1
+                      p2pUsageByRule.set(
+                        item.offerRuleKey,
+                        (p2pUsageByRule.get(item.offerRuleKey) || 0) + increment,
+                      )
+                    }
+
+                    if (
+                      item?.isPriceOfferApplied &&
+                      !item?.isOfferFreeItem &&
+                      !item?.isRandomCustomerOfferItem &&
+                      typeof item?.priceOfferRuleKey === 'string'
+                    ) {
+                      const quantity = toSafeNonNegativeNumber(item?.quantity)
+                      const increment = quantity > 0 ? quantity : 1
+                      priceUsageByRule.set(
+                        item.priceOfferRuleKey,
+                        (priceUsageByRule.get(item.priceOfferRuleKey) || 0) + increment,
+                      )
+                    }
+                  }
+
+                  let settingsChanged = false
+
+                  const updatedProductToProductRules = settings.productToProductOffers.map((rule) => {
+                    const key = buildRuleKey(rule)
+                    const usageIncrement = p2pUsageByRule.get(key) || 0
+                    const nextCustomers = [...rule.offerCustomers]
+
+                    if (usageIncrement > 0 && customerID && !nextCustomers.includes(customerID)) {
+                      nextCustomers.push(customerID)
+                    }
+
+                    const nextGivenCount =
+                      usageIncrement > 0
+                        ? rule.offerGivenCount + usageIncrement
+                        : rule.offerGivenCount
+                    const nextCustomerCount = nextCustomers.length
+
+                    if (
+                      usageIncrement > 0 ||
+                      nextGivenCount !== rule.offerGivenCount ||
+                      nextCustomerCount !== rule.offerCustomerCount
+                    ) {
+                      settingsChanged = true
+                    }
+
+                    return {
+                      id: rule.id,
+                      enabled: rule.enabled,
+                      buyProduct: rule.buyProduct,
+                      buyQuantity: rule.buyQuantity,
+                      freeProduct: rule.freeProduct,
+                      freeQuantity: rule.freeQuantity,
+                      maxOfferCount: rule.maxOfferCount,
+                      maxCustomerCount: rule.maxCustomerCount,
+                      offerGivenCount: nextGivenCount,
+                      offerCustomerCount: nextCustomerCount,
+                      offerCustomers: nextCustomers,
+                    }
+                  })
+
+                  const updatedProductPriceRules = settings.productPriceOffers.map((rule) => {
+                    const key = buildPriceOfferRuleKey(rule)
+                    const usageIncrement = priceUsageByRule.get(key) || 0
+                    const nextCustomers = [...rule.offerCustomers]
+
+                    if (usageIncrement > 0 && customerID && !nextCustomers.includes(customerID)) {
+                      nextCustomers.push(customerID)
+                    }
+
+                    const nextGivenCount =
+                      usageIncrement > 0
+                        ? rule.offerGivenCount + usageIncrement
+                        : rule.offerGivenCount
+                    const nextCustomerCount = nextCustomers.length
+
+                    if (
+                      usageIncrement > 0 ||
+                      nextGivenCount !== rule.offerGivenCount ||
+                      nextCustomerCount !== rule.offerCustomerCount
+                    ) {
+                      settingsChanged = true
+                    }
+
+                    return {
+                      id: rule.id,
+                      enabled: rule.enabled,
+                      product: rule.product,
+                      discountAmount: rule.discountAmount,
+                      maxOfferCount: rule.maxOfferCount,
+                      maxCustomerCount: rule.maxCustomerCount,
+                      offerGivenCount: nextGivenCount,
+                      offerCustomerCount: nextCustomerCount,
+                      offerCustomers: nextCustomers,
+                    }
+                  })
+
+                  const totalPercentageOfferUsageIncrement =
+                    Boolean((doc as any).totalPercentageOfferApplied) &&
+                    toSafeNonNegativeNumber((doc as any).totalPercentageOfferDiscount) > 0
+                      ? 1
+                      : 0
+
+                  const nextTotalPercentageOfferCustomers = [...settings.totalPercentageOfferCustomers]
+                  if (
+                    totalPercentageOfferUsageIncrement > 0 &&
+                    customerID &&
+                    !nextTotalPercentageOfferCustomers.includes(customerID)
+                  ) {
+                    nextTotalPercentageOfferCustomers.push(customerID)
+                  }
+
+                  const nextTotalPercentageOfferGivenCount =
+                    totalPercentageOfferUsageIncrement > 0
+                      ? settings.totalPercentageOfferGivenCount + totalPercentageOfferUsageIncrement
+                      : settings.totalPercentageOfferGivenCount
+                  const nextTotalPercentageOfferCustomerCount = nextTotalPercentageOfferCustomers.length
+
+                  if (
+                    totalPercentageOfferUsageIncrement > 0 ||
+                    nextTotalPercentageOfferGivenCount !== settings.totalPercentageOfferGivenCount ||
+                    nextTotalPercentageOfferCustomerCount !==
+                      settings.totalPercentageOfferCustomerCount
+                  ) {
+                    settingsChanged = true
+                  }
+
+                  if (settingsChanged) {
+                    await withWriteConflictRetry(() =>
+                      req.payload.updateGlobal({
+                        slug: 'customer-offer-settings' as any,
+                        data: {
+                          productToProductOffers: updatedProductToProductRules,
+                          productPriceOffers: updatedProductPriceRules,
+                          totalPercentageOfferGivenCount: nextTotalPercentageOfferGivenCount,
+                          totalPercentageOfferCustomerCount: nextTotalPercentageOfferCustomerCount,
+                          totalPercentageOfferCustomers: nextTotalPercentageOfferCustomers,
+                        } as any,
+                        depth: 0,
+                        overrideAccess: true,
+                      }),
+                    )
+                  }
+
+                  await req.payload.update({
+                    collection: 'billings',
+                    id: doc.id,
+                    data: {
+                      offerCountersProcessed: true,
+                    } as any,
+                    depth: 0,
+                    overrideAccess: true,
+                    context: {
+                      skipCustomerRewardProcessing: true,
+                      skipOfferCounterProcessing: true,
+                    },
+                  })
+                } catch (offerCounterError) {
+                  console.error('Offer counter processing failed. Reward processing will continue.', {
+                    billID: doc.id,
+                    error: offerCounterError,
+                  })
+                }
               }
 
               const shouldProcessRewards =
