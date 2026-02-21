@@ -150,6 +150,81 @@ const canApplyRuleWithinLimits = (
   return true
 }
 
+const computeRewardSnapshotFromCompletedHistory = async (
+  payload: Payload,
+  customerPhoneNumber: string,
+  settings: CustomerRewardSettings,
+): Promise<{ rewardPoints: number; rewardProgressAmount: number }> => {
+  if (
+    !customerPhoneNumber ||
+    !settings.enabled ||
+    settings.spendAmountPerStep <= 0 ||
+    settings.pointsPerStep <= 0
+  ) {
+    return { rewardPoints: 0, rewardProgressAmount: 0 }
+  }
+
+  let page = 1
+  let hasNextPage = true
+  let rewardPoints = 0
+  let rewardProgressAmount = 0
+
+  while (hasNextPage) {
+    const result = await payload.find({
+      collection: 'billings',
+      where: {
+        and: [
+          {
+            ['customerDetails.phoneNumber']: {
+              equals: customerPhoneNumber,
+            },
+          } as any,
+          {
+            status: {
+              equals: 'completed',
+            },
+          },
+        ],
+      },
+      sort: 'createdAt',
+      page,
+      limit: 200,
+      depth: 0,
+      overrideAccess: true,
+    })
+
+    for (const row of result.docs as any[]) {
+      const grossAmount = toSafeNonNegativeNumber(row?.grossAmount ?? row?.totalAmount)
+      const offerDiscount = toSafeNonNegativeNumber(row?.customerOfferDiscount)
+      const offerWasApplied = Boolean(row?.customerOfferApplied) && offerDiscount > 0
+
+      if (offerWasApplied && settings.resetOnRedeem) {
+        rewardPoints = 0
+        rewardProgressAmount = 0
+        continue
+      }
+
+      const totalProgressAmount = rewardProgressAmount + grossAmount
+      const { earnedPoints, consumedAmount } = calculatePointsForSpend(
+        totalProgressAmount,
+        settings.spendAmountPerStep,
+        settings.pointsPerStep,
+      )
+
+      rewardPoints += earnedPoints
+      rewardProgressAmount = toMoneyValue(Math.max(0, totalProgressAmount - consumedAmount))
+    }
+
+    hasNextPage = result.hasNextPage
+    page += 1
+  }
+
+  return {
+    rewardPoints,
+    rewardProgressAmount,
+  }
+}
+
 const applyProductToProductOffers = async (
   items: BillingItemInput[],
   payload: Payload,
@@ -957,7 +1032,45 @@ const Billings: CollectionConfig = {
 
               if (settings.enabled) {
                 const customer = await getCustomer()
-                const rewardPoints = toSafeNonNegativeNumber(customer?.rewardPoints)
+                let rewardPoints = toSafeNonNegativeNumber(customer?.rewardPoints)
+                let rewardProgressAmount = toSafeNonNegativeNumber(customer?.rewardProgressAmount)
+
+                if (rewardPoints < settings.pointsNeededForOffer) {
+                  const historySnapshot = await computeRewardSnapshotFromCompletedHistory(
+                    req.payload,
+                    phoneNumber,
+                    settings,
+                  )
+
+                  if (
+                    historySnapshot.rewardPoints > rewardPoints ||
+                    historySnapshot.rewardProgressAmount > rewardProgressAmount
+                  ) {
+                    rewardPoints = historySnapshot.rewardPoints
+                    rewardProgressAmount = historySnapshot.rewardProgressAmount
+
+                    if (customer?.id) {
+                      try {
+                        await req.payload.update({
+                          collection: 'customers',
+                          id: customer.id,
+                          data: {
+                            rewardPoints,
+                            rewardProgressAmount,
+                            isOfferEligible: rewardPoints >= settings.pointsNeededForOffer,
+                          } as any,
+                          depth: 0,
+                          overrideAccess: true,
+                        })
+                      } catch (historySyncError) {
+                        console.error(
+                          'Failed to sync customer reward snapshot before applying credit offer.',
+                          historySyncError,
+                        )
+                      }
+                    }
+                  }
+                }
 
                 if (rewardPoints >= settings.pointsNeededForOffer) {
                   offerApplied = true
