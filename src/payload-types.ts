@@ -137,6 +137,7 @@ export interface Config {
     'branch-geo-settings': BranchGeoSetting;
     'network-status': NetworkStatus;
     'automate-settings': AutomateSetting;
+    'customer-offer-settings': CustomerOfferSetting;
   };
   globalsSelect: {
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
@@ -155,6 +156,7 @@ export interface Config {
     'branch-geo-settings': BranchGeoSettingsSelect<false> | BranchGeoSettingsSelect<true>;
     'network-status': NetworkStatusSelect<false> | NetworkStatusSelect<true>;
     'automate-settings': AutomateSettingsSelect<false> | AutomateSettingsSelect<true>;
+    'customer-offer-settings': CustomerOfferSettingsSelect<false> | CustomerOfferSettingsSelect<true>;
   };
   locale: null;
   user: User & {
@@ -481,6 +483,18 @@ export interface Billing {
     quantity: number;
     unitPrice: number;
     subtotal: number;
+    isOfferFreeItem?: boolean | null;
+    offerRuleKey?: string | null;
+    offerTriggerProduct?: (string | null) | Product;
+    isPriceOfferApplied?: boolean | null;
+    priceOfferRuleKey?: string | null;
+    priceOfferDiscountPerUnit?: number | null;
+    /**
+     * Final unit price after product price offer discount.
+     */
+    effectiveUnitPrice?: number | null;
+    isRandomCustomerOfferItem?: boolean | null;
+    randomCustomerOfferCampaignCode?: string | null;
     orderedAt?: string | null;
     confirmedAt?: string | null;
     preparedAt?: string | null;
@@ -489,10 +503,21 @@ export interface Billing {
     branchOverride?: boolean | null;
     id?: string | null;
   }[];
+  /**
+   * Total before customer/percentage discounts.
+   */
+  grossAmount?: number | null;
+  /**
+   * Final payable total after all configured discounts.
+   */
   totalAmount: number;
   branch: string | Branch;
   createdBy: string | User;
   paymentMethod?: ('cash' | 'card' | 'upi' | 'other') | null;
+  /**
+   * Apply configured offer if customer has required points. Offer can be used only once before earning again.
+   */
+  applyCustomerOffer?: boolean | null;
   company: string | Company;
   customerDetails?: {
     name?: string | null;
@@ -500,6 +525,13 @@ export interface Billing {
     address?: string | null;
   };
   status?: ('ordered' | 'prepared' | 'delivered' | 'completed' | 'cancelled') | null;
+  customerOfferApplied?: boolean | null;
+  customerOfferDiscount?: number | null;
+  totalPercentageOfferApplied?: boolean | null;
+  totalPercentageOfferDiscount?: number | null;
+  customerRewardPointsEarned?: number | null;
+  customerRewardProcessed?: boolean | null;
+  offerCountersProcessed?: boolean | null;
   notes?: string | null;
   tableDetails?: {
     section?: string | null;
@@ -686,6 +718,27 @@ export interface Customer {
   name: string;
   phoneNumber: string;
   bills?: (string | Billing)[] | null;
+  /**
+   * Editable: manually adjust customer points when required.
+   */
+  rewardPoints?: number | null;
+  /**
+   * Editable: accumulated purchase amount towards next point step.
+   */
+  rewardProgressAmount?: number | null;
+  /**
+   * Editable override for eligibility if needed.
+   */
+  isOfferEligible?: boolean | null;
+  /**
+   * Editable: manual correction field for redeemed offers.
+   */
+  totalOffersRedeemed?: number | null;
+  randomCustomerOfferAssigned?: boolean | null;
+  randomCustomerOfferRedeemed?: boolean | null;
+  randomCustomerOfferProduct?: (string | null) | Product;
+  randomCustomerOfferCampaignCode?: string | null;
+  randomCustomerOfferAssignedAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1150,6 +1203,15 @@ export interface BillingsSelect<T extends boolean = true> {
         quantity?: T;
         unitPrice?: T;
         subtotal?: T;
+        isOfferFreeItem?: T;
+        offerRuleKey?: T;
+        offerTriggerProduct?: T;
+        isPriceOfferApplied?: T;
+        priceOfferRuleKey?: T;
+        priceOfferDiscountPerUnit?: T;
+        effectiveUnitPrice?: T;
+        isRandomCustomerOfferItem?: T;
+        randomCustomerOfferCampaignCode?: T;
         orderedAt?: T;
         confirmedAt?: T;
         preparedAt?: T;
@@ -1158,10 +1220,12 @@ export interface BillingsSelect<T extends boolean = true> {
         branchOverride?: T;
         id?: T;
       };
+  grossAmount?: T;
   totalAmount?: T;
   branch?: T;
   createdBy?: T;
   paymentMethod?: T;
+  applyCustomerOffer?: T;
   company?: T;
   customerDetails?:
     | T
@@ -1171,6 +1235,13 @@ export interface BillingsSelect<T extends boolean = true> {
         address?: T;
       };
   status?: T;
+  customerOfferApplied?: T;
+  customerOfferDiscount?: T;
+  totalPercentageOfferApplied?: T;
+  totalPercentageOfferDiscount?: T;
+  customerRewardPointsEarned?: T;
+  customerRewardProcessed?: T;
+  offerCountersProcessed?: T;
   notes?: T;
   tableDetails?:
     | T
@@ -1340,6 +1411,15 @@ export interface CustomersSelect<T extends boolean = true> {
   name?: T;
   phoneNumber?: T;
   bills?: T;
+  rewardPoints?: T;
+  rewardProgressAmount?: T;
+  isOfferEligible?: T;
+  totalOffersRedeemed?: T;
+  randomCustomerOfferAssigned?: T;
+  randomCustomerOfferRedeemed?: T;
+  randomCustomerOfferProduct?: T;
+  randomCustomerOfferCampaignCode?: T;
+  randomCustomerOfferAssignedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1661,6 +1741,149 @@ export interface AutomateSetting {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "customer-offer-settings".
+ */
+export interface CustomerOfferSetting {
+  id: string;
+  /**
+   * Credit-point offer type. Can be used independently or together with product-to-product offer.
+   */
+  enabled?: boolean | null;
+  /**
+   * Example: 1000 means points are granted for every Rs 1000 spent.
+   */
+  spendAmountPerStep: number;
+  /**
+   * Example: 10 points for each spend step.
+   */
+  pointsPerStep: number;
+  /**
+   * Example: 50 points required before offer can be applied.
+   */
+  pointsNeededForOffer: number;
+  /**
+   * Discount amount applied when customer redeems points.
+   */
+  offerAmount: number;
+  /**
+   * When enabled, customer points/progress are reset after the offer is used. They must purchase again to earn fresh points.
+   */
+  resetOnRedeem?: boolean | null;
+  /**
+   * Second offer type. Enable this alone, or enable both offer types at the same time.
+   */
+  enableProductToProductOffer?: boolean | null;
+  productToProductOffers?:
+    | {
+        enabled?: boolean | null;
+        /**
+         * Search/filter and choose product A.
+         */
+        buyProduct: string | Product;
+        buyQuantity: number;
+        /**
+         * Search/filter and choose product B.
+         */
+        freeProduct: string | Product;
+        freeQuantity: number;
+        /**
+         * 0 means unlimited.
+         */
+        maxOfferCount?: number | null;
+        /**
+         * 0 means unlimited.
+         */
+        maxCustomerCount?: number | null;
+        offerGivenCount?: number | null;
+        offerCustomerCount?: number | null;
+        offerCustomers?: (string | Customer)[] | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Third offer type. Example: Tea Rs 12 with Rs 2 discount, customer pays Rs 10.
+   */
+  enableProductPriceOffer?: boolean | null;
+  productPriceOffers?:
+    | {
+        enabled?: boolean | null;
+        /**
+         * Search/filter and choose the product (e.g., Tea).
+         */
+        product: string | Product;
+        productCurrentPrice?: number | null;
+        discountAmount: number;
+        /**
+         * Auto preview after discount.
+         */
+        finalPricePreview?: number | null;
+        /**
+         * 0 means unlimited.
+         */
+        maxOfferCount?: number | null;
+        /**
+         * 0 means unlimited.
+         */
+        maxCustomerCount?: number | null;
+        offerGivenCount?: number | null;
+        offerCustomerCount?: number | null;
+        offerCustomers?: (string | Customer)[] | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Fourth offer type. Add multiple products with winner counts; system assigns each to random customers.
+   */
+  enableRandomCustomerProductOffer?: boolean | null;
+  /**
+   * Change this code to start a new random campaign.
+   */
+  randomCustomerOfferCampaignCode: string;
+  /**
+   * Add multiple products and set how many random customers should get each.
+   */
+  randomCustomerOfferProducts?:
+    | {
+        enabled?: boolean | null;
+        product: string | Product;
+        winnerCount: number;
+        assignedCount?: number | null;
+        redeemedCount?: number | null;
+        selectedCustomers?: (string | Customer)[] | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Tick and save to generate a fresh random customer list.
+   */
+  reselectRandomCustomerOffer?: boolean | null;
+  randomCustomerOfferAssignedCount?: number | null;
+  randomCustomerOfferRedeemedCount?: number | null;
+  randomCustomerOfferLastAssignedAt?: string | null;
+  /**
+   * Fifth offer type. Applies percentage discount on final bill total after other discounts.
+   */
+  enableTotalPercentageOffer?: boolean | null;
+  /**
+   * Example: 10 means 10% discount on total amount.
+   */
+  totalPercentageOfferPercent: number;
+  /**
+   * 0 means unlimited.
+   */
+  totalPercentageOfferMaxOfferCount?: number | null;
+  /**
+   * 0 means unlimited.
+   */
+  totalPercentageOfferMaxCustomerCount?: number | null;
+  totalPercentageOfferGivenCount?: number | null;
+  totalPercentageOfferCustomerCount?: number | null;
+  totalPercentageOfferCustomers?: (string | Customer)[] | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "ip-settings_select".
  */
 export interface IpSettingsSelect<T extends boolean = true> {
@@ -1831,6 +2054,77 @@ export interface NetworkStatusSelect<T extends boolean = true> {
  * via the `definition` "automate-settings_select".
  */
 export interface AutomateSettingsSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "customer-offer-settings_select".
+ */
+export interface CustomerOfferSettingsSelect<T extends boolean = true> {
+  enabled?: T;
+  spendAmountPerStep?: T;
+  pointsPerStep?: T;
+  pointsNeededForOffer?: T;
+  offerAmount?: T;
+  resetOnRedeem?: T;
+  enableProductToProductOffer?: T;
+  productToProductOffers?:
+    | T
+    | {
+        enabled?: T;
+        buyProduct?: T;
+        buyQuantity?: T;
+        freeProduct?: T;
+        freeQuantity?: T;
+        maxOfferCount?: T;
+        maxCustomerCount?: T;
+        offerGivenCount?: T;
+        offerCustomerCount?: T;
+        offerCustomers?: T;
+        id?: T;
+      };
+  enableProductPriceOffer?: T;
+  productPriceOffers?:
+    | T
+    | {
+        enabled?: T;
+        product?: T;
+        productCurrentPrice?: T;
+        discountAmount?: T;
+        finalPricePreview?: T;
+        maxOfferCount?: T;
+        maxCustomerCount?: T;
+        offerGivenCount?: T;
+        offerCustomerCount?: T;
+        offerCustomers?: T;
+        id?: T;
+      };
+  enableRandomCustomerProductOffer?: T;
+  randomCustomerOfferCampaignCode?: T;
+  randomCustomerOfferProducts?:
+    | T
+    | {
+        enabled?: T;
+        product?: T;
+        winnerCount?: T;
+        assignedCount?: T;
+        redeemedCount?: T;
+        selectedCustomers?: T;
+        id?: T;
+      };
+  reselectRandomCustomerOffer?: T;
+  randomCustomerOfferAssignedCount?: T;
+  randomCustomerOfferRedeemedCount?: T;
+  randomCustomerOfferLastAssignedAt?: T;
+  enableTotalPercentageOffer?: T;
+  totalPercentageOfferPercent?: T;
+  totalPercentageOfferMaxOfferCount?: T;
+  totalPercentageOfferMaxCustomerCount?: T;
+  totalPercentageOfferGivenCount?: T;
+  totalPercentageOfferCustomerCount?: T;
+  totalPercentageOfferCustomers?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

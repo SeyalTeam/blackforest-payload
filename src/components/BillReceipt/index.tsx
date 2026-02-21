@@ -10,6 +10,9 @@ export type BillItem = {
   notes?: string | null
   quantity: number
   unitPrice: number
+  effectiveUnitPrice?: number | null
+  isPriceOfferApplied?: boolean | null
+  priceOfferDiscountPerUnit?: number | null
   subtotal: number
 }
 
@@ -324,6 +327,10 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
               const reviewData = productId ? productReviews[productId] : null
               const rating = reviewData?.rating || 0
               const isSubmitted = reviewData?.submitted
+              const displayUnitPrice =
+                item.isPriceOfferApplied && typeof item.effectiveUnitPrice === 'number'
+                  ? item.effectiveUnitPrice
+                  : item.unitPrice
 
               return (
                 <React.Fragment key={index}>
@@ -344,7 +351,7 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
                       )}
                     </td>
                     <td className="item-qty">
-                      {item.quantity} x {item.unitPrice}
+                      {item.quantity} x {displayUnitPrice}
                     </td>
                     <td className="item-total">{item.subtotal?.toFixed(2)}</td>
                   </tr>

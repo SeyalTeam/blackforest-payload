@@ -63,6 +63,7 @@ import Attendance from './collections/Attendance'
 import { AutomateGlobal } from './globals/Automate'
 import { createAutomatedOrderHandler } from './endpoints/createAutomatedOrder'
 import { getReportBranchesHandler } from './endpoints/getReportBranches'
+import { CustomerOfferSettings } from './globals/CustomerOfferSettings'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -238,6 +239,7 @@ export default buildConfig({
     BranchGeoSettings,
     NetworkStatus,
     AutomateGlobal,
+    CustomerOfferSettings,
   ],
 
   // Collections
