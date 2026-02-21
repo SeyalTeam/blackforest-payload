@@ -97,7 +97,10 @@ const getPositiveNumericValue = (value: unknown): number => {
   return 0
 }
 
-const getProductNameMap = async (payload: Payload, productIDs: string[]): Promise<Record<string, string>> => {
+const getProductNameMap = async (
+  payload: Payload,
+  productIDs: string[],
+): Promise<Record<string, string>> => {
   const uniqueProductIDs = [...new Set(productIDs)]
   const rows = await Promise.all(
     uniqueProductIDs.map(async (productID) => {
@@ -225,6 +228,39 @@ const computeRewardSnapshotFromCompletedHistory = async (
   }
 }
 
+const markBillingProcessingFlags = async (
+  payload: Payload,
+  billID: string,
+  data: Record<string, unknown>,
+  reason: string,
+): Promise<boolean> => {
+  try {
+    await withWriteConflictRetry(() =>
+      payload.update({
+        collection: 'billings',
+        id: billID,
+        data: data as any,
+        depth: 0,
+        overrideAccess: true,
+        context: {
+          skipCustomerRewardProcessing: true,
+          skipOfferCounterProcessing: true,
+        },
+      }),
+    )
+
+    return true
+  } catch (error) {
+    console.error('Failed to mark billing processing flags.', {
+      billID,
+      reason,
+      data,
+      error,
+    })
+    return false
+  }
+}
+
 const applyProductToProductOffers = async (
   items: BillingItemInput[],
   payload: Payload,
@@ -273,10 +309,7 @@ const applyProductToProductOffers = async (
     purchasedByProduct.set(productID, (purchasedByProduct.get(productID) || 0) + quantity)
   }
 
-  const desiredOffers = new Map<
-    string,
-    { rule: ProductToProductOfferRule; freeQuantity: number }
-  >()
+  const desiredOffers = new Map<string, { rule: ProductToProductOfferRule; freeQuantity: number }>()
 
   for (const rule of activeRules) {
     const purchasedQty = purchasedByProduct.get(rule.buyProduct) || 0
@@ -442,9 +475,7 @@ const applyRandomCustomerProductOffer = async (
   }
 
   const activeRandomProductIDs = new Set(
-    settings.randomCustomerOfferProducts
-      .filter((row) => row.enabled)
-      .map((row) => row.product),
+    settings.randomCustomerOfferProducts.filter((row) => row.enabled).map((row) => row.product),
   )
 
   if (activeRandomProductIDs.size === 0) {
@@ -1080,7 +1111,9 @@ const Billings: CollectionConfig = {
             }
           }
 
-          const amountAfterCustomerOffer = toMoneyValue(Math.max(0, pricingData.grossAmount - offerDiscount))
+          const amountAfterCustomerOffer = toMoneyValue(
+            Math.max(0, pricingData.grossAmount - offerDiscount),
+          )
 
           if (originalTotalPercentageOfferWasApplied) {
             totalPercentageOfferApplied = true
@@ -1135,7 +1168,10 @@ const Billings: CollectionConfig = {
         if (!doc) return
 
         const requestContext = (req as any).context as Record<string, unknown> | undefined
-        if (requestContext?.skipCustomerRewardProcessing || requestContext?.skipOfferCounterProcessing) {
+        const skipCustomerRewardProcessing = Boolean(requestContext?.skipCustomerRewardProcessing)
+        const skipOfferCounterProcessing = Boolean(requestContext?.skipOfferCounterProcessing)
+
+        if (skipCustomerRewardProcessing && skipOfferCounterProcessing) {
           return doc
         }
 
@@ -1302,7 +1338,9 @@ const Billings: CollectionConfig = {
               }
 
               const shouldProcessOfferCounters =
-                doc.status === 'completed' && !Boolean((doc as any).offerCountersProcessed)
+                !skipOfferCounterProcessing &&
+                doc.status === 'completed' &&
+                !Boolean((doc as any).offerCountersProcessed)
 
               if (shouldProcessOfferCounters) {
                 try {
@@ -1325,7 +1363,8 @@ const Billings: CollectionConfig = {
                       const rule = p2pRuleByKey.get(item.offerRuleKey)
                       const quantity = toSafeNonNegativeNumber(item?.quantity)
                       const divisor = rule?.freeQuantity ? Math.max(1, rule.freeQuantity) : 1
-                      const increment = quantity > 0 ? Math.max(1, Math.floor(quantity / divisor)) : 1
+                      const increment =
+                        quantity > 0 ? Math.max(1, Math.floor(quantity / divisor)) : 1
                       p2pUsageByRule.set(
                         item.offerRuleKey,
                         (p2pUsageByRule.get(item.offerRuleKey) || 0) + increment,
@@ -1349,43 +1388,45 @@ const Billings: CollectionConfig = {
 
                   let settingsChanged = false
 
-                  const updatedProductToProductRules = settings.productToProductOffers.map((rule) => {
-                    const key = buildRuleKey(rule)
-                    const usageIncrement = p2pUsageByRule.get(key) || 0
-                    const nextCustomers = [...rule.offerCustomers]
+                  const updatedProductToProductRules = settings.productToProductOffers.map(
+                    (rule) => {
+                      const key = buildRuleKey(rule)
+                      const usageIncrement = p2pUsageByRule.get(key) || 0
+                      const nextCustomers = [...rule.offerCustomers]
 
-                    if (usageIncrement > 0 && customerID && !nextCustomers.includes(customerID)) {
-                      nextCustomers.push(customerID)
-                    }
+                      if (usageIncrement > 0 && customerID && !nextCustomers.includes(customerID)) {
+                        nextCustomers.push(customerID)
+                      }
 
-                    const nextGivenCount =
-                      usageIncrement > 0
-                        ? rule.offerGivenCount + usageIncrement
-                        : rule.offerGivenCount
-                    const nextCustomerCount = nextCustomers.length
+                      const nextGivenCount =
+                        usageIncrement > 0
+                          ? rule.offerGivenCount + usageIncrement
+                          : rule.offerGivenCount
+                      const nextCustomerCount = nextCustomers.length
 
-                    if (
-                      usageIncrement > 0 ||
-                      nextGivenCount !== rule.offerGivenCount ||
-                      nextCustomerCount !== rule.offerCustomerCount
-                    ) {
-                      settingsChanged = true
-                    }
+                      if (
+                        usageIncrement > 0 ||
+                        nextGivenCount !== rule.offerGivenCount ||
+                        nextCustomerCount !== rule.offerCustomerCount
+                      ) {
+                        settingsChanged = true
+                      }
 
-                    return {
-                      id: rule.id,
-                      enabled: rule.enabled,
-                      buyProduct: rule.buyProduct,
-                      buyQuantity: rule.buyQuantity,
-                      freeProduct: rule.freeProduct,
-                      freeQuantity: rule.freeQuantity,
-                      maxOfferCount: rule.maxOfferCount,
-                      maxCustomerCount: rule.maxCustomerCount,
-                      offerGivenCount: nextGivenCount,
-                      offerCustomerCount: nextCustomerCount,
-                      offerCustomers: nextCustomers,
-                    }
-                  })
+                      return {
+                        id: rule.id,
+                        enabled: rule.enabled,
+                        buyProduct: rule.buyProduct,
+                        buyQuantity: rule.buyQuantity,
+                        freeProduct: rule.freeProduct,
+                        freeQuantity: rule.freeQuantity,
+                        maxOfferCount: rule.maxOfferCount,
+                        maxCustomerCount: rule.maxCustomerCount,
+                        offerGivenCount: nextGivenCount,
+                        offerCustomerCount: nextCustomerCount,
+                        offerCustomers: nextCustomers,
+                      }
+                    },
+                  )
 
                   const updatedProductPriceRules = settings.productPriceOffers.map((rule) => {
                     const key = buildPriceOfferRuleKey(rule)
@@ -1429,7 +1470,9 @@ const Billings: CollectionConfig = {
                       ? 1
                       : 0
 
-                  const nextTotalPercentageOfferCustomers = [...settings.totalPercentageOfferCustomers]
+                  const nextTotalPercentageOfferCustomers = [
+                    ...settings.totalPercentageOfferCustomers,
+                  ]
                   if (
                     totalPercentageOfferUsageIncrement > 0 &&
                     customerID &&
@@ -1442,11 +1485,13 @@ const Billings: CollectionConfig = {
                     totalPercentageOfferUsageIncrement > 0
                       ? settings.totalPercentageOfferGivenCount + totalPercentageOfferUsageIncrement
                       : settings.totalPercentageOfferGivenCount
-                  const nextTotalPercentageOfferCustomerCount = nextTotalPercentageOfferCustomers.length
+                  const nextTotalPercentageOfferCustomerCount =
+                    nextTotalPercentageOfferCustomers.length
 
                   if (
                     totalPercentageOfferUsageIncrement > 0 ||
-                    nextTotalPercentageOfferGivenCount !== settings.totalPercentageOfferGivenCount ||
+                    nextTotalPercentageOfferGivenCount !==
+                      settings.totalPercentageOfferGivenCount ||
                     nextTotalPercentageOfferCustomerCount !==
                       settings.totalPercentageOfferCustomerCount
                   ) {
@@ -1470,55 +1515,71 @@ const Billings: CollectionConfig = {
                     )
                   }
 
-                  await req.payload.update({
-                    collection: 'billings',
-                    id: doc.id,
-                    data: {
+                  const offerCounterFlagUpdated = await markBillingProcessingFlags(
+                    req.payload,
+                    doc.id,
+                    {
                       offerCountersProcessed: true,
-                    } as any,
-                    depth: 0,
-                    overrideAccess: true,
-                    context: {
-                      skipCustomerRewardProcessing: true,
-                      skipOfferCounterProcessing: true,
                     },
-                  })
+                    'offer counters processed',
+                  )
+
+                  if (!offerCounterFlagUpdated) {
+                    console.error('Offer counters were computed, but flag update failed.', {
+                      billID: doc.id,
+                    })
+                  }
                 } catch (offerCounterError) {
-                  console.error('Offer counter processing failed. Reward processing will continue.', {
-                    billID: doc.id,
-                    error: offerCounterError,
-                  })
+                  console.error(
+                    'Offer counter processing failed. Reward processing will continue.',
+                    {
+                      billID: doc.id,
+                      error: offerCounterError,
+                    },
+                  )
                 }
               }
 
               const shouldProcessRewards =
-                doc.status === 'completed' && !Boolean((doc as any).customerRewardProcessed)
+                !skipCustomerRewardProcessing &&
+                doc.status === 'completed' &&
+                !Boolean((doc as any).customerRewardProcessed)
 
               if (shouldProcessRewards) {
                 const settings = await getSettings()
 
                 if (!settings.enabled) {
-                  await req.payload.update({
-                    collection: 'billings',
-                    id: doc.id,
-                    data: {
+                  const rewardFlagUpdated = await markBillingProcessingFlags(
+                    req.payload,
+                    doc.id,
+                    {
                       customerRewardProcessed: true,
                       customerRewardPointsEarned: 0,
-                    } as any,
-                    depth: 0,
-                    overrideAccess: true,
-                    context: {
-                      skipCustomerRewardProcessing: true,
                     },
-                  })
+                    'reward processing skipped because offer settings are disabled',
+                  )
+
+                  if (!rewardFlagUpdated) {
+                    console.error(
+                      'Failed to mark reward processing as complete for disabled settings.',
+                      {
+                        billID: doc.id,
+                      },
+                    )
+                  }
                   return doc
                 }
 
                 let rewardPoints = toSafeNonNegativeNumber(customerDoc?.rewardPoints)
-                let rewardProgressAmount = toSafeNonNegativeNumber(customerDoc?.rewardProgressAmount)
+                let rewardProgressAmount = toSafeNonNegativeNumber(
+                  customerDoc?.rewardProgressAmount,
+                )
                 const offerDiscount = toSafeNonNegativeNumber((doc as any).customerOfferDiscount)
-                const offerWasApplied = Boolean((doc as any).customerOfferApplied) && offerDiscount > 0
-                const grossAmount = toSafeNonNegativeNumber((doc as any).grossAmount ?? doc.totalAmount)
+                const offerWasApplied =
+                  Boolean((doc as any).customerOfferApplied) && offerDiscount > 0
+                const grossAmount = toSafeNonNegativeNumber(
+                  (doc as any).grossAmount ?? doc.totalAmount,
+                )
                 const shouldResetProgressWithoutCarry = offerWasApplied && settings.resetOnRedeem
 
                 let earnedPointsForBill = 0
@@ -1543,34 +1604,52 @@ const Billings: CollectionConfig = {
                   )
                 }
 
-                await req.payload.update({
-                  collection: 'customers',
-                  id: customerDoc.id,
-                  data: {
-                    rewardPoints: updatedRewardPoints,
-                    rewardProgressAmount: updatedProgressAmount,
-                    isOfferEligible: updatedRewardPoints >= settings.pointsNeededForOffer,
-                    totalOffersRedeemed: offerWasApplied
-                      ? toSafeNonNegativeNumber(customerDoc?.totalOffersRedeemed) + 1
-                      : toSafeNonNegativeNumber(customerDoc?.totalOffersRedeemed),
-                  } as any,
-                  depth: 0,
-                  overrideAccess: true,
-                })
+                try {
+                  await withWriteConflictRetry(() =>
+                    req.payload.update({
+                      collection: 'customers',
+                      id: customerDoc.id,
+                      data: {
+                        rewardPoints: updatedRewardPoints,
+                        rewardProgressAmount: updatedProgressAmount,
+                        isOfferEligible: updatedRewardPoints >= settings.pointsNeededForOffer,
+                        totalOffersRedeemed: offerWasApplied
+                          ? toSafeNonNegativeNumber(customerDoc?.totalOffersRedeemed) + 1
+                          : toSafeNonNegativeNumber(customerDoc?.totalOffersRedeemed),
+                      } as any,
+                      depth: 0,
+                      overrideAccess: true,
+                    }),
+                  )
+                } catch (customerRewardUpdateError) {
+                  console.error('Failed to update customer reward snapshot.', {
+                    billID: doc.id,
+                    customerID: customerDoc?.id,
+                    phoneNumber,
+                    error: customerRewardUpdateError,
+                  })
+                  throw customerRewardUpdateError
+                }
 
-                await req.payload.update({
-                  collection: 'billings',
-                  id: doc.id,
-                  data: {
+                const rewardFlagUpdated = await markBillingProcessingFlags(
+                  req.payload,
+                  doc.id,
+                  {
                     customerRewardProcessed: true,
                     customerRewardPointsEarned: earnedPointsForBill,
-                  } as any,
-                  depth: 0,
-                  overrideAccess: true,
-                  context: {
-                    skipCustomerRewardProcessing: true,
                   },
-                })
+                  'reward processing complete',
+                )
+
+                if (!rewardFlagUpdated) {
+                  console.error(
+                    'Customer reward update succeeded, but billing reward flag update failed.',
+                    {
+                      billID: doc.id,
+                      customerID: customerDoc?.id,
+                    },
+                  )
+                }
               }
             } catch (error) {
               console.error('Error syncing customer data:', error)
@@ -1621,8 +1700,7 @@ const Billings: CollectionConfig = {
             { label: 'Cancelled', value: 'cancelled' },
           ],
           admin: {
-            condition: (data) =>
-              ['ordered', 'prepared', 'delivered'].includes(data.status),
+            condition: (data) => ['ordered', 'prepared', 'delivered'].includes(data.status),
           },
         },
 
