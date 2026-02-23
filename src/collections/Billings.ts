@@ -47,6 +47,54 @@ const isPayloadNotFoundError = (error: unknown): boolean => {
   )
 }
 
+const scheduleDeferredBillingFlagUpdate = (
+  payload: Payload,
+  billID: string,
+  data: Record<string, unknown>,
+  reason: string,
+): void => {
+  setTimeout(() => {
+    void (async () => {
+      const maxAttempts = 8
+      let lastError: unknown
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+          await withWriteConflictRetry(() =>
+            payload.update({
+              collection: 'billings',
+              id: billID,
+              data: data as any,
+              depth: 0,
+              overrideAccess: true,
+              context: {
+                skipCustomerRewardProcessing: true,
+                skipOfferCounterProcessing: true,
+              },
+            }),
+          )
+
+          return
+        } catch (error) {
+          lastError = error
+          const retryableNotFound = isPayloadNotFoundError(error) && attempt < maxAttempts
+          if (!retryableNotFound) {
+            break
+          }
+          await wait(150 * attempt)
+        }
+      }
+
+      console.error('Deferred billing flag update failed.', {
+        billID,
+        reason,
+        data,
+        error: lastError,
+      })
+    })()
+  }, 0)
+}
+
 const extractBillIDs = (bills: unknown): string[] => {
   if (!Array.isArray(bills)) return []
 
@@ -288,6 +336,16 @@ const markBillingProcessingFlags = async (
       }
       await wait(120 * attempt)
     }
+  }
+
+  if (isPayloadNotFoundError(lastError)) {
+    scheduleDeferredBillingFlagUpdate(payload, billID, data, reason)
+    console.warn('Billing flag update deferred because bill was temporarily not found.', {
+      billID,
+      reason,
+      data,
+    })
+    return true
   }
 
   console.error('Failed to mark billing processing flags.', {
