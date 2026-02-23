@@ -319,12 +319,22 @@ export const CustomerOfferSettings: GlobalConfig = {
 
           await clearCustomerAssignments(idsToClear)
 
+          const resetRows = currentRows.map((row) => ({
+            id: row.id,
+            enabled: row.enabled,
+            product: row.productID,
+            winnerCount: row.winnerCount,
+            selectedCustomers: [],
+            assignedCount: 0,
+            redeemedCount: 0,
+          }))
+
           scheduleSettingsRefresh({
             randomCustomerOfferAssignedCount: 0,
             randomCustomerOfferRedeemedCount: 0,
             randomCustomerOfferLastAssignedAt: null,
             reselectRandomCustomerOffer: false,
-            randomCustomerOfferProducts: [],
+            randomCustomerOfferProducts: resetRows,
           })
 
           return doc
