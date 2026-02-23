@@ -21,6 +21,32 @@ const toMoneyValue = (value: number): number => {
   return parseFloat(value.toFixed(2))
 }
 
+const wait = async (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+
+const isPayloadNotFoundError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') return false
+
+  const candidate = error as {
+    status?: unknown
+    message?: unknown
+    name?: unknown
+  }
+
+  if (candidate.status === 404) return true
+
+  const message = typeof candidate.message === 'string' ? candidate.message.toLowerCase() : ''
+  const name = typeof candidate.name === 'string' ? candidate.name.toLowerCase() : ''
+
+  return (
+    message.includes('not found') ||
+    message.includes('document not found') ||
+    name.includes('notfound')
+  )
+}
+
 const extractBillIDs = (bills: unknown): string[] => {
   if (!Array.isArray(bills)) return []
 
@@ -234,31 +260,44 @@ const markBillingProcessingFlags = async (
   data: Record<string, unknown>,
   reason: string,
 ): Promise<boolean> => {
-  try {
-    await withWriteConflictRetry(() =>
-      payload.update({
-        collection: 'billings',
-        id: billID,
-        data: data as any,
-        depth: 0,
-        overrideAccess: true,
-        context: {
-          skipCustomerRewardProcessing: true,
-          skipOfferCounterProcessing: true,
-        },
-      }),
-    )
+  const maxAttempts = 5
+  let lastError: unknown
 
-    return true
-  } catch (error) {
-    console.error('Failed to mark billing processing flags.', {
-      billID,
-      reason,
-      data,
-      error,
-    })
-    return false
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await withWriteConflictRetry(() =>
+        payload.update({
+          collection: 'billings',
+          id: billID,
+          data: data as any,
+          depth: 0,
+          overrideAccess: true,
+          context: {
+            skipCustomerRewardProcessing: true,
+            skipOfferCounterProcessing: true,
+          },
+        }),
+      )
+
+      return true
+    } catch (error) {
+      lastError = error
+      const shouldRetry = isPayloadNotFoundError(error) && attempt < maxAttempts
+      if (!shouldRetry) {
+        break
+      }
+      await wait(120 * attempt)
+    }
   }
+
+  console.error('Failed to mark billing processing flags.', {
+    billID,
+    reason,
+    data,
+    error: lastError,
+  })
+
+  return false
 }
 
 const applyProductToProductOffers = async (
