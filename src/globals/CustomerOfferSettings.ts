@@ -1,4 +1,4 @@
-import type { GlobalConfig, Payload } from 'payload'
+import type { GlobalConfig } from 'payload'
 import { DEFAULT_CUSTOMER_REWARD_SETTINGS } from '../utilities/customerRewards'
 import { withWriteConflictRetry } from '../utilities/mongoRetry'
 
@@ -37,6 +37,11 @@ const toPositiveInteger = (value: unknown, fallback: number): number => {
   return Math.floor(value)
 }
 
+const toNonNegativeInteger = (value: unknown, fallback = 0): number => {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return fallback
+  return Math.floor(value)
+}
+
 const normalizeDateString = (value: unknown): string | null => {
   if (!value) return null
 
@@ -55,54 +60,42 @@ const normalizeTimeString = (value: unknown): string | null => {
   return `${match[1].padStart(2, '0')}:${match[2]}`
 }
 
-const shuffleArray = <T,>(input: T[]): T[] => {
-  const arr = [...input]
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    const temp = arr[i]
-    arr[i] = arr[j]
-    arr[j] = temp
-  }
-  return arr
-}
-
-const getAllCustomerIDs = async (payload: Payload): Promise<string[]> => {
-  const ids: string[] = []
-  let page = 1
-  let hasNextPage = true
-
-  while (hasNextPage) {
-    const result = await payload.find({
-      collection: 'customers',
-      page,
-      limit: 200,
-      depth: 0,
-      overrideAccess: true,
-    })
-
-    for (const row of result.docs) {
-      if (typeof row.id === 'string') {
-        ids.push(row.id)
-      }
-    }
-
-    hasNextPage = result.hasNextPage
-    page += 1
-  }
-
-  return ids
-}
-
 type RandomOfferRow = {
   id: string
   enabled: boolean
   productID: string | null
   winnerCount: number
+  maxUsagePerCustomer: number
   availableFromDate: string | null
   availableToDate: string | null
   dailyStartTime: string | null
   dailyEndTime: string | null
   selectedCustomers: string[]
+  assignedCount: number
+  redeemedCount: number
+  offerCustomerUsage: Array<{ customer: string; usageCount: number }>
+}
+
+const parseOfferCustomerUsageRows = (
+  value: unknown,
+): Array<{ customer: string; usageCount: number }> => {
+  if (!Array.isArray(value)) return []
+
+  const usageByCustomer = new Map<string, number>()
+
+  for (const row of value) {
+    if (!row || typeof row !== 'object') continue
+    const raw = row as Record<string, unknown>
+    const customerID = toRelationshipID(raw.customer)
+    if (!customerID) continue
+
+    const usageCount = toNonNegativeInteger(raw.usageCount, 0)
+    usageByCustomer.set(customerID, (usageByCustomer.get(customerID) || 0) + usageCount)
+  }
+
+  return Array.from(usageByCustomer.entries())
+    .filter(([, usageCount]) => usageCount > 0)
+    .map(([customer, usageCount]) => ({ customer, usageCount }))
 }
 
 const parseRandomOfferRows = (value: unknown): RandomOfferRow[] => {
@@ -115,11 +108,15 @@ const parseRandomOfferRows = (value: unknown): RandomOfferRow[] => {
       enabled: typeof raw.enabled === 'boolean' ? raw.enabled : true,
       productID: toRelationshipID(raw.product),
       winnerCount: toPositiveInteger(raw.winnerCount, 1),
+      maxUsagePerCustomer: toNonNegativeInteger(raw.maxUsagePerCustomer, 1),
       availableFromDate: normalizeDateString(raw.availableFromDate),
       availableToDate: normalizeDateString(raw.availableToDate),
       dailyStartTime: normalizeTimeString(raw.dailyStartTime),
       dailyEndTime: normalizeTimeString(raw.dailyEndTime),
       selectedCustomers: extractRelationshipIDs(raw.selectedCustomers),
+      assignedCount: toNonNegativeInteger(raw.assignedCount, 0),
+      redeemedCount: toNonNegativeInteger(raw.redeemedCount, 0),
+      offerCustomerUsage: parseOfferCustomerUsageRows(raw.offerCustomerUsage),
     }
   })
 }
@@ -249,17 +246,14 @@ export const CustomerOfferSettings: GlobalConfig = {
         }
 
         const previousMutableDoc = (previousDoc || {}) as {
-          enableRandomCustomerProductOffer?: boolean
-          randomCustomerOfferProducts?: unknown[]
           randomCustomerOfferCampaignCode?: string
         }
 
         const isEnabled = Boolean(mutableDoc.enableRandomCustomerProductOffer)
         const currentRows = parseRandomOfferRows(mutableDoc.randomCustomerOfferProducts)
-        const previousRows = parseRandomOfferRows(previousMutableDoc.randomCustomerOfferProducts)
-
-        const activeCurrentRows = currentRows.filter((row) => row.enabled && row.productID)
-        const activePreviousRows = previousRows.filter((row) => row.enabled && row.productID)
+        const rowsWithProducts = currentRows.filter(
+          (row): row is RandomOfferRow & { productID: string } => Boolean(row.productID),
+        )
 
         const campaignCode =
           typeof mutableDoc.randomCustomerOfferCampaignCode === 'string' &&
@@ -272,27 +266,8 @@ export const CustomerOfferSettings: GlobalConfig = {
             ? previousMutableDoc.randomCustomerOfferCampaignCode
             : DEFAULT_CUSTOMER_REWARD_SETTINGS.randomCustomerOfferCampaignCode
 
-        const previousWinnerIDs = [
-          ...new Set(activePreviousRows.flatMap((row) => row.selectedCustomers)),
-        ]
-        const currentWinnerIDs = [...new Set(activeCurrentRows.flatMap((row) => row.selectedCustomers))]
-
-        const currentRowSignature = activeCurrentRows
-          .map((row) => `${row.id}:${row.productID}:${row.winnerCount}`)
-          .sort()
-          .join('|')
-
-        const previousRowSignature = activePreviousRows
-          .map((row) => `${row.id}:${row.productID}:${row.winnerCount}`)
-          .sort()
-          .join('|')
-
-        const configChanged =
-          isEnabled !== Boolean(previousMutableDoc.enableRandomCustomerProductOffer) ||
-          currentRowSignature !== previousRowSignature ||
-          campaignCode !== previousCampaignCode
-
-        const shouldReselect = configChanged || Boolean(mutableDoc.reselectRandomCustomerOffer)
+        const shouldResetProgress =
+          Boolean(mutableDoc.reselectRandomCustomerOffer) || campaignCode !== previousCampaignCode
 
         const scheduleSettingsRefresh = (updateData: Record<string, unknown>) => {
           setTimeout(() => {
@@ -311,141 +286,74 @@ export const CustomerOfferSettings: GlobalConfig = {
               150,
             ).catch((error) => {
               console.error(
-                '[CustomerOfferSettings] Failed deferred updateGlobal after random assignment.',
+                '[CustomerOfferSettings] Failed deferred updateGlobal for random offer settings.',
                 error,
               )
             })
           }, 0)
         }
 
-        const clearCustomerAssignments = async (customerIDs: string[]) => {
-          if (customerIDs.length === 0) return
+        const buildStoredRows = (resetProgress: boolean) =>
+          rowsWithProducts.map((row) => {
+            const selectedCustomers = resetProgress
+              ? []
+              : [...new Set(row.selectedCustomers.filter((id) => id.trim().length > 0))]
+            const offerCustomerUsage = resetProgress
+              ? []
+              : row.offerCustomerUsage
+                  .map((entry) => ({
+                    customer: entry.customer,
+                    usageCount: toNonNegativeInteger(entry.usageCount, 0),
+                  }))
+                  .filter(
+                    (entry): entry is { customer: string; usageCount: number } =>
+                      entry.customer.trim().length > 0 && entry.usageCount > 0,
+                  )
+            const redeemedCount = resetProgress
+              ? 0
+              : Math.min(row.winnerCount, toNonNegativeInteger(row.redeemedCount, 0))
+            const assignedCount = resetProgress
+              ? 0
+              : Math.max(selectedCustomers.length, redeemedCount, toNonNegativeInteger(row.assignedCount, 0))
 
-          await Promise.all(
-            customerIDs.map((customerID) =>
-              req.payload.update({
-                collection: 'customers',
-                id: customerID,
-                data: {
-                  randomCustomerOfferAssigned: false,
-                  randomCustomerOfferRedeemed: false,
-                  randomCustomerOfferProduct: null,
-                  randomCustomerOfferCampaignCode: null,
-                  randomCustomerOfferAssignedAt: null,
-                } as any,
-                depth: 0,
-                overrideAccess: true,
-              }),
-            ),
-          )
-        }
-
-        if (!isEnabled || activeCurrentRows.length === 0) {
-          const idsToClear = [...new Set([...previousWinnerIDs, ...currentWinnerIDs])]
-
-          await clearCustomerAssignments(idsToClear)
-
-          const resetRows = currentRows
-            .filter((row) => Boolean(row.productID))
-            .map((row) => ({
-              id: row.id,
-              enabled: row.enabled,
-              product: row.productID,
-              winnerCount: row.winnerCount,
-              availableFromDate: row.availableFromDate,
-              availableToDate: row.availableToDate,
-              dailyStartTime: row.dailyStartTime,
-              dailyEndTime: row.dailyEndTime,
-              selectedCustomers: [],
-              assignedCount: 0,
-              redeemedCount: 0,
-            }))
-
-          scheduleSettingsRefresh({
-            randomCustomerOfferAssignedCount: 0,
-            randomCustomerOfferRedeemedCount: 0,
-            randomCustomerOfferLastAssignedAt: null,
-            reselectRandomCustomerOffer: false,
-            randomCustomerOfferProducts: resetRows,
-          })
-
-          return doc
-        }
-
-        if (!shouldReselect) {
-          return doc
-        }
-
-        const allCustomerIDs = await getAllCustomerIDs(req.payload)
-        let remainingPool = shuffleArray(allCustomerIDs)
-
-        const assignmentByRow = new Map<string, string[]>()
-        for (const row of activeCurrentRows) {
-          const count = Math.min(row.winnerCount, remainingPool.length)
-          const selected = remainingPool.slice(0, count)
-          remainingPool = remainingPool.slice(count)
-          assignmentByRow.set(row.id, selected)
-        }
-
-        const idsToClear = [...new Set([...previousWinnerIDs, ...currentWinnerIDs])]
-        await clearCustomerAssignments(idsToClear)
-
-        const assignedAt = new Date().toISOString()
-        const assignedCustomerIDs = [...new Set(Array.from(assignmentByRow.values()).flat())]
-        const assignedProductByCustomer = new Map<string, string>()
-
-        for (const row of activeCurrentRows) {
-          const selected = assignmentByRow.get(row.id) || []
-          if (!row.productID) continue
-          for (const customerID of selected) {
-            assignedProductByCustomer.set(customerID, row.productID)
-          }
-        }
-
-        await Promise.all(
-          assignedCustomerIDs.map((customerID) =>
-            req.payload.update({
-              collection: 'customers',
-              id: customerID,
-              data: {
-                randomCustomerOfferAssigned: true,
-                randomCustomerOfferRedeemed: false,
-                randomCustomerOfferProduct: assignedProductByCustomer.get(customerID) || null,
-                randomCustomerOfferCampaignCode: campaignCode,
-                randomCustomerOfferAssignedAt: assignedAt,
-              } as any,
-              depth: 0,
-              overrideAccess: true,
-            }),
-          ),
-        )
-
-        const updatedRows = currentRows
-          .filter((row) => Boolean(row.productID))
-          .map((row) => {
-            const selected = assignmentByRow.get(row.id) || []
             return {
               id: row.id,
               enabled: row.enabled,
               product: row.productID,
               winnerCount: row.winnerCount,
+              maxUsagePerCustomer: toNonNegativeInteger(row.maxUsagePerCustomer, 1),
               availableFromDate: row.availableFromDate,
               availableToDate: row.availableToDate,
               dailyStartTime: row.dailyStartTime,
               dailyEndTime: row.dailyEndTime,
-              selectedCustomers: selected,
-              assignedCount: selected.length,
-              redeemedCount: 0,
+              selectedCustomers,
+              assignedCount,
+              redeemedCount,
+              offerCustomerUsage,
             }
           })
 
-        scheduleSettingsRefresh({
-          randomCustomerOfferProducts: updatedRows,
-          randomCustomerOfferAssignedCount: assignedCustomerIDs.length,
-          randomCustomerOfferRedeemedCount: 0,
-          randomCustomerOfferLastAssignedAt: assignedAt,
-          reselectRandomCustomerOffer: false,
-        })
+        if (!isEnabled || rowsWithProducts.length === 0) {
+          scheduleSettingsRefresh({
+            randomCustomerOfferAssignedCount: 0,
+            randomCustomerOfferRedeemedCount: 0,
+            randomCustomerOfferLastAssignedAt: null,
+            reselectRandomCustomerOffer: false,
+            randomCustomerOfferProducts: buildStoredRows(true),
+          })
+          return doc
+        }
+
+        if (shouldResetProgress) {
+          scheduleSettingsRefresh({
+            randomCustomerOfferAssignedCount: 0,
+            randomCustomerOfferRedeemedCount: 0,
+            randomCustomerOfferLastAssignedAt: null,
+            reselectRandomCustomerOffer: false,
+            randomCustomerOfferProducts: buildStoredRows(true),
+          })
+          return doc
+        }
 
         return doc
       },
@@ -896,7 +804,7 @@ export const CustomerOfferSettings: GlobalConfig = {
       defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enableRandomCustomerProductOffer,
       admin: {
         description:
-          'Fourth offer type. Add multiple products with winner counts; system assigns each to random customers.',
+          'Fourth offer type. System checks this offer in real-time during billing for both new and existing customers.',
       },
     },
     {
@@ -913,7 +821,7 @@ export const CustomerOfferSettings: GlobalConfig = {
           label: 'Campaign Code',
           admin: {
             width: '60%',
-            description: 'Change this code to start a new random campaign.',
+            description: 'Change this code to start a fresh campaign and reset random offer progress.',
           },
         },
         {
@@ -935,7 +843,8 @@ export const CustomerOfferSettings: GlobalConfig = {
       label: 'Random Offer Products and Counts',
       admin: {
         condition: (data) => Boolean(data?.enableRandomCustomerProductOffer),
-        description: 'Add multiple products and set how many random customers should get each.',
+        description:
+          'Add products and winner counts. During billing, system picks one eligible product randomly when count is available.',
       },
       fields: [
         {
@@ -965,7 +874,19 @@ export const CustomerOfferSettings: GlobalConfig = {
               defaultValue: 1,
               label: 'Winner Count',
               admin: {
-                width: '20%',
+                width: '15%',
+              },
+            },
+            {
+              name: 'maxUsagePerCustomer',
+              type: 'number',
+              required: true,
+              min: 0,
+              defaultValue: 1,
+              label: 'Max Uses per Customer',
+              admin: {
+                width: '15%',
+                description: '0 means unlimited for this product rule.',
               },
             },
             {
@@ -973,7 +894,7 @@ export const CustomerOfferSettings: GlobalConfig = {
               type: 'number',
               min: 0,
               defaultValue: 0,
-              label: 'Assigned',
+              label: 'Awarded',
               admin: {
                 width: '15%',
                 readOnly: true,
@@ -995,9 +916,41 @@ export const CustomerOfferSettings: GlobalConfig = {
               type: 'relationship',
               relationTo: 'customers',
               hasMany: true,
-              label: 'Selected Customers',
+              label: 'Awarded Customers',
               admin: {
-                width: '15%',
+                width: '20%',
+                readOnly: true,
+              },
+            },
+          ],
+        },
+        {
+          name: 'offerCustomerUsage',
+          type: 'array',
+          label: 'Customer Usage',
+          admin: {
+            readOnly: true,
+            description: 'Per-customer usage count for this product rule.',
+          },
+          fields: [
+            {
+              name: 'customer',
+              type: 'relationship',
+              relationTo: 'customers',
+              required: true,
+              admin: {
+                width: '70%',
+                readOnly: true,
+              },
+            },
+            {
+              name: 'usageCount',
+              type: 'number',
+              min: 0,
+              defaultValue: 0,
+              required: true,
+              admin: {
+                width: '30%',
                 readOnly: true,
               },
             },
@@ -1071,11 +1024,11 @@ export const CustomerOfferSettings: GlobalConfig = {
     {
       name: 'reselectRandomCustomerOffer',
       type: 'checkbox',
-      label: 'Re-pick Random Winners on Save',
+      label: 'Reset Random Offer Progress on Save',
       defaultValue: false,
       admin: {
         condition: (data) => Boolean(data?.enableRandomCustomerProductOffer),
-        description: 'Tick and save to generate a fresh random customer list.',
+        description: 'Tick and save to clear random offer counters and start a fresh cycle.',
       },
     },
     {
@@ -1089,7 +1042,7 @@ export const CustomerOfferSettings: GlobalConfig = {
           type: 'number',
           min: 0,
           defaultValue: 0,
-          label: 'Assigned Customers',
+          label: 'Awarded Customers',
           admin: {
             width: '33%',
             readOnly: true,
@@ -1109,7 +1062,7 @@ export const CustomerOfferSettings: GlobalConfig = {
         {
           name: 'randomCustomerOfferLastAssignedAt',
           type: 'date',
-          label: 'Last Assigned At',
+          label: 'Last Awarded At',
           admin: {
             width: '34%',
             readOnly: true,

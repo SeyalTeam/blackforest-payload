@@ -1865,11 +1865,11 @@ export interface CustomerOfferSetting {
       }[]
     | null;
   /**
-   * Fourth offer type. Add multiple products with winner counts; system assigns each to random customers.
+   * Fourth offer type. System checks this offer in real-time during billing for both new and existing customers.
    */
   enableRandomCustomerProductOffer?: boolean | null;
   /**
-   * Change this code to start a new random campaign.
+   * Change this code to start a fresh campaign and reset random offer progress.
    */
   randomCustomerOfferCampaignCode: string;
   /**
@@ -1877,16 +1877,30 @@ export interface CustomerOfferSetting {
    */
   randomCustomerOfferTimezone: string;
   /**
-   * Add multiple products and set how many random customers should get each.
+   * Add products and winner counts. During billing, system picks one eligible product randomly when count is available.
    */
   randomCustomerOfferProducts?:
     | {
         enabled?: boolean | null;
         product: string | Product;
         winnerCount: number;
+        /**
+         * 0 means unlimited for this product rule.
+         */
+        maxUsagePerCustomer: number;
         assignedCount?: number | null;
         redeemedCount?: number | null;
         selectedCustomers?: (string | Customer)[] | null;
+        /**
+         * Per-customer usage count for this product rule.
+         */
+        offerCustomerUsage?:
+          | {
+              customer: string | Customer;
+              usageCount: number;
+              id?: string | null;
+            }[]
+          | null;
         /**
          * Optional start date.
          */
@@ -1907,7 +1921,7 @@ export interface CustomerOfferSetting {
       }[]
     | null;
   /**
-   * Tick and save to generate a fresh random customer list.
+   * Tick and save to clear random offer counters and start a fresh cycle.
    */
   reselectRandomCustomerOffer?: boolean | null;
   randomCustomerOfferAssignedCount?: number | null;
@@ -2179,9 +2193,17 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
         enabled?: T;
         product?: T;
         winnerCount?: T;
+        maxUsagePerCustomer?: T;
         assignedCount?: T;
         redeemedCount?: T;
         selectedCustomers?: T;
+        offerCustomerUsage?:
+          | T
+          | {
+              customer?: T;
+              usageCount?: T;
+              id?: T;
+            };
         availableFromDate?: T;
         availableToDate?: T;
         dailyStartTime?: T;

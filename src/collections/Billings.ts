@@ -654,6 +654,8 @@ const applyRandomCustomerProductOffer = async (
   settings: CustomerRewardSettings,
 ): Promise<BillingItemInput[]> => {
   const nonRandomOfferItems = items.filter((item) => !item.isRandomCustomerOfferItem)
+  const existingRandomOfferItem = items.find((item) => item.isRandomCustomerOfferItem)
+  const existingRandomOfferProductID = getRelationshipID(existingRandomOfferItem?.product)
 
   if (
     status === 'cancelled' ||
@@ -664,15 +666,42 @@ const applyRandomCustomerProductOffer = async (
     return nonRandomOfferItems
   }
 
-  const activeRandomProductIDs = new Set(
-    settings.randomCustomerOfferProducts
-      .filter((row) =>
-        isRandomOfferProductAvailableNow(row, settings.randomCustomerOfferTimezone),
-      )
-      .map((row) => row.product),
+  if (status === 'completed' && existingRandomOfferItem && existingRandomOfferProductID) {
+    const productNameMap = await getProductNameMap(payload, [existingRandomOfferProductID])
+    const productName = productNameMap[existingRandomOfferProductID] || 'Random Offer Product'
+    const existingCampaignCode =
+      typeof existingRandomOfferItem.randomCustomerOfferCampaignCode === 'string' &&
+      existingRandomOfferItem.randomCustomerOfferCampaignCode.trim().length > 0
+        ? existingRandomOfferItem.randomCustomerOfferCampaignCode.trim()
+        : settings.randomCustomerOfferCampaignCode
+
+    return [
+      ...nonRandomOfferItems,
+      {
+        ...existingRandomOfferItem,
+        product: existingRandomOfferProductID,
+        name: productName,
+        notes: 'RANDOM CUSTOMER OFFER',
+        quantity: 1,
+        unitPrice: 0,
+        effectiveUnitPrice: 0,
+        subtotal: 0,
+        isOfferFreeItem: false,
+        isPriceOfferApplied: false,
+        priceOfferRuleKey: undefined,
+        priceOfferDiscountPerUnit: 0,
+        priceOfferAppliedUnits: 0,
+        isRandomCustomerOfferItem: true,
+        randomCustomerOfferCampaignCode: existingCampaignCode,
+      },
+    ]
+  }
+
+  const activeRandomRows = settings.randomCustomerOfferProducts.filter((row) =>
+    isRandomOfferProductAvailableNow(row, settings.randomCustomerOfferTimezone),
   )
 
-  if (activeRandomProductIDs.size === 0) {
+  if (activeRandomRows.length === 0) {
     return nonRandomOfferItems
   }
 
@@ -690,35 +719,53 @@ const applyRandomCustomerProductOffer = async (
 
   const customer = customerResult.docs[0] as
     | {
-        randomCustomerOfferAssigned?: boolean
-        randomCustomerOfferRedeemed?: boolean
-        randomCustomerOfferProduct?: unknown
-        randomCustomerOfferCampaignCode?: string | null
+        id?: string
       }
     | undefined
 
-  if (!customer?.randomCustomerOfferAssigned || customer.randomCustomerOfferRedeemed) {
+  const customerID = typeof customer?.id === 'string' ? customer.id : null
+
+  const hasRemainingCapacity = (row: (typeof settings.randomCustomerOfferProducts)[number]) => {
+    const hasRemainingRedeems =
+      Math.max(0, row.winnerCount - toSafeNonNegativeNumber(row.redeemedCount)) > 0
+    if (!hasRemainingRedeems) return false
+
+    const maxUsagePerCustomer = toSafeNonNegativeNumber(row.maxUsagePerCustomer)
+    if (maxUsagePerCustomer <= 0 || !customerID) return true
+
+    const currentUsage = getCustomerUsageCount(row.offerCustomerUsage, customerID)
+    return currentUsage < maxUsagePerCustomer
+  }
+
+  let selectedProductID: string | null = null
+
+  if (existingRandomOfferProductID) {
+    const existingRow = activeRandomRows.find((row) => row.product === existingRandomOfferProductID)
+    if (existingRow && hasRemainingCapacity(existingRow)) {
+      selectedProductID = existingRow.product
+    }
+  }
+
+  if (!selectedProductID) {
+    const eligibleRows = activeRandomRows.filter((row) => hasRemainingCapacity(row))
+    if (eligibleRows.length === 0) {
+      return nonRandomOfferItems
+    }
+
+    const randomIndex = Math.floor(Math.random() * eligibleRows.length)
+    selectedProductID = eligibleRows[randomIndex]?.product || null
+  }
+
+  if (!selectedProductID) {
     return nonRandomOfferItems
   }
 
-  const customerAssignedProductID = getRelationshipID(customer.randomCustomerOfferProduct)
-  const campaignCode = customer.randomCustomerOfferCampaignCode || null
-
-  if (
-    !customerAssignedProductID ||
-    campaignCode !== settings.randomCustomerOfferCampaignCode ||
-    !activeRandomProductIDs.has(customerAssignedProductID)
-  ) {
-    return nonRandomOfferItems
-  }
-
-  const existingRandomOfferItem = items.find((item) => item.isRandomCustomerOfferItem)
-  const productNameMap = await getProductNameMap(payload, [customerAssignedProductID])
-  const productName = productNameMap[customerAssignedProductID] || 'Random Offer Product'
+  const productNameMap = await getProductNameMap(payload, [selectedProductID])
+  const productName = productNameMap[selectedProductID] || 'Random Offer Product'
 
   const randomOfferItem: BillingItemInput = {
     ...(existingRandomOfferItem || {}),
-    product: customerAssignedProductID,
+    product: selectedProductID,
     name: productName,
     notes: 'RANDOM CUSTOMER OFFER',
     quantity: 1,
@@ -731,7 +778,7 @@ const applyRandomCustomerProductOffer = async (
     priceOfferDiscountPerUnit: 0,
     priceOfferAppliedUnits: 0,
     isRandomCustomerOfferItem: true,
-    randomCustomerOfferCampaignCode: campaignCode || settings.randomCustomerOfferCampaignCode,
+    randomCustomerOfferCampaignCode: settings.randomCustomerOfferCampaignCode,
   }
 
   return [...nonRandomOfferItems, randomOfferItem]
@@ -1450,93 +1497,195 @@ const Billings: CollectionConfig = {
                 })
               }
 
-              const randomOfferWasApplied =
-                doc.status === 'completed' &&
-                Array.isArray(doc.items) &&
-                doc.items.some((item: any) => item?.isRandomCustomerOfferItem)
+              const randomOfferItem =
+                doc.status === 'completed' && Array.isArray(doc.items)
+                  ? (doc.items as any[]).find((item) => item?.isRandomCustomerOfferItem)
+                  : undefined
 
-              if (
-                randomOfferWasApplied &&
-                customerDoc?.randomCustomerOfferAssigned &&
-                !customerDoc?.randomCustomerOfferRedeemed
-              ) {
+              const shouldProcessRandomOfferRedemption =
+                randomOfferItem &&
+                customerDoc?.id &&
+                !Boolean((doc as any).offerCountersProcessed)
+
+              if (shouldProcessRandomOfferRedemption) {
+                const settings = await getSettings()
                 const redeemedCustomerID =
                   typeof customerDoc?.id === 'string' ? customerDoc.id : undefined
-                const redeemedProductID = getRelationshipID(customerDoc?.randomCustomerOfferProduct)
+                const redeemedProductID = getRelationshipID(randomOfferItem?.product)
+                const redeemedCampaignCode =
+                  typeof randomOfferItem?.randomCustomerOfferCampaignCode === 'string' &&
+                  randomOfferItem.randomCustomerOfferCampaignCode.trim().length > 0
+                    ? randomOfferItem.randomCustomerOfferCampaignCode.trim()
+                    : settings.randomCustomerOfferCampaignCode
 
-                customerDoc = await req.payload.update({
-                  collection: 'customers',
-                  id: customerDoc.id,
-                  data: {
-                    randomCustomerOfferRedeemed: true,
-                  } as any,
-                  depth: 0,
-                  overrideAccess: true,
-                })
-
-                const settings = await getSettings()
-                const campaignCode =
-                  customerDoc?.randomCustomerOfferCampaignCode ||
-                  settings.randomCustomerOfferCampaignCode
-
-                if (campaignCode === settings.randomCustomerOfferCampaignCode) {
-                  const currentRedeemedCount = toSafeNonNegativeNumber(
-                    settings.randomCustomerOfferRedeemedCount,
-                  )
+                if (
+                  redeemedProductID &&
+                  redeemedCampaignCode === settings.randomCustomerOfferCampaignCode &&
+                  redeemedCustomerID
+                ) {
+                  const assignedAt =
+                    typeof customerDoc?.randomCustomerOfferAssignedAt === 'string' &&
+                    customerDoc.randomCustomerOfferAssignedAt.trim().length > 0
+                      ? customerDoc.randomCustomerOfferAssignedAt
+                      : new Date().toISOString()
 
                   let rowUpdated = false
                   const updatedRandomOfferRows = settings.randomCustomerOfferProducts.map((row) => {
-                    const shouldIncrement =
-                      !rowUpdated &&
-                      Boolean(redeemedCustomerID) &&
-                      Boolean(redeemedProductID) &&
-                      row.product === redeemedProductID &&
-                      row.selectedCustomers.includes(redeemedCustomerID || '')
+                    const normalizedSelectedCustomers = [
+                      ...new Set(row.selectedCustomers.filter((id) => id.trim().length > 0)),
+                    ]
+                    const normalizedOfferCustomerUsage = row.offerCustomerUsage
+                      .map((entry) => ({
+                        customer: entry.customer,
+                        usageCount: toSafeNonNegativeNumber(entry.usageCount),
+                      }))
+                      .filter(
+                        (entry): entry is { customer: string; usageCount: number } =>
+                          entry.customer.trim().length > 0 && entry.usageCount > 0,
+                      )
+                    const normalizedRedeemedCount = Math.min(
+                      row.winnerCount,
+                      toSafeNonNegativeNumber(row.redeemedCount),
+                    )
+                    const normalizedAssignedCount = Math.max(
+                      toSafeNonNegativeNumber(row.assignedCount),
+                      normalizedSelectedCustomers.length,
+                      normalizedRedeemedCount,
+                    )
+                    const normalizedMaxUsagePerCustomer = toSafeNonNegativeNumber(
+                      row.maxUsagePerCustomer,
+                    )
 
-                    if (!shouldIncrement) {
+                    if (rowUpdated || row.product !== redeemedProductID) {
                       return {
                         id: row.id,
                         enabled: row.enabled,
                         product: row.product,
                         winnerCount: row.winnerCount,
+                        maxUsagePerCustomer: normalizedMaxUsagePerCustomer,
                         availableFromDate: row.availableFromDate,
                         availableToDate: row.availableToDate,
                         dailyStartTime: row.dailyStartTime,
                         dailyEndTime: row.dailyEndTime,
-                        selectedCustomers: row.selectedCustomers,
-                        assignedCount: row.assignedCount,
-                        redeemedCount: row.redeemedCount,
+                        selectedCustomers: normalizedSelectedCustomers,
+                        assignedCount: normalizedAssignedCount,
+                        redeemedCount: normalizedRedeemedCount,
+                        offerCustomerUsage: normalizedOfferCustomerUsage,
+                      }
+                    }
+
+                    const currentUsage = getCustomerUsageCount(
+                      normalizedOfferCustomerUsage,
+                      redeemedCustomerID,
+                    )
+                    const limitReached =
+                      normalizedMaxUsagePerCustomer > 0 &&
+                      currentUsage >= normalizedMaxUsagePerCustomer
+                    const redeemedCapacityReached = normalizedRedeemedCount >= row.winnerCount
+
+                    if (limitReached || redeemedCapacityReached) {
+                      return {
+                        id: row.id,
+                        enabled: row.enabled,
+                        product: row.product,
+                        winnerCount: row.winnerCount,
+                        maxUsagePerCustomer: normalizedMaxUsagePerCustomer,
+                        availableFromDate: row.availableFromDate,
+                        availableToDate: row.availableToDate,
+                        dailyStartTime: row.dailyStartTime,
+                        dailyEndTime: row.dailyEndTime,
+                        selectedCustomers: normalizedSelectedCustomers,
+                        assignedCount: normalizedAssignedCount,
+                        redeemedCount: normalizedRedeemedCount,
+                        offerCustomerUsage: normalizedOfferCustomerUsage,
                       }
                     }
 
                     rowUpdated = true
+                    const nextSelectedCustomers = normalizedSelectedCustomers.includes(
+                      redeemedCustomerID,
+                    )
+                      ? normalizedSelectedCustomers
+                      : [...normalizedSelectedCustomers, redeemedCustomerID]
+                    const nextRedeemedCount = Math.min(
+                      row.winnerCount,
+                      normalizedRedeemedCount + 1,
+                    )
+                    const nextAssignedCount = Math.max(
+                      normalizedAssignedCount,
+                      nextSelectedCustomers.length,
+                      nextRedeemedCount,
+                    )
+                    const nextOfferCustomerUsage = [...normalizedOfferCustomerUsage]
+                    const usageIndex = nextOfferCustomerUsage.findIndex(
+                      (entry) => entry.customer === redeemedCustomerID,
+                    )
+                    if (usageIndex >= 0) {
+                      nextOfferCustomerUsage[usageIndex] = {
+                        customer: nextOfferCustomerUsage[usageIndex].customer,
+                        usageCount: nextOfferCustomerUsage[usageIndex].usageCount + 1,
+                      }
+                    } else {
+                      nextOfferCustomerUsage.push({
+                        customer: redeemedCustomerID,
+                        usageCount: 1,
+                      })
+                    }
 
                     return {
                       id: row.id,
                       enabled: row.enabled,
                       product: row.product,
                       winnerCount: row.winnerCount,
+                      maxUsagePerCustomer: normalizedMaxUsagePerCustomer,
                       availableFromDate: row.availableFromDate,
                       availableToDate: row.availableToDate,
                       dailyStartTime: row.dailyStartTime,
                       dailyEndTime: row.dailyEndTime,
-                      selectedCustomers: row.selectedCustomers,
-                      assignedCount: row.assignedCount,
-                      redeemedCount: row.redeemedCount + 1,
+                      selectedCustomers: nextSelectedCustomers,
+                      assignedCount: nextAssignedCount,
+                      redeemedCount: nextRedeemedCount,
+                      offerCustomerUsage: nextOfferCustomerUsage,
                     }
                   })
 
-                  await withWriteConflictRetry(() =>
-                    req.payload.updateGlobal({
-                      slug: 'customer-offer-settings' as any,
+                  if (rowUpdated) {
+                    customerDoc = await req.payload.update({
+                      collection: 'customers',
+                      id: customerDoc.id,
                       data: {
-                        randomCustomerOfferRedeemedCount: currentRedeemedCount + 1,
-                        randomCustomerOfferProducts: updatedRandomOfferRows,
+                        randomCustomerOfferAssigned: true,
+                        randomCustomerOfferRedeemed: true,
+                        randomCustomerOfferProduct: redeemedProductID,
+                        randomCustomerOfferCampaignCode: redeemedCampaignCode,
+                        randomCustomerOfferAssignedAt: assignedAt,
                       } as any,
                       depth: 0,
                       overrideAccess: true,
-                    }),
-                  )
+                    })
+
+                    const uniqueAwardedCustomers = [
+                      ...new Set(updatedRandomOfferRows.flatMap((row) => row.selectedCustomers)),
+                    ]
+                    const totalRedeemedCount = updatedRandomOfferRows.reduce(
+                      (sum, row) => sum + toSafeNonNegativeNumber(row.redeemedCount),
+                      0,
+                    )
+
+                    await withWriteConflictRetry(() =>
+                      req.payload.updateGlobal({
+                        slug: 'customer-offer-settings' as any,
+                        data: {
+                          randomCustomerOfferAssignedCount: uniqueAwardedCustomers.length,
+                          randomCustomerOfferRedeemedCount: totalRedeemedCount,
+                          randomCustomerOfferLastAssignedAt: assignedAt,
+                          randomCustomerOfferProducts: updatedRandomOfferRows,
+                        } as any,
+                        depth: 0,
+                        overrideAccess: true,
+                      }),
+                    )
+                  }
                 }
               }
 
@@ -1818,8 +1967,8 @@ const Billings: CollectionConfig = {
                   return doc
                 }
 
-                let rewardPoints = toSafeNonNegativeNumber(customerDoc?.rewardPoints)
-                let rewardProgressAmount = toSafeNonNegativeNumber(
+                const rewardPoints = toSafeNonNegativeNumber(customerDoc?.rewardPoints)
+                const rewardProgressAmount = toSafeNonNegativeNumber(
                   customerDoc?.rewardProgressAmount,
                 )
                 const offerDiscount = toSafeNonNegativeNumber((doc as any).customerOfferDiscount)

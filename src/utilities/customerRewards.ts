@@ -67,6 +67,7 @@ export type RandomCustomerOfferProductRule = {
   enabled: boolean
   product: string
   winnerCount: number
+  maxUsagePerCustomer: number
   availableFromDate: string | null
   availableToDate: string | null
   dailyStartTime: string | null
@@ -74,6 +75,7 @@ export type RandomCustomerOfferProductRule = {
   assignedCount: number
   redeemedCount: number
   selectedCustomers: string[]
+  offerCustomerUsage: OfferCustomerUsageCounter[]
 }
 
 export const DEFAULT_CUSTOMER_REWARD_SETTINGS: CustomerRewardSettings = {
@@ -370,6 +372,7 @@ const normalizeRandomCustomerOfferProductRules = (value: unknown): RandomCustome
         enabled: typeof rawRow.enabled === 'boolean' ? rawRow.enabled : true,
         product,
         winnerCount: toPositiveNumber(rawRow.winnerCount, 1),
+        maxUsagePerCustomer: toNonNegativeNumber(rawRow.maxUsagePerCustomer, 1),
         availableFromDate: normalizeDateString(rawRow.availableFromDate),
         availableToDate: normalizeDateString(rawRow.availableToDate),
         dailyStartTime: normalizeTimeString(rawRow.dailyStartTime),
@@ -377,6 +380,7 @@ const normalizeRandomCustomerOfferProductRules = (value: unknown): RandomCustome
         assignedCount: typeof rawRow.assignedCount === 'number' ? Math.max(0, rawRow.assignedCount) : 0,
         redeemedCount: typeof rawRow.redeemedCount === 'number' ? Math.max(0, rawRow.redeemedCount) : 0,
         selectedCustomers,
+        offerCustomerUsage: normalizeOfferCustomerUsage(rawRow.offerCustomerUsage),
       }
     })
     .filter((row): row is RandomCustomerOfferProductRule => Boolean(row))
