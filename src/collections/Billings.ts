@@ -1376,6 +1376,8 @@ const Billings: CollectionConfig = {
                 settings.totalPercentageOfferCustomerCount,
                 settings.totalPercentageOfferCustomers,
                 customerID,
+                settings.totalPercentageOfferMaxUsagePerCustomer,
+                settings.totalPercentageOfferCustomerUsage,
               )
 
               if (canApplyPercentageOffer) {
@@ -1870,12 +1872,34 @@ const Billings: CollectionConfig = {
                   const nextTotalPercentageOfferCustomers = [
                     ...settings.totalPercentageOfferCustomers,
                   ]
+                  const nextTotalPercentageOfferCustomerUsage = [
+                    ...settings.totalPercentageOfferCustomerUsage,
+                  ]
                   if (
                     totalPercentageOfferUsageIncrement > 0 &&
                     customerID &&
                     !nextTotalPercentageOfferCustomers.includes(customerID)
                   ) {
                     nextTotalPercentageOfferCustomers.push(customerID)
+                  }
+
+                  if (totalPercentageOfferUsageIncrement > 0 && customerID) {
+                    const usageIndex = nextTotalPercentageOfferCustomerUsage.findIndex(
+                      (entry) => entry.customer === customerID,
+                    )
+
+                    if (usageIndex >= 0) {
+                      const existingUsage = nextTotalPercentageOfferCustomerUsage[usageIndex]
+                      nextTotalPercentageOfferCustomerUsage[usageIndex] = {
+                        customer: existingUsage.customer,
+                        usageCount: existingUsage.usageCount + totalPercentageOfferUsageIncrement,
+                      }
+                    } else {
+                      nextTotalPercentageOfferCustomerUsage.push({
+                        customer: customerID,
+                        usageCount: totalPercentageOfferUsageIncrement,
+                      })
+                    }
                   }
 
                   const nextTotalPercentageOfferGivenCount =
@@ -1905,6 +1929,7 @@ const Billings: CollectionConfig = {
                           totalPercentageOfferGivenCount: nextTotalPercentageOfferGivenCount,
                           totalPercentageOfferCustomerCount: nextTotalPercentageOfferCustomerCount,
                           totalPercentageOfferCustomers: nextTotalPercentageOfferCustomers,
+                          totalPercentageOfferCustomerUsage: nextTotalPercentageOfferCustomerUsage,
                         } as any,
                         depth: 0,
                         overrideAccess: true,

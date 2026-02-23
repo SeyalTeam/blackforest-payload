@@ -1095,7 +1095,7 @@ export const CustomerOfferSettings: GlobalConfig = {
           defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferPercent,
           label: 'Discount Percentage (%)',
           admin: {
-            width: '50%',
+            width: '34%',
             description: 'Example: 10 means 10% discount on total amount.',
           },
         },
@@ -1106,8 +1106,19 @@ export const CustomerOfferSettings: GlobalConfig = {
           defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferMaxOfferCount,
           label: 'Max Offer Uses',
           admin: {
-            width: '50%',
+            width: '33%',
             description: '0 means unlimited.',
+          },
+        },
+        {
+          name: 'totalPercentageOfferMaxUsagePerCustomer',
+          type: 'number',
+          min: 0,
+          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferMaxUsagePerCustomer,
+          label: 'Max Uses per Customer',
+          admin: {
+            width: '33%',
+            description: '0 means unlimited per customer.',
           },
         },
       ],
@@ -1162,6 +1173,39 @@ export const CustomerOfferSettings: GlobalConfig = {
         condition: (data) => Boolean(data?.enableTotalPercentageOffer),
         readOnly: true,
       },
+    },
+    {
+      name: 'totalPercentageOfferCustomerUsage',
+      type: 'array',
+      label: 'Customer Usage',
+      admin: {
+        condition: (data) => Boolean(data?.enableTotalPercentageOffer),
+        readOnly: true,
+        description: 'Per-customer usage count for total percentage offer.',
+      },
+      fields: [
+        {
+          name: 'customer',
+          type: 'relationship',
+          relationTo: 'customers',
+          required: true,
+          admin: {
+            width: '70%',
+            readOnly: true,
+          },
+        },
+        {
+          name: 'usageCount',
+          type: 'number',
+          min: 0,
+          defaultValue: 0,
+          required: true,
+          admin: {
+            width: '30%',
+            readOnly: true,
+          },
+        },
+      ],
     },
   ],
 }

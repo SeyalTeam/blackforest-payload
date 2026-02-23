@@ -1940,12 +1940,26 @@ export interface CustomerOfferSetting {
    */
   totalPercentageOfferMaxOfferCount?: number | null;
   /**
+   * 0 means unlimited per customer.
+   */
+  totalPercentageOfferMaxUsagePerCustomer?: number | null;
+  /**
    * 0 means unlimited.
    */
   totalPercentageOfferMaxCustomerCount?: number | null;
   totalPercentageOfferGivenCount?: number | null;
   totalPercentageOfferCustomerCount?: number | null;
   totalPercentageOfferCustomers?: (string | Customer)[] | null;
+  /**
+   * Per-customer usage count for total percentage offer.
+   */
+  totalPercentageOfferCustomerUsage?:
+    | {
+        customer: string | Customer;
+        usageCount: number;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2217,10 +2231,18 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
   enableTotalPercentageOffer?: T;
   totalPercentageOfferPercent?: T;
   totalPercentageOfferMaxOfferCount?: T;
+  totalPercentageOfferMaxUsagePerCustomer?: T;
   totalPercentageOfferMaxCustomerCount?: T;
   totalPercentageOfferGivenCount?: T;
   totalPercentageOfferCustomerCount?: T;
   totalPercentageOfferCustomers?: T;
+  totalPercentageOfferCustomerUsage?:
+    | T
+    | {
+        customer?: T;
+        usageCount?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

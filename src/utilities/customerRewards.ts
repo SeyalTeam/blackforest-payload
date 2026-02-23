@@ -22,9 +22,11 @@ export type CustomerRewardSettings = {
   totalPercentageOfferPercent: number
   totalPercentageOfferMaxOfferCount: number
   totalPercentageOfferMaxCustomerCount: number
+  totalPercentageOfferMaxUsagePerCustomer: number
   totalPercentageOfferGivenCount: number
   totalPercentageOfferCustomerCount: number
   totalPercentageOfferCustomers: string[]
+  totalPercentageOfferCustomerUsage: OfferCustomerUsageCounter[]
 }
 
 export type ProductToProductOfferRule = {
@@ -98,9 +100,11 @@ export const DEFAULT_CUSTOMER_REWARD_SETTINGS: CustomerRewardSettings = {
   totalPercentageOfferPercent: 5,
   totalPercentageOfferMaxOfferCount: 0,
   totalPercentageOfferMaxCustomerCount: 0,
+  totalPercentageOfferMaxUsagePerCustomer: 0,
   totalPercentageOfferGivenCount: 0,
   totalPercentageOfferCustomerCount: 0,
   totalPercentageOfferCustomers: [],
+  totalPercentageOfferCustomerUsage: [],
 }
 
 const toPositiveNumber = (value: unknown, fallback: number): number => {
@@ -449,6 +453,10 @@ const normalizeCustomerRewardSettings = (settings: unknown): CustomerRewardSetti
       raw.totalPercentageOfferMaxCustomerCount,
       DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferMaxCustomerCount,
     ),
+    totalPercentageOfferMaxUsagePerCustomer: toNonNegativeNumber(
+      raw.totalPercentageOfferMaxUsagePerCustomer,
+      DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferMaxUsagePerCustomer,
+    ),
     totalPercentageOfferGivenCount: toNonNegativeNumber(
       raw.totalPercentageOfferGivenCount,
       DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferGivenCount,
@@ -462,6 +470,9 @@ const normalizeCustomerRewardSettings = (settings: unknown): CustomerRewardSetti
           .map((entry) => getRelationshipID(entry))
           .filter((id): id is string => typeof id === 'string')
       : [],
+    totalPercentageOfferCustomerUsage: normalizeOfferCustomerUsage(
+      raw.totalPercentageOfferCustomerUsage,
+    ),
   }
 }
 
