@@ -53,6 +53,8 @@ import { InstockEntryReportGlobal } from './globals/InstockEntryReport'
 import { getDashboardStatsHandler } from './endpoints/getDashboardStats'
 import { getExpenseReportHandler } from './endpoints/getExpenseReport'
 import { ExpenseReportGlobal } from './globals/ExpenseReport'
+import { getReturnOrderReportHandler } from './endpoints/getReturnOrderReport'
+import { ReturnOrderReportGlobal } from './globals/ReturnOrderReport'
 import { BranchGeoSettings } from './globals/BranchGeoSettings'
 import { NetworkStatus } from './globals/NetworkStatus'
 import { getNetworkStatusHandler } from './endpoints/getNetworkStatus'
@@ -191,6 +193,11 @@ export default buildConfig({
       handler: getExpenseReportHandler,
     },
     {
+      path: '/reports/return-order',
+      method: 'get',
+      handler: getReturnOrderReportHandler,
+    },
+    {
       path: '/reports/branches',
       method: 'get',
       handler: getReportBranchesHandler,
@@ -236,6 +243,7 @@ export default buildConfig({
     ReviewReportGlobal,
     InstockEntryReportGlobal,
     ExpenseReportGlobal,
+    ReturnOrderReportGlobal,
     BranchGeoSettings,
     NetworkStatus,
     AutomateGlobal,

@@ -134,6 +134,7 @@ export interface Config {
     'review-report': ReviewReport;
     'instock-entry-report': InstockEntryReport;
     'expense-report': ExpenseReport;
+    'return-order-report': ReturnOrderReport;
     'branch-geo-settings': BranchGeoSetting;
     'network-status': NetworkStatus;
     'automate-settings': AutomateSetting;
@@ -153,6 +154,7 @@ export interface Config {
     'review-report': ReviewReportSelect<false> | ReviewReportSelect<true>;
     'instock-entry-report': InstockEntryReportSelect<false> | InstockEntryReportSelect<true>;
     'expense-report': ExpenseReportSelect<false> | ExpenseReportSelect<true>;
+    'return-order-report': ReturnOrderReportSelect<false> | ReturnOrderReportSelect<true>;
     'branch-geo-settings': BranchGeoSettingsSelect<false> | BranchGeoSettingsSelect<true>;
     'network-status': NetworkStatusSelect<false> | NetworkStatusSelect<true>;
     'automate-settings': AutomateSettingsSelect<false> | AutomateSettingsSelect<true>;
@@ -1685,6 +1687,15 @@ export interface ExpenseReport {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "return-order-report".
+ */
+export interface ReturnOrderReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "branch-geo-settings".
  */
 export interface BranchGeoSetting {
@@ -1877,13 +1888,17 @@ export interface CustomerOfferSetting {
    */
   randomCustomerOfferTimezone: string;
   /**
-   * Add products and winner counts. During billing, system picks one eligible product randomly when count is available.
+   * Add products, winner counts, and random chance. During billing, one eligible product may be awarded to randomly selected customers.
    */
   randomCustomerOfferProducts?:
     | {
         enabled?: boolean | null;
         product: string | Product;
         winnerCount: number;
+        /**
+         * Chance to award this rule for an eligible customer bill.
+         */
+        randomSelectionChancePercent: number;
         /**
          * 0 means unlimited for this product rule.
          */
@@ -1943,6 +1958,34 @@ export interface CustomerOfferSetting {
    * 0 means unlimited per customer.
    */
   totalPercentageOfferMaxUsagePerCustomer?: number | null;
+  /**
+   * When enabled, offer is applied only to randomly selected customers.
+   */
+  totalPercentageOfferRandomOnly?: boolean | null;
+  /**
+   * Probability of selecting a customer for this offer.
+   */
+  totalPercentageOfferRandomSelectionChancePercent?: number | null;
+  /**
+   * IANA timezone for schedule checks (e.g., Asia/Kolkata).
+   */
+  totalPercentageOfferTimezone: string;
+  /**
+   * Optional start date.
+   */
+  totalPercentageOfferAvailableFromDate?: string | null;
+  /**
+   * Optional end date.
+   */
+  totalPercentageOfferAvailableToDate?: string | null;
+  /**
+   * 24h format HH:mm (optional).
+   */
+  totalPercentageOfferDailyStartTime?: string | null;
+  /**
+   * 24h format HH:mm (optional).
+   */
+  totalPercentageOfferDailyEndTime?: string | null;
   /**
    * 0 means unlimited.
    */
@@ -2095,6 +2138,15 @@ export interface ExpenseReportSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "return-order-report_select".
+ */
+export interface ReturnOrderReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "branch-geo-settings_select".
  */
 export interface BranchGeoSettingsSelect<T extends boolean = true> {
@@ -2207,6 +2259,7 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
         enabled?: T;
         product?: T;
         winnerCount?: T;
+        randomSelectionChancePercent?: T;
         maxUsagePerCustomer?: T;
         assignedCount?: T;
         redeemedCount?: T;
@@ -2232,6 +2285,13 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
   totalPercentageOfferPercent?: T;
   totalPercentageOfferMaxOfferCount?: T;
   totalPercentageOfferMaxUsagePerCustomer?: T;
+  totalPercentageOfferRandomOnly?: T;
+  totalPercentageOfferRandomSelectionChancePercent?: T;
+  totalPercentageOfferTimezone?: T;
+  totalPercentageOfferAvailableFromDate?: T;
+  totalPercentageOfferAvailableToDate?: T;
+  totalPercentageOfferDailyStartTime?: T;
+  totalPercentageOfferDailyEndTime?: T;
   totalPercentageOfferMaxCustomerCount?: T;
   totalPercentageOfferGivenCount?: T;
   totalPercentageOfferCustomerCount?: T;
