@@ -173,6 +173,47 @@ const getPositiveNumericValue = (value: unknown): number => {
   return 0
 }
 
+const getDeterministicPercentFromSeed = (seed: string): number => {
+  let hash = 2166136261
+
+  for (let i = 0; i < seed.length; i += 1) {
+    hash ^= seed.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+
+  return ((hash >>> 0) / 4294967295) * 100
+}
+
+const isDeterministicRandomSelection = (seed: string, chancePercent: number): boolean => {
+  const safeChance = Math.min(100, Math.max(0, chancePercent))
+  if (safeChance <= 0) return false
+  if (safeChance >= 100) return true
+
+  return getDeterministicPercentFromSeed(seed) < safeChance
+}
+
+const getDeterministicIndexFromSeed = (seed: string, totalItems: number): number => {
+  if (!Number.isFinite(totalItems) || totalItems <= 1) {
+    return 0
+  }
+
+  const normalized = Math.min(0.999999, Math.max(0, getDeterministicPercentFromSeed(seed) / 100))
+  return Math.floor(normalized * totalItems)
+}
+
+const isTotalPercentageOfferAvailableNow = (settings: CustomerRewardSettings): boolean => {
+  return isRandomOfferProductAvailableNow(
+    {
+      enabled: true,
+      availableFromDate: settings.totalPercentageOfferAvailableFromDate,
+      availableToDate: settings.totalPercentageOfferAvailableToDate,
+      dailyStartTime: settings.totalPercentageOfferDailyStartTime,
+      dailyEndTime: settings.totalPercentageOfferDailyEndTime,
+    },
+    settings.totalPercentageOfferTimezone,
+  )
+}
+
 const getProductNameMap = async (
   payload: Payload,
   productIDs: string[],
@@ -724,6 +765,20 @@ const applyRandomCustomerProductOffer = async (
     | undefined
 
   const customerID = typeof customer?.id === 'string' ? customer.id : null
+  const customerRandomKey = customerID || customerPhoneNumber
+
+  const passesRandomSelection = (
+    row: (typeof settings.randomCustomerOfferProducts)[number],
+  ): boolean => {
+    return isDeterministicRandomSelection(
+      [
+        settings.randomCustomerOfferCampaignCode,
+        row.id,
+        customerRandomKey,
+      ].join('|'),
+      row.randomSelectionChancePercent,
+    )
+  }
 
   const hasRemainingCapacity = (row: (typeof settings.randomCustomerOfferProducts)[number]) => {
     const hasRemainingRedeems =
@@ -747,12 +802,17 @@ const applyRandomCustomerProductOffer = async (
   }
 
   if (!selectedProductID) {
-    const eligibleRows = activeRandomRows.filter((row) => hasRemainingCapacity(row))
+    const eligibleRows = activeRandomRows.filter(
+      (row) => hasRemainingCapacity(row) && passesRandomSelection(row),
+    )
     if (eligibleRows.length === 0) {
       return nonRandomOfferItems
     }
 
-    const randomIndex = Math.floor(Math.random() * eligibleRows.length)
+    const randomIndex = getDeterministicIndexFromSeed(
+      [settings.randomCustomerOfferCampaignCode, customerRandomKey, 'random-offer-row'].join('|'),
+      eligibleRows.length,
+    )
     selectedProductID = eligibleRows[randomIndex]?.product || null
   }
 
@@ -1380,7 +1440,22 @@ const Billings: CollectionConfig = {
                 settings.totalPercentageOfferCustomerUsage,
               )
 
-              if (canApplyPercentageOffer) {
+              const isWithinSchedule = isTotalPercentageOfferAvailableNow(settings)
+              const randomCustomerKey = customerID || phoneNumber || null
+              const randomSelectionPassed =
+                !settings.totalPercentageOfferRandomOnly ||
+                (Boolean(randomCustomerKey) &&
+                  isDeterministicRandomSelection(
+                    [
+                      'total-percentage-offer',
+                      randomCustomerKey,
+                      settings.totalPercentageOfferPercent,
+                      settings.totalPercentageOfferRandomSelectionChancePercent,
+                    ].join('|'),
+                    settings.totalPercentageOfferRandomSelectionChancePercent,
+                  ))
+
+              if (canApplyPercentageOffer && isWithinSchedule && randomSelectionPassed) {
                 const discountAmount = toMoneyValue(
                   (amountAfterCustomerOffer * settings.totalPercentageOfferPercent) / 100,
                 )
@@ -1564,6 +1639,7 @@ const Billings: CollectionConfig = {
                         enabled: row.enabled,
                         product: row.product,
                         winnerCount: row.winnerCount,
+                        randomSelectionChancePercent: row.randomSelectionChancePercent,
                         maxUsagePerCustomer: normalizedMaxUsagePerCustomer,
                         availableFromDate: row.availableFromDate,
                         availableToDate: row.availableToDate,
@@ -1591,6 +1667,7 @@ const Billings: CollectionConfig = {
                         enabled: row.enabled,
                         product: row.product,
                         winnerCount: row.winnerCount,
+                        randomSelectionChancePercent: row.randomSelectionChancePercent,
                         maxUsagePerCustomer: normalizedMaxUsagePerCustomer,
                         availableFromDate: row.availableFromDate,
                         availableToDate: row.availableToDate,
@@ -1639,6 +1716,7 @@ const Billings: CollectionConfig = {
                       enabled: row.enabled,
                       product: row.product,
                       winnerCount: row.winnerCount,
+                      randomSelectionChancePercent: row.randomSelectionChancePercent,
                       maxUsagePerCustomer: normalizedMaxUsagePerCustomer,
                       availableFromDate: row.availableFromDate,
                       availableToDate: row.availableToDate,

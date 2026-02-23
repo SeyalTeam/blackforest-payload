@@ -1,5 +1,8 @@
 import type { GlobalConfig } from 'payload'
-import { DEFAULT_CUSTOMER_REWARD_SETTINGS } from '../utilities/customerRewards'
+import {
+  DEFAULT_CUSTOMER_REWARD_SETTINGS,
+  DEFAULT_RANDOM_OFFER_SELECTION_CHANCE_PERCENT,
+} from '../utilities/customerRewards'
 import { withWriteConflictRetry } from '../utilities/mongoRetry'
 
 const toRelationshipID = (value: unknown): string | null => {
@@ -42,6 +45,11 @@ const toNonNegativeInteger = (value: unknown, fallback = 0): number => {
   return Math.floor(value)
 }
 
+const toChancePercent = (value: unknown, fallback: number): number => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  return Math.min(100, Math.max(0, value))
+}
+
 const normalizeDateString = (value: unknown): string | null => {
   if (!value) return null
 
@@ -65,6 +73,7 @@ type RandomOfferRow = {
   enabled: boolean
   productID: string | null
   winnerCount: number
+  randomSelectionChancePercent: number
   maxUsagePerCustomer: number
   availableFromDate: string | null
   availableToDate: string | null
@@ -108,6 +117,10 @@ const parseRandomOfferRows = (value: unknown): RandomOfferRow[] => {
       enabled: typeof raw.enabled === 'boolean' ? raw.enabled : true,
       productID: toRelationshipID(raw.product),
       winnerCount: toPositiveInteger(raw.winnerCount, 1),
+      randomSelectionChancePercent: toChancePercent(
+        raw.randomSelectionChancePercent,
+        DEFAULT_RANDOM_OFFER_SELECTION_CHANCE_PERCENT,
+      ),
       maxUsagePerCustomer: toNonNegativeInteger(raw.maxUsagePerCustomer, 1),
       availableFromDate: normalizeDateString(raw.availableFromDate),
       availableToDate: normalizeDateString(raw.availableToDate),
@@ -321,6 +334,7 @@ export const CustomerOfferSettings: GlobalConfig = {
               enabled: row.enabled,
               product: row.productID,
               winnerCount: row.winnerCount,
+              randomSelectionChancePercent: row.randomSelectionChancePercent,
               maxUsagePerCustomer: toNonNegativeInteger(row.maxUsagePerCustomer, 1),
               availableFromDate: row.availableFromDate,
               availableToDate: row.availableToDate,
@@ -844,7 +858,7 @@ export const CustomerOfferSettings: GlobalConfig = {
       admin: {
         condition: (data) => Boolean(data?.enableRandomCustomerProductOffer),
         description:
-          'Add products and winner counts. During billing, system picks one eligible product randomly when count is available.',
+          'Add products, winner counts, and random chance. During billing, one eligible product may be awarded to randomly selected customers.',
       },
       fields: [
         {
@@ -863,7 +877,7 @@ export const CustomerOfferSettings: GlobalConfig = {
               required: true,
               label: 'Product',
               admin: {
-                width: '35%',
+                width: '30%',
               },
             },
             {
@@ -874,7 +888,20 @@ export const CustomerOfferSettings: GlobalConfig = {
               defaultValue: 1,
               label: 'Winner Count',
               admin: {
+                width: '10%',
+              },
+            },
+            {
+              name: 'randomSelectionChancePercent',
+              type: 'number',
+              required: true,
+              min: 0.01,
+              max: 100,
+              defaultValue: DEFAULT_RANDOM_OFFER_SELECTION_CHANCE_PERCENT,
+              label: 'Random Chance (%)',
+              admin: {
                 width: '15%',
+                description: 'Chance to award this rule for an eligible customer bill.',
               },
             },
             {
@@ -885,7 +912,7 @@ export const CustomerOfferSettings: GlobalConfig = {
               defaultValue: 1,
               label: 'Max Uses per Customer',
               admin: {
-                width: '15%',
+                width: '10%',
                 description: '0 means unlimited for this product rule.',
               },
             },
@@ -896,7 +923,7 @@ export const CustomerOfferSettings: GlobalConfig = {
               defaultValue: 0,
               label: 'Awarded',
               admin: {
-                width: '15%',
+                width: '10%',
                 readOnly: true,
               },
             },
@@ -907,7 +934,7 @@ export const CustomerOfferSettings: GlobalConfig = {
               defaultValue: 0,
               label: 'Redeemed',
               admin: {
-                width: '15%',
+                width: '10%',
                 readOnly: true,
               },
             },
@@ -918,7 +945,7 @@ export const CustomerOfferSettings: GlobalConfig = {
               hasMany: true,
               label: 'Awarded Customers',
               admin: {
-                width: '20%',
+                width: '15%',
                 readOnly: true,
               },
             },
@@ -1119,6 +1146,114 @@ export const CustomerOfferSettings: GlobalConfig = {
           admin: {
             width: '33%',
             description: '0 means unlimited per customer.',
+          },
+        },
+      ],
+    },
+    {
+      type: 'row',
+      admin: {
+        condition: (data) => Boolean(data?.enableTotalPercentageOffer),
+      },
+      fields: [
+        {
+          name: 'totalPercentageOfferRandomOnly',
+          type: 'checkbox',
+          label: 'Random Customers Only',
+          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferRandomOnly,
+          admin: {
+            width: '34%',
+            description: 'When enabled, offer is applied only to randomly selected customers.',
+          },
+        },
+        {
+          name: 'totalPercentageOfferRandomSelectionChancePercent',
+          type: 'number',
+          min: 0.01,
+          max: 100,
+          defaultValue:
+            DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferRandomSelectionChancePercent,
+          label: 'Random Chance (%)',
+          admin: {
+            width: '33%',
+            description: 'Probability of selecting a customer for this offer.',
+          },
+        },
+        {
+          name: 'totalPercentageOfferTimezone',
+          type: 'text',
+          required: true,
+          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferTimezone,
+          label: 'Timezone',
+          admin: {
+            width: '33%',
+            description: 'IANA timezone for schedule checks (e.g., Asia/Kolkata).',
+          },
+        },
+      ],
+    },
+    {
+      type: 'row',
+      admin: {
+        condition: (data) => Boolean(data?.enableTotalPercentageOffer),
+      },
+      fields: [
+        {
+          name: 'totalPercentageOfferAvailableFromDate',
+          type: 'date',
+          label: 'Available From Date',
+          admin: {
+            width: '25%',
+            date: {
+              pickerAppearance: 'dayOnly',
+            },
+            description: 'Optional start date.',
+          },
+        },
+        {
+          name: 'totalPercentageOfferAvailableToDate',
+          type: 'date',
+          label: 'Available To Date',
+          admin: {
+            width: '25%',
+            date: {
+              pickerAppearance: 'dayOnly',
+            },
+            description: 'Optional end date.',
+          },
+        },
+        {
+          name: 'totalPercentageOfferDailyStartTime',
+          type: 'text',
+          label: 'Daily Start Time',
+          admin: {
+            width: '25%',
+            placeholder: '09:00',
+            description: '24h format HH:mm (optional).',
+          },
+          validate: (value: unknown) => {
+            if (value == null || value === '') return true
+            if (typeof value !== 'string') return 'Use HH:mm format.'
+            return /^([01]?\d|2[0-3]):([0-5]\d)$/.test(value.trim())
+              ? true
+              : 'Use HH:mm format (example: 09:00).'
+          },
+        },
+        {
+          name: 'totalPercentageOfferDailyEndTime',
+          type: 'text',
+          label: 'Daily End Time',
+          admin: {
+            width: '25%',
+            placeholder: '18:00',
+            description: '24h format HH:mm (optional).',
+          },
+          validate: (value: unknown) => {
+            if (value == null || value === '') return true
+            if (typeof value !== 'string') return 'Use HH:mm format.'
+            return /^([01]?\d|2[0-3]):([0-5]\d)$/.test(value.trim())
+              ? true
+              : 'Use HH:mm format (example: 18:00).'
           },
         },
       ],

@@ -1,6 +1,7 @@
 import type { Payload } from 'payload'
 
 export const DEFAULT_RANDOM_OFFER_TIMEZONE = 'Asia/Kolkata'
+export const DEFAULT_RANDOM_OFFER_SELECTION_CHANCE_PERCENT = 50
 
 export type CustomerRewardSettings = {
   enabled: boolean
@@ -23,6 +24,13 @@ export type CustomerRewardSettings = {
   totalPercentageOfferMaxOfferCount: number
   totalPercentageOfferMaxCustomerCount: number
   totalPercentageOfferMaxUsagePerCustomer: number
+  totalPercentageOfferRandomOnly: boolean
+  totalPercentageOfferRandomSelectionChancePercent: number
+  totalPercentageOfferTimezone: string
+  totalPercentageOfferAvailableFromDate: string | null
+  totalPercentageOfferAvailableToDate: string | null
+  totalPercentageOfferDailyStartTime: string | null
+  totalPercentageOfferDailyEndTime: string | null
   totalPercentageOfferGivenCount: number
   totalPercentageOfferCustomerCount: number
   totalPercentageOfferCustomers: string[]
@@ -69,6 +77,7 @@ export type RandomCustomerOfferProductRule = {
   enabled: boolean
   product: string
   winnerCount: number
+  randomSelectionChancePercent: number
   maxUsagePerCustomer: number
   availableFromDate: string | null
   availableToDate: string | null
@@ -101,6 +110,13 @@ export const DEFAULT_CUSTOMER_REWARD_SETTINGS: CustomerRewardSettings = {
   totalPercentageOfferMaxOfferCount: 0,
   totalPercentageOfferMaxCustomerCount: 0,
   totalPercentageOfferMaxUsagePerCustomer: 0,
+  totalPercentageOfferRandomOnly: true,
+  totalPercentageOfferRandomSelectionChancePercent: 50,
+  totalPercentageOfferTimezone: DEFAULT_RANDOM_OFFER_TIMEZONE,
+  totalPercentageOfferAvailableFromDate: null,
+  totalPercentageOfferAvailableToDate: null,
+  totalPercentageOfferDailyStartTime: null,
+  totalPercentageOfferDailyEndTime: null,
   totalPercentageOfferGivenCount: 0,
   totalPercentageOfferCustomerCount: 0,
   totalPercentageOfferCustomers: [],
@@ -119,6 +135,14 @@ const toNonNegativeNumber = (value: unknown, fallback: number): number => {
     return fallback
   }
   return value
+}
+
+const toChancePercent = (value: unknown, fallback: number): number => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return fallback
+  }
+
+  return Math.min(100, Math.max(0, value))
 }
 
 const isValidTimezone = (timezone: string): boolean => {
@@ -376,6 +400,10 @@ const normalizeRandomCustomerOfferProductRules = (value: unknown): RandomCustome
         enabled: typeof rawRow.enabled === 'boolean' ? rawRow.enabled : true,
         product,
         winnerCount: toPositiveNumber(rawRow.winnerCount, 1),
+        randomSelectionChancePercent: toChancePercent(
+          rawRow.randomSelectionChancePercent,
+          DEFAULT_RANDOM_OFFER_SELECTION_CHANCE_PERCENT,
+        ),
         maxUsagePerCustomer: toNonNegativeNumber(rawRow.maxUsagePerCustomer, 1),
         availableFromDate: normalizeDateString(rawRow.availableFromDate),
         availableToDate: normalizeDateString(rawRow.availableToDate),
@@ -457,6 +485,30 @@ const normalizeCustomerRewardSettings = (settings: unknown): CustomerRewardSetti
       raw.totalPercentageOfferMaxUsagePerCustomer,
       DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferMaxUsagePerCustomer,
     ),
+    totalPercentageOfferRandomOnly:
+      typeof raw.totalPercentageOfferRandomOnly === 'boolean'
+        ? raw.totalPercentageOfferRandomOnly
+        : DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferRandomOnly,
+    totalPercentageOfferRandomSelectionChancePercent: Math.min(
+      100,
+      Math.max(
+        0,
+        toPositiveNumber(
+          raw.totalPercentageOfferRandomSelectionChancePercent,
+          DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferRandomSelectionChancePercent,
+        ),
+      ),
+    ),
+    totalPercentageOfferTimezone: normalizeTimezone(
+      raw.totalPercentageOfferTimezone,
+      DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferTimezone,
+    ),
+    totalPercentageOfferAvailableFromDate: normalizeDateString(
+      raw.totalPercentageOfferAvailableFromDate,
+    ),
+    totalPercentageOfferAvailableToDate: normalizeDateString(raw.totalPercentageOfferAvailableToDate),
+    totalPercentageOfferDailyStartTime: normalizeTimeString(raw.totalPercentageOfferDailyStartTime),
+    totalPercentageOfferDailyEndTime: normalizeTimeString(raw.totalPercentageOfferDailyEndTime),
     totalPercentageOfferGivenCount: toNonNegativeNumber(
       raw.totalPercentageOfferGivenCount,
       DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferGivenCount,
