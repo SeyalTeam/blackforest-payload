@@ -490,6 +490,10 @@ export interface Billing {
     priceOfferRuleKey?: string | null;
     priceOfferDiscountPerUnit?: number | null;
     /**
+     * Actual quantity that received price offer discount.
+     */
+    priceOfferAppliedUnits?: number | null;
+    /**
      * Final unit price after product price offer discount.
      */
     effectiveUnitPrice?: number | null;
@@ -1209,6 +1213,7 @@ export interface BillingsSelect<T extends boolean = true> {
         isPriceOfferApplied?: T;
         priceOfferRuleKey?: T;
         priceOfferDiscountPerUnit?: T;
+        priceOfferAppliedUnits?: T;
         effectiveUnitPrice?: T;
         isRandomCustomerOfferItem?: T;
         randomCustomerOfferCampaignCode?: T;
@@ -1794,9 +1799,23 @@ export interface CustomerOfferSetting {
          * 0 means unlimited.
          */
         maxCustomerCount?: number | null;
+        /**
+         * 0 means unlimited per customer.
+         */
+        maxUsagePerCustomer?: number | null;
         offerGivenCount?: number | null;
         offerCustomerCount?: number | null;
         offerCustomers?: (string | Customer)[] | null;
+        /**
+         * Per-customer usage count for this rule.
+         */
+        offerCustomerUsage?:
+          | {
+              customer: string | Customer;
+              usageCount: number;
+              id?: string | null;
+            }[]
+          | null;
         id?: string | null;
       }[]
     | null;
@@ -1825,9 +1844,23 @@ export interface CustomerOfferSetting {
          * 0 means unlimited.
          */
         maxCustomerCount?: number | null;
+        /**
+         * 0 means unlimited per customer.
+         */
+        maxUsagePerCustomer?: number | null;
         offerGivenCount?: number | null;
         offerCustomerCount?: number | null;
         offerCustomers?: (string | Customer)[] | null;
+        /**
+         * Per-customer usage count for this rule.
+         */
+        offerCustomerUsage?:
+          | {
+              customer: string | Customer;
+              usageCount: number;
+              id?: string | null;
+            }[]
+          | null;
         id?: string | null;
       }[]
     | null;
@@ -2080,9 +2113,17 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
         freeQuantity?: T;
         maxOfferCount?: T;
         maxCustomerCount?: T;
+        maxUsagePerCustomer?: T;
         offerGivenCount?: T;
         offerCustomerCount?: T;
         offerCustomers?: T;
+        offerCustomerUsage?:
+          | T
+          | {
+              customer?: T;
+              usageCount?: T;
+              id?: T;
+            };
         id?: T;
       };
   enableProductPriceOffer?: T;
@@ -2096,9 +2137,17 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
         finalPricePreview?: T;
         maxOfferCount?: T;
         maxCustomerCount?: T;
+        maxUsagePerCustomer?: T;
         offerGivenCount?: T;
         offerCustomerCount?: T;
         offerCustomers?: T;
+        offerCustomerUsage?:
+          | T
+          | {
+              customer?: T;
+              usageCount?: T;
+              id?: T;
+            };
         id?: T;
       };
   enableRandomCustomerProductOffer?: T;

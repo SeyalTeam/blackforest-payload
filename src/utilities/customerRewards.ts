@@ -52,9 +52,11 @@ export type ProductPriceOfferRule = {
   discountAmount: number
   maxOfferCount: number
   maxCustomerCount: number
+  maxUsagePerCustomer: number
   offerGivenCount: number
   offerCustomerCount: number
   offerCustomers: string[]
+  offerCustomerUsage: OfferCustomerUsageCounter[]
 }
 
 export type RandomCustomerOfferProductRule = {
@@ -206,6 +208,7 @@ const normalizeProductPriceOfferRules = (value: unknown): ProductPriceOfferRule[
         discountAmount: toPositiveNumber(rawRule.discountAmount, 1),
         maxOfferCount: toNonNegativeNumber(rawRule.maxOfferCount, 0),
         maxCustomerCount: toNonNegativeNumber(rawRule.maxCustomerCount, 0),
+        maxUsagePerCustomer: toNonNegativeNumber(rawRule.maxUsagePerCustomer, 0),
         offerGivenCount: toNonNegativeNumber(rawRule.offerGivenCount, 0),
         offerCustomerCount: toNonNegativeNumber(rawRule.offerCustomerCount, 0),
         offerCustomers: Array.isArray(rawRule.offerCustomers)
@@ -213,6 +216,7 @@ const normalizeProductPriceOfferRules = (value: unknown): ProductPriceOfferRule[
               .map((entry) => getRelationshipID(entry))
               .filter((id): id is string => typeof id === 'string')
           : [],
+        offerCustomerUsage: normalizeOfferCustomerUsage(rawRule.offerCustomerUsage),
       }
     })
     .filter((rule): rule is ProductPriceOfferRule => Boolean(rule))

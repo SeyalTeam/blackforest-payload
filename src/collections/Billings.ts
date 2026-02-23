@@ -124,6 +124,7 @@ type BillingItemInput = {
   isPriceOfferApplied?: boolean
   priceOfferRuleKey?: string
   priceOfferDiscountPerUnit?: number
+  priceOfferAppliedUnits?: number
   effectiveUnitPrice?: number
   isRandomCustomerOfferItem?: boolean
   randomCustomerOfferCampaignCode?: string
@@ -513,6 +514,7 @@ const applyProductPriceOffers = (
       isPriceOfferApplied: false,
       priceOfferRuleKey: undefined,
       priceOfferDiscountPerUnit: 0,
+      priceOfferAppliedUnits: 0,
       effectiveUnitPrice: getPositiveNumericValue(item.unitPrice),
     }))
   }
@@ -527,6 +529,8 @@ const applyProductPriceOffers = (
         rule.offerCustomerCount,
         rule.offerCustomers,
         customerID,
+        rule.maxUsagePerCustomer,
+        rule.offerCustomerUsage,
       ),
   )
   if (activeRules.length === 0) {
@@ -535,14 +539,36 @@ const applyProductPriceOffers = (
       isPriceOfferApplied: false,
       priceOfferRuleKey: undefined,
       priceOfferDiscountPerUnit: 0,
+      priceOfferAppliedUnits: 0,
       effectiveUnitPrice: getPositiveNumericValue(item.unitPrice),
     }))
   }
 
-  const ruleByProduct = new Map<string, ProductPriceOfferRule>()
+  const ruleByProduct = new Map<
+    string,
+    {
+      rule: ProductPriceOfferRule
+      remainingGlobalUses: number
+      remainingCustomerUses: number
+    }
+  >()
   for (const rule of activeRules) {
     if (!ruleByProduct.has(rule.product)) {
-      ruleByProduct.set(rule.product, rule)
+      ruleByProduct.set(rule.product, {
+        rule,
+        remainingGlobalUses:
+          rule.maxOfferCount > 0
+            ? Math.max(0, rule.maxOfferCount - toSafeNonNegativeNumber(rule.offerGivenCount))
+            : Number.MAX_SAFE_INTEGER,
+        remainingCustomerUses:
+          rule.maxUsagePerCustomer > 0
+            ? Math.max(
+                0,
+                rule.maxUsagePerCustomer -
+                  getCustomerUsageCount(rule.offerCustomerUsage, customerID),
+              )
+            : Number.MAX_SAFE_INTEGER,
+      })
     }
   }
 
@@ -555,6 +581,7 @@ const applyProductPriceOffers = (
         isPriceOfferApplied: false,
         priceOfferRuleKey: undefined,
         priceOfferDiscountPerUnit: 0,
+        priceOfferAppliedUnits: 0,
         effectiveUnitPrice: 0,
       }
     }
@@ -566,29 +593,53 @@ const applyProductPriceOffers = (
         isPriceOfferApplied: false,
         priceOfferRuleKey: undefined,
         priceOfferDiscountPerUnit: 0,
+        priceOfferAppliedUnits: 0,
         effectiveUnitPrice: unitPrice,
       }
     }
 
-    const rule = ruleByProduct.get(productID)
-    if (!rule) {
+    const ruleState = ruleByProduct.get(productID)
+    if (!ruleState) {
       return {
         ...item,
         isPriceOfferApplied: false,
         priceOfferRuleKey: undefined,
         priceOfferDiscountPerUnit: 0,
+        priceOfferAppliedUnits: 0,
         effectiveUnitPrice: unitPrice,
       }
     }
 
-    const discountPerUnit = Math.min(unitPrice, rule.discountAmount)
-    const effectiveUnitPrice = toMoneyValue(Math.max(0, unitPrice - discountPerUnit))
+    const quantity = getPositiveNumericValue(item.quantity)
+    const eligibleQuantity = quantity > 0 ? quantity : 1
+    const availableUses = Math.min(ruleState.remainingGlobalUses, ruleState.remainingCustomerUses)
+    const appliedUnits = Math.max(0, Math.min(eligibleQuantity, availableUses))
+    const baseDiscountPerUnit = Math.min(unitPrice, ruleState.rule.discountAmount)
+
+    if (appliedUnits <= 0 || baseDiscountPerUnit <= 0) {
+      return {
+        ...item,
+        isPriceOfferApplied: false,
+        priceOfferRuleKey: undefined,
+        priceOfferDiscountPerUnit: 0,
+        priceOfferAppliedUnits: 0,
+        effectiveUnitPrice: unitPrice,
+      }
+    }
+
+    const discountRatio = appliedUnits / eligibleQuantity
+    const effectiveDiscountPerUnit = toMoneyValue(baseDiscountPerUnit * discountRatio)
+    const effectiveUnitPrice = toMoneyValue(Math.max(0, unitPrice - effectiveDiscountPerUnit))
+
+    ruleState.remainingGlobalUses = Math.max(0, ruleState.remainingGlobalUses - appliedUnits)
+    ruleState.remainingCustomerUses = Math.max(0, ruleState.remainingCustomerUses - appliedUnits)
 
     return {
       ...item,
-      isPriceOfferApplied: discountPerUnit > 0,
-      priceOfferRuleKey: buildPriceOfferRuleKey(rule),
-      priceOfferDiscountPerUnit: toMoneyValue(discountPerUnit),
+      isPriceOfferApplied: effectiveDiscountPerUnit > 0,
+      priceOfferRuleKey: buildPriceOfferRuleKey(ruleState.rule),
+      priceOfferDiscountPerUnit: effectiveDiscountPerUnit,
+      priceOfferAppliedUnits: toMoneyValue(appliedUnits),
       effectiveUnitPrice,
     }
   })
@@ -1515,8 +1566,9 @@ const Billings: CollectionConfig = {
                       !item?.isRandomCustomerOfferItem &&
                       typeof item?.priceOfferRuleKey === 'string'
                     ) {
+                      const appliedUnits = toSafeNonNegativeNumber(item?.priceOfferAppliedUnits)
                       const quantity = toSafeNonNegativeNumber(item?.quantity)
-                      const increment = quantity > 0 ? quantity : 1
+                      const increment = appliedUnits > 0 ? appliedUnits : quantity > 0 ? quantity : 1
                       priceUsageByRule.set(
                         item.priceOfferRuleKey,
                         (priceUsageByRule.get(item.priceOfferRuleKey) || 0) + increment,
@@ -1592,9 +1644,29 @@ const Billings: CollectionConfig = {
                     const key = buildPriceOfferRuleKey(rule)
                     const usageIncrement = priceUsageByRule.get(key) || 0
                     const nextCustomers = [...rule.offerCustomers]
+                    const nextCustomerUsage = [...rule.offerCustomerUsage]
 
                     if (usageIncrement > 0 && customerID && !nextCustomers.includes(customerID)) {
                       nextCustomers.push(customerID)
+                    }
+
+                    if (usageIncrement > 0 && customerID) {
+                      const usageIndex = nextCustomerUsage.findIndex(
+                        (entry) => entry.customer === customerID,
+                      )
+
+                      if (usageIndex >= 0) {
+                        const existingUsage = nextCustomerUsage[usageIndex]
+                        nextCustomerUsage[usageIndex] = {
+                          customer: existingUsage.customer,
+                          usageCount: existingUsage.usageCount + usageIncrement,
+                        }
+                      } else {
+                        nextCustomerUsage.push({
+                          customer: customerID,
+                          usageCount: usageIncrement,
+                        })
+                      }
                     }
 
                     const nextGivenCount =
@@ -1618,9 +1690,11 @@ const Billings: CollectionConfig = {
                       discountAmount: rule.discountAmount,
                       maxOfferCount: rule.maxOfferCount,
                       maxCustomerCount: rule.maxCustomerCount,
+                      maxUsagePerCustomer: rule.maxUsagePerCustomer,
                       offerGivenCount: nextGivenCount,
                       offerCustomerCount: nextCustomerCount,
                       offerCustomers: nextCustomers,
+                      offerCustomerUsage: nextCustomerUsage,
                     }
                   })
 
@@ -1955,6 +2029,17 @@ const Billings: CollectionConfig = {
           admin: {
             readOnly: true,
             position: 'sidebar',
+          },
+        },
+        {
+          name: 'priceOfferAppliedUnits',
+          type: 'number',
+          min: 0,
+          defaultValue: 0,
+          admin: {
+            readOnly: true,
+            position: 'sidebar',
+            description: 'Actual quantity that received price offer discount.',
           },
         },
         {
