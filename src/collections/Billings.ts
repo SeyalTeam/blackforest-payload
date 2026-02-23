@@ -204,6 +204,16 @@ const buildPriceOfferRuleKey = (rule: ProductPriceOfferRule): string => {
   return `${rule.id}:${rule.product}`
 }
 
+const getCustomerUsageCount = (
+  offerCustomerUsage: Array<{ customer: string; usageCount: number }>,
+  customerID: string | null,
+): number => {
+  if (!customerID) return 0
+
+  const usageRow = offerCustomerUsage.find((row) => row.customer === customerID)
+  return usageRow ? toSafeNonNegativeNumber(usageRow.usageCount) : 0
+}
+
 const canApplyRuleWithinLimits = (
   maxOfferCount: number,
   offerGivenCount: number,
@@ -211,6 +221,8 @@ const canApplyRuleWithinLimits = (
   offerCustomerCount: number,
   offerCustomers: string[],
   customerID: string | null,
+  maxUsagePerCustomer = 0,
+  offerCustomerUsage: Array<{ customer: string; usageCount: number }> = [],
 ): boolean => {
   if (maxOfferCount > 0 && offerGivenCount >= maxOfferCount) {
     return false
@@ -220,6 +232,14 @@ const canApplyRuleWithinLimits = (
     if (!customerID) return false
     const isExistingCustomer = offerCustomers.includes(customerID)
     if (!isExistingCustomer && offerCustomerCount >= maxCustomerCount) {
+      return false
+    }
+  }
+
+  if (maxUsagePerCustomer > 0) {
+    if (!customerID) return false
+    const currentUsageCount = getCustomerUsageCount(offerCustomerUsage, customerID)
+    if (currentUsageCount >= maxUsagePerCustomer) {
       return false
     }
   }
@@ -385,6 +405,8 @@ const applyProductToProductOffers = async (
         rule.offerCustomerCount,
         rule.offerCustomers,
         customerID,
+        rule.maxUsagePerCustomer,
+        rule.offerCustomerUsage,
       ),
   )
   if (activeRules.length === 0) {
@@ -411,7 +433,26 @@ const applyProductToProductOffers = async (
   for (const rule of activeRules) {
     const purchasedQty = purchasedByProduct.get(rule.buyProduct) || 0
     const ruleTriggerCount = Math.floor(purchasedQty / rule.buyQuantity)
-    const freeQuantity = ruleTriggerCount * rule.freeQuantity
+    if (ruleTriggerCount <= 0) continue
+
+    const remainingGlobalUses =
+      rule.maxOfferCount > 0
+        ? Math.max(0, rule.maxOfferCount - toSafeNonNegativeNumber(rule.offerGivenCount))
+        : Number.MAX_SAFE_INTEGER
+
+    const remainingCustomerUses =
+      rule.maxUsagePerCustomer > 0
+        ? Math.max(
+            0,
+            rule.maxUsagePerCustomer -
+              getCustomerUsageCount(rule.offerCustomerUsage, customerID),
+          )
+        : Number.MAX_SAFE_INTEGER
+
+    const cappedRuleTriggerCount = Math.floor(
+      Math.min(ruleTriggerCount, remainingGlobalUses, remainingCustomerUses),
+    )
+    const freeQuantity = cappedRuleTriggerCount * rule.freeQuantity
     if (freeQuantity <= 0) continue
 
     desiredOffers.set(buildRuleKey(rule), { rule, freeQuantity })
@@ -1490,9 +1531,29 @@ const Billings: CollectionConfig = {
                       const key = buildRuleKey(rule)
                       const usageIncrement = p2pUsageByRule.get(key) || 0
                       const nextCustomers = [...rule.offerCustomers]
+                      const nextCustomerUsage = [...rule.offerCustomerUsage]
 
                       if (usageIncrement > 0 && customerID && !nextCustomers.includes(customerID)) {
                         nextCustomers.push(customerID)
+                      }
+
+                      if (usageIncrement > 0 && customerID) {
+                        const usageIndex = nextCustomerUsage.findIndex(
+                          (entry) => entry.customer === customerID,
+                        )
+
+                        if (usageIndex >= 0) {
+                          const existingUsage = nextCustomerUsage[usageIndex]
+                          nextCustomerUsage[usageIndex] = {
+                            customer: existingUsage.customer,
+                            usageCount: existingUsage.usageCount + usageIncrement,
+                          }
+                        } else {
+                          nextCustomerUsage.push({
+                            customer: customerID,
+                            usageCount: usageIncrement,
+                          })
+                        }
                       }
 
                       const nextGivenCount =
@@ -1518,9 +1579,11 @@ const Billings: CollectionConfig = {
                         freeQuantity: rule.freeQuantity,
                         maxOfferCount: rule.maxOfferCount,
                         maxCustomerCount: rule.maxCustomerCount,
+                        maxUsagePerCustomer: rule.maxUsagePerCustomer,
                         offerGivenCount: nextGivenCount,
                         offerCustomerCount: nextCustomerCount,
                         offerCustomers: nextCustomers,
+                        offerCustomerUsage: nextCustomerUsage,
                       }
                     },
                   )

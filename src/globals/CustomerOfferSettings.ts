@@ -556,7 +556,7 @@ export const CustomerOfferSettings: GlobalConfig = {
               defaultValue: 0,
               label: 'Max Offer Uses',
               admin: {
-                width: '25%',
+                width: '33%',
                 description: '0 means unlimited.',
               },
             },
@@ -567,10 +567,26 @@ export const CustomerOfferSettings: GlobalConfig = {
               defaultValue: 0,
               label: 'Max Customers',
               admin: {
-                width: '25%',
+                width: '33%',
                 description: '0 means unlimited.',
               },
             },
+            {
+              name: 'maxUsagePerCustomer',
+              type: 'number',
+              min: 0,
+              defaultValue: 0,
+              label: 'Max Uses per Customer',
+              admin: {
+                width: '34%',
+                description: '0 means unlimited per customer.',
+              },
+            },
+          ],
+        },
+        {
+          type: 'row',
+          fields: [
             {
               name: 'offerGivenCount',
               type: 'number',
@@ -578,7 +594,7 @@ export const CustomerOfferSettings: GlobalConfig = {
               defaultValue: 0,
               label: 'Given Count',
               admin: {
-                width: '25%',
+                width: '50%',
                 readOnly: true,
               },
             },
@@ -589,7 +605,7 @@ export const CustomerOfferSettings: GlobalConfig = {
               defaultValue: 0,
               label: 'Customer Count',
               admin: {
-                width: '25%',
+                width: '50%',
                 readOnly: true,
               },
             },
@@ -603,6 +619,38 @@ export const CustomerOfferSettings: GlobalConfig = {
           admin: {
             readOnly: true,
           },
+        },
+        {
+          name: 'offerCustomerUsage',
+          type: 'array',
+          label: 'Customer Usage',
+          admin: {
+            readOnly: true,
+            description: 'Per-customer usage count for this rule.',
+          },
+          fields: [
+            {
+              name: 'customer',
+              type: 'relationship',
+              relationTo: 'customers',
+              required: true,
+              admin: {
+                width: '70%',
+                readOnly: true,
+              },
+            },
+            {
+              name: 'usageCount',
+              type: 'number',
+              min: 0,
+              defaultValue: 0,
+              required: true,
+              admin: {
+                width: '30%',
+                readOnly: true,
+              },
+            },
+          ],
         },
       ],
     },

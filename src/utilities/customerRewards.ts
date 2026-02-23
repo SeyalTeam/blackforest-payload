@@ -33,9 +33,16 @@ export type ProductToProductOfferRule = {
   freeQuantity: number
   maxOfferCount: number
   maxCustomerCount: number
+  maxUsagePerCustomer: number
   offerGivenCount: number
   offerCustomerCount: number
   offerCustomers: string[]
+  offerCustomerUsage: OfferCustomerUsageCounter[]
+}
+
+export type OfferCustomerUsageCounter = {
+  customer: string
+  usageCount: number
 }
 
 export type ProductPriceOfferRule = {
@@ -124,6 +131,27 @@ const getRelationshipID = (value: unknown): string | null => {
   return null
 }
 
+const normalizeOfferCustomerUsage = (value: unknown): OfferCustomerUsageCounter[] => {
+  if (!Array.isArray(value)) return []
+
+  const usageByCustomer = new Map<string, number>()
+
+  for (const row of value) {
+    if (!row || typeof row !== 'object') continue
+    const rawRow = row as Record<string, unknown>
+    const customerID = getRelationshipID(rawRow.customer)
+    if (!customerID) continue
+
+    const usageCount = toNonNegativeNumber(rawRow.usageCount, 0)
+    usageByCustomer.set(customerID, (usageByCustomer.get(customerID) || 0) + usageCount)
+  }
+
+  return Array.from(usageByCustomer.entries()).map(([customer, usageCount]) => ({
+    customer,
+    usageCount,
+  }))
+}
+
 const normalizeProductOfferRules = (value: unknown): ProductToProductOfferRule[] => {
   if (!Array.isArray(value)) return []
 
@@ -146,6 +174,7 @@ const normalizeProductOfferRules = (value: unknown): ProductToProductOfferRule[]
         freeQuantity: toPositiveNumber(rawRule.freeQuantity, 1),
         maxOfferCount: toNonNegativeNumber(rawRule.maxOfferCount, 0),
         maxCustomerCount: toNonNegativeNumber(rawRule.maxCustomerCount, 0),
+        maxUsagePerCustomer: toNonNegativeNumber(rawRule.maxUsagePerCustomer, 0),
         offerGivenCount: toNonNegativeNumber(rawRule.offerGivenCount, 0),
         offerCustomerCount: toNonNegativeNumber(rawRule.offerCustomerCount, 0),
         offerCustomers: Array.isArray(rawRule.offerCustomers)
@@ -153,6 +182,7 @@ const normalizeProductOfferRules = (value: unknown): ProductToProductOfferRule[]
               .map((entry) => getRelationshipID(entry))
               .filter((id): id is string => typeof id === 'string')
           : [],
+        offerCustomerUsage: normalizeOfferCustomerUsage(rawRule.offerCustomerUsage),
       }
     })
     .filter((rule): rule is ProductToProductOfferRule => Boolean(rule))
