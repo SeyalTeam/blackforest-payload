@@ -1,5 +1,7 @@
 import type { Payload } from 'payload'
 
+export const DEFAULT_RANDOM_OFFER_TIMEZONE = 'Asia/Kolkata'
+
 export type CustomerRewardSettings = {
   enabled: boolean
   spendAmountPerStep: number
@@ -12,6 +14,7 @@ export type CustomerRewardSettings = {
   enableProductPriceOffer: boolean
   productPriceOffers: ProductPriceOfferRule[]
   enableRandomCustomerProductOffer: boolean
+  randomCustomerOfferTimezone: string
   randomCustomerOfferProducts: RandomCustomerOfferProductRule[]
   randomCustomerOfferCampaignCode: string
   randomCustomerOfferRedeemedCount: number
@@ -64,6 +67,10 @@ export type RandomCustomerOfferProductRule = {
   enabled: boolean
   product: string
   winnerCount: number
+  availableFromDate: string | null
+  availableToDate: string | null
+  dailyStartTime: string | null
+  dailyEndTime: string | null
   assignedCount: number
   redeemedCount: number
   selectedCustomers: string[]
@@ -81,6 +88,7 @@ export const DEFAULT_CUSTOMER_REWARD_SETTINGS: CustomerRewardSettings = {
   enableProductPriceOffer: false,
   productPriceOffers: [],
   enableRandomCustomerProductOffer: false,
+  randomCustomerOfferTimezone: DEFAULT_RANDOM_OFFER_TIMEZONE,
   randomCustomerOfferProducts: [],
   randomCustomerOfferCampaignCode: 'campaign-1',
   randomCustomerOfferRedeemedCount: 0,
@@ -105,6 +113,125 @@ const toNonNegativeNumber = (value: unknown, fallback: number): number => {
     return fallback
   }
   return value
+}
+
+const isValidTimezone = (timezone: string): boolean => {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone })
+    return true
+  } catch {
+    return false
+  }
+}
+
+const normalizeTimezone = (
+  value: unknown,
+  fallback = DEFAULT_RANDOM_OFFER_TIMEZONE,
+): string => {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return fallback
+  }
+
+  const trimmedValue = value.trim()
+  return isValidTimezone(trimmedValue) ? trimmedValue : fallback
+}
+
+const normalizeDateString = (value: unknown): string | null => {
+  if (!value) return null
+
+  const dateValue = new Date(String(value))
+  if (Number.isNaN(dateValue.getTime())) {
+    return null
+  }
+
+  return dateValue.toISOString()
+}
+
+const normalizeTimeString = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null
+
+  const match = value.trim().match(/^([01]?\d|2[0-3]):([0-5]\d)$/)
+  if (!match) return null
+
+  return `${match[1].padStart(2, '0')}:${match[2]}`
+}
+
+const toDateKeyInTimezone = (value: unknown, timezone: string): string | null => {
+  const normalizedDate = normalizeDateString(value)
+  if (!normalizedDate) return null
+
+  const dateValue = new Date(normalizedDate)
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+
+  const parts = formatter.formatToParts(dateValue)
+  const year = parts.find((part) => part.type === 'year')?.value
+  const month = parts.find((part) => part.type === 'month')?.value
+  const day = parts.find((part) => part.type === 'day')?.value
+
+  if (!year || !month || !day) return null
+  return `${year}-${month}-${day}`
+}
+
+const toCurrentDateAndMinutesInTimezone = (
+  timezone: string,
+  now: Date,
+): { dateKey: string; minutes: number } | null => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+
+  const parts = formatter.formatToParts(now)
+  const year = parts.find((part) => part.type === 'year')?.value
+  const month = parts.find((part) => part.type === 'month')?.value
+  const day = parts.find((part) => part.type === 'day')?.value
+  const hour = parts.find((part) => part.type === 'hour')?.value
+  const minute = parts.find((part) => part.type === 'minute')?.value
+
+  if (!year || !month || !day || !hour || !minute) return null
+
+  const parsedHour = parseInt(hour, 10)
+  const parsedMinute = parseInt(minute, 10)
+  if (!Number.isFinite(parsedHour) || !Number.isFinite(parsedMinute)) return null
+
+  return {
+    dateKey: `${year}-${month}-${day}`,
+    minutes: parsedHour * 60 + parsedMinute,
+  }
+}
+
+const toMinutes = (value: string | null): number | null => {
+  if (!value) return null
+  const [hourPart, minutePart] = value.split(':')
+  const hour = parseInt(hourPart, 10)
+  const minute = parseInt(minutePart, 10)
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null
+  return hour * 60 + minute
+}
+
+const isWithinDailyWindow = (
+  currentMinutes: number,
+  startMinutes: number | null,
+  endMinutes: number | null,
+): boolean => {
+  if (startMinutes == null && endMinutes == null) return true
+  if (startMinutes != null && endMinutes == null) return currentMinutes >= startMinutes
+  if (startMinutes == null && endMinutes != null) return currentMinutes < endMinutes
+  if (startMinutes === endMinutes) return true
+  if ((startMinutes as number) < (endMinutes as number)) {
+    return currentMinutes >= (startMinutes as number) && currentMinutes < (endMinutes as number)
+  }
+  return currentMinutes >= (startMinutes as number) || currentMinutes < (endMinutes as number)
 }
 
 const getRelationshipID = (value: unknown): string | null => {
@@ -243,6 +370,10 @@ const normalizeRandomCustomerOfferProductRules = (value: unknown): RandomCustome
         enabled: typeof rawRow.enabled === 'boolean' ? rawRow.enabled : true,
         product,
         winnerCount: toPositiveNumber(rawRow.winnerCount, 1),
+        availableFromDate: normalizeDateString(rawRow.availableFromDate),
+        availableToDate: normalizeDateString(rawRow.availableToDate),
+        dailyStartTime: normalizeTimeString(rawRow.dailyStartTime),
+        dailyEndTime: normalizeTimeString(rawRow.dailyEndTime),
         assignedCount: typeof rawRow.assignedCount === 'number' ? Math.max(0, rawRow.assignedCount) : 0,
         redeemedCount: typeof rawRow.redeemedCount === 'number' ? Math.max(0, rawRow.redeemedCount) : 0,
         selectedCustomers,
@@ -287,6 +418,10 @@ const normalizeCustomerRewardSettings = (settings: unknown): CustomerRewardSetti
       typeof raw.enableRandomCustomerProductOffer === 'boolean'
         ? raw.enableRandomCustomerProductOffer
         : DEFAULT_CUSTOMER_REWARD_SETTINGS.enableRandomCustomerProductOffer,
+    randomCustomerOfferTimezone: normalizeTimezone(
+      raw.randomCustomerOfferTimezone,
+      DEFAULT_CUSTOMER_REWARD_SETTINGS.randomCustomerOfferTimezone,
+    ),
     randomCustomerOfferProducts: normalizeRandomCustomerOfferProductRules(raw.randomCustomerOfferProducts),
     randomCustomerOfferCampaignCode:
       typeof raw.randomCustomerOfferCampaignCode === 'string' &&
@@ -340,6 +475,39 @@ export const getCustomerRewardSettings = async (
     console.error('Failed to read customer offer settings. Falling back to defaults.', error)
     return DEFAULT_CUSTOMER_REWARD_SETTINGS
   }
+}
+
+export const isRandomOfferProductAvailableNow = (
+  row: Pick<
+    RandomCustomerOfferProductRule,
+    'enabled' | 'availableFromDate' | 'availableToDate' | 'dailyStartTime' | 'dailyEndTime'
+  >,
+  timezone: string,
+  now: Date = new Date(),
+): boolean => {
+  if (!row.enabled) return false
+
+  const effectiveTimezone = normalizeTimezone(
+    timezone,
+    DEFAULT_CUSTOMER_REWARD_SETTINGS.randomCustomerOfferTimezone,
+  )
+  const nowInfo = toCurrentDateAndMinutesInTimezone(effectiveTimezone, now)
+  if (!nowInfo) return true
+
+  const fromDateKey = toDateKeyInTimezone(row.availableFromDate, effectiveTimezone)
+  const toDateKey = toDateKeyInTimezone(row.availableToDate, effectiveTimezone)
+
+  if (fromDateKey && nowInfo.dateKey < fromDateKey) {
+    return false
+  }
+  if (toDateKey && nowInfo.dateKey > toDateKey) {
+    return false
+  }
+
+  const startMinutes = toMinutes(normalizeTimeString(row.dailyStartTime))
+  const endMinutes = toMinutes(normalizeTimeString(row.dailyEndTime))
+
+  return isWithinDailyWindow(nowInfo.minutes, startMinutes, endMinutes)
 }
 
 export const calculatePointsForSpend = (

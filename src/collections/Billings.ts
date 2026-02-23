@@ -5,6 +5,7 @@ import {
   calculatePointsForSpend,
   type CustomerRewardSettings,
   getCustomerRewardSettings,
+  isRandomOfferProductAvailableNow,
   type ProductPriceOfferRule,
   type ProductToProductOfferRule,
 } from '../utilities/customerRewards'
@@ -664,7 +665,11 @@ const applyRandomCustomerProductOffer = async (
   }
 
   const activeRandomProductIDs = new Set(
-    settings.randomCustomerOfferProducts.filter((row) => row.enabled).map((row) => row.product),
+    settings.randomCustomerOfferProducts
+      .filter((row) =>
+        isRandomOfferProductAvailableNow(row, settings.randomCustomerOfferTimezone),
+      )
+      .map((row) => row.product),
   )
 
   if (activeRandomProductIDs.size === 0) {
@@ -724,6 +729,7 @@ const applyRandomCustomerProductOffer = async (
     isPriceOfferApplied: false,
     priceOfferRuleKey: undefined,
     priceOfferDiscountPerUnit: 0,
+    priceOfferAppliedUnits: 0,
     isRandomCustomerOfferItem: true,
     randomCustomerOfferCampaignCode: campaignCode || settings.randomCustomerOfferCampaignCode,
   }
@@ -1493,6 +1499,10 @@ const Billings: CollectionConfig = {
                         enabled: row.enabled,
                         product: row.product,
                         winnerCount: row.winnerCount,
+                        availableFromDate: row.availableFromDate,
+                        availableToDate: row.availableToDate,
+                        dailyStartTime: row.dailyStartTime,
+                        dailyEndTime: row.dailyEndTime,
                         selectedCustomers: row.selectedCustomers,
                         assignedCount: row.assignedCount,
                         redeemedCount: row.redeemedCount,
@@ -1506,6 +1516,10 @@ const Billings: CollectionConfig = {
                       enabled: row.enabled,
                       product: row.product,
                       winnerCount: row.winnerCount,
+                      availableFromDate: row.availableFromDate,
+                      availableToDate: row.availableToDate,
+                      dailyStartTime: row.dailyStartTime,
+                      dailyEndTime: row.dailyEndTime,
                       selectedCustomers: row.selectedCustomers,
                       assignedCount: row.assignedCount,
                       redeemedCount: row.redeemedCount + 1,

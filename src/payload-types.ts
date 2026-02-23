@@ -1873,6 +1873,10 @@ export interface CustomerOfferSetting {
    */
   randomCustomerOfferCampaignCode: string;
   /**
+   * IANA timezone for schedule checks (e.g., Asia/Kolkata).
+   */
+  randomCustomerOfferTimezone: string;
+  /**
    * Add multiple products and set how many random customers should get each.
    */
   randomCustomerOfferProducts?:
@@ -1883,6 +1887,22 @@ export interface CustomerOfferSetting {
         assignedCount?: number | null;
         redeemedCount?: number | null;
         selectedCustomers?: (string | Customer)[] | null;
+        /**
+         * Optional start date.
+         */
+        availableFromDate?: string | null;
+        /**
+         * Optional end date.
+         */
+        availableToDate?: string | null;
+        /**
+         * 24h format HH:mm (optional).
+         */
+        dailyStartTime?: string | null;
+        /**
+         * 24h format HH:mm (optional).
+         */
+        dailyEndTime?: string | null;
         id?: string | null;
       }[]
     | null;
@@ -2152,6 +2172,7 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
       };
   enableRandomCustomerProductOffer?: T;
   randomCustomerOfferCampaignCode?: T;
+  randomCustomerOfferTimezone?: T;
   randomCustomerOfferProducts?:
     | T
     | {
@@ -2161,6 +2182,10 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
         assignedCount?: T;
         redeemedCount?: T;
         selectedCustomers?: T;
+        availableFromDate?: T;
+        availableToDate?: T;
+        dailyStartTime?: T;
+        dailyEndTime?: T;
         id?: T;
       };
   reselectRandomCustomerOffer?: T;

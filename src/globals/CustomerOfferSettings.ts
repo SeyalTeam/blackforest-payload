@@ -37,6 +37,24 @@ const toPositiveInteger = (value: unknown, fallback: number): number => {
   return Math.floor(value)
 }
 
+const normalizeDateString = (value: unknown): string | null => {
+  if (!value) return null
+
+  const dateValue = new Date(String(value))
+  if (Number.isNaN(dateValue.getTime())) return null
+
+  return dateValue.toISOString()
+}
+
+const normalizeTimeString = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null
+
+  const match = value.trim().match(/^([01]?\d|2[0-3]):([0-5]\d)$/)
+  if (!match) return null
+
+  return `${match[1].padStart(2, '0')}:${match[2]}`
+}
+
 const shuffleArray = <T,>(input: T[]): T[] => {
   const arr = [...input]
   for (let i = arr.length - 1; i > 0; i--) {
@@ -80,6 +98,10 @@ type RandomOfferRow = {
   enabled: boolean
   productID: string | null
   winnerCount: number
+  availableFromDate: string | null
+  availableToDate: string | null
+  dailyStartTime: string | null
+  dailyEndTime: string | null
   selectedCustomers: string[]
 }
 
@@ -93,6 +115,10 @@ const parseRandomOfferRows = (value: unknown): RandomOfferRow[] => {
       enabled: typeof raw.enabled === 'boolean' ? raw.enabled : true,
       productID: toRelationshipID(raw.product),
       winnerCount: toPositiveInteger(raw.winnerCount, 1),
+      availableFromDate: normalizeDateString(raw.availableFromDate),
+      availableToDate: normalizeDateString(raw.availableToDate),
+      dailyStartTime: normalizeTimeString(raw.dailyStartTime),
+      dailyEndTime: normalizeTimeString(raw.dailyEndTime),
       selectedCustomers: extractRelationshipIDs(raw.selectedCustomers),
     }
   })
@@ -319,15 +345,21 @@ export const CustomerOfferSettings: GlobalConfig = {
 
           await clearCustomerAssignments(idsToClear)
 
-          const resetRows = currentRows.map((row) => ({
-            id: row.id,
-            enabled: row.enabled,
-            product: row.productID,
-            winnerCount: row.winnerCount,
-            selectedCustomers: [],
-            assignedCount: 0,
-            redeemedCount: 0,
-          }))
+          const resetRows = currentRows
+            .filter((row) => Boolean(row.productID))
+            .map((row) => ({
+              id: row.id,
+              enabled: row.enabled,
+              product: row.productID,
+              winnerCount: row.winnerCount,
+              availableFromDate: row.availableFromDate,
+              availableToDate: row.availableToDate,
+              dailyStartTime: row.dailyStartTime,
+              dailyEndTime: row.dailyEndTime,
+              selectedCustomers: [],
+              assignedCount: 0,
+              redeemedCount: 0,
+            }))
 
           scheduleSettingsRefresh({
             randomCustomerOfferAssignedCount: 0,
@@ -388,18 +420,24 @@ export const CustomerOfferSettings: GlobalConfig = {
           ),
         )
 
-        const updatedRows = currentRows.map((row) => {
-          const selected = assignmentByRow.get(row.id) || []
-          return {
-            id: row.id,
-            enabled: row.enabled,
-            product: row.productID,
-            winnerCount: row.winnerCount,
-            selectedCustomers: selected,
-            assignedCount: selected.length,
-            redeemedCount: 0,
-          }
-        })
+        const updatedRows = currentRows
+          .filter((row) => Boolean(row.productID))
+          .map((row) => {
+            const selected = assignmentByRow.get(row.id) || []
+            return {
+              id: row.id,
+              enabled: row.enabled,
+              product: row.productID,
+              winnerCount: row.winnerCount,
+              availableFromDate: row.availableFromDate,
+              availableToDate: row.availableToDate,
+              dailyStartTime: row.dailyStartTime,
+              dailyEndTime: row.dailyEndTime,
+              selectedCustomers: selected,
+              assignedCount: selected.length,
+              redeemedCount: 0,
+            }
+          })
 
         scheduleSettingsRefresh({
           randomCustomerOfferProducts: updatedRows,
@@ -874,8 +912,19 @@ export const CustomerOfferSettings: GlobalConfig = {
           defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.randomCustomerOfferCampaignCode,
           label: 'Campaign Code',
           admin: {
-            width: '100%',
+            width: '60%',
             description: 'Change this code to start a new random campaign.',
+          },
+        },
+        {
+          name: 'randomCustomerOfferTimezone',
+          type: 'text',
+          required: true,
+          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.randomCustomerOfferTimezone,
+          label: 'Timezone',
+          admin: {
+            width: '40%',
+            description: 'IANA timezone for schedule checks (e.g., Asia/Kolkata).',
           },
         },
       ],
@@ -950,6 +999,69 @@ export const CustomerOfferSettings: GlobalConfig = {
               admin: {
                 width: '15%',
                 readOnly: true,
+              },
+            },
+          ],
+        },
+        {
+          type: 'row',
+          fields: [
+            {
+              name: 'availableFromDate',
+              type: 'date',
+              label: 'Available From Date',
+              admin: {
+                width: '25%',
+                date: {
+                  pickerAppearance: 'dayOnly',
+                },
+                description: 'Optional start date.',
+              },
+            },
+            {
+              name: 'availableToDate',
+              type: 'date',
+              label: 'Available To Date',
+              admin: {
+                width: '25%',
+                date: {
+                  pickerAppearance: 'dayOnly',
+                },
+                description: 'Optional end date.',
+              },
+            },
+            {
+              name: 'dailyStartTime',
+              type: 'text',
+              label: 'Daily Start Time',
+              admin: {
+                width: '25%',
+                placeholder: '09:00',
+                description: '24h format HH:mm (optional).',
+              },
+              validate: (value: unknown) => {
+                if (value == null || value === '') return true
+                if (typeof value !== 'string') return 'Use HH:mm format.'
+                return /^([01]?\d|2[0-3]):([0-5]\d)$/.test(value.trim())
+                  ? true
+                  : 'Use HH:mm format (example: 09:00).'
+              },
+            },
+            {
+              name: 'dailyEndTime',
+              type: 'text',
+              label: 'Daily End Time',
+              admin: {
+                width: '25%',
+                placeholder: '18:00',
+                description: '24h format HH:mm (optional).',
+              },
+              validate: (value: unknown) => {
+                if (value == null || value === '') return true
+                if (typeof value !== 'string') return 'Use HH:mm format.'
+                return /^([01]?\d|2[0-3]):([0-5]\d)$/.test(value.trim())
+                  ? true
+                  : 'Use HH:mm format (example: 18:00).'
               },
             },
           ],
