@@ -5,21 +5,31 @@ export const DEFAULT_RANDOM_OFFER_SELECTION_CHANCE_PERCENT = 50
 
 export type CustomerRewardSettings = {
   enabled: boolean
+  allowCustomerCreditOfferOnTableOrders: boolean
+  allowCustomerCreditOfferOnBillings: boolean
   spendAmountPerStep: number
   pointsPerStep: number
   pointsNeededForOffer: number
   offerAmount: number
   resetOnRedeem: boolean
   enableProductToProductOffer: boolean
+  allowProductToProductOfferOnTableOrders: boolean
+  allowProductToProductOfferOnBillings: boolean
   productToProductOffers: ProductToProductOfferRule[]
   enableProductPriceOffer: boolean
+  allowProductPriceOfferOnTableOrders: boolean
+  allowProductPriceOfferOnBillings: boolean
   productPriceOffers: ProductPriceOfferRule[]
   enableRandomCustomerProductOffer: boolean
+  allowRandomCustomerProductOfferOnTableOrders: boolean
+  allowRandomCustomerProductOfferOnBillings: boolean
   randomCustomerOfferTimezone: string
   randomCustomerOfferProducts: RandomCustomerOfferProductRule[]
   randomCustomerOfferCampaignCode: string
   randomCustomerOfferRedeemedCount: number
   enableTotalPercentageOffer: boolean
+  allowTotalPercentageOfferOnTableOrders: boolean
+  allowTotalPercentageOfferOnBillings: boolean
   totalPercentageOfferPercent: number
   totalPercentageOfferMaxOfferCount: number
   totalPercentageOfferMaxCustomerCount: number
@@ -40,6 +50,8 @@ export type CustomerRewardSettings = {
 export type ProductToProductOfferRule = {
   id: string
   enabled: boolean
+  allowOnTableOrders: boolean
+  allowOnBillings: boolean
   buyProduct: string
   buyQuantity: number
   freeProduct: string
@@ -61,6 +73,8 @@ export type OfferCustomerUsageCounter = {
 export type ProductPriceOfferRule = {
   id: string
   enabled: boolean
+  allowOnTableOrders: boolean
+  allowOnBillings: boolean
   product: string
   discountAmount: number
   maxOfferCount: number
@@ -75,6 +89,8 @@ export type ProductPriceOfferRule = {
 export type RandomCustomerOfferProductRule = {
   id: string
   enabled: boolean
+  allowOnTableOrders: boolean
+  allowOnBillings: boolean
   product: string
   winnerCount: number
   randomSelectionChancePercent: number
@@ -91,21 +107,31 @@ export type RandomCustomerOfferProductRule = {
 
 export const DEFAULT_CUSTOMER_REWARD_SETTINGS: CustomerRewardSettings = {
   enabled: true,
+  allowCustomerCreditOfferOnTableOrders: true,
+  allowCustomerCreditOfferOnBillings: true,
   spendAmountPerStep: 1000,
   pointsPerStep: 10,
   pointsNeededForOffer: 50,
   offerAmount: 50,
   resetOnRedeem: true,
   enableProductToProductOffer: false,
+  allowProductToProductOfferOnTableOrders: true,
+  allowProductToProductOfferOnBillings: true,
   productToProductOffers: [],
   enableProductPriceOffer: false,
+  allowProductPriceOfferOnTableOrders: true,
+  allowProductPriceOfferOnBillings: true,
   productPriceOffers: [],
   enableRandomCustomerProductOffer: false,
+  allowRandomCustomerProductOfferOnTableOrders: true,
+  allowRandomCustomerProductOfferOnBillings: true,
   randomCustomerOfferTimezone: DEFAULT_RANDOM_OFFER_TIMEZONE,
   randomCustomerOfferProducts: [],
   randomCustomerOfferCampaignCode: 'campaign-1',
   randomCustomerOfferRedeemedCount: 0,
   enableTotalPercentageOffer: false,
+  allowTotalPercentageOfferOnTableOrders: true,
+  allowTotalPercentageOfferOnBillings: true,
   totalPercentageOfferPercent: 5,
   totalPercentageOfferMaxOfferCount: 0,
   totalPercentageOfferMaxCustomerCount: 0,
@@ -327,6 +353,10 @@ const normalizeProductOfferRules = (value: unknown): ProductToProductOfferRule[]
       return {
         id: idFromRow || `rule-${index + 1}`,
         enabled: typeof rawRule.enabled === 'boolean' ? rawRule.enabled : true,
+        allowOnTableOrders:
+          typeof rawRule.allowOnTableOrders === 'boolean' ? rawRule.allowOnTableOrders : true,
+        allowOnBillings:
+          typeof rawRule.allowOnBillings === 'boolean' ? rawRule.allowOnBillings : true,
         buyProduct,
         buyQuantity: toPositiveNumber(rawRule.buyQuantity, 1),
         freeProduct,
@@ -361,6 +391,10 @@ const normalizeProductPriceOfferRules = (value: unknown): ProductPriceOfferRule[
       return {
         id: idFromRow || `price-rule-${index + 1}`,
         enabled: typeof rawRule.enabled === 'boolean' ? rawRule.enabled : true,
+        allowOnTableOrders:
+          typeof rawRule.allowOnTableOrders === 'boolean' ? rawRule.allowOnTableOrders : true,
+        allowOnBillings:
+          typeof rawRule.allowOnBillings === 'boolean' ? rawRule.allowOnBillings : true,
         product,
         discountAmount: toPositiveNumber(rawRule.discountAmount, 1),
         maxOfferCount: toNonNegativeNumber(rawRule.maxOfferCount, 0),
@@ -398,6 +432,10 @@ const normalizeRandomCustomerOfferProductRules = (value: unknown): RandomCustome
       return {
         id: idFromRow || `random-product-${index + 1}`,
         enabled: typeof rawRow.enabled === 'boolean' ? rawRow.enabled : true,
+        allowOnTableOrders:
+          typeof rawRow.allowOnTableOrders === 'boolean' ? rawRow.allowOnTableOrders : true,
+        allowOnBillings:
+          typeof rawRow.allowOnBillings === 'boolean' ? rawRow.allowOnBillings : true,
         product,
         winnerCount: toPositiveNumber(rawRow.winnerCount, 1),
         randomSelectionChancePercent: toChancePercent(
@@ -426,6 +464,14 @@ const normalizeCustomerRewardSettings = (settings: unknown): CustomerRewardSetti
       typeof raw.enabled === 'boolean'
         ? raw.enabled
         : DEFAULT_CUSTOMER_REWARD_SETTINGS.enabled,
+    allowCustomerCreditOfferOnTableOrders:
+      typeof raw.allowCustomerCreditOfferOnTableOrders === 'boolean'
+        ? raw.allowCustomerCreditOfferOnTableOrders
+        : DEFAULT_CUSTOMER_REWARD_SETTINGS.allowCustomerCreditOfferOnTableOrders,
+    allowCustomerCreditOfferOnBillings:
+      typeof raw.allowCustomerCreditOfferOnBillings === 'boolean'
+        ? raw.allowCustomerCreditOfferOnBillings
+        : DEFAULT_CUSTOMER_REWARD_SETTINGS.allowCustomerCreditOfferOnBillings,
     spendAmountPerStep: toPositiveNumber(
       raw.spendAmountPerStep,
       DEFAULT_CUSTOMER_REWARD_SETTINGS.spendAmountPerStep,
@@ -444,16 +490,40 @@ const normalizeCustomerRewardSettings = (settings: unknown): CustomerRewardSetti
       typeof raw.enableProductToProductOffer === 'boolean'
         ? raw.enableProductToProductOffer
         : DEFAULT_CUSTOMER_REWARD_SETTINGS.enableProductToProductOffer,
+    allowProductToProductOfferOnTableOrders:
+      typeof raw.allowProductToProductOfferOnTableOrders === 'boolean'
+        ? raw.allowProductToProductOfferOnTableOrders
+        : DEFAULT_CUSTOMER_REWARD_SETTINGS.allowProductToProductOfferOnTableOrders,
+    allowProductToProductOfferOnBillings:
+      typeof raw.allowProductToProductOfferOnBillings === 'boolean'
+        ? raw.allowProductToProductOfferOnBillings
+        : DEFAULT_CUSTOMER_REWARD_SETTINGS.allowProductToProductOfferOnBillings,
     productToProductOffers: normalizeProductOfferRules(raw.productToProductOffers),
     enableProductPriceOffer:
       typeof raw.enableProductPriceOffer === 'boolean'
         ? raw.enableProductPriceOffer
         : DEFAULT_CUSTOMER_REWARD_SETTINGS.enableProductPriceOffer,
+    allowProductPriceOfferOnTableOrders:
+      typeof raw.allowProductPriceOfferOnTableOrders === 'boolean'
+        ? raw.allowProductPriceOfferOnTableOrders
+        : DEFAULT_CUSTOMER_REWARD_SETTINGS.allowProductPriceOfferOnTableOrders,
+    allowProductPriceOfferOnBillings:
+      typeof raw.allowProductPriceOfferOnBillings === 'boolean'
+        ? raw.allowProductPriceOfferOnBillings
+        : DEFAULT_CUSTOMER_REWARD_SETTINGS.allowProductPriceOfferOnBillings,
     productPriceOffers: normalizeProductPriceOfferRules(raw.productPriceOffers),
     enableRandomCustomerProductOffer:
       typeof raw.enableRandomCustomerProductOffer === 'boolean'
         ? raw.enableRandomCustomerProductOffer
         : DEFAULT_CUSTOMER_REWARD_SETTINGS.enableRandomCustomerProductOffer,
+    allowRandomCustomerProductOfferOnTableOrders:
+      typeof raw.allowRandomCustomerProductOfferOnTableOrders === 'boolean'
+        ? raw.allowRandomCustomerProductOfferOnTableOrders
+        : DEFAULT_CUSTOMER_REWARD_SETTINGS.allowRandomCustomerProductOfferOnTableOrders,
+    allowRandomCustomerProductOfferOnBillings:
+      typeof raw.allowRandomCustomerProductOfferOnBillings === 'boolean'
+        ? raw.allowRandomCustomerProductOfferOnBillings
+        : DEFAULT_CUSTOMER_REWARD_SETTINGS.allowRandomCustomerProductOfferOnBillings,
     randomCustomerOfferTimezone: normalizeTimezone(
       raw.randomCustomerOfferTimezone,
       DEFAULT_CUSTOMER_REWARD_SETTINGS.randomCustomerOfferTimezone,
@@ -469,6 +539,14 @@ const normalizeCustomerRewardSettings = (settings: unknown): CustomerRewardSetti
       typeof raw.enableTotalPercentageOffer === 'boolean'
         ? raw.enableTotalPercentageOffer
         : DEFAULT_CUSTOMER_REWARD_SETTINGS.enableTotalPercentageOffer,
+    allowTotalPercentageOfferOnTableOrders:
+      typeof raw.allowTotalPercentageOfferOnTableOrders === 'boolean'
+        ? raw.allowTotalPercentageOfferOnTableOrders
+        : DEFAULT_CUSTOMER_REWARD_SETTINGS.allowTotalPercentageOfferOnTableOrders,
+    allowTotalPercentageOfferOnBillings:
+      typeof raw.allowTotalPercentageOfferOnBillings === 'boolean'
+        ? raw.allowTotalPercentageOfferOnBillings
+        : DEFAULT_CUSTOMER_REWARD_SETTINGS.allowTotalPercentageOfferOnBillings,
     totalPercentageOfferPercent: toPositiveNumber(
       raw.totalPercentageOfferPercent,
       DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferPercent,

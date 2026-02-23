@@ -1805,6 +1805,8 @@ export interface AutomateSetting {
 export interface CustomerOfferSetting {
   id: string;
   enabled?: boolean | null;
+  allowCustomerCreditOfferOnBillings?: boolean | null;
+  allowCustomerCreditOfferOnTableOrders?: boolean | null;
   /**
    * Example: 1000 means points are granted for every Rs 1000 spent.
    */
@@ -1825,13 +1827,14 @@ export interface CustomerOfferSetting {
    * When enabled, customer points/progress are reset after the offer is used. They must purchase again to earn fresh points.
    */
   resetOnRedeem?: boolean | null;
-  /**
-   * Second offer type. Enable this alone, or enable both offer types at the same time.
-   */
   enableProductToProductOffer?: boolean | null;
+  allowProductToProductOfferOnBillings?: boolean | null;
+  allowProductToProductOfferOnTableOrders?: boolean | null;
   productToProductOffers?:
     | {
         enabled?: boolean | null;
+        allowOnBillings?: boolean | null;
+        allowOnTableOrders?: boolean | null;
         /**
          * Search/filter and choose product A.
          */
@@ -1870,13 +1873,14 @@ export interface CustomerOfferSetting {
         id?: string | null;
       }[]
     | null;
-  /**
-   * Third offer type. Example: Tea Rs 12 with Rs 2 discount, customer pays Rs 10.
-   */
   enableProductPriceOffer?: boolean | null;
+  allowProductPriceOfferOnBillings?: boolean | null;
+  allowProductPriceOfferOnTableOrders?: boolean | null;
   productPriceOffers?:
     | {
         enabled?: boolean | null;
+        allowOnBillings?: boolean | null;
+        allowOnTableOrders?: boolean | null;
         /**
          * Search/filter and choose the product (e.g., Tea).
          */
@@ -1915,10 +1919,9 @@ export interface CustomerOfferSetting {
         id?: string | null;
       }[]
     | null;
-  /**
-   * Fourth offer type. System checks this offer in real-time during billing for both new and existing customers.
-   */
   enableRandomCustomerProductOffer?: boolean | null;
+  allowRandomCustomerProductOfferOnBillings?: boolean | null;
+  allowRandomCustomerProductOfferOnTableOrders?: boolean | null;
   /**
    * Change this code to start a fresh campaign and reset random offer progress.
    */
@@ -1940,6 +1943,8 @@ export interface CustomerOfferSetting {
   randomCustomerOfferProducts?:
     | {
         enabled?: boolean | null;
+        allowOnBillings?: boolean | null;
+        allowOnTableOrders?: boolean | null;
         product: string | Product;
         winnerCount: number;
         /**
@@ -2180,10 +2185,9 @@ export interface CustomerOfferSetting {
         id?: string | null;
       }[]
     | null;
-  /**
-   * Fifth offer type. Applies percentage discount on final bill total after other discounts.
-   */
   enableTotalPercentageOffer?: boolean | null;
+  allowTotalPercentageOfferOnBillings?: boolean | null;
+  allowTotalPercentageOfferOnTableOrders?: boolean | null;
   /**
    * Example: 10 means 10% discount on total amount.
    */
@@ -2649,16 +2653,22 @@ export interface AutomateSettingsSelect<T extends boolean = true> {
  */
 export interface CustomerOfferSettingsSelect<T extends boolean = true> {
   enabled?: T;
+  allowCustomerCreditOfferOnBillings?: T;
+  allowCustomerCreditOfferOnTableOrders?: T;
   spendAmountPerStep?: T;
   pointsPerStep?: T;
   pointsNeededForOffer?: T;
   offerAmount?: T;
   resetOnRedeem?: T;
   enableProductToProductOffer?: T;
+  allowProductToProductOfferOnBillings?: T;
+  allowProductToProductOfferOnTableOrders?: T;
   productToProductOffers?:
     | T
     | {
         enabled?: T;
+        allowOnBillings?: T;
+        allowOnTableOrders?: T;
         buyProduct?: T;
         buyQuantity?: T;
         freeProduct?: T;
@@ -2679,10 +2689,14 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
         id?: T;
       };
   enableProductPriceOffer?: T;
+  allowProductPriceOfferOnBillings?: T;
+  allowProductPriceOfferOnTableOrders?: T;
   productPriceOffers?:
     | T
     | {
         enabled?: T;
+        allowOnBillings?: T;
+        allowOnTableOrders?: T;
         product?: T;
         productCurrentPrice?: T;
         discountAmount?: T;
@@ -2703,6 +2717,8 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
         id?: T;
       };
   enableRandomCustomerProductOffer?: T;
+  allowRandomCustomerProductOfferOnBillings?: T;
+  allowRandomCustomerProductOfferOnTableOrders?: T;
   randomCustomerOfferCampaignCode?: T;
   randomCustomerOfferTimezone?: T;
   reselectRandomCustomerOffer?: T;
@@ -2713,6 +2729,8 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
     | T
     | {
         enabled?: T;
+        allowOnBillings?: T;
+        allowOnTableOrders?: T;
         product?: T;
         winnerCount?: T;
         randomSelectionChancePercent?: T;
@@ -2734,6 +2752,8 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
         id?: T;
       };
   enableTotalPercentageOffer?: T;
+  allowTotalPercentageOfferOnBillings?: T;
+  allowTotalPercentageOfferOnTableOrders?: T;
   totalPercentageOfferPercent?: T;
   totalPercentageOfferRandomSelectionChancePercent?: T;
   totalPercentageOfferMaxOfferCount?: T;

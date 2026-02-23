@@ -392,10 +392,36 @@ export const CustomerOfferSettings: GlobalConfig = {
       },
       fields: [
         {
-          name: 'enabled',
-          type: 'checkbox',
-          label: 'Enable Customer Credit Offer',
-          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enabled,
+          type: 'row',
+          fields: [
+            {
+              name: 'enabled',
+              type: 'checkbox',
+              label: 'Enable Customer Credit Offer',
+              defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enabled,
+              admin: {
+                width: '34%',
+              },
+            },
+            {
+              name: 'allowCustomerCreditOfferOnBillings',
+              type: 'checkbox',
+              label: 'Allow for Billings',
+              defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.allowCustomerCreditOfferOnBillings,
+              admin: {
+                width: '33%',
+              },
+            },
+            {
+              name: 'allowCustomerCreditOfferOnTableOrders',
+              type: 'checkbox',
+              label: 'Allow for Table Orders',
+              defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.allowCustomerCreditOfferOnTableOrders,
+              admin: {
+                width: '33%',
+              },
+            },
+          ],
         },
         {
           type: 'row',
@@ -483,14 +509,36 @@ export const CustomerOfferSettings: GlobalConfig = {
       },
       fields: [
         {
-          name: 'enableProductToProductOffer',
-          type: 'checkbox',
-          label: 'Enable Product to Product Offer (Buy A -> Get B Free)',
-          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enableProductToProductOffer,
-          admin: {
-            description:
-              'Second offer type. Enable this alone, or enable both offer types at the same time.',
-          },
+          type: 'row',
+          fields: [
+            {
+              name: 'enableProductToProductOffer',
+              type: 'checkbox',
+              label: 'Enable Product to Product Offer (Buy A -> Get B Free)',
+              defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enableProductToProductOffer,
+              admin: {
+                width: '34%',
+              },
+            },
+            {
+              name: 'allowProductToProductOfferOnBillings',
+              type: 'checkbox',
+              label: 'Allow for Billings',
+              defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.allowProductToProductOfferOnBillings,
+              admin: {
+                width: '33%',
+              },
+            },
+            {
+              name: 'allowProductToProductOfferOnTableOrders',
+              type: 'checkbox',
+              label: 'Allow for Table Orders',
+              defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.allowProductToProductOfferOnTableOrders,
+              admin: {
+                width: '33%',
+              },
+            },
+          ],
         },
         {
           name: 'productToProductOffers',
@@ -505,10 +553,36 @@ export const CustomerOfferSettings: GlobalConfig = {
           },
           fields: [
             {
-              name: 'enabled',
-              type: 'checkbox',
-              label: 'Rule Enabled',
-              defaultValue: true,
+              type: 'row',
+              fields: [
+                {
+                  name: 'enabled',
+                  type: 'checkbox',
+                  label: 'Rule Enabled',
+                  defaultValue: true,
+                  admin: {
+                    width: '34%',
+                  },
+                },
+                {
+                  name: 'allowOnBillings',
+                  type: 'checkbox',
+                  label: 'Allow for Billings',
+                  defaultValue: true,
+                  admin: {
+                    width: '33%',
+                  },
+                },
+                {
+                  name: 'allowOnTableOrders',
+                  type: 'checkbox',
+                  label: 'Allow for Table Orders',
+                  defaultValue: true,
+                  admin: {
+                    width: '33%',
+                  },
+                },
+              ],
             },
             {
               name: 'buyProduct',
@@ -666,14 +740,36 @@ export const CustomerOfferSettings: GlobalConfig = {
       },
       fields: [
         {
-          name: 'enableProductPriceOffer',
-          type: 'checkbox',
-          label: 'Enable Product Price Offer (Per Product Discount)',
-          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enableProductPriceOffer,
-          admin: {
-            description:
-              'Third offer type. Example: Tea Rs 12 with Rs 2 discount, customer pays Rs 10.',
-          },
+          type: 'row',
+          fields: [
+            {
+              name: 'enableProductPriceOffer',
+              type: 'checkbox',
+              label: 'Enable Product Price Offer (Per Product Discount)',
+              defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enableProductPriceOffer,
+              admin: {
+                width: '34%',
+              },
+            },
+            {
+              name: 'allowProductPriceOfferOnBillings',
+              type: 'checkbox',
+              label: 'Allow for Billings',
+              defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.allowProductPriceOfferOnBillings,
+              admin: {
+                width: '33%',
+              },
+            },
+            {
+              name: 'allowProductPriceOfferOnTableOrders',
+              type: 'checkbox',
+              label: 'Allow for Table Orders',
+              defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.allowProductPriceOfferOnTableOrders,
+              admin: {
+                width: '33%',
+              },
+            },
+          ],
         },
         {
           name: 'productPriceOffers',
@@ -688,10 +784,36 @@ export const CustomerOfferSettings: GlobalConfig = {
           },
           fields: [
             {
-              name: 'enabled',
-              type: 'checkbox',
-              label: 'Rule Enabled',
-              defaultValue: true,
+              type: 'row',
+              fields: [
+                {
+                  name: 'enabled',
+                  type: 'checkbox',
+                  label: 'Rule Enabled',
+                  defaultValue: true,
+                  admin: {
+                    width: '34%',
+                  },
+                },
+                {
+                  name: 'allowOnBillings',
+                  type: 'checkbox',
+                  label: 'Allow for Billings',
+                  defaultValue: true,
+                  admin: {
+                    width: '33%',
+                  },
+                },
+                {
+                  name: 'allowOnTableOrders',
+                  type: 'checkbox',
+                  label: 'Allow for Table Orders',
+                  defaultValue: true,
+                  admin: {
+                    width: '33%',
+                  },
+                },
+              ],
             },
             {
               type: 'row',
@@ -870,14 +992,38 @@ export const CustomerOfferSettings: GlobalConfig = {
               label: 'Setup',
               fields: [
                 {
-                  name: 'enableRandomCustomerProductOffer',
-                  type: 'checkbox',
-                  label: 'Enable Random Customer Product Offer',
-                  defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enableRandomCustomerProductOffer,
-                  admin: {
-                    description:
-                      'Fourth offer type. System checks this offer in real-time during billing for both new and existing customers.',
-                  },
+                  type: 'row',
+                  fields: [
+                    {
+                      name: 'enableRandomCustomerProductOffer',
+                      type: 'checkbox',
+                      label: 'Enable Random Customer Product Offer',
+                      defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enableRandomCustomerProductOffer,
+                      admin: {
+                        width: '34%',
+                      },
+                    },
+                    {
+                      name: 'allowRandomCustomerProductOfferOnBillings',
+                      type: 'checkbox',
+                      label: 'Allow for Billings',
+                      defaultValue:
+                        DEFAULT_CUSTOMER_REWARD_SETTINGS.allowRandomCustomerProductOfferOnBillings,
+                      admin: {
+                        width: '33%',
+                      },
+                    },
+                    {
+                      name: 'allowRandomCustomerProductOfferOnTableOrders',
+                      type: 'checkbox',
+                      label: 'Allow for Table Orders',
+                      defaultValue:
+                        DEFAULT_CUSTOMER_REWARD_SETTINGS.allowRandomCustomerProductOfferOnTableOrders,
+                      admin: {
+                        width: '33%',
+                      },
+                    },
+                  ],
                 },
                 {
                   type: 'row',
@@ -986,10 +1132,36 @@ export const CustomerOfferSettings: GlobalConfig = {
                           label: 'Rule Setup',
                           fields: [
                             {
-                              name: 'enabled',
-                              type: 'checkbox',
-                              label: 'Rule Enabled',
-                              defaultValue: true,
+                              type: 'row',
+                              fields: [
+                                {
+                                  name: 'enabled',
+                                  type: 'checkbox',
+                                  label: 'Rule Enabled',
+                                  defaultValue: true,
+                                  admin: {
+                                    width: '34%',
+                                  },
+                                },
+                                {
+                                  name: 'allowOnBillings',
+                                  type: 'checkbox',
+                                  label: 'Allow for Billings',
+                                  defaultValue: true,
+                                  admin: {
+                                    width: '33%',
+                                  },
+                                },
+                                {
+                                  name: 'allowOnTableOrders',
+                                  type: 'checkbox',
+                                  label: 'Allow for Table Orders',
+                                  defaultValue: true,
+                                  admin: {
+                                    width: '33%',
+                                  },
+                                },
+                              ],
                             },
                             {
                               type: 'row',
@@ -1200,14 +1372,38 @@ export const CustomerOfferSettings: GlobalConfig = {
               label: 'Setup',
               fields: [
                 {
-                  name: 'enableTotalPercentageOffer',
-                  type: 'checkbox',
-                  label: 'Enable Total Amount Percentage Offer',
-                  defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enableTotalPercentageOffer,
-                  admin: {
-                    description:
-                      'Fifth offer type. Applies percentage discount on final bill total after other discounts.',
-                  },
+                  type: 'row',
+                  fields: [
+                    {
+                      name: 'enableTotalPercentageOffer',
+                      type: 'checkbox',
+                      label: 'Enable Total Amount Percentage Offer',
+                      defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enableTotalPercentageOffer,
+                      admin: {
+                        width: '34%',
+                      },
+                    },
+                    {
+                      name: 'allowTotalPercentageOfferOnBillings',
+                      type: 'checkbox',
+                      label: 'Allow for Billings',
+                      defaultValue:
+                        DEFAULT_CUSTOMER_REWARD_SETTINGS.allowTotalPercentageOfferOnBillings,
+                      admin: {
+                        width: '33%',
+                      },
+                    },
+                    {
+                      name: 'allowTotalPercentageOfferOnTableOrders',
+                      type: 'checkbox',
+                      label: 'Allow for Table Orders',
+                      defaultValue:
+                        DEFAULT_CUSTOMER_REWARD_SETTINGS.allowTotalPercentageOfferOnTableOrders,
+                      admin: {
+                        width: '33%',
+                      },
+                    },
+                  ],
                 },
                 {
                   type: 'row',

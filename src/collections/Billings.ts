@@ -173,6 +173,44 @@ const getPositiveNumericValue = (value: unknown): number => {
   return 0
 }
 
+const hasTableOrderValue = (value: unknown): boolean => {
+  if (value == null) return false
+  if (typeof value === 'string') return value.trim().length > 0
+  if (typeof value === 'number') return Number.isFinite(value)
+  if (typeof value === 'boolean') return value
+  return true
+}
+
+const isTableOrderBill = (
+  data: {
+    tableDetails?: { section?: unknown; tableNumber?: unknown } | null
+    section?: unknown
+    tableNumber?: unknown
+  } | null,
+  originalDoc?: { tableDetails?: { section?: unknown; tableNumber?: unknown } | null } | null,
+): boolean => {
+  const current = data || {}
+  const previous = originalDoc || {}
+
+  const section =
+    current.section ?? current.tableDetails?.section ?? previous.tableDetails?.section ?? null
+  const tableNumber =
+    current.tableNumber ??
+    current.tableDetails?.tableNumber ??
+    previous.tableDetails?.tableNumber ??
+    null
+
+  return hasTableOrderValue(section) || hasTableOrderValue(tableNumber)
+}
+
+const isOfferAllowedByOrderType = (
+  isTableOrder: boolean,
+  allowForTableOrders: boolean,
+  allowForBillings: boolean,
+): boolean => {
+  return isTableOrder ? allowForTableOrders : allowForBillings
+}
+
 const getDeterministicPercentFromSeed = (seed: string): number => {
   let hash = 2166136261
 
@@ -466,6 +504,7 @@ const applyProductToProductOffers = async (
   status: string,
   settings: CustomerRewardSettings,
   customerID: string | null,
+  isTableOrder: boolean,
 ): Promise<BillingItemInput[]> => {
   const manualItems = items.filter((item) => !item.isOfferFreeItem)
 
@@ -480,6 +519,7 @@ const applyProductToProductOffers = async (
   const activeRules = settings.productToProductOffers.filter(
     (rule) =>
       rule.enabled &&
+      isOfferAllowedByOrderType(isTableOrder, rule.allowOnTableOrders, rule.allowOnBillings) &&
       canApplyRuleWithinLimits(
         rule.maxOfferCount,
         rule.offerGivenCount,
@@ -584,6 +624,7 @@ const applyProductPriceOffers = (
   status: string,
   settings: CustomerRewardSettings,
   customerID: string | null,
+  isTableOrder: boolean,
 ): BillingItemInput[] => {
   if (
     status === 'cancelled' ||
@@ -603,6 +644,7 @@ const applyProductPriceOffers = (
   const activeRules = settings.productPriceOffers.filter(
     (rule) =>
       rule.enabled &&
+      isOfferAllowedByOrderType(isTableOrder, rule.allowOnTableOrders, rule.allowOnBillings) &&
       canApplyRuleWithinLimits(
         rule.maxOfferCount,
         rule.offerGivenCount,
@@ -732,6 +774,7 @@ const applyRandomCustomerProductOffer = async (
   status: string,
   customerPhoneNumber: string | null,
   settings: CustomerRewardSettings,
+  isTableOrder: boolean,
 ): Promise<BillingItemInput[]> => {
   const nonRandomOfferItems = items.filter((item) => !item.isRandomCustomerOfferItem)
   const existingRandomOfferItem = items.find((item) => item.isRandomCustomerOfferItem)
@@ -777,8 +820,10 @@ const applyRandomCustomerProductOffer = async (
     ]
   }
 
-  const activeRandomRows = settings.randomCustomerOfferProducts.filter((row) =>
-    isRandomOfferProductAvailableNow(row, settings.randomCustomerOfferTimezone),
+  const activeRandomRows = settings.randomCustomerOfferProducts.filter(
+    (row) =>
+      isOfferAllowedByOrderType(isTableOrder, row.allowOnTableOrders, row.allowOnBillings) &&
+      isRandomOfferProductAvailableNow(row, settings.randomCustomerOfferTimezone),
   )
 
   if (activeRandomRows.length === 0) {
@@ -888,8 +933,25 @@ const applyConfiguredItemOffers = async (
   payload: Payload,
   status: string,
   customerPhoneNumber: string | null,
+  isTableOrder: boolean,
 ): Promise<BillingItemInput[]> => {
   const settings = await getCustomerRewardSettings(payload)
+  const allowProductToProductOffer = isOfferAllowedByOrderType(
+    isTableOrder,
+    settings.allowProductToProductOfferOnTableOrders,
+    settings.allowProductToProductOfferOnBillings,
+  )
+  const allowProductPriceOffer = isOfferAllowedByOrderType(
+    isTableOrder,
+    settings.allowProductPriceOfferOnTableOrders,
+    settings.allowProductPriceOfferOnBillings,
+  )
+  const allowRandomProductOffer = isOfferAllowedByOrderType(
+    isTableOrder,
+    settings.allowRandomCustomerProductOfferOnTableOrders,
+    settings.allowRandomCustomerProductOfferOnBillings,
+  )
+
   let customerID: string | null = null
   if (customerPhoneNumber) {
     const customerResult = await payload.find({
@@ -919,21 +981,29 @@ const applyConfiguredItemOffers = async (
     (hasRandomProductOfferApplied(items) && 'random-product') ||
     null
 
-  const productToProductItems = await applyProductToProductOffers(
-    baseItems,
-    payload,
-    status,
-    settings,
-    customerID,
-  )
-  const productPriceItems = applyProductPriceOffers(baseItems, status, settings, customerID)
-  const randomItems = await applyRandomCustomerProductOffer(
-    [...baseItems, ...existingRandomItems],
-    payload,
-    status,
-    customerPhoneNumber,
-    settings,
-  )
+  const productToProductItems = allowProductToProductOffer
+    ? await applyProductToProductOffers(
+        baseItems,
+        payload,
+        status,
+        settings,
+        customerID,
+        isTableOrder,
+      )
+    : baseItems
+  const productPriceItems = allowProductPriceOffer
+    ? applyProductPriceOffers(baseItems, status, settings, customerID, isTableOrder)
+    : baseItems
+  const randomItems = allowRandomProductOffer
+    ? await applyRandomCustomerProductOffer(
+        [...baseItems, ...existingRandomItems],
+        payload,
+        status,
+        customerPhoneNumber,
+        settings,
+        isTableOrder,
+      )
+    : baseItems
 
   if (status === 'completed' && existingSingleOfferType) {
     if (existingSingleOfferType === 'product-to-product' && hasProductToProductOfferApplied(productToProductItems)) {
@@ -988,11 +1058,7 @@ const Billings: CollectionConfig = {
 
         // 🪑 Map table details from Flutter app (top-level section/tableNumber) to nested group
         const rawData = data as any
-        const hasTableDetails =
-          rawData.section ||
-          rawData.tableNumber ||
-          data.tableDetails?.section ||
-          data.tableDetails?.tableNumber
+        const hasTableDetails = isTableOrderBill(data as any, originalDoc as any)
 
         if (rawData.section || rawData.tableNumber) {
           data.tableDetails = {
@@ -1036,11 +1102,13 @@ const Billings: CollectionConfig = {
           const effectiveStatus = mutableValidateData.status || originalDoc?.status || 'ordered'
           const customerPhoneNumber =
             (data as any)?.customerDetails?.phoneNumber || originalDoc?.customerDetails?.phoneNumber
+          const isTableOrder = isTableOrderBill(data as any, originalDoc as any)
           mutableValidateData.items = await applyConfiguredItemOffers(
             mutableValidateData.items,
             req.payload,
             effectiveStatus,
             customerPhoneNumber || null,
+            isTableOrder,
           )
         }
 
@@ -1170,6 +1238,7 @@ const Billings: CollectionConfig = {
         if (!data) return
 
         const mutableData = data as { items?: BillingItemInput[]; status?: string }
+        const isTableOrder = isTableOrderBill(data as any, originalDoc as any)
         if (Array.isArray(mutableData.items)) {
           const effectiveStatus = mutableData.status || originalDoc?.status || 'ordered'
           const customerPhoneNumber =
@@ -1179,6 +1248,7 @@ const Billings: CollectionConfig = {
             req.payload,
             effectiveStatus,
             customerPhoneNumber || null,
+            isTableOrder,
           )
         }
 
@@ -1442,7 +1512,13 @@ const Billings: CollectionConfig = {
           } else if (pricingData.applyCustomerOffer && !rewardAlreadyProcessed && phoneNumber) {
             const settings = await getSettings()
 
-            if (settings.enabled) {
+            const canUseCustomerCreditOffer = isOfferAllowedByOrderType(
+              isTableOrder,
+              settings.allowCustomerCreditOfferOnTableOrders,
+              settings.allowCustomerCreditOfferOnBillings,
+            )
+
+            if (settings.enabled && canUseCustomerCreditOffer) {
               const customer = await getCustomer()
               let rewardPoints = toSafeNonNegativeNumber(customer?.rewardPoints)
               let rewardProgressAmount = toSafeNonNegativeNumber(customer?.rewardProgressAmount)
@@ -1504,7 +1580,17 @@ const Billings: CollectionConfig = {
               )
             } else {
               const settings = await getSettings()
-              if (settings.enableTotalPercentageOffer && settings.totalPercentageOfferPercent > 0) {
+              const canUseTotalPercentageOffer = isOfferAllowedByOrderType(
+                isTableOrder,
+                settings.allowTotalPercentageOfferOnTableOrders,
+                settings.allowTotalPercentageOfferOnBillings,
+              )
+
+              if (
+                settings.enableTotalPercentageOffer &&
+                settings.totalPercentageOfferPercent > 0 &&
+                canUseTotalPercentageOffer
+              ) {
                 const customer = await getCustomer()
                 const customerID = typeof customer?.id === 'string' ? customer.id : null
 
