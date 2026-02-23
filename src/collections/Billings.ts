@@ -214,6 +214,45 @@ const isTotalPercentageOfferAvailableNow = (settings: CustomerRewardSettings): b
   )
 }
 
+const clearPriceOfferMetadata = (item: BillingItemInput): BillingItemInput => ({
+  ...item,
+  isPriceOfferApplied: false,
+  priceOfferRuleKey: undefined,
+  priceOfferDiscountPerUnit: 0,
+  priceOfferAppliedUnits: 0,
+  effectiveUnitPrice: getPositiveNumericValue(item.unitPrice),
+})
+
+const buildSingleOfferBaseItems = (items: BillingItemInput[]): BillingItemInput[] => {
+  return items
+    .filter((item) => !item.isOfferFreeItem && !item.isRandomCustomerOfferItem)
+    .map((item) => ({
+      ...clearPriceOfferMetadata(item),
+      isOfferFreeItem: false,
+      offerRuleKey: undefined,
+      offerTriggerProduct: undefined,
+      isRandomCustomerOfferItem: false,
+      randomCustomerOfferCampaignCode: undefined,
+    }))
+}
+
+const hasProductToProductOfferApplied = (items: BillingItemInput[]): boolean =>
+  items.some((item) => item.isOfferFreeItem)
+
+const hasProductPriceOfferApplied = (items: BillingItemInput[]): boolean =>
+  items.some(
+    (item) =>
+      Boolean(item.isPriceOfferApplied) && getPositiveNumericValue(item.priceOfferDiscountPerUnit) > 0,
+  )
+
+const hasRandomProductOfferApplied = (items: BillingItemInput[]): boolean =>
+  items.some((item) => item.isRandomCustomerOfferItem)
+
+const hasAnyItemLevelOfferApplied = (items: BillingItemInput[]): boolean =>
+  hasProductToProductOfferApplied(items) ||
+  hasProductPriceOfferApplied(items) ||
+  hasRandomProductOfferApplied(items)
+
 const getProductNameMap = async (
   payload: Payload,
   productIDs: string[],
@@ -870,21 +909,57 @@ const applyConfiguredItemOffers = async (
     }
   }
 
-  const itemsWithProductOffers = await applyProductToProductOffers(
-    items,
+  // One bill can carry only one offer type among item-level offers.
+  // Priority: Product-to-product > Product price > Random product.
+  const baseItems = buildSingleOfferBaseItems(items)
+  const existingRandomItems = items.filter((item) => item.isRandomCustomerOfferItem)
+  const existingSingleOfferType =
+    (hasProductToProductOfferApplied(items) && 'product-to-product') ||
+    (hasProductPriceOfferApplied(items) && 'product-price') ||
+    (hasRandomProductOfferApplied(items) && 'random-product') ||
+    null
+
+  const productToProductItems = await applyProductToProductOffers(
+    baseItems,
     payload,
     status,
     settings,
     customerID,
   )
-  const itemsWithRandomOffer = await applyRandomCustomerProductOffer(
-    itemsWithProductOffers,
+  const productPriceItems = applyProductPriceOffers(baseItems, status, settings, customerID)
+  const randomItems = await applyRandomCustomerProductOffer(
+    [...baseItems, ...existingRandomItems],
     payload,
     status,
     customerPhoneNumber,
     settings,
   )
-  return applyProductPriceOffers(itemsWithRandomOffer, status, settings, customerID)
+
+  if (status === 'completed' && existingSingleOfferType) {
+    if (existingSingleOfferType === 'product-to-product' && hasProductToProductOfferApplied(productToProductItems)) {
+      return productToProductItems
+    }
+    if (existingSingleOfferType === 'product-price' && hasProductPriceOfferApplied(productPriceItems)) {
+      return productPriceItems
+    }
+    if (existingSingleOfferType === 'random-product' && hasRandomProductOfferApplied(randomItems)) {
+      return randomItems
+    }
+  }
+
+  if (hasProductToProductOfferApplied(productToProductItems)) {
+    return productToProductItems
+  }
+
+  if (hasProductPriceOfferApplied(productPriceItems)) {
+    return productPriceItems
+  }
+
+  if (hasRandomProductOfferApplied(randomItems)) {
+    return randomItems
+  }
+
+  return baseItems
 }
 
 const Billings: CollectionConfig = {
@@ -1319,6 +1394,9 @@ const Billings: CollectionConfig = {
         const originalTotalPercentageOfferWasApplied =
           Boolean((originalDoc as any)?.totalPercentageOfferApplied) &&
           existingTotalPercentageOfferDiscount > 0
+        const hasItemLevelOfferApplied =
+          Array.isArray(pricingData.items) &&
+          hasAnyItemLevelOfferApplied(pricingData.items as BillingItemInput[])
 
         if (effectiveStatus === 'completed') {
           const phoneNumber =
@@ -1355,60 +1433,60 @@ const Billings: CollectionConfig = {
             return customerCache
           }
 
-          if (originalOfferWasApplied) {
+          if (hasItemLevelOfferApplied) {
+            pricingData.applyCustomerOffer = false
+          } else if (originalOfferWasApplied) {
             offerApplied = true
             offerDiscount = Math.min(existingAppliedDiscount, pricingData.grossAmount)
             pricingData.applyCustomerOffer = true
-          } else if (pricingData.applyCustomerOffer && !rewardAlreadyProcessed) {
-            if (phoneNumber) {
-              const settings = await getSettings()
+          } else if (pricingData.applyCustomerOffer && !rewardAlreadyProcessed && phoneNumber) {
+            const settings = await getSettings()
 
-              if (settings.enabled) {
-                const customer = await getCustomer()
-                let rewardPoints = toSafeNonNegativeNumber(customer?.rewardPoints)
-                let rewardProgressAmount = toSafeNonNegativeNumber(customer?.rewardProgressAmount)
+            if (settings.enabled) {
+              const customer = await getCustomer()
+              let rewardPoints = toSafeNonNegativeNumber(customer?.rewardPoints)
+              let rewardProgressAmount = toSafeNonNegativeNumber(customer?.rewardProgressAmount)
 
-                if (rewardPoints < settings.pointsNeededForOffer) {
-                  const historySnapshot = await computeRewardSnapshotFromCompletedHistory(
-                    req.payload,
-                    phoneNumber,
-                    settings,
-                  )
+              if (rewardPoints < settings.pointsNeededForOffer) {
+                const historySnapshot = await computeRewardSnapshotFromCompletedHistory(
+                  req.payload,
+                  phoneNumber,
+                  settings,
+                )
 
-                  if (
-                    historySnapshot.rewardPoints > rewardPoints ||
-                    historySnapshot.rewardProgressAmount > rewardProgressAmount
-                  ) {
-                    rewardPoints = historySnapshot.rewardPoints
-                    rewardProgressAmount = historySnapshot.rewardProgressAmount
+                if (
+                  historySnapshot.rewardPoints > rewardPoints ||
+                  historySnapshot.rewardProgressAmount > rewardProgressAmount
+                ) {
+                  rewardPoints = historySnapshot.rewardPoints
+                  rewardProgressAmount = historySnapshot.rewardProgressAmount
 
-                    if (customer?.id) {
-                      try {
-                        await req.payload.update({
-                          collection: 'customers',
-                          id: customer.id,
-                          data: {
-                            rewardPoints,
-                            rewardProgressAmount,
-                            isOfferEligible: rewardPoints >= settings.pointsNeededForOffer,
-                          } as any,
-                          depth: 0,
-                          overrideAccess: true,
-                        })
-                      } catch (historySyncError) {
-                        console.error(
-                          'Failed to sync customer reward snapshot before applying credit offer.',
-                          historySyncError,
-                        )
-                      }
+                  if (customer?.id) {
+                    try {
+                      await req.payload.update({
+                        collection: 'customers',
+                        id: customer.id,
+                        data: {
+                          rewardPoints,
+                          rewardProgressAmount,
+                          isOfferEligible: rewardPoints >= settings.pointsNeededForOffer,
+                        } as any,
+                        depth: 0,
+                        overrideAccess: true,
+                      })
+                    } catch (historySyncError) {
+                      console.error(
+                        'Failed to sync customer reward snapshot before applying credit offer.',
+                        historySyncError,
+                      )
                     }
                   }
                 }
+              }
 
-                if (rewardPoints >= settings.pointsNeededForOffer) {
-                  offerApplied = true
-                  offerDiscount = Math.min(settings.offerAmount, pricingData.grossAmount)
-                }
+              if (rewardPoints >= settings.pointsNeededForOffer) {
+                offerApplied = true
+                offerDiscount = Math.min(settings.offerAmount, pricingData.grossAmount)
               }
             }
           }
@@ -1417,50 +1495,52 @@ const Billings: CollectionConfig = {
             Math.max(0, pricingData.grossAmount - offerDiscount),
           )
 
-          if (originalTotalPercentageOfferWasApplied) {
-            totalPercentageOfferApplied = true
-            totalPercentageOfferDiscount = Math.min(
-              existingTotalPercentageOfferDiscount,
-              amountAfterCustomerOffer,
-            )
-          } else {
-            const settings = await getSettings()
-            if (settings.enableTotalPercentageOffer && settings.totalPercentageOfferPercent > 0) {
-              const customer = await getCustomer()
-              const customerID = typeof customer?.id === 'string' ? customer.id : null
-
-              const canApplyPercentageOffer = canApplyRuleWithinLimits(
-                settings.totalPercentageOfferMaxOfferCount,
-                settings.totalPercentageOfferGivenCount,
-                settings.totalPercentageOfferMaxCustomerCount,
-                settings.totalPercentageOfferCustomerCount,
-                settings.totalPercentageOfferCustomers,
-                customerID,
-                settings.totalPercentageOfferMaxUsagePerCustomer,
-                settings.totalPercentageOfferCustomerUsage,
+          if (!hasItemLevelOfferApplied && !offerApplied) {
+            if (originalTotalPercentageOfferWasApplied) {
+              totalPercentageOfferApplied = true
+              totalPercentageOfferDiscount = Math.min(
+                existingTotalPercentageOfferDiscount,
+                amountAfterCustomerOffer,
               )
+            } else {
+              const settings = await getSettings()
+              if (settings.enableTotalPercentageOffer && settings.totalPercentageOfferPercent > 0) {
+                const customer = await getCustomer()
+                const customerID = typeof customer?.id === 'string' ? customer.id : null
 
-              const isWithinSchedule = isTotalPercentageOfferAvailableNow(settings)
-              const randomCustomerKey = customerID || phoneNumber || null
-              const randomSelectionPassed =
-                !settings.totalPercentageOfferRandomOnly ||
-                (Boolean(randomCustomerKey) &&
-                  isDeterministicRandomSelection(
-                    [
-                      'total-percentage-offer',
-                      randomCustomerKey,
-                      settings.totalPercentageOfferPercent,
-                      settings.totalPercentageOfferRandomSelectionChancePercent,
-                    ].join('|'),
-                    settings.totalPercentageOfferRandomSelectionChancePercent,
-                  ))
-
-              if (canApplyPercentageOffer && isWithinSchedule && randomSelectionPassed) {
-                const discountAmount = toMoneyValue(
-                  (amountAfterCustomerOffer * settings.totalPercentageOfferPercent) / 100,
+                const canApplyPercentageOffer = canApplyRuleWithinLimits(
+                  settings.totalPercentageOfferMaxOfferCount,
+                  settings.totalPercentageOfferGivenCount,
+                  settings.totalPercentageOfferMaxCustomerCount,
+                  settings.totalPercentageOfferCustomerCount,
+                  settings.totalPercentageOfferCustomers,
+                  customerID,
+                  settings.totalPercentageOfferMaxUsagePerCustomer,
+                  settings.totalPercentageOfferCustomerUsage,
                 )
-                totalPercentageOfferDiscount = Math.min(amountAfterCustomerOffer, discountAmount)
-                totalPercentageOfferApplied = totalPercentageOfferDiscount > 0
+
+                const isWithinSchedule = isTotalPercentageOfferAvailableNow(settings)
+                const randomCustomerKey = customerID || phoneNumber || null
+                const randomSelectionPassed =
+                  !settings.totalPercentageOfferRandomOnly ||
+                  (Boolean(randomCustomerKey) &&
+                    isDeterministicRandomSelection(
+                      [
+                        'total-percentage-offer',
+                        randomCustomerKey,
+                        settings.totalPercentageOfferPercent,
+                        settings.totalPercentageOfferRandomSelectionChancePercent,
+                      ].join('|'),
+                      settings.totalPercentageOfferRandomSelectionChancePercent,
+                    ))
+
+                if (canApplyPercentageOffer && isWithinSchedule && randomSelectionPassed) {
+                  const discountAmount = toMoneyValue(
+                    (amountAfterCustomerOffer * settings.totalPercentageOfferPercent) / 100,
+                  )
+                  totalPercentageOfferDiscount = Math.min(amountAfterCustomerOffer, discountAmount)
+                  totalPercentageOfferApplied = totalPercentageOfferDiscount > 0
+                }
               }
             }
           }
