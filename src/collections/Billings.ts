@@ -1865,7 +1865,7 @@ const Billings: CollectionConfig = {
 
                   const totalPercentageOfferUsageIncrement =
                     Boolean((doc as any).totalPercentageOfferApplied) &&
-                    toSafeNonNegativeNumber((doc as any).totalPercentageOfferDiscount) > 0
+                    getPositiveNumericValue((doc as any).totalPercentageOfferDiscount) > 0
                       ? 1
                       : 0
 

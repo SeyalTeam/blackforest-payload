@@ -12,11 +12,19 @@ type BillingDoc = {
   totalPercentageOfferDiscount?: unknown
 }
 
-const toSafeNonNegativeNumber = (value: unknown): number => {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-    return 0
+const getPositiveNumericValue = (value: unknown): number => {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return value
   }
-  return value
+
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value)
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed
+    }
+  }
+
+  return 0
 }
 
 const hasOfferCounterActivity = (bill: BillingDoc): boolean => {
@@ -30,7 +38,7 @@ const hasOfferCounterActivity = (bill: BillingDoc): boolean => {
   )
   const hasTotalPercentageUsage =
     bill.totalPercentageOfferApplied === true &&
-    toSafeNonNegativeNumber(bill.totalPercentageOfferDiscount) > 0
+    getPositiveNumericValue(bill.totalPercentageOfferDiscount) > 0
 
   return hasProductToProductUsage || hasPriceOfferUsage || hasTotalPercentageUsage
 }
