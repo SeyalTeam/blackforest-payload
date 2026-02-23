@@ -1522,17 +1522,16 @@ const Billings: CollectionConfig = {
                 const isWithinSchedule = isTotalPercentageOfferAvailableNow(settings)
                 const randomCustomerKey = customerID || phoneNumber || null
                 const randomSelectionPassed =
-                  !settings.totalPercentageOfferRandomOnly ||
-                  (Boolean(randomCustomerKey) &&
-                    isDeterministicRandomSelection(
-                      [
-                        'total-percentage-offer',
-                        randomCustomerKey,
-                        settings.totalPercentageOfferPercent,
-                        settings.totalPercentageOfferRandomSelectionChancePercent,
-                      ].join('|'),
+                  Boolean(randomCustomerKey) &&
+                  isDeterministicRandomSelection(
+                    [
+                      'total-percentage-offer',
+                      randomCustomerKey,
+                      settings.totalPercentageOfferPercent,
                       settings.totalPercentageOfferRandomSelectionChancePercent,
-                    ))
+                    ].join('|'),
+                    settings.totalPercentageOfferRandomSelectionChancePercent,
+                  )
 
                 if (canApplyPercentageOffer && isWithinSchedule && randomSelectionPassed) {
                   const discountAmount = toMoneyValue(

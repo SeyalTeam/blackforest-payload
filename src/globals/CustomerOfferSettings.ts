@@ -68,6 +68,14 @@ const normalizeTimeString = (value: unknown): string | null => {
   return `${match[1].padStart(2, '0')}:${match[2]}`
 }
 
+const RAILWAY_TIME_OPTIONS = Array.from({ length: 96 }, (_, index) => {
+  const totalMinutes = index * 15
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  const value = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+  return { label: value, value }
+})
+
 type RandomOfferRow = {
   id: string
   enabled: boolean
@@ -375,970 +383,1049 @@ export const CustomerOfferSettings: GlobalConfig = {
   },
   fields: [
     {
-      name: 'enabled',
-      type: 'checkbox',
-      label: 'Enable Customer Credit Offer',
-      defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enabled,
+      type: 'collapsible',
+      label: 'Offer 1: Customer Credit Offer',
       admin: {
+        initCollapsed: false,
         description:
-          'Credit-point offer type. Can be used independently or together with product-to-product offer.',
-      },
-    },
-    {
-      type: 'row',
-      fields: [
-        {
-          name: 'spendAmountPerStep',
-          type: 'number',
-          label: 'Spend Amount per Step (Rs)',
-          min: 1,
-          required: true,
-          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.spendAmountPerStep,
-          admin: {
-            width: '50%',
-            description: 'Example: 1000 means points are granted for every Rs 1000 spent.',
-          },
-        },
-        {
-          name: 'pointsPerStep',
-          type: 'number',
-          label: 'Credit Points per Step',
-          min: 1,
-          required: true,
-          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.pointsPerStep,
-          admin: {
-            width: '50%',
-            description: 'Example: 10 points for each spend step.',
-          },
-        },
-      ],
-    },
-    {
-      type: 'row',
-      fields: [
-        {
-          name: 'pointsNeededForOffer',
-          type: 'number',
-          label: 'Points Needed to Redeem Offer',
-          min: 1,
-          required: true,
-          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.pointsNeededForOffer,
-          admin: {
-            width: '50%',
-            description: 'Example: 50 points required before offer can be applied.',
-          },
-        },
-        {
-          name: 'offerAmount',
-          type: 'number',
-          label: 'Offer Amount (Rs)',
-          min: 1,
-          required: true,
-          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.offerAmount,
-          admin: {
-            width: '50%',
-            description: 'Discount amount applied when customer redeems points.',
-          },
-        },
-      ],
-    },
-    {
-      name: 'resetOnRedeem',
-      type: 'checkbox',
-      label: 'Reset Points and Progress After Offer Redemption',
-      defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.resetOnRedeem,
-      admin: {
-        description:
-          'When enabled, customer points/progress are reset after the offer is used. They must purchase again to earn fresh points.',
-      },
-    },
-    {
-      name: 'enableProductToProductOffer',
-      type: 'checkbox',
-      label: 'Enable Product to Product Offer (Buy A -> Get B Free)',
-      defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enableProductToProductOffer,
-      admin: {
-        description:
-          'Second offer type. Enable this alone, or enable both offer types at the same time.',
-      },
-    },
-    {
-      name: 'productToProductOffers',
-      type: 'array',
-      label: 'Product to Product Rules',
-      labels: {
-        singular: 'Product Offer Rule',
-        plural: 'Product Offer Rules',
-      },
-      admin: {
-        condition: (data) => Boolean(data?.enableProductToProductOffer),
+          'Customer earns points by spend amount and can redeem fixed discount once eligible.',
       },
       fields: [
         {
           name: 'enabled',
           type: 'checkbox',
-          label: 'Rule Enabled',
-          defaultValue: true,
-        },
-        {
-          name: 'buyProduct',
-          type: 'relationship',
-          relationTo: 'products',
-          required: true,
-          label: 'Buy Product (A)',
-          admin: {
-            description: 'Search/filter and choose product A.',
-          },
-        },
-        {
-          name: 'buyQuantity',
-          type: 'number',
-          required: true,
-          min: 1,
-          defaultValue: 1,
-          label: 'Buy Quantity',
-        },
-        {
-          name: 'freeProduct',
-          type: 'relationship',
-          relationTo: 'products',
-          required: true,
-          label: 'Free Product (B)',
-          admin: {
-            description: 'Search/filter and choose product B.',
-          },
-        },
-        {
-          name: 'freeQuantity',
-          type: 'number',
-          required: true,
-          min: 1,
-          defaultValue: 1,
-          label: 'Free Quantity',
+          label: 'Enable Customer Credit Offer',
+          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enabled,
         },
         {
           type: 'row',
+          admin: {
+            condition: (data) => Boolean(data?.enabled),
+          },
           fields: [
             {
-              name: 'maxOfferCount',
+              name: 'spendAmountPerStep',
               type: 'number',
-              min: 0,
-              defaultValue: 0,
-              label: 'Max Offer Uses',
+              label: 'Spend Amount per Step (Rs)',
+              min: 1,
+              required: true,
+              defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.spendAmountPerStep,
               admin: {
-                width: '33%',
-                description: '0 means unlimited.',
+                width: '50%',
+                description: 'Example: 1000 means points are granted for every Rs 1000 spent.',
               },
             },
             {
-              name: 'maxCustomerCount',
+              name: 'pointsPerStep',
               type: 'number',
-              min: 0,
-              defaultValue: 0,
-              label: 'Max Customers',
+              label: 'Credit Points per Step',
+              min: 1,
+              required: true,
+              defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.pointsPerStep,
               admin: {
-                width: '33%',
-                description: '0 means unlimited.',
-              },
-            },
-            {
-              name: 'maxUsagePerCustomer',
-              type: 'number',
-              min: 0,
-              defaultValue: 0,
-              label: 'Max Uses per Customer',
-              admin: {
-                width: '34%',
-                description: '0 means unlimited per customer.',
+                width: '50%',
+                description: 'Example: 10 points for each spend step.',
               },
             },
           ],
         },
         {
           type: 'row',
+          admin: {
+            condition: (data) => Boolean(data?.enabled),
+          },
           fields: [
             {
-              name: 'offerGivenCount',
+              name: 'pointsNeededForOffer',
               type: 'number',
-              min: 0,
-              defaultValue: 0,
-              label: 'Given Count',
+              label: 'Points Needed to Redeem Offer',
+              min: 1,
+              required: true,
+              defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.pointsNeededForOffer,
               admin: {
                 width: '50%',
-                readOnly: true,
+                description: 'Example: 50 points required before offer can be applied.',
               },
             },
             {
-              name: 'offerCustomerCount',
+              name: 'offerAmount',
               type: 'number',
-              min: 0,
-              defaultValue: 0,
-              label: 'Customer Count',
+              label: 'Offer Amount (Rs)',
+              min: 1,
+              required: true,
+              defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.offerAmount,
               admin: {
                 width: '50%',
-                readOnly: true,
+                description: 'Discount amount applied when customer redeems points.',
               },
             },
           ],
         },
         {
-          name: 'offerCustomers',
-          type: 'relationship',
-          relationTo: 'customers',
-          hasMany: true,
+          name: 'resetOnRedeem',
+          type: 'checkbox',
+          label: 'Reset Points and Progress After Offer Redemption',
+          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.resetOnRedeem,
           admin: {
-            readOnly: true,
+            condition: (data) => Boolean(data?.enabled),
+            description:
+              'When enabled, customer points/progress are reset after the offer is used. They must purchase again to earn fresh points.',
+          },
+        },
+      ],
+    },
+    {
+      type: 'collapsible',
+      label: 'Offer 2: Product to Product Offer (Buy A -> Get B Free)',
+      admin: {
+        initCollapsed: true,
+        description: 'Configure rules where buying product A gives product B free.',
+      },
+      fields: [
+        {
+          name: 'enableProductToProductOffer',
+          type: 'checkbox',
+          label: 'Enable Product to Product Offer (Buy A -> Get B Free)',
+          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enableProductToProductOffer,
+          admin: {
+            description:
+              'Second offer type. Enable this alone, or enable both offer types at the same time.',
           },
         },
         {
-          name: 'offerCustomerUsage',
+          name: 'productToProductOffers',
           type: 'array',
-          label: 'Customer Usage',
+          label: 'Product to Product Rules',
+          labels: {
+            singular: 'Product Offer Rule',
+            plural: 'Product Offer Rules',
+          },
           admin: {
-            readOnly: true,
-            description: 'Per-customer usage count for this rule.',
+            condition: (data) => Boolean(data?.enableProductToProductOffer),
           },
           fields: [
             {
-              name: 'customer',
-              type: 'relationship',
-              relationTo: 'customers',
-              required: true,
-              admin: {
-                width: '70%',
-                readOnly: true,
-              },
+              name: 'enabled',
+              type: 'checkbox',
+              label: 'Rule Enabled',
+              defaultValue: true,
             },
             {
-              name: 'usageCount',
-              type: 'number',
-              min: 0,
-              defaultValue: 0,
-              required: true,
-              admin: {
-                width: '30%',
-                readOnly: true,
-              },
-            },
-          ],
-        },
-      ],
-    },
-    {
-      name: 'enableProductPriceOffer',
-      type: 'checkbox',
-      label: 'Enable Product Price Offer (Per Product Discount)',
-      defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enableProductPriceOffer,
-      admin: {
-        description:
-          'Third offer type. Example: Tea Rs 12 with Rs 2 discount, customer pays Rs 10.',
-      },
-    },
-    {
-      name: 'productPriceOffers',
-      type: 'array',
-      label: 'Product Price Offer Rules',
-      labels: {
-        singular: 'Price Offer Rule',
-        plural: 'Price Offer Rules',
-      },
-      admin: {
-        condition: (data) => Boolean(data?.enableProductPriceOffer),
-      },
-      fields: [
-        {
-          name: 'enabled',
-          type: 'checkbox',
-          label: 'Rule Enabled',
-          defaultValue: true,
-        },
-        {
-          type: 'row',
-          fields: [
-            {
-              name: 'product',
+              name: 'buyProduct',
               type: 'relationship',
               relationTo: 'products',
               required: true,
-              label: 'Product',
+              label: 'Buy Product (A)',
               admin: {
-                width: '40%',
-                description: 'Search/filter and choose the product (e.g., Tea).',
+                description: 'Search/filter and choose product A.',
               },
             },
             {
-              name: 'productCurrentPrice',
-              type: 'number',
-              label: 'Current Price (Rs)',
-              min: 0,
-              admin: {
-                width: '20%',
-                readOnly: true,
-                components: {
-                  Field: '/components/ProductPriceOfferPreviewField/index.tsx#default',
-                },
-              },
-            },
-            {
-              name: 'discountAmount',
-              type: 'number',
-              required: true,
-              min: 0.01,
-              defaultValue: 1,
-              label: 'Discount (Rs)',
-              admin: {
-                width: '20%',
-              },
-            },
-            {
-              name: 'finalPricePreview',
-              type: 'number',
-              label: 'Final Price (Rs)',
-              min: 0,
-              admin: {
-                width: '20%',
-                readOnly: true,
-                description: 'Auto preview after discount.',
-              },
-            },
-          ],
-        },
-        {
-          type: 'row',
-          fields: [
-            {
-              name: 'maxOfferCount',
-              type: 'number',
-              min: 0,
-              defaultValue: 0,
-              label: 'Max Offer Uses',
-              admin: {
-                width: '33%',
-                description: '0 means unlimited.',
-              },
-            },
-            {
-              name: 'maxCustomerCount',
-              type: 'number',
-              min: 0,
-              defaultValue: 0,
-              label: 'Max Customers',
-              admin: {
-                width: '33%',
-                description: '0 means unlimited.',
-              },
-            },
-            {
-              name: 'maxUsagePerCustomer',
-              type: 'number',
-              min: 0,
-              defaultValue: 0,
-              label: 'Max Uses per Customer',
-              admin: {
-                width: '34%',
-                description: '0 means unlimited per customer.',
-              },
-            },
-          ],
-        },
-        {
-          type: 'row',
-          fields: [
-            {
-              name: 'offerGivenCount',
-              type: 'number',
-              min: 0,
-              defaultValue: 0,
-              label: 'Given Count',
-              admin: {
-                width: '50%',
-                readOnly: true,
-              },
-            },
-            {
-              name: 'offerCustomerCount',
-              type: 'number',
-              min: 0,
-              defaultValue: 0,
-              label: 'Customer Count',
-              admin: {
-                width: '50%',
-                readOnly: true,
-              },
-            },
-          ],
-        },
-        {
-          name: 'offerCustomers',
-          type: 'relationship',
-          relationTo: 'customers',
-          hasMany: true,
-          admin: {
-            readOnly: true,
-          },
-        },
-        {
-          name: 'offerCustomerUsage',
-          type: 'array',
-          label: 'Customer Usage',
-          admin: {
-            readOnly: true,
-            description: 'Per-customer usage count for this rule.',
-          },
-          fields: [
-            {
-              name: 'customer',
-              type: 'relationship',
-              relationTo: 'customers',
-              required: true,
-              admin: {
-                width: '70%',
-                readOnly: true,
-              },
-            },
-            {
-              name: 'usageCount',
-              type: 'number',
-              min: 0,
-              defaultValue: 0,
-              required: true,
-              admin: {
-                width: '30%',
-                readOnly: true,
-              },
-            },
-          ],
-        },
-      ],
-    },
-    {
-      name: 'enableRandomCustomerProductOffer',
-      type: 'checkbox',
-      label: 'Enable Random Customer Product Offer',
-      defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enableRandomCustomerProductOffer,
-      admin: {
-        description:
-          'Fourth offer type. System checks this offer in real-time during billing for both new and existing customers.',
-      },
-    },
-    {
-      type: 'row',
-      admin: {
-        condition: (data) => Boolean(data?.enableRandomCustomerProductOffer),
-      },
-      fields: [
-        {
-          name: 'randomCustomerOfferCampaignCode',
-          type: 'text',
-          required: true,
-          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.randomCustomerOfferCampaignCode,
-          label: 'Campaign Code',
-          admin: {
-            width: '60%',
-            description: 'Change this code to start a fresh campaign and reset random offer progress.',
-          },
-        },
-        {
-          name: 'randomCustomerOfferTimezone',
-          type: 'text',
-          required: true,
-          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.randomCustomerOfferTimezone,
-          label: 'Timezone',
-          admin: {
-            width: '40%',
-            description: 'IANA timezone for schedule checks (e.g., Asia/Kolkata).',
-          },
-        },
-      ],
-    },
-    {
-      name: 'randomCustomerOfferProducts',
-      type: 'array',
-      label: 'Random Offer Products and Counts',
-      admin: {
-        condition: (data) => Boolean(data?.enableRandomCustomerProductOffer),
-        description:
-          'Add products, winner counts, and random chance. During billing, one eligible product may be awarded to randomly selected customers.',
-      },
-      fields: [
-        {
-          name: 'enabled',
-          type: 'checkbox',
-          label: 'Rule Enabled',
-          defaultValue: true,
-        },
-        {
-          type: 'row',
-          fields: [
-            {
-              name: 'product',
-              type: 'relationship',
-              relationTo: 'products',
-              required: true,
-              label: 'Product',
-              admin: {
-                width: '30%',
-              },
-            },
-            {
-              name: 'winnerCount',
+              name: 'buyQuantity',
               type: 'number',
               required: true,
               min: 1,
               defaultValue: 1,
-              label: 'Winner Count',
+              label: 'Buy Quantity',
+            },
+            {
+              name: 'freeProduct',
+              type: 'relationship',
+              relationTo: 'products',
+              required: true,
+              label: 'Free Product (B)',
               admin: {
-                width: '10%',
+                description: 'Search/filter and choose product B.',
               },
             },
             {
-              name: 'randomSelectionChancePercent',
+              name: 'freeQuantity',
               type: 'number',
               required: true,
-              min: 0.01,
-              max: 100,
-              defaultValue: DEFAULT_RANDOM_OFFER_SELECTION_CHANCE_PERCENT,
-              label: 'Random Chance (%)',
-              admin: {
-                width: '15%',
-                description: 'Chance to award this rule for an eligible customer bill.',
-              },
-            },
-            {
-              name: 'maxUsagePerCustomer',
-              type: 'number',
-              required: true,
-              min: 0,
+              min: 1,
               defaultValue: 1,
-              label: 'Max Uses per Customer',
-              admin: {
-                width: '10%',
-                description: '0 means unlimited for this product rule.',
-              },
+              label: 'Free Quantity',
             },
             {
-              name: 'assignedCount',
-              type: 'number',
-              min: 0,
-              defaultValue: 0,
-              label: 'Awarded',
-              admin: {
-                width: '10%',
-                readOnly: true,
-              },
+              type: 'row',
+              fields: [
+                {
+                  name: 'maxOfferCount',
+                  type: 'number',
+                  min: 0,
+                  defaultValue: 0,
+                  label: 'Max Offer Uses',
+                  admin: {
+                    width: '33%',
+                    description: '0 means unlimited.',
+                  },
+                },
+                {
+                  name: 'maxCustomerCount',
+                  type: 'number',
+                  min: 0,
+                  defaultValue: 0,
+                  label: 'Max Customers',
+                  admin: {
+                    width: '33%',
+                    description: '0 means unlimited.',
+                  },
+                },
+                {
+                  name: 'maxUsagePerCustomer',
+                  type: 'number',
+                  min: 0,
+                  defaultValue: 0,
+                  label: 'Max Uses per Customer',
+                  admin: {
+                    width: '34%',
+                    description: '0 means unlimited per customer.',
+                  },
+                },
+              ],
             },
             {
-              name: 'redeemedCount',
-              type: 'number',
-              min: 0,
-              defaultValue: 0,
-              label: 'Redeemed',
-              admin: {
-                width: '10%',
-                readOnly: true,
-              },
+              type: 'row',
+              fields: [
+                {
+                  name: 'offerGivenCount',
+                  type: 'number',
+                  min: 0,
+                  defaultValue: 0,
+                  label: 'Given Count',
+                  admin: {
+                    width: '50%',
+                    readOnly: true,
+                  },
+                },
+                {
+                  name: 'offerCustomerCount',
+                  type: 'number',
+                  min: 0,
+                  defaultValue: 0,
+                  label: 'Customer Count',
+                  admin: {
+                    width: '50%',
+                    readOnly: true,
+                  },
+                },
+              ],
             },
             {
-              name: 'selectedCustomers',
+              name: 'offerCustomers',
               type: 'relationship',
               relationTo: 'customers',
               hasMany: true,
-              label: 'Awarded Customers',
               admin: {
-                width: '15%',
                 readOnly: true,
               },
             },
+            {
+              name: 'offerCustomerUsage',
+              type: 'array',
+              label: 'Customer Usage',
+              admin: {
+                readOnly: true,
+                description: 'Per-customer usage count for this rule.',
+              },
+              fields: [
+                {
+                  name: 'customer',
+                  type: 'relationship',
+                  relationTo: 'customers',
+                  required: true,
+                  admin: {
+                    width: '70%',
+                    readOnly: true,
+                  },
+                },
+                {
+                  name: 'usageCount',
+                  type: 'number',
+                  min: 0,
+                  defaultValue: 0,
+                  required: true,
+                  admin: {
+                    width: '30%',
+                    readOnly: true,
+                  },
+                },
+              ],
+            },
           ],
         },
+      ],
+    },
+    {
+      type: 'collapsible',
+      label: 'Offer 3: Product Price Offer (Per Product Discount)',
+      admin: {
+        initCollapsed: true,
+        description:
+          'Set fixed per-product discount. Example: Tea Rs 12 with Rs 2 discount gives final Rs 10.',
+      },
+      fields: [
         {
-          name: 'offerCustomerUsage',
-          type: 'array',
-          label: 'Customer Usage',
+          name: 'enableProductPriceOffer',
+          type: 'checkbox',
+          label: 'Enable Product Price Offer (Per Product Discount)',
+          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enableProductPriceOffer,
           admin: {
-            readOnly: true,
-            description: 'Per-customer usage count for this product rule.',
+            description:
+              'Third offer type. Example: Tea Rs 12 with Rs 2 discount, customer pays Rs 10.',
+          },
+        },
+        {
+          name: 'productPriceOffers',
+          type: 'array',
+          label: 'Product Price Offer Rules',
+          labels: {
+            singular: 'Price Offer Rule',
+            plural: 'Price Offer Rules',
+          },
+          admin: {
+            condition: (data) => Boolean(data?.enableProductPriceOffer),
           },
           fields: [
             {
-              name: 'customer',
+              name: 'enabled',
+              type: 'checkbox',
+              label: 'Rule Enabled',
+              defaultValue: true,
+            },
+            {
+              type: 'row',
+              fields: [
+                {
+                  name: 'product',
+                  type: 'relationship',
+                  relationTo: 'products',
+                  required: true,
+                  label: 'Product',
+                  admin: {
+                    width: '40%',
+                    description: 'Search/filter and choose the product (e.g., Tea).',
+                  },
+                },
+                {
+                  name: 'productCurrentPrice',
+                  type: 'number',
+                  label: 'Current Price (Rs)',
+                  min: 0,
+                  admin: {
+                    width: '20%',
+                    readOnly: true,
+                    components: {
+                      Field: '/components/ProductPriceOfferPreviewField/index.tsx#default',
+                    },
+                  },
+                },
+                {
+                  name: 'discountAmount',
+                  type: 'number',
+                  required: true,
+                  min: 0.01,
+                  defaultValue: 1,
+                  label: 'Discount (Rs)',
+                  admin: {
+                    width: '20%',
+                  },
+                },
+                {
+                  name: 'finalPricePreview',
+                  type: 'number',
+                  label: 'Final Price (Rs)',
+                  min: 0,
+                  admin: {
+                    width: '20%',
+                    readOnly: true,
+                    description: 'Auto preview after discount.',
+                  },
+                },
+              ],
+            },
+            {
+              type: 'row',
+              fields: [
+                {
+                  name: 'maxOfferCount',
+                  type: 'number',
+                  min: 0,
+                  defaultValue: 0,
+                  label: 'Max Offer Uses',
+                  admin: {
+                    width: '33%',
+                    description: '0 means unlimited.',
+                  },
+                },
+                {
+                  name: 'maxCustomerCount',
+                  type: 'number',
+                  min: 0,
+                  defaultValue: 0,
+                  label: 'Max Customers',
+                  admin: {
+                    width: '33%',
+                    description: '0 means unlimited.',
+                  },
+                },
+                {
+                  name: 'maxUsagePerCustomer',
+                  type: 'number',
+                  min: 0,
+                  defaultValue: 0,
+                  label: 'Max Uses per Customer',
+                  admin: {
+                    width: '34%',
+                    description: '0 means unlimited per customer.',
+                  },
+                },
+              ],
+            },
+            {
+              type: 'row',
+              fields: [
+                {
+                  name: 'offerGivenCount',
+                  type: 'number',
+                  min: 0,
+                  defaultValue: 0,
+                  label: 'Given Count',
+                  admin: {
+                    width: '50%',
+                    readOnly: true,
+                  },
+                },
+                {
+                  name: 'offerCustomerCount',
+                  type: 'number',
+                  min: 0,
+                  defaultValue: 0,
+                  label: 'Customer Count',
+                  admin: {
+                    width: '50%',
+                    readOnly: true,
+                  },
+                },
+              ],
+            },
+            {
+              name: 'offerCustomers',
               type: 'relationship',
               relationTo: 'customers',
-              required: true,
+              hasMany: true,
               admin: {
-                width: '70%',
                 readOnly: true,
               },
             },
             {
-              name: 'usageCount',
-              type: 'number',
-              min: 0,
-              defaultValue: 0,
-              required: true,
+              name: 'offerCustomerUsage',
+              type: 'array',
+              label: 'Customer Usage',
               admin: {
-                width: '30%',
                 readOnly: true,
+                description: 'Per-customer usage count for this rule.',
               },
-            },
-          ],
-        },
-        {
-          type: 'row',
-          fields: [
-            {
-              name: 'availableFromDate',
-              type: 'date',
-              label: 'Available From Date',
-              admin: {
-                width: '25%',
-                date: {
-                  pickerAppearance: 'dayOnly',
+              fields: [
+                {
+                  name: 'customer',
+                  type: 'relationship',
+                  relationTo: 'customers',
+                  required: true,
+                  admin: {
+                    width: '70%',
+                    readOnly: true,
+                  },
                 },
-                description: 'Optional start date.',
-              },
-            },
-            {
-              name: 'availableToDate',
-              type: 'date',
-              label: 'Available To Date',
-              admin: {
-                width: '25%',
-                date: {
-                  pickerAppearance: 'dayOnly',
+                {
+                  name: 'usageCount',
+                  type: 'number',
+                  min: 0,
+                  defaultValue: 0,
+                  required: true,
+                  admin: {
+                    width: '30%',
+                    readOnly: true,
+                  },
                 },
-                description: 'Optional end date.',
-              },
-            },
-            {
-              name: 'dailyStartTime',
-              type: 'text',
-              label: 'Daily Start Time',
-              admin: {
-                width: '25%',
-                placeholder: '09:00',
-                description: '24h format HH:mm (optional).',
-              },
-              validate: (value: unknown) => {
-                if (value == null || value === '') return true
-                if (typeof value !== 'string') return 'Use HH:mm format.'
-                return /^([01]?\d|2[0-3]):([0-5]\d)$/.test(value.trim())
-                  ? true
-                  : 'Use HH:mm format (example: 09:00).'
-              },
-            },
-            {
-              name: 'dailyEndTime',
-              type: 'text',
-              label: 'Daily End Time',
-              admin: {
-                width: '25%',
-                placeholder: '18:00',
-                description: '24h format HH:mm (optional).',
-              },
-              validate: (value: unknown) => {
-                if (value == null || value === '') return true
-                if (typeof value !== 'string') return 'Use HH:mm format.'
-                return /^([01]?\d|2[0-3]):([0-5]\d)$/.test(value.trim())
-                  ? true
-                  : 'Use HH:mm format (example: 18:00).'
-              },
+              ],
             },
           ],
         },
       ],
     },
     {
-      name: 'reselectRandomCustomerOffer',
-      type: 'checkbox',
-      label: 'Reset Random Offer Progress on Save',
-      defaultValue: false,
+      type: 'collapsible',
+      label: 'Offer 4: Random Customer Product Offer',
       admin: {
-        condition: (data) => Boolean(data?.enableRandomCustomerProductOffer),
-        description: 'Tick and save to clear random offer counters and start a fresh cycle.',
-      },
-    },
-    {
-      type: 'row',
-      admin: {
-        condition: (data) => Boolean(data?.enableRandomCustomerProductOffer),
-      },
-      fields: [
-        {
-          name: 'randomCustomerOfferAssignedCount',
-          type: 'number',
-          min: 0,
-          defaultValue: 0,
-          label: 'Awarded Customers',
-          admin: {
-            width: '33%',
-            readOnly: true,
-          },
-        },
-        {
-          name: 'randomCustomerOfferRedeemedCount',
-          type: 'number',
-          min: 0,
-          defaultValue: 0,
-          label: 'Redeemed Customers',
-          admin: {
-            width: '33%',
-            readOnly: true,
-          },
-        },
-        {
-          name: 'randomCustomerOfferLastAssignedAt',
-          type: 'date',
-          label: 'Last Awarded At',
-          admin: {
-            width: '34%',
-            readOnly: true,
-          },
-        },
-      ],
-    },
-    {
-      name: 'enableTotalPercentageOffer',
-      type: 'checkbox',
-      label: 'Enable Total Amount Percentage Offer',
-      defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enableTotalPercentageOffer,
-      admin: {
+        initCollapsed: true,
         description:
-          'Fifth offer type. Applies percentage discount on final bill total after other discounts.',
-      },
-    },
-    {
-      type: 'row',
-      admin: {
-        condition: (data) => Boolean(data?.enableTotalPercentageOffer),
+          'Configure random product awards, date/time windows, and per-product customer limits.',
       },
       fields: [
         {
-          name: 'totalPercentageOfferPercent',
-          type: 'number',
-          required: true,
-          min: 0.01,
-          max: 100,
-          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferPercent,
-          label: 'Discount Percentage (%)',
-          admin: {
-            width: '34%',
-            description: 'Example: 10 means 10% discount on total amount.',
-          },
-        },
-        {
-          name: 'totalPercentageOfferMaxOfferCount',
-          type: 'number',
-          min: 0,
-          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferMaxOfferCount,
-          label: 'Max Offer Uses',
-          admin: {
-            width: '33%',
-            description: '0 means unlimited.',
-          },
-        },
-        {
-          name: 'totalPercentageOfferMaxUsagePerCustomer',
-          type: 'number',
-          min: 0,
-          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferMaxUsagePerCustomer,
-          label: 'Max Uses per Customer',
-          admin: {
-            width: '33%',
-            description: '0 means unlimited per customer.',
-          },
-        },
-      ],
-    },
-    {
-      type: 'row',
-      admin: {
-        condition: (data) => Boolean(data?.enableTotalPercentageOffer),
-      },
-      fields: [
-        {
-          name: 'totalPercentageOfferRandomOnly',
-          type: 'checkbox',
-          label: 'Random Customers Only',
-          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferRandomOnly,
-          admin: {
-            width: '34%',
-            description: 'When enabled, offer is applied only to randomly selected customers.',
-          },
-        },
-        {
-          name: 'totalPercentageOfferRandomSelectionChancePercent',
-          type: 'number',
-          min: 0.01,
-          max: 100,
-          defaultValue:
-            DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferRandomSelectionChancePercent,
-          label: 'Random Chance (%)',
-          admin: {
-            width: '33%',
-            description: 'Probability of selecting a customer for this offer.',
-          },
-        },
-        {
-          name: 'totalPercentageOfferTimezone',
-          type: 'text',
-          required: true,
-          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferTimezone,
-          label: 'Timezone',
-          admin: {
-            width: '33%',
-            description: 'IANA timezone for schedule checks (e.g., Asia/Kolkata).',
-          },
-        },
-      ],
-    },
-    {
-      type: 'row',
-      admin: {
-        condition: (data) => Boolean(data?.enableTotalPercentageOffer),
-      },
-      fields: [
-        {
-          name: 'totalPercentageOfferAvailableFromDate',
-          type: 'date',
-          label: 'Available From Date',
-          admin: {
-            width: '25%',
-            date: {
-              pickerAppearance: 'dayOnly',
+          type: 'tabs',
+          tabs: [
+            {
+              label: 'Setup',
+              fields: [
+                {
+                  name: 'enableRandomCustomerProductOffer',
+                  type: 'checkbox',
+                  label: 'Enable Random Customer Product Offer',
+                  defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enableRandomCustomerProductOffer,
+                  admin: {
+                    description:
+                      'Fourth offer type. System checks this offer in real-time during billing for both new and existing customers.',
+                  },
+                },
+                {
+                  type: 'row',
+                  admin: {
+                    condition: (data) => Boolean(data?.enableRandomCustomerProductOffer),
+                  },
+                  fields: [
+                    {
+                      name: 'randomCustomerOfferCampaignCode',
+                      type: 'text',
+                      required: true,
+                      defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.randomCustomerOfferCampaignCode,
+                      label: 'Campaign Code',
+                      admin: {
+                        width: '60%',
+                        description:
+                          'Change this code to start a fresh campaign and reset random offer progress.',
+                      },
+                    },
+                    {
+                      name: 'randomCustomerOfferTimezone',
+                      type: 'text',
+                      required: true,
+                      defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.randomCustomerOfferTimezone,
+                      label: 'Timezone',
+                      admin: {
+                        width: '40%',
+                        description: 'IANA timezone for schedule checks (e.g., Asia/Kolkata).',
+                      },
+                    },
+                  ],
+                },
+                {
+                  name: 'reselectRandomCustomerOffer',
+                  type: 'checkbox',
+                  label: 'Reset Random Offer Progress on Save',
+                  defaultValue: false,
+                  admin: {
+                    condition: (data) => Boolean(data?.enableRandomCustomerProductOffer),
+                    description:
+                      'Tick and save to clear random offer counters and start a fresh cycle.',
+                  },
+                },
+                {
+                  type: 'row',
+                  admin: {
+                    condition: (data) => Boolean(data?.enableRandomCustomerProductOffer),
+                  },
+                  fields: [
+                    {
+                      name: 'randomCustomerOfferAssignedCount',
+                      type: 'number',
+                      min: 0,
+                      defaultValue: 0,
+                      label: 'Awarded Customers',
+                      admin: {
+                        width: '33%',
+                        readOnly: true,
+                      },
+                    },
+                    {
+                      name: 'randomCustomerOfferRedeemedCount',
+                      type: 'number',
+                      min: 0,
+                      defaultValue: 0,
+                      label: 'Redeemed Customers',
+                      admin: {
+                        width: '33%',
+                        readOnly: true,
+                      },
+                    },
+                    {
+                      name: 'randomCustomerOfferLastAssignedAt',
+                      type: 'date',
+                      label: 'Last Awarded At',
+                      admin: {
+                        width: '34%',
+                        readOnly: true,
+                      },
+                    },
+                  ],
+                },
+              ],
             },
-            description: 'Optional start date.',
-          },
-        },
-        {
-          name: 'totalPercentageOfferAvailableToDate',
-          type: 'date',
-          label: 'Available To Date',
-          admin: {
-            width: '25%',
-            date: {
-              pickerAppearance: 'dayOnly',
+            {
+              label: 'Rules',
+              fields: [
+                {
+                  name: 'randomCustomerOfferProducts',
+                  type: 'array',
+                  label: 'Random Offer Products and Counts',
+                  labels: {
+                    singular: 'Random Customer Offer Product',
+                    plural: 'Random Customer Offer Products',
+                  },
+                  admin: {
+                    condition: (data) => Boolean(data?.enableRandomCustomerProductOffer),
+                    description:
+                      'Add rules for product, winners, random chance, schedule, and usage limits.',
+                  },
+                  fields: [
+                    {
+                      type: 'tabs',
+                      tabs: [
+                        {
+                          label: 'Rule Setup',
+                          fields: [
+                            {
+                              name: 'enabled',
+                              type: 'checkbox',
+                              label: 'Rule Enabled',
+                              defaultValue: true,
+                            },
+                            {
+                              type: 'row',
+                              fields: [
+                                {
+                                  name: 'product',
+                                  type: 'relationship',
+                                  relationTo: 'products',
+                                  required: true,
+                                  label: 'Product',
+                                  admin: {
+                                    width: '40%',
+                                  },
+                                },
+                                {
+                                  name: 'winnerCount',
+                                  type: 'number',
+                                  required: true,
+                                  min: 1,
+                                  defaultValue: 1,
+                                  label: 'Winner Count',
+                                  admin: {
+                                    width: '20%',
+                                  },
+                                },
+                                {
+                                  name: 'randomSelectionChancePercent',
+                                  type: 'number',
+                                  required: true,
+                                  min: 0.01,
+                                  max: 100,
+                                  defaultValue: DEFAULT_RANDOM_OFFER_SELECTION_CHANCE_PERCENT,
+                                  label: 'Random Chance (%)',
+                                  admin: {
+                                    width: '20%',
+                                    description:
+                                      'Chance to award this rule for an eligible customer bill.',
+                                  },
+                                },
+                                {
+                                  name: 'maxUsagePerCustomer',
+                                  type: 'number',
+                                  required: true,
+                                  min: 0,
+                                  defaultValue: 1,
+                                  label: 'Max Uses per Customer',
+                                  admin: {
+                                    width: '20%',
+                                    description: '0 means unlimited for this product rule.',
+                                  },
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                        {
+                          label: 'Schedule',
+                          fields: [
+                            {
+                              type: 'row',
+                              fields: [
+                                {
+                                  name: 'availableFromDate',
+                                  type: 'date',
+                                  label: 'Available From Date',
+                                  admin: {
+                                    width: '25%',
+                                    date: {
+                                      pickerAppearance: 'dayOnly',
+                                    },
+                                    description: 'Optional start date.',
+                                  },
+                                },
+                                {
+                                  name: 'availableToDate',
+                                  type: 'date',
+                                  label: 'Available To Date',
+                                  admin: {
+                                    width: '25%',
+                                    date: {
+                                      pickerAppearance: 'dayOnly',
+                                    },
+                                    description: 'Optional end date.',
+                                  },
+                                },
+                                {
+                                  name: 'dailyStartTime',
+                                  type: 'select',
+                                  options: RAILWAY_TIME_OPTIONS,
+                                  label: 'Daily Start Time',
+                                  admin: {
+                                    width: '25%',
+                                    description: 'Select 24-hour (railway) time.',
+                                  },
+                                },
+                                {
+                                  name: 'dailyEndTime',
+                                  type: 'select',
+                                  options: RAILWAY_TIME_OPTIONS,
+                                  label: 'Daily End Time',
+                                  admin: {
+                                    width: '25%',
+                                    description: 'Select 24-hour (railway) time.',
+                                  },
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                        {
+                          label: 'Progress',
+                          fields: [
+                            {
+                              type: 'row',
+                              fields: [
+                                {
+                                  name: 'assignedCount',
+                                  type: 'number',
+                                  min: 0,
+                                  defaultValue: 0,
+                                  label: 'Awarded',
+                                  admin: {
+                                    width: '50%',
+                                    readOnly: true,
+                                  },
+                                },
+                                {
+                                  name: 'redeemedCount',
+                                  type: 'number',
+                                  min: 0,
+                                  defaultValue: 0,
+                                  label: 'Redeemed',
+                                  admin: {
+                                    width: '50%',
+                                    readOnly: true,
+                                  },
+                                },
+                                {
+                                  name: 'selectedCustomers',
+                                  type: 'relationship',
+                                  relationTo: 'customers',
+                                  hasMany: true,
+                                  label: 'Awarded Customers',
+                                  admin: {
+                                    hidden: true,
+                                    readOnly: true,
+                                  },
+                                },
+                              ],
+                            },
+                            {
+                              name: 'offerCustomerUsage',
+                              type: 'array',
+                              label: 'Customer Usage',
+                              admin: {
+                                readOnly: true,
+                                description: 'Per-customer usage count for this product rule.',
+                              },
+                              fields: [
+                                {
+                                  name: 'customer',
+                                  type: 'relationship',
+                                  relationTo: 'customers',
+                                  required: true,
+                                  admin: {
+                                    width: '70%',
+                                    readOnly: true,
+                                  },
+                                },
+                                {
+                                  name: 'usageCount',
+                                  type: 'number',
+                                  min: 0,
+                                  defaultValue: 0,
+                                  required: true,
+                                  admin: {
+                                    width: '30%',
+                                    readOnly: true,
+                                  },
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
             },
-            description: 'Optional end date.',
-          },
-        },
-        {
-          name: 'totalPercentageOfferDailyStartTime',
-          type: 'text',
-          label: 'Daily Start Time',
-          admin: {
-            width: '25%',
-            placeholder: '09:00',
-            description: '24h format HH:mm (optional).',
-          },
-          validate: (value: unknown) => {
-            if (value == null || value === '') return true
-            if (typeof value !== 'string') return 'Use HH:mm format.'
-            return /^([01]?\d|2[0-3]):([0-5]\d)$/.test(value.trim())
-              ? true
-              : 'Use HH:mm format (example: 09:00).'
-          },
-        },
-        {
-          name: 'totalPercentageOfferDailyEndTime',
-          type: 'text',
-          label: 'Daily End Time',
-          admin: {
-            width: '25%',
-            placeholder: '18:00',
-            description: '24h format HH:mm (optional).',
-          },
-          validate: (value: unknown) => {
-            if (value == null || value === '') return true
-            if (typeof value !== 'string') return 'Use HH:mm format.'
-            return /^([01]?\d|2[0-3]):([0-5]\d)$/.test(value.trim())
-              ? true
-              : 'Use HH:mm format (example: 18:00).'
-          },
+          ],
         },
       ],
     },
     {
-      type: 'row',
+      type: 'collapsible',
+      label: 'Offer 5: Total Amount Percentage Offer',
       admin: {
-        condition: (data) => Boolean(data?.enableTotalPercentageOffer),
+        initCollapsed: true,
+        description:
+          'Apply percentage discount on total bill amount with optional random-only and schedule controls.',
       },
       fields: [
         {
-          name: 'totalPercentageOfferMaxCustomerCount',
-          type: 'number',
-          min: 0,
-          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferMaxCustomerCount,
-          label: 'Max Customers',
-          admin: {
-            width: '34%',
-            description: '0 means unlimited.',
-          },
-        },
-        {
-          name: 'totalPercentageOfferGivenCount',
-          type: 'number',
-          min: 0,
-          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferGivenCount,
-          label: 'Given Count',
-          admin: {
-            width: '33%',
-            readOnly: true,
-          },
-        },
-        {
-          name: 'totalPercentageOfferCustomerCount',
-          type: 'number',
-          min: 0,
-          defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferCustomerCount,
-          label: 'Customer Count',
-          admin: {
-            width: '33%',
-            readOnly: true,
-          },
-        },
-      ],
-    },
-    {
-      name: 'totalPercentageOfferCustomers',
-      type: 'relationship',
-      relationTo: 'customers',
-      hasMany: true,
-      admin: {
-        condition: (data) => Boolean(data?.enableTotalPercentageOffer),
-        readOnly: true,
-      },
-    },
-    {
-      name: 'totalPercentageOfferCustomerUsage',
-      type: 'array',
-      label: 'Customer Usage',
-      admin: {
-        condition: (data) => Boolean(data?.enableTotalPercentageOffer),
-        readOnly: true,
-        description: 'Per-customer usage count for total percentage offer.',
-      },
-      fields: [
-        {
-          name: 'customer',
-          type: 'relationship',
-          relationTo: 'customers',
-          required: true,
-          admin: {
-            width: '70%',
-            readOnly: true,
-          },
-        },
-        {
-          name: 'usageCount',
-          type: 'number',
-          min: 0,
-          defaultValue: 0,
-          required: true,
-          admin: {
-            width: '30%',
-            readOnly: true,
-          },
+          type: 'tabs',
+          tabs: [
+            {
+              label: 'Setup',
+              fields: [
+                {
+                  name: 'enableTotalPercentageOffer',
+                  type: 'checkbox',
+                  label: 'Enable Total Amount Percentage Offer',
+                  defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enableTotalPercentageOffer,
+                  admin: {
+                    description:
+                      'Fifth offer type. Applies percentage discount on final bill total after other discounts.',
+                  },
+                },
+                {
+                  type: 'row',
+                  admin: {
+                    condition: (data) => Boolean(data?.enableTotalPercentageOffer),
+                  },
+                  fields: [
+                    {
+                      name: 'totalPercentageOfferPercent',
+                      type: 'number',
+                      required: true,
+                      min: 0.01,
+                      max: 100,
+                      defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferPercent,
+                      label: 'Discount Percentage (%)',
+                      admin: {
+                        width: '25%',
+                        description: 'Example: 10 means 10% discount on total amount.',
+                      },
+                    },
+                    {
+                      name: 'totalPercentageOfferRandomSelectionChancePercent',
+                      type: 'number',
+                      min: 0.01,
+                      max: 100,
+                      defaultValue:
+                        DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferRandomSelectionChancePercent,
+                      label: 'Random Chance (%)',
+                      admin: {
+                        width: '25%',
+                        description: 'Probability of selecting a customer for this offer.',
+                      },
+                    },
+                    {
+                      name: 'totalPercentageOfferMaxOfferCount',
+                      type: 'number',
+                      min: 0,
+                      defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferMaxOfferCount,
+                      label: 'Max Offer Uses',
+                      admin: {
+                        width: '25%',
+                        description: '0 means unlimited.',
+                      },
+                    },
+                    {
+                      name: 'totalPercentageOfferMaxCustomerCount',
+                      type: 'number',
+                      min: 0,
+                      defaultValue:
+                        DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferMaxCustomerCount,
+                      label: 'Max Customers',
+                      admin: {
+                        width: '25%',
+                        description: '0 means unlimited.',
+                      },
+                    },
+                  ],
+                },
+                {
+                  type: 'row',
+                  admin: {
+                    condition: (data) => Boolean(data?.enableTotalPercentageOffer),
+                  },
+                  fields: [
+                    {
+                      name: 'totalPercentageOfferMaxUsagePerCustomer',
+                      type: 'number',
+                      min: 0,
+                      defaultValue:
+                        DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferMaxUsagePerCustomer,
+                      label: 'Max Uses per Customer',
+                      admin: {
+                        width: '100%',
+                        description: '0 means unlimited per customer.',
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              label: 'Targeting & Schedule',
+              fields: [
+                {
+                  type: 'row',
+                  admin: {
+                    condition: (data) => Boolean(data?.enableTotalPercentageOffer),
+                  },
+                  fields: [
+                    {
+                      name: 'totalPercentageOfferAvailableFromDate',
+                      type: 'date',
+                      label: 'Available From Date',
+                      admin: {
+                        width: '25%',
+                        date: {
+                          pickerAppearance: 'dayOnly',
+                        },
+                        description: 'Optional start date.',
+                      },
+                    },
+                    {
+                      name: 'totalPercentageOfferAvailableToDate',
+                      type: 'date',
+                      label: 'Available To Date',
+                      admin: {
+                        width: '25%',
+                        date: {
+                          pickerAppearance: 'dayOnly',
+                        },
+                        description: 'Optional end date.',
+                      },
+                    },
+                    {
+                      name: 'totalPercentageOfferDailyStartTime',
+                      type: 'select',
+                      options: RAILWAY_TIME_OPTIONS,
+                      label: 'Daily Start Time',
+                      admin: {
+                        width: '25%',
+                        description: 'Select 24-hour (railway) time.',
+                      },
+                    },
+                    {
+                      name: 'totalPercentageOfferDailyEndTime',
+                      type: 'select',
+                      options: RAILWAY_TIME_OPTIONS,
+                      label: 'Daily End Time',
+                      admin: {
+                        width: '25%',
+                        description: 'Select 24-hour (railway) time.',
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              label: 'Progress',
+              fields: [
+                {
+                  type: 'row',
+                  admin: {
+                    condition: (data) => Boolean(data?.enableTotalPercentageOffer),
+                  },
+                  fields: [
+                    {
+                      name: 'totalPercentageOfferGivenCount',
+                      type: 'number',
+                      min: 0,
+                      defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferGivenCount,
+                      label: 'Given Count',
+                      admin: {
+                        width: '50%',
+                        readOnly: true,
+                      },
+                    },
+                    {
+                      name: 'totalPercentageOfferCustomerCount',
+                      type: 'number',
+                      min: 0,
+                      defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferCustomerCount,
+                      label: 'Customer Count',
+                      admin: {
+                        width: '50%',
+                        readOnly: true,
+                      },
+                    },
+                  ],
+                },
+                {
+                  name: 'totalPercentageOfferCustomers',
+                  type: 'relationship',
+                  relationTo: 'customers',
+                  hasMany: true,
+                  admin: {
+                    condition: (data) => Boolean(data?.enableTotalPercentageOffer),
+                    hidden: true,
+                    readOnly: true,
+                  },
+                },
+                {
+                  name: 'totalPercentageOfferCustomerUsage',
+                  type: 'array',
+                  label: 'Customer Usage',
+                  admin: {
+                    condition: (data) => Boolean(data?.enableTotalPercentageOffer),
+                    hidden: true,
+                    readOnly: true,
+                    description: 'Per-customer usage count for total percentage offer.',
+                  },
+                  fields: [
+                    {
+                      name: 'customer',
+                      type: 'relationship',
+                      relationTo: 'customers',
+                      required: true,
+                      admin: {
+                        width: '70%',
+                        readOnly: true,
+                      },
+                    },
+                    {
+                      name: 'usageCount',
+                      type: 'number',
+                      min: 0,
+                      defaultValue: 0,
+                      required: true,
+                      admin: {
+                        width: '30%',
+                        readOnly: true,
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
         },
       ],
     },

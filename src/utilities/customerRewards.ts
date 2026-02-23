@@ -485,10 +485,8 @@ const normalizeCustomerRewardSettings = (settings: unknown): CustomerRewardSetti
       raw.totalPercentageOfferMaxUsagePerCustomer,
       DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferMaxUsagePerCustomer,
     ),
-    totalPercentageOfferRandomOnly:
-      typeof raw.totalPercentageOfferRandomOnly === 'boolean'
-        ? raw.totalPercentageOfferRandomOnly
-        : DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferRandomOnly,
+    // Offer 5 is always random-only.
+    totalPercentageOfferRandomOnly: true,
     totalPercentageOfferRandomSelectionChancePercent: Math.min(
       100,
       Math.max(
@@ -499,10 +497,8 @@ const normalizeCustomerRewardSettings = (settings: unknown): CustomerRewardSetti
         ),
       ),
     ),
-    totalPercentageOfferTimezone: normalizeTimezone(
-      raw.totalPercentageOfferTimezone,
-      DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferTimezone,
-    ),
+    // Offer 5 timezone is fixed to the default timezone.
+    totalPercentageOfferTimezone: DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferTimezone,
     totalPercentageOfferAvailableFromDate: normalizeDateString(
       raw.totalPercentageOfferAvailableFromDate,
     ),

@@ -66,6 +66,9 @@ import { AutomateGlobal } from './globals/Automate'
 import { createAutomatedOrderHandler } from './endpoints/createAutomatedOrder'
 import { getReportBranchesHandler } from './endpoints/getReportBranches'
 import { CustomerOfferSettings } from './globals/CustomerOfferSettings'
+import APKFiles from './collections/APKFiles'
+import { AppDownloadSettings } from './globals/AppDownloadSettings'
+import { getLatestAppDownloadHandler } from './endpoints/getLatestAppDownload'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -227,6 +230,16 @@ export default buildConfig({
       method: 'post',
       handler: createAutomatedOrderHandler,
     },
+    {
+      path: '/app-download/latest.apk',
+      method: 'get',
+      handler: getLatestAppDownloadHandler,
+    },
+    {
+      path: '/app-download/:appKey.apk',
+      method: 'get',
+      handler: getLatestAppDownloadHandler,
+    },
   ],
 
   globals: [
@@ -248,6 +261,7 @@ export default buildConfig({
     NetworkStatus,
     AutomateGlobal,
     CustomerOfferSettings,
+    AppDownloadSettings,
   ],
 
   // Collections
@@ -272,6 +286,7 @@ export default buildConfig({
     Tables,
     Kitchens,
     Attendance,
+    APKFiles,
   ],
 
   editor: lexicalEditor(),

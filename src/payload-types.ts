@@ -87,6 +87,7 @@ export interface Config {
     tables: Table;
     kitchens: Kitchen;
     attendance: Attendance;
+    'apk-files': ApkFile;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -113,6 +114,7 @@ export interface Config {
     tables: TablesSelect<false> | TablesSelect<true>;
     kitchens: KitchensSelect<false> | KitchensSelect<true>;
     attendance: AttendanceSelect<false> | AttendanceSelect<true>;
+    'apk-files': ApkFilesSelect<false> | ApkFilesSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -139,6 +141,7 @@ export interface Config {
     'network-status': NetworkStatus;
     'automate-settings': AutomateSetting;
     'customer-offer-settings': CustomerOfferSetting;
+    'app-download-settings': AppDownloadSetting;
   };
   globalsSelect: {
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
@@ -159,6 +162,7 @@ export interface Config {
     'network-status': NetworkStatusSelect<false> | NetworkStatusSelect<true>;
     'automate-settings': AutomateSettingsSelect<false> | AutomateSettingsSelect<true>;
     'customer-offer-settings': CustomerOfferSettingsSelect<false> | CustomerOfferSettingsSelect<true>;
+    'app-download-settings': AppDownloadSettingsSelect<false> | AppDownloadSettingsSelect<true>;
   };
   locale: null;
   user: User & {
@@ -833,6 +837,24 @@ export interface Attendance {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "apk-files".
+ */
+export interface ApkFile {
+  id: string;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -917,6 +939,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'attendance';
         value: string | Attendance;
+      } | null)
+    | ({
+        relationTo: 'apk-files';
+        value: string | ApkFile;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1521,6 +1547,23 @@ export interface AttendanceSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "apk-files_select".
+ */
+export interface ApkFilesSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents_select".
  */
 export interface PayloadLockedDocumentsSelect<T extends boolean = true> {
@@ -1761,9 +1804,6 @@ export interface AutomateSetting {
  */
 export interface CustomerOfferSetting {
   id: string;
-  /**
-   * Credit-point offer type. Can be used independently or together with product-to-product offer.
-   */
   enabled?: boolean | null;
   /**
    * Example: 1000 means points are granted for every Rs 1000 spent.
@@ -1888,7 +1928,14 @@ export interface CustomerOfferSetting {
    */
   randomCustomerOfferTimezone: string;
   /**
-   * Add products, winner counts, and random chance. During billing, one eligible product may be awarded to randomly selected customers.
+   * Tick and save to clear random offer counters and start a fresh cycle.
+   */
+  reselectRandomCustomerOffer?: boolean | null;
+  randomCustomerOfferAssignedCount?: number | null;
+  randomCustomerOfferRedeemedCount?: number | null;
+  randomCustomerOfferLastAssignedAt?: string | null;
+  /**
+   * Add rules for product, winners, random chance, schedule, and usage limits.
    */
   randomCustomerOfferProducts?:
     | {
@@ -1903,6 +1950,220 @@ export interface CustomerOfferSetting {
          * 0 means unlimited for this product rule.
          */
         maxUsagePerCustomer: number;
+        /**
+         * Optional start date.
+         */
+        availableFromDate?: string | null;
+        /**
+         * Optional end date.
+         */
+        availableToDate?: string | null;
+        /**
+         * Select 24-hour (railway) time.
+         */
+        dailyStartTime?:
+          | (
+              | '00:00'
+              | '00:15'
+              | '00:30'
+              | '00:45'
+              | '01:00'
+              | '01:15'
+              | '01:30'
+              | '01:45'
+              | '02:00'
+              | '02:15'
+              | '02:30'
+              | '02:45'
+              | '03:00'
+              | '03:15'
+              | '03:30'
+              | '03:45'
+              | '04:00'
+              | '04:15'
+              | '04:30'
+              | '04:45'
+              | '05:00'
+              | '05:15'
+              | '05:30'
+              | '05:45'
+              | '06:00'
+              | '06:15'
+              | '06:30'
+              | '06:45'
+              | '07:00'
+              | '07:15'
+              | '07:30'
+              | '07:45'
+              | '08:00'
+              | '08:15'
+              | '08:30'
+              | '08:45'
+              | '09:00'
+              | '09:15'
+              | '09:30'
+              | '09:45'
+              | '10:00'
+              | '10:15'
+              | '10:30'
+              | '10:45'
+              | '11:00'
+              | '11:15'
+              | '11:30'
+              | '11:45'
+              | '12:00'
+              | '12:15'
+              | '12:30'
+              | '12:45'
+              | '13:00'
+              | '13:15'
+              | '13:30'
+              | '13:45'
+              | '14:00'
+              | '14:15'
+              | '14:30'
+              | '14:45'
+              | '15:00'
+              | '15:15'
+              | '15:30'
+              | '15:45'
+              | '16:00'
+              | '16:15'
+              | '16:30'
+              | '16:45'
+              | '17:00'
+              | '17:15'
+              | '17:30'
+              | '17:45'
+              | '18:00'
+              | '18:15'
+              | '18:30'
+              | '18:45'
+              | '19:00'
+              | '19:15'
+              | '19:30'
+              | '19:45'
+              | '20:00'
+              | '20:15'
+              | '20:30'
+              | '20:45'
+              | '21:00'
+              | '21:15'
+              | '21:30'
+              | '21:45'
+              | '22:00'
+              | '22:15'
+              | '22:30'
+              | '22:45'
+              | '23:00'
+              | '23:15'
+              | '23:30'
+              | '23:45'
+            )
+          | null;
+        /**
+         * Select 24-hour (railway) time.
+         */
+        dailyEndTime?:
+          | (
+              | '00:00'
+              | '00:15'
+              | '00:30'
+              | '00:45'
+              | '01:00'
+              | '01:15'
+              | '01:30'
+              | '01:45'
+              | '02:00'
+              | '02:15'
+              | '02:30'
+              | '02:45'
+              | '03:00'
+              | '03:15'
+              | '03:30'
+              | '03:45'
+              | '04:00'
+              | '04:15'
+              | '04:30'
+              | '04:45'
+              | '05:00'
+              | '05:15'
+              | '05:30'
+              | '05:45'
+              | '06:00'
+              | '06:15'
+              | '06:30'
+              | '06:45'
+              | '07:00'
+              | '07:15'
+              | '07:30'
+              | '07:45'
+              | '08:00'
+              | '08:15'
+              | '08:30'
+              | '08:45'
+              | '09:00'
+              | '09:15'
+              | '09:30'
+              | '09:45'
+              | '10:00'
+              | '10:15'
+              | '10:30'
+              | '10:45'
+              | '11:00'
+              | '11:15'
+              | '11:30'
+              | '11:45'
+              | '12:00'
+              | '12:15'
+              | '12:30'
+              | '12:45'
+              | '13:00'
+              | '13:15'
+              | '13:30'
+              | '13:45'
+              | '14:00'
+              | '14:15'
+              | '14:30'
+              | '14:45'
+              | '15:00'
+              | '15:15'
+              | '15:30'
+              | '15:45'
+              | '16:00'
+              | '16:15'
+              | '16:30'
+              | '16:45'
+              | '17:00'
+              | '17:15'
+              | '17:30'
+              | '17:45'
+              | '18:00'
+              | '18:15'
+              | '18:30'
+              | '18:45'
+              | '19:00'
+              | '19:15'
+              | '19:30'
+              | '19:45'
+              | '20:00'
+              | '20:15'
+              | '20:30'
+              | '20:45'
+              | '21:00'
+              | '21:15'
+              | '21:30'
+              | '21:45'
+              | '22:00'
+              | '22:15'
+              | '22:30'
+              | '22:45'
+              | '23:00'
+              | '23:15'
+              | '23:30'
+              | '23:45'
+            )
+          | null;
         assignedCount?: number | null;
         redeemedCount?: number | null;
         selectedCustomers?: (string | Customer)[] | null;
@@ -1916,32 +2177,9 @@ export interface CustomerOfferSetting {
               id?: string | null;
             }[]
           | null;
-        /**
-         * Optional start date.
-         */
-        availableFromDate?: string | null;
-        /**
-         * Optional end date.
-         */
-        availableToDate?: string | null;
-        /**
-         * 24h format HH:mm (optional).
-         */
-        dailyStartTime?: string | null;
-        /**
-         * 24h format HH:mm (optional).
-         */
-        dailyEndTime?: string | null;
         id?: string | null;
       }[]
     | null;
-  /**
-   * Tick and save to clear random offer counters and start a fresh cycle.
-   */
-  reselectRandomCustomerOffer?: boolean | null;
-  randomCustomerOfferAssignedCount?: number | null;
-  randomCustomerOfferRedeemedCount?: number | null;
-  randomCustomerOfferLastAssignedAt?: string | null;
   /**
    * Fifth offer type. Applies percentage discount on final bill total after other discounts.
    */
@@ -1951,25 +2189,21 @@ export interface CustomerOfferSetting {
    */
   totalPercentageOfferPercent: number;
   /**
-   * 0 means unlimited.
-   */
-  totalPercentageOfferMaxOfferCount?: number | null;
-  /**
-   * 0 means unlimited per customer.
-   */
-  totalPercentageOfferMaxUsagePerCustomer?: number | null;
-  /**
-   * When enabled, offer is applied only to randomly selected customers.
-   */
-  totalPercentageOfferRandomOnly?: boolean | null;
-  /**
    * Probability of selecting a customer for this offer.
    */
   totalPercentageOfferRandomSelectionChancePercent?: number | null;
   /**
-   * IANA timezone for schedule checks (e.g., Asia/Kolkata).
+   * 0 means unlimited.
    */
-  totalPercentageOfferTimezone: string;
+  totalPercentageOfferMaxOfferCount?: number | null;
+  /**
+   * 0 means unlimited.
+   */
+  totalPercentageOfferMaxCustomerCount?: number | null;
+  /**
+   * 0 means unlimited per customer.
+   */
+  totalPercentageOfferMaxUsagePerCustomer?: number | null;
   /**
    * Optional start date.
    */
@@ -1979,17 +2213,211 @@ export interface CustomerOfferSetting {
    */
   totalPercentageOfferAvailableToDate?: string | null;
   /**
-   * 24h format HH:mm (optional).
+   * Select 24-hour (railway) time.
    */
-  totalPercentageOfferDailyStartTime?: string | null;
+  totalPercentageOfferDailyStartTime?:
+    | (
+        | '00:00'
+        | '00:15'
+        | '00:30'
+        | '00:45'
+        | '01:00'
+        | '01:15'
+        | '01:30'
+        | '01:45'
+        | '02:00'
+        | '02:15'
+        | '02:30'
+        | '02:45'
+        | '03:00'
+        | '03:15'
+        | '03:30'
+        | '03:45'
+        | '04:00'
+        | '04:15'
+        | '04:30'
+        | '04:45'
+        | '05:00'
+        | '05:15'
+        | '05:30'
+        | '05:45'
+        | '06:00'
+        | '06:15'
+        | '06:30'
+        | '06:45'
+        | '07:00'
+        | '07:15'
+        | '07:30'
+        | '07:45'
+        | '08:00'
+        | '08:15'
+        | '08:30'
+        | '08:45'
+        | '09:00'
+        | '09:15'
+        | '09:30'
+        | '09:45'
+        | '10:00'
+        | '10:15'
+        | '10:30'
+        | '10:45'
+        | '11:00'
+        | '11:15'
+        | '11:30'
+        | '11:45'
+        | '12:00'
+        | '12:15'
+        | '12:30'
+        | '12:45'
+        | '13:00'
+        | '13:15'
+        | '13:30'
+        | '13:45'
+        | '14:00'
+        | '14:15'
+        | '14:30'
+        | '14:45'
+        | '15:00'
+        | '15:15'
+        | '15:30'
+        | '15:45'
+        | '16:00'
+        | '16:15'
+        | '16:30'
+        | '16:45'
+        | '17:00'
+        | '17:15'
+        | '17:30'
+        | '17:45'
+        | '18:00'
+        | '18:15'
+        | '18:30'
+        | '18:45'
+        | '19:00'
+        | '19:15'
+        | '19:30'
+        | '19:45'
+        | '20:00'
+        | '20:15'
+        | '20:30'
+        | '20:45'
+        | '21:00'
+        | '21:15'
+        | '21:30'
+        | '21:45'
+        | '22:00'
+        | '22:15'
+        | '22:30'
+        | '22:45'
+        | '23:00'
+        | '23:15'
+        | '23:30'
+        | '23:45'
+      )
+    | null;
   /**
-   * 24h format HH:mm (optional).
+   * Select 24-hour (railway) time.
    */
-  totalPercentageOfferDailyEndTime?: string | null;
-  /**
-   * 0 means unlimited.
-   */
-  totalPercentageOfferMaxCustomerCount?: number | null;
+  totalPercentageOfferDailyEndTime?:
+    | (
+        | '00:00'
+        | '00:15'
+        | '00:30'
+        | '00:45'
+        | '01:00'
+        | '01:15'
+        | '01:30'
+        | '01:45'
+        | '02:00'
+        | '02:15'
+        | '02:30'
+        | '02:45'
+        | '03:00'
+        | '03:15'
+        | '03:30'
+        | '03:45'
+        | '04:00'
+        | '04:15'
+        | '04:30'
+        | '04:45'
+        | '05:00'
+        | '05:15'
+        | '05:30'
+        | '05:45'
+        | '06:00'
+        | '06:15'
+        | '06:30'
+        | '06:45'
+        | '07:00'
+        | '07:15'
+        | '07:30'
+        | '07:45'
+        | '08:00'
+        | '08:15'
+        | '08:30'
+        | '08:45'
+        | '09:00'
+        | '09:15'
+        | '09:30'
+        | '09:45'
+        | '10:00'
+        | '10:15'
+        | '10:30'
+        | '10:45'
+        | '11:00'
+        | '11:15'
+        | '11:30'
+        | '11:45'
+        | '12:00'
+        | '12:15'
+        | '12:30'
+        | '12:45'
+        | '13:00'
+        | '13:15'
+        | '13:30'
+        | '13:45'
+        | '14:00'
+        | '14:15'
+        | '14:30'
+        | '14:45'
+        | '15:00'
+        | '15:15'
+        | '15:30'
+        | '15:45'
+        | '16:00'
+        | '16:15'
+        | '16:30'
+        | '16:45'
+        | '17:00'
+        | '17:15'
+        | '17:30'
+        | '17:45'
+        | '18:00'
+        | '18:15'
+        | '18:30'
+        | '18:45'
+        | '19:00'
+        | '19:15'
+        | '19:30'
+        | '19:45'
+        | '20:00'
+        | '20:15'
+        | '20:30'
+        | '20:45'
+        | '21:00'
+        | '21:15'
+        | '21:30'
+        | '21:45'
+        | '22:00'
+        | '22:15'
+        | '22:30'
+        | '22:45'
+        | '23:00'
+        | '23:15'
+        | '23:30'
+        | '23:45'
+      )
+    | null;
   totalPercentageOfferGivenCount?: number | null;
   totalPercentageOfferCustomerCount?: number | null;
   totalPercentageOfferCustomers?: (string | Customer)[] | null;
@@ -2000,6 +2428,30 @@ export interface CustomerOfferSetting {
     | {
         customer: string | Customer;
         usageCount: number;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "app-download-settings".
+ */
+export interface AppDownloadSetting {
+  id: string;
+  /**
+   * Add each app with name + APK upload. Every app gets a stable download URL you can share with teammates.
+   */
+  apps?:
+    | {
+        appName: string;
+        apkFile?: (string | null) | ApkFile;
+        /**
+         * Share this link with teammates for this app.
+         */
+        downloadURL: string;
+        appKey: string;
         id?: string | null;
       }[]
     | null;
@@ -2253,6 +2705,10 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
   enableRandomCustomerProductOffer?: T;
   randomCustomerOfferCampaignCode?: T;
   randomCustomerOfferTimezone?: T;
+  reselectRandomCustomerOffer?: T;
+  randomCustomerOfferAssignedCount?: T;
+  randomCustomerOfferRedeemedCount?: T;
+  randomCustomerOfferLastAssignedAt?: T;
   randomCustomerOfferProducts?:
     | T
     | {
@@ -2261,6 +2717,10 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
         winnerCount?: T;
         randomSelectionChancePercent?: T;
         maxUsagePerCustomer?: T;
+        availableFromDate?: T;
+        availableToDate?: T;
+        dailyStartTime?: T;
+        dailyEndTime?: T;
         assignedCount?: T;
         redeemedCount?: T;
         selectedCustomers?: T;
@@ -2271,28 +2731,18 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
               usageCount?: T;
               id?: T;
             };
-        availableFromDate?: T;
-        availableToDate?: T;
-        dailyStartTime?: T;
-        dailyEndTime?: T;
         id?: T;
       };
-  reselectRandomCustomerOffer?: T;
-  randomCustomerOfferAssignedCount?: T;
-  randomCustomerOfferRedeemedCount?: T;
-  randomCustomerOfferLastAssignedAt?: T;
   enableTotalPercentageOffer?: T;
   totalPercentageOfferPercent?: T;
-  totalPercentageOfferMaxOfferCount?: T;
-  totalPercentageOfferMaxUsagePerCustomer?: T;
-  totalPercentageOfferRandomOnly?: T;
   totalPercentageOfferRandomSelectionChancePercent?: T;
-  totalPercentageOfferTimezone?: T;
+  totalPercentageOfferMaxOfferCount?: T;
+  totalPercentageOfferMaxCustomerCount?: T;
+  totalPercentageOfferMaxUsagePerCustomer?: T;
   totalPercentageOfferAvailableFromDate?: T;
   totalPercentageOfferAvailableToDate?: T;
   totalPercentageOfferDailyStartTime?: T;
   totalPercentageOfferDailyEndTime?: T;
-  totalPercentageOfferMaxCustomerCount?: T;
   totalPercentageOfferGivenCount?: T;
   totalPercentageOfferCustomerCount?: T;
   totalPercentageOfferCustomers?: T;
@@ -2301,6 +2751,24 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
     | {
         customer?: T;
         usageCount?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "app-download-settings_select".
+ */
+export interface AppDownloadSettingsSelect<T extends boolean = true> {
+  apps?:
+    | T
+    | {
+        appName?: T;
+        apkFile?: T;
+        downloadURL?: T;
+        appKey?: T;
         id?: T;
       };
   updatedAt?: T;
