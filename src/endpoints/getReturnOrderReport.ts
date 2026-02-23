@@ -2,6 +2,7 @@ import { PayloadHandler, PayloadRequest } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
+import type { PipelineStage } from 'mongoose'
 import { resolveReportBranchScope } from './reportScope'
 
 dayjs.extend(utc)
@@ -73,7 +74,7 @@ export const getReturnOrderReportHandler: PayloadHandler = async (
       matchQuery.status = selectedStatus
     }
 
-    const pipeline: Record<string, unknown>[] = [
+    const pipeline: PipelineStage[] = [
       {
         $match: matchQuery,
       },
