@@ -257,3 +257,86 @@ aside.sidebar,
   max-width: 280px !important;
   font-size: 0.875rem !important;
 }
+
+// 3. ADMIN DATE PICKER (DARK MODE)
+// Applies to react-datepicker popups used in admin forms.
+.react-datepicker-popper {
+  z-index: 2000 !important;
+}
+
+.react-datepicker {
+  background: #12161d !important;
+  border: 1px solid #303747 !important;
+  border-radius: 10px !important;
+  color: #e8edf6 !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45) !important;
+}
+
+.react-datepicker__triangle,
+.react-datepicker__triangle::before,
+.react-datepicker__triangle::after {
+  border-bottom-color: #12161d !important;
+}
+
+.react-datepicker__header {
+  background: #171c24 !important;
+  border-bottom: 1px solid #303747 !important;
+}
+
+.react-datepicker__current-month,
+.react-datepicker-time__header,
+.react-datepicker-year-header,
+.react-datepicker__day-name {
+  color: #d6deea !important;
+}
+
+.react-datepicker__month-select,
+.react-datepicker__year-select {
+  background: #212836 !important;
+  color: #f1f5fb !important;
+  border: 1px solid #3b465a !important;
+  border-radius: 6px !important;
+}
+
+.react-datepicker__day,
+.react-datepicker__time-name {
+  color: #e8edf6 !important;
+  border-radius: 8px !important;
+}
+
+.react-datepicker__day:hover,
+.react-datepicker__time-list-item:hover {
+  background: #293241 !important;
+  color: #ffffff !important;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--in-selecting-range,
+.react-datepicker__day--in-range,
+.react-datepicker__time-list-item--selected {
+  background: #2f80ed !important;
+  color: #ffffff !important;
+}
+
+.react-datepicker__day--keyboard-selected {
+  background: #325f9b !important;
+  color: #ffffff !important;
+}
+
+.react-datepicker__day--today {
+  border: 1px solid #6e7f96 !important;
+}
+
+.react-datepicker__day--outside-month,
+.react-datepicker__day--disabled,
+.react-datepicker__time-list-item--disabled {
+  color: #7d8797 !important;
+}
+
+.react-datepicker__navigation-icon::before {
+  border-color: #c7d1df !important;
+}
+
+.react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
+  border-color: #ffffff !important;
+}
