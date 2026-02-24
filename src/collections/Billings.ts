@@ -566,16 +566,6 @@ const applyProductToProductOffers = async (
     const ruleTriggerCount = Math.floor(purchasedQty / rule.buyQuantity)
     if (ruleTriggerCount <= 0) continue
 
-    const existingAppliedItem = existingAutoItemByRule.get(ruleKey)
-    if (existingAppliedItem) {
-      const existingQty = getPositiveNumericValue(existingAppliedItem.quantity)
-      desiredOffers.set(ruleKey, {
-        rule,
-        freeQuantity: existingQty > 0 ? existingQty : rule.freeQuantity,
-      })
-      continue
-    }
-
     const remainingGlobalUses =
       rule.maxOfferCount > 0
         ? Math.max(0, rule.maxOfferCount - toSafeNonNegativeNumber(rule.offerGivenCount))
@@ -590,12 +580,12 @@ const applyProductToProductOffers = async (
           )
         : Number.MAX_SAFE_INTEGER
 
-    const canApplyThisBill =
-      Math.floor(Math.min(ruleTriggerCount, remainingGlobalUses, remainingCustomerUses)) > 0
-    if (!canApplyThisBill) continue
+    const applicableTriggerCount = Math.floor(
+      Math.min(ruleTriggerCount, remainingGlobalUses, remainingCustomerUses),
+    )
+    if (applicableTriggerCount <= 0) continue
 
-    // Apply product-to-product offer once per bill for each rule.
-    const freeQuantity = rule.freeQuantity
+    const freeQuantity = applicableTriggerCount * rule.freeQuantity
     if (freeQuantity <= 0) continue
 
     desiredOffers.set(ruleKey, { rule, freeQuantity })
