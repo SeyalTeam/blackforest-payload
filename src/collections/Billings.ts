@@ -550,12 +550,31 @@ const applyProductToProductOffers = async (
     purchasedByProduct.set(productID, (purchasedByProduct.get(productID) || 0) + quantity)
   }
 
+  const existingAutoItemByRule = new Map<string, BillingItemInput>()
+  for (const item of items) {
+    if (!item.isOfferFreeItem || typeof item.offerRuleKey !== 'string') continue
+    if (!existingAutoItemByRule.has(item.offerRuleKey)) {
+      existingAutoItemByRule.set(item.offerRuleKey, item)
+    }
+  }
+
   const desiredOffers = new Map<string, { rule: ProductToProductOfferRule; freeQuantity: number }>()
 
   for (const rule of activeRules) {
+    const ruleKey = buildRuleKey(rule)
     const purchasedQty = purchasedByProduct.get(rule.buyProduct) || 0
     const ruleTriggerCount = Math.floor(purchasedQty / rule.buyQuantity)
     if (ruleTriggerCount <= 0) continue
+
+    const existingAppliedItem = existingAutoItemByRule.get(ruleKey)
+    if (existingAppliedItem) {
+      const existingQty = getPositiveNumericValue(existingAppliedItem.quantity)
+      desiredOffers.set(ruleKey, {
+        rule,
+        freeQuantity: existingQty > 0 ? existingQty : rule.freeQuantity,
+      })
+      continue
+    }
 
     const remainingGlobalUses =
       rule.maxOfferCount > 0
@@ -571,25 +590,19 @@ const applyProductToProductOffers = async (
           )
         : Number.MAX_SAFE_INTEGER
 
-    const cappedRuleTriggerCount = Math.floor(
-      Math.min(ruleTriggerCount, remainingGlobalUses, remainingCustomerUses),
-    )
-    const freeQuantity = cappedRuleTriggerCount * rule.freeQuantity
+    const canApplyThisBill =
+      Math.floor(Math.min(ruleTriggerCount, remainingGlobalUses, remainingCustomerUses)) > 0
+    if (!canApplyThisBill) continue
+
+    // Apply product-to-product offer once per bill for each rule.
+    const freeQuantity = rule.freeQuantity
     if (freeQuantity <= 0) continue
 
-    desiredOffers.set(buildRuleKey(rule), { rule, freeQuantity })
+    desiredOffers.set(ruleKey, { rule, freeQuantity })
   }
 
   if (desiredOffers.size === 0) {
     return manualItems
-  }
-
-  const existingAutoItemByRule = new Map<string, BillingItemInput>()
-  for (const item of items) {
-    if (!item.isOfferFreeItem || typeof item.offerRuleKey !== 'string') continue
-    if (!existingAutoItemByRule.has(item.offerRuleKey)) {
-      existingAutoItemByRule.set(item.offerRuleKey, item)
-    }
   }
 
   const productNameMap = await getProductNameMap(
