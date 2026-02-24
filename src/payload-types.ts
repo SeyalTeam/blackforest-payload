@@ -1806,6 +1806,17 @@ export interface AutomateSetting {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Branch-wise control for showing customer details popup in billing cart orders.
+   */
+  billingOrderCustomerDetailsByBranch?:
+    | {
+        branch: string | Branch;
+        showCustomerDetailsForBillingOrders?: boolean | null;
+        allowSkipCustomerDetailsForBillingOrders?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2660,6 +2671,14 @@ export interface AutomateSettingsSelect<T extends boolean = true> {
         branch?: T;
         showCustomerDetailsForTableOrders?: T;
         allowSkipCustomerDetailsForTableOrders?: T;
+        id?: T;
+      };
+  billingOrderCustomerDetailsByBranch?:
+    | T
+    | {
+        branch?: T;
+        showCustomerDetailsForBillingOrders?: T;
+        allowSkipCustomerDetailsForBillingOrders?: T;
         id?: T;
       };
   updatedAt?: T;

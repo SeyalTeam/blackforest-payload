@@ -49,5 +49,34 @@ export const AutomateGlobal: GlobalConfig = {
         },
       ],
     },
+    {
+      name: 'billingOrderCustomerDetailsByBranch',
+      label: 'Billing Customer Details by Branch',
+      type: 'array',
+      admin: {
+        description:
+          'Branch-wise control for showing customer details popup in billing cart orders.',
+      },
+      fields: [
+        {
+          name: 'branch',
+          type: 'relationship',
+          relationTo: 'branches',
+          required: true,
+        },
+        {
+          name: 'showCustomerDetailsForBillingOrders',
+          label: 'Show Customer Details for Billing Orders',
+          type: 'checkbox',
+          defaultValue: true,
+        },
+        {
+          name: 'allowSkipCustomerDetailsForBillingOrders',
+          label: 'Allow Skip in Customer Details Screen',
+          type: 'checkbox',
+          defaultValue: true,
+        },
+      ],
+    },
   ],
 }

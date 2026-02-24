@@ -47,32 +47,53 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
         showCustomerDetailsForTableOrders?: unknown
         allowSkipCustomerDetailsForTableOrders?: unknown
       }>
+      billingOrderCustomerDetailsByBranch?: Array<{
+        branch?: unknown
+        showCustomerDetailsForBillingOrders?: unknown
+        allowSkipCustomerDetailsForBillingOrders?: unknown
+      }>
     }
 
-    const rows = Array.isArray(automateSettings?.tableOrderCustomerDetailsByBranch)
+    const tableRows = Array.isArray(automateSettings?.tableOrderCustomerDetailsByBranch)
       ? automateSettings.tableOrderCustomerDetailsByBranch
       : []
 
-    const row = rows.find((candidate) => getRelationshipID(candidate?.branch) === branchID)
+    const tableRow = tableRows.find((candidate) => getRelationshipID(candidate?.branch) === branchID)
     const showCustomerDetailsForTableOrders =
-      typeof row?.showCustomerDetailsForTableOrders === 'boolean'
-        ? row.showCustomerDetailsForTableOrders
+      typeof tableRow?.showCustomerDetailsForTableOrders === 'boolean'
+        ? tableRow.showCustomerDetailsForTableOrders
         : true
     const allowSkipCustomerDetailsForTableOrders =
-      typeof row?.allowSkipCustomerDetailsForTableOrders === 'boolean'
-        ? row.allowSkipCustomerDetailsForTableOrders
+      typeof tableRow?.allowSkipCustomerDetailsForTableOrders === 'boolean'
+        ? tableRow.allowSkipCustomerDetailsForTableOrders
+        : true
+
+    const billingRows = Array.isArray(automateSettings?.billingOrderCustomerDetailsByBranch)
+      ? automateSettings.billingOrderCustomerDetailsByBranch
+      : []
+
+    const billingRow = billingRows.find((candidate) => getRelationshipID(candidate?.branch) === branchID)
+    const showCustomerDetailsForBillingOrders =
+      typeof billingRow?.showCustomerDetailsForBillingOrders === 'boolean'
+        ? billingRow.showCustomerDetailsForBillingOrders
+        : true
+    const allowSkipCustomerDetailsForBillingOrders =
+      typeof billingRow?.allowSkipCustomerDetailsForBillingOrders === 'boolean'
+        ? billingRow.allowSkipCustomerDetailsForBillingOrders
         : true
 
     return Response.json({
       branchId: branchID,
       showCustomerDetailsForTableOrders,
       allowSkipCustomerDetailsForTableOrders,
-      source: row ? 'branch-specific' : 'default',
+      showCustomerDetailsForBillingOrders,
+      allowSkipCustomerDetailsForBillingOrders,
+      source: tableRow || billingRow ? 'branch-specific' : 'default',
     })
   } catch (error) {
     req.payload.logger.error(error)
     return Response.json(
-      { message: 'Failed to resolve table customer details visibility' },
+      { message: 'Failed to resolve customer details visibility' },
       { status: 500 },
     )
   }
