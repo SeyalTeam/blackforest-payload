@@ -11,6 +11,7 @@ import {
   Loader2,
   UserRound,
   Save,
+  Trash2,
 } from 'lucide-react'
 import Select from 'react-select'
 import DatePicker from 'react-datepicker'
@@ -24,6 +25,7 @@ type TableCustomerDetailsRow = {
   id?: string
   branch?: string | { id?: string; name?: string } | null
   showCustomerDetailsForTableOrders?: boolean | null
+  allowSkipCustomerDetailsForTableOrders?: boolean | null
 }
 
 type AutomateSettingsGlobal = {
@@ -73,6 +75,7 @@ const AutomateSettings: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [savingCustomerSetting, setSavingCustomerSetting] = useState(false)
+  const [removingBranchID, setRemovingBranchID] = useState<string | null>(null)
   const [branches, setBranches] = useState<Branch[]>([])
   const [tableOrderCustomerDetailsByBranch, setTableOrderCustomerDetailsByBranch] = useState<
     TableCustomerDetailsRow[]
@@ -92,6 +95,10 @@ const AutomateSettings: React.FC = () => {
     null,
   )
   const [customerDetailsVisibility, setCustomerDetailsVisibility] = useState<Option>({
+    value: 'enabled',
+    label: 'Enabled',
+  })
+  const [skipCustomerDetailsVisibility, setSkipCustomerDetailsVisibility] = useState<Option>({
     value: 'enabled',
     label: 'Enabled',
   })
@@ -127,6 +134,8 @@ const AutomateSettings: React.FC = () => {
           branchID,
           branchName: branchNameByID.get(branchID) || branchID,
           showCustomerDetailsForTableOrders: row.showCustomerDetailsForTableOrders !== false,
+          allowSkipCustomerDetailsForTableOrders:
+            row.allowSkipCustomerDetailsForTableOrders !== false,
         }
       })
       .filter(
@@ -136,6 +145,7 @@ const AutomateSettings: React.FC = () => {
           branchID: string
           branchName: string
           showCustomerDetailsForTableOrders: boolean
+          allowSkipCustomerDetailsForTableOrders: boolean
         } => row !== null,
       )
       .sort((a, b) => a.branchName.localeCompare(b.branchName))
@@ -205,6 +215,7 @@ const AutomateSettings: React.FC = () => {
   useEffect(() => {
     if (!selectedCustomerDetailsBranch) {
       setCustomerDetailsVisibility({ value: 'enabled', label: 'Enabled' })
+      setSkipCustomerDetailsVisibility({ value: 'enabled', label: 'Enabled' })
       return
     }
 
@@ -212,9 +223,52 @@ const AutomateSettings: React.FC = () => {
     const row = tableOrderCustomerDetailsByBranch.find(
       (candidate) => getRelationshipID(candidate.branch) === branchID,
     )
-    const isEnabled = row?.showCustomerDetailsForTableOrders !== false
-    setCustomerDetailsVisibility(isEnabled ? visibilityOptions[0] : visibilityOptions[1])
+    const isPopupEnabled = row?.showCustomerDetailsForTableOrders !== false
+    const isSkipEnabled = row?.allowSkipCustomerDetailsForTableOrders !== false
+    setCustomerDetailsVisibility(isPopupEnabled ? visibilityOptions[0] : visibilityOptions[1])
+    setSkipCustomerDetailsVisibility(isSkipEnabled ? visibilityOptions[0] : visibilityOptions[1])
   }, [selectedCustomerDetailsBranch, tableOrderCustomerDetailsByBranch, visibilityOptions])
+
+  const persistTableCustomerSettings = async (
+    rows: TableCustomerDetailsRow[],
+  ): Promise<TableCustomerDetailsRow[]> => {
+    const payloadData = {
+      tableOrderCustomerDetailsByBranch: rows,
+    }
+
+    let response: Response | null = null
+    let methodsTried = 0
+    for (const method of ['POST', 'PATCH']) {
+      methodsTried += 1
+      const attemptedResponse = await fetch('/api/globals/automate-settings', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payloadData),
+      })
+      if (attemptedResponse.ok) {
+        response = attemptedResponse
+        break
+      }
+      if (![404, 405].includes(attemptedResponse.status)) {
+        response = attemptedResponse
+        break
+      }
+      if (methodsTried === 2) {
+        response = attemptedResponse
+      }
+    }
+
+    if (!response) {
+      throw new Error('Failed to update automate settings')
+    }
+
+    const json = await response.json()
+    if (!response.ok) {
+      throw new Error(json?.message || 'Failed to update settings')
+    }
+
+    return json.tableOrderCustomerDetailsByBranch || rows
+  }
 
   const saveCustomerDetailsSetting = async () => {
     if (!selectedCustomerDetailsBranch) {
@@ -225,59 +279,27 @@ const AutomateSettings: React.FC = () => {
     setSavingCustomerSetting(true)
     try {
       const branchID = selectedCustomerDetailsBranch.value
-      const isEnabled = customerDetailsVisibility.value === 'enabled'
+      const isPopupEnabled = customerDetailsVisibility.value === 'enabled'
+      const isSkipEnabled = skipCustomerDetailsVisibility.value === 'enabled'
 
-      const nextRows = tableOrderCustomerDetailsByBranch.map((row) => ({
+      const normalizedRows = tableOrderCustomerDetailsByBranch.map((row) => ({
         ...row,
         branch: getRelationshipID(row.branch) || row.branch,
       }))
 
-      const existingRowForBranch = nextRows.find(
+      const existingRowForBranch = normalizedRows.find(
         (row) => getRelationshipID(row.branch) === branchID,
       )
-      const dedupedRows = nextRows.filter((row) => getRelationshipID(row.branch) !== branchID)
+      const dedupedRows = normalizedRows.filter((row) => getRelationshipID(row.branch) !== branchID)
       dedupedRows.push({
         ...(existingRowForBranch?.id ? { id: existingRowForBranch.id } : {}),
         branch: branchID,
-        showCustomerDetailsForTableOrders: isEnabled,
+        showCustomerDetailsForTableOrders: isPopupEnabled,
+        allowSkipCustomerDetailsForTableOrders: isSkipEnabled,
       })
 
-      const payloadData = {
-        tableOrderCustomerDetailsByBranch: dedupedRows,
-      }
-
-      let response: Response | null = null
-      let methodsTried = 0
-      for (const method of ['POST', 'PATCH']) {
-        methodsTried += 1
-        const attemptedResponse = await fetch('/api/globals/automate-settings', {
-          method,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payloadData),
-        })
-        if (attemptedResponse.ok) {
-          response = attemptedResponse
-          break
-        }
-        if (![404, 405].includes(attemptedResponse.status)) {
-          response = attemptedResponse
-          break
-        }
-        if (methodsTried === 2) {
-          response = attemptedResponse
-        }
-      }
-
-      if (!response) {
-        throw new Error('Failed to update automate settings')
-      }
-
-      const json = await response.json()
-      if (!response.ok) {
-        throw new Error(json?.message || 'Failed to save customer details setting')
-      }
-
-      setTableOrderCustomerDetailsByBranch(json.tableOrderCustomerDetailsByBranch || dedupedRows)
+      const persistedRows = await persistTableCustomerSettings(dedupedRows)
+      setTableOrderCustomerDetailsByBranch(persistedRows)
       alert('Customer details setting updated')
       setIsCustomerDetailsModalOpen(false)
     } catch (error) {
@@ -285,6 +307,36 @@ const AutomateSettings: React.FC = () => {
       alert('Failed to save customer details setting')
     } finally {
       setSavingCustomerSetting(false)
+    }
+  }
+
+  const removeConfiguredBranch = async (branchID: string, branchName: string) => {
+    if (!confirm(`Remove "${branchName}" from configured branches?`)) {
+      return
+    }
+
+    setRemovingBranchID(branchID)
+    try {
+      const nextRows = tableOrderCustomerDetailsByBranch
+        .map((row) => ({
+          ...row,
+          branch: getRelationshipID(row.branch) || row.branch,
+        }))
+        .filter((row) => getRelationshipID(row.branch) !== branchID)
+
+      const updatedRows = await persistTableCustomerSettings(nextRows)
+      setTableOrderCustomerDetailsByBranch(updatedRows)
+
+      if (selectedCustomerDetailsBranch?.value === branchID) {
+        setSelectedCustomerDetailsBranch(null)
+      }
+
+      alert('Branch removed from configured list')
+    } catch (error) {
+      console.error('Failed to remove branch from configured list:', error)
+      alert('Failed to remove branch')
+    } finally {
+      setRemovingBranchID(null)
     }
   }
 
@@ -455,6 +507,21 @@ const AutomateSettings: React.FC = () => {
                 />
               </div>
 
+              <div className="form-group">
+                <label>
+                  <ListFilter size={14} style={{ marginRight: 4 }} /> Allow Skip Button
+                </label>
+                <Select
+                  options={visibilityOptions}
+                  value={skipCustomerDetailsVisibility}
+                  onChange={(option) =>
+                    setSkipCustomerDetailsVisibility((option as Option) || visibilityOptions[0])
+                  }
+                  styles={customSelectStyles}
+                  isSearchable={false}
+                />
+              </div>
+
               <div className="configured-settings">
                 <h3>Configured Branches</h3>
                 {configuredRows.length === 0 ? (
@@ -464,15 +531,41 @@ const AutomateSettings: React.FC = () => {
                     {configuredRows.map((row) => (
                       <div className="configured-row" key={row.branchID}>
                         <span className="branch-name">{row.branchName}</span>
-                        <span
-                          className={
-                            row.showCustomerDetailsForTableOrders
-                              ? 'status-badge status-enabled'
-                              : 'status-badge status-disabled'
-                          }
-                        >
-                          {row.showCustomerDetailsForTableOrders ? 'Enabled' : 'Disabled'}
-                        </span>
+                        <div className="row-controls">
+                          <div className="status-group">
+                            <span
+                              className={
+                                row.showCustomerDetailsForTableOrders
+                                  ? 'status-badge status-enabled'
+                                  : 'status-badge status-disabled'
+                              }
+                            >
+                              Popup: {row.showCustomerDetailsForTableOrders ? 'Enabled' : 'Disabled'}
+                            </span>
+                            <span
+                              className={
+                                row.allowSkipCustomerDetailsForTableOrders
+                                  ? 'status-badge status-enabled'
+                                  : 'status-badge status-disabled'
+                              }
+                            >
+                              Skip: {row.allowSkipCustomerDetailsForTableOrders ? 'Enabled' : 'Disabled'}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            className="remove-row-btn"
+                            onClick={() => removeConfiguredBranch(row.branchID, row.branchName)}
+                            disabled={Boolean(removingBranchID)}
+                          >
+                            {removingBranchID === row.branchID ? (
+                              <Loader2 className="animate-spin" size={14} />
+                            ) : (
+                              <Trash2 size={14} />
+                            )}
+                            Remove
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

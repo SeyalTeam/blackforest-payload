@@ -45,6 +45,7 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
       tableOrderCustomerDetailsByBranch?: Array<{
         branch?: unknown
         showCustomerDetailsForTableOrders?: unknown
+        allowSkipCustomerDetailsForTableOrders?: unknown
       }>
     }
 
@@ -57,10 +58,15 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
       typeof row?.showCustomerDetailsForTableOrders === 'boolean'
         ? row.showCustomerDetailsForTableOrders
         : true
+    const allowSkipCustomerDetailsForTableOrders =
+      typeof row?.allowSkipCustomerDetailsForTableOrders === 'boolean'
+        ? row.allowSkipCustomerDetailsForTableOrders
+        : true
 
     return Response.json({
       branchId: branchID,
       showCustomerDetailsForTableOrders,
+      allowSkipCustomerDetailsForTableOrders,
       source: row ? 'branch-specific' : 'default',
     })
   } catch (error) {
@@ -71,4 +77,3 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
     )
   }
 }
-

@@ -213,6 +213,7 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
+        gap: 0.75rem;
         background: #18181b;
         border: 1px solid #27272a;
         border-radius: 0.5rem;
@@ -222,6 +223,48 @@
           color: #e4e4e7;
           font-size: 0.9rem;
           font-weight: 500;
+        }
+
+        .status-group {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 0.4rem;
+          flex-wrap: wrap;
+        }
+
+        .row-controls {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 0.5rem;
+          flex-wrap: wrap;
+        }
+
+        .remove-row-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          border: 1px solid rgba(239, 68, 68, 0.4);
+          background: rgba(239, 68, 68, 0.12);
+          color: #fca5a5;
+          border-radius: 0.45rem;
+          padding: 0.3rem 0.55rem;
+          font-size: 0.75rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+
+          &:hover {
+            background: rgba(239, 68, 68, 0.18);
+            border-color: rgba(239, 68, 68, 0.65);
+            color: #fecaca;
+          }
+
+          &:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+          }
         }
       }
 

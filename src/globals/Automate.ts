@@ -41,6 +41,12 @@ export const AutomateGlobal: GlobalConfig = {
           type: 'checkbox',
           defaultValue: true,
         },
+        {
+          name: 'allowSkipCustomerDetailsForTableOrders',
+          label: 'Allow Skip in Customer Details Screen',
+          type: 'checkbox',
+          defaultValue: true,
+        },
       ],
     },
   ],

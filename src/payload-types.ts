@@ -1802,6 +1802,7 @@ export interface AutomateSetting {
     | {
         branch: string | Branch;
         showCustomerDetailsForTableOrders?: boolean | null;
+        allowSkipCustomerDetailsForTableOrders?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -2658,6 +2659,7 @@ export interface AutomateSettingsSelect<T extends boolean = true> {
     | {
         branch?: T;
         showCustomerDetailsForTableOrders?: T;
+        allowSkipCustomerDetailsForTableOrders?: T;
         id?: T;
       };
   updatedAt?: T;
