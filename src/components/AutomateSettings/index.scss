@@ -184,6 +184,66 @@
       grid-template-columns: 1fr 1fr;
       gap: 1rem;
     }
+
+    .configured-settings {
+      margin-top: 1.5rem;
+      border-top: 1px solid #27272a;
+      padding-top: 1rem;
+
+      h3 {
+        margin: 0 0 0.75rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #e4e4e7;
+      }
+
+      .empty-state {
+        margin: 0;
+        color: #71717a;
+        font-size: 0.9rem;
+      }
+
+      .configured-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+      }
+
+      .configured-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #18181b;
+        border: 1px solid #27272a;
+        border-radius: 0.5rem;
+        padding: 0.6rem 0.75rem;
+
+        .branch-name {
+          color: #e4e4e7;
+          font-size: 0.9rem;
+          font-weight: 500;
+        }
+      }
+
+      .status-badge {
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.2rem 0.5rem;
+        border-radius: 999px;
+      }
+
+      .status-enabled {
+        color: #22c55e;
+        background: rgba(34, 197, 94, 0.12);
+        border: 1px solid rgba(34, 197, 94, 0.3);
+      }
+
+      .status-disabled {
+        color: #f97316;
+        background: rgba(249, 115, 22, 0.12);
+        border: 1px solid rgba(249, 115, 22, 0.3);
+      }
+    }
   }
 
   .modal-footer {

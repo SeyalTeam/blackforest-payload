@@ -64,6 +64,7 @@ import Kitchens from './collections/Kitchens'
 import Attendance from './collections/Attendance'
 import { AutomateGlobal } from './globals/Automate'
 import { createAutomatedOrderHandler } from './endpoints/createAutomatedOrder'
+import { getTableCustomerDetailsVisibilityHandler } from './endpoints/getTableCustomerDetailsVisibility'
 import { getReportBranchesHandler } from './endpoints/getReportBranches'
 import { CustomerOfferSettings } from './globals/CustomerOfferSettings'
 import APKFiles from './collections/APKFiles'
@@ -229,6 +230,11 @@ export default buildConfig({
       path: '/automate/create-order',
       method: 'post',
       handler: createAutomatedOrderHandler,
+    },
+    {
+      path: '/automate/table-customer-details-visibility',
+      method: 'get',
+      handler: getTableCustomerDetailsVisibilityHandler,
     },
     {
       path: '/app-download/latest.apk',

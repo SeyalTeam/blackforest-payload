@@ -18,7 +18,14 @@ const APKFiles: CollectionConfig = {
   },
   upload: {
     staticDir: 'uploads/apk',
-    mimeTypes: ['application/vnd.android.package-archive', 'application/octet-stream'],
+    // Different OS/browser combinations can report APK files with different mime types.
+    // Keep this broad enough so file pickers do not disable valid .apk files.
+    mimeTypes: [
+      'application/vnd.android.package-archive',
+      'application/octet-stream',
+      'application/zip',
+      'application/x-zip-compressed',
+    ],
   },
   fields: [],
 }

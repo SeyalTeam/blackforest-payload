@@ -1795,6 +1795,16 @@ export interface NetworkStatus {
  */
 export interface AutomateSetting {
   id: string;
+  /**
+   * Branch-wise control for showing customer details popup in table orders.
+   */
+  tableOrderCustomerDetailsByBranch?:
+    | {
+        branch: string | Branch;
+        showCustomerDetailsForTableOrders?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2643,6 +2653,13 @@ export interface NetworkStatusSelect<T extends boolean = true> {
  * via the `definition` "automate-settings_select".
  */
 export interface AutomateSettingsSelect<T extends boolean = true> {
+  tableOrderCustomerDetailsByBranch?:
+    | T
+    | {
+        branch?: T;
+        showCustomerDetailsForTableOrders?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

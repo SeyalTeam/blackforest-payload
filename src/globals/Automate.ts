@@ -19,5 +19,29 @@ export const AutomateGlobal: GlobalConfig = {
     read: () => true,
     update: ({ req }) => req.user?.role === 'superadmin',
   },
-  fields: [],
+  fields: [
+    {
+      name: 'tableOrderCustomerDetailsByBranch',
+      label: 'Table Order Customer Details by Branch',
+      type: 'array',
+      admin: {
+        description:
+          'Branch-wise control for showing customer details popup in table orders.',
+      },
+      fields: [
+        {
+          name: 'branch',
+          type: 'relationship',
+          relationTo: 'branches',
+          required: true,
+        },
+        {
+          name: 'showCustomerDetailsForTableOrders',
+          label: 'Show Customer Details for Table Orders',
+          type: 'checkbox',
+          defaultValue: true,
+        },
+      ],
+    },
+  ],
 }

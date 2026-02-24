@@ -203,6 +203,49 @@ const isTableOrderBill = (
   return hasTableOrderValue(section) || hasTableOrderValue(tableNumber)
 }
 
+const getBranchIDFromBillingData = (
+  data: { branch?: unknown } | null,
+  originalDoc?: { branch?: unknown } | null,
+): string | null => {
+  return getRelationshipID(data?.branch ?? originalDoc?.branch)
+}
+
+const shouldShowCustomerDetailsForTableOrders = async (
+  payload: Payload,
+  branchID: string | null,
+): Promise<boolean> => {
+  if (!branchID) return true
+
+  try {
+    const automateSettings = (await payload.findGlobal({
+      slug: 'automate-settings',
+      depth: 0,
+      overrideAccess: true,
+    })) as {
+      tableOrderCustomerDetailsByBranch?: Array<{
+        branch?: unknown
+        showCustomerDetailsForTableOrders?: unknown
+      }>
+    }
+
+    const rows = Array.isArray(automateSettings?.tableOrderCustomerDetailsByBranch)
+      ? automateSettings.tableOrderCustomerDetailsByBranch
+      : []
+
+    const branchRow = rows.find((row) => getRelationshipID(row?.branch) === branchID)
+    if (branchRow && typeof branchRow.showCustomerDetailsForTableOrders === 'boolean') {
+      return branchRow.showCustomerDetailsForTableOrders
+    }
+  } catch (error) {
+    console.error('[Billings hook] Failed to fetch automate customer detail setting.', {
+      branchID,
+      error,
+    })
+  }
+
+  return true
+}
+
 const isOfferAllowedByOrderType = (
   isTableOrder: boolean,
   allowForTableOrders: boolean,
@@ -1062,12 +1105,24 @@ const Billings: CollectionConfig = {
         // 🪑 Map table details from Flutter app (top-level section/tableNumber) to nested group
         const rawData = data as any
         const hasTableDetails = isTableOrderBill(data as any, originalDoc as any)
+        const branchID = getBranchIDFromBillingData(data as any, originalDoc as any)
 
         if (rawData.section || rawData.tableNumber) {
           data.tableDetails = {
             ...data.tableDetails,
             section: rawData.section || data.tableDetails?.section,
             tableNumber: rawData.tableNumber || data.tableDetails?.tableNumber,
+          }
+        }
+
+        if (operation === 'create' && hasTableDetails) {
+          const showCustomerDetails = await shouldShowCustomerDetailsForTableOrders(
+            req.payload,
+            branchID,
+          )
+
+          if (!showCustomerDetails) {
+            data.customerDetails = undefined
           }
         }
 
@@ -1119,11 +1174,11 @@ const Billings: CollectionConfig = {
 
         if (operation === 'create') {
           // 🏢 Auto-set company from branch early to pass validation
-          const branchId = data.branch
+          const branchId = branchID
           if (branchId) {
             const branch = await req.payload.findByID({
               collection: 'branches',
-              id: typeof branchId === 'object' ? branchId.id : branchId,
+              id: branchId,
               depth: 0,
             })
             if (branch?.company) {
@@ -1242,6 +1297,7 @@ const Billings: CollectionConfig = {
 
         const mutableData = data as { items?: BillingItemInput[]; status?: string }
         const isTableOrder = isTableOrderBill(data as any, originalDoc as any)
+
         if (Array.isArray(mutableData.items)) {
           const effectiveStatus = mutableData.status || originalDoc?.status || 'ordered'
           const customerPhoneNumber =
