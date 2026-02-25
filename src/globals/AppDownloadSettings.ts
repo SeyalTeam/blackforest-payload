@@ -1,11 +1,24 @@
-import type { GlobalAfterChangeHook, GlobalBeforeValidateHook, GlobalConfig } from 'payload'
+import type {
+  GlobalAfterChangeHook,
+  GlobalAfterReadHook,
+  GlobalBeforeValidateHook,
+  GlobalConfig,
+  PayloadRequest,
+} from 'payload'
 
 export const APP_DOWNLOAD_BASE_PATH = '/api/app-download'
+const DEFAULT_APP_DOWNLOAD_DOMAIN = 'http://localhost:3000'
 
 const canUpdateAppDownloadSettings = (role?: string): boolean =>
   ['superadmin', 'admin'].includes(role || '')
 
 const normalizeText = (value: unknown): string => (typeof value === 'string' ? value.trim() : '')
+
+const getFirstCommaSeparatedValue = (value: string | null): string =>
+  (value || '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)[0] || ''
 
 const normalizeAppKey = (value: unknown): string =>
   normalizeText(value)
@@ -13,6 +26,51 @@ const normalizeAppKey = (value: unknown): string =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-+|-+$/g, '')
+
+const toOrigin = (value: string): string => {
+  const input = normalizeText(value)
+  if (!input) return ''
+
+  try {
+    return new URL(input).origin
+  } catch (_error) {
+    try {
+      return new URL(`https://${input}`).origin
+    } catch (_nestedError) {
+      return ''
+    }
+  }
+}
+
+const resolveAppDownloadBaseURL = (req?: PayloadRequest): string => {
+  if (!req) return DEFAULT_APP_DOWNLOAD_DOMAIN
+
+  const serverURL = toOrigin(normalizeText(req.payload?.config?.serverURL))
+  if (serverURL) return serverURL
+
+  const forwardedProto = getFirstCommaSeparatedValue(req.headers.get('x-forwarded-proto')).toLowerCase()
+  const forwardedHost = getFirstCommaSeparatedValue(req.headers.get('x-forwarded-host'))
+  const host = forwardedHost || getFirstCommaSeparatedValue(req.headers.get('host'))
+
+  if (host) {
+    const protocol =
+      forwardedProto || (host.includes('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https')
+    const fromHeaders = toOrigin(`${protocol}://${host}`)
+    if (fromHeaders) return fromHeaders
+  }
+
+  const fromRequestURL = toOrigin(normalizeText(req.url))
+  return fromRequestURL || DEFAULT_APP_DOWNLOAD_DOMAIN
+}
+
+const buildAbsoluteDownloadURL = (baseURL: string, appKey: string): string => {
+  const normalizedBaseURL = toOrigin(baseURL)
+  const downloadPath = `${APP_DOWNLOAD_BASE_PATH}/${appKey}.apk`
+
+  if (!normalizedBaseURL) return downloadPath
+
+  return new URL(downloadPath, `${normalizedBaseURL}/`).toString()
+}
 
 const buildUniqueKey = (baseSeed: string, usedKeys: Set<string>, fallbackIndex: number): string => {
   const normalizedBase = normalizeAppKey(baseSeed) || `app-${fallbackIndex + 1}`
@@ -58,7 +116,7 @@ const extractAPKIDsFromRows = (rows: unknown): Set<string> => {
   return ids
 }
 
-const normalizeAppsBeforeSave: GlobalBeforeValidateHook = async ({ data, originalDoc }) => {
+const normalizeAppsBeforeSave: GlobalBeforeValidateHook = async ({ data, originalDoc, req }) => {
   const rawApps = Array.isArray((data as { apps?: unknown[] } | null)?.apps)
     ? (((data as { apps?: unknown[] }).apps || []) as unknown[])
     : []
@@ -79,6 +137,8 @@ const normalizeAppsBeforeSave: GlobalBeforeValidateHook = async ({ data, origina
 
   const usedKeys = new Set<string>()
 
+  const baseURL = resolveAppDownloadBaseURL(req)
+
   const normalizedApps = rawApps.map((rawRow, index) => {
     const row = (rawRow || {}) as Record<string, unknown>
     const appName = normalizeText(row.appName)
@@ -94,13 +154,37 @@ const normalizeAppsBeforeSave: GlobalBeforeValidateHook = async ({ data, origina
       ...row,
       appName,
       appKey,
-      downloadURL: `${APP_DOWNLOAD_BASE_PATH}/${appKey}.apk`,
+      downloadURL: buildAbsoluteDownloadURL(baseURL, appKey),
     }
   })
 
   return {
     ...(data || {}),
     apps: normalizedApps,
+  }
+}
+
+const hydrateAbsoluteDownloadURLsAfterRead: GlobalAfterReadHook = async ({ doc, req }) => {
+  const rawApps = Array.isArray((doc as { apps?: unknown[] } | null)?.apps)
+    ? (((doc as { apps?: unknown[] }).apps || []) as unknown[])
+    : []
+
+  if (!rawApps.length) return doc
+
+  const baseURL = resolveAppDownloadBaseURL(req)
+  const appsWithAbsoluteURL = rawApps.map((rawRow, index) => {
+    const row = (rawRow || {}) as Record<string, unknown>
+    const appKey = normalizeAppKey(row.appKey) || normalizeAppKey(row.appName) || `app-${index + 1}`
+
+    return {
+      ...row,
+      downloadURL: buildAbsoluteDownloadURL(baseURL, appKey),
+    }
+  })
+
+  return {
+    ...(doc as Record<string, unknown>),
+    apps: appsWithAbsoluteURL,
   }
 }
 
@@ -141,6 +225,7 @@ export const AppDownloadSettings: GlobalConfig = {
   },
   hooks: {
     beforeValidate: [normalizeAppsBeforeSave],
+    afterRead: [hydrateAbsoluteDownloadURLsAfterRead],
     afterChange: [cleanupOldAPKFiles],
   },
   fields: [
