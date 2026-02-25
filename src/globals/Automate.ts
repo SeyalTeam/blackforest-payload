@@ -1,8 +1,8 @@
 import { GlobalConfig } from 'payload'
 
 export const AutomateGlobal: GlobalConfig = {
-  slug: 'automate-settings',
-  label: 'Automate',
+  slug: 'widget-settings',
+  label: 'Widgets',
   admin: {
     group: 'Settings',
     components: {

@@ -38,7 +38,7 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
     }
 
     const automateSettings = (await req.payload.findGlobal({
-      slug: 'automate-settings',
+      slug: 'widget-settings',
       depth: 0,
       overrideAccess: true,
     })) as {

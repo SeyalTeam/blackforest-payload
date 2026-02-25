@@ -139,7 +139,7 @@ export interface Config {
     'return-order-report': ReturnOrderReport;
     'branch-geo-settings': BranchGeoSetting;
     'network-status': NetworkStatus;
-    'automate-settings': AutomateSetting;
+    'widget-settings': WidgetSetting;
     'customer-offer-settings': CustomerOfferSetting;
     'app-download-settings': AppDownloadSetting;
   };
@@ -160,7 +160,7 @@ export interface Config {
     'return-order-report': ReturnOrderReportSelect<false> | ReturnOrderReportSelect<true>;
     'branch-geo-settings': BranchGeoSettingsSelect<false> | BranchGeoSettingsSelect<true>;
     'network-status': NetworkStatusSelect<false> | NetworkStatusSelect<true>;
-    'automate-settings': AutomateSettingsSelect<false> | AutomateSettingsSelect<true>;
+    'widget-settings': WidgetSettingsSelect<false> | WidgetSettingsSelect<true>;
     'customer-offer-settings': CustomerOfferSettingsSelect<false> | CustomerOfferSettingsSelect<true>;
     'app-download-settings': AppDownloadSettingsSelect<false> | AppDownloadSettingsSelect<true>;
   };
@@ -1791,9 +1791,9 @@ export interface NetworkStatus {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "automate-settings".
+ * via the `definition` "widget-settings".
  */
-export interface AutomateSetting {
+export interface WidgetSetting {
   id: string;
   /**
    * Branch-wise control for showing customer details popup in table orders.
@@ -2662,9 +2662,9 @@ export interface NetworkStatusSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "automate-settings_select".
+ * via the `definition` "widget-settings_select".
  */
-export interface AutomateSettingsSelect<T extends boolean = true> {
+export interface WidgetSettingsSelect<T extends boolean = true> {
   tableOrderCustomerDetailsByBranch?:
     | T
     | {

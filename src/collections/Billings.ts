@@ -218,7 +218,7 @@ const shouldShowCustomerDetailsForTableOrders = async (
 
   try {
     const automateSettings = (await payload.findGlobal({
-      slug: 'automate-settings',
+      slug: 'widget-settings',
       depth: 0,
       overrideAccess: true,
     })) as {
@@ -1126,8 +1126,9 @@ const Billings: CollectionConfig = {
           }
         }
 
-        // 🎯 Ensure default status for table/KOT orders
-        if (hasTableDetails && (!data.status || data.status === 'pending')) {
+        // 🎯 Ensure default status for table/KOT orders on create only.
+        // Do not force-reset status during updates that omit `status` (e.g. item-only updates).
+        if (operation === 'create' && hasTableDetails && (!data.status || data.status === 'pending')) {
           data.status = 'ordered'
         }
 

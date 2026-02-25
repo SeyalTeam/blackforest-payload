@@ -40,6 +40,8 @@ type AutomateSettingsGlobal = {
   billingOrderCustomerDetailsByBranch?: BillingCustomerDetailsRow[] | null
 }
 
+type WidgetKey = 'stock-order' | 'table-customer-details' | 'billing-customer-details'
+
 const getRelationshipID = (value: unknown): string | null => {
   if (typeof value === 'string' && value.trim().length > 0) return value
   if (
@@ -78,9 +80,7 @@ const CustomDateInput = React.forwardRef<
 CustomDateInput.displayName = 'CustomDateInput'
 
 const AutomateSettings: React.FC = () => {
-  const [isStockOrderModalOpen, setIsStockOrderModalOpen] = useState(false)
-  const [isTableCustomerDetailsModalOpen, setIsTableCustomerDetailsModalOpen] = useState(false)
-  const [isBillingCustomerDetailsModalOpen, setIsBillingCustomerDetailsModalOpen] = useState(false)
+  const [activeWidget, setActiveWidget] = useState<WidgetKey | null>(null)
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [savingTableCustomerSetting, setSavingTableCustomerSetting] = useState(false)
@@ -209,7 +209,7 @@ const AutomateSettings: React.FC = () => {
       try {
         const [branchesResponse, settingsResponse] = await Promise.all([
           fetch('/api/branches?limit=1000&sort=name'),
-          fetch('/api/globals/automate-settings?depth=0'),
+          fetch('/api/globals/widget-settings?depth=0'),
         ])
 
         const branchesJSON = await branchesResponse.json()
@@ -252,7 +252,6 @@ const AutomateSettings: React.FC = () => {
       const json = await res.json()
       if (res.ok) {
         alert(`Order created successfully! Invoice: ${json.invoiceNumber}`)
-        setIsStockOrderModalOpen(false)
         setMessage('')
       } else {
         alert(`Error: ${json.message}`)
@@ -315,7 +314,7 @@ const AutomateSettings: React.FC = () => {
     let methodsTried = 0
     for (const method of ['POST', 'PATCH']) {
       methodsTried += 1
-      const attemptedResponse = await fetch('/api/globals/automate-settings', {
+      const attemptedResponse = await fetch('/api/globals/widget-settings', {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payloadData),
@@ -381,7 +380,6 @@ const AutomateSettings: React.FC = () => {
         persistedSettings.billingOrderCustomerDetailsByBranch || billingOrderCustomerDetailsByBranch,
       )
       alert('Table customer details setting updated')
-      setIsTableCustomerDetailsModalOpen(false)
     } catch (error) {
       console.error('Failed to save table customer details setting:', error)
       alert('Failed to save table customer details setting')
@@ -461,7 +459,6 @@ const AutomateSettings: React.FC = () => {
         persistedSettings.billingOrderCustomerDetailsByBranch || dedupedRows,
       )
       alert('Billing customer details setting updated')
-      setIsBillingCustomerDetailsModalOpen(false)
     } catch (error) {
       console.error('Failed to save billing customer details setting:', error)
       alert('Failed to save billing customer details setting')
@@ -532,369 +529,386 @@ const AutomateSettings: React.FC = () => {
   return (
     <div className="automate-settings">
       <div className="header">
-        <h1>Automate</h1>
+        <h1>Widgets</h1>
         <p>Quickly execute automated tasks and workflows.</p>
       </div>
 
-      <div className="tiles-grid">
-        <div className="tile" onClick={() => setIsStockOrderModalOpen(true)}>
-          <Package className="tile-icon" size={48} />
-          <span className="tile-label">Stock Order</span>
+      <div className="widgets-layout">
+        <div className="tiles-grid">
+          <button
+            type="button"
+            className={`tile ${activeWidget === 'stock-order' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('stock-order')}
+          >
+            <Package className="tile-icon" size={48} />
+            <span className="tile-label">Stock Order</span>
+          </button>
+          <button
+            type="button"
+            className={`tile ${activeWidget === 'table-customer-details' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('table-customer-details')}
+          >
+            <UserRound className="tile-icon" size={48} />
+            <span className="tile-label">Table Customer Details</span>
+          </button>
+          <button
+            type="button"
+            className={`tile ${activeWidget === 'billing-customer-details' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('billing-customer-details')}
+          >
+            <UserRound className="tile-icon" size={48} />
+            <span className="tile-label">Billing Customer Details</span>
+          </button>
         </div>
-        <div className="tile" onClick={() => setIsTableCustomerDetailsModalOpen(true)}>
-          <UserRound className="tile-icon" size={48} />
-          <span className="tile-label">Table Customer Details</span>
-        </div>
-        <div className="tile" onClick={() => setIsBillingCustomerDetailsModalOpen(true)}>
-          <UserRound className="tile-icon" size={48} />
-          <span className="tile-label">Billing Customer Details</span>
-        </div>
-      </div>
 
-      {isStockOrderModalOpen && (
-        <div className="automate-modal-overlay" onClick={() => setIsStockOrderModalOpen(false)}>
-          <div className="automate-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Automate Stock Order</h2>
-              <button className="close-btn" onClick={() => setIsStockOrderModalOpen(false)}>
-                <X size={20} />
-              </button>
+        <div className="widget-panel">
+          {!activeWidget && (
+            <div className="panel-empty">
+              <h2>Select a widget</h2>
+              <p>Choose one of the widgets on the left to open it on this side.</p>
             </div>
+          )}
 
-            <div className="modal-body">
-              <div className="form-group">
-                <label>
-                  <MapPin size={14} style={{ marginRight: 4 }} /> Branch
-                </label>
-                <Select
-                  options={branchOptions}
-                  value={selectedBranch}
-                  onChange={(option) => setSelectedBranch(option as Option | null)}
-                  styles={customSelectStyles}
-                  placeholder="Select Branch..."
-                  isLoading={loading}
-                />
+          {activeWidget === 'stock-order' && (
+            <div className="automate-modal">
+              <div className="modal-header">
+                <h2>Stock Order</h2>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
               </div>
 
-              <div className="form-row">
+              <div className="modal-body">
                 <div className="form-group">
                   <label>
-                    <Calendar size={14} style={{ marginRight: 4 }} /> Delivery Date
-                  </label>
-                  <DatePicker
-                    selected={deliveryDate}
-                    onChange={(date: Date | null) => setDeliveryDate(date || new Date())}
-                    className="custom-date-picker"
-                    dateFormat="yyyy-MM-dd"
-                    customInput={<CustomDateInput />}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>
-                    <ListFilter size={14} style={{ marginRight: 4 }} /> Order Type
+                    <MapPin size={14} style={{ marginRight: 4 }} /> Branch
                   </label>
                   <Select
-                    options={[
-                      { value: 'stock', label: 'Stock Order' },
-                      { value: 'live', label: 'Live Order' },
-                    ]}
-                    value={orderType}
-                    onChange={(option) => setOrderType((option as Option) || orderType)}
+                    options={branchOptions}
+                    value={selectedBranch}
+                    onChange={(option) => setSelectedBranch(option as Option | null)}
+                    styles={customSelectStyles}
+                    placeholder="Select Branch..."
+                    isLoading={loading}
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>
+                      <Calendar size={14} style={{ marginRight: 4 }} /> Delivery Date
+                    </label>
+                    <DatePicker
+                      selected={deliveryDate}
+                      onChange={(date: Date | null) => setDeliveryDate(date || new Date())}
+                      className="custom-date-picker"
+                      dateFormat="yyyy-MM-dd"
+                      customInput={<CustomDateInput />}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>
+                      <ListFilter size={14} style={{ marginRight: 4 }} /> Order Type
+                    </label>
+                    <Select
+                      options={[
+                        { value: 'stock', label: 'Stock Order' },
+                        { value: 'live', label: 'Live Order' },
+                      ]}
+                      value={orderType}
+                      onChange={(option) => setOrderType((option as Option) || orderType)}
+                      styles={customSelectStyles}
+                      isSearchable={false}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    <MessageSquare size={14} style={{ marginRight: 4 }} /> Order Details (Product Qty)
+                  </label>
+                  <textarea
+                    placeholder="Example:&#10;Veg puff 30&#10;Egg puff 20"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setActiveWidget(null)}>
+                  Close
+                </button>
+                <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
+                  {submitting ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Loader2 className="animate-spin" size={16} /> Creating...
+                    </span>
+                  ) : (
+                    'Create Order'
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeWidget === 'table-customer-details' && (
+            <div className="automate-modal">
+              <div className="modal-header">
+                <h2>Table Customer Details Setting</h2>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>
+                    <MapPin size={14} style={{ marginRight: 4 }} /> Branch
+                  </label>
+                  <Select
+                    options={branchOptions}
+                    value={selectedTableCustomerDetailsBranch}
+                    onChange={(option) => setSelectedTableCustomerDetailsBranch(option as Option | null)}
+                    styles={customSelectStyles}
+                    placeholder="Select Branch..."
+                    isLoading={loading}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    <ListFilter size={14} style={{ marginRight: 4 }} /> Show Customer Details Popup
+                  </label>
+                  <Select
+                    options={visibilityOptions}
+                    value={tableCustomerDetailsVisibility}
+                    onChange={(option) =>
+                      setTableCustomerDetailsVisibility((option as Option) || visibilityOptions[0])
+                    }
                     styles={customSelectStyles}
                     isSearchable={false}
                   />
                 </div>
-              </div>
 
-              <div className="form-group">
-                <label>
-                  <MessageSquare size={14} style={{ marginRight: 4 }} /> Order Details (Product Qty)
-                </label>
-                <textarea
-                  placeholder="Example:&#10;Veg puff 30&#10;Egg puff 20"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                />
-              </div>
-            </div>
+                <div className="form-group">
+                  <label>
+                    <ListFilter size={14} style={{ marginRight: 4 }} /> Allow Skip Button
+                  </label>
+                  <Select
+                    options={visibilityOptions}
+                    value={skipTableCustomerDetailsVisibility}
+                    onChange={(option) =>
+                      setSkipTableCustomerDetailsVisibility((option as Option) || visibilityOptions[0])
+                    }
+                    styles={customSelectStyles}
+                    isSearchable={false}
+                  />
+                </div>
 
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setIsStockOrderModalOpen(false)}>
-                Cancel
-              </button>
-              <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
-                {submitting ? (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Loader2 className="animate-spin" size={16} /> Creating...
-                  </span>
-                ) : (
-                  'Create Order'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isTableCustomerDetailsModalOpen && (
-        <div className="automate-modal-overlay" onClick={() => setIsTableCustomerDetailsModalOpen(false)}>
-          <div className="automate-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Table Customer Details Setting</h2>
-              <button className="close-btn" onClick={() => setIsTableCustomerDetailsModalOpen(false)}>
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="modal-body">
-              <div className="form-group">
-                <label>
-                  <MapPin size={14} style={{ marginRight: 4 }} /> Branch
-                </label>
-                <Select
-                  options={branchOptions}
-                  value={selectedTableCustomerDetailsBranch}
-                  onChange={(option) => setSelectedTableCustomerDetailsBranch(option as Option | null)}
-                  styles={customSelectStyles}
-                  placeholder="Select Branch..."
-                  isLoading={loading}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>
-                  <ListFilter size={14} style={{ marginRight: 4 }} /> Show Customer Details Popup
-                </label>
-                <Select
-                  options={visibilityOptions}
-                  value={tableCustomerDetailsVisibility}
-                  onChange={(option) =>
-                    setTableCustomerDetailsVisibility((option as Option) || visibilityOptions[0])
-                  }
-                  styles={customSelectStyles}
-                  isSearchable={false}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>
-                  <ListFilter size={14} style={{ marginRight: 4 }} /> Allow Skip Button
-                </label>
-                <Select
-                  options={visibilityOptions}
-                  value={skipTableCustomerDetailsVisibility}
-                  onChange={(option) =>
-                    setSkipTableCustomerDetailsVisibility((option as Option) || visibilityOptions[0])
-                  }
-                  styles={customSelectStyles}
-                  isSearchable={false}
-                />
-              </div>
-
-              <div className="configured-settings">
-                <h3>Configured Branches</h3>
-                {configuredTableRows.length === 0 ? (
-                  <p className="empty-state">No branch-specific setting saved yet.</p>
-                ) : (
-                  <div className="configured-list">
-                    {configuredTableRows.map((row) => (
-                      <div className="configured-row" key={row.branchID}>
-                        <span className="branch-name">{row.branchName}</span>
-                        <div className="row-controls">
-                          <div className="status-group">
-                            <span
-                              className={
-                                row.showCustomerDetailsForTableOrders
-                                  ? 'status-badge status-enabled'
-                                  : 'status-badge status-disabled'
-                              }
+                <div className="configured-settings">
+                  <h3>Configured Branches</h3>
+                  {configuredTableRows.length === 0 ? (
+                    <p className="empty-state">No branch-specific setting saved yet.</p>
+                  ) : (
+                    <div className="configured-list">
+                      {configuredTableRows.map((row) => (
+                        <div className="configured-row" key={row.branchID}>
+                          <span className="branch-name">{row.branchName}</span>
+                          <div className="row-controls">
+                            <div className="status-group">
+                              <span
+                                className={
+                                  row.showCustomerDetailsForTableOrders
+                                    ? 'status-badge status-enabled'
+                                    : 'status-badge status-disabled'
+                                }
+                              >
+                                Popup: {row.showCustomerDetailsForTableOrders ? 'Enabled' : 'Disabled'}
+                              </span>
+                              <span
+                                className={
+                                  row.allowSkipCustomerDetailsForTableOrders
+                                    ? 'status-badge status-enabled'
+                                    : 'status-badge status-disabled'
+                                }
+                              >
+                                Skip: {row.allowSkipCustomerDetailsForTableOrders ? 'Enabled' : 'Disabled'}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              className="remove-row-btn"
+                              onClick={() => removeTableConfiguredBranch(row.branchID, row.branchName)}
+                              disabled={Boolean(removingTableBranchID)}
                             >
-                              Popup: {row.showCustomerDetailsForTableOrders ? 'Enabled' : 'Disabled'}
-                            </span>
-                            <span
-                              className={
-                                row.allowSkipCustomerDetailsForTableOrders
-                                  ? 'status-badge status-enabled'
-                                  : 'status-badge status-disabled'
-                              }
-                            >
-                              Skip: {row.allowSkipCustomerDetailsForTableOrders ? 'Enabled' : 'Disabled'}
-                            </span>
+                              {removingTableBranchID === row.branchID ? (
+                                <Loader2 className="animate-spin" size={14} />
+                              ) : (
+                                <Trash2 size={14} />
+                              )}
+                              Remove
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            className="remove-row-btn"
-                            onClick={() => removeTableConfiguredBranch(row.branchID, row.branchName)}
-                            disabled={Boolean(removingTableBranchID)}
-                          >
-                            {removingTableBranchID === row.branchID ? (
-                              <Loader2 className="animate-spin" size={14} />
-                            ) : (
-                              <Trash2 size={14} />
-                            )}
-                            Remove
-                          </button>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setActiveWidget(null)}>
+                  Close
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={saveTableCustomerDetailsSetting}
+                  disabled={savingTableCustomerSetting || !selectedTableCustomerDetailsBranch}
+                >
+                  {savingTableCustomerSetting ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Loader2 className="animate-spin" size={16} /> Saving...
+                    </span>
+                  ) : (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Save size={16} /> Save Setting
+                    </span>
+                  )}
+                </button>
               </div>
             </div>
+          )}
 
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setIsTableCustomerDetailsModalOpen(false)}>
-                Cancel
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={saveTableCustomerDetailsSetting}
-                disabled={savingTableCustomerSetting || !selectedTableCustomerDetailsBranch}
-              >
-                {savingTableCustomerSetting ? (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Loader2 className="animate-spin" size={16} /> Saving...
-                  </span>
-                ) : (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Save size={16} /> Save Setting
-                  </span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isBillingCustomerDetailsModalOpen && (
-        <div className="automate-modal-overlay" onClick={() => setIsBillingCustomerDetailsModalOpen(false)}>
-          <div className="automate-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Billing Customer Details Setting</h2>
-              <button className="close-btn" onClick={() => setIsBillingCustomerDetailsModalOpen(false)}>
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="modal-body">
-              <div className="form-group">
-                <label>
-                  <MapPin size={14} style={{ marginRight: 4 }} /> Branch
-                </label>
-                <Select
-                  options={branchOptions}
-                  value={selectedBillingCustomerDetailsBranch}
-                  onChange={(option) => setSelectedBillingCustomerDetailsBranch(option as Option | null)}
-                  styles={customSelectStyles}
-                  placeholder="Select Branch..."
-                  isLoading={loading}
-                />
+          {activeWidget === 'billing-customer-details' && (
+            <div className="automate-modal">
+              <div className="modal-header">
+                <h2>Billing Customer Details Setting</h2>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
               </div>
 
-              <div className="form-group">
-                <label>
-                  <ListFilter size={14} style={{ marginRight: 4 }} /> Show Customer Details Popup
-                </label>
-                <Select
-                  options={visibilityOptions}
-                  value={billingCustomerDetailsVisibility}
-                  onChange={(option) =>
-                    setBillingCustomerDetailsVisibility((option as Option) || visibilityOptions[0])
-                  }
-                  styles={customSelectStyles}
-                  isSearchable={false}
-                />
-              </div>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>
+                    <MapPin size={14} style={{ marginRight: 4 }} /> Branch
+                  </label>
+                  <Select
+                    options={branchOptions}
+                    value={selectedBillingCustomerDetailsBranch}
+                    onChange={(option) => setSelectedBillingCustomerDetailsBranch(option as Option | null)}
+                    styles={customSelectStyles}
+                    placeholder="Select Branch..."
+                    isLoading={loading}
+                  />
+                </div>
 
-              <div className="form-group">
-                <label>
-                  <ListFilter size={14} style={{ marginRight: 4 }} /> Allow Skip Button
-                </label>
-                <Select
-                  options={visibilityOptions}
-                  value={skipBillingCustomerDetailsVisibility}
-                  onChange={(option) =>
-                    setSkipBillingCustomerDetailsVisibility((option as Option) || visibilityOptions[0])
-                  }
-                  styles={customSelectStyles}
-                  isSearchable={false}
-                />
-              </div>
+                <div className="form-group">
+                  <label>
+                    <ListFilter size={14} style={{ marginRight: 4 }} /> Show Customer Details Popup
+                  </label>
+                  <Select
+                    options={visibilityOptions}
+                    value={billingCustomerDetailsVisibility}
+                    onChange={(option) =>
+                      setBillingCustomerDetailsVisibility((option as Option) || visibilityOptions[0])
+                    }
+                    styles={customSelectStyles}
+                    isSearchable={false}
+                  />
+                </div>
 
-              <div className="configured-settings">
-                <h3>Configured Branches</h3>
-                {configuredBillingRows.length === 0 ? (
-                  <p className="empty-state">No branch-specific setting saved yet.</p>
-                ) : (
-                  <div className="configured-list">
-                    {configuredBillingRows.map((row) => (
-                      <div className="configured-row" key={row.branchID}>
-                        <span className="branch-name">{row.branchName}</span>
-                        <div className="row-controls">
-                          <div className="status-group">
-                            <span
-                              className={
-                                row.showCustomerDetailsForBillingOrders
-                                  ? 'status-badge status-enabled'
-                                  : 'status-badge status-disabled'
-                              }
+                <div className="form-group">
+                  <label>
+                    <ListFilter size={14} style={{ marginRight: 4 }} /> Allow Skip Button
+                  </label>
+                  <Select
+                    options={visibilityOptions}
+                    value={skipBillingCustomerDetailsVisibility}
+                    onChange={(option) =>
+                      setSkipBillingCustomerDetailsVisibility((option as Option) || visibilityOptions[0])
+                    }
+                    styles={customSelectStyles}
+                    isSearchable={false}
+                  />
+                </div>
+
+                <div className="configured-settings">
+                  <h3>Configured Branches</h3>
+                  {configuredBillingRows.length === 0 ? (
+                    <p className="empty-state">No branch-specific setting saved yet.</p>
+                  ) : (
+                    <div className="configured-list">
+                      {configuredBillingRows.map((row) => (
+                        <div className="configured-row" key={row.branchID}>
+                          <span className="branch-name">{row.branchName}</span>
+                          <div className="row-controls">
+                            <div className="status-group">
+                              <span
+                                className={
+                                  row.showCustomerDetailsForBillingOrders
+                                    ? 'status-badge status-enabled'
+                                    : 'status-badge status-disabled'
+                                }
+                              >
+                                Popup: {row.showCustomerDetailsForBillingOrders ? 'Enabled' : 'Disabled'}
+                              </span>
+                              <span
+                                className={
+                                  row.allowSkipCustomerDetailsForBillingOrders
+                                    ? 'status-badge status-enabled'
+                                    : 'status-badge status-disabled'
+                                }
+                              >
+                                Skip: {row.allowSkipCustomerDetailsForBillingOrders ? 'Enabled' : 'Disabled'}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              className="remove-row-btn"
+                              onClick={() => removeBillingConfiguredBranch(row.branchID, row.branchName)}
+                              disabled={Boolean(removingBillingBranchID)}
                             >
-                              Popup: {row.showCustomerDetailsForBillingOrders ? 'Enabled' : 'Disabled'}
-                            </span>
-                            <span
-                              className={
-                                row.allowSkipCustomerDetailsForBillingOrders
-                                  ? 'status-badge status-enabled'
-                                  : 'status-badge status-disabled'
-                              }
-                            >
-                              Skip: {row.allowSkipCustomerDetailsForBillingOrders ? 'Enabled' : 'Disabled'}
-                            </span>
+                              {removingBillingBranchID === row.branchID ? (
+                                <Loader2 className="animate-spin" size={14} />
+                              ) : (
+                                <Trash2 size={14} />
+                              )}
+                              Remove
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            className="remove-row-btn"
-                            onClick={() => removeBillingConfiguredBranch(row.branchID, row.branchName)}
-                            disabled={Boolean(removingBillingBranchID)}
-                          >
-                            {removingBillingBranchID === row.branchID ? (
-                              <Loader2 className="animate-spin" size={14} />
-                            ) : (
-                              <Trash2 size={14} />
-                            )}
-                            Remove
-                          </button>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setActiveWidget(null)}>
+                  Close
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={saveBillingCustomerDetailsSetting}
+                  disabled={savingBillingCustomerSetting || !selectedBillingCustomerDetailsBranch}
+                >
+                  {savingBillingCustomerSetting ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Loader2 className="animate-spin" size={16} /> Saving...
+                    </span>
+                  ) : (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Save size={16} /> Save Setting
+                    </span>
+                  )}
+                </button>
               </div>
             </div>
-
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setIsBillingCustomerDetailsModalOpen(false)}>
-                Cancel
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={saveBillingCustomerDetailsSetting}
-                disabled={savingBillingCustomerSetting || !selectedBillingCustomerDetailsBranch}
-              >
-                {savingBillingCustomerSetting ? (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Loader2 className="animate-spin" size={16} /> Saving...
-                  </span>
-                ) : (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Save size={16} /> Save Setting
-                  </span>
-                )}
-              </button>
-            </div>
-          </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
