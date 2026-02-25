@@ -2465,7 +2465,7 @@ export interface CustomerOfferSetting {
   allowCustomerEntryPercentageOfferOnBillings?: boolean | null;
   allowCustomerEntryPercentageOfferOnTableOrders?: boolean | null;
   /**
-   * Auto-applied when customer name/phone is entered. Example: 5 means 5% discount.
+   * Auto-applied to all eligible bills. Example: 5 means 5% discount.
    */
   customerEntryPercentageOfferPercent: number;
   /**

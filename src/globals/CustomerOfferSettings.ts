@@ -1631,7 +1631,7 @@ export const CustomerOfferSettings: GlobalConfig = {
       admin: {
         initCollapsed: true,
         description:
-          'Apply a percentage discount whenever customer details are entered (new or existing customer).',
+          'Apply a percentage discount on every eligible bill when enabled.',
       },
       fields: [
         {
@@ -1691,7 +1691,7 @@ export const CustomerOfferSettings: GlobalConfig = {
                       admin: {
                         width: '60%',
                         description:
-                          'Auto-applied when customer name/phone is entered. Example: 5 means 5% discount.',
+                          'Auto-applied to all eligible bills. Example: 5 means 5% discount.',
                       },
                     },
                     {

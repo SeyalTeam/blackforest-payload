@@ -1552,10 +1552,6 @@ const Billings: CollectionConfig = {
         if (effectiveStatus === 'completed') {
           const phoneNumber =
             pricingData.customerDetails?.phoneNumber || originalDoc?.customerDetails?.phoneNumber
-          const customerName = pricingData.customerDetails?.name || originalDoc?.customerDetails?.name
-          const hasCustomerContext =
-            (typeof phoneNumber === 'string' && phoneNumber.trim().length > 0) ||
-            (typeof customerName === 'string' && customerName.trim().length > 0)
 
           let settingsCache: CustomerRewardSettings | null = null
           const getSettings = async (): Promise<CustomerRewardSettings> => {
@@ -1656,36 +1652,32 @@ const Billings: CollectionConfig = {
             Math.max(0, pricingData.grossAmount - offerDiscount),
           )
 
-          if (!hasItemLevelOfferApplied && !offerApplied) {
-            if (originalCustomerEntryPercentageOfferWasApplied) {
-              customerEntryPercentageOfferApplied = true
-              customerEntryPercentageOfferDiscount = Math.min(
-                existingCustomerEntryPercentageOfferDiscount,
-                amountAfterCustomerOffer,
-              )
-            } else {
-              const settings = await getSettings()
-              const canUseCustomerEntryPercentageOffer = isOfferAllowedByOrderType(
-                isTableOrder,
-                settings.allowCustomerEntryPercentageOfferOnTableOrders,
-                settings.allowCustomerEntryPercentageOfferOnBillings,
-              )
-              const isWithinCustomerEntrySchedule =
-                isCustomerEntryPercentageOfferAvailableNow(settings)
+          if (originalCustomerEntryPercentageOfferWasApplied) {
+            customerEntryPercentageOfferApplied = true
+            customerEntryPercentageOfferDiscount = Math.min(
+              existingCustomerEntryPercentageOfferDiscount,
+              amountAfterCustomerOffer,
+            )
+          } else {
+            const settings = await getSettings()
+            const canUseCustomerEntryPercentageOffer = isOfferAllowedByOrderType(
+              isTableOrder,
+              settings.allowCustomerEntryPercentageOfferOnTableOrders,
+              settings.allowCustomerEntryPercentageOfferOnBillings,
+            )
+            const isWithinCustomerEntrySchedule = isCustomerEntryPercentageOfferAvailableNow(settings)
 
-              if (
-                settings.enableCustomerEntryPercentageOffer &&
-                settings.customerEntryPercentageOfferPercent > 0 &&
-                canUseCustomerEntryPercentageOffer &&
-                isWithinCustomerEntrySchedule &&
-                hasCustomerContext
-              ) {
-                const discountAmount = toMoneyValue(
-                  (amountAfterCustomerOffer * settings.customerEntryPercentageOfferPercent) / 100,
-                )
-                customerEntryPercentageOfferDiscount = Math.min(amountAfterCustomerOffer, discountAmount)
-                customerEntryPercentageOfferApplied = customerEntryPercentageOfferDiscount > 0
-              }
+            if (
+              settings.enableCustomerEntryPercentageOffer &&
+              settings.customerEntryPercentageOfferPercent > 0 &&
+              canUseCustomerEntryPercentageOffer &&
+              isWithinCustomerEntrySchedule
+            ) {
+              const discountAmount = toMoneyValue(
+                (amountAfterCustomerOffer * settings.customerEntryPercentageOfferPercent) / 100,
+              )
+              customerEntryPercentageOfferDiscount = Math.min(amountAfterCustomerOffer, discountAmount)
+              customerEntryPercentageOfferApplied = customerEntryPercentageOfferDiscount > 0
             }
           }
 
@@ -1693,7 +1685,7 @@ const Billings: CollectionConfig = {
             Math.max(0, amountAfterCustomerOffer - customerEntryPercentageOfferDiscount),
           )
 
-          if (!hasItemLevelOfferApplied && !offerApplied && !customerEntryPercentageOfferApplied) {
+          if (!hasItemLevelOfferApplied && !offerApplied) {
             if (originalTotalPercentageOfferWasApplied) {
               totalPercentageOfferApplied = true
               totalPercentageOfferDiscount = Math.min(
@@ -1754,6 +1746,33 @@ const Billings: CollectionConfig = {
                 }
               }
             }
+          }
+        }
+
+        // Preview Offer 6 before completion
+        if (
+          effectiveStatus !== 'completed' &&
+          effectiveStatus !== 'cancelled'
+        ) {
+          const settings = await getCustomerRewardSettings(req.payload)
+          const canUseCustomerEntryPercentageOffer = isOfferAllowedByOrderType(
+            isTableOrder,
+            settings.allowCustomerEntryPercentageOfferOnTableOrders,
+            settings.allowCustomerEntryPercentageOfferOnBillings,
+          )
+          const isWithinCustomerEntrySchedule = isCustomerEntryPercentageOfferAvailableNow(settings)
+
+          if (
+            settings.enableCustomerEntryPercentageOffer &&
+            settings.customerEntryPercentageOfferPercent > 0 &&
+            canUseCustomerEntryPercentageOffer &&
+            isWithinCustomerEntrySchedule
+          ) {
+            const discountAmount = toMoneyValue(
+              (pricingData.grossAmount * settings.customerEntryPercentageOfferPercent) / 100,
+            )
+            customerEntryPercentageOfferDiscount = Math.min(pricingData.grossAmount, discountAmount)
+            customerEntryPercentageOfferApplied = customerEntryPercentageOfferDiscount > 0
           }
         }
 
