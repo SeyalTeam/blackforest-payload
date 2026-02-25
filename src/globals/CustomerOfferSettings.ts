@@ -1625,5 +1625,231 @@ export const CustomerOfferSettings: GlobalConfig = {
         },
       ],
     },
+    {
+      type: 'collapsible',
+      label: 'Offer 6: Customer Entry Percentage Offer',
+      admin: {
+        initCollapsed: true,
+        description:
+          'Apply a percentage discount whenever customer details are entered (new or existing customer).',
+      },
+      fields: [
+        {
+          type: 'tabs',
+          tabs: [
+            {
+              label: 'Setup',
+              fields: [
+                {
+                  type: 'row',
+                  fields: [
+                    {
+                      name: 'enableCustomerEntryPercentageOffer',
+                      type: 'checkbox',
+                      label: 'Enable Customer Entry Percentage Offer',
+                      defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enableCustomerEntryPercentageOffer,
+                      admin: {
+                        width: '34%',
+                      },
+                    },
+                    {
+                      name: 'allowCustomerEntryPercentageOfferOnBillings',
+                      type: 'checkbox',
+                      label: 'Allow for Billings',
+                      defaultValue:
+                        DEFAULT_CUSTOMER_REWARD_SETTINGS.allowCustomerEntryPercentageOfferOnBillings,
+                      admin: {
+                        width: '33%',
+                      },
+                    },
+                    {
+                      name: 'allowCustomerEntryPercentageOfferOnTableOrders',
+                      type: 'checkbox',
+                      label: 'Allow for Table Orders',
+                      defaultValue:
+                        DEFAULT_CUSTOMER_REWARD_SETTINGS.allowCustomerEntryPercentageOfferOnTableOrders,
+                      admin: {
+                        width: '33%',
+                      },
+                    },
+                  ],
+                },
+                {
+                  type: 'row',
+                  admin: {
+                    condition: (data) => Boolean(data?.enableCustomerEntryPercentageOffer),
+                  },
+                  fields: [
+                    {
+                      name: 'customerEntryPercentageOfferPercent',
+                      type: 'number',
+                      required: true,
+                      min: 0.01,
+                      max: 100,
+                      defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.customerEntryPercentageOfferPercent,
+                      label: 'Discount Percentage (%)',
+                      admin: {
+                        width: '60%',
+                        description:
+                          'Auto-applied when customer name/phone is entered. Example: 5 means 5% discount.',
+                      },
+                    },
+                    {
+                      name: 'customerEntryPercentageOfferTimezone',
+                      type: 'text',
+                      required: true,
+                      defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.customerEntryPercentageOfferTimezone,
+                      label: 'Timezone',
+                      admin: {
+                        width: '40%',
+                        description: 'IANA timezone for schedule checks (e.g., Asia/Kolkata).',
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              label: 'Targeting & Schedule',
+              fields: [
+                {
+                  type: 'row',
+                  admin: {
+                    condition: (data) => Boolean(data?.enableCustomerEntryPercentageOffer),
+                  },
+                  fields: [
+                    {
+                      name: 'customerEntryPercentageOfferAvailableFromDate',
+                      type: 'date',
+                      label: 'Available From Date',
+                      admin: {
+                        width: '25%',
+                        date: {
+                          pickerAppearance: 'dayOnly',
+                        },
+                        description: 'Optional start date.',
+                      },
+                    },
+                    {
+                      name: 'customerEntryPercentageOfferAvailableToDate',
+                      type: 'date',
+                      label: 'Available To Date',
+                      admin: {
+                        width: '25%',
+                        date: {
+                          pickerAppearance: 'dayOnly',
+                        },
+                        description: 'Optional end date.',
+                      },
+                    },
+                    {
+                      name: 'customerEntryPercentageOfferDailyStartTime',
+                      type: 'select',
+                      options: RAILWAY_TIME_OPTIONS,
+                      label: 'Daily Start Time',
+                      admin: {
+                        width: '25%',
+                        description: 'Select 24-hour (railway) time.',
+                      },
+                    },
+                    {
+                      name: 'customerEntryPercentageOfferDailyEndTime',
+                      type: 'select',
+                      options: RAILWAY_TIME_OPTIONS,
+                      label: 'Daily End Time',
+                      admin: {
+                        width: '25%',
+                        description: 'Select 24-hour (railway) time.',
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              label: 'Progress',
+              fields: [
+                {
+                  type: 'row',
+                  admin: {
+                    condition: (data) => Boolean(data?.enableCustomerEntryPercentageOffer),
+                  },
+                  fields: [
+                    {
+                      name: 'customerEntryPercentageOfferGivenCount',
+                      type: 'number',
+                      min: 0,
+                      defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.customerEntryPercentageOfferGivenCount,
+                      label: 'Given Count',
+                      admin: {
+                        width: '50%',
+                        readOnly: true,
+                      },
+                    },
+                    {
+                      name: 'customerEntryPercentageOfferCustomerCount',
+                      type: 'number',
+                      min: 0,
+                      defaultValue:
+                        DEFAULT_CUSTOMER_REWARD_SETTINGS.customerEntryPercentageOfferCustomerCount,
+                      label: 'Customer Count',
+                      admin: {
+                        width: '50%',
+                        readOnly: true,
+                      },
+                    },
+                  ],
+                },
+                {
+                  name: 'customerEntryPercentageOfferCustomers',
+                  type: 'relationship',
+                  relationTo: 'customers',
+                  hasMany: true,
+                  admin: {
+                    condition: (data) => Boolean(data?.enableCustomerEntryPercentageOffer),
+                    hidden: true,
+                    readOnly: true,
+                  },
+                },
+                {
+                  name: 'customerEntryPercentageOfferCustomerUsage',
+                  type: 'array',
+                  label: 'Customer Usage',
+                  admin: {
+                    condition: (data) => Boolean(data?.enableCustomerEntryPercentageOffer),
+                    hidden: true,
+                    readOnly: true,
+                    description: 'Per-customer usage count for customer entry percentage offer.',
+                  },
+                  fields: [
+                    {
+                      name: 'customer',
+                      type: 'relationship',
+                      relationTo: 'customers',
+                      required: true,
+                      admin: {
+                        width: '70%',
+                        readOnly: true,
+                      },
+                    },
+                    {
+                      name: 'usageCount',
+                      type: 'number',
+                      min: 0,
+                      defaultValue: 0,
+                      required: true,
+                      admin: {
+                        width: '30%',
+                        readOnly: true,
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
   ],
 }

@@ -120,6 +120,12 @@ export default buildConfig({
     'http://192.168.29.173:3000', // Local Network IP
   ],
 
+  bodyParser: {
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB max upload size
+    },
+  },
+
   endpoints: [
     {
       path: '/reports/branch-billing',
@@ -233,6 +239,11 @@ export default buildConfig({
     },
     {
       path: '/automate/table-customer-details-visibility',
+      method: 'get',
+      handler: getTableCustomerDetailsVisibilityHandler,
+    },
+    {
+      path: '/widgets/table-customer-details-visibility',
       method: 'get',
       handler: getTableCustomerDetailsVisibilityHandler,
     },

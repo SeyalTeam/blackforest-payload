@@ -295,6 +295,19 @@ const isTotalPercentageOfferAvailableNow = (settings: CustomerRewardSettings): b
   )
 }
 
+const isCustomerEntryPercentageOfferAvailableNow = (settings: CustomerRewardSettings): boolean => {
+  return isRandomOfferProductAvailableNow(
+    {
+      enabled: true,
+      availableFromDate: settings.customerEntryPercentageOfferAvailableFromDate,
+      availableToDate: settings.customerEntryPercentageOfferAvailableToDate,
+      dailyStartTime: settings.customerEntryPercentageOfferDailyStartTime,
+      dailyEndTime: settings.customerEntryPercentageOfferDailyEndTime,
+    },
+    settings.customerEntryPercentageOfferTimezone,
+  )
+}
+
 const clearPriceOfferMetadata = (item: BillingItemInput): BillingItemInput => ({
   ...item,
   isPriceOfferApplied: false,
@@ -1510,6 +1523,8 @@ const Billings: CollectionConfig = {
 
         let offerDiscount = 0
         let offerApplied = false
+        let customerEntryPercentageOfferDiscount = 0
+        let customerEntryPercentageOfferApplied = false
         let totalPercentageOfferDiscount = 0
         let totalPercentageOfferApplied = false
         const rewardAlreadyProcessed = Boolean((originalDoc as any)?.customerRewardProcessed)
@@ -1524,6 +1539,12 @@ const Billings: CollectionConfig = {
         const originalTotalPercentageOfferWasApplied =
           Boolean((originalDoc as any)?.totalPercentageOfferApplied) &&
           existingTotalPercentageOfferDiscount > 0
+        const existingCustomerEntryPercentageOfferDiscount = toSafeNonNegativeNumber(
+          (originalDoc as any)?.customerEntryPercentageOfferDiscount,
+        )
+        const originalCustomerEntryPercentageOfferWasApplied =
+          Boolean((originalDoc as any)?.customerEntryPercentageOfferApplied) &&
+          existingCustomerEntryPercentageOfferDiscount > 0
         const hasItemLevelOfferApplied =
           Array.isArray(pricingData.items) &&
           hasAnyItemLevelOfferApplied(pricingData.items as BillingItemInput[])
@@ -1531,6 +1552,10 @@ const Billings: CollectionConfig = {
         if (effectiveStatus === 'completed') {
           const phoneNumber =
             pricingData.customerDetails?.phoneNumber || originalDoc?.customerDetails?.phoneNumber
+          const customerName = pricingData.customerDetails?.name || originalDoc?.customerDetails?.name
+          const hasCustomerContext =
+            (typeof phoneNumber === 'string' && phoneNumber.trim().length > 0) ||
+            (typeof customerName === 'string' && customerName.trim().length > 0)
 
           let settingsCache: CustomerRewardSettings | null = null
           const getSettings = async (): Promise<CustomerRewardSettings> => {
@@ -1632,11 +1657,48 @@ const Billings: CollectionConfig = {
           )
 
           if (!hasItemLevelOfferApplied && !offerApplied) {
+            if (originalCustomerEntryPercentageOfferWasApplied) {
+              customerEntryPercentageOfferApplied = true
+              customerEntryPercentageOfferDiscount = Math.min(
+                existingCustomerEntryPercentageOfferDiscount,
+                amountAfterCustomerOffer,
+              )
+            } else {
+              const settings = await getSettings()
+              const canUseCustomerEntryPercentageOffer = isOfferAllowedByOrderType(
+                isTableOrder,
+                settings.allowCustomerEntryPercentageOfferOnTableOrders,
+                settings.allowCustomerEntryPercentageOfferOnBillings,
+              )
+              const isWithinCustomerEntrySchedule =
+                isCustomerEntryPercentageOfferAvailableNow(settings)
+
+              if (
+                settings.enableCustomerEntryPercentageOffer &&
+                settings.customerEntryPercentageOfferPercent > 0 &&
+                canUseCustomerEntryPercentageOffer &&
+                isWithinCustomerEntrySchedule &&
+                hasCustomerContext
+              ) {
+                const discountAmount = toMoneyValue(
+                  (amountAfterCustomerOffer * settings.customerEntryPercentageOfferPercent) / 100,
+                )
+                customerEntryPercentageOfferDiscount = Math.min(amountAfterCustomerOffer, discountAmount)
+                customerEntryPercentageOfferApplied = customerEntryPercentageOfferDiscount > 0
+              }
+            }
+          }
+
+          const amountAfterCustomerEntryPercentageOffer = toMoneyValue(
+            Math.max(0, amountAfterCustomerOffer - customerEntryPercentageOfferDiscount),
+          )
+
+          if (!hasItemLevelOfferApplied && !offerApplied && !customerEntryPercentageOfferApplied) {
             if (originalTotalPercentageOfferWasApplied) {
               totalPercentageOfferApplied = true
               totalPercentageOfferDiscount = Math.min(
                 existingTotalPercentageOfferDiscount,
-                amountAfterCustomerOffer,
+                amountAfterCustomerEntryPercentageOffer,
               )
             } else {
               const settings = await getSettings()
@@ -1681,9 +1743,13 @@ const Billings: CollectionConfig = {
 
                 if (canApplyPercentageOffer && isWithinSchedule && randomSelectionPassed) {
                   const discountAmount = toMoneyValue(
-                    (amountAfterCustomerOffer * settings.totalPercentageOfferPercent) / 100,
+                    (amountAfterCustomerEntryPercentageOffer * settings.totalPercentageOfferPercent) /
+                      100,
                   )
-                  totalPercentageOfferDiscount = Math.min(amountAfterCustomerOffer, discountAmount)
+                  totalPercentageOfferDiscount = Math.min(
+                    amountAfterCustomerEntryPercentageOffer,
+                    discountAmount,
+                  )
                   totalPercentageOfferApplied = totalPercentageOfferDiscount > 0
                 }
               }
@@ -1693,6 +1759,10 @@ const Billings: CollectionConfig = {
 
         pricingData.customerOfferApplied = offerApplied
         pricingData.customerOfferDiscount = toMoneyValue(offerDiscount)
+        pricingData.customerEntryPercentageOfferApplied = customerEntryPercentageOfferApplied
+        pricingData.customerEntryPercentageOfferDiscount = toMoneyValue(
+          customerEntryPercentageOfferDiscount,
+        )
         pricingData.totalPercentageOfferApplied = totalPercentageOfferApplied
         pricingData.totalPercentageOfferDiscount = toMoneyValue(totalPercentageOfferDiscount)
         pricingData.totalAmount = toMoneyValue(
@@ -1700,6 +1770,7 @@ const Billings: CollectionConfig = {
             0,
             pricingData.grossAmount -
               pricingData.customerOfferDiscount -
+              pricingData.customerEntryPercentageOfferDiscount -
               pricingData.totalPercentageOfferDiscount,
           ),
         )
@@ -2222,6 +2293,65 @@ const Billings: CollectionConfig = {
                     settingsChanged = true
                   }
 
+                  const customerEntryPercentageOfferUsageIncrement =
+                    Boolean((doc as any).customerEntryPercentageOfferApplied) &&
+                    getPositiveNumericValue((doc as any).customerEntryPercentageOfferDiscount) > 0
+                      ? 1
+                      : 0
+
+                  const nextCustomerEntryPercentageOfferCustomers = [
+                    ...settings.customerEntryPercentageOfferCustomers,
+                  ]
+                  const nextCustomerEntryPercentageOfferCustomerUsage = [
+                    ...settings.customerEntryPercentageOfferCustomerUsage,
+                  ]
+
+                  if (
+                    customerEntryPercentageOfferUsageIncrement > 0 &&
+                    customerID &&
+                    !nextCustomerEntryPercentageOfferCustomers.includes(customerID)
+                  ) {
+                    nextCustomerEntryPercentageOfferCustomers.push(customerID)
+                  }
+
+                  if (customerEntryPercentageOfferUsageIncrement > 0 && customerID) {
+                    const usageIndex = nextCustomerEntryPercentageOfferCustomerUsage.findIndex(
+                      (entry) => entry.customer === customerID,
+                    )
+
+                    if (usageIndex >= 0) {
+                      const existingUsage = nextCustomerEntryPercentageOfferCustomerUsage[usageIndex]
+                      nextCustomerEntryPercentageOfferCustomerUsage[usageIndex] = {
+                        customer: existingUsage.customer,
+                        usageCount:
+                          existingUsage.usageCount + customerEntryPercentageOfferUsageIncrement,
+                      }
+                    } else {
+                      nextCustomerEntryPercentageOfferCustomerUsage.push({
+                        customer: customerID,
+                        usageCount: customerEntryPercentageOfferUsageIncrement,
+                      })
+                    }
+                  }
+
+                  const nextCustomerEntryPercentageOfferGivenCount =
+                    customerEntryPercentageOfferUsageIncrement > 0
+                      ? settings.customerEntryPercentageOfferGivenCount +
+                        customerEntryPercentageOfferUsageIncrement
+                      : settings.customerEntryPercentageOfferGivenCount
+                  const nextCustomerEntryPercentageOfferCustomerCount =
+                    nextCustomerEntryPercentageOfferCustomers.length
+
+                  if (
+                    customerEntryPercentageOfferUsageIncrement > 0 ||
+                    nextCustomerEntryPercentageOfferGivenCount !==
+                      settings.customerEntryPercentageOfferGivenCount ||
+                    nextCustomerEntryPercentageOfferCustomerCount !==
+                      settings.customerEntryPercentageOfferCustomerCount
+                  ) {
+                    settingsChanged = true
+                  }
+
                   if (settingsChanged) {
                     await withWriteConflictRetry(() =>
                       req.payload.updateGlobal({
@@ -2233,6 +2363,14 @@ const Billings: CollectionConfig = {
                           totalPercentageOfferCustomerCount: nextTotalPercentageOfferCustomerCount,
                           totalPercentageOfferCustomers: nextTotalPercentageOfferCustomers,
                           totalPercentageOfferCustomerUsage: nextTotalPercentageOfferCustomerUsage,
+                          customerEntryPercentageOfferGivenCount:
+                            nextCustomerEntryPercentageOfferGivenCount,
+                          customerEntryPercentageOfferCustomerCount:
+                            nextCustomerEntryPercentageOfferCustomerCount,
+                          customerEntryPercentageOfferCustomers:
+                            nextCustomerEntryPercentageOfferCustomers,
+                          customerEntryPercentageOfferCustomerUsage:
+                            nextCustomerEntryPercentageOfferCustomerUsage,
                         } as any,
                         depth: 0,
                         overrideAccess: true,
@@ -2695,6 +2833,25 @@ const Billings: CollectionConfig = {
     },
     {
       name: 'customerOfferDiscount',
+      type: 'number',
+      min: 0,
+      defaultValue: 0,
+      admin: {
+        readOnly: true,
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'customerEntryPercentageOfferApplied',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        readOnly: true,
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'customerEntryPercentageOfferDiscount',
       type: 'number',
       min: 0,
       defaultValue: 0,

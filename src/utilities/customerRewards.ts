@@ -45,6 +45,19 @@ export type CustomerRewardSettings = {
   totalPercentageOfferCustomerCount: number
   totalPercentageOfferCustomers: string[]
   totalPercentageOfferCustomerUsage: OfferCustomerUsageCounter[]
+  enableCustomerEntryPercentageOffer: boolean
+  allowCustomerEntryPercentageOfferOnTableOrders: boolean
+  allowCustomerEntryPercentageOfferOnBillings: boolean
+  customerEntryPercentageOfferPercent: number
+  customerEntryPercentageOfferTimezone: string
+  customerEntryPercentageOfferAvailableFromDate: string | null
+  customerEntryPercentageOfferAvailableToDate: string | null
+  customerEntryPercentageOfferDailyStartTime: string | null
+  customerEntryPercentageOfferDailyEndTime: string | null
+  customerEntryPercentageOfferGivenCount: number
+  customerEntryPercentageOfferCustomerCount: number
+  customerEntryPercentageOfferCustomers: string[]
+  customerEntryPercentageOfferCustomerUsage: OfferCustomerUsageCounter[]
 }
 
 export type ProductToProductOfferRule = {
@@ -147,6 +160,19 @@ export const DEFAULT_CUSTOMER_REWARD_SETTINGS: CustomerRewardSettings = {
   totalPercentageOfferCustomerCount: 0,
   totalPercentageOfferCustomers: [],
   totalPercentageOfferCustomerUsage: [],
+  enableCustomerEntryPercentageOffer: false,
+  allowCustomerEntryPercentageOfferOnTableOrders: true,
+  allowCustomerEntryPercentageOfferOnBillings: true,
+  customerEntryPercentageOfferPercent: 5,
+  customerEntryPercentageOfferTimezone: DEFAULT_RANDOM_OFFER_TIMEZONE,
+  customerEntryPercentageOfferAvailableFromDate: null,
+  customerEntryPercentageOfferAvailableToDate: null,
+  customerEntryPercentageOfferDailyStartTime: null,
+  customerEntryPercentageOfferDailyEndTime: null,
+  customerEntryPercentageOfferGivenCount: 0,
+  customerEntryPercentageOfferCustomerCount: 0,
+  customerEntryPercentageOfferCustomers: [],
+  customerEntryPercentageOfferCustomerUsage: [],
 }
 
 const toPositiveNumber = (value: unknown, fallback: number): number => {
@@ -598,6 +624,54 @@ const normalizeCustomerRewardSettings = (settings: unknown): CustomerRewardSetti
       : [],
     totalPercentageOfferCustomerUsage: normalizeOfferCustomerUsage(
       raw.totalPercentageOfferCustomerUsage,
+    ),
+    enableCustomerEntryPercentageOffer:
+      typeof raw.enableCustomerEntryPercentageOffer === 'boolean'
+        ? raw.enableCustomerEntryPercentageOffer
+        : DEFAULT_CUSTOMER_REWARD_SETTINGS.enableCustomerEntryPercentageOffer,
+    allowCustomerEntryPercentageOfferOnTableOrders:
+      typeof raw.allowCustomerEntryPercentageOfferOnTableOrders === 'boolean'
+        ? raw.allowCustomerEntryPercentageOfferOnTableOrders
+        : DEFAULT_CUSTOMER_REWARD_SETTINGS.allowCustomerEntryPercentageOfferOnTableOrders,
+    allowCustomerEntryPercentageOfferOnBillings:
+      typeof raw.allowCustomerEntryPercentageOfferOnBillings === 'boolean'
+        ? raw.allowCustomerEntryPercentageOfferOnBillings
+        : DEFAULT_CUSTOMER_REWARD_SETTINGS.allowCustomerEntryPercentageOfferOnBillings,
+    customerEntryPercentageOfferPercent: toChancePercent(
+      raw.customerEntryPercentageOfferPercent,
+      DEFAULT_CUSTOMER_REWARD_SETTINGS.customerEntryPercentageOfferPercent,
+    ),
+    customerEntryPercentageOfferTimezone: normalizeTimezone(
+      raw.customerEntryPercentageOfferTimezone,
+      DEFAULT_CUSTOMER_REWARD_SETTINGS.customerEntryPercentageOfferTimezone,
+    ),
+    customerEntryPercentageOfferAvailableFromDate: normalizeDateString(
+      raw.customerEntryPercentageOfferAvailableFromDate,
+    ),
+    customerEntryPercentageOfferAvailableToDate: normalizeDateString(
+      raw.customerEntryPercentageOfferAvailableToDate,
+    ),
+    customerEntryPercentageOfferDailyStartTime: normalizeTimeString(
+      raw.customerEntryPercentageOfferDailyStartTime,
+    ),
+    customerEntryPercentageOfferDailyEndTime: normalizeTimeString(
+      raw.customerEntryPercentageOfferDailyEndTime,
+    ),
+    customerEntryPercentageOfferGivenCount: toNonNegativeNumber(
+      raw.customerEntryPercentageOfferGivenCount,
+      DEFAULT_CUSTOMER_REWARD_SETTINGS.customerEntryPercentageOfferGivenCount,
+    ),
+    customerEntryPercentageOfferCustomerCount: toNonNegativeNumber(
+      raw.customerEntryPercentageOfferCustomerCount,
+      DEFAULT_CUSTOMER_REWARD_SETTINGS.customerEntryPercentageOfferCustomerCount,
+    ),
+    customerEntryPercentageOfferCustomers: Array.isArray(raw.customerEntryPercentageOfferCustomers)
+      ? raw.customerEntryPercentageOfferCustomers
+          .map((entry) => getRelationshipID(entry))
+          .filter((id): id is string => typeof id === 'string')
+      : [],
+    customerEntryPercentageOfferCustomerUsage: normalizeOfferCustomerUsage(
+      raw.customerEntryPercentageOfferCustomerUsage,
     ),
   }
 }
