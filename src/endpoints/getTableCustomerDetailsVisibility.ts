@@ -37,7 +37,7 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
       )
     }
 
-    const automateSettings = (await req.payload.findGlobal({
+    const widgetSettings = (await req.payload.findGlobal({
       slug: 'widget-settings',
       depth: 0,
       overrideAccess: true,
@@ -54,11 +54,13 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
       }>
     }
 
-    const tableRows = Array.isArray(automateSettings?.tableOrderCustomerDetailsByBranch)
-      ? automateSettings.tableOrderCustomerDetailsByBranch
+    const tableRows = Array.isArray(widgetSettings?.tableOrderCustomerDetailsByBranch)
+      ? widgetSettings.tableOrderCustomerDetailsByBranch
       : []
 
-    const tableRow = tableRows.find((candidate) => getRelationshipID(candidate?.branch) === branchID)
+    const tableRow = tableRows.find(
+      (candidate) => getRelationshipID(candidate?.branch) === branchID,
+    )
     const showCustomerDetailsForTableOrders =
       typeof tableRow?.showCustomerDetailsForTableOrders === 'boolean'
         ? tableRow.showCustomerDetailsForTableOrders
@@ -68,11 +70,13 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
         ? tableRow.allowSkipCustomerDetailsForTableOrders
         : true
 
-    const billingRows = Array.isArray(automateSettings?.billingOrderCustomerDetailsByBranch)
-      ? automateSettings.billingOrderCustomerDetailsByBranch
+    const billingRows = Array.isArray(widgetSettings?.billingOrderCustomerDetailsByBranch)
+      ? widgetSettings.billingOrderCustomerDetailsByBranch
       : []
 
-    const billingRow = billingRows.find((candidate) => getRelationshipID(candidate?.branch) === branchID)
+    const billingRow = billingRows.find(
+      (candidate) => getRelationshipID(candidate?.branch) === branchID,
+    )
     const showCustomerDetailsForBillingOrders =
       typeof billingRow?.showCustomerDetailsForBillingOrders === 'boolean'
         ? billingRow.showCustomerDetailsForBillingOrders

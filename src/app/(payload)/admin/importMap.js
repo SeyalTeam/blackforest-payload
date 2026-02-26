@@ -15,7 +15,7 @@ import { default as default_7b71facc026c06bd9c34422308b32867 } from '../../../co
 import { default as default_e8583f3860f7314c27e4ea40590a0d91 } from '../../../components/ReturnOrderReport/index.tsx'
 import { GeoLocationButton as GeoLocationButton_c6abd8fffba800c90850c15956a40d8c } from '../../../components/GeoLocationButton/index.tsx'
 import { default as default_33fb18e2b81f2b37393ae18281df6f35 } from '../../../components/NetworkStatus/index.tsx'
-import { default as default_a97029a42c389f45c5f87e7d295ae858 } from '../../../components/AutomateSettings/index.tsx'
+import { default as default_7b1ab22c3fec8de15c6e9105699e8e3c } from '../../../components/WidgetSettings/index.tsx'
 import { default as default_d4c0194fffb8d598abc8dcbf5bd68b64 } from '../../../components/ProductPriceOfferPreviewField/index.tsx'
 
 export const importMap = {
@@ -36,6 +36,6 @@ export const importMap = {
   "/components/ReturnOrderReport/index.tsx#default": default_e8583f3860f7314c27e4ea40590a0d91,
   "/components/GeoLocationButton/index.tsx#GeoLocationButton": GeoLocationButton_c6abd8fffba800c90850c15956a40d8c,
   "/components/NetworkStatus/index.tsx#default": default_33fb18e2b81f2b37393ae18281df6f35,
-  "/components/AutomateSettings/index.tsx#default": default_a97029a42c389f45c5f87e7d295ae858,
+  "/components/WidgetSettings/index.tsx#default": default_7b1ab22c3fec8de15c6e9105699e8e3c,
   "/components/ProductPriceOfferPreviewField/index.tsx#default": default_d4c0194fffb8d598abc8dcbf5bd68b64
 }

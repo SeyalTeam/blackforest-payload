@@ -62,9 +62,10 @@ import { downloadHandler, uploadHandler, pingHandler } from './endpoints/speedte
 import Tables from './collections/Tables'
 import Kitchens from './collections/Kitchens'
 import Attendance from './collections/Attendance'
-import { AutomateGlobal } from './globals/Automate'
-import { createAutomatedOrderHandler } from './endpoints/createAutomatedOrder'
+import { WidgetSettingsGlobal } from './globals/Widgets'
+import { createWidgetOrderHandler } from './endpoints/createWidgetOrder'
 import { getTableCustomerDetailsVisibilityHandler } from './endpoints/getTableCustomerDetailsVisibility'
+import { getLiveTableStatusHandler } from './endpoints/getLiveTableStatus'
 import { getReportBranchesHandler } from './endpoints/getReportBranches'
 import { CustomerOfferSettings } from './globals/CustomerOfferSettings'
 import APKFiles from './collections/APKFiles'
@@ -233,19 +234,19 @@ export default buildConfig({
       handler: pingHandler,
     },
     {
-      path: '/automate/create-order',
+      path: '/widgets/create-order',
       method: 'post',
-      handler: createAutomatedOrderHandler,
-    },
-    {
-      path: '/automate/table-customer-details-visibility',
-      method: 'get',
-      handler: getTableCustomerDetailsVisibilityHandler,
+      handler: createWidgetOrderHandler,
     },
     {
       path: '/widgets/table-customer-details-visibility',
       method: 'get',
       handler: getTableCustomerDetailsVisibilityHandler,
+    },
+    {
+      path: '/widgets/live-table-status',
+      method: 'get',
+      handler: getLiveTableStatusHandler,
     },
     {
       path: '/app-download/latest.apk',
@@ -276,7 +277,7 @@ export default buildConfig({
     ReturnOrderReportGlobal,
     BranchGeoSettings,
     NetworkStatus,
-    AutomateGlobal,
+    WidgetSettingsGlobal,
     CustomerOfferSettings,
     AppDownloadSettings,
   ],

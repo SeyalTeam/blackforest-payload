@@ -1,4 +1,4 @@
-.automate-settings {
+.widget-settings {
   padding: 2rem;
   color: #fff;
   background-color: #09090b;
@@ -138,13 +138,13 @@
     }
   }
 
-  .automate-modal {
+  .widget-modal {
     background: #09090b;
     border: 1px solid #27272a;
     border-radius: 1rem;
     width: 100%;
     max-width: none;
-    max-height: calc(100vh - 200px);
+    max-height: calc(100vh - 150px);
     display: flex;
     flex-direction: column;
     position: relative;
@@ -178,6 +178,46 @@
         background: #18181b;
         color: #fff;
       }
+    }
+  }
+
+  .live-table-modal-header {
+    gap: 0.75rem;
+    justify-content: flex-start;
+
+    .live-table-toolbar {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+    }
+
+    .live-table-branch-filter {
+      width: 240px;
+      min-width: 220px;
+    }
+  }
+
+  .live-refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: transparent;
+    border: 1px solid #27272a;
+    color: #e4e4e7;
+    border-radius: 0.5rem;
+    padding: 0.62rem 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+      background: #18181b;
+    }
+
+    &:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
     }
   }
 
@@ -331,6 +371,188 @@
         border: 1px solid rgba(249, 115, 22, 0.3);
       }
     }
+
+    .live-error {
+      margin: 0 0 1rem;
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #fca5a5;
+      padding: 0.7rem 0.85rem;
+      border-radius: 0.5rem;
+      font-size: 0.85rem;
+    }
+
+    .live-empty-state {
+      margin: 0;
+      color: #71717a;
+      font-size: 0.9rem;
+    }
+
+    .live-branch-block {
+      margin-top: 0.7rem;
+    }
+
+    .live-branch-title {
+      margin: 0 0 0.5rem;
+      font-size: 1rem;
+      color: #f4f4f5;
+      font-weight: 700;
+    }
+
+    .live-section-block {
+      margin-bottom: 0.7rem;
+    }
+
+    .live-section-title {
+      margin: 0 0 0.35rem;
+      font-size: 0.86rem;
+      color: #e4e4e7;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      text-transform: uppercase;
+    }
+
+    .live-table-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.55rem;
+    }
+
+    .live-table-card {
+      min-height: 104px;
+      border-radius: 0.72rem;
+      padding: 0.42rem 0.45rem 0.72rem;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      box-shadow: 0 8px 18px -10px rgba(0, 0, 0, 0.35);
+
+      &.active,
+      &.occupied {
+        background: #ece473;
+        border: 1px solid #d8cf61;
+
+        .table-timer {
+          color: #e54a32;
+        }
+
+        .table-name {
+          color: #1b1b1b;
+        }
+
+        .table-kot,
+        .table-by,
+        .table-actions {
+          color: #5d5b47;
+        }
+      }
+
+      &.prepared {
+        background: #9ccf9f;
+        border: 1px solid #7dbf84;
+
+        .table-name {
+          color: #18331e;
+        }
+
+        .table-kot,
+        .table-by,
+        .table-actions {
+          color: #2f5335;
+        }
+      }
+
+      &.delivered {
+        background: #99d8ff;
+        border: 1px solid #73bde8;
+
+        .table-name {
+          color: #15384a;
+        }
+
+        .table-kot,
+        .table-by,
+        .table-actions {
+          color: #25556e;
+        }
+      }
+
+      &.available {
+        background: #dedee0;
+        border: 2px dashed #b9b9bf;
+
+        .table-name {
+          color: #2f3137;
+        }
+
+        .table-available-label {
+          margin-top: 0.24rem;
+          font-size: 0.65rem;
+          color: #666b76;
+          font-weight: 600;
+        }
+      }
+    }
+
+    .table-timer {
+      font-size: 0.92rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      margin-bottom: 0.2rem;
+    }
+
+    .table-name {
+      font-size: 1.18rem;
+      font-weight: 700;
+      margin-bottom: 0.12rem;
+      line-height: 1.08;
+    }
+
+    .table-kot {
+      font-size: 0.96rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      margin-top: 0.14rem;
+    }
+
+    .table-by {
+      margin-top: 0.08rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .table-actions {
+      margin-top: 0;
+      position: absolute;
+      right: 0.3rem;
+      bottom: 0.26rem;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.3rem;
+    }
+
+    .table-action-btn {
+      width: 24px;
+      height: 24px;
+      border-radius: 0.42rem;
+      border: 1px solid rgba(0, 0, 0, 0.2);
+      background: rgba(255, 255, 255, 0.55);
+      color: currentColor;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16);
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.68);
+      }
+    }
   }
 
   .modal-footer {
@@ -383,7 +605,7 @@
       min-height: 0;
     }
 
-    .automate-modal {
+    .widget-modal {
       max-height: none;
     }
   }
@@ -391,6 +613,13 @@
   @media (max-width: 900px) {
     .tiles-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .modal-body {
+      .live-table-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.5rem;
+      }
     }
   }
 
@@ -417,7 +646,41 @@
       aspect-ratio: 1.25 / 1;
     }
 
+    .live-table-modal-header {
+      flex-wrap: wrap;
+      align-items: flex-start;
+
+      .live-table-toolbar {
+        margin-left: 0;
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .live-table-branch-filter {
+        width: 100%;
+        min-width: 0;
+      }
+    }
+
+    .live-refresh-btn {
+      width: 100%;
+      justify-content: center;
+    }
+
     .modal-body {
+      .live-table-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .live-table-card {
+        min-height: 96px;
+      }
+
+      .table-name {
+        font-size: 1.06rem;
+      }
+
       .form-row {
         grid-template-columns: 1fr;
       }

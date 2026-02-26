@@ -217,7 +217,7 @@ const shouldShowCustomerDetailsForTableOrders = async (
   if (!branchID) return true
 
   try {
-    const automateSettings = (await payload.findGlobal({
+    const widgetSettings = (await payload.findGlobal({
       slug: 'widget-settings',
       depth: 0,
       overrideAccess: true,
@@ -228,8 +228,8 @@ const shouldShowCustomerDetailsForTableOrders = async (
       }>
     }
 
-    const rows = Array.isArray(automateSettings?.tableOrderCustomerDetailsByBranch)
-      ? automateSettings.tableOrderCustomerDetailsByBranch
+    const rows = Array.isArray(widgetSettings?.tableOrderCustomerDetailsByBranch)
+      ? widgetSettings.tableOrderCustomerDetailsByBranch
       : []
 
     const branchRow = rows.find((row) => getRelationshipID(row?.branch) === branchID)
@@ -237,7 +237,7 @@ const shouldShowCustomerDetailsForTableOrders = async (
       return branchRow.showCustomerDetailsForTableOrders
     }
   } catch (error) {
-    console.error('[Billings hook] Failed to fetch automate customer detail setting.', {
+    console.error('[Billings hook] Failed to fetch widget customer detail setting.', {
       branchID,
       error,
     })
@@ -336,7 +336,8 @@ const hasProductToProductOfferApplied = (items: BillingItemInput[]): boolean =>
 const hasProductPriceOfferApplied = (items: BillingItemInput[]): boolean =>
   items.some(
     (item) =>
-      Boolean(item.isPriceOfferApplied) && getPositiveNumericValue(item.priceOfferDiscountPerUnit) > 0,
+      Boolean(item.isPriceOfferApplied) &&
+      getPositiveNumericValue(item.priceOfferDiscountPerUnit) > 0,
   )
 
 const hasRandomProductOfferApplied = (items: BillingItemInput[]): boolean =>
@@ -631,8 +632,7 @@ const applyProductToProductOffers = async (
       rule.maxUsagePerCustomer > 0
         ? Math.max(
             0,
-            rule.maxUsagePerCustomer -
-              getCustomerUsageCount(rule.offerCustomerUsage, customerID),
+            rule.maxUsagePerCustomer - getCustomerUsageCount(rule.offerCustomerUsage, customerID),
           )
         : Number.MAX_SAFE_INTEGER
 
@@ -914,11 +914,7 @@ const applyRandomCustomerProductOffer = async (
     row: (typeof settings.randomCustomerOfferProducts)[number],
   ): boolean => {
     return isDeterministicRandomSelection(
-      [
-        settings.randomCustomerOfferCampaignCode,
-        row.id,
-        customerRandomKey,
-      ].join('|'),
+      [settings.randomCustomerOfferCampaignCode, row.id, customerRandomKey].join('|'),
       row.randomSelectionChancePercent,
     )
   }
@@ -1065,10 +1061,16 @@ const applyConfiguredItemOffers = async (
     : baseItems
 
   if (status === 'completed' && existingSingleOfferType) {
-    if (existingSingleOfferType === 'product-to-product' && hasProductToProductOfferApplied(productToProductItems)) {
+    if (
+      existingSingleOfferType === 'product-to-product' &&
+      hasProductToProductOfferApplied(productToProductItems)
+    ) {
       return productToProductItems
     }
-    if (existingSingleOfferType === 'product-price' && hasProductPriceOfferApplied(productPriceItems)) {
+    if (
+      existingSingleOfferType === 'product-price' &&
+      hasProductPriceOfferApplied(productPriceItems)
+    ) {
       return productPriceItems
     }
     if (existingSingleOfferType === 'random-product' && hasRandomProductOfferApplied(randomItems)) {
@@ -1141,7 +1143,11 @@ const Billings: CollectionConfig = {
 
         // 🎯 Ensure default status for table/KOT orders on create only.
         // Do not force-reset status during updates that omit `status` (e.g. item-only updates).
-        if (operation === 'create' && hasTableDetails && (!data.status || data.status === 'pending')) {
+        if (
+          operation === 'create' &&
+          hasTableDetails &&
+          (!data.status || data.status === 'pending')
+        ) {
           data.status = 'ordered'
         }
 
@@ -1665,7 +1671,8 @@ const Billings: CollectionConfig = {
               settings.allowCustomerEntryPercentageOfferOnTableOrders,
               settings.allowCustomerEntryPercentageOfferOnBillings,
             )
-            const isWithinCustomerEntrySchedule = isCustomerEntryPercentageOfferAvailableNow(settings)
+            const isWithinCustomerEntrySchedule =
+              isCustomerEntryPercentageOfferAvailableNow(settings)
 
             if (
               settings.enableCustomerEntryPercentageOffer &&
@@ -1676,7 +1683,10 @@ const Billings: CollectionConfig = {
               const discountAmount = toMoneyValue(
                 (amountAfterCustomerOffer * settings.customerEntryPercentageOfferPercent) / 100,
               )
-              customerEntryPercentageOfferDiscount = Math.min(amountAfterCustomerOffer, discountAmount)
+              customerEntryPercentageOfferDiscount = Math.min(
+                amountAfterCustomerOffer,
+                discountAmount,
+              )
               customerEntryPercentageOfferApplied = customerEntryPercentageOfferDiscount > 0
             }
           }
@@ -1735,7 +1745,8 @@ const Billings: CollectionConfig = {
 
                 if (canApplyPercentageOffer && isWithinSchedule && randomSelectionPassed) {
                   const discountAmount = toMoneyValue(
-                    (amountAfterCustomerEntryPercentageOffer * settings.totalPercentageOfferPercent) /
+                    (amountAfterCustomerEntryPercentageOffer *
+                      settings.totalPercentageOfferPercent) /
                       100,
                   )
                   totalPercentageOfferDiscount = Math.min(
@@ -1750,10 +1761,7 @@ const Billings: CollectionConfig = {
         }
 
         // Preview Offer 6 before completion
-        if (
-          effectiveStatus !== 'completed' &&
-          effectiveStatus !== 'cancelled'
-        ) {
+        if (effectiveStatus !== 'completed' && effectiveStatus !== 'cancelled') {
           const settings = await getCustomerRewardSettings(req.payload)
           const canUseCustomerEntryPercentageOffer = isOfferAllowedByOrderType(
             isTableOrder,
@@ -1895,9 +1903,7 @@ const Billings: CollectionConfig = {
                   : undefined
 
               const shouldProcessRandomOfferRedemption =
-                randomOfferItem &&
-                customerDoc?.id &&
-                !Boolean((doc as any).offerCountersProcessed)
+                randomOfferItem && customerDoc?.id && !Boolean((doc as any).offerCountersProcessed)
 
               if (shouldProcessRandomOfferRedemption) {
                 const settings = await getSettings()
@@ -2001,10 +2007,7 @@ const Billings: CollectionConfig = {
                     )
                       ? normalizedSelectedCustomers
                       : [...normalizedSelectedCustomers, redeemedCustomerID]
-                    const nextRedeemedCount = Math.min(
-                      row.winnerCount,
-                      normalizedRedeemedCount + 1,
-                    )
+                    const nextRedeemedCount = Math.min(row.winnerCount, normalizedRedeemedCount + 1)
                     const nextAssignedCount = Math.max(
                       normalizedAssignedCount,
                       nextSelectedCustomers.length,
@@ -2126,7 +2129,8 @@ const Billings: CollectionConfig = {
                     ) {
                       const appliedUnits = toSafeNonNegativeNumber(item?.priceOfferAppliedUnits)
                       const quantity = toSafeNonNegativeNumber(item?.quantity)
-                      const increment = appliedUnits > 0 ? appliedUnits : quantity > 0 ? quantity : 1
+                      const increment =
+                        appliedUnits > 0 ? appliedUnits : quantity > 0 ? quantity : 1
                       priceUsageByRule.set(
                         item.priceOfferRuleKey,
                         (priceUsageByRule.get(item.priceOfferRuleKey) || 0) + increment,
@@ -2339,7 +2343,8 @@ const Billings: CollectionConfig = {
                     )
 
                     if (usageIndex >= 0) {
-                      const existingUsage = nextCustomerEntryPercentageOfferCustomerUsage[usageIndex]
+                      const existingUsage =
+                        nextCustomerEntryPercentageOfferCustomerUsage[usageIndex]
                       nextCustomerEntryPercentageOfferCustomerUsage[usageIndex] = {
                         customer: existingUsage.customer,
                         usageCount:

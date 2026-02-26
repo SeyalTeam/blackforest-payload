@@ -6,7 +6,7 @@ import timezone from 'dayjs/plugin/timezone'
 dayjs.extend(utc)
 dayjs.extend(timezone)
 
-export const createAutomatedOrderHandler: PayloadHandler = async (req): Promise<Response> => {
+export const createWidgetOrderHandler: PayloadHandler = async (req): Promise<Response> => {
   if (!req.user) {
     return Response.json({ message: 'Unauthorized' }, { status: 401 })
   }

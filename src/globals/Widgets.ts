@@ -1,6 +1,6 @@
 import { GlobalConfig } from 'payload'
 
-export const AutomateGlobal: GlobalConfig = {
+export const WidgetSettingsGlobal: GlobalConfig = {
   slug: 'widget-settings',
   label: 'Widgets',
   admin: {
@@ -9,7 +9,7 @@ export const AutomateGlobal: GlobalConfig = {
       views: {
         edit: {
           root: {
-            Component: '/components/AutomateSettings/index.tsx#default',
+            Component: '/components/WidgetSettings/index.tsx#default',
           },
         },
       },
@@ -25,8 +25,7 @@ export const AutomateGlobal: GlobalConfig = {
       label: 'Table Order Customer Details by Branch',
       type: 'array',
       admin: {
-        description:
-          'Branch-wise control for showing customer details popup in table orders.',
+        description: 'Branch-wise control for showing customer details popup in table orders.',
       },
       fields: [
         {

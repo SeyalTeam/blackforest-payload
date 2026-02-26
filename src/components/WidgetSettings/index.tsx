@@ -12,10 +12,16 @@ import {
   UserRound,
   Save,
   Trash2,
+  LayoutGrid,
+  RefreshCw,
+  Eye,
+  Printer,
 } from 'lucide-react'
 import Select from 'react-select'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
+import { getBill } from '@/app/actions/getBill'
+import BillReceipt, { BillData } from '@/components/BillReceipt'
 import './index.scss'
 
 type Option = { value: string; label: string }
@@ -35,12 +41,42 @@ type BillingCustomerDetailsRow = {
   allowSkipCustomerDetailsForBillingOrders?: boolean | null
 }
 
-type AutomateSettingsGlobal = {
+type WidgetSettingsGlobal = {
   tableOrderCustomerDetailsByBranch?: TableCustomerDetailsRow[] | null
   billingOrderCustomerDetailsByBranch?: BillingCustomerDetailsRow[] | null
 }
 
-type WidgetKey = 'stock-order' | 'table-customer-details' | 'billing-customer-details'
+type LiveTableRow = {
+  tableKey: string
+  tableNumber: string
+  tableLabel: string
+  tableState?: 'available' | 'active' | 'prepared' | 'delivered'
+  occupied: boolean
+  billId?: string | null
+  status: string | null
+  kotNumber: string | null
+  totalAmount?: number | null
+  servedBy: string | null
+  startedAt: string | null
+  elapsedSeconds: number | null
+}
+
+type LiveTableSection = {
+  sectionName: string
+  tables: LiveTableRow[]
+}
+
+type LiveTableBranch = {
+  branchId: string
+  branchName: string
+  sections: LiveTableSection[]
+}
+
+type WidgetKey =
+  | 'stock-order'
+  | 'table-customer-details'
+  | 'billing-customer-details'
+  | 'live-table'
 
 const getRelationshipID = (value: unknown): string | null => {
   if (typeof value === 'string' && value.trim().length > 0) return value
@@ -53,6 +89,41 @@ const getRelationshipID = (value: unknown): string | null => {
     return (value as { id: string }).id
   }
   return null
+}
+
+const getElapsedLabel = (
+  startedAt: string | null | undefined,
+  elapsedFallback: number | null | undefined,
+  nowMs: number,
+): string => {
+  let elapsedSeconds = 0
+
+  if (typeof startedAt === 'string' && startedAt.trim().length > 0) {
+    const startedAtMs = new Date(startedAt).getTime()
+    if (Number.isFinite(startedAtMs)) {
+      elapsedSeconds = Math.max(0, Math.floor((nowMs - startedAtMs) / 1000))
+    }
+  } else if (typeof elapsedFallback === 'number' && Number.isFinite(elapsedFallback)) {
+    elapsedSeconds = Math.max(0, Math.floor(elapsedFallback))
+  }
+
+  const minutes = Math.floor(elapsedSeconds / 60)
+  const seconds = elapsedSeconds % 60
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
+
+const getAmountLabel = (value: number | null | undefined): string => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '-'
+  return `Rs ${value.toFixed(2)}`
+}
+
+const getKotAmountLabel = (
+  kotNumber: string | null | undefined,
+  amount: number | null | undefined,
+): string => {
+  const normalizedKot =
+    typeof kotNumber === 'string' && kotNumber.trim().length > 0 ? kotNumber.trim() : '-'
+  return `${normalizedKot} - ${getAmountLabel(amount)}`
 }
 
 const CustomDateInput = React.forwardRef<
@@ -79,7 +150,54 @@ const CustomDateInput = React.forwardRef<
 ))
 CustomDateInput.displayName = 'CustomDateInput'
 
-const AutomateSettings: React.FC = () => {
+const BillModal: React.FC<{
+  billData: BillData | null
+  loading: boolean
+  onClose: () => void
+}> = ({ billData, loading, onClose }) => {
+  if (!billData && !loading) return null
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 10001,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          backgroundColor: '#fff',
+          padding: '0',
+          borderRadius: '0',
+          width: '90%',
+          maxWidth: '400px',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          boxShadow: '0 4px 25px rgba(0,0,0,0.5)',
+          color: '#000',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {loading ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#111' }}>Loading Bill...</div>
+        ) : (
+          billData && <BillReceipt data={billData} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+const WidgetSettings: React.FC = () => {
   const [activeWidget, setActiveWidget] = useState<WidgetKey | null>(null)
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -105,17 +223,17 @@ const AutomateSettings: React.FC = () => {
   const [message, setMessage] = useState('')
 
   // Customer details setting modal state
-  const [selectedTableCustomerDetailsBranch, setSelectedTableCustomerDetailsBranch] = useState<Option | null>(
-    null,
-  )
+  const [selectedTableCustomerDetailsBranch, setSelectedTableCustomerDetailsBranch] =
+    useState<Option | null>(null)
   const [tableCustomerDetailsVisibility, setTableCustomerDetailsVisibility] = useState<Option>({
     value: 'enabled',
     label: 'Enabled',
   })
-  const [skipTableCustomerDetailsVisibility, setSkipTableCustomerDetailsVisibility] = useState<Option>({
-    value: 'enabled',
-    label: 'Enabled',
-  })
+  const [skipTableCustomerDetailsVisibility, setSkipTableCustomerDetailsVisibility] =
+    useState<Option>({
+      value: 'enabled',
+      label: 'Enabled',
+    })
 
   const [selectedBillingCustomerDetailsBranch, setSelectedBillingCustomerDetailsBranch] =
     useState<Option | null>(null)
@@ -123,15 +241,31 @@ const AutomateSettings: React.FC = () => {
     value: 'enabled',
     label: 'Enabled',
   })
-  const [skipBillingCustomerDetailsVisibility, setSkipBillingCustomerDetailsVisibility] = useState<Option>({
-    value: 'enabled',
-    label: 'Enabled',
+  const [skipBillingCustomerDetailsVisibility, setSkipBillingCustomerDetailsVisibility] =
+    useState<Option>({
+      value: 'enabled',
+      label: 'Enabled',
+    })
+  const [selectedLiveTableBranch, setSelectedLiveTableBranch] = useState<Option>({
+    value: 'all',
+    label: 'All Branches',
   })
+  const [liveTableBranches, setLiveTableBranches] = useState<LiveTableBranch[]>([])
+  const [liveTableLoading, setLiveTableLoading] = useState(false)
+  const [liveTableError, setLiveTableError] = useState<string | null>(null)
+  const [liveTableTick, setLiveTableTick] = useState(0)
+  const [selectedBill, setSelectedBill] = useState<BillData | null>(null)
+  const [loadingBill, setLoadingBill] = useState(false)
 
   const branchOptions = useMemo(
     () => branches.map((branch) => ({ value: branch.id, label: branch.name })),
     [branches],
   )
+  const liveTableBranchOptions = useMemo(
+    () => [{ value: 'all', label: 'All Branches' }, ...branchOptions],
+    [branchOptions],
+  )
+  const liveTableNowMs = useMemo(() => Date.now(), [liveTableTick])
 
   const visibilityOptions: Option[] = useMemo(
     () => [
@@ -216,12 +350,14 @@ const AutomateSettings: React.FC = () => {
         setBranches(branchesJSON.docs || [])
 
         if (settingsResponse.ok) {
-          const settingsJSON = (await settingsResponse.json()) as AutomateSettingsGlobal
+          const settingsJSON = (await settingsResponse.json()) as WidgetSettingsGlobal
           setTableOrderCustomerDetailsByBranch(settingsJSON.tableOrderCustomerDetailsByBranch || [])
-          setBillingOrderCustomerDetailsByBranch(settingsJSON.billingOrderCustomerDetailsByBranch || [])
+          setBillingOrderCustomerDetailsByBranch(
+            settingsJSON.billingOrderCustomerDetailsByBranch || [],
+          )
         }
       } catch (err) {
-        console.error('Error fetching automate settings data:', err)
+        console.error('Error fetching widget settings data:', err)
       } finally {
         setLoading(false)
       }
@@ -229,6 +365,74 @@ const AutomateSettings: React.FC = () => {
 
     fetchInitialData()
   }, [])
+
+  const fetchLiveTableStatus = async (branchId: string) => {
+    setLiveTableLoading(true)
+    setLiveTableError(null)
+
+    try {
+      const query =
+        branchId && branchId !== 'all' ? `?branchId=${encodeURIComponent(branchId)}` : ''
+      const response = await fetch(`/api/widgets/live-table-status${query}`)
+      const json = await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          typeof json?.message === 'string' ? json.message : 'Failed to load live table status',
+        )
+      }
+
+      setLiveTableBranches(
+        Array.isArray(json?.branches) ? (json.branches as LiveTableBranch[]) : [],
+      )
+    } catch (error) {
+      console.error('Failed to fetch live table status:', error)
+      setLiveTableError(
+        error instanceof Error ? error.message : 'Unable to fetch live table status right now',
+      )
+      setLiveTableBranches([])
+    } finally {
+      setLiveTableLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (activeWidget !== 'live-table') return
+    void fetchLiveTableStatus(selectedLiveTableBranch.value)
+  }, [activeWidget, selectedLiveTableBranch.value])
+
+  useEffect(() => {
+    if (activeWidget !== 'live-table') return
+
+    const interval = window.setInterval(() => {
+      setLiveTableTick((previous) => previous + 1)
+    }, 1000)
+
+    return () => window.clearInterval(interval)
+  }, [activeWidget])
+
+  const handleViewBillClick = async (billId: string | null | undefined) => {
+    if (!billId) {
+      alert('Bill details are not available for this table right now.')
+      return
+    }
+
+    setLoadingBill(true)
+    setSelectedBill(null)
+
+    try {
+      const bill = await getBill(billId)
+      setSelectedBill(bill)
+      if (!bill) {
+        alert('Unable to load bill details')
+      }
+    } catch (error) {
+      console.error('Failed to fetch bill', error)
+      alert('Failed to load bill details')
+    } finally {
+      setLoadingBill(false)
+    }
+  }
 
   const handleSubmit = async () => {
     if (!selectedBranch || !deliveryDate || !message) {
@@ -238,7 +442,7 @@ const AutomateSettings: React.FC = () => {
 
     setSubmitting(true)
     try {
-      const res = await fetch('/api/automate/create-order', {
+      const res = await fetch('/api/widgets/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -278,7 +482,9 @@ const AutomateSettings: React.FC = () => {
     const isPopupEnabled = row?.showCustomerDetailsForTableOrders !== false
     const isSkipEnabled = row?.allowSkipCustomerDetailsForTableOrders !== false
     setTableCustomerDetailsVisibility(isPopupEnabled ? visibilityOptions[0] : visibilityOptions[1])
-    setSkipTableCustomerDetailsVisibility(isSkipEnabled ? visibilityOptions[0] : visibilityOptions[1])
+    setSkipTableCustomerDetailsVisibility(
+      isSkipEnabled ? visibilityOptions[0] : visibilityOptions[1],
+    )
   }, [selectedTableCustomerDetailsBranch, tableOrderCustomerDetailsByBranch, visibilityOptions])
 
   useEffect(() => {
@@ -294,8 +500,12 @@ const AutomateSettings: React.FC = () => {
     )
     const isPopupEnabled = row?.showCustomerDetailsForBillingOrders !== false
     const isSkipEnabled = row?.allowSkipCustomerDetailsForBillingOrders !== false
-    setBillingCustomerDetailsVisibility(isPopupEnabled ? visibilityOptions[0] : visibilityOptions[1])
-    setSkipBillingCustomerDetailsVisibility(isSkipEnabled ? visibilityOptions[0] : visibilityOptions[1])
+    setBillingCustomerDetailsVisibility(
+      isPopupEnabled ? visibilityOptions[0] : visibilityOptions[1],
+    )
+    setSkipBillingCustomerDetailsVisibility(
+      isSkipEnabled ? visibilityOptions[0] : visibilityOptions[1],
+    )
   }, [selectedBillingCustomerDetailsBranch, billingOrderCustomerDetailsByBranch, visibilityOptions])
 
   const persistCustomerSettings = async ({
@@ -304,7 +514,7 @@ const AutomateSettings: React.FC = () => {
   }: {
     tableRows?: TableCustomerDetailsRow[]
     billingRows?: BillingCustomerDetailsRow[]
-  }): Promise<AutomateSettingsGlobal> => {
+  }): Promise<WidgetSettingsGlobal> => {
     const payloadData = {
       tableOrderCustomerDetailsByBranch: tableRows,
       billingOrderCustomerDetailsByBranch: billingRows,
@@ -333,7 +543,7 @@ const AutomateSettings: React.FC = () => {
     }
 
     if (!response) {
-      throw new Error('Failed to update automate settings')
+      throw new Error('Failed to update widget settings')
     }
 
     const json = await response.json()
@@ -341,7 +551,7 @@ const AutomateSettings: React.FC = () => {
       throw new Error(json?.message || 'Failed to update settings')
     }
 
-    return json as AutomateSettingsGlobal
+    return json as WidgetSettingsGlobal
   }
 
   const saveTableCustomerDetailsSetting = async () => {
@@ -377,7 +587,8 @@ const AutomateSettings: React.FC = () => {
         persistedSettings.tableOrderCustomerDetailsByBranch || dedupedRows,
       )
       setBillingOrderCustomerDetailsByBranch(
-        persistedSettings.billingOrderCustomerDetailsByBranch || billingOrderCustomerDetailsByBranch,
+        persistedSettings.billingOrderCustomerDetailsByBranch ||
+          billingOrderCustomerDetailsByBranch,
       )
       alert('Table customer details setting updated')
     } catch (error) {
@@ -407,7 +618,8 @@ const AutomateSettings: React.FC = () => {
         persistedSettings.tableOrderCustomerDetailsByBranch || nextRows,
       )
       setBillingOrderCustomerDetailsByBranch(
-        persistedSettings.billingOrderCustomerDetailsByBranch || billingOrderCustomerDetailsByBranch,
+        persistedSettings.billingOrderCustomerDetailsByBranch ||
+          billingOrderCustomerDetailsByBranch,
       )
 
       if (selectedTableCustomerDetailsBranch?.value === branchID) {
@@ -527,10 +739,10 @@ const AutomateSettings: React.FC = () => {
   }
 
   return (
-    <div className="automate-settings">
+    <div className="widget-settings">
       <div className="header">
         <h1>Widgets</h1>
-        <p>Quickly execute automated tasks and workflows.</p>
+        <p>Quickly execute widget tasks and workflows.</p>
       </div>
 
       <div className="widgets-layout">
@@ -559,6 +771,14 @@ const AutomateSettings: React.FC = () => {
             <UserRound className="tile-icon" size={48} />
             <span className="tile-label">Billing Customer Details</span>
           </button>
+          <button
+            type="button"
+            className={`tile ${activeWidget === 'live-table' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('live-table')}
+          >
+            <LayoutGrid className="tile-icon" size={48} />
+            <span className="tile-label">Live Table</span>
+          </button>
         </div>
 
         <div className="widget-panel">
@@ -570,7 +790,7 @@ const AutomateSettings: React.FC = () => {
           )}
 
           {activeWidget === 'stock-order' && (
-            <div className="automate-modal">
+            <div className="widget-modal">
               <div className="modal-header">
                 <h2>Stock Order</h2>
                 <button className="close-btn" onClick={() => setActiveWidget(null)}>
@@ -625,7 +845,8 @@ const AutomateSettings: React.FC = () => {
 
                 <div className="form-group">
                   <label>
-                    <MessageSquare size={14} style={{ marginRight: 4 }} /> Order Details (Product Qty)
+                    <MessageSquare size={14} style={{ marginRight: 4 }} /> Order Details (Product
+                    Qty)
                   </label>
                   <textarea
                     placeholder="Example:&#10;Veg puff 30&#10;Egg puff 20"
@@ -653,7 +874,7 @@ const AutomateSettings: React.FC = () => {
           )}
 
           {activeWidget === 'table-customer-details' && (
-            <div className="automate-modal">
+            <div className="widget-modal">
               <div className="modal-header">
                 <h2>Table Customer Details Setting</h2>
                 <button className="close-btn" onClick={() => setActiveWidget(null)}>
@@ -669,7 +890,9 @@ const AutomateSettings: React.FC = () => {
                   <Select
                     options={branchOptions}
                     value={selectedTableCustomerDetailsBranch}
-                    onChange={(option) => setSelectedTableCustomerDetailsBranch(option as Option | null)}
+                    onChange={(option) =>
+                      setSelectedTableCustomerDetailsBranch(option as Option | null)
+                    }
                     styles={customSelectStyles}
                     placeholder="Select Branch..."
                     isLoading={loading}
@@ -699,7 +922,9 @@ const AutomateSettings: React.FC = () => {
                     options={visibilityOptions}
                     value={skipTableCustomerDetailsVisibility}
                     onChange={(option) =>
-                      setSkipTableCustomerDetailsVisibility((option as Option) || visibilityOptions[0])
+                      setSkipTableCustomerDetailsVisibility(
+                        (option as Option) || visibilityOptions[0],
+                      )
                     }
                     styles={customSelectStyles}
                     isSearchable={false}
@@ -724,7 +949,8 @@ const AutomateSettings: React.FC = () => {
                                     : 'status-badge status-disabled'
                                 }
                               >
-                                Popup: {row.showCustomerDetailsForTableOrders ? 'Enabled' : 'Disabled'}
+                                Popup:{' '}
+                                {row.showCustomerDetailsForTableOrders ? 'Enabled' : 'Disabled'}
                               </span>
                               <span
                                 className={
@@ -733,13 +959,18 @@ const AutomateSettings: React.FC = () => {
                                     : 'status-badge status-disabled'
                                 }
                               >
-                                Skip: {row.allowSkipCustomerDetailsForTableOrders ? 'Enabled' : 'Disabled'}
+                                Skip:{' '}
+                                {row.allowSkipCustomerDetailsForTableOrders
+                                  ? 'Enabled'
+                                  : 'Disabled'}
                               </span>
                             </div>
                             <button
                               type="button"
                               className="remove-row-btn"
-                              onClick={() => removeTableConfiguredBranch(row.branchID, row.branchName)}
+                              onClick={() =>
+                                removeTableConfiguredBranch(row.branchID, row.branchName)
+                              }
                               disabled={Boolean(removingTableBranchID)}
                             >
                               {removingTableBranchID === row.branchID ? (
@@ -781,7 +1012,7 @@ const AutomateSettings: React.FC = () => {
           )}
 
           {activeWidget === 'billing-customer-details' && (
-            <div className="automate-modal">
+            <div className="widget-modal">
               <div className="modal-header">
                 <h2>Billing Customer Details Setting</h2>
                 <button className="close-btn" onClick={() => setActiveWidget(null)}>
@@ -797,7 +1028,9 @@ const AutomateSettings: React.FC = () => {
                   <Select
                     options={branchOptions}
                     value={selectedBillingCustomerDetailsBranch}
-                    onChange={(option) => setSelectedBillingCustomerDetailsBranch(option as Option | null)}
+                    onChange={(option) =>
+                      setSelectedBillingCustomerDetailsBranch(option as Option | null)
+                    }
                     styles={customSelectStyles}
                     placeholder="Select Branch..."
                     isLoading={loading}
@@ -812,7 +1045,9 @@ const AutomateSettings: React.FC = () => {
                     options={visibilityOptions}
                     value={billingCustomerDetailsVisibility}
                     onChange={(option) =>
-                      setBillingCustomerDetailsVisibility((option as Option) || visibilityOptions[0])
+                      setBillingCustomerDetailsVisibility(
+                        (option as Option) || visibilityOptions[0],
+                      )
                     }
                     styles={customSelectStyles}
                     isSearchable={false}
@@ -827,7 +1062,9 @@ const AutomateSettings: React.FC = () => {
                     options={visibilityOptions}
                     value={skipBillingCustomerDetailsVisibility}
                     onChange={(option) =>
-                      setSkipBillingCustomerDetailsVisibility((option as Option) || visibilityOptions[0])
+                      setSkipBillingCustomerDetailsVisibility(
+                        (option as Option) || visibilityOptions[0],
+                      )
                     }
                     styles={customSelectStyles}
                     isSearchable={false}
@@ -852,7 +1089,8 @@ const AutomateSettings: React.FC = () => {
                                     : 'status-badge status-disabled'
                                 }
                               >
-                                Popup: {row.showCustomerDetailsForBillingOrders ? 'Enabled' : 'Disabled'}
+                                Popup:{' '}
+                                {row.showCustomerDetailsForBillingOrders ? 'Enabled' : 'Disabled'}
                               </span>
                               <span
                                 className={
@@ -861,13 +1099,18 @@ const AutomateSettings: React.FC = () => {
                                     : 'status-badge status-disabled'
                                 }
                               >
-                                Skip: {row.allowSkipCustomerDetailsForBillingOrders ? 'Enabled' : 'Disabled'}
+                                Skip:{' '}
+                                {row.allowSkipCustomerDetailsForBillingOrders
+                                  ? 'Enabled'
+                                  : 'Disabled'}
                               </span>
                             </div>
                             <button
                               type="button"
                               className="remove-row-btn"
-                              onClick={() => removeBillingConfiguredBranch(row.branchID, row.branchName)}
+                              onClick={() =>
+                                removeBillingConfiguredBranch(row.branchID, row.branchName)
+                              }
                               disabled={Boolean(removingBillingBranchID)}
                             >
                               {removingBillingBranchID === row.branchID ? (
@@ -907,10 +1150,159 @@ const AutomateSettings: React.FC = () => {
               </div>
             </div>
           )}
+
+          {activeWidget === 'live-table' && (
+            <div className="widget-modal">
+              <div className="modal-header live-table-modal-header">
+                <h2>Live Table</h2>
+                <div className="live-table-toolbar">
+                  <div className="live-table-branch-filter">
+                    <Select
+                      options={liveTableBranchOptions}
+                      value={selectedLiveTableBranch}
+                      onChange={(option) =>
+                        setSelectedLiveTableBranch((option as Option) || liveTableBranchOptions[0])
+                      }
+                      styles={customSelectStyles}
+                      isSearchable={false}
+                      isDisabled={liveTableLoading}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    className="btn btn-secondary live-refresh-btn"
+                    onClick={() => void fetchLiveTableStatus(selectedLiveTableBranch.value)}
+                    disabled={liveTableLoading}
+                  >
+                    {liveTableLoading ? (
+                      <>
+                        <Loader2 className="animate-spin" size={16} />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw size={16} />
+                        Refresh
+                      </>
+                    )}
+                  </button>
+                </div>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="modal-body">
+                {liveTableError && <p className="live-error">{liveTableError}</p>}
+
+                {!liveTableLoading && !liveTableError && liveTableBranches.length === 0 && (
+                  <p className="live-empty-state">
+                    No table configuration found for the selected branch.
+                  </p>
+                )}
+
+                {liveTableBranches.map((branch) => (
+                  <div className="live-branch-block" key={branch.branchId}>
+                    <h3 className="live-branch-title">{branch.branchName}</h3>
+
+                    {branch.sections.length === 0 ? (
+                      <p className="live-empty-state">No sections available.</p>
+                    ) : (
+                      branch.sections.map((section) => (
+                        <div
+                          className="live-section-block"
+                          key={`${branch.branchId}-${section.sectionName}`}
+                        >
+                          <h4 className="live-section-title">{section.sectionName}</h4>
+                          <div className="live-table-grid">
+                            {section.tables.map((table) => {
+                              const tableVisualState =
+                                table.tableState === 'active' ||
+                                table.tableState === 'prepared' ||
+                                table.tableState === 'delivered' ||
+                                table.tableState === 'available'
+                                  ? table.tableState
+                                  : table.occupied
+                                    ? 'active'
+                                    : 'available'
+                              const showActiveTimer = tableVisualState === 'active'
+                              const showOccupiedDetails = tableVisualState !== 'available'
+
+                              return (
+                                <div
+                                  className={`live-table-card ${tableVisualState}`}
+                                  key={`${branch.branchId}-${section.sectionName}-${table.tableKey}`}
+                                >
+                                  {showActiveTimer && (
+                                    <div className="table-timer">
+                                      {getElapsedLabel(
+                                        table.startedAt,
+                                        table.elapsedSeconds,
+                                        liveTableNowMs,
+                                      )}
+                                    </div>
+                                  )}
+                                  <div className="table-name">{table.tableLabel}</div>
+                                  {showOccupiedDetails ? (
+                                    <>
+                                      <div className="table-kot">
+                                        {getKotAmountLabel(table.kotNumber, table.totalAmount)}
+                                      </div>
+                                      <div className="table-by">
+                                        By:{' '}
+                                        {table.servedBy && table.servedBy.length > 0
+                                          ? table.servedBy
+                                          : '-'}
+                                      </div>
+                                      <div className="table-actions">
+                                        <button
+                                          type="button"
+                                          className="table-action-btn"
+                                          aria-label="View"
+                                          onClick={() => void handleViewBillClick(table.billId)}
+                                        >
+                                          <Eye size={15} />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="table-action-btn"
+                                          aria-label="Print"
+                                        >
+                                          <Printer size={15} />
+                                        </button>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div className="table-available-label">Available</div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {(selectedBill || loadingBill) && (
+        <BillModal
+          billData={selectedBill}
+          loading={loadingBill}
+          onClose={() => {
+            setSelectedBill(null)
+            setLoadingBill(false)
+          }}
+        />
+      )}
     </div>
   )
 }
 
-export default AutomateSettings
+export default WidgetSettings
