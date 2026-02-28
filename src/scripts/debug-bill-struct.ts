@@ -1,7 +1,9 @@
 import { MongoClient } from 'mongodb'
 import dotenv from 'dotenv'
 dotenv.config()
-const client = new MongoClient(process.env.DATABASE_URI)
+const uri = process.env.DATABASE_URI
+if (!uri) throw new Error('DATABASE_URI is not defined')
+const client = new MongoClient(uri)
 async function run() {
   await client.connect()
   const db = client.db('blackforest-payload')
@@ -11,7 +13,6 @@ async function run() {
   const bill2 = await db.collection('billings').findOne({})
   console.log('Sample bill structure:', JSON.stringify(bill2, null, 2))
 
-  // Try finding by branch since yesterday without string match
   const recentBills = await db
     .collection('billings')
     .find({

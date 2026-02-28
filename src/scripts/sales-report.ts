@@ -42,10 +42,10 @@ async function run() {
       return
     }
 
-    const productIds = targetProducts.map((p) => p._id.toString())
-    const productMap = {}
+    // const productIds = targetProducts.map((p) => p._id.toString())
+    const productMap: Record<string, 'EGG PUFFS' | 'DUBAI CHOCO KUNAFA'> = {}
     targetProducts.forEach((p) => {
-      productMap[p._id.toString()] = p.name
+      productMap[p._id.toString()] = p.name as 'EGG PUFFS' | 'DUBAI CHOCO KUNAFA'
     })
 
     // 3. Find billings today for this branch
@@ -72,7 +72,7 @@ async function run() {
     const bills = await billingsColl.find(query).toArray()
     console.log(`Found ${bills.length} bills today for this branch`)
 
-    const result = {
+    const result: Record<'EGG PUFFS' | 'DUBAI CHOCO KUNAFA', { count: number; bills: string[] }> = {
       'EGG PUFFS': { count: 0, bills: [] },
       'DUBAI CHOCO KUNAFA': { count: 0, bills: [] },
     }

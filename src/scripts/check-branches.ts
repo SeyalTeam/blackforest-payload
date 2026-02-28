@@ -1,7 +1,9 @@
 import { MongoClient } from 'mongodb'
 import dotenv from 'dotenv'
 dotenv.config()
-const client = new MongoClient(process.env.DATABASE_URI)
+const uri = process.env.DATABASE_URI
+if (!uri) throw new Error('DATABASE_URI is not defined')
+const client = new MongoClient(uri)
 async function run() {
   await client.connect()
   const db = client.db('blackforest-payload')
@@ -18,7 +20,6 @@ async function run() {
   const targetBranch = branches.find((b) => b._id.toString() === '69724ad6f91273ae0b1e121f')
   console.log('Target Branch Match:', targetBranch ? targetBranch.name : 'NONE FOUND')
 
-  // Check if there are ANY billings at all
   const count = await db.collection('billings').countDocuments()
   console.log('Total Billings in DB:', count)
 
