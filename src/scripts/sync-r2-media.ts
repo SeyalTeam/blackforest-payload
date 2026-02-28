@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { getPayload } from 'payload'
-import configPromise from '../payload.config.ts'
+import configPromise from '../payload.config'
 import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3'
 
 const run = async () => {
@@ -109,6 +109,10 @@ const run = async () => {
             await CategoryModel.updateOne({ _id: category._id }, { $set: { image: mediaId } })
           }
         }
+      } else if (folder === 'expense' || folder === 'returnorder') {
+        // For expenses and returns, we just ensure the media document exists.
+        // They are usually linked by ID during creation, so we don't try to link by filename here.
+        // Just having the media doc with the correct filename/prefix is enough for Payload to find it.
       }
     }
   } catch (err) {
@@ -116,7 +120,6 @@ const run = async () => {
   }
 
   console.log(`--- Finished ${folder} ---`)
-  process.exit(0)
 }
 
 run()

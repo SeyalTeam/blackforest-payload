@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { getPayload } from 'payload'
-import configPromise from '../payload.config.ts'
+import configPromise from '../payload.config'
 import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3'
 
 const run = async () => {
