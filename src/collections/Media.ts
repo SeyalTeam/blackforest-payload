@@ -111,12 +111,15 @@ const addPublicURL: CollectionAfterReadHook = ({ doc }) => {
     const rootPrefix = 'blackforest/uploads'
     const docPrefix = typeof doc.prefix === 'string' ? doc.prefix : ''
 
-    // Ensure there are no double slashes when joining
     const cleanURL = publicURL.endsWith('/') ? publicURL.slice(0, -1) : publicURL
     const cleanRoot = rootPrefix.startsWith('/') ? rootPrefix.slice(1) : rootPrefix
     const cleanDocPrefix = docPrefix.startsWith('/') ? docPrefix.slice(1) : docPrefix
 
-    const fullPath = [cleanRoot, cleanDocPrefix, doc.filename]
+    // Prevent double prefixes (e.g. 'category/category/image.jpg')
+    // This happens because some DB syncing scripts baked the prefix into the filename directly
+    const finalDocPrefix = doc.filename.startsWith(cleanDocPrefix + '/') ? '' : cleanDocPrefix
+
+    const fullPath = [cleanRoot, finalDocPrefix, doc.filename]
       .filter(Boolean)
       .join('/')
       .replace(/\/+/g, '/') // Remove double slashes everywhere else
