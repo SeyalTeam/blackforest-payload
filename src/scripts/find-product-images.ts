@@ -22,7 +22,7 @@ async function run() {
       .toArray()
 
     // Get media IDs
-    const mediaIds = []
+    const mediaIds: any[] = []
     targetProducts.forEach((p) => {
       if (p.images && Array.isArray(p.images)) {
         p.images.forEach((imgObj) => {
