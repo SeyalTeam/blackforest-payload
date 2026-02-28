@@ -1,4 +1,4 @@
-// storage-adapter-import-placeholder
+import { s3Storage } from '@payloadcms/storage-s3'
 import { mongooseAdapter } from '@payloadcms/db-mongodb'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import path from 'path'
@@ -332,5 +332,26 @@ export default buildConfig({
 
   sharp,
   serverURL: process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000',
-  plugins: [],
+  plugins: [
+    s3Storage({
+      collections: {
+        media: {
+          prefix: ({ doc }) => `blackforest/uploads/${doc.prefix || ''}`,
+        },
+        'apk-files': {
+          prefix: 'blackforest/uploads/apk/',
+        },
+      },
+      bucket: process.env.S3_BUCKET || '',
+      config: {
+        credentials: {
+          accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
+          secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
+        },
+        region: process.env.S3_REGION || 'auto',
+        endpoint: process.env.S3_ENDPOINT || '',
+        forcePathStyle: true,
+      },
+    }),
+  ],
 })

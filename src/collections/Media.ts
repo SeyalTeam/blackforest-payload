@@ -60,7 +60,9 @@ const mirrorToPrefixFolder: CollectionAfterChangeHook = async ({ doc, previousDo
     const previousFilename =
       previousDoc && typeof previousDoc.filename === 'string' ? previousDoc.filename : ''
     const previousPrefix =
-      previousDoc && typeof previousDoc.prefix === 'string' ? normalizePrefix(previousDoc.prefix) : ''
+      previousDoc && typeof previousDoc.prefix === 'string'
+        ? normalizePrefix(previousDoc.prefix)
+        : ''
 
     if (
       previousFilename &&
@@ -88,7 +90,9 @@ const cleanupMirroredFile: CollectionAfterDeleteHook = async ({ doc, req }) => {
   }
 
   try {
-    await fs.rm(path.join(path.resolve(process.cwd(), 'uploads'), prefix, filename), { force: true })
+    await fs.rm(path.join(path.resolve(process.cwd(), 'uploads'), prefix, filename), {
+      force: true,
+    })
   } catch (error) {
     req.payload.logger.error({
       err: error,
@@ -111,6 +115,13 @@ export const Media: CollectionConfig = {
       type: 'text',
       required: false,
     },
+    {
+      name: 'prefix',
+      type: 'text',
+      admin: {
+        hidden: true,
+      },
+    },
   ],
   upload: {
     staticDir: 'uploads',
@@ -127,7 +138,8 @@ export const Media: CollectionConfig = {
   },
   hooks: {
     beforeChange: [setDynamicPrefix],
-    afterChange: [mirrorToPrefixFolder],
-    afterDelete: [cleanupMirroredFile],
+    // Disable mirroring for cloud storage
+    // afterChange: [mirrorToPrefixFolder],
+    // afterDelete: [cleanupMirroredFile],
   },
 }
