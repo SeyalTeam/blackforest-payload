@@ -23,9 +23,9 @@ async function run() {
 
     // Get media IDs
     const mediaIds: any[] = []
-    targetProducts.forEach((p) => {
+    targetProducts.forEach((p: any) => {
       if (p.images && Array.isArray(p.images)) {
-        p.images.forEach((imgObj) => {
+        p.images.forEach((imgObj: any) => {
           if (imgObj.image) mediaIds.push(imgObj.image)
         })
       }
@@ -41,15 +41,15 @@ async function run() {
     const medias = await mediaColl.find({ _id: { $in: mediaIds } }).toArray()
 
     console.log('--- Image URLs ---')
-    targetProducts.forEach((p) => {
+    targetProducts.forEach((p: any) => {
       console.log(`\nProduct: ${p.name}`)
       if (!p.images || p.images.length === 0) {
         console.log('  No images configured')
         return
       }
-      p.images.forEach((imgObj, index) => {
+      p.images.forEach((imgObj: any, index: number) => {
         const mediaId = imgObj.image.toString()
-        const mediaDoc = medias.find((m) => m._id.toString() === mediaId)
+        const mediaDoc = medias.find((m: any) => m._id.toString() === mediaId)
         if (mediaDoc) {
           console.log(`  Image ${index + 1}:`)
           console.log(`    Filename: ${mediaDoc.filename}`)
@@ -60,7 +60,7 @@ async function run() {
         }
       })
     })
-  } catch (err) {
+  } catch (err: any) {
     console.error(err)
   } finally {
     await client.close()
