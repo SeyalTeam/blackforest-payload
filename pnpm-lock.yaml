@@ -11,6 +11,9 @@ importers:
 
   .:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.1000.0
+        version: 3.1000.0
       '@payloadcms/db-mongodb':
         specifier: 3.60.0
         version: 3.60.0(payload@3.60.0(graphql@16.13.0)(typescript@5.7.3))

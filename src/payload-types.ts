@@ -374,6 +374,7 @@ export interface Category {
 export interface Media {
   id: string;
   alt?: string | null;
+  prefix?: string | null;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -843,6 +844,7 @@ export interface Attendance {
  */
 export interface ApkFile {
   id: string;
+  prefix?: string | null;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -1139,6 +1141,7 @@ export interface ProductsSelect<T extends boolean = true> {
  */
 export interface MediaSelect<T extends boolean = true> {
   alt?: T;
+  prefix?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;
@@ -1554,6 +1557,7 @@ export interface AttendanceSelect<T extends boolean = true> {
  * via the `definition` "apk-files_select".
  */
 export interface ApkFilesSelect<T extends boolean = true> {
+  prefix?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;

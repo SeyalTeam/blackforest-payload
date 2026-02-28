@@ -111,8 +111,13 @@ const Categories: CollectionConfig = {
   hooks: {
     beforeChange: [
       ({ data, req: _req, operation }) => {
-        if (operation === 'create' || operation === 'update') {
+        if (operation === 'create') {
           if (!data.company || data.company.length === 0) {
+            throw new Error('At least one company must be selected.')
+          }
+        }
+        if (operation === 'update') {
+          if (data.company !== undefined && (!data.company || data.company.length === 0)) {
             throw new Error('At least one company must be selected.')
           }
         }

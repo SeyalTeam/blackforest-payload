@@ -336,10 +336,10 @@ export default buildConfig({
     s3Storage({
       collections: {
         media: {
-          prefix: ({ doc }) => `blackforest/uploads/${doc.prefix || ''}`,
+          prefix: 'blackforest/uploads',
         },
         'apk-files': {
-          prefix: 'blackforest/uploads/apk/',
+          prefix: 'blackforest/uploads/apk',
         },
       },
       bucket: process.env.S3_BUCKET || '',
