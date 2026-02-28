@@ -337,16 +337,9 @@ export default buildConfig({
       collections: {
         media: {
           prefix: 'blackforest/uploads',
-          // Generate public URL for the billing app
-          generateURL: ({ filename, prefix }) => {
-            return `${process.env.NEXT_PUBLIC_S3_PUBLIC_URL}/${prefix}/${filename}`
-          },
         },
         'apk-files': {
           prefix: 'blackforest/uploads/apk',
-          generateURL: ({ filename, prefix }) => {
-            return `${process.env.NEXT_PUBLIC_S3_PUBLIC_URL}/${prefix}/${filename}`
-          },
         },
       },
       bucket: process.env.S3_BUCKET || '',

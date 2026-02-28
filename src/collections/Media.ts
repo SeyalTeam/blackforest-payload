@@ -3,6 +3,7 @@ import path from 'node:path'
 import type {
   CollectionAfterChangeHook,
   CollectionAfterDeleteHook,
+  CollectionAfterReadHook,
   CollectionBeforeChangeHook,
   CollectionConfig,
 } from 'payload'
@@ -101,6 +102,31 @@ const cleanupMirroredFile: CollectionAfterDeleteHook = async ({ doc, req }) => {
   }
 }
 
+const addPublicURL: CollectionAfterReadHook = ({ doc }) => {
+  const publicURL = process.env.NEXT_PUBLIC_S3_PUBLIC_URL
+
+  if (publicURL && doc && doc.filename) {
+    // Construction: PUBLIC_URL + ROOT_PREFIX + (doc.prefix if exists) + filename
+    // We configured s3Storage with prefix: 'blackforest/uploads'
+    const rootPrefix = 'blackforest/uploads'
+    const docPrefix = typeof doc.prefix === 'string' ? doc.prefix : ''
+
+    // Ensure there are no double slashes when joining
+    const cleanURL = publicURL.endsWith('/') ? publicURL.slice(0, -1) : publicURL
+    const cleanRoot = rootPrefix.startsWith('/') ? rootPrefix.slice(1) : rootPrefix
+    const cleanDocPrefix = docPrefix.startsWith('/') ? docPrefix.slice(1) : docPrefix
+
+    const fullPath = [cleanRoot, cleanDocPrefix, doc.filename]
+      .filter(Boolean)
+      .join('/')
+      .replace(/\/+/g, '/') // Remove double slashes everywhere else
+
+    doc.url = `${cleanURL}/${fullPath}`
+  }
+
+  return doc
+}
+
 export const Media: CollectionConfig = {
   slug: 'media',
   admin: {
@@ -138,6 +164,7 @@ export const Media: CollectionConfig = {
   },
   hooks: {
     beforeChange: [setDynamicPrefix],
+    afterRead: [addPublicURL],
     // Disable mirroring for cloud storage
     // afterChange: [mirrorToPrefixFolder],
     // afterDelete: [cleanupMirroredFile],
