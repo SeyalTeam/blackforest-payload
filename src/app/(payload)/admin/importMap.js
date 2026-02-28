@@ -17,6 +17,7 @@ import { GeoLocationButton as GeoLocationButton_c6abd8fffba800c90850c15956a40d8c
 import { default as default_33fb18e2b81f2b37393ae18281df6f35 } from '../../../components/NetworkStatus/index.tsx'
 import { default as default_7b1ab22c3fec8de15c6e9105699e8e3c } from '../../../components/WidgetSettings/index.tsx'
 import { default as default_d4c0194fffb8d598abc8dcbf5bd68b64 } from '../../../components/ProductPriceOfferPreviewField/index.tsx'
+import { S3ClientUploadHandler as S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24 } from '@payloadcms/storage-s3/client'
 
 export const importMap = {
   "/components/BillDetailView/index.tsx#default": default_9c4c60e4f20d2fcb9e26d5fbef4e001d,
@@ -37,5 +38,6 @@ export const importMap = {
   "/components/GeoLocationButton/index.tsx#GeoLocationButton": GeoLocationButton_c6abd8fffba800c90850c15956a40d8c,
   "/components/NetworkStatus/index.tsx#default": default_33fb18e2b81f2b37393ae18281df6f35,
   "/components/WidgetSettings/index.tsx#default": default_7b1ab22c3fec8de15c6e9105699e8e3c,
-  "/components/ProductPriceOfferPreviewField/index.tsx#default": default_d4c0194fffb8d598abc8dcbf5bd68b64
+  "/components/ProductPriceOfferPreviewField/index.tsx#default": default_d4c0194fffb8d598abc8dcbf5bd68b64,
+  "@payloadcms/storage-s3/client#S3ClientUploadHandler": S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24
 }
