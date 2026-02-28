@@ -56,7 +56,6 @@ const run = async () => {
 
       // 1. Sync Media entry
       let mediaDoc = await MediaModel.findOne({ filename: dbFilename })
-      let mediaId
 
       if (!mediaDoc) {
         console.log(`Creating Media entry: ${dbFilename}`)
@@ -75,7 +74,7 @@ const run = async () => {
           updatedAt: new Date(),
         })
       }
-      mediaId = mediaDoc.id || mediaDoc._id
+      const mediaId = mediaDoc.id || mediaDoc._id
 
       // 2. Link to Collection
       if (folder === 'products') {
