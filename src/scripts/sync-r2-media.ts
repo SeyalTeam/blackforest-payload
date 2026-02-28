@@ -100,8 +100,15 @@ const run = async () => {
           }
         }
       } else if (folder === 'categories' || folder === 'category') {
-        const stem = justFilename.split('.').slice(0, -1).join('.').trim()
-        const category = await CategoryModel.findOne({ name: stem })
+        let stem = justFilename.trim()
+        if (stem.includes('.')) {
+          stem = stem.split('.').slice(0, -1).join('.').trim()
+        }
+        stem = stem.replace(/-400x300$/, '').trim()
+
+        const category = await CategoryModel.findOne({
+          name: { $regex: new RegExp('^' + stem + '$', 'i') },
+        })
 
         if (category) {
           if (!category.image || category.image.toString() !== mediaId.toString()) {
