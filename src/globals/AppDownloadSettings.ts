@@ -48,13 +48,16 @@ const resolveAppDownloadBaseURL = (req?: PayloadRequest): string => {
   const serverURL = toOrigin(normalizeText(req.payload?.config?.serverURL))
   if (serverURL) return serverURL
 
-  const forwardedProto = getFirstCommaSeparatedValue(req.headers.get('x-forwarded-proto')).toLowerCase()
+  const forwardedProto = getFirstCommaSeparatedValue(
+    req.headers.get('x-forwarded-proto'),
+  ).toLowerCase()
   const forwardedHost = getFirstCommaSeparatedValue(req.headers.get('x-forwarded-host'))
   const host = forwardedHost || getFirstCommaSeparatedValue(req.headers.get('host'))
 
   if (host) {
     const protocol =
-      forwardedProto || (host.includes('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https')
+      forwardedProto ||
+      (host.includes('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https')
     const fromHeaders = toOrigin(`${protocol}://${host}`)
     if (fromHeaders) return fromHeaders
   }
@@ -218,6 +221,15 @@ export const AppDownloadSettings: GlobalConfig = {
   label: 'App Downloads',
   admin: {
     group: 'Settings',
+    components: {
+      views: {
+        edit: {
+          root: {
+            Component: '/components/WidgetSettings/index.tsx#default',
+          },
+        },
+      },
+    },
   },
   access: {
     read: () => true,

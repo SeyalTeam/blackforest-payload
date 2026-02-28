@@ -1037,17 +1037,10 @@ const applyConfiguredItemOffers = async (
     null
 
   const productToProductItems = allowProductToProductOffer
-    ? await applyProductToProductOffers(
-        baseItems,
-        payload,
-        status,
-        settings,
-        customerID,
-        isTableOrder,
-      )
+    ? await applyProductToProductOffers(items, payload, status, settings, customerID, isTableOrder)
     : baseItems
   const productPriceItems = allowProductPriceOffer
-    ? applyProductPriceOffers(baseItems, status, settings, customerID, isTableOrder)
+    ? applyProductPriceOffers(items, status, settings, customerID, isTableOrder)
     : baseItems
   const randomItems = allowRandomProductOffer
     ? await applyRandomCustomerProductOffer(

@@ -331,6 +331,6 @@ export default buildConfig({
   }),
 
   sharp,
-
+  serverURL: process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000',
   plugins: [],
 })
