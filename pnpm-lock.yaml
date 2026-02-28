@@ -74,6 +74,9 @@ importers:
       mongodb:
         specifier: ^6.16.0
         version: 6.16.0
+      mongoose:
+        specifier: 8.15.1
+        version: 8.15.1
       next:
         specifier: ^15.5.7
         version: 15.5.12(@babel/core@7.29.0)(@playwright/test@1.54.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.77.4)
