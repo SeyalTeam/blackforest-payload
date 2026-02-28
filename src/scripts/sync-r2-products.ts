@@ -55,14 +55,21 @@ const run = async () => {
       const justFilename = key.split('/').pop() || ''
       if (!justFilename) continue
 
-      const dbFilename = `products/${justFilename}`
+      const dbFilename = justFilename
 
       // 1. Check if Media exists in Payload via standard Payload API (fast)
-      const existingMedia = await payload.find({
+      let existingMedia = await payload.find({
         collection: 'media',
         where: { filename: { equals: dbFilename } },
         limit: 1,
       })
+      if (existingMedia.docs.length === 0) {
+        existingMedia = await payload.find({
+          collection: 'media',
+          where: { filename: { equals: `products/${justFilename}` } },
+          limit: 1,
+        })
+      }
 
       let mediaId
       if (existingMedia.docs.length === 0) {

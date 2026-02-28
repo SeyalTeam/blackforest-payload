@@ -103,7 +103,7 @@ const cleanupMirroredFile: CollectionAfterDeleteHook = async ({ doc, req }) => {
 }
 
 const addPublicURL: CollectionAfterReadHook = ({ doc }) => {
-  const publicURL = process.env.NEXT_PUBLIC_S3_PUBLIC_URL
+  const publicURL = process.env.NEXT_PUBLIC_S3_PUBLIC_URL || process.env.S3_PUBLIC_URL
 
   if (publicURL && doc && doc.filename) {
     // Construction: PUBLIC_URL + ROOT_PREFIX + (doc.prefix if exists) + filename
@@ -124,7 +124,32 @@ const addPublicURL: CollectionAfterReadHook = ({ doc }) => {
       .join('/')
       .replace(/\/+/g, '/') // Remove double slashes everywhere else
 
-    doc.url = `${cleanURL}/${fullPath}`
+    const originalURL = `${cleanURL}/${fullPath}`
+    doc.url = originalURL
+
+    // Fallback for migrated records created without thumbnail metadata.
+    // Payload admin uses thumbnail fields for previews inside upload relationship UI.
+    if (!doc.thumbnailURL) {
+      doc.thumbnailURL = originalURL
+    }
+
+    if (!doc.sizes?.thumbnail) {
+      doc.sizes = doc.sizes || {}
+      doc.sizes.thumbnail = {
+        url: originalURL,
+        width: doc.width || null,
+        height: doc.height || null,
+        mimeType: doc.mimeType || null,
+        filesize: doc.filesize || null,
+        filename: doc.filename || null,
+      }
+    } else if (!doc.sizes.thumbnail.url && doc.sizes.thumbnail.filename) {
+      const thumbPath = [cleanRoot, finalDocPrefix, doc.sizes.thumbnail.filename]
+        .filter(Boolean)
+        .join('/')
+        .replace(/\/+/g, '/')
+      doc.sizes.thumbnail.url = `${cleanURL}/${thumbPath}`
+    }
   }
 
   return doc

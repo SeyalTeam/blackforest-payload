@@ -52,10 +52,12 @@ const run = async () => {
       const justFilename = key.split('/').pop() || ''
       if (!justFilename) continue
 
-      const dbFilename = `${folder}/${justFilename}`
+      const dbFilename = justFilename
 
       // 1. Sync Media entry
-      let mediaDoc = await MediaModel.findOne({ filename: dbFilename })
+      let mediaDoc =
+        (await MediaModel.findOne({ filename: dbFilename })) ||
+        (await MediaModel.findOne({ filename: `${folder}/${justFilename}` }))
 
       if (!mediaDoc) {
         console.log(`Creating Media entry: ${dbFilename}`)
