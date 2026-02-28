@@ -75,6 +75,8 @@ import { getLatestAppDownloadHandler } from './endpoints/getLatestAppDownload'
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
+const publicServerURL = process.env.PAYLOAD_PUBLIC_SERVER_URL?.trim()
+const vercelURL = process.env.VERCEL_URL?.trim()
 
 export default buildConfig({
   admin: {
@@ -331,7 +333,7 @@ export default buildConfig({
   }),
 
   sharp,
-  serverURL: process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000',
+  serverURL: publicServerURL || (vercelURL ? `https://${vercelURL}` : 'http://localhost:3000'),
   plugins: [
     s3Storage({
       collections: {
