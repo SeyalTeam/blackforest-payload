@@ -161,11 +161,9 @@ const addPublicURL: CollectionAfterReadHook = ({ doc }) => {
       .replace(/\/+/g, '/')
     const thumbURL = !hasLegacyAbsolutePrefix && thumbFilename ? `${cleanURL}/${thumbPath}` : originalURL
 
-    // Fallback for migrated records created without thumbnail metadata.
-    // Payload admin uses thumbnail fields for previews inside upload relationship UI.
-    if (!doc.thumbnailURL || isLegacyLocalMediaURL(doc.thumbnailURL)) {
-      doc.thumbnailURL = thumbURL
-    }
+    // Always prefer R2/public URL for thumbnail in API responses so admin UI
+    // does not depend on /api/media/file (which can differ between deployments).
+    doc.thumbnailURL = thumbURL
 
     if (!doc.sizes?.thumbnail) {
       doc.sizes = doc.sizes || {}
@@ -177,10 +175,7 @@ const addPublicURL: CollectionAfterReadHook = ({ doc }) => {
         filesize: doc.filesize || null,
         filename: !hasLegacyAbsolutePrefix && thumbFilename ? thumbFilename : filenameWithoutRoot || null,
       }
-    } else if (
-      (!doc.sizes.thumbnail.url || isLegacyLocalMediaURL(doc.sizes.thumbnail.url)) &&
-      (!hasLegacyAbsolutePrefix ? thumbFilename : filenameWithoutRoot)
-    ) {
+    } else if (!hasLegacyAbsolutePrefix ? thumbFilename : filenameWithoutRoot) {
       doc.sizes.thumbnail.url = thumbURL
     }
   }
