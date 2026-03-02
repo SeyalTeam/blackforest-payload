@@ -1,4 +1,4 @@
-import type { PayloadHandler } from 'payload'
+import type { PayloadHandler, Where } from 'payload'
 
 type ProductDoc = {
   id?: string | number
@@ -36,25 +36,21 @@ export const getWidgetProductOptionsHandler: PayloadHandler = async (req): Promi
       .filter(Boolean)
       .slice(0, 120)
 
-    const where =
-      ids.length > 0
-        ? { id: { in: ids } }
-        : query.length > 0
-          ? {
-              or: [
-                { name: { like: query } },
-                { productId: { like: query } },
-                { upc: { like: query } },
-              ],
-            }
-          : undefined
+    let where: Where | undefined
+    if (ids.length > 0) {
+      where = { id: { in: ids } } as Where
+    } else if (query.length > 0) {
+      where = {
+        or: [{ name: { like: query } }, { productId: { like: query } }, { upc: { like: query } }],
+      } as Where
+    }
 
     const products = await req.payload.find({
       collection: 'products',
       depth: 0,
       limit,
       sort: 'name',
-      ...(where ? { where } : {}),
+      where,
       overrideAccess: true,
     })
 
