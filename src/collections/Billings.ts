@@ -1133,6 +1133,11 @@ const Billings: CollectionConfig = {
       user?.role != null && ['branch', 'waiter', 'superadmin'].includes(user.role),
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
+  indexes: [
+    {
+      fields: ['customerDetails.phoneNumber', 'createdAt'],
+    },
+  ],
   endpoints: [
     {
       path: '/:id/items/status',

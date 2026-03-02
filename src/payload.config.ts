@@ -68,6 +68,7 @@ import { getTableCustomerDetailsVisibilityHandler } from './endpoints/getTableCu
 import { getLiveTableStatusHandler } from './endpoints/getLiveTableStatus'
 import { getReportBranchesHandler } from './endpoints/getReportBranches'
 import { getWidgetProductOptionsHandler } from './endpoints/getWidgetProductOptions'
+import { getBillingCustomerLookupHandler } from './endpoints/getBillingCustomerLookup'
 import { CustomerOfferSettings } from './globals/CustomerOfferSettings'
 import APKFiles from './collections/APKFiles'
 import { AppDownloadSettings } from './globals/AppDownloadSettings'
@@ -275,6 +276,11 @@ export default buildConfig({
       path: '/widgets/product-options',
       method: 'get',
       handler: getWidgetProductOptionsHandler,
+    },
+    {
+      path: '/billing/customer-lookup',
+      method: 'get',
+      handler: getBillingCustomerLookupHandler,
     },
     {
       path: '/app-download/latest.apk',
