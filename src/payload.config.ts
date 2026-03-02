@@ -67,6 +67,7 @@ import { createWidgetOrderHandler } from './endpoints/createWidgetOrder'
 import { getTableCustomerDetailsVisibilityHandler } from './endpoints/getTableCustomerDetailsVisibility'
 import { getLiveTableStatusHandler } from './endpoints/getLiveTableStatus'
 import { getReportBranchesHandler } from './endpoints/getReportBranches'
+import { getWidgetProductOptionsHandler } from './endpoints/getWidgetProductOptions'
 import { CustomerOfferSettings } from './globals/CustomerOfferSettings'
 import APKFiles from './collections/APKFiles'
 import { AppDownloadSettings } from './globals/AppDownloadSettings'
@@ -77,6 +78,24 @@ const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 const publicServerURL = process.env.PAYLOAD_PUBLIC_SERVER_URL?.trim()
 const vercelURL = process.env.VERCEL_URL?.trim()
+
+const r2Env = {
+  S3_BUCKET: process.env.S3_BUCKET?.trim(),
+  S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID?.trim(),
+  S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY?.trim(),
+  S3_ENDPOINT: process.env.S3_ENDPOINT?.trim(),
+  S3_REGION: process.env.S3_REGION?.trim() || 'auto',
+}
+
+const missingR2Env = Object.entries(r2Env)
+  .filter(([key, value]) => key !== 'S3_REGION' && !value)
+  .map(([key]) => key)
+
+if (missingR2Env.length > 0) {
+  throw new Error(
+    `[R2 config] Missing required environment variable(s): ${missingR2Env.join(', ')}`,
+  )
+}
 
 export default buildConfig({
   admin: {
@@ -251,6 +270,11 @@ export default buildConfig({
       handler: getLiveTableStatusHandler,
     },
     {
+      path: '/widgets/product-options',
+      method: 'get',
+      handler: getWidgetProductOptionsHandler,
+    },
+    {
       path: '/app-download/latest.apk',
       method: 'get',
       handler: getLatestAppDownloadHandler,
@@ -344,14 +368,14 @@ export default buildConfig({
           prefix: 'blackforest/uploads/apk',
         },
       },
-      bucket: process.env.S3_BUCKET || '',
+      bucket: r2Env.S3_BUCKET || '',
       config: {
         credentials: {
-          accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
-          secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
+          accessKeyId: r2Env.S3_ACCESS_KEY_ID || '',
+          secretAccessKey: r2Env.S3_SECRET_ACCESS_KEY || '',
         },
-        region: process.env.S3_REGION || 'auto',
-        endpoint: process.env.S3_ENDPOINT || '',
+        region: r2Env.S3_REGION,
+        endpoint: r2Env.S3_ENDPOINT || '',
         forcePathStyle: true,
       },
     }),

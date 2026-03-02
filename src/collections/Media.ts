@@ -115,11 +115,28 @@ const addPublicURL: CollectionAfterReadHook = ({ doc }) => {
     const cleanRoot = rootPrefix.startsWith('/') ? rootPrefix.slice(1) : rootPrefix
     const cleanDocPrefix = docPrefix.startsWith('/') ? docPrefix.slice(1) : docPrefix
 
+    // Some migrated rows incorrectly saved absolute storage prefix in `doc.prefix`
+    // (e.g. "blackforest/uploads"), which would duplicate root segments in URLs.
+    const normalizedDocPrefix =
+      cleanDocPrefix === cleanRoot
+        ? ''
+        : cleanDocPrefix.startsWith(`${cleanRoot}/`)
+          ? cleanDocPrefix.slice(cleanRoot.length + 1)
+          : cleanDocPrefix
+
     // Prevent double prefixes (e.g. 'category/category/image.jpg')
     // This happens because some DB syncing scripts baked the prefix into the filename directly
-    const finalDocPrefix = doc.filename.startsWith(cleanDocPrefix + '/') ? '' : cleanDocPrefix
+    const finalDocPrefix = doc.filename.startsWith(`${normalizedDocPrefix}/`)
+      ? ''
+      : normalizedDocPrefix
 
-    const fullPath = [cleanRoot, finalDocPrefix, doc.filename]
+    // Some migrated rows have root prefix baked into filename:
+    // e.g. "blackforest/uploads/products/example.jpg"
+    const filenameWithoutRoot = doc.filename.startsWith(`${cleanRoot}/`)
+      ? doc.filename.slice(cleanRoot.length + 1)
+      : doc.filename
+
+    const fullPath = [cleanRoot, finalDocPrefix, filenameWithoutRoot]
       .filter(Boolean)
       .join('/')
       .replace(/\/+/g, '/') // Remove double slashes everywhere else
@@ -127,28 +144,42 @@ const addPublicURL: CollectionAfterReadHook = ({ doc }) => {
     const originalURL = `${cleanURL}/${fullPath}`
     doc.url = originalURL
 
+    const isLegacyLocalMediaURL = (value?: string | null): boolean =>
+      typeof value === 'string' && /^https?:\/\/localhost(?::\d+)?\/api\/media\/file\//.test(value)
+
+    const getNormalizedFilename = (value?: string | null): string | null => {
+      if (!value || typeof value !== 'string') return null
+      return value.startsWith(`${cleanRoot}/`) ? value.slice(cleanRoot.length + 1) : value
+    }
+
+    const thumbFilename = getNormalizedFilename(doc.sizes?.thumbnail?.filename)
+    const thumbPath = [cleanRoot, finalDocPrefix, thumbFilename || '']
+      .filter(Boolean)
+      .join('/')
+      .replace(/\/+/g, '/')
+    const thumbURL = thumbFilename ? `${cleanURL}/${thumbPath}` : originalURL
+
     // Fallback for migrated records created without thumbnail metadata.
     // Payload admin uses thumbnail fields for previews inside upload relationship UI.
-    if (!doc.thumbnailURL) {
-      doc.thumbnailURL = originalURL
+    if (!doc.thumbnailURL || isLegacyLocalMediaURL(doc.thumbnailURL)) {
+      doc.thumbnailURL = thumbURL
     }
 
     if (!doc.sizes?.thumbnail) {
       doc.sizes = doc.sizes || {}
       doc.sizes.thumbnail = {
-        url: originalURL,
+        url: thumbURL,
         width: doc.width || null,
         height: doc.height || null,
         mimeType: doc.mimeType || null,
         filesize: doc.filesize || null,
-        filename: doc.filename || null,
+        filename: thumbFilename || filenameWithoutRoot || null,
       }
-    } else if (!doc.sizes.thumbnail.url && doc.sizes.thumbnail.filename) {
-      const thumbPath = [cleanRoot, finalDocPrefix, doc.sizes.thumbnail.filename]
-        .filter(Boolean)
-        .join('/')
-        .replace(/\/+/g, '/')
-      doc.sizes.thumbnail.url = `${cleanURL}/${thumbPath}`
+    } else if (
+      (!doc.sizes.thumbnail.url || isLegacyLocalMediaURL(doc.sizes.thumbnail.url)) &&
+      thumbFilename
+    ) {
+      doc.sizes.thumbnail.url = thumbURL
     }
   }
 

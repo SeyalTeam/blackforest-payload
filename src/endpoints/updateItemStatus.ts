@@ -101,6 +101,13 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
       data: {
         items: updatedItems,
       },
+      context: {
+        // Status-only updates should not rerun offer/reward/inventory workflows.
+        skipOfferRecalculation: true,
+        skipInventoryValidation: true,
+        skipCustomerRewardProcessing: true,
+        skipOfferCounterProcessing: true,
+      },
       overrideAccess: true, // 🔓 Bypass access control to preserve all fields publicly
     })
 

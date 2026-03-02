@@ -147,6 +147,7 @@ export const CustomerOfferSettings: GlobalConfig = {
   label: 'Customer Offer Settings',
   admin: {
     group: 'Settings',
+    hidden: true,
   },
   access: {
     read: () => true,

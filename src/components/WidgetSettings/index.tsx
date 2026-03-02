@@ -21,12 +21,14 @@ import {
   Copy,
   Plus,
   Check,
+  Gift,
 } from 'lucide-react'
 import Select from 'react-select'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { getBill } from '@/app/actions/getBill'
 import BillReceipt, { BillData } from '@/components/BillReceipt'
+import CustomerOfferWidget from './CustomerOfferWidget'
 import './index.scss'
 
 type Option = { value: string; label: string }
@@ -93,6 +95,7 @@ type WidgetKey =
   | 'table-customer-details'
   | 'billing-customer-details'
   | 'live-table'
+  | 'customer-offer-settings'
   | 'app-downloads'
 
 const getRelationshipID = (value: unknown): string | null => {
@@ -912,6 +915,14 @@ const WidgetSettings: React.FC<any> = (props) => {
           </button>
           <button
             type="button"
+            className={`tile ${activeWidget === 'customer-offer-settings' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('customer-offer-settings')}
+          >
+            <Gift className="tile-icon" size={48} />
+            <span className="tile-label">Customer Offer Settings</span>
+          </button>
+          <button
+            type="button"
             className={`tile ${activeWidget === 'app-downloads' ? 'active' : ''}`}
             onClick={() => setActiveWidget('app-downloads')}
           >
@@ -1615,6 +1626,22 @@ const WidgetSettings: React.FC<any> = (props) => {
               </div>
             </div>
           )}
+
+          {activeWidget === 'customer-offer-settings' && (
+            <div className="widget-modal widget-modal-embedded">
+              <div className="modal-header">
+                <h2>Customer Offer Settings</h2>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="modal-body embedded-settings-body">
+                <CustomerOfferWidget />
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
 

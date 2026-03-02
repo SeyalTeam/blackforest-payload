@@ -132,6 +132,22 @@ type BillingItemInput = {
   [key: string]: unknown
 }
 
+type BillingRequestContext = {
+  skipOfferRecalculation?: boolean
+  skipInventoryValidation?: boolean
+  offersAppliedInBeforeValidate?: boolean
+}
+
+const getBillingRequestContext = (req: unknown): BillingRequestContext => {
+  const mutableReq = req as { context?: Record<string, unknown> }
+
+  if (!mutableReq.context || typeof mutableReq.context !== 'object') {
+    mutableReq.context = {}
+  }
+
+  return mutableReq.context as BillingRequestContext
+}
+
 const getRelationshipID = (value: unknown): string | null => {
   if (typeof value === 'string' && value.trim().length > 0) {
     return value
@@ -171,6 +187,25 @@ const getPositiveNumericValue = (value: unknown): number => {
   }
 
   return 0
+}
+
+const getQuantityByProduct = (items: unknown): Map<string, number> => {
+  const quantityByProduct = new Map<string, number>()
+  if (!Array.isArray(items)) return quantityByProduct
+
+  for (const item of items as BillingItemInput[]) {
+    if (!item || item.status === 'cancelled') continue
+
+    const productID = getRelationshipID(item.product)
+    if (!productID) continue
+
+    const quantity = getPositiveNumericValue(item.quantity)
+    if (quantity <= 0) continue
+
+    quantityByProduct.set(productID, (quantityByProduct.get(productID) || 0) + quantity)
+  }
+
+  return quantityByProduct
 }
 
 const hasTableOrderValue = (value: unknown): boolean => {
@@ -1109,6 +1144,9 @@ const Billings: CollectionConfig = {
     beforeValidate: [
       async ({ data, req, operation, originalDoc }) => {
         if (!data) return
+        const requestContext = getBillingRequestContext(req)
+        const skipOfferRecalculation = Boolean(requestContext.skipOfferRecalculation)
+        const skipInventoryValidation = Boolean(requestContext.skipInventoryValidation)
 
         // 🪑 Map table details from Flutter app (top-level section/tableNumber) to nested group
         const rawData = data as any
@@ -1169,7 +1207,7 @@ const Billings: CollectionConfig = {
         }
 
         const mutableValidateData = data as { items?: BillingItemInput[]; status?: string }
-        if (Array.isArray(mutableValidateData.items)) {
+        if (Array.isArray(mutableValidateData.items) && !skipOfferRecalculation) {
           const effectiveStatus = mutableValidateData.status || originalDoc?.status || 'ordered'
           const customerPhoneNumber =
             (data as any)?.customerDetails?.phoneNumber || originalDoc?.customerDetails?.phoneNumber
@@ -1181,6 +1219,9 @@ const Billings: CollectionConfig = {
             customerPhoneNumber || null,
             isTableOrder,
           )
+          requestContext.offersAppliedInBeforeValidate = true
+        } else {
+          requestContext.offersAppliedInBeforeValidate = false
         }
 
         // 1️⃣ Fix missing data for validation (Auto-set fields early)
@@ -1216,45 +1257,58 @@ const Billings: CollectionConfig = {
         }
 
         // 🛑 Inventory Validation
-        if ((operation === 'create' || operation === 'update') && data.status !== 'cancelled') {
-          const items = data.items || []
-          const branchId = data.branch || originalDoc?.branch
+        if (!skipInventoryValidation && data.status !== 'cancelled') {
+          const items = Array.isArray(data.items) ? (data.items as BillingItemInput[]) : []
+          const branchId = getRelationshipID(data.branch || originalDoc?.branch)
 
           if (branchId && items.length > 0) {
+            const requestedQtyByProduct = getQuantityByProduct(items)
+            const existingQtyByProduct =
+              operation === 'update'
+                ? getQuantityByProduct((originalDoc?.items as BillingItemInput[] | undefined) || [])
+                : new Map<string, number>()
+
+            const productNameByID = new Map<string, string>()
             for (const item of items) {
-              const productId = typeof item.product === 'object' ? item.product.id : item.product
-              if (!productId) continue
+              const productID = getRelationshipID(item.product)
+              if (!productID) continue
 
-              // 🚫 Skip inventory check for cancelled items
-              if (item.status === 'cancelled') continue
-
-              const currentStock = await getProductStock(req.payload, productId, branchId)
-
-              // If it's an update, we need to account for the quantity already in this document
-              let existingQty = 0
-              if (operation === 'update' && originalDoc?.items) {
-                const originalItem = (
-                  originalDoc.items as Array<{ product: any; quantity: number }>
-                ).find((oi) => {
-                  const oiId = typeof oi.product === 'object' ? oi.product.id : oi.product
-                  return oiId === productId
-                })
-                if (originalItem) {
-                  existingQty = originalItem.quantity || 0
-                }
+              if (!productNameByID.has(productID) && typeof item.name === 'string' && item.name) {
+                productNameByID.set(productID, item.name)
               }
+            }
 
-              const requestedQty = item.quantity || 0
-              const additionalQtyNeeded = requestedQty - existingQty
+            const stockChecks = Array.from(requestedQtyByProduct.entries())
+              .map(([productID, requestedQty]) => {
+                const existingQty = existingQtyByProduct.get(productID) || 0
+                const additionalQtyNeeded = requestedQty - existingQty
+                return {
+                  productID,
+                  requestedQty,
+                  additionalQtyNeeded,
+                  existingQty,
+                }
+              })
+              .filter((row) => row.additionalQtyNeeded > 0)
 
-              if (additionalQtyNeeded > currentStock) {
-                console.log(
-                  `[Inventory] WARNING: ${item.name} (${requestedQty} needed, ${currentStock} available). Proceeding due to override.`,
-                )
-                // throw new APIError(
-                //   `Insufficient stock for ${item.name}. Current stock: ${currentStock}, Requested: ${requestedQty}${operation === 'update' ? ` (Additional: ${additionalQtyNeeded})` : ''}`,
-                //   400,
-                // )
+            if (stockChecks.length > 0) {
+              const stockRows = await Promise.all(
+                stockChecks.map(async (row) => ({
+                  ...row,
+                  currentStock: await getProductStock(req.payload, row.productID, branchId),
+                })),
+              )
+
+              for (const row of stockRows) {
+                if (row.additionalQtyNeeded > row.currentStock) {
+                  console.log(
+                    `[Inventory] WARNING: ${productNameByID.get(row.productID) || row.productID} (${row.requestedQty} needed, ${row.currentStock} available). Proceeding due to override.`,
+                  )
+                  // throw new APIError(
+                  //   `Insufficient stock for ${productNameByID.get(row.productID) || row.productID}. Current stock: ${row.currentStock}, Requested: ${row.requestedQty}${operation === 'update' ? ` (Additional: ${row.additionalQtyNeeded})` : ''}`,
+                  //   400,
+                  // )
+                }
               }
             }
           }
@@ -1308,10 +1362,16 @@ const Billings: CollectionConfig = {
       async ({ data, req, operation, originalDoc }) => {
         if (!data) return
 
+        const requestContext = getBillingRequestContext(req)
+        const skipOfferRecalculation = Boolean(requestContext.skipOfferRecalculation)
         const mutableData = data as { items?: BillingItemInput[]; status?: string }
         const isTableOrder = isTableOrderBill(data as any, originalDoc as any)
 
-        if (Array.isArray(mutableData.items)) {
+        if (
+          Array.isArray(mutableData.items) &&
+          !skipOfferRecalculation &&
+          !requestContext.offersAppliedInBeforeValidate
+        ) {
           const effectiveStatus = mutableData.status || originalDoc?.status || 'ordered'
           const customerPhoneNumber =
             (data as any)?.customerDetails?.phoneNumber || originalDoc?.customerDetails?.phoneNumber
@@ -1323,6 +1383,7 @@ const Billings: CollectionConfig = {
             isTableOrder,
           )
         }
+        requestContext.offersAppliedInBeforeValidate = false
 
         // 🍱 Ensure each item has a status (Ordered by default) and timestamps
         if (data.items && Array.isArray(data.items)) {
@@ -1393,16 +1454,27 @@ const Billings: CollectionConfig = {
 
             if (branch?.name) {
               const prefix = branch.name.substring(0, 3).toUpperCase()
+              const dailyPrefix = `${prefix}-${formattedDate}-`
 
               if (isKOT) {
                 // KOT Numbering: PREFIX-YYYYMMDD-KOTxx
                 // We find the latest KOT number to avoid collisions if documents were deleted
+                const kotPrefix = `${dailyPrefix}KOT`
                 const lastKOT = await req.payload.find({
                   collection: 'billings',
                   where: {
-                    kotNumber: {
-                      like: `${prefix}-${formattedDate}-KOT`,
-                    },
+                    and: [
+                      {
+                        kotNumber: {
+                          greater_than_equal: kotPrefix,
+                        },
+                      },
+                      {
+                        kotNumber: {
+                          less_than: `${kotPrefix}:`,
+                        },
+                      },
+                    ],
                   },
                   sort: '-kotNumber',
                   limit: 1,
@@ -1428,12 +1500,12 @@ const Billings: CollectionConfig = {
                     and: [
                       {
                         invoiceNumber: {
-                          like: `${prefix}-${formattedDate}-`,
+                          greater_than_equal: dailyPrefix,
                         },
                       },
                       {
                         invoiceNumber: {
-                          not_like: '-KOT',
+                          less_than: `${dailyPrefix}:`,
                         },
                       },
                     ],
@@ -2551,6 +2623,7 @@ const Billings: CollectionConfig = {
     {
       name: 'kotNumber',
       type: 'text',
+      index: true,
       admin: {
         readOnly: true,
         position: 'sidebar',

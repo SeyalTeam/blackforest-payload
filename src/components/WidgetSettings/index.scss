@@ -151,6 +151,10 @@
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   }
 
+  .widget-modal-embedded {
+    min-height: calc(100vh - 220px);
+  }
+
   .modal-header {
     padding: 1.5rem;
     border-bottom: 1px solid #27272a;
@@ -568,6 +572,10 @@
       font-weight: 500;
       cursor: pointer;
       transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
 
       &.btn-secondary {
         background: transparent;
@@ -594,6 +602,10 @@
         }
       }
     }
+  }
+
+  .embedded-settings-body {
+    padding: 1rem;
   }
 
   @media (max-width: 1200px) {
