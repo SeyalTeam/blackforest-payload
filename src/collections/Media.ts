@@ -123,6 +123,8 @@ const addPublicURL: CollectionAfterReadHook = ({ doc }) => {
         : cleanDocPrefix.startsWith(`${cleanRoot}/`)
           ? cleanDocPrefix.slice(cleanRoot.length + 1)
           : cleanDocPrefix
+    const hasLegacyAbsolutePrefix =
+      cleanDocPrefix === cleanRoot || cleanDocPrefix.startsWith(`${cleanRoot}/`)
 
     // Prevent double prefixes (e.g. 'category/category/image.jpg')
     // This happens because some DB syncing scripts baked the prefix into the filename directly
@@ -157,7 +159,7 @@ const addPublicURL: CollectionAfterReadHook = ({ doc }) => {
       .filter(Boolean)
       .join('/')
       .replace(/\/+/g, '/')
-    const thumbURL = thumbFilename ? `${cleanURL}/${thumbPath}` : originalURL
+    const thumbURL = !hasLegacyAbsolutePrefix && thumbFilename ? `${cleanURL}/${thumbPath}` : originalURL
 
     // Fallback for migrated records created without thumbnail metadata.
     // Payload admin uses thumbnail fields for previews inside upload relationship UI.
@@ -173,11 +175,11 @@ const addPublicURL: CollectionAfterReadHook = ({ doc }) => {
         height: doc.height || null,
         mimeType: doc.mimeType || null,
         filesize: doc.filesize || null,
-        filename: thumbFilename || filenameWithoutRoot || null,
+        filename: !hasLegacyAbsolutePrefix && thumbFilename ? thumbFilename : filenameWithoutRoot || null,
       }
     } else if (
       (!doc.sizes.thumbnail.url || isLegacyLocalMediaURL(doc.sizes.thumbnail.url)) &&
-      thumbFilename
+      (!hasLegacyAbsolutePrefix ? thumbFilename : filenameWithoutRoot)
     ) {
       doc.sizes.thumbnail.url = thumbURL
     }
