@@ -134,6 +134,7 @@ export interface Config {
     'stock-order-report': StockOrderReport;
     'afterstock-customer-report': AfterstockCustomerReport;
     'review-report': ReviewReport;
+    'live-bill-report': LiveBillReport;
     'instock-entry-report': InstockEntryReport;
     'expense-report': ExpenseReport;
     'return-order-report': ReturnOrderReport;
@@ -155,6 +156,7 @@ export interface Config {
     'stock-order-report': StockOrderReportSelect<false> | StockOrderReportSelect<true>;
     'afterstock-customer-report': AfterstockCustomerReportSelect<false> | AfterstockCustomerReportSelect<true>;
     'review-report': ReviewReportSelect<false> | ReviewReportSelect<true>;
+    'live-bill-report': LiveBillReportSelect<false> | LiveBillReportSelect<true>;
     'instock-entry-report': InstockEntryReportSelect<false> | InstockEntryReportSelect<true>;
     'expense-report': ExpenseReportSelect<false> | ExpenseReportSelect<true>;
     'return-order-report': ReturnOrderReportSelect<false> | ReturnOrderReportSelect<true>;
@@ -1720,6 +1722,15 @@ export interface ReviewReport {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "live-bill-report".
+ */
+export interface LiveBillReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "instock-entry-report".
  */
 export interface InstockEntryReport {
@@ -1811,6 +1822,7 @@ export interface WidgetSetting {
         branch: string | Branch;
         showCustomerDetailsForTableOrders?: boolean | null;
         allowSkipCustomerDetailsForTableOrders?: boolean | null;
+        showCustomerHistoryForTableOrders?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -1822,6 +1834,7 @@ export interface WidgetSetting {
         branch: string | Branch;
         showCustomerDetailsForBillingOrders?: boolean | null;
         allowSkipCustomerDetailsForBillingOrders?: boolean | null;
+        showCustomerHistoryForBillingOrders?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -2844,6 +2857,15 @@ export interface ReviewReportSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "live-bill-report_select".
+ */
+export interface LiveBillReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "instock-entry-report_select".
  */
 export interface InstockEntryReportSelect<T extends boolean = true> {
@@ -2917,6 +2939,7 @@ export interface WidgetSettingsSelect<T extends boolean = true> {
         branch?: T;
         showCustomerDetailsForTableOrders?: T;
         allowSkipCustomerDetailsForTableOrders?: T;
+        showCustomerHistoryForTableOrders?: T;
         id?: T;
       };
   billingOrderCustomerDetailsByBranch?:
@@ -2925,6 +2948,7 @@ export interface WidgetSettingsSelect<T extends boolean = true> {
         branch?: T;
         showCustomerDetailsForBillingOrders?: T;
         allowSkipCustomerDetailsForBillingOrders?: T;
+        showCustomerHistoryForBillingOrders?: T;
         id?: T;
       };
   updatedAt?: T;

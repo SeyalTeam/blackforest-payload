@@ -10,6 +10,7 @@ import { default as default_7c4eca9b024572db8dabeb53bf36c0e7 } from '../../../co
 import { default as default_f6297d9a270bdbbca7736c61f9f4f1e9 } from '../../../components/StockOrderReport/index.tsx'
 import { default as default_b041205a7c55420476e32a6bc72ba118 } from '../../../components/AfterstockCustomerReport/index.tsx'
 import { default as default_140b8e69630a9ff5b0533c7021cd6bfe } from '../../../components/ReviewReport/index.tsx'
+import { default as default_94b221e8bb91b7e26694b976b0336fa5 } from '../../../components/LiveBillReport/index.tsx'
 import { default as default_438fefb174500fb3c1feb8d44211cf3b } from '../../../components/InstockEntryReport/index.tsx'
 import { default as default_7b71facc026c06bd9c34422308b32867 } from '../../../components/ExpenseReport/index.tsx'
 import { default as default_e8583f3860f7314c27e4ea40590a0d91 } from '../../../components/ReturnOrderReport/index.tsx'
@@ -32,6 +33,7 @@ export const importMap = {
   "/components/StockOrderReport/index.tsx#default": default_f6297d9a270bdbbca7736c61f9f4f1e9,
   "/components/AfterstockCustomerReport/index.tsx#default": default_b041205a7c55420476e32a6bc72ba118,
   "/components/ReviewReport/index.tsx#default": default_140b8e69630a9ff5b0533c7021cd6bfe,
+  "/components/LiveBillReport/index.tsx#default": default_94b221e8bb91b7e26694b976b0336fa5,
   "/components/InstockEntryReport/index.tsx#default": default_438fefb174500fb3c1feb8d44211cf3b,
   "/components/ExpenseReport/index.tsx#default": default_7b71facc026c06bd9c34422308b32867,
   "/components/ReturnOrderReport/index.tsx#default": default_e8583f3860f7314c27e4ea40590a0d91,

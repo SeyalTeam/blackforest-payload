@@ -46,6 +46,12 @@ export const WidgetSettingsGlobal: GlobalConfig = {
           type: 'checkbox',
           defaultValue: true,
         },
+        {
+          name: 'showCustomerHistoryForTableOrders',
+          label: 'Show Customer History Button',
+          type: 'checkbox',
+          defaultValue: true,
+        },
       ],
     },
     {
@@ -72,6 +78,12 @@ export const WidgetSettingsGlobal: GlobalConfig = {
         {
           name: 'allowSkipCustomerDetailsForBillingOrders',
           label: 'Allow Skip in Customer Details Screen',
+          type: 'checkbox',
+          defaultValue: true,
+        },
+        {
+          name: 'showCustomerHistoryForBillingOrders',
+          label: 'Show Customer History Button',
           type: 'checkbox',
           defaultValue: true,
         },

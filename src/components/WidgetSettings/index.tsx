@@ -39,6 +39,7 @@ type TableCustomerDetailsRow = {
   branch?: string | { id?: string; name?: string } | null
   showCustomerDetailsForTableOrders?: boolean | null
   allowSkipCustomerDetailsForTableOrders?: boolean | null
+  showCustomerHistoryForTableOrders?: boolean | null
 }
 
 type BillingCustomerDetailsRow = {
@@ -46,6 +47,7 @@ type BillingCustomerDetailsRow = {
   branch?: string | { id?: string; name?: string } | null
   showCustomerDetailsForBillingOrders?: boolean | null
   allowSkipCustomerDetailsForBillingOrders?: boolean | null
+  showCustomerHistoryForBillingOrders?: boolean | null
 }
 
 type AppRow = {
@@ -262,6 +264,10 @@ const WidgetSettings: React.FC<any> = (props) => {
       value: 'enabled',
       label: 'Enabled',
     })
+  const [tableCustomerHistoryVisibility, setTableCustomerHistoryVisibility] = useState<Option>({
+    value: 'enabled',
+    label: 'Enabled',
+  })
 
   const [selectedBillingCustomerDetailsBranch, setSelectedBillingCustomerDetailsBranch] =
     useState<Option | null>(null)
@@ -274,6 +280,10 @@ const WidgetSettings: React.FC<any> = (props) => {
       value: 'enabled',
       label: 'Enabled',
     })
+  const [billingCustomerHistoryVisibility, setBillingCustomerHistoryVisibility] = useState<Option>({
+    value: 'enabled',
+    label: 'Enabled',
+  })
   const [selectedLiveTableBranch, setSelectedLiveTableBranch] = useState<Option>({
     value: 'all',
     label: 'All Branches',
@@ -323,6 +333,7 @@ const WidgetSettings: React.FC<any> = (props) => {
           showCustomerDetailsForTableOrders: row.showCustomerDetailsForTableOrders !== false,
           allowSkipCustomerDetailsForTableOrders:
             row.allowSkipCustomerDetailsForTableOrders !== false,
+          showCustomerHistoryForTableOrders: row.showCustomerHistoryForTableOrders !== false,
         }
       })
       .filter(
@@ -333,6 +344,7 @@ const WidgetSettings: React.FC<any> = (props) => {
           branchName: string
           showCustomerDetailsForTableOrders: boolean
           allowSkipCustomerDetailsForTableOrders: boolean
+          showCustomerHistoryForTableOrders: boolean
         } => row !== null,
       )
       .sort((a, b) => a.branchName.localeCompare(b.branchName))
@@ -350,6 +362,7 @@ const WidgetSettings: React.FC<any> = (props) => {
           showCustomerDetailsForBillingOrders: row.showCustomerDetailsForBillingOrders !== false,
           allowSkipCustomerDetailsForBillingOrders:
             row.allowSkipCustomerDetailsForBillingOrders !== false,
+          showCustomerHistoryForBillingOrders: row.showCustomerHistoryForBillingOrders !== false,
         }
       })
       .filter(
@@ -360,6 +373,7 @@ const WidgetSettings: React.FC<any> = (props) => {
           branchName: string
           showCustomerDetailsForBillingOrders: boolean
           allowSkipCustomerDetailsForBillingOrders: boolean
+          showCustomerHistoryForBillingOrders: boolean
         } => row !== null,
       )
       .sort((a, b) => a.branchName.localeCompare(b.branchName))
@@ -602,6 +616,7 @@ const WidgetSettings: React.FC<any> = (props) => {
     if (!selectedTableCustomerDetailsBranch) {
       setTableCustomerDetailsVisibility({ value: 'enabled', label: 'Enabled' })
       setSkipTableCustomerDetailsVisibility({ value: 'enabled', label: 'Enabled' })
+      setTableCustomerHistoryVisibility({ value: 'enabled', label: 'Enabled' })
       return
     }
 
@@ -611,9 +626,13 @@ const WidgetSettings: React.FC<any> = (props) => {
     )
     const isPopupEnabled = row?.showCustomerDetailsForTableOrders !== false
     const isSkipEnabled = row?.allowSkipCustomerDetailsForTableOrders !== false
+    const isHistoryEnabled = row?.showCustomerHistoryForTableOrders !== false
     setTableCustomerDetailsVisibility(isPopupEnabled ? visibilityOptions[0] : visibilityOptions[1])
     setSkipTableCustomerDetailsVisibility(
       isSkipEnabled ? visibilityOptions[0] : visibilityOptions[1],
+    )
+    setTableCustomerHistoryVisibility(
+      isHistoryEnabled ? visibilityOptions[0] : visibilityOptions[1],
     )
   }, [selectedTableCustomerDetailsBranch, tableOrderCustomerDetailsByBranch, visibilityOptions])
 
@@ -621,6 +640,7 @@ const WidgetSettings: React.FC<any> = (props) => {
     if (!selectedBillingCustomerDetailsBranch) {
       setBillingCustomerDetailsVisibility({ value: 'enabled', label: 'Enabled' })
       setSkipBillingCustomerDetailsVisibility({ value: 'enabled', label: 'Enabled' })
+      setBillingCustomerHistoryVisibility({ value: 'enabled', label: 'Enabled' })
       return
     }
 
@@ -630,11 +650,15 @@ const WidgetSettings: React.FC<any> = (props) => {
     )
     const isPopupEnabled = row?.showCustomerDetailsForBillingOrders !== false
     const isSkipEnabled = row?.allowSkipCustomerDetailsForBillingOrders !== false
+    const isHistoryEnabled = row?.showCustomerHistoryForBillingOrders !== false
     setBillingCustomerDetailsVisibility(
       isPopupEnabled ? visibilityOptions[0] : visibilityOptions[1],
     )
     setSkipBillingCustomerDetailsVisibility(
       isSkipEnabled ? visibilityOptions[0] : visibilityOptions[1],
+    )
+    setBillingCustomerHistoryVisibility(
+      isHistoryEnabled ? visibilityOptions[0] : visibilityOptions[1],
     )
   }, [selectedBillingCustomerDetailsBranch, billingOrderCustomerDetailsByBranch, visibilityOptions])
 
@@ -695,6 +719,7 @@ const WidgetSettings: React.FC<any> = (props) => {
       const branchID = selectedTableCustomerDetailsBranch.value
       const isPopupEnabled = tableCustomerDetailsVisibility.value === 'enabled'
       const isSkipEnabled = skipTableCustomerDetailsVisibility.value === 'enabled'
+      const isHistoryEnabled = tableCustomerHistoryVisibility.value === 'enabled'
 
       const normalizedRows = tableOrderCustomerDetailsByBranch.map((row) => ({
         ...row,
@@ -710,6 +735,7 @@ const WidgetSettings: React.FC<any> = (props) => {
         branch: branchID,
         showCustomerDetailsForTableOrders: isPopupEnabled,
         allowSkipCustomerDetailsForTableOrders: isSkipEnabled,
+        showCustomerHistoryForTableOrders: isHistoryEnabled,
       })
 
       const persistedSettings = await persistCustomerSettings({ tableRows: dedupedRows })
@@ -776,6 +802,7 @@ const WidgetSettings: React.FC<any> = (props) => {
       const branchID = selectedBillingCustomerDetailsBranch.value
       const isPopupEnabled = billingCustomerDetailsVisibility.value === 'enabled'
       const isSkipEnabled = skipBillingCustomerDetailsVisibility.value === 'enabled'
+      const isHistoryEnabled = billingCustomerHistoryVisibility.value === 'enabled'
 
       const normalizedRows = billingOrderCustomerDetailsByBranch.map((row) => ({
         ...row,
@@ -791,6 +818,7 @@ const WidgetSettings: React.FC<any> = (props) => {
         branch: branchID,
         showCustomerDetailsForBillingOrders: isPopupEnabled,
         allowSkipCustomerDetailsForBillingOrders: isSkipEnabled,
+        showCustomerHistoryForBillingOrders: isHistoryEnabled,
       })
 
       const persistedSettings = await persistCustomerSettings({ billingRows: dedupedRows })
@@ -1081,6 +1109,24 @@ const WidgetSettings: React.FC<any> = (props) => {
                   />
                 </div>
 
+                <div className="form-group">
+                  <label>
+                    <ListFilter size={14} style={{ marginRight: 4 }} /> Show Customer History
+                    Button
+                  </label>
+                  <Select
+                    options={visibilityOptions}
+                    value={tableCustomerHistoryVisibility}
+                    onChange={(option) =>
+                      setTableCustomerHistoryVisibility(
+                        (option as Option) || visibilityOptions[0],
+                      )
+                    }
+                    styles={customSelectStyles}
+                    isSearchable={false}
+                  />
+                </div>
+
                 <div className="configured-settings">
                   <h3>Configured Branches</h3>
                   {configuredTableRows.length === 0 ? (
@@ -1113,6 +1159,16 @@ const WidgetSettings: React.FC<any> = (props) => {
                                 {row.allowSkipCustomerDetailsForTableOrders
                                   ? 'Enabled'
                                   : 'Disabled'}
+                              </span>
+                              <span
+                                className={
+                                  row.showCustomerHistoryForTableOrders
+                                    ? 'status-badge status-enabled'
+                                    : 'status-badge status-disabled'
+                                }
+                              >
+                                History:{' '}
+                                {row.showCustomerHistoryForTableOrders ? 'Enabled' : 'Disabled'}
                               </span>
                             </div>
                             <button
@@ -1221,6 +1277,24 @@ const WidgetSettings: React.FC<any> = (props) => {
                   />
                 </div>
 
+                <div className="form-group">
+                  <label>
+                    <ListFilter size={14} style={{ marginRight: 4 }} /> Show Customer History
+                    Button
+                  </label>
+                  <Select
+                    options={visibilityOptions}
+                    value={billingCustomerHistoryVisibility}
+                    onChange={(option) =>
+                      setBillingCustomerHistoryVisibility(
+                        (option as Option) || visibilityOptions[0],
+                      )
+                    }
+                    styles={customSelectStyles}
+                    isSearchable={false}
+                  />
+                </div>
+
                 <div className="configured-settings">
                   <h3>Configured Branches</h3>
                   {configuredBillingRows.length === 0 ? (
@@ -1253,6 +1327,16 @@ const WidgetSettings: React.FC<any> = (props) => {
                                 {row.allowSkipCustomerDetailsForBillingOrders
                                   ? 'Enabled'
                                   : 'Disabled'}
+                              </span>
+                              <span
+                                className={
+                                  row.showCustomerHistoryForBillingOrders
+                                    ? 'status-badge status-enabled'
+                                    : 'status-badge status-disabled'
+                                }
+                              >
+                                History:{' '}
+                                {row.showCustomerHistoryForBillingOrders ? 'Enabled' : 'Disabled'}
                               </span>
                             </div>
                             <button

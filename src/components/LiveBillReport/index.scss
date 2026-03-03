@@ -1,0 +1,176 @@
+.live-bill-report-container {
+  padding: 2rem;
+  color: var(--theme-text-primary);
+
+  .report-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+
+    h1 {
+      margin: 0;
+      font-size: 1.8rem;
+      font-weight: 700;
+    }
+  }
+
+  .report-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .custom-date-input,
+  .branch-select,
+  .refresh-btn,
+  .reset-btn {
+    height: 40px;
+    border-radius: 8px;
+    border: 1px solid var(--theme-elevation-400);
+    background: var(--theme-input-bg, var(--theme-elevation-50));
+    color: var(--theme-text-primary);
+    font-size: 0.9rem;
+  }
+
+  .custom-date-input {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    cursor: pointer;
+    font-weight: 500;
+
+    .separator,
+    .icon {
+      color: var(--theme-text-secondary);
+    }
+  }
+
+  .branch-select {
+    min-width: 200px;
+    padding: 0 10px;
+  }
+
+  .refresh-btn,
+  .reset-btn {
+    padding: 0 14px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .report-meta {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    color: var(--theme-text-secondary);
+    font-size: 0.85rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+  }
+
+  .live-bill-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 10px;
+    min-width: 960px;
+
+    thead th {
+      text-align: left;
+      font-size: 0.8rem;
+      letter-spacing: 0.06em;
+      color: var(--theme-text-secondary);
+      text-transform: uppercase;
+      padding: 0 16px 6px 16px;
+      font-weight: 600;
+    }
+
+    tbody tr {
+      background: #1a1a1d;
+
+      td {
+        padding: 16px;
+        color: #f4f4f4;
+        font-size: 1.35rem;
+        font-weight: 500;
+      }
+
+      td:first-child {
+        border-top-left-radius: 10px;
+        border-bottom-left-radius: 10px;
+      }
+
+      td:last-child {
+        border-top-right-radius: 10px;
+        border-bottom-right-radius: 10px;
+      }
+    }
+
+    .invoice-cell button {
+      border: none;
+      background: transparent;
+      color: #f4f4f4;
+      text-decoration: underline;
+      cursor: pointer;
+      font-size: 1.35rem;
+      font-weight: 500;
+      padding: 0;
+      font-family: inherit;
+      text-align: left;
+    }
+
+    .empty-row {
+      text-align: center;
+      font-size: 0.95rem;
+      color: #d6d6d6;
+    }
+  }
+
+  .error {
+    color: var(--theme-error-500);
+  }
+
+  .bill-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10001;
+  }
+
+  .bill-modal-content {
+    background: #fff;
+    width: 90%;
+    max-width: 400px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 25px rgba(0, 0, 0, 0.5);
+  }
+
+  .bill-modal-loading {
+    padding: 40px;
+    text-align: center;
+    color: #333;
+  }
+}
+
+@media (max-width: 900px) {
+  .live-bill-report-container {
+    padding: 1rem;
+
+    .live-bill-table tbody tr td,
+    .live-bill-table .invoice-cell button {
+      font-size: 1rem;
+      padding: 12px;
+    }
+  }
+}

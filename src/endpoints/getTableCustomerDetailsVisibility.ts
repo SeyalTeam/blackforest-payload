@@ -46,11 +46,13 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
         branch?: unknown
         showCustomerDetailsForTableOrders?: unknown
         allowSkipCustomerDetailsForTableOrders?: unknown
+        showCustomerHistoryForTableOrders?: unknown
       }>
       billingOrderCustomerDetailsByBranch?: Array<{
         branch?: unknown
         showCustomerDetailsForBillingOrders?: unknown
         allowSkipCustomerDetailsForBillingOrders?: unknown
+        showCustomerHistoryForBillingOrders?: unknown
       }>
     }
 
@@ -69,6 +71,10 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
       typeof tableRow?.allowSkipCustomerDetailsForTableOrders === 'boolean'
         ? tableRow.allowSkipCustomerDetailsForTableOrders
         : true
+    const showCustomerHistoryForTableOrders =
+      typeof tableRow?.showCustomerHistoryForTableOrders === 'boolean'
+        ? tableRow.showCustomerHistoryForTableOrders
+        : true
 
     const billingRows = Array.isArray(widgetSettings?.billingOrderCustomerDetailsByBranch)
       ? widgetSettings.billingOrderCustomerDetailsByBranch
@@ -85,13 +91,19 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
       typeof billingRow?.allowSkipCustomerDetailsForBillingOrders === 'boolean'
         ? billingRow.allowSkipCustomerDetailsForBillingOrders
         : true
+    const showCustomerHistoryForBillingOrders =
+      typeof billingRow?.showCustomerHistoryForBillingOrders === 'boolean'
+        ? billingRow.showCustomerHistoryForBillingOrders
+        : true
 
     return Response.json({
       branchId: branchID,
       showCustomerDetailsForTableOrders,
       allowSkipCustomerDetailsForTableOrders,
+      showCustomerHistoryForTableOrders,
       showCustomerDetailsForBillingOrders,
       allowSkipCustomerDetailsForBillingOrders,
+      showCustomerHistoryForBillingOrders,
       source: tableRow || billingRow ? 'branch-specific' : 'default',
     })
   } catch (error) {
