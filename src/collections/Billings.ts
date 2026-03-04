@@ -5,6 +5,7 @@ import {
   calculatePointsForSpend,
   type CustomerRewardSettings,
   getCustomerRewardSettings,
+  isOfferAllowedForBranch,
   isRandomOfferProductAvailableNow,
   type ProductPriceOfferRule,
   type ProductToProductOfferRule,
@@ -596,6 +597,7 @@ const applyProductToProductOffers = async (
   status: string,
   settings: CustomerRewardSettings,
   customerID: string | null,
+  branchID: string | null,
   isTableOrder: boolean,
 ): Promise<BillingItemInput[]> => {
   const manualItems = items.filter((item) => !item.isOfferFreeItem)
@@ -612,6 +614,7 @@ const applyProductToProductOffers = async (
     (rule) =>
       rule.enabled &&
       isOfferAllowedByOrderType(isTableOrder, rule.allowOnTableOrders, rule.allowOnBillings) &&
+      isOfferAllowedForBranch(branchID, rule.branches) &&
       canApplyRuleWithinLimits(
         rule.maxOfferCount,
         rule.offerGivenCount,
@@ -718,6 +721,7 @@ const applyProductPriceOffers = (
   status: string,
   settings: CustomerRewardSettings,
   customerID: string | null,
+  branchID: string | null,
   isTableOrder: boolean,
 ): BillingItemInput[] => {
   if (
@@ -739,6 +743,7 @@ const applyProductPriceOffers = (
     (rule) =>
       rule.enabled &&
       isOfferAllowedByOrderType(isTableOrder, rule.allowOnTableOrders, rule.allowOnBillings) &&
+      isOfferAllowedForBranch(branchID, rule.branches) &&
       canApplyRuleWithinLimits(
         rule.maxOfferCount,
         rule.offerGivenCount,
@@ -868,6 +873,7 @@ const applyRandomCustomerProductOffer = async (
   status: string,
   customerPhoneNumber: string | null,
   settings: CustomerRewardSettings,
+  branchID: string | null,
   isTableOrder: boolean,
 ): Promise<BillingItemInput[]> => {
   const nonRandomOfferItems = items.filter((item) => !item.isRandomCustomerOfferItem)
@@ -917,6 +923,7 @@ const applyRandomCustomerProductOffer = async (
   const activeRandomRows = settings.randomCustomerOfferProducts.filter(
     (row) =>
       isOfferAllowedByOrderType(isTableOrder, row.allowOnTableOrders, row.allowOnBillings) &&
+      isOfferAllowedForBranch(branchID, row.branches) &&
       isRandomOfferProductAvailableNow(row, settings.randomCustomerOfferTimezone),
   )
 
@@ -1023,6 +1030,7 @@ const applyConfiguredItemOffers = async (
   payload: Payload,
   status: string,
   customerPhoneNumber: string | null,
+  branchID: string | null,
   isTableOrder: boolean,
 ): Promise<BillingItemInput[]> => {
   const settings = await getCustomerRewardSettings(payload)
@@ -1072,10 +1080,18 @@ const applyConfiguredItemOffers = async (
     null
 
   const productToProductItems = allowProductToProductOffer
-    ? await applyProductToProductOffers(items, payload, status, settings, customerID, isTableOrder)
+    ? await applyProductToProductOffers(
+        items,
+        payload,
+        status,
+        settings,
+        customerID,
+        branchID,
+        isTableOrder,
+      )
     : baseItems
   const productPriceItems = allowProductPriceOffer
-    ? applyProductPriceOffers(items, status, settings, customerID, isTableOrder)
+    ? applyProductPriceOffers(items, status, settings, customerID, branchID, isTableOrder)
     : baseItems
   const randomItems = allowRandomProductOffer
     ? await applyRandomCustomerProductOffer(
@@ -1084,6 +1100,7 @@ const applyConfiguredItemOffers = async (
         status,
         customerPhoneNumber,
         settings,
+        branchID,
         isTableOrder,
       )
     : baseItems
@@ -1222,6 +1239,7 @@ const Billings: CollectionConfig = {
             req.payload,
             effectiveStatus,
             customerPhoneNumber || null,
+            branchID,
             isTableOrder,
           )
           requestContext.offersAppliedInBeforeValidate = true
@@ -1371,6 +1389,7 @@ const Billings: CollectionConfig = {
         const skipOfferRecalculation = Boolean(requestContext.skipOfferRecalculation)
         const mutableData = data as { items?: BillingItemInput[]; status?: string }
         const isTableOrder = isTableOrderBill(data as any, originalDoc as any)
+        const branchID = getBranchIDFromBillingData(data as any, originalDoc as any)
 
         if (
           Array.isArray(mutableData.items) &&
@@ -1385,6 +1404,7 @@ const Billings: CollectionConfig = {
             req.payload,
             effectiveStatus,
             customerPhoneNumber || null,
+            branchID,
             isTableOrder,
           )
         }
@@ -1676,50 +1696,58 @@ const Billings: CollectionConfig = {
             )
 
             if (settings.enabled && canUseCustomerCreditOffer) {
-              const customer = await getCustomer()
-              let rewardPoints = toSafeNonNegativeNumber(customer?.rewardPoints)
-              let rewardProgressAmount = toSafeNonNegativeNumber(customer?.rewardProgressAmount)
+              const isAllowedByBranch = isOfferAllowedForBranch(
+                branchID,
+                settings.customerCreditOfferBranches,
+              )
+              if (!isAllowedByBranch) {
+                pricingData.applyCustomerOffer = false
+              } else {
+                const customer = await getCustomer()
+                let rewardPoints = toSafeNonNegativeNumber(customer?.rewardPoints)
+                let rewardProgressAmount = toSafeNonNegativeNumber(customer?.rewardProgressAmount)
 
-              if (rewardPoints < settings.pointsNeededForOffer) {
-                const historySnapshot = await computeRewardSnapshotFromCompletedHistory(
-                  req.payload,
-                  phoneNumber,
-                  settings,
-                )
+                if (rewardPoints < settings.pointsNeededForOffer) {
+                  const historySnapshot = await computeRewardSnapshotFromCompletedHistory(
+                    req.payload,
+                    phoneNumber,
+                    settings,
+                  )
 
-                if (
-                  historySnapshot.rewardPoints > rewardPoints ||
-                  historySnapshot.rewardProgressAmount > rewardProgressAmount
-                ) {
-                  rewardPoints = historySnapshot.rewardPoints
-                  rewardProgressAmount = historySnapshot.rewardProgressAmount
+                  if (
+                    historySnapshot.rewardPoints > rewardPoints ||
+                    historySnapshot.rewardProgressAmount > rewardProgressAmount
+                  ) {
+                    rewardPoints = historySnapshot.rewardPoints
+                    rewardProgressAmount = historySnapshot.rewardProgressAmount
 
-                  if (customer?.id) {
-                    try {
-                      await req.payload.update({
-                        collection: 'customers',
-                        id: customer.id,
-                        data: {
-                          rewardPoints,
-                          rewardProgressAmount,
-                          isOfferEligible: rewardPoints >= settings.pointsNeededForOffer,
-                        } as any,
-                        depth: 0,
-                        overrideAccess: true,
-                      })
-                    } catch (historySyncError) {
-                      console.error(
-                        'Failed to sync customer reward snapshot before applying credit offer.',
-                        historySyncError,
-                      )
+                    if (customer?.id) {
+                      try {
+                        await req.payload.update({
+                          collection: 'customers',
+                          id: customer.id,
+                          data: {
+                            rewardPoints,
+                            rewardProgressAmount,
+                            isOfferEligible: rewardPoints >= settings.pointsNeededForOffer,
+                          } as any,
+                          depth: 0,
+                          overrideAccess: true,
+                        })
+                      } catch (historySyncError) {
+                        console.error(
+                          'Failed to sync customer reward snapshot before applying credit offer.',
+                          historySyncError,
+                        )
+                      }
                     }
                   }
                 }
-              }
 
-              if (rewardPoints >= settings.pointsNeededForOffer) {
-                offerApplied = true
-                offerDiscount = Math.min(settings.offerAmount, pricingData.grossAmount)
+                if (rewardPoints >= settings.pointsNeededForOffer) {
+                  offerApplied = true
+                  offerDiscount = Math.min(settings.offerAmount, pricingData.grossAmount)
+                }
               }
             }
           }
@@ -1748,6 +1776,7 @@ const Billings: CollectionConfig = {
               settings.enableCustomerEntryPercentageOffer &&
               settings.customerEntryPercentageOfferPercent > 0 &&
               canUseCustomerEntryPercentageOffer &&
+              isOfferAllowedForBranch(branchID, settings.customerEntryPercentageOfferBranches) &&
               isWithinCustomerEntrySchedule
             ) {
               const discountAmount = toMoneyValue(
@@ -1783,7 +1812,8 @@ const Billings: CollectionConfig = {
               if (
                 settings.enableTotalPercentageOffer &&
                 settings.totalPercentageOfferPercent > 0 &&
-                canUseTotalPercentageOffer
+                canUseTotalPercentageOffer &&
+                isOfferAllowedForBranch(branchID, settings.totalPercentageOfferBranches)
               ) {
                 const customer = await getCustomer()
                 const customerID = typeof customer?.id === 'string' ? customer.id : null
@@ -1844,6 +1874,7 @@ const Billings: CollectionConfig = {
             settings.enableCustomerEntryPercentageOffer &&
             settings.customerEntryPercentageOfferPercent > 0 &&
             canUseCustomerEntryPercentageOffer &&
+            isOfferAllowedForBranch(branchID, settings.customerEntryPercentageOfferBranches) &&
             isWithinCustomerEntrySchedule
           ) {
             const discountAmount = toMoneyValue(
@@ -2102,6 +2133,9 @@ const Billings: CollectionConfig = {
                     return {
                       id: row.id,
                       enabled: row.enabled,
+                      allowOnBillings: row.allowOnBillings,
+                      allowOnTableOrders: row.allowOnTableOrders,
+                      branches: row.branches,
                       product: row.product,
                       winnerCount: row.winnerCount,
                       randomSelectionChancePercent: row.randomSelectionChancePercent,
@@ -2173,9 +2207,6 @@ const Billings: CollectionConfig = {
 
                   const p2pRuleByKey = new Map(
                     settings.productToProductOffers.map((rule) => [buildRuleKey(rule), rule]),
-                  )
-                  const priceRuleByKey = new Map(
-                    settings.productPriceOffers.map((rule) => [buildPriceOfferRuleKey(rule), rule]),
                   )
 
                   for (const item of billItems) {
@@ -2257,6 +2288,9 @@ const Billings: CollectionConfig = {
                       return {
                         id: rule.id,
                         enabled: rule.enabled,
+                        allowOnBillings: rule.allowOnBillings,
+                        allowOnTableOrders: rule.allowOnTableOrders,
+                        branches: rule.branches,
                         buyProduct: rule.buyProduct,
                         buyQuantity: rule.buyQuantity,
                         freeProduct: rule.freeProduct,
@@ -2318,6 +2352,9 @@ const Billings: CollectionConfig = {
                     return {
                       id: rule.id,
                       enabled: rule.enabled,
+                      allowOnBillings: rule.allowOnBillings,
+                      allowOnTableOrders: rule.allowOnTableOrders,
+                      branches: rule.branches,
                       product: rule.product,
                       discountAmount: rule.discountAmount,
                       maxOfferCount: rule.maxOfferCount,

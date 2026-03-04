@@ -79,6 +79,9 @@ const RAILWAY_TIME_OPTIONS = Array.from({ length: 96 }, (_, index) => {
 type RandomOfferRow = {
   id: string
   enabled: boolean
+  allowOnBillings: boolean
+  allowOnTableOrders: boolean
+  branches: string[]
   productID: string | null
   winnerCount: number
   randomSelectionChancePercent: number
@@ -123,6 +126,10 @@ const parseRandomOfferRows = (value: unknown): RandomOfferRow[] => {
     return {
       id: typeof raw.id === 'string' ? raw.id : `random-row-${index + 1}`,
       enabled: typeof raw.enabled === 'boolean' ? raw.enabled : true,
+      allowOnBillings: typeof raw.allowOnBillings === 'boolean' ? raw.allowOnBillings : true,
+      allowOnTableOrders:
+        typeof raw.allowOnTableOrders === 'boolean' ? raw.allowOnTableOrders : true,
+      branches: extractRelationshipIDs(raw.branches),
       productID: toRelationshipID(raw.product),
       winnerCount: toPositiveInteger(raw.winnerCount, 1),
       randomSelectionChancePercent: toChancePercent(
@@ -341,6 +348,9 @@ export const CustomerOfferSettings: GlobalConfig = {
             return {
               id: row.id,
               enabled: row.enabled,
+              allowOnBillings: row.allowOnBillings,
+              allowOnTableOrders: row.allowOnTableOrders,
+              branches: row.branches,
               product: row.productID,
               winnerCount: row.winnerCount,
               randomSelectionChancePercent: row.randomSelectionChancePercent,
@@ -423,6 +433,17 @@ export const CustomerOfferSettings: GlobalConfig = {
               },
             },
           ],
+        },
+        {
+          name: 'customerCreditOfferBranches',
+          type: 'relationship',
+          relationTo: 'branches',
+          hasMany: true,
+          label: 'Allowed Branches',
+          admin: {
+            condition: (data) => Boolean(data?.enabled),
+            description: 'Leave empty to allow all branches.',
+          },
         },
         {
           type: 'row',
@@ -584,6 +605,16 @@ export const CustomerOfferSettings: GlobalConfig = {
                   },
                 },
               ],
+            },
+            {
+              name: 'branches',
+              type: 'relationship',
+              relationTo: 'branches',
+              hasMany: true,
+              label: 'Allowed Branches',
+              admin: {
+                description: 'Leave empty to allow all branches for this rule.',
+              },
             },
             {
               name: 'buyProduct',
@@ -815,6 +846,16 @@ export const CustomerOfferSettings: GlobalConfig = {
                   },
                 },
               ],
+            },
+            {
+              name: 'branches',
+              type: 'relationship',
+              relationTo: 'branches',
+              hasMany: true,
+              label: 'Allowed Branches',
+              admin: {
+                description: 'Leave empty to allow all branches for this rule.',
+              },
             },
             {
               type: 'row',
@@ -1165,6 +1206,16 @@ export const CustomerOfferSettings: GlobalConfig = {
                               ],
                             },
                             {
+                              name: 'branches',
+                              type: 'relationship',
+                              relationTo: 'branches',
+                              hasMany: true,
+                              label: 'Allowed Branches',
+                              admin: {
+                                description: 'Leave empty to allow all branches for this rule.',
+                              },
+                            },
+                            {
                               type: 'row',
                               fields: [
                                 {
@@ -1405,6 +1456,17 @@ export const CustomerOfferSettings: GlobalConfig = {
                       },
                     },
                   ],
+                },
+                {
+                  name: 'totalPercentageOfferBranches',
+                  type: 'relationship',
+                  relationTo: 'branches',
+                  hasMany: true,
+                  label: 'Allowed Branches',
+                  admin: {
+                    condition: (data) => Boolean(data?.enableTotalPercentageOffer),
+                    description: 'Leave empty to allow all branches.',
+                  },
                 },
                 {
                   type: 'row',
@@ -1674,6 +1736,17 @@ export const CustomerOfferSettings: GlobalConfig = {
                       },
                     },
                   ],
+                },
+                {
+                  name: 'customerEntryPercentageOfferBranches',
+                  type: 'relationship',
+                  relationTo: 'branches',
+                  hasMany: true,
+                  label: 'Allowed Branches',
+                  admin: {
+                    condition: (data) => Boolean(data?.enableCustomerEntryPercentageOffer),
+                    description: 'Leave empty to allow all branches.',
+                  },
                 },
                 {
                   type: 'row',

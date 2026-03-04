@@ -2,17 +2,20 @@
 
 import React, { useCallback, useEffect, useState } from 'react'
 import AsyncSelect from 'react-select/async'
+import Select, { components as selectComponents } from 'react-select'
 import { ChevronDown, ChevronUp, Loader2, Plus, Save, Trash2 } from 'lucide-react'
 import './customer-offer-widget.scss'
 
 type Option = { value: string; label: string }
 type ProductOptionsResponse = { options?: Option[] }
+type BranchOptionsResponse = { docs?: Array<{ id?: string; name?: string }> }
 type OfferRule = Record<string, unknown>
 
 type CustomerOfferSettings = {
   enabled?: boolean
   allowCustomerCreditOfferOnBillings?: boolean
   allowCustomerCreditOfferOnTableOrders?: boolean
+  customerCreditOfferBranches?: unknown[]
   spendAmountPerStep?: number
   pointsPerStep?: number
   pointsNeededForOffer?: number
@@ -40,6 +43,7 @@ type CustomerOfferSettings = {
   enableTotalPercentageOffer?: boolean
   allowTotalPercentageOfferOnBillings?: boolean
   allowTotalPercentageOfferOnTableOrders?: boolean
+  totalPercentageOfferBranches?: unknown[]
   totalPercentageOfferPercent?: number
   totalPercentageOfferRandomSelectionChancePercent?: number
   totalPercentageOfferMaxOfferCount?: number
@@ -55,6 +59,7 @@ type CustomerOfferSettings = {
   enableCustomerEntryPercentageOffer?: boolean
   allowCustomerEntryPercentageOfferOnBillings?: boolean
   allowCustomerEntryPercentageOfferOnTableOrders?: boolean
+  customerEntryPercentageOfferBranches?: unknown[]
   customerEntryPercentageOfferPercent?: number
   customerEntryPercentageOfferTimezone?: string
   customerEntryPercentageOfferAvailableFromDate?: string | null
@@ -70,6 +75,11 @@ type ArrayFieldKey =
   | 'productPriceOffers'
   | 'randomCustomerOfferProducts'
 
+type GlobalOfferBranchFieldKey =
+  | 'customerCreditOfferBranches'
+  | 'totalPercentageOfferBranches'
+  | 'customerEntryPercentageOfferBranches'
+
 const getRelationshipID = (value: unknown): string | null => {
   if (typeof value === 'string' && value.trim().length > 0) return value
   if (
@@ -81,6 +91,16 @@ const getRelationshipID = (value: unknown): string | null => {
     return (value as { id: string }).id
   }
   return null
+}
+
+const getRelationshipIDs = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return []
+
+  const ids = value
+    .map((entry) => getRelationshipID(entry))
+    .filter((id): id is string => typeof id === 'string')
+
+  return Array.from(new Set(ids))
 }
 
 const toNumberInput = (value: unknown): string =>
@@ -115,10 +135,26 @@ const normalizeTimeOrNull = (value: unknown): string | null => {
 
 const hydrateSettings = (input: CustomerOfferSettings): CustomerOfferSettings => ({
   ...input,
-  productToProductOffers: Array.isArray(input.productToProductOffers) ? input.productToProductOffers : [],
-  productPriceOffers: Array.isArray(input.productPriceOffers) ? input.productPriceOffers : [],
+  customerCreditOfferBranches: getRelationshipIDs(input.customerCreditOfferBranches),
+  totalPercentageOfferBranches: getRelationshipIDs(input.totalPercentageOfferBranches),
+  customerEntryPercentageOfferBranches: getRelationshipIDs(input.customerEntryPercentageOfferBranches),
+  productToProductOffers: Array.isArray(input.productToProductOffers)
+    ? input.productToProductOffers.map((row) => ({
+        ...row,
+        branches: getRelationshipIDs((row as OfferRule).branches),
+      }))
+    : [],
+  productPriceOffers: Array.isArray(input.productPriceOffers)
+    ? input.productPriceOffers.map((row) => ({
+        ...row,
+        branches: getRelationshipIDs((row as OfferRule).branches),
+      }))
+    : [],
   randomCustomerOfferProducts: Array.isArray(input.randomCustomerOfferProducts)
-    ? input.randomCustomerOfferProducts
+    ? input.randomCustomerOfferProducts.map((row) => ({
+        ...row,
+        branches: getRelationshipIDs((row as OfferRule).branches),
+      }))
     : [],
 })
 
@@ -130,14 +166,20 @@ const normalizeForSave = (input: CustomerOfferSettings): CustomerOfferSettings =
 
   return {
     ...input,
-    productToProductOffers: (input.productToProductOffers || []).map((row) =>
-      normalizeRuleProduct(normalizeRuleProduct(row, 'buyProduct'), 'freeProduct'),
-    ),
-    productPriceOffers: (input.productPriceOffers || []).map((row) =>
-      normalizeRuleProduct(row, 'product'),
-    ),
+    customerCreditOfferBranches: getRelationshipIDs(input.customerCreditOfferBranches),
+    totalPercentageOfferBranches: getRelationshipIDs(input.totalPercentageOfferBranches),
+    customerEntryPercentageOfferBranches: getRelationshipIDs(input.customerEntryPercentageOfferBranches),
+    productToProductOffers: (input.productToProductOffers || []).map((row) => ({
+      ...normalizeRuleProduct(normalizeRuleProduct(row, 'buyProduct'), 'freeProduct'),
+      branches: getRelationshipIDs(row.branches),
+    })),
+    productPriceOffers: (input.productPriceOffers || []).map((row) => ({
+      ...normalizeRuleProduct(row, 'product'),
+      branches: getRelationshipIDs(row.branches),
+    })),
     randomCustomerOfferProducts: (input.randomCustomerOfferProducts || []).map((row) => ({
       ...normalizeRuleProduct(row, 'product'),
+      branches: getRelationshipIDs(row.branches),
       availableFromDate: normalizeDateOrNull(row.availableFromDate),
       availableToDate: normalizeDateOrNull(row.availableToDate),
       dailyStartTime: normalizeTimeOrNull(row.dailyStartTime),
@@ -195,6 +237,40 @@ const extractPreselectedProductIDs = (input: CustomerOfferSettings): string[] =>
   return Array.from(ids)
 }
 
+const extractPreselectedBranchIDs = (input: CustomerOfferSettings): string[] => {
+  const ids = new Set<string>()
+
+  for (const field of [
+    'customerCreditOfferBranches',
+    'totalPercentageOfferBranches',
+    'customerEntryPercentageOfferBranches',
+  ] as GlobalOfferBranchFieldKey[]) {
+    for (const id of getRelationshipIDs(input[field])) {
+      ids.add(id)
+    }
+  }
+
+  for (const row of Array.isArray(input.productToProductOffers) ? input.productToProductOffers : []) {
+    for (const id of getRelationshipIDs((row as OfferRule).branches)) {
+      ids.add(id)
+    }
+  }
+
+  for (const row of Array.isArray(input.productPriceOffers) ? input.productPriceOffers : []) {
+    for (const id of getRelationshipIDs((row as OfferRule).branches)) {
+      ids.add(id)
+    }
+  }
+
+  for (const row of Array.isArray(input.randomCustomerOfferProducts) ? input.randomCustomerOfferProducts : []) {
+    for (const id of getRelationshipIDs((row as OfferRule).branches)) {
+      ids.add(id)
+    }
+  }
+
+  return Array.from(ids)
+}
+
 const customSelectStyles = {
   control: (base: any) => ({
     ...base,
@@ -216,17 +292,49 @@ const customSelectStyles = {
     color: '#fff',
     '&:active': { backgroundColor: '#3b82f6' },
   }),
+  multiValue: (base: any) => ({
+    ...base,
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    border: '1px solid rgba(59, 130, 246, 0.45)',
+  }),
+  multiValueLabel: (base: any) => ({ ...base, color: '#bfdbfe' }),
+  multiValueRemove: (base: any) => ({
+    ...base,
+    color: '#93c5fd',
+    ':hover': {
+      backgroundColor: 'rgba(239, 68, 68, 0.2)',
+      color: '#fca5a5',
+    },
+  }),
+  placeholder: (base: any) => ({ ...base, color: '#71717a' }),
   singleValue: (base: any) => ({ ...base, color: '#fff' }),
   input: (base: any) => ({ ...base, color: '#fff' }),
 }
+
+const BranchOption = (props: any) => (
+  <selectComponents.Option {...props}>
+    <div className="co-select-option-with-check">
+      <input type="checkbox" checked={Boolean(props.isSelected)} readOnly />
+      <span>{props.label}</span>
+    </div>
+  </selectComponents.Option>
+)
 
 let cachedCustomerOfferSettings: CustomerOfferSettings | null = null
 let cachedDefaultProductOptions: Option[] = []
 let cachedProductOptionsByID: Record<string, Option> = {}
 const cachedProductQueryCache: Record<string, Option[]> = {}
 const cachedProductQueryPromises: Record<string, Promise<Option[]>> = {}
+let cachedBranchOptions: Option[] = []
+let cachedBranchOptionsByID: Record<string, Option> = {}
 
-const CustomerOfferWidget: React.FC = () => {
+type CustomerOfferWidgetProps = {
+  preloadedBranchOptions?: Option[]
+}
+
+const CustomerOfferWidget: React.FC<CustomerOfferWidgetProps> = ({
+  preloadedBranchOptions = [],
+}) => {
   const [settings, setSettings] = useState<CustomerOfferSettings | null>(
     cachedCustomerOfferSettings ? hydrateSettings(cachedCustomerOfferSettings) : null,
   )
@@ -236,8 +344,13 @@ const CustomerOfferWidget: React.FC = () => {
   const [productOptionsByID, setProductOptionsByID] = useState<Record<string, Option>>(
     cachedProductOptionsByID,
   )
+  const [branchOptions, setBranchOptions] = useState<Option[]>(cachedBranchOptions)
+  const [branchOptionsByID, setBranchOptionsByID] = useState<Record<string, Option>>(
+    cachedBranchOptionsByID,
+  )
   const [settingsLoading, setSettingsLoading] = useState(!cachedCustomerOfferSettings)
   const [productsLoading, setProductsLoading] = useState(false)
+  const [branchesLoading, setBranchesLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -248,6 +361,7 @@ const CustomerOfferWidget: React.FC = () => {
     offer5: false,
     offer6: false,
   })
+  const [openRules, setOpenRules] = useState<Record<string, boolean>>({})
 
   const upsertProductOptionsCache = useCallback((options: Option[]) => {
     if (!Array.isArray(options) || options.length === 0) return
@@ -263,6 +377,59 @@ const CustomerOfferWidget: React.FC = () => {
     cachedProductOptionsByID = { ...cachedProductOptionsByID, ...nextEntries }
     setProductOptionsByID((previous) => ({ ...previous, ...nextEntries }))
   }, [])
+
+  const upsertBranchOptionsCache = useCallback((options: Option[]) => {
+    if (!Array.isArray(options) || options.length === 0) return
+
+    const nextEntries: Record<string, Option> = {}
+    for (const option of options) {
+      if (!option?.value) continue
+      nextEntries[option.value] = option
+    }
+
+    if (Object.keys(nextEntries).length === 0) return
+
+    cachedBranchOptions = options
+    cachedBranchOptionsByID = { ...cachedBranchOptionsByID, ...nextEntries }
+    setBranchOptions(options)
+    setBranchOptionsByID((previous) => ({ ...previous, ...nextEntries }))
+  }, [])
+
+  useEffect(() => {
+    if (!Array.isArray(preloadedBranchOptions) || preloadedBranchOptions.length === 0) return
+    upsertBranchOptionsCache(preloadedBranchOptions)
+  }, [preloadedBranchOptions, upsertBranchOptionsCache])
+
+  const fetchBranchOptions = useCallback(
+    async (ids: string[] = []): Promise<Option[]> => {
+      if (cachedBranchOptions.length > 0) {
+        const missingIDs = ids.filter((id) => id && !cachedBranchOptionsByID[id])
+        if (missingIDs.length === 0) {
+          return cachedBranchOptions
+        }
+      }
+
+      const response = await fetch('/api/branches?limit=1000&depth=0&sort=name')
+      if (!response.ok) return cachedBranchOptions
+
+      const json = (await response.json()) as BranchOptionsResponse
+      const options = Array.isArray(json?.docs)
+        ? json.docs
+            .map((doc) => {
+              const id = typeof doc?.id === 'string' ? doc.id : null
+              if (!id) return null
+              const label =
+                typeof doc?.name === 'string' && doc.name.trim().length > 0 ? doc.name : id
+              return { value: id, label }
+            })
+            .filter((option): option is Option => Boolean(option))
+        : []
+
+      upsertBranchOptionsCache(options)
+      return options
+    },
+    [upsertBranchOptionsCache],
+  )
 
   const fetchProductOptions = useCallback(
     async (query: string, ids: string[] = []): Promise<Option[]> => {
@@ -337,7 +504,7 @@ const CustomerOfferWidget: React.FC = () => {
       }
 
       try {
-        const settingsResponse = await fetch('/api/globals/customer-offer-settings?depth=1')
+        const settingsResponse = await fetch('/api/globals/customer-offer-settings?depth=0')
 
         if (!settingsResponse.ok) {
           throw new Error('Failed to load customer offer settings')
@@ -352,6 +519,16 @@ const CustomerOfferWidget: React.FC = () => {
           setLoadError(null)
         }
 
+        const preselectedBranchIDs = extractPreselectedBranchIDs(hydratedSettings)
+        if (cachedBranchOptions.length === 0 || preselectedBranchIDs.length > 0) {
+          setBranchesLoading(true)
+          void fetchBranchOptions(preselectedBranchIDs).finally(() => {
+            if (!cancelled) {
+              setBranchesLoading(false)
+            }
+          })
+        }
+
         const preselectedProductIDs = extractPreselectedProductIDs(hydratedSettings)
         if (preselectedProductIDs.length > 0) {
           setProductsLoading(true)
@@ -360,6 +537,17 @@ const CustomerOfferWidget: React.FC = () => {
               setProductsLoading(false)
             }
           })
+        } else if (cachedDefaultProductOptions.length === 0) {
+          // Warm product options in background so rule product dropdowns open instantly.
+          void fetchProductOptions('')
+            .then((options) => {
+              if (!cancelled) {
+                setDefaultProductOptions(options)
+              }
+            })
+            .catch((error) => {
+              console.error('Failed preloading product options for customer offer widget:', error)
+            })
         }
       } catch (error) {
         console.error('Failed loading customer offer settings:', error)
@@ -377,7 +565,7 @@ const CustomerOfferWidget: React.FC = () => {
     return () => {
       cancelled = true
     }
-  }, [fetchProductOptions])
+  }, [fetchBranchOptions, fetchProductOptions])
 
   const shouldLoadProducts = openSections.offer2 || openSections.offer3 || openSections.offer4
 
@@ -416,6 +604,36 @@ const CustomerOfferWidget: React.FC = () => {
     setSettings((previous) => (previous ? { ...previous, [field]: value } : previous))
   }
 
+  const getBranchValues = (field: GlobalOfferBranchFieldKey): Option[] => {
+    if (!settings) return []
+    return getRelationshipIDs(settings[field]).map(
+      (id) => branchOptionsByID[id] || { value: id, label: id },
+    )
+  }
+
+  const setOfferBranches = (
+    field: GlobalOfferBranchFieldKey,
+    selected: readonly Option[] | null,
+  ) => {
+    setField(
+      field,
+      Array.isArray(selected) ? selected.map((option) => option.value).filter(Boolean) : [],
+    )
+  }
+
+  const getRuleBranchValues = (rule: OfferRule): Option[] =>
+    getRelationshipIDs(rule.branches).map((id) => branchOptionsByID[id] || { value: id, label: id })
+
+  const setRuleBranches = (
+    field: ArrayFieldKey,
+    index: number,
+    selected: readonly Option[] | null,
+  ) => {
+    updateArrayRow(field, index, {
+      branches: Array.isArray(selected) ? selected.map((option) => option.value).filter(Boolean) : [],
+    })
+  }
+
   const getArrayRows = (field: ArrayFieldKey): OfferRule[] => {
     if (!settings) return []
     const rows = settings[field]
@@ -451,6 +669,19 @@ const CustomerOfferWidget: React.FC = () => {
 
   const toggleSection = (key: string) => {
     setOpenSections((previous) => ({ ...previous, [key]: !previous[key] }))
+  }
+
+  const buildRuleToggleKey = (field: ArrayFieldKey, rule: OfferRule, index: number): string => {
+    const rowID = typeof rule.id === 'string' && rule.id.trim().length > 0 ? rule.id : `${index}`
+    return `${field}:${rowID}`
+  }
+
+  const isRuleOpen = (field: ArrayFieldKey, rule: OfferRule, index: number): boolean =>
+    Boolean(openRules[buildRuleToggleKey(field, rule, index)])
+
+  const toggleRule = (field: ArrayFieldKey, rule: OfferRule, index: number) => {
+    const key = buildRuleToggleKey(field, rule, index)
+    setOpenRules((previous) => ({ ...previous, [key]: !previous[key] }))
   }
 
   const saveSettings = async () => {
@@ -515,6 +746,51 @@ const CustomerOfferWidget: React.FC = () => {
   const productToProductOffers = getArrayRows('productToProductOffers')
   const productPriceOffers = getArrayRows('productPriceOffers')
   const randomCustomerOfferProducts = getArrayRows('randomCustomerOfferProducts')
+  const renderOfferBranchSelector = (field: GlobalOfferBranchFieldKey) => (
+    <div className="co-grid co-grid-1">
+      <label className="co-branch-field">
+        Allowed Branches
+        <Select
+          isMulti
+          closeMenuOnSelect={false}
+          hideSelectedOptions={false}
+          options={branchOptions}
+          value={getBranchValues(field)}
+          onChange={(selected) => setOfferBranches(field, selected as Option[] | null)}
+          styles={customSelectStyles}
+          components={{ Option: BranchOption }}
+          isLoading={branchesLoading}
+          placeholder="All branches (default)"
+          noOptionsMessage={() =>
+            branchesLoading ? 'Loading branches...' : 'No branches found'
+          }
+        />
+      </label>
+    </div>
+  )
+
+  const renderRuleBranchSelector = (field: ArrayFieldKey, index: number, rule: OfferRule) => (
+    <div className="co-grid co-grid-1">
+      <label className="co-branch-field">
+        Allowed Branches
+        <Select
+          isMulti
+          closeMenuOnSelect={false}
+          hideSelectedOptions={false}
+          options={branchOptions}
+          value={getRuleBranchValues(rule)}
+          onChange={(selected) => setRuleBranches(field, index, selected as Option[] | null)}
+          styles={customSelectStyles}
+          components={{ Option: BranchOption }}
+          isLoading={branchesLoading}
+          placeholder="All branches (default)"
+          noOptionsMessage={() =>
+            branchesLoading ? 'Loading branches...' : 'No branches found'
+          }
+        />
+      </label>
+    </div>
+  )
 
   return (
     <div className="customer-offer-widget">
@@ -522,6 +798,7 @@ const CustomerOfferWidget: React.FC = () => {
         <p>
           Custom offer designer for all 6 customer offers.
           {productsLoading ? <span className="co-loading-products"> Loading products...</span> : null}
+          {branchesLoading ? <span className="co-loading-products"> Loading branches...</span> : null}
         </p>
         <button type="button" className="co-save-btn" onClick={saveSettings} disabled={saving}>
           {saving ? (
@@ -571,6 +848,8 @@ const CustomerOfferWidget: React.FC = () => {
                 Allow Table Orders
               </label>
             </div>
+
+            {renderOfferBranchSelector('customerCreditOfferBranches')}
 
             <div className="co-grid">
               <label>
@@ -667,7 +946,18 @@ const CustomerOfferWidget: React.FC = () => {
               {productToProductOffers.map((rule, index) => (
                 <div className="co-rule-card" key={rule.id ? String(rule.id) : `p2p-${index}`}>
                   <div className="co-rule-head">
-                    <h4>Rule {index + 1}</h4>
+                    <button
+                      type="button"
+                      className="co-rule-toggle"
+                      onClick={() => toggleRule('productToProductOffers', rule, index)}
+                    >
+                      <span>Rule {index + 1}</span>
+                      {isRuleOpen('productToProductOffers', rule, index) ? (
+                        <ChevronUp size={16} />
+                      ) : (
+                        <ChevronDown size={16} />
+                      )}
+                    </button>
                     <button
                       type="button"
                       className="co-remove-btn"
@@ -676,153 +966,160 @@ const CustomerOfferWidget: React.FC = () => {
                       <Trash2 size={14} /> Remove
                     </button>
                   </div>
+                  {isRuleOpen('productToProductOffers', rule, index) && (
+                    <>
+                      <div className="co-toggle-row">
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={rule.enabled !== false}
+                            onChange={(e) =>
+                              updateArrayRow('productToProductOffers', index, {
+                                enabled: e.target.checked,
+                              })
+                            }
+                          />
+                          Rule Enabled
+                        </label>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={rule.allowOnBillings !== false}
+                            onChange={(e) =>
+                              updateArrayRow('productToProductOffers', index, {
+                                allowOnBillings: e.target.checked,
+                              })
+                            }
+                          />
+                          Allow Billings
+                        </label>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={rule.allowOnTableOrders !== false}
+                            onChange={(e) =>
+                              updateArrayRow('productToProductOffers', index, {
+                                allowOnTableOrders: e.target.checked,
+                              })
+                            }
+                          />
+                          Allow Table Orders
+                        </label>
+                      </div>
 
-                  <div className="co-toggle-row">
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={rule.enabled !== false}
-                        onChange={(e) =>
-                          updateArrayRow('productToProductOffers', index, { enabled: e.target.checked })
-                        }
-                      />
-                      Rule Enabled
-                    </label>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={rule.allowOnBillings !== false}
-                        onChange={(e) =>
-                          updateArrayRow('productToProductOffers', index, {
-                            allowOnBillings: e.target.checked,
-                          })
-                        }
-                      />
-                      Allow Billings
-                    </label>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={rule.allowOnTableOrders !== false}
-                        onChange={(e) =>
-                          updateArrayRow('productToProductOffers', index, {
-                            allowOnTableOrders: e.target.checked,
-                          })
-                        }
-                      />
-                      Allow Table Orders
-                    </label>
-                  </div>
+                      {renderRuleBranchSelector('productToProductOffers', index, rule)}
 
-                  <div className="co-grid co-grid-2">
-                    <label>
-                      Buy Product (A)
-                      <AsyncSelect
-                        cacheOptions
-                        defaultOptions={defaultProductOptions}
-                        loadOptions={loadProductOptions}
-                        value={getProductValue(rule.buyProduct)}
-                        isLoading={productsLoading}
-                        onChange={(option) =>
-                          updateArrayRow('productToProductOffers', index, {
-                            buyProduct: (option as Option | null)?.value || null,
-                          })
-                        }
-                        styles={customSelectStyles}
-                        placeholder="Select product..."
-                      />
-                    </label>
-                    <label>
-                      Buy Quantity
-                      <input
-                        className="co-match-select-height"
-                        type="number"
-                        min={1}
-                        value={toNumberInput(rule.buyQuantity)}
-                        onChange={(e) =>
-                          updateArrayRow('productToProductOffers', index, {
-                            buyQuantity: parseNumberInput(e.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                  </div>
+                      <div className="co-grid co-grid-2">
+                        <label>
+                          Buy Product (A)
+                          <AsyncSelect
+                            cacheOptions
+                            defaultOptions={defaultProductOptions}
+                            loadOptions={loadProductOptions}
+                            value={getProductValue(rule.buyProduct)}
+                            isLoading={productsLoading}
+                            onChange={(option) =>
+                              updateArrayRow('productToProductOffers', index, {
+                                buyProduct: (option as Option | null)?.value || null,
+                              })
+                            }
+                            styles={customSelectStyles}
+                            placeholder="Select product..."
+                          />
+                        </label>
+                        <label>
+                          Buy Quantity
+                          <input
+                            className="co-match-select-height"
+                            type="number"
+                            min={1}
+                            value={toNumberInput(rule.buyQuantity)}
+                            onChange={(e) =>
+                              updateArrayRow('productToProductOffers', index, {
+                                buyQuantity: parseNumberInput(e.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
 
-                  <div className="co-grid co-grid-2">
-                    <label>
-                      Free Product (B)
-                      <AsyncSelect
-                        cacheOptions
-                        defaultOptions={defaultProductOptions}
-                        loadOptions={loadProductOptions}
-                        value={getProductValue(rule.freeProduct)}
-                        isLoading={productsLoading}
-                        onChange={(option) =>
-                          updateArrayRow('productToProductOffers', index, {
-                            freeProduct: (option as Option | null)?.value || null,
-                          })
-                        }
-                        styles={customSelectStyles}
-                        placeholder="Select product..."
-                      />
-                    </label>
-                    <label>
-                      Free Quantity
-                      <input
-                        className="co-match-select-height"
-                        type="number"
-                        min={1}
-                        value={toNumberInput(rule.freeQuantity)}
-                        onChange={(e) =>
-                          updateArrayRow('productToProductOffers', index, {
-                            freeQuantity: parseNumberInput(e.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                  </div>
+                      <div className="co-grid co-grid-2">
+                        <label>
+                          Free Product (B)
+                          <AsyncSelect
+                            cacheOptions
+                            defaultOptions={defaultProductOptions}
+                            loadOptions={loadProductOptions}
+                            value={getProductValue(rule.freeProduct)}
+                            isLoading={productsLoading}
+                            onChange={(option) =>
+                              updateArrayRow('productToProductOffers', index, {
+                                freeProduct: (option as Option | null)?.value || null,
+                              })
+                            }
+                            styles={customSelectStyles}
+                            placeholder="Select product..."
+                          />
+                        </label>
+                        <label>
+                          Free Quantity
+                          <input
+                            className="co-match-select-height"
+                            type="number"
+                            min={1}
+                            value={toNumberInput(rule.freeQuantity)}
+                            onChange={(e) =>
+                              updateArrayRow('productToProductOffers', index, {
+                                freeQuantity: parseNumberInput(e.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
 
-                  <div className="co-grid">
-                    <label>
-                      Max Offer Uses (0 unlimited)
-                      <input
-                        type="number"
-                        min={0}
-                        value={toNumberInput(rule.maxOfferCount)}
-                        onChange={(e) =>
-                          updateArrayRow('productToProductOffers', index, {
-                            maxOfferCount: parseNumberInput(e.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Max Customers (0 unlimited)
-                      <input
-                        type="number"
-                        min={0}
-                        value={toNumberInput(rule.maxCustomerCount)}
-                        onChange={(e) =>
-                          updateArrayRow('productToProductOffers', index, {
-                            maxCustomerCount: parseNumberInput(e.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Max Uses / Customer (0 unlimited)
-                      <input
-                        type="number"
-                        min={0}
-                        value={toNumberInput(rule.maxUsagePerCustomer)}
-                        onChange={(e) =>
-                          updateArrayRow('productToProductOffers', index, {
-                            maxUsagePerCustomer: parseNumberInput(e.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                  </div>
+                      <div className="co-grid">
+                        <label>
+                          Max Offer Uses (0 unlimited)
+                          <input
+                            type="number"
+                            min={0}
+                            value={toNumberInput(rule.maxOfferCount)}
+                            onChange={(e) =>
+                              updateArrayRow('productToProductOffers', index, {
+                                maxOfferCount: parseNumberInput(e.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Max Customers (0 unlimited)
+                          <input
+                            type="number"
+                            min={0}
+                            value={toNumberInput(rule.maxCustomerCount)}
+                            onChange={(e) =>
+                              updateArrayRow('productToProductOffers', index, {
+                                maxCustomerCount: parseNumberInput(e.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Max Uses / Customer (0 unlimited)
+                          <input
+                            type="number"
+                            min={0}
+                            value={toNumberInput(rule.maxUsagePerCustomer)}
+                            onChange={(e) =>
+                              updateArrayRow('productToProductOffers', index, {
+                                maxUsagePerCustomer: parseNumberInput(e.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -835,6 +1132,7 @@ const CustomerOfferWidget: React.FC = () => {
                   enabled: true,
                   allowOnBillings: true,
                   allowOnTableOrders: true,
+                  branches: [],
                   buyQuantity: 1,
                   freeQuantity: 1,
                   maxOfferCount: 0,
@@ -889,7 +1187,18 @@ const CustomerOfferWidget: React.FC = () => {
               {productPriceOffers.map((rule, index) => (
                 <div className="co-rule-card" key={rule.id ? String(rule.id) : `price-${index}`}>
                   <div className="co-rule-head">
-                    <h4>Rule {index + 1}</h4>
+                    <button
+                      type="button"
+                      className="co-rule-toggle"
+                      onClick={() => toggleRule('productPriceOffers', rule, index)}
+                    >
+                      <span>Rule {index + 1}</span>
+                      {isRuleOpen('productPriceOffers', rule, index) ? (
+                        <ChevronUp size={16} />
+                      ) : (
+                        <ChevronDown size={16} />
+                      )}
+                    </button>
                     <button
                       type="button"
                       className="co-remove-btn"
@@ -898,116 +1207,121 @@ const CustomerOfferWidget: React.FC = () => {
                       <Trash2 size={14} /> Remove
                     </button>
                   </div>
+                  {isRuleOpen('productPriceOffers', rule, index) && (
+                    <>
+                      <div className="co-toggle-row">
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={rule.enabled !== false}
+                            onChange={(e) =>
+                              updateArrayRow('productPriceOffers', index, { enabled: e.target.checked })
+                            }
+                          />
+                          Rule Enabled
+                        </label>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={rule.allowOnBillings !== false}
+                            onChange={(e) =>
+                              updateArrayRow('productPriceOffers', index, {
+                                allowOnBillings: e.target.checked,
+                              })
+                            }
+                          />
+                          Allow Billings
+                        </label>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={rule.allowOnTableOrders !== false}
+                            onChange={(e) =>
+                              updateArrayRow('productPriceOffers', index, {
+                                allowOnTableOrders: e.target.checked,
+                              })
+                            }
+                          />
+                          Allow Table Orders
+                        </label>
+                      </div>
 
-                  <div className="co-toggle-row">
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={rule.enabled !== false}
-                        onChange={(e) =>
-                          updateArrayRow('productPriceOffers', index, { enabled: e.target.checked })
-                        }
-                      />
-                      Rule Enabled
-                    </label>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={rule.allowOnBillings !== false}
-                        onChange={(e) =>
-                          updateArrayRow('productPriceOffers', index, {
-                            allowOnBillings: e.target.checked,
-                          })
-                        }
-                      />
-                      Allow Billings
-                    </label>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={rule.allowOnTableOrders !== false}
-                        onChange={(e) =>
-                          updateArrayRow('productPriceOffers', index, {
-                            allowOnTableOrders: e.target.checked,
-                          })
-                        }
-                      />
-                      Allow Table Orders
-                    </label>
-                  </div>
+                      {renderRuleBranchSelector('productPriceOffers', index, rule)}
 
-                  <div className="co-grid">
-                    <label>
-                      Product
-                      <AsyncSelect
-                        cacheOptions
-                        defaultOptions={defaultProductOptions}
-                        loadOptions={loadProductOptions}
-                        value={getProductValue(rule.product)}
-                        isLoading={productsLoading}
-                        onChange={(option) =>
-                          updateArrayRow('productPriceOffers', index, {
-                            product: (option as Option | null)?.value || null,
-                          })
-                        }
-                        styles={customSelectStyles}
-                        placeholder="Select product..."
-                      />
-                    </label>
-                    <label>
-                      Discount (Rs)
-                      <input
-                        type="number"
-                        min={0.01}
-                        step={0.01}
-                        value={toNumberInput(rule.discountAmount)}
-                        onChange={(e) =>
-                          updateArrayRow('productPriceOffers', index, {
-                            discountAmount: parseNumberInput(e.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Max Offer Uses (0 unlimited)
-                      <input
-                        type="number"
-                        min={0}
-                        value={toNumberInput(rule.maxOfferCount)}
-                        onChange={(e) =>
-                          updateArrayRow('productPriceOffers', index, {
-                            maxOfferCount: parseNumberInput(e.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Max Customers (0 unlimited)
-                      <input
-                        type="number"
-                        min={0}
-                        value={toNumberInput(rule.maxCustomerCount)}
-                        onChange={(e) =>
-                          updateArrayRow('productPriceOffers', index, {
-                            maxCustomerCount: parseNumberInput(e.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Max Uses / Customer (0 unlimited)
-                      <input
-                        type="number"
-                        min={0}
-                        value={toNumberInput(rule.maxUsagePerCustomer)}
-                        onChange={(e) =>
-                          updateArrayRow('productPriceOffers', index, {
-                            maxUsagePerCustomer: parseNumberInput(e.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                  </div>
+                      <div className="co-grid">
+                        <label>
+                          Product
+                          <AsyncSelect
+                            cacheOptions
+                            defaultOptions={defaultProductOptions}
+                            loadOptions={loadProductOptions}
+                            value={getProductValue(rule.product)}
+                            isLoading={productsLoading}
+                            onChange={(option) =>
+                              updateArrayRow('productPriceOffers', index, {
+                                product: (option as Option | null)?.value || null,
+                              })
+                            }
+                            styles={customSelectStyles}
+                            placeholder="Select product..."
+                          />
+                        </label>
+                        <label>
+                          Discount (Rs)
+                          <input
+                            type="number"
+                            min={0.01}
+                            step={0.01}
+                            value={toNumberInput(rule.discountAmount)}
+                            onChange={(e) =>
+                              updateArrayRow('productPriceOffers', index, {
+                                discountAmount: parseNumberInput(e.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Max Offer Uses (0 unlimited)
+                          <input
+                            type="number"
+                            min={0}
+                            value={toNumberInput(rule.maxOfferCount)}
+                            onChange={(e) =>
+                              updateArrayRow('productPriceOffers', index, {
+                                maxOfferCount: parseNumberInput(e.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Max Customers (0 unlimited)
+                          <input
+                            type="number"
+                            min={0}
+                            value={toNumberInput(rule.maxCustomerCount)}
+                            onChange={(e) =>
+                              updateArrayRow('productPriceOffers', index, {
+                                maxCustomerCount: parseNumberInput(e.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Max Uses / Customer (0 unlimited)
+                          <input
+                            type="number"
+                            min={0}
+                            value={toNumberInput(rule.maxUsagePerCustomer)}
+                            onChange={(e) =>
+                              updateArrayRow('productPriceOffers', index, {
+                                maxUsagePerCustomer: parseNumberInput(e.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -1020,6 +1334,7 @@ const CustomerOfferWidget: React.FC = () => {
                   enabled: true,
                   allowOnBillings: true,
                   allowOnTableOrders: true,
+                  branches: [],
                   discountAmount: 1,
                   maxOfferCount: 0,
                   maxCustomerCount: 0,
@@ -1109,7 +1424,18 @@ const CustomerOfferWidget: React.FC = () => {
               {randomCustomerOfferProducts.map((rule, index) => (
                 <div className="co-rule-card" key={rule.id ? String(rule.id) : `random-${index}`}>
                   <div className="co-rule-head">
-                    <h4>Random Rule {index + 1}</h4>
+                    <button
+                      type="button"
+                      className="co-rule-toggle"
+                      onClick={() => toggleRule('randomCustomerOfferProducts', rule, index)}
+                    >
+                      <span>Random Rule {index + 1}</span>
+                      {isRuleOpen('randomCustomerOfferProducts', rule, index) ? (
+                        <ChevronUp size={16} />
+                      ) : (
+                        <ChevronDown size={16} />
+                      )}
+                    </button>
                     <button
                       type="button"
                       className="co-remove-btn"
@@ -1118,154 +1444,159 @@ const CustomerOfferWidget: React.FC = () => {
                       <Trash2 size={14} /> Remove
                     </button>
                   </div>
+                  {isRuleOpen('randomCustomerOfferProducts', rule, index) && (
+                    <>
+                      <div className="co-toggle-row">
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={rule.enabled !== false}
+                            onChange={(e) =>
+                              updateArrayRow('randomCustomerOfferProducts', index, {
+                                enabled: e.target.checked,
+                              })
+                            }
+                          />
+                          Rule Enabled
+                        </label>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={rule.allowOnBillings !== false}
+                            onChange={(e) =>
+                              updateArrayRow('randomCustomerOfferProducts', index, {
+                                allowOnBillings: e.target.checked,
+                              })
+                            }
+                          />
+                          Allow Billings
+                        </label>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={rule.allowOnTableOrders !== false}
+                            onChange={(e) =>
+                              updateArrayRow('randomCustomerOfferProducts', index, {
+                                allowOnTableOrders: e.target.checked,
+                              })
+                            }
+                          />
+                          Allow Table Orders
+                        </label>
+                      </div>
 
-                  <div className="co-toggle-row">
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={rule.enabled !== false}
-                        onChange={(e) =>
-                          updateArrayRow('randomCustomerOfferProducts', index, {
-                            enabled: e.target.checked,
-                          })
-                        }
-                      />
-                      Rule Enabled
-                    </label>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={rule.allowOnBillings !== false}
-                        onChange={(e) =>
-                          updateArrayRow('randomCustomerOfferProducts', index, {
-                            allowOnBillings: e.target.checked,
-                          })
-                        }
-                      />
-                      Allow Billings
-                    </label>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={rule.allowOnTableOrders !== false}
-                        onChange={(e) =>
-                          updateArrayRow('randomCustomerOfferProducts', index, {
-                            allowOnTableOrders: e.target.checked,
-                          })
-                        }
-                      />
-                      Allow Table Orders
-                    </label>
-                  </div>
+                      {renderRuleBranchSelector('randomCustomerOfferProducts', index, rule)}
 
-                  <div className="co-grid">
-                    <label>
-                      Product
-                      <AsyncSelect
-                        cacheOptions
-                        defaultOptions={defaultProductOptions}
-                        loadOptions={loadProductOptions}
-                        value={getProductValue(rule.product)}
-                        isLoading={productsLoading}
-                        onChange={(option) =>
-                          updateArrayRow('randomCustomerOfferProducts', index, {
-                            product: (option as Option | null)?.value || null,
-                          })
-                        }
-                        styles={customSelectStyles}
-                        placeholder="Select product..."
-                      />
-                    </label>
-                    <label>
-                      Winner Count
-                      <input
-                        type="number"
-                        min={1}
-                        value={toNumberInput(rule.winnerCount)}
-                        onChange={(e) =>
-                          updateArrayRow('randomCustomerOfferProducts', index, {
-                            winnerCount: parseNumberInput(e.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Random Chance (%)
-                      <input
-                        type="number"
-                        min={0.01}
-                        max={100}
-                        step={0.01}
-                        value={toNumberInput(rule.randomSelectionChancePercent)}
-                        onChange={(e) =>
-                          updateArrayRow('randomCustomerOfferProducts', index, {
-                            randomSelectionChancePercent: parseNumberInput(e.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Max Uses / Customer
-                      <input
-                        type="number"
-                        min={0}
-                        value={toNumberInput(rule.maxUsagePerCustomer)}
-                        onChange={(e) =>
-                          updateArrayRow('randomCustomerOfferProducts', index, {
-                            maxUsagePerCustomer: parseNumberInput(e.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Available From Date
-                      <input
-                        type="date"
-                        value={toDateInput(rule.availableFromDate)}
-                        onChange={(e) =>
-                          updateArrayRow('randomCustomerOfferProducts', index, {
-                            availableFromDate: e.target.value || null,
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Available To Date
-                      <input
-                        type="date"
-                        value={toDateInput(rule.availableToDate)}
-                        onChange={(e) =>
-                          updateArrayRow('randomCustomerOfferProducts', index, {
-                            availableToDate: e.target.value || null,
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Daily Start Time
-                      <input
-                        type="time"
-                        value={toTimeInput(rule.dailyStartTime)}
-                        onChange={(e) =>
-                          updateArrayRow('randomCustomerOfferProducts', index, {
-                            dailyStartTime: e.target.value || null,
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Daily End Time
-                      <input
-                        type="time"
-                        value={toTimeInput(rule.dailyEndTime)}
-                        onChange={(e) =>
-                          updateArrayRow('randomCustomerOfferProducts', index, {
-                            dailyEndTime: e.target.value || null,
-                          })
-                        }
-                      />
-                    </label>
-                  </div>
+                      <div className="co-grid">
+                        <label>
+                          Product
+                          <AsyncSelect
+                            cacheOptions
+                            defaultOptions={defaultProductOptions}
+                            loadOptions={loadProductOptions}
+                            value={getProductValue(rule.product)}
+                            isLoading={productsLoading}
+                            onChange={(option) =>
+                              updateArrayRow('randomCustomerOfferProducts', index, {
+                                product: (option as Option | null)?.value || null,
+                              })
+                            }
+                            styles={customSelectStyles}
+                            placeholder="Select product..."
+                          />
+                        </label>
+                        <label>
+                          Winner Count
+                          <input
+                            type="number"
+                            min={1}
+                            value={toNumberInput(rule.winnerCount)}
+                            onChange={(e) =>
+                              updateArrayRow('randomCustomerOfferProducts', index, {
+                                winnerCount: parseNumberInput(e.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Random Chance (%)
+                          <input
+                            type="number"
+                            min={0.01}
+                            max={100}
+                            step={0.01}
+                            value={toNumberInput(rule.randomSelectionChancePercent)}
+                            onChange={(e) =>
+                              updateArrayRow('randomCustomerOfferProducts', index, {
+                                randomSelectionChancePercent: parseNumberInput(e.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Max Uses / Customer
+                          <input
+                            type="number"
+                            min={0}
+                            value={toNumberInput(rule.maxUsagePerCustomer)}
+                            onChange={(e) =>
+                              updateArrayRow('randomCustomerOfferProducts', index, {
+                                maxUsagePerCustomer: parseNumberInput(e.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Available From Date
+                          <input
+                            type="date"
+                            value={toDateInput(rule.availableFromDate)}
+                            onChange={(e) =>
+                              updateArrayRow('randomCustomerOfferProducts', index, {
+                                availableFromDate: e.target.value || null,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Available To Date
+                          <input
+                            type="date"
+                            value={toDateInput(rule.availableToDate)}
+                            onChange={(e) =>
+                              updateArrayRow('randomCustomerOfferProducts', index, {
+                                availableToDate: e.target.value || null,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Daily Start Time
+                          <input
+                            type="time"
+                            value={toTimeInput(rule.dailyStartTime)}
+                            onChange={(e) =>
+                              updateArrayRow('randomCustomerOfferProducts', index, {
+                                dailyStartTime: e.target.value || null,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Daily End Time
+                          <input
+                            type="time"
+                            value={toTimeInput(rule.dailyEndTime)}
+                            onChange={(e) =>
+                              updateArrayRow('randomCustomerOfferProducts', index, {
+                                dailyEndTime: e.target.value || null,
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -1278,6 +1609,7 @@ const CustomerOfferWidget: React.FC = () => {
                   enabled: true,
                   allowOnBillings: true,
                   allowOnTableOrders: true,
+                  branches: [],
                   winnerCount: 1,
                   randomSelectionChancePercent: 10,
                   maxUsagePerCustomer: 1,
@@ -1327,6 +1659,8 @@ const CustomerOfferWidget: React.FC = () => {
                 Allow Table Orders
               </label>
             </div>
+
+            {renderOfferBranchSelector('totalPercentageOfferBranches')}
 
             <div className="co-grid">
               <label>
@@ -1486,6 +1820,8 @@ const CustomerOfferWidget: React.FC = () => {
                 Allow Table Orders
               </label>
             </div>
+
+            {renderOfferBranchSelector('customerEntryPercentageOfferBranches')}
 
             <div className="co-grid">
               <label>

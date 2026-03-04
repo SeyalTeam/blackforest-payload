@@ -7,6 +7,7 @@ export type CustomerRewardSettings = {
   enabled: boolean
   allowCustomerCreditOfferOnTableOrders: boolean
   allowCustomerCreditOfferOnBillings: boolean
+  customerCreditOfferBranches: string[]
   spendAmountPerStep: number
   pointsPerStep: number
   pointsNeededForOffer: number
@@ -30,6 +31,7 @@ export type CustomerRewardSettings = {
   enableTotalPercentageOffer: boolean
   allowTotalPercentageOfferOnTableOrders: boolean
   allowTotalPercentageOfferOnBillings: boolean
+  totalPercentageOfferBranches: string[]
   totalPercentageOfferPercent: number
   totalPercentageOfferMaxOfferCount: number
   totalPercentageOfferMaxCustomerCount: number
@@ -48,6 +50,7 @@ export type CustomerRewardSettings = {
   enableCustomerEntryPercentageOffer: boolean
   allowCustomerEntryPercentageOfferOnTableOrders: boolean
   allowCustomerEntryPercentageOfferOnBillings: boolean
+  customerEntryPercentageOfferBranches: string[]
   customerEntryPercentageOfferPercent: number
   customerEntryPercentageOfferTimezone: string
   customerEntryPercentageOfferAvailableFromDate: string | null
@@ -65,6 +68,7 @@ export type ProductToProductOfferRule = {
   enabled: boolean
   allowOnTableOrders: boolean
   allowOnBillings: boolean
+  branches: string[]
   buyProduct: string
   buyQuantity: number
   freeProduct: string
@@ -88,6 +92,7 @@ export type ProductPriceOfferRule = {
   enabled: boolean
   allowOnTableOrders: boolean
   allowOnBillings: boolean
+  branches: string[]
   product: string
   discountAmount: number
   maxOfferCount: number
@@ -104,6 +109,7 @@ export type RandomCustomerOfferProductRule = {
   enabled: boolean
   allowOnTableOrders: boolean
   allowOnBillings: boolean
+  branches: string[]
   product: string
   winnerCount: number
   randomSelectionChancePercent: number
@@ -122,6 +128,7 @@ export const DEFAULT_CUSTOMER_REWARD_SETTINGS: CustomerRewardSettings = {
   enabled: true,
   allowCustomerCreditOfferOnTableOrders: true,
   allowCustomerCreditOfferOnBillings: true,
+  customerCreditOfferBranches: [],
   spendAmountPerStep: 1000,
   pointsPerStep: 10,
   pointsNeededForOffer: 50,
@@ -145,6 +152,7 @@ export const DEFAULT_CUSTOMER_REWARD_SETTINGS: CustomerRewardSettings = {
   enableTotalPercentageOffer: false,
   allowTotalPercentageOfferOnTableOrders: true,
   allowTotalPercentageOfferOnBillings: true,
+  totalPercentageOfferBranches: [],
   totalPercentageOfferPercent: 5,
   totalPercentageOfferMaxOfferCount: 0,
   totalPercentageOfferMaxCustomerCount: 0,
@@ -163,6 +171,7 @@ export const DEFAULT_CUSTOMER_REWARD_SETTINGS: CustomerRewardSettings = {
   enableCustomerEntryPercentageOffer: false,
   allowCustomerEntryPercentageOfferOnTableOrders: true,
   allowCustomerEntryPercentageOfferOnBillings: true,
+  customerEntryPercentageOfferBranches: [],
   customerEntryPercentageOfferPercent: 5,
   customerEntryPercentageOfferTimezone: DEFAULT_RANDOM_OFFER_TIMEZONE,
   customerEntryPercentageOfferAvailableFromDate: null,
@@ -342,6 +351,16 @@ const getRelationshipID = (value: unknown): string | null => {
   return null
 }
 
+const normalizeRelationshipIDs = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return []
+
+  const ids = value
+    .map((entry) => getRelationshipID(entry))
+    .filter((id): id is string => typeof id === 'string')
+
+  return Array.from(new Set(ids))
+}
+
 const normalizeOfferCustomerUsage = (value: unknown): OfferCustomerUsageCounter[] => {
   if (!Array.isArray(value)) return []
 
@@ -383,6 +402,7 @@ const normalizeProductOfferRules = (value: unknown): ProductToProductOfferRule[]
           typeof rawRule.allowOnTableOrders === 'boolean' ? rawRule.allowOnTableOrders : true,
         allowOnBillings:
           typeof rawRule.allowOnBillings === 'boolean' ? rawRule.allowOnBillings : true,
+        branches: normalizeRelationshipIDs(rawRule.branches),
         buyProduct,
         buyQuantity: toPositiveNumber(rawRule.buyQuantity, 1),
         freeProduct,
@@ -421,6 +441,7 @@ const normalizeProductPriceOfferRules = (value: unknown): ProductPriceOfferRule[
           typeof rawRule.allowOnTableOrders === 'boolean' ? rawRule.allowOnTableOrders : true,
         allowOnBillings:
           typeof rawRule.allowOnBillings === 'boolean' ? rawRule.allowOnBillings : true,
+        branches: normalizeRelationshipIDs(rawRule.branches),
         product,
         discountAmount: toPositiveNumber(rawRule.discountAmount, 1),
         maxOfferCount: toNonNegativeNumber(rawRule.maxOfferCount, 0),
@@ -462,6 +483,7 @@ const normalizeRandomCustomerOfferProductRules = (value: unknown): RandomCustome
           typeof rawRow.allowOnTableOrders === 'boolean' ? rawRow.allowOnTableOrders : true,
         allowOnBillings:
           typeof rawRow.allowOnBillings === 'boolean' ? rawRow.allowOnBillings : true,
+        branches: normalizeRelationshipIDs(rawRow.branches),
         product,
         winnerCount: toPositiveNumber(rawRow.winnerCount, 1),
         randomSelectionChancePercent: toChancePercent(
@@ -498,6 +520,7 @@ const normalizeCustomerRewardSettings = (settings: unknown): CustomerRewardSetti
       typeof raw.allowCustomerCreditOfferOnBillings === 'boolean'
         ? raw.allowCustomerCreditOfferOnBillings
         : DEFAULT_CUSTOMER_REWARD_SETTINGS.allowCustomerCreditOfferOnBillings,
+    customerCreditOfferBranches: normalizeRelationshipIDs(raw.customerCreditOfferBranches),
     spendAmountPerStep: toPositiveNumber(
       raw.spendAmountPerStep,
       DEFAULT_CUSTOMER_REWARD_SETTINGS.spendAmountPerStep,
@@ -573,6 +596,7 @@ const normalizeCustomerRewardSettings = (settings: unknown): CustomerRewardSetti
       typeof raw.allowTotalPercentageOfferOnBillings === 'boolean'
         ? raw.allowTotalPercentageOfferOnBillings
         : DEFAULT_CUSTOMER_REWARD_SETTINGS.allowTotalPercentageOfferOnBillings,
+    totalPercentageOfferBranches: normalizeRelationshipIDs(raw.totalPercentageOfferBranches),
     totalPercentageOfferPercent: toPositiveNumber(
       raw.totalPercentageOfferPercent,
       DEFAULT_CUSTOMER_REWARD_SETTINGS.totalPercentageOfferPercent,
@@ -637,6 +661,9 @@ const normalizeCustomerRewardSettings = (settings: unknown): CustomerRewardSetti
       typeof raw.allowCustomerEntryPercentageOfferOnBillings === 'boolean'
         ? raw.allowCustomerEntryPercentageOfferOnBillings
         : DEFAULT_CUSTOMER_REWARD_SETTINGS.allowCustomerEntryPercentageOfferOnBillings,
+    customerEntryPercentageOfferBranches: normalizeRelationshipIDs(
+      raw.customerEntryPercentageOfferBranches,
+    ),
     customerEntryPercentageOfferPercent: toChancePercent(
       raw.customerEntryPercentageOfferPercent,
       DEFAULT_CUSTOMER_REWARD_SETTINGS.customerEntryPercentageOfferPercent,
@@ -674,6 +701,21 @@ const normalizeCustomerRewardSettings = (settings: unknown): CustomerRewardSetti
       raw.customerEntryPercentageOfferCustomerUsage,
     ),
   }
+}
+
+export const isOfferAllowedForBranch = (
+  branchID: string | null,
+  selectedBranchIDs: string[],
+): boolean => {
+  if (!Array.isArray(selectedBranchIDs) || selectedBranchIDs.length === 0) {
+    return true
+  }
+
+  if (!branchID) {
+    return false
+  }
+
+  return selectedBranchIDs.includes(branchID)
 }
 
 export const getCustomerRewardSettings = async (

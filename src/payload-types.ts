@@ -1851,6 +1851,10 @@ export interface CustomerOfferSetting {
   allowCustomerCreditOfferOnBillings?: boolean | null;
   allowCustomerCreditOfferOnTableOrders?: boolean | null;
   /**
+   * Leave empty to allow all branches.
+   */
+  customerCreditOfferBranches?: (string | Branch)[] | null;
+  /**
    * Example: 1000 means points are granted for every Rs 1000 spent.
    */
   spendAmountPerStep: number;
@@ -1878,6 +1882,10 @@ export interface CustomerOfferSetting {
         enabled?: boolean | null;
         allowOnBillings?: boolean | null;
         allowOnTableOrders?: boolean | null;
+        /**
+         * Leave empty to allow all branches for this rule.
+         */
+        branches?: (string | Branch)[] | null;
         /**
          * Search/filter and choose product A.
          */
@@ -1924,6 +1932,10 @@ export interface CustomerOfferSetting {
         enabled?: boolean | null;
         allowOnBillings?: boolean | null;
         allowOnTableOrders?: boolean | null;
+        /**
+         * Leave empty to allow all branches for this rule.
+         */
+        branches?: (string | Branch)[] | null;
         /**
          * Search/filter and choose the product (e.g., Tea).
          */
@@ -1988,6 +2000,10 @@ export interface CustomerOfferSetting {
         enabled?: boolean | null;
         allowOnBillings?: boolean | null;
         allowOnTableOrders?: boolean | null;
+        /**
+         * Leave empty to allow all branches for this rule.
+         */
+        branches?: (string | Branch)[] | null;
         product: string | Product;
         winnerCount: number;
         /**
@@ -2231,6 +2247,10 @@ export interface CustomerOfferSetting {
   enableTotalPercentageOffer?: boolean | null;
   allowTotalPercentageOfferOnBillings?: boolean | null;
   allowTotalPercentageOfferOnTableOrders?: boolean | null;
+  /**
+   * Leave empty to allow all branches.
+   */
+  totalPercentageOfferBranches?: (string | Branch)[] | null;
   /**
    * Example: 10 means 10% discount on total amount.
    */
@@ -2481,6 +2501,10 @@ export interface CustomerOfferSetting {
   enableCustomerEntryPercentageOffer?: boolean | null;
   allowCustomerEntryPercentageOfferOnBillings?: boolean | null;
   allowCustomerEntryPercentageOfferOnTableOrders?: boolean | null;
+  /**
+   * Leave empty to allow all branches.
+   */
+  customerEntryPercentageOfferBranches?: (string | Branch)[] | null;
   /**
    * Auto-applied to all eligible bills. Example: 5 means 5% discount.
    */
@@ -2963,6 +2987,7 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
   enabled?: T;
   allowCustomerCreditOfferOnBillings?: T;
   allowCustomerCreditOfferOnTableOrders?: T;
+  customerCreditOfferBranches?: T;
   spendAmountPerStep?: T;
   pointsPerStep?: T;
   pointsNeededForOffer?: T;
@@ -2977,6 +3002,7 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
         enabled?: T;
         allowOnBillings?: T;
         allowOnTableOrders?: T;
+        branches?: T;
         buyProduct?: T;
         buyQuantity?: T;
         freeProduct?: T;
@@ -3005,6 +3031,7 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
         enabled?: T;
         allowOnBillings?: T;
         allowOnTableOrders?: T;
+        branches?: T;
         product?: T;
         productCurrentPrice?: T;
         discountAmount?: T;
@@ -3039,6 +3066,7 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
         enabled?: T;
         allowOnBillings?: T;
         allowOnTableOrders?: T;
+        branches?: T;
         product?: T;
         winnerCount?: T;
         randomSelectionChancePercent?: T;
@@ -3062,6 +3090,7 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
   enableTotalPercentageOffer?: T;
   allowTotalPercentageOfferOnBillings?: T;
   allowTotalPercentageOfferOnTableOrders?: T;
+  totalPercentageOfferBranches?: T;
   totalPercentageOfferPercent?: T;
   totalPercentageOfferRandomSelectionChancePercent?: T;
   totalPercentageOfferMaxOfferCount?: T;
@@ -3084,6 +3113,7 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
   enableCustomerEntryPercentageOffer?: T;
   allowCustomerEntryPercentageOfferOnBillings?: T;
   allowCustomerEntryPercentageOfferOnTableOrders?: T;
+  customerEntryPercentageOfferBranches?: T;
   customerEntryPercentageOfferPercent?: T;
   customerEntryPercentageOfferTimezone?: T;
   customerEntryPercentageOfferAvailableFromDate?: T;

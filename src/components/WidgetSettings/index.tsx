@@ -384,7 +384,7 @@ const WidgetSettings: React.FC<any> = (props) => {
       setLoading(true)
       try {
         const [branchesResponse, settingsResponse, appDownloadsResponse] = await Promise.all([
-          fetch('/api/branches?limit=1000&sort=name'),
+          fetch('/api/branches?limit=1000&depth=0&sort=name'),
           fetch('/api/globals/widget-settings?depth=0'),
           fetch('/api/globals/app-download-settings?depth=1'),
         ])
@@ -1721,7 +1721,7 @@ const WidgetSettings: React.FC<any> = (props) => {
               </div>
 
               <div className="modal-body embedded-settings-body">
-                <CustomerOfferWidget />
+                <CustomerOfferWidget preloadedBranchOptions={branchOptions} />
               </div>
             </div>
           )}
