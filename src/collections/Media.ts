@@ -9,34 +9,44 @@ import type {
 } from 'payload'
 
 const normalizePrefix = (prefix?: string): string => prefix?.replace(/^\/+|\/+$/g, '') || ''
+const STORAGE_ROOT_PREFIX = 'blackforest/uploads'
+
+const toStoragePrefix = (prefix?: string): string => {
+  const normalized = normalizePrefix(prefix)
+  if (!normalized) return `${STORAGE_ROOT_PREFIX}/`
+  if (normalized === STORAGE_ROOT_PREFIX || normalized.startsWith(`${STORAGE_ROOT_PREFIX}/`)) {
+    return `${normalized}/`
+  }
+  return `${STORAGE_ROOT_PREFIX}/${normalized}/`
+}
 
 const setDynamicPrefix: CollectionBeforeChangeHook = async ({ req, data, operation }) => {
   if (operation === 'create') {
     // Check for prefix from query param (for API uploads, e.g., from Flutter)
     const prefixFromQuery = req.query.prefix as string
     if (prefixFromQuery) {
-      return { ...data, prefix: `${normalizePrefix(prefixFromQuery)}/` }
+      return { ...data, prefix: toStoragePrefix(prefixFromQuery) }
     }
 
     // Fallback to referer-based logic for admin UI uploads
     const referer = req.headers.get('referer')
     if (referer?.includes('/collections/categories/')) {
-      return { ...data, prefix: 'categories/' }
+      return { ...data, prefix: toStoragePrefix('categories') }
     }
     if (referer?.includes('/collections/products/')) {
-      return { ...data, prefix: 'products/' }
+      return { ...data, prefix: toStoragePrefix('products') }
     }
     if (referer?.includes('/collections/employees/')) {
-      return { ...data, prefix: 'employees/' }
+      return { ...data, prefix: toStoragePrefix('employees') }
     }
     if (referer?.includes('/collections/return-orders/')) {
-      return { ...data, prefix: 'returnorder/' }
+      return { ...data, prefix: toStoragePrefix('returnorder') }
     }
     if (referer?.includes('/collections/expenses/')) {
-      return { ...data, prefix: 'expense/' }
+      return { ...data, prefix: toStoragePrefix('expense') }
     }
 
-    return { ...data, prefix: '' }
+    return { ...data, prefix: toStoragePrefix('') }
   }
   return data
 }
@@ -108,7 +118,7 @@ const addPublicURL: CollectionAfterReadHook = ({ doc }) => {
   if (publicURL && doc && doc.filename) {
     // Construction: PUBLIC_URL + ROOT_PREFIX + (doc.prefix if exists) + filename
     // We configured s3Storage with prefix: 'blackforest/uploads'
-    const rootPrefix = 'blackforest/uploads'
+    const rootPrefix = STORAGE_ROOT_PREFIX
     const docPrefix = typeof doc.prefix === 'string' ? doc.prefix : ''
 
     const cleanURL = publicURL.endsWith('/') ? publicURL.slice(0, -1) : publicURL
