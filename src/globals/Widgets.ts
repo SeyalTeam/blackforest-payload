@@ -89,5 +89,54 @@ export const WidgetSettingsGlobal: GlobalConfig = {
         },
       ],
     },
+    {
+      name: 'favoriteProductsByBranchRules',
+      label: 'Favorite Products by Branch Rules',
+      type: 'array',
+      admin: {
+        description:
+          'Configure multiple rules to map one or many branches to one or many favorite products.',
+      },
+      fields: [
+        {
+          name: 'enabled',
+          type: 'checkbox',
+          label: 'Rule Enabled',
+          defaultValue: true,
+        },
+        {
+          name: 'ruleName',
+          type: 'text',
+          label: 'Rule Name',
+          admin: {
+            description: 'Optional label to identify this rule quickly in the widget.',
+          },
+        },
+        {
+          name: 'branches',
+          type: 'relationship',
+          relationTo: 'branches',
+          hasMany: true,
+          required: true,
+          label: 'Branches',
+        },
+        {
+          name: 'category',
+          type: 'relationship',
+          relationTo: 'categories',
+          hasMany: true,
+          required: false,
+          label: 'Category Filter',
+        },
+        {
+          name: 'products',
+          type: 'relationship',
+          relationTo: 'products',
+          hasMany: true,
+          required: true,
+          label: 'Favorite Products',
+        },
+      ],
+    },
   ],
 }

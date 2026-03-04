@@ -22,6 +22,7 @@ import {
   Plus,
   Check,
   Gift,
+  Star,
 } from 'lucide-react'
 import Select from 'react-select'
 import DatePicker from 'react-datepicker'
@@ -29,6 +30,7 @@ import 'react-datepicker/dist/react-datepicker.css'
 import { getBill } from '@/app/actions/getBill'
 import BillReceipt, { BillData } from '@/components/BillReceipt'
 import CustomerOfferWidget from './CustomerOfferWidget'
+import FavoriteProductsWidget from './FavoriteProductsWidget'
 import './index.scss'
 
 type Option = { value: string; label: string }
@@ -98,6 +100,7 @@ type WidgetKey =
   | 'billing-customer-details'
   | 'live-table'
   | 'customer-offer-settings'
+  | 'favorite-products'
   | 'app-downloads'
 
 const getRelationshipID = (value: unknown): string | null => {
@@ -951,6 +954,14 @@ const WidgetSettings: React.FC<any> = (props) => {
           </button>
           <button
             type="button"
+            className={`tile ${activeWidget === 'favorite-products' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('favorite-products')}
+          >
+            <Star className="tile-icon" size={48} />
+            <span className="tile-label">Favorite Products</span>
+          </button>
+          <button
+            type="button"
             className={`tile ${activeWidget === 'app-downloads' ? 'active' : ''}`}
             onClick={() => setActiveWidget('app-downloads')}
           >
@@ -1722,6 +1733,21 @@ const WidgetSettings: React.FC<any> = (props) => {
 
               <div className="modal-body embedded-settings-body">
                 <CustomerOfferWidget preloadedBranchOptions={branchOptions} />
+              </div>
+            </div>
+          )}
+
+          {activeWidget === 'favorite-products' && (
+            <div className="widget-modal widget-modal-embedded">
+              <div className="modal-header">
+                <h2>Favorite Products</h2>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="modal-body embedded-settings-body">
+                <FavoriteProductsWidget preloadedBranchOptions={branchOptions} />
               </div>
             </div>
           )}

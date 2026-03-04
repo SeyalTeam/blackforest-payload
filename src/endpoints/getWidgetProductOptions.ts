@@ -5,6 +5,7 @@ type ProductDoc = {
   name?: string
   productId?: string
   upc?: string
+  category?: unknown
   defaultPriceDetails?: {
     price?: number
   }
@@ -20,6 +21,20 @@ const toPositiveInt = (value: string | null, fallback: number, max: number): num
 const toText = (value: unknown): string =>
   typeof value === 'string' ? value : value === null || value === undefined ? '' : String(value)
 
+const getRelationshipID = (value: unknown): string => {
+  if (typeof value === 'string' || typeof value === 'number') return toText(value).trim()
+  if (
+    value &&
+    typeof value === 'object' &&
+    'id' in value &&
+    (typeof (value as { id?: unknown }).id === 'string' ||
+      typeof (value as { id?: unknown }).id === 'number')
+  ) {
+    return toText((value as { id?: unknown }).id).trim()
+  }
+  return ''
+}
+
 export const getWidgetProductOptionsHandler: PayloadHandler = async (req): Promise<Response> => {
   if (!req.user) {
     return Response.json({ message: 'Unauthorized' }, { status: 401 })
@@ -28,6 +43,16 @@ export const getWidgetProductOptionsHandler: PayloadHandler = async (req): Promi
   try {
     const url = new URL(req.url || 'http://localhost')
     const query = (url.searchParams.get('q') || '').trim()
+    const categoryID = (url.searchParams.get('categoryId') || '').trim()
+    const categoryIDs = (url.searchParams.get('categoryIds') || '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean)
+    const normalizedCategoryIDs = Array.from(
+      new Set(
+        categoryID.length > 0 ? [...categoryIDs, categoryID] : categoryIDs,
+      ),
+    )
     const limit = toPositiveInt(url.searchParams.get('limit'), 60, 150)
 
     const ids = (url.searchParams.get('ids') || '')
@@ -37,26 +62,58 @@ export const getWidgetProductOptionsHandler: PayloadHandler = async (req): Promi
       .slice(0, 120)
 
     let where: Where | undefined
+    const whereClauses: Where[] = []
+
     if (ids.length > 0) {
-      where = { id: { in: ids } } as Where
+      whereClauses.push({ id: { in: ids } } as Where)
     } else if (query.length > 0) {
-      where = {
+      whereClauses.push({
         or: [{ name: { like: query } }, { productId: { like: query } }, { upc: { like: query } }],
+      } as Where)
+    }
+
+    if (normalizedCategoryIDs.length > 0) {
+      whereClauses.push({
+        category: {
+          in: normalizedCategoryIDs,
+        },
+      } as Where)
+    }
+
+    if (whereClauses.length === 1) {
+      where = whereClauses[0]
+    } else if (whereClauses.length > 1) {
+      where = {
+        and: whereClauses,
       } as Where
     }
+
+    const effectiveLimit =
+      ids.length > 0
+        ? Math.max(limit, 220)
+        : normalizedCategoryIDs.length > 0 && query.length === 0
+          ? 1000
+          : normalizedCategoryIDs.length > 0
+            ? Math.max(limit, 220)
+            : limit
 
     const products = await req.payload.find({
       collection: 'products',
       depth: 0,
-      limit,
+      limit: effectiveLimit,
       sort: 'name',
       where,
       overrideAccess: true,
     })
 
     const docs = Array.isArray(products?.docs) ? (products.docs as ProductDoc[]) : []
+    const categoryIDSet = new Set(normalizedCategoryIDs)
+    const categoryFilteredDocs =
+      categoryIDSet.size > 0
+        ? docs.filter((doc) => categoryIDSet.has(getRelationshipID(doc.category)))
+        : docs
 
-    const options = docs
+    const options = categoryFilteredDocs
       .map((doc) => {
         const id = toText(doc.id).trim()
         if (!id) return null

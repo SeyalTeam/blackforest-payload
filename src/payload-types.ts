@@ -1838,6 +1838,22 @@ export interface WidgetSetting {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Configure multiple rules to map one or many branches to one or many favorite products.
+   */
+  favoriteProductsByBranchRules?:
+    | {
+        enabled?: boolean | null;
+        /**
+         * Optional label to identify this rule quickly in the widget.
+         */
+        ruleName?: string | null;
+        branches: (string | Branch)[];
+        category?: (string | Category)[] | null;
+        products: (string | Product)[];
+        id?: string | null;
+      }[]
+    | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2973,6 +2989,16 @@ export interface WidgetSettingsSelect<T extends boolean = true> {
         showCustomerDetailsForBillingOrders?: T;
         allowSkipCustomerDetailsForBillingOrders?: T;
         showCustomerHistoryForBillingOrders?: T;
+        id?: T;
+      };
+  favoriteProductsByBranchRules?:
+    | T
+    | {
+        enabled?: T;
+        ruleName?: T;
+        branches?: T;
+        category?: T;
+        products?: T;
         id?: T;
       };
   updatedAt?: T;

@@ -26,7 +26,7 @@
 
   .widgets-layout {
     display: grid;
-    grid-template-columns: minmax(520px, 1fr) minmax(460px, 1fr);
+    grid-template-columns: minmax(286px, 0.6fr) minmax(0, 1.4fr);
     gap: 1.5rem;
     align-items: start;
   }
@@ -34,17 +34,17 @@
   .tiles-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 1rem;
+    gap: 0.6rem;
     align-content: start;
   }
 
   .tile {
     aspect-ratio: 1 / 1;
     width: 100%;
-    padding: 1rem;
+    padding: 0.6rem;
     background: #18181b;
     border: 1px solid #27272a;
-    border-radius: 1rem;
+    border-radius: 0.8rem;
     appearance: none;
     display: flex;
     flex-direction: column;
@@ -52,7 +52,7 @@
     justify-content: center;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    gap: 1rem;
+    gap: 0.55rem;
     position: relative;
     overflow: hidden;
     font: inherit;
@@ -100,12 +100,15 @@
     .tile-icon {
       color: #a1a1aa;
       transition: all 0.3s;
+      width: 26px;
+      height: 26px;
     }
 
     .tile-label {
-      font-size: 1.25rem;
+      font-size: 0.84rem;
       font-weight: 600;
       color: #e4e4e7;
+      line-height: 1.25;
     }
   }
 

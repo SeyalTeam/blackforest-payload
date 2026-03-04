@@ -354,7 +354,7 @@ const CustomerOfferWidget: React.FC<CustomerOfferWidgetProps> = ({
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    offer1: true,
+    offer1: false,
     offer2: false,
     offer3: false,
     offer4: false,
