@@ -190,6 +190,12 @@ const getPositiveNumericValue = (value: unknown): number => {
   return 0
 }
 
+const normalizePhoneNumber = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
 const getQuantityByProduct = (items: unknown): Map<string, number> => {
   const quantityByProduct = new Map<string, number>()
   if (!Array.isArray(items)) return quantityByProduct
@@ -1033,6 +1039,12 @@ const applyConfiguredItemOffers = async (
   branchID: string | null,
   isTableOrder: boolean,
 ): Promise<BillingItemInput[]> => {
+  const normalizedCustomerPhoneNumber = normalizePhoneNumber(customerPhoneNumber)
+  if (!normalizedCustomerPhoneNumber) {
+    // All item-level offers require a customer phone number.
+    return buildSingleOfferBaseItems(items)
+  }
+
   const settings = await getCustomerRewardSettings(payload)
   const allowProductToProductOffer = isOfferAllowedByOrderType(
     isTableOrder,
@@ -1051,22 +1063,20 @@ const applyConfiguredItemOffers = async (
   )
 
   let customerID: string | null = null
-  if (customerPhoneNumber) {
-    const customerResult = await payload.find({
-      collection: 'customers',
-      where: {
-        phoneNumber: {
-          equals: customerPhoneNumber,
-        },
+  const customerResult = await payload.find({
+    collection: 'customers',
+    where: {
+      phoneNumber: {
+        equals: normalizedCustomerPhoneNumber,
       },
-      depth: 0,
-      limit: 1,
-      overrideAccess: true,
-    })
-    const customer = customerResult.docs[0]
-    if (customer?.id) {
-      customerID = customer.id
-    }
+    },
+    depth: 0,
+    limit: 1,
+    overrideAccess: true,
+  })
+  const customer = customerResult.docs[0]
+  if (customer?.id) {
+    customerID = customer.id
   }
 
   // One bill can carry only one offer type among item-level offers.
@@ -1098,7 +1108,7 @@ const applyConfiguredItemOffers = async (
         [...baseItems, ...existingRandomItems],
         payload,
         status,
-        customerPhoneNumber,
+        normalizedCustomerPhoneNumber,
         settings,
         branchID,
         isTableOrder,
@@ -1644,11 +1654,12 @@ const Billings: CollectionConfig = {
         const hasItemLevelOfferApplied =
           Array.isArray(pricingData.items) &&
           hasAnyItemLevelOfferApplied(pricingData.items as BillingItemInput[])
+        const normalizedPhoneNumber = normalizePhoneNumber(
+          pricingData.customerDetails?.phoneNumber || originalDoc?.customerDetails?.phoneNumber,
+        )
+        const hasCustomerPhone = Boolean(normalizedPhoneNumber)
 
         if (effectiveStatus === 'completed') {
-          const phoneNumber =
-            pricingData.customerDetails?.phoneNumber || originalDoc?.customerDetails?.phoneNumber
-
           let settingsCache: CustomerRewardSettings | null = null
           const getSettings = async (): Promise<CustomerRewardSettings> => {
             if (!settingsCache) {
@@ -1663,13 +1674,13 @@ const Billings: CollectionConfig = {
             if (customerResolved) return customerCache
             customerResolved = true
 
-            if (!phoneNumber) return null
+            if (!normalizedPhoneNumber) return null
 
             const customerResult = await req.payload.find({
               collection: 'customers',
               where: {
                 phoneNumber: {
-                  equals: phoneNumber,
+                  equals: normalizedPhoneNumber,
                 },
               },
               depth: 0,
@@ -1680,13 +1691,17 @@ const Billings: CollectionConfig = {
             return customerCache
           }
 
+          if (!hasCustomerPhone) {
+            pricingData.applyCustomerOffer = false
+          }
+
           if (hasItemLevelOfferApplied) {
             pricingData.applyCustomerOffer = false
-          } else if (originalOfferWasApplied) {
+          } else if (originalOfferWasApplied && hasCustomerPhone) {
             offerApplied = true
             offerDiscount = Math.min(existingAppliedDiscount, pricingData.grossAmount)
             pricingData.applyCustomerOffer = true
-          } else if (pricingData.applyCustomerOffer && !rewardAlreadyProcessed && phoneNumber) {
+          } else if (pricingData.applyCustomerOffer && !rewardAlreadyProcessed && hasCustomerPhone) {
             const settings = await getSettings()
 
             const canUseCustomerCreditOffer = isOfferAllowedByOrderType(
@@ -1710,7 +1725,7 @@ const Billings: CollectionConfig = {
                 if (rewardPoints < settings.pointsNeededForOffer) {
                   const historySnapshot = await computeRewardSnapshotFromCompletedHistory(
                     req.payload,
-                    phoneNumber,
+                    normalizedPhoneNumber as string,
                     settings,
                   )
 
@@ -1756,13 +1771,13 @@ const Billings: CollectionConfig = {
             Math.max(0, pricingData.grossAmount - offerDiscount),
           )
 
-          if (originalCustomerEntryPercentageOfferWasApplied) {
+          if (originalCustomerEntryPercentageOfferWasApplied && hasCustomerPhone) {
             customerEntryPercentageOfferApplied = true
             customerEntryPercentageOfferDiscount = Math.min(
               existingCustomerEntryPercentageOfferDiscount,
               amountAfterCustomerOffer,
             )
-          } else {
+          } else if (hasCustomerPhone) {
             const settings = await getSettings()
             const canUseCustomerEntryPercentageOffer = isOfferAllowedByOrderType(
               isTableOrder,
@@ -1794,7 +1809,7 @@ const Billings: CollectionConfig = {
             Math.max(0, amountAfterCustomerOffer - customerEntryPercentageOfferDiscount),
           )
 
-          if (!hasItemLevelOfferApplied && !offerApplied) {
+          if (!hasItemLevelOfferApplied && !offerApplied && hasCustomerPhone) {
             if (originalTotalPercentageOfferWasApplied) {
               totalPercentageOfferApplied = true
               totalPercentageOfferDiscount = Math.min(
@@ -1830,7 +1845,7 @@ const Billings: CollectionConfig = {
                 )
 
                 const isWithinSchedule = isTotalPercentageOfferAvailableNow(settings)
-                const randomCustomerKey = customerID || phoneNumber || null
+                const randomCustomerKey = customerID || normalizedPhoneNumber || null
                 const randomSelectionPassed =
                   Boolean(randomCustomerKey) &&
                   isDeterministicRandomSelection(
@@ -1871,6 +1886,7 @@ const Billings: CollectionConfig = {
           const isWithinCustomerEntrySchedule = isCustomerEntryPercentageOfferAvailableNow(settings)
 
           if (
+            hasCustomerPhone &&
             settings.enableCustomerEntryPercentageOffer &&
             settings.customerEntryPercentageOfferPercent > 0 &&
             canUseCustomerEntryPercentageOffer &&
