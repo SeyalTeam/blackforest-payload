@@ -75,6 +75,46 @@ const RAILWAY_TIME_OPTIONS = Array.from({ length: 96 }, (_, index) => {
   const value = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
   return { label: value, value }
 })
+const RAILWAY_TIME_VALUE_SET = new Set(RAILWAY_TIME_OPTIONS.map((option) => option.value))
+
+const normalizeRailwaySelectTime = (value: unknown): string | null => {
+  const toRawString = (input: unknown): string | null => {
+    if (typeof input === 'string') {
+      const trimmed = input.trim()
+      return trimmed.length > 0 ? trimmed : null
+    }
+
+    if (
+      input &&
+      typeof input === 'object' &&
+      'value' in input &&
+      typeof (input as { value?: unknown }).value !== 'undefined'
+    ) {
+      return toRawString((input as { value?: unknown }).value)
+    }
+
+    return null
+  }
+
+  const raw = toRawString(value)
+  if (!raw) return null
+
+  // Accept `HH:mm`, `HH:mm:ss`, and ISO-like values containing `T HH:mm(:ss)`.
+  const normalizedMatch = raw.match(/(?:^|T)([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d(?:\.\d+)?)?/)
+  if (!normalizedMatch) return null
+
+  const parsedHour = parseInt(normalizedMatch[1], 10)
+  const parsedMinute = parseInt(normalizedMatch[2], 10)
+  if (!Number.isFinite(parsedHour) || !Number.isFinite(parsedMinute)) return null
+
+  const totalMinutes = parsedHour * 60 + parsedMinute
+  const snappedMinutes = Math.floor(totalMinutes / 15) * 15
+  const hours = Math.floor(snappedMinutes / 60) % 24
+  const minutes = snappedMinutes % 60
+  const snappedTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+
+  return RAILWAY_TIME_VALUE_SET.has(snappedTime) ? snappedTime : null
+}
 
 type RandomOfferRow = {
   id: string
@@ -172,10 +212,34 @@ export const CustomerOfferSettings: GlobalConfig = {
             productCurrentPrice?: number
             finalPricePreview?: number
           }>
+          randomCustomerOfferProducts?: Array<{
+            dailyStartTime?: unknown
+            dailyEndTime?: unknown
+          }>
+          totalPercentageOfferDailyStartTime?: unknown
+          totalPercentageOfferDailyEndTime?: unknown
+          customerEntryPercentageOfferDailyStartTime?: unknown
+          customerEntryPercentageOfferDailyEndTime?: unknown
         }
 
-        if (!Array.isArray(mutableData.productPriceOffers)) {
-          return data
+        mutableData.totalPercentageOfferDailyStartTime = normalizeRailwaySelectTime(
+          mutableData.totalPercentageOfferDailyStartTime,
+        )
+        mutableData.totalPercentageOfferDailyEndTime = normalizeRailwaySelectTime(
+          mutableData.totalPercentageOfferDailyEndTime,
+        )
+        mutableData.customerEntryPercentageOfferDailyStartTime = normalizeRailwaySelectTime(
+          mutableData.customerEntryPercentageOfferDailyStartTime,
+        )
+        mutableData.customerEntryPercentageOfferDailyEndTime = normalizeRailwaySelectTime(
+          mutableData.customerEntryPercentageOfferDailyEndTime,
+        )
+
+        if (Array.isArray(mutableData.randomCustomerOfferProducts)) {
+          for (const row of mutableData.randomCustomerOfferProducts) {
+            row.dailyStartTime = normalizeRailwaySelectTime(row.dailyStartTime)
+            row.dailyEndTime = normalizeRailwaySelectTime(row.dailyEndTime)
+          }
         }
 
         const priceCache = new Map<string, number>()
@@ -233,22 +297,24 @@ export const CustomerOfferSettings: GlobalConfig = {
           }
         }
 
-        for (const rule of mutableData.productPriceOffers) {
-          const productID = getProductID(rule.product)
-          if (!productID) {
-            rule.productCurrentPrice = 0
-            rule.finalPricePreview = 0
-            continue
+        if (Array.isArray(mutableData.productPriceOffers)) {
+          for (const rule of mutableData.productPriceOffers) {
+            const productID = getProductID(rule.product)
+            if (!productID) {
+              rule.productCurrentPrice = 0
+              rule.finalPricePreview = 0
+              continue
+            }
+
+            const productPrice = await getProductPrice(productID)
+            const discount =
+              typeof rule.discountAmount === 'number' && Number.isFinite(rule.discountAmount)
+                ? Math.max(0, rule.discountAmount)
+                : 0
+
+            rule.productCurrentPrice = parseFloat(productPrice.toFixed(2))
+            rule.finalPricePreview = parseFloat(Math.max(0, productPrice - discount).toFixed(2))
           }
-
-          const productPrice = await getProductPrice(productID)
-          const discount =
-            typeof rule.discountAmount === 'number' && Number.isFinite(rule.discountAmount)
-              ? Math.max(0, rule.discountAmount)
-              : 0
-
-          rule.productCurrentPrice = parseFloat(productPrice.toFixed(2))
-          rule.finalPricePreview = parseFloat(Math.max(0, productPrice - discount).toFixed(2))
         }
 
         return data
