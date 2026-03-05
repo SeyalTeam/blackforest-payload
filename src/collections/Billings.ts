@@ -70,6 +70,9 @@ const scheduleDeferredBillingFlagUpdate = (
               depth: 0,
               overrideAccess: true,
               context: {
+                skipOfferRecalculation: true,
+                skipPricingRecalculation: true,
+                skipInventoryValidation: true,
                 skipCustomerRewardProcessing: true,
                 skipOfferCounterProcessing: true,
               },
@@ -135,6 +138,7 @@ type BillingItemInput = {
 
 type BillingRequestContext = {
   skipOfferRecalculation?: boolean
+  skipPricingRecalculation?: boolean
   skipInventoryValidation?: boolean
   offersAppliedInBeforeValidate?: boolean
 }
@@ -560,6 +564,9 @@ const markBillingProcessingFlags = async (
           depth: 0,
           overrideAccess: true,
           context: {
+            skipOfferRecalculation: true,
+            skipPricingRecalculation: true,
+            skipInventoryValidation: true,
             skipCustomerRewardProcessing: true,
             skipOfferCounterProcessing: true,
           },
@@ -1182,6 +1189,47 @@ const Billings: CollectionConfig = {
 
         // 🪑 Map table details from Flutter app (top-level section/tableNumber) to nested group
         const rawData = data as any
+        const customerDetails = (rawData.customerDetails || {}) as {
+          name?: unknown
+          phoneNumber?: unknown
+          address?: unknown
+        }
+        // Flutter can send customer fields at top level in counter billing flow.
+        // Normalize them into customerDetails before offer checks.
+        const topLevelCustomerName =
+          typeof rawData.customerName === 'string' && rawData.customerName.trim().length > 0
+            ? rawData.customerName.trim()
+            : typeof rawData.name === 'string' && rawData.name.trim().length > 0
+              ? rawData.name.trim()
+              : null
+        const topLevelCustomerPhone = normalizePhoneNumber(
+          rawData.customerPhoneNumber ?? rawData.phoneNumber,
+        )
+        const topLevelCustomerAddress =
+          typeof rawData.customerAddress === 'string' && rawData.customerAddress.trim().length > 0
+            ? rawData.customerAddress.trim()
+            : typeof rawData.address === 'string' && rawData.address.trim().length > 0
+              ? rawData.address.trim()
+              : null
+
+        if (topLevelCustomerName || topLevelCustomerPhone || topLevelCustomerAddress) {
+          data.customerDetails = {
+            ...customerDetails,
+            name:
+              typeof customerDetails.name === 'string' && customerDetails.name.trim().length > 0
+                ? customerDetails.name
+                : topLevelCustomerName ?? undefined,
+            phoneNumber:
+              normalizePhoneNumber(customerDetails.phoneNumber) ??
+              topLevelCustomerPhone ??
+              undefined,
+            address:
+              typeof customerDetails.address === 'string' && customerDetails.address.trim().length > 0
+                ? customerDetails.address
+                : topLevelCustomerAddress ?? undefined,
+          }
+        }
+
         const hasTableDetails = isTableOrderBill(data as any, originalDoc as any)
         const branchID = getBranchIDFromBillingData(data as any, originalDoc as any)
 
@@ -1416,6 +1464,7 @@ const Billings: CollectionConfig = {
 
         const requestContext = getBillingRequestContext(req)
         const skipOfferRecalculation = Boolean(requestContext.skipOfferRecalculation)
+        const skipPricingRecalculation = Boolean(requestContext.skipPricingRecalculation)
         const mutableData = data as { items?: BillingItemInput[]; status?: string }
         const isTableOrder = isTableOrderBill(data as any, originalDoc as any)
         const branchID = getBranchIDFromBillingData(data as any, originalDoc as any)
@@ -1600,6 +1649,10 @@ const Billings: CollectionConfig = {
             }
             return item
           })
+        }
+
+        if (skipPricingRecalculation) {
+          return data
         }
 
         const pricingData = data as any
