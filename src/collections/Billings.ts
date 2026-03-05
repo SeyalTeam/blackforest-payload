@@ -1214,9 +1214,23 @@ const Billings: CollectionConfig = {
           data.status = 'ordered'
         }
 
-        if (operation === 'create' && !hasTableDetails && (!data.status || data.status === 'pending')) {
-          // Counter/billing flow should finalize in one request so offer totals are immediately available.
-          data.status = 'completed'
+        if (operation === 'create' && !hasTableDetails) {
+          const normalizedCreateStatus =
+            typeof data.status === 'string' ? data.status.toLowerCase() : 'pending'
+          const shouldAutoCompleteBilling = [
+            '',
+            'pending',
+            'ordered',
+            'confirmed',
+            'preparing',
+            'prepared',
+            'delivered',
+          ].includes(normalizedCreateStatus)
+
+          if (shouldAutoCompleteBilling) {
+            // Counter/billing flow should finalize in one request so offer totals are immediately available.
+            data.status = 'completed'
+          }
         }
 
         // 🔄 Backward compatibility: Map legacy statuses
