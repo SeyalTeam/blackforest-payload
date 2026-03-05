@@ -70,6 +70,12 @@ const normalizeRules = (value: unknown): FavoriteProductsRule[] => {
   })
 }
 
+const clearRuleCategoryFilters = (rules: FavoriteProductsRule[]): FavoriteProductsRule[] =>
+  rules.map((rule) => ({
+    ...rule,
+    category: [],
+  }))
+
 const cloneRules = (rules: FavoriteProductsRule[]): FavoriteProductsRule[] =>
   rules.map((rule) => ({
     ...rule,
@@ -168,6 +174,7 @@ const FavoriteProductsWidget: React.FC<FavoriteProductsWidgetProps> = ({
   )
   const [settingsLoading, setSettingsLoading] = useState(!cachedFavoriteRules)
   const [saving, setSaving] = useState(false)
+  const [saveNotice, setSaveNotice] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [openRules, setOpenRules] = useState<Record<string, boolean>>({})
   const [productsLoading, setProductsLoading] = useState(false)
@@ -239,6 +246,14 @@ const FavoriteProductsWidget: React.FC<FavoriteProductsWidgetProps> = ({
     if (!Array.isArray(preloadedBranchOptions) || preloadedBranchOptions.length === 0) return
     upsertBranchOptionsCache(preloadedBranchOptions)
   }, [preloadedBranchOptions, upsertBranchOptionsCache])
+
+  useEffect(() => {
+    if (!saveNotice) return
+    const timer = window.setTimeout(() => {
+      setSaveNotice(null)
+    }, 2600)
+    return () => window.clearTimeout(timer)
+  }, [saveNotice])
 
   const fetchBranchOptions = useCallback(
     async (ids: string[] = []): Promise<Option[]> => {
@@ -376,21 +391,28 @@ const FavoriteProductsWidget: React.FC<FavoriteProductsWidgetProps> = ({
 
         const json = (await response.json()) as WidgetSettingsResponse
         const normalizedRules = normalizeRules(json.favoriteProductsByBranchRules)
-        cachedFavoriteRules = cloneRules(normalizedRules)
+        const uiRules = clearRuleCategoryFilters(normalizedRules)
+        cachedFavoriteRules = cloneRules(uiRules)
 
         if (!cancelled) {
-          setRules(cloneRules(normalizedRules))
+          setRules(cloneRules(uiRules))
           setLoadError(null)
         }
 
-        const preselectedBranchIDs = extractPreselectedBranchIDs(normalizedRules)
-        if (cachedBranchOptions.length === 0 || preselectedBranchIDs.length > 0) {
+        const preselectedBranchIDs = extractPreselectedBranchIDs(uiRules)
+        const missingBranchIDs = preselectedBranchIDs.filter(
+          (id) => id && !cachedBranchOptionsByID[id],
+        )
+
+        if (cachedBranchOptions.length === 0 || missingBranchIDs.length > 0) {
           setBranchesLoading(true)
-          void fetchBranchOptions(preselectedBranchIDs).finally(() => {
+          void fetchBranchOptions(missingBranchIDs).finally(() => {
             if (!cancelled) {
               setBranchesLoading(false)
             }
           })
+        } else {
+          setBranchesLoading(false)
         }
 
         if (cachedCategoryOptions.length === 0) {
@@ -402,7 +424,7 @@ const FavoriteProductsWidget: React.FC<FavoriteProductsWidgetProps> = ({
           })
         }
 
-        const preselectedProductIDs = extractPreselectedProductIDs(normalizedRules)
+        const preselectedProductIDs = extractPreselectedProductIDs(uiRules)
         if (preselectedProductIDs.length > 0) {
           setProductsLoading(true)
           void fetchProductOptions('', preselectedProductIDs).finally(() => {
@@ -484,8 +506,11 @@ const FavoriteProductsWidget: React.FC<FavoriteProductsWidgetProps> = ({
   const getBranchValues = (rule: FavoriteProductsRule): Option[] =>
     rule.branches.map((id) => branchOptionsByID[id] || { value: id, label: id })
 
-  const getCategoryValue = (rule: FavoriteProductsRule): Option[] =>
-    rule.category.map((id) => categoryOptionsByID[id] || { value: id, label: id })
+  const getCategoryValue = (rule: FavoriteProductsRule): Option | null => {
+    const categoryID = rule.category[0]
+    if (!categoryID) return null
+    return categoryOptionsByID[categoryID] || { value: categoryID, label: categoryID }
+  }
 
   const getProductValues = (rule: FavoriteProductsRule): Option[] =>
     rule.products.map((id) => productOptionsByID[id] || { value: id, label: id })
@@ -552,10 +577,26 @@ const FavoriteProductsWidget: React.FC<FavoriteProductsWidgetProps> = ({
         throw new Error((json as { message?: string })?.message || 'Failed to save favorite rules')
       }
 
-      const normalizedRules = normalizeRules(json.favoriteProductsByBranchRules)
-      cachedFavoriteRules = cloneRules(normalizedRules)
-      setRules(cloneRules(normalizedRules))
-      alert('Favorite Products rules saved')
+      let latestRulesRaw: unknown = json.favoriteProductsByBranchRules
+      if (!Array.isArray(latestRulesRaw)) {
+        try {
+          const refreshResponse = await fetch('/api/globals/widget-settings?depth=0')
+          if (refreshResponse.ok) {
+            const refreshJSON = (await refreshResponse.json()) as WidgetSettingsResponse
+            latestRulesRaw = refreshJSON.favoriteProductsByBranchRules
+          }
+        } catch (refreshError) {
+          console.error('Failed refreshing favorite products settings after save:', refreshError)
+        }
+      }
+
+      const normalizedRules = Array.isArray(latestRulesRaw)
+        ? normalizeRules(latestRulesRaw)
+        : cloneRules(rules)
+      const uiRules = clearRuleCategoryFilters(normalizedRules)
+      cachedFavoriteRules = cloneRules(uiRules)
+      setRules(cloneRules(uiRules))
+      setSaveNotice('Favorite Products rules saved')
     } catch (error) {
       console.error('Failed saving favorite products rules:', error)
       alert(error instanceof Error ? error.message : 'Failed to save favorite product rules')
@@ -587,8 +628,13 @@ const FavoriteProductsWidget: React.FC<FavoriteProductsWidgetProps> = ({
         <p>
           Create branch-wise favorite product rules.
           {productsLoading ? <span className="fp-loading-info"> Loading products...</span> : null}
-          {branchesLoading ? <span className="fp-loading-info"> Loading branches...</span> : null}
-          {categoriesLoading ? <span className="fp-loading-info"> Loading categories...</span> : null}
+          {branchesLoading && branchOptions.length === 0 ? (
+            <span className="fp-loading-info"> Loading branches...</span>
+          ) : null}
+          {categoriesLoading && categoryOptions.length === 0 ? (
+            <span className="fp-loading-info"> Loading categories...</span>
+          ) : null}
+          {saveNotice ? <span className="fp-success-info"> {saveNotice}</span> : null}
         </p>
         <button type="button" className="fp-save-btn" onClick={saveRules} disabled={saving}>
           {saving ? (
@@ -647,7 +693,6 @@ const FavoriteProductsWidget: React.FC<FavoriteProductsWidgetProps> = ({
                     Branches
                     <Select
                       isMulti
-                      controlShouldRenderValue={false}
                       isClearable={false}
                       closeMenuOnSelect={false}
                       hideSelectedOptions={false}
@@ -671,9 +716,11 @@ const FavoriteProductsWidget: React.FC<FavoriteProductsWidgetProps> = ({
                         'branch',
                         'Select one or more branches',
                       )}
-                      isLoading={branchesLoading}
+                      isLoading={branchesLoading && branchOptions.length === 0}
                       noOptionsMessage={() =>
-                        branchesLoading ? 'Loading branches...' : 'No branches found'
+                        branchesLoading && branchOptions.length === 0
+                          ? 'Loading branches...'
+                          : 'No branches found'
                       }
                     />
                   </label>
@@ -681,11 +728,7 @@ const FavoriteProductsWidget: React.FC<FavoriteProductsWidgetProps> = ({
                   <label>
                     Category
                     <Select
-                      isMulti
-                      controlShouldRenderValue={false}
-                      isClearable={false}
-                      closeMenuOnSelect={false}
-                      hideSelectedOptions={false}
+                      isClearable
                       menuPortalTarget={selectMenuPortalTarget}
                       menuPosition="fixed"
                       menuPlacement="auto"
@@ -693,8 +736,9 @@ const FavoriteProductsWidget: React.FC<FavoriteProductsWidgetProps> = ({
                       options={categoryOptions}
                       value={getCategoryValue(rule)}
                       onChange={(selected) => {
-                        const nextCategoryIDs = Array.isArray(selected)
-                          ? selected.map((option) => option.value).filter(Boolean)
+                        const selectedOption = selected as Option | null
+                        const nextCategoryIDs = selectedOption?.value
+                          ? [selectedOption.value]
                           : []
                         setRule(index, {
                           category: nextCategoryIDs,
@@ -711,12 +755,8 @@ const FavoriteProductsWidget: React.FC<FavoriteProductsWidgetProps> = ({
                           })
                       }}
                       styles={customSelectStyles}
-                      components={{ Option: CheckboxOption, IndicatorSeparator: NoIndicatorSeparator }}
-                      placeholder={getRuleSelectionPlaceholder(
-                        rule.category.length,
-                        'category',
-                        'Filter by categories (optional)',
-                      )}
+                      components={{ IndicatorSeparator: NoIndicatorSeparator }}
+                      placeholder="Select category to filter products"
                       isLoading={categoriesLoading}
                       noOptionsMessage={() =>
                         categoriesLoading ? 'Loading categories...' : 'No categories found'

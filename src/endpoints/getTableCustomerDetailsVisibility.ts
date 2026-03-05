@@ -47,12 +47,14 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
         showCustomerDetailsForTableOrders?: unknown
         allowSkipCustomerDetailsForTableOrders?: unknown
         showCustomerHistoryForTableOrders?: unknown
+        autoSubmitCustomerDetailsForTableOrders?: unknown
       }>
       billingOrderCustomerDetailsByBranch?: Array<{
         branch?: unknown
         showCustomerDetailsForBillingOrders?: unknown
         allowSkipCustomerDetailsForBillingOrders?: unknown
         showCustomerHistoryForBillingOrders?: unknown
+        autoSubmitCustomerDetailsForBillingOrders?: unknown
       }>
     }
 
@@ -75,6 +77,10 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
       typeof tableRow?.showCustomerHistoryForTableOrders === 'boolean'
         ? tableRow.showCustomerHistoryForTableOrders
         : true
+    const autoSubmitCustomerDetailsForTableOrders =
+      typeof tableRow?.autoSubmitCustomerDetailsForTableOrders === 'boolean'
+        ? tableRow.autoSubmitCustomerDetailsForTableOrders
+        : true
 
     const billingRows = Array.isArray(widgetSettings?.billingOrderCustomerDetailsByBranch)
       ? widgetSettings.billingOrderCustomerDetailsByBranch
@@ -95,15 +101,21 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
       typeof billingRow?.showCustomerHistoryForBillingOrders === 'boolean'
         ? billingRow.showCustomerHistoryForBillingOrders
         : true
+    const autoSubmitCustomerDetailsForBillingOrders =
+      typeof billingRow?.autoSubmitCustomerDetailsForBillingOrders === 'boolean'
+        ? billingRow.autoSubmitCustomerDetailsForBillingOrders
+        : true
 
     return Response.json({
       branchId: branchID,
       showCustomerDetailsForTableOrders,
       allowSkipCustomerDetailsForTableOrders,
       showCustomerHistoryForTableOrders,
+      autoSubmitCustomerDetailsForTableOrders,
       showCustomerDetailsForBillingOrders,
       allowSkipCustomerDetailsForBillingOrders,
       showCustomerHistoryForBillingOrders,
+      autoSubmitCustomerDetailsForBillingOrders,
       source: tableRow || billingRow ? 'branch-specific' : 'default',
     })
   } catch (error) {

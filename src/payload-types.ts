@@ -1823,6 +1823,7 @@ export interface WidgetSetting {
         showCustomerDetailsForTableOrders?: boolean | null;
         allowSkipCustomerDetailsForTableOrders?: boolean | null;
         showCustomerHistoryForTableOrders?: boolean | null;
+        autoSubmitCustomerDetailsForTableOrders?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -1835,6 +1836,7 @@ export interface WidgetSetting {
         showCustomerDetailsForBillingOrders?: boolean | null;
         allowSkipCustomerDetailsForBillingOrders?: boolean | null;
         showCustomerHistoryForBillingOrders?: boolean | null;
+        autoSubmitCustomerDetailsForBillingOrders?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -2980,6 +2982,7 @@ export interface WidgetSettingsSelect<T extends boolean = true> {
         showCustomerDetailsForTableOrders?: T;
         allowSkipCustomerDetailsForTableOrders?: T;
         showCustomerHistoryForTableOrders?: T;
+        autoSubmitCustomerDetailsForTableOrders?: T;
         id?: T;
       };
   billingOrderCustomerDetailsByBranch?:
@@ -2989,6 +2992,7 @@ export interface WidgetSettingsSelect<T extends boolean = true> {
         showCustomerDetailsForBillingOrders?: T;
         allowSkipCustomerDetailsForBillingOrders?: T;
         showCustomerHistoryForBillingOrders?: T;
+        autoSubmitCustomerDetailsForBillingOrders?: T;
         id?: T;
       };
   favoriteProductsByBranchRules?:

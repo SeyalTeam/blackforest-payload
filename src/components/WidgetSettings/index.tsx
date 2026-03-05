@@ -42,6 +42,7 @@ type TableCustomerDetailsRow = {
   showCustomerDetailsForTableOrders?: boolean | null
   allowSkipCustomerDetailsForTableOrders?: boolean | null
   showCustomerHistoryForTableOrders?: boolean | null
+  autoSubmitCustomerDetailsForTableOrders?: boolean | null
 }
 
 type BillingCustomerDetailsRow = {
@@ -50,6 +51,7 @@ type BillingCustomerDetailsRow = {
   showCustomerDetailsForBillingOrders?: boolean | null
   allowSkipCustomerDetailsForBillingOrders?: boolean | null
   showCustomerHistoryForBillingOrders?: boolean | null
+  autoSubmitCustomerDetailsForBillingOrders?: boolean | null
 }
 
 type AppRow = {
@@ -271,6 +273,11 @@ const WidgetSettings: React.FC<any> = (props) => {
     value: 'enabled',
     label: 'Enabled',
   })
+  const [tableCustomerAutoSubmitVisibility, setTableCustomerAutoSubmitVisibility] =
+    useState<Option>({
+      value: 'enabled',
+      label: 'Enabled',
+    })
 
   const [selectedBillingCustomerDetailsBranch, setSelectedBillingCustomerDetailsBranch] =
     useState<Option | null>(null)
@@ -287,6 +294,11 @@ const WidgetSettings: React.FC<any> = (props) => {
     value: 'enabled',
     label: 'Enabled',
   })
+  const [billingCustomerAutoSubmitVisibility, setBillingCustomerAutoSubmitVisibility] =
+    useState<Option>({
+      value: 'enabled',
+      label: 'Enabled',
+    })
   const [selectedLiveTableBranch, setSelectedLiveTableBranch] = useState<Option>({
     value: 'all',
     label: 'All Branches',
@@ -337,6 +349,8 @@ const WidgetSettings: React.FC<any> = (props) => {
           allowSkipCustomerDetailsForTableOrders:
             row.allowSkipCustomerDetailsForTableOrders !== false,
           showCustomerHistoryForTableOrders: row.showCustomerHistoryForTableOrders !== false,
+          autoSubmitCustomerDetailsForTableOrders:
+            row.autoSubmitCustomerDetailsForTableOrders !== false,
         }
       })
       .filter(
@@ -348,6 +362,7 @@ const WidgetSettings: React.FC<any> = (props) => {
           showCustomerDetailsForTableOrders: boolean
           allowSkipCustomerDetailsForTableOrders: boolean
           showCustomerHistoryForTableOrders: boolean
+          autoSubmitCustomerDetailsForTableOrders: boolean
         } => row !== null,
       )
       .sort((a, b) => a.branchName.localeCompare(b.branchName))
@@ -366,6 +381,8 @@ const WidgetSettings: React.FC<any> = (props) => {
           allowSkipCustomerDetailsForBillingOrders:
             row.allowSkipCustomerDetailsForBillingOrders !== false,
           showCustomerHistoryForBillingOrders: row.showCustomerHistoryForBillingOrders !== false,
+          autoSubmitCustomerDetailsForBillingOrders:
+            row.autoSubmitCustomerDetailsForBillingOrders !== false,
         }
       })
       .filter(
@@ -377,6 +394,7 @@ const WidgetSettings: React.FC<any> = (props) => {
           showCustomerDetailsForBillingOrders: boolean
           allowSkipCustomerDetailsForBillingOrders: boolean
           showCustomerHistoryForBillingOrders: boolean
+          autoSubmitCustomerDetailsForBillingOrders: boolean
         } => row !== null,
       )
       .sort((a, b) => a.branchName.localeCompare(b.branchName))
@@ -620,6 +638,7 @@ const WidgetSettings: React.FC<any> = (props) => {
       setTableCustomerDetailsVisibility({ value: 'enabled', label: 'Enabled' })
       setSkipTableCustomerDetailsVisibility({ value: 'enabled', label: 'Enabled' })
       setTableCustomerHistoryVisibility({ value: 'enabled', label: 'Enabled' })
+      setTableCustomerAutoSubmitVisibility({ value: 'enabled', label: 'Enabled' })
       return
     }
 
@@ -630,12 +649,16 @@ const WidgetSettings: React.FC<any> = (props) => {
     const isPopupEnabled = row?.showCustomerDetailsForTableOrders !== false
     const isSkipEnabled = row?.allowSkipCustomerDetailsForTableOrders !== false
     const isHistoryEnabled = row?.showCustomerHistoryForTableOrders !== false
+    const isAutoSubmitEnabled = row?.autoSubmitCustomerDetailsForTableOrders !== false
     setTableCustomerDetailsVisibility(isPopupEnabled ? visibilityOptions[0] : visibilityOptions[1])
     setSkipTableCustomerDetailsVisibility(
       isSkipEnabled ? visibilityOptions[0] : visibilityOptions[1],
     )
     setTableCustomerHistoryVisibility(
       isHistoryEnabled ? visibilityOptions[0] : visibilityOptions[1],
+    )
+    setTableCustomerAutoSubmitVisibility(
+      isAutoSubmitEnabled ? visibilityOptions[0] : visibilityOptions[1],
     )
   }, [selectedTableCustomerDetailsBranch, tableOrderCustomerDetailsByBranch, visibilityOptions])
 
@@ -644,6 +667,7 @@ const WidgetSettings: React.FC<any> = (props) => {
       setBillingCustomerDetailsVisibility({ value: 'enabled', label: 'Enabled' })
       setSkipBillingCustomerDetailsVisibility({ value: 'enabled', label: 'Enabled' })
       setBillingCustomerHistoryVisibility({ value: 'enabled', label: 'Enabled' })
+      setBillingCustomerAutoSubmitVisibility({ value: 'enabled', label: 'Enabled' })
       return
     }
 
@@ -654,6 +678,7 @@ const WidgetSettings: React.FC<any> = (props) => {
     const isPopupEnabled = row?.showCustomerDetailsForBillingOrders !== false
     const isSkipEnabled = row?.allowSkipCustomerDetailsForBillingOrders !== false
     const isHistoryEnabled = row?.showCustomerHistoryForBillingOrders !== false
+    const isAutoSubmitEnabled = row?.autoSubmitCustomerDetailsForBillingOrders !== false
     setBillingCustomerDetailsVisibility(
       isPopupEnabled ? visibilityOptions[0] : visibilityOptions[1],
     )
@@ -662,6 +687,9 @@ const WidgetSettings: React.FC<any> = (props) => {
     )
     setBillingCustomerHistoryVisibility(
       isHistoryEnabled ? visibilityOptions[0] : visibilityOptions[1],
+    )
+    setBillingCustomerAutoSubmitVisibility(
+      isAutoSubmitEnabled ? visibilityOptions[0] : visibilityOptions[1],
     )
   }, [selectedBillingCustomerDetailsBranch, billingOrderCustomerDetailsByBranch, visibilityOptions])
 
@@ -723,6 +751,7 @@ const WidgetSettings: React.FC<any> = (props) => {
       const isPopupEnabled = tableCustomerDetailsVisibility.value === 'enabled'
       const isSkipEnabled = skipTableCustomerDetailsVisibility.value === 'enabled'
       const isHistoryEnabled = tableCustomerHistoryVisibility.value === 'enabled'
+      const isAutoSubmitEnabled = tableCustomerAutoSubmitVisibility.value === 'enabled'
 
       const normalizedRows = tableOrderCustomerDetailsByBranch.map((row) => ({
         ...row,
@@ -739,6 +768,7 @@ const WidgetSettings: React.FC<any> = (props) => {
         showCustomerDetailsForTableOrders: isPopupEnabled,
         allowSkipCustomerDetailsForTableOrders: isSkipEnabled,
         showCustomerHistoryForTableOrders: isHistoryEnabled,
+        autoSubmitCustomerDetailsForTableOrders: isAutoSubmitEnabled,
       })
 
       const persistedSettings = await persistCustomerSettings({ tableRows: dedupedRows })
@@ -806,6 +836,7 @@ const WidgetSettings: React.FC<any> = (props) => {
       const isPopupEnabled = billingCustomerDetailsVisibility.value === 'enabled'
       const isSkipEnabled = skipBillingCustomerDetailsVisibility.value === 'enabled'
       const isHistoryEnabled = billingCustomerHistoryVisibility.value === 'enabled'
+      const isAutoSubmitEnabled = billingCustomerAutoSubmitVisibility.value === 'enabled'
 
       const normalizedRows = billingOrderCustomerDetailsByBranch.map((row) => ({
         ...row,
@@ -822,6 +853,7 @@ const WidgetSettings: React.FC<any> = (props) => {
         showCustomerDetailsForBillingOrders: isPopupEnabled,
         allowSkipCustomerDetailsForBillingOrders: isSkipEnabled,
         showCustomerHistoryForBillingOrders: isHistoryEnabled,
+        autoSubmitCustomerDetailsForBillingOrders: isAutoSubmitEnabled,
       })
 
       const persistedSettings = await persistCustomerSettings({ billingRows: dedupedRows })
@@ -1138,6 +1170,23 @@ const WidgetSettings: React.FC<any> = (props) => {
                   />
                 </div>
 
+                <div className="form-group">
+                  <label>
+                    <ListFilter size={14} style={{ marginRight: 4 }} /> Auto Submit
+                  </label>
+                  <Select
+                    options={visibilityOptions}
+                    value={tableCustomerAutoSubmitVisibility}
+                    onChange={(option) =>
+                      setTableCustomerAutoSubmitVisibility(
+                        (option as Option) || visibilityOptions[0],
+                      )
+                    }
+                    styles={customSelectStyles}
+                    isSearchable={false}
+                  />
+                </div>
+
                 <div className="configured-settings">
                   <h3>Configured Branches</h3>
                   {configuredTableRows.length === 0 ? (
@@ -1180,6 +1229,18 @@ const WidgetSettings: React.FC<any> = (props) => {
                               >
                                 History:{' '}
                                 {row.showCustomerHistoryForTableOrders ? 'Enabled' : 'Disabled'}
+                              </span>
+                              <span
+                                className={
+                                  row.autoSubmitCustomerDetailsForTableOrders
+                                    ? 'status-badge status-enabled'
+                                    : 'status-badge status-disabled'
+                                }
+                              >
+                                Auto Submit:{' '}
+                                {row.autoSubmitCustomerDetailsForTableOrders
+                                  ? 'Enabled'
+                                  : 'Disabled'}
                               </span>
                             </div>
                             <button
@@ -1306,6 +1367,23 @@ const WidgetSettings: React.FC<any> = (props) => {
                   />
                 </div>
 
+                <div className="form-group">
+                  <label>
+                    <ListFilter size={14} style={{ marginRight: 4 }} /> Auto Submit
+                  </label>
+                  <Select
+                    options={visibilityOptions}
+                    value={billingCustomerAutoSubmitVisibility}
+                    onChange={(option) =>
+                      setBillingCustomerAutoSubmitVisibility(
+                        (option as Option) || visibilityOptions[0],
+                      )
+                    }
+                    styles={customSelectStyles}
+                    isSearchable={false}
+                  />
+                </div>
+
                 <div className="configured-settings">
                   <h3>Configured Branches</h3>
                   {configuredBillingRows.length === 0 ? (
@@ -1348,6 +1426,18 @@ const WidgetSettings: React.FC<any> = (props) => {
                               >
                                 History:{' '}
                                 {row.showCustomerHistoryForBillingOrders ? 'Enabled' : 'Disabled'}
+                              </span>
+                              <span
+                                className={
+                                  row.autoSubmitCustomerDetailsForBillingOrders
+                                    ? 'status-badge status-enabled'
+                                    : 'status-badge status-disabled'
+                                }
+                              >
+                                Auto Submit:{' '}
+                                {row.autoSubmitCustomerDetailsForBillingOrders
+                                  ? 'Enabled'
+                                  : 'Disabled'}
                               </span>
                             </div>
                             <button

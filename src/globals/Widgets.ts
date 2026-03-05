@@ -52,6 +52,12 @@ export const WidgetSettingsGlobal: GlobalConfig = {
           type: 'checkbox',
           defaultValue: true,
         },
+        {
+          name: 'autoSubmitCustomerDetailsForTableOrders',
+          label: 'Auto Submit',
+          type: 'checkbox',
+          defaultValue: true,
+        },
       ],
     },
     {
@@ -84,6 +90,12 @@ export const WidgetSettingsGlobal: GlobalConfig = {
         {
           name: 'showCustomerHistoryForBillingOrders',
           label: 'Show Customer History Button',
+          type: 'checkbox',
+          defaultValue: true,
+        },
+        {
+          name: 'autoSubmitCustomerDetailsForBillingOrders',
+          label: 'Auto Submit',
           type: 'checkbox',
           defaultValue: true,
         },
