@@ -1,3 +1,7 @@
+import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
+import type { PipelineStage } from 'mongoose'
 import { CollectionConfig, APIError, type Payload } from 'payload'
 import { getProductStock } from '../utilities/inventory'
 import { updateItemStatus } from '../endpoints/updateItemStatus'
@@ -11,6 +15,68 @@ import {
   type ProductToProductOfferRule,
 } from '../utilities/customerRewards'
 import { withWriteConflictRetry } from '../utilities/mongoRetry'
+
+dayjs.extend(utc)
+dayjs.extend(timezone)
+
+const BILLING_TIMEZONE = 'Asia/Kolkata'
+
+type BillingNumberField = 'invoiceNumber' | 'kotNumber'
+
+const getBillingDateStamp = (): string => dayjs().tz(BILLING_TIMEZONE).format('YYYYMMDD')
+
+const getNextBillingSequence = async (
+  payload: Payload,
+  field: BillingNumberField,
+  prefix: string,
+): Promise<number> => {
+  const suffixStart = prefix.length
+  const pipeline: PipelineStage[] = [
+    {
+      $match: {
+        [field]: {
+          $gte: prefix,
+          $lt: `${prefix}:`,
+        },
+      },
+    },
+    {
+      $project: {
+        numericSuffix: {
+          $convert: {
+            input: {
+              $substrCP: [
+                `$${field}`,
+                suffixStart,
+                {
+                  $subtract: [{ $strLenCP: `$${field}` }, suffixStart],
+                },
+              ],
+            },
+            to: 'int',
+            onError: null,
+            onNull: null,
+          },
+        },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        maxSeq: { $max: '$numericSuffix' },
+      },
+    },
+  ]
+  const BillingModel = payload.db.collections['billings']
+  const [result] = (await BillingModel.aggregate(pipeline)) as Array<{
+    _id: null
+    maxSeq: number | null
+  }>
+
+  return typeof result?.maxSeq === 'number' && Number.isFinite(result.maxSeq)
+    ? result.maxSeq + 1
+    : 1
+}
 
 const toSafeNonNegativeNumber = (value: unknown): number => {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
@@ -1520,8 +1586,7 @@ const Billings: CollectionConfig = {
             ))
         ) {
           // 🧾 Invoice Number generation
-          const date = new Date()
-          const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, '')
+          const formattedDate = getBillingDateStamp()
 
           const status = data.status || originalDoc?.status || 'ordered'
           const isKOT = ['ordered', 'prepared', 'delivered'].includes(status)
@@ -1561,74 +1626,14 @@ const Billings: CollectionConfig = {
 
               if (isKOT) {
                 // KOT Numbering: PREFIX-YYYYMMDD-KOTxx
-                // We find the latest KOT number to avoid collisions if documents were deleted
                 const kotPrefix = `${dailyPrefix}KOT`
-                const lastKOT = await req.payload.find({
-                  collection: 'billings',
-                  where: {
-                    and: [
-                      {
-                        kotNumber: {
-                          greater_than_equal: kotPrefix,
-                        },
-                      },
-                      {
-                        kotNumber: {
-                          less_than: `${kotPrefix}:`,
-                        },
-                      },
-                    ],
-                  },
-                  sort: '-kotNumber',
-                  limit: 1,
-                  depth: 0,
-                })
-
-                let seq = 1
-                if (lastKOT.docs.length > 0) {
-                  const lastNumStr = lastKOT.docs[0].kotNumber?.split('KOT')[1]
-                  if (lastNumStr) {
-                    seq = parseInt(lastNumStr, 10) + 1
-                  }
-                }
-
+                const seq = await getNextBillingSequence(req.payload, 'kotNumber', kotPrefix)
                 const kotNum = `${prefix}-${formattedDate}-KOT${seq.toString().padStart(2, '0')}`
                 data.invoiceNumber = kotNum
                 data.kotNumber = kotNum
               } else {
                 // Regular Numbering: PREFIX-YYYYMMDD-xxx (independent of KOT)
-                const lastInvoice = await req.payload.find({
-                  collection: 'billings',
-                  where: {
-                    and: [
-                      {
-                        invoiceNumber: {
-                          greater_than_equal: dailyPrefix,
-                        },
-                      },
-                      {
-                        invoiceNumber: {
-                          less_than: `${dailyPrefix}:`,
-                        },
-                      },
-                    ],
-                  },
-                  sort: '-invoiceNumber',
-                  limit: 1,
-                  depth: 0,
-                })
-
-                let seq = 1
-                if (lastInvoice.docs.length > 0) {
-                  const lastInvoiceNumber = lastInvoice.docs[0].invoiceNumber
-                  if (lastInvoiceNumber) {
-                    const parts = lastInvoiceNumber.split('-')
-                    const lastSeq = parts[parts.length - 1]
-                    if (lastSeq && !isNaN(parseInt(lastSeq, 10))) {
-                      seq = parseInt(lastSeq, 10) + 1
-                    }
-                  }
-                }
+                const seq = await getNextBillingSequence(req.payload, 'invoiceNumber', dailyPrefix)
                 data.invoiceNumber = `${prefix}-${formattedDate}-${seq.toString().padStart(3, '0')}`
               }
             }
