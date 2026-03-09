@@ -30,6 +30,7 @@ import 'react-datepicker/dist/react-datepicker.css'
 import { getBill } from '@/app/actions/getBill'
 import BillReceipt, { BillData } from '@/components/BillReceipt'
 import CustomerOfferWidget from './CustomerOfferWidget'
+import FavoriteCategoriesWidget from './FavoriteCategoriesWidget'
 import FavoriteProductsWidget from './FavoriteProductsWidget'
 import './index.scss'
 
@@ -103,6 +104,7 @@ type WidgetKey =
   | 'live-table'
   | 'customer-offer-settings'
   | 'favorite-products'
+  | 'favorite-categories'
   | 'app-downloads'
 
 const getRelationshipID = (value: unknown): string | null => {
@@ -994,6 +996,14 @@ const WidgetSettings: React.FC<any> = (props) => {
           </button>
           <button
             type="button"
+            className={`tile ${activeWidget === 'favorite-categories' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('favorite-categories')}
+          >
+            <ListFilter className="tile-icon" size={48} />
+            <span className="tile-label">Favorite Categories</span>
+          </button>
+          <button
+            type="button"
             className={`tile ${activeWidget === 'app-downloads' ? 'active' : ''}`}
             onClick={() => setActiveWidget('app-downloads')}
           >
@@ -1838,6 +1848,21 @@ const WidgetSettings: React.FC<any> = (props) => {
 
               <div className="modal-body embedded-settings-body">
                 <FavoriteProductsWidget preloadedBranchOptions={branchOptions} />
+              </div>
+            </div>
+          )}
+
+          {activeWidget === 'favorite-categories' && (
+            <div className="widget-modal widget-modal-embedded">
+              <div className="modal-header">
+                <h2>Favorite Categories</h2>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="modal-body embedded-settings-body">
+                <FavoriteCategoriesWidget preloadedBranchOptions={branchOptions} />
               </div>
             </div>
           )}

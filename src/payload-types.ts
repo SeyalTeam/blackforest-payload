@@ -1856,6 +1856,21 @@ export interface WidgetSetting {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Configure multiple rules to map one or many branches to one or many favorite categories.
+   */
+  favoriteCategoriesByBranchRules?:
+    | {
+        enabled?: boolean | null;
+        /**
+         * Optional label to identify this rule quickly in the widget.
+         */
+        ruleName?: string | null;
+        branches: (string | Branch)[];
+        categories: (string | Category)[];
+        id?: string | null;
+      }[]
+    | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -3003,6 +3018,15 @@ export interface WidgetSettingsSelect<T extends boolean = true> {
         branches?: T;
         category?: T;
         products?: T;
+        id?: T;
+      };
+  favoriteCategoriesByBranchRules?:
+    | T
+    | {
+        enabled?: T;
+        ruleName?: T;
+        branches?: T;
+        categories?: T;
         id?: T;
       };
   updatedAt?: T;
