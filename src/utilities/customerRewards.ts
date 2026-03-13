@@ -61,6 +61,10 @@ export type CustomerRewardSettings = {
   customerEntryPercentageOfferCustomerCount: number
   customerEntryPercentageOfferCustomers: string[]
   customerEntryPercentageOfferCustomerUsage: OfferCustomerUsageCounter[]
+  enableAmountBasedFreeProductOffer: boolean
+  allowAmountBasedFreeProductOfferOnTableOrders: boolean
+  allowAmountBasedFreeProductOfferOnBillings: boolean
+  amountBasedFreeProductOffers: AmountBasedFreeProductOfferRule[]
 }
 
 export type ProductToProductOfferRule = {
@@ -95,6 +99,24 @@ export type ProductPriceOfferRule = {
   branches: string[]
   product: string
   discountAmount: number
+  maxOfferCount: number
+  maxCustomerCount: number
+  maxUsagePerCustomer: number
+  offerGivenCount: number
+  offerCustomerCount: number
+  offerCustomers: string[]
+  offerCustomerUsage: OfferCustomerUsageCounter[]
+}
+
+export type AmountBasedFreeProductOfferRule = {
+  id: string
+  enabled: boolean
+  allowOnTableOrders: boolean
+  allowOnBillings: boolean
+  branches: string[]
+  minimumBillAmount: number
+  freeProduct: string
+  freeQuantity: number
   maxOfferCount: number
   maxCustomerCount: number
   maxUsagePerCustomer: number
@@ -182,6 +204,10 @@ export const DEFAULT_CUSTOMER_REWARD_SETTINGS: CustomerRewardSettings = {
   customerEntryPercentageOfferCustomerCount: 0,
   customerEntryPercentageOfferCustomers: [],
   customerEntryPercentageOfferCustomerUsage: [],
+  enableAmountBasedFreeProductOffer: false,
+  allowAmountBasedFreeProductOfferOnTableOrders: true,
+  allowAmountBasedFreeProductOfferOnBillings: true,
+  amountBasedFreeProductOffers: [],
 }
 
 const toPositiveNumber = (value: unknown, fallback: number): number => {
@@ -460,6 +486,46 @@ const normalizeProductPriceOfferRules = (value: unknown): ProductPriceOfferRule[
     .filter((rule): rule is ProductPriceOfferRule => Boolean(rule))
 }
 
+const normalizeAmountBasedFreeProductOfferRules = (
+  value: unknown,
+): AmountBasedFreeProductOfferRule[] => {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .map((rule, index) => {
+      const rawRule = (rule || {}) as Record<string, unknown>
+      const freeProduct = getRelationshipID(rawRule.freeProduct)
+      if (!freeProduct) return null
+
+      const idFromRow = typeof rawRule.id === 'string' ? rawRule.id : null
+
+      return {
+        id: idFromRow || `amount-free-rule-${index + 1}`,
+        enabled: typeof rawRule.enabled === 'boolean' ? rawRule.enabled : true,
+        allowOnTableOrders:
+          typeof rawRule.allowOnTableOrders === 'boolean' ? rawRule.allowOnTableOrders : true,
+        allowOnBillings:
+          typeof rawRule.allowOnBillings === 'boolean' ? rawRule.allowOnBillings : true,
+        branches: normalizeRelationshipIDs(rawRule.branches),
+        minimumBillAmount: toPositiveNumber(rawRule.minimumBillAmount, 1),
+        freeProduct,
+        freeQuantity: toPositiveNumber(rawRule.freeQuantity, 1),
+        maxOfferCount: toNonNegativeNumber(rawRule.maxOfferCount, 0),
+        maxCustomerCount: toNonNegativeNumber(rawRule.maxCustomerCount, 0),
+        maxUsagePerCustomer: toNonNegativeNumber(rawRule.maxUsagePerCustomer, 0),
+        offerGivenCount: toNonNegativeNumber(rawRule.offerGivenCount, 0),
+        offerCustomerCount: toNonNegativeNumber(rawRule.offerCustomerCount, 0),
+        offerCustomers: Array.isArray(rawRule.offerCustomers)
+          ? rawRule.offerCustomers
+              .map((entry) => getRelationshipID(entry))
+              .filter((id): id is string => typeof id === 'string')
+          : [],
+        offerCustomerUsage: normalizeOfferCustomerUsage(rawRule.offerCustomerUsage),
+      }
+    })
+    .filter((rule): rule is AmountBasedFreeProductOfferRule => Boolean(rule))
+}
+
 const normalizeRandomCustomerOfferProductRules = (value: unknown): RandomCustomerOfferProductRule[] => {
   if (!Array.isArray(value)) return []
 
@@ -561,6 +627,21 @@ const normalizeCustomerRewardSettings = (settings: unknown): CustomerRewardSetti
         ? raw.allowProductPriceOfferOnBillings
         : DEFAULT_CUSTOMER_REWARD_SETTINGS.allowProductPriceOfferOnBillings,
     productPriceOffers: normalizeProductPriceOfferRules(raw.productPriceOffers),
+    enableAmountBasedFreeProductOffer:
+      typeof raw.enableAmountBasedFreeProductOffer === 'boolean'
+        ? raw.enableAmountBasedFreeProductOffer
+        : DEFAULT_CUSTOMER_REWARD_SETTINGS.enableAmountBasedFreeProductOffer,
+    allowAmountBasedFreeProductOfferOnTableOrders:
+      typeof raw.allowAmountBasedFreeProductOfferOnTableOrders === 'boolean'
+        ? raw.allowAmountBasedFreeProductOfferOnTableOrders
+        : DEFAULT_CUSTOMER_REWARD_SETTINGS.allowAmountBasedFreeProductOfferOnTableOrders,
+    allowAmountBasedFreeProductOfferOnBillings:
+      typeof raw.allowAmountBasedFreeProductOfferOnBillings === 'boolean'
+        ? raw.allowAmountBasedFreeProductOfferOnBillings
+        : DEFAULT_CUSTOMER_REWARD_SETTINGS.allowAmountBasedFreeProductOfferOnBillings,
+    amountBasedFreeProductOffers: normalizeAmountBasedFreeProductOfferRules(
+      raw.amountBasedFreeProductOffers,
+    ),
     enableRandomCustomerProductOffer:
       typeof raw.enableRandomCustomerProductOffer === 'boolean'
         ? raw.enableRandomCustomerProductOffer

@@ -18,6 +18,9 @@ import { Media } from './collections/Media'
 import Dealers from './collections/Dealers'
 import Employees from './collections/Employees'
 import Billings from './collections/Billings'
+import { MessageThreads } from './collections/MessageThreads'
+import { Messages } from './collections/Messages'
+import { MessageReceipts } from './collections/MessageReceipts'
 import ReturnOrder from './collections/ReturnOrder'
 import ClosingEntries from './collections/ClosingEntries'
 import Expenses from './collections/Expenses'
@@ -335,6 +338,9 @@ export default buildConfig({
     Media,
     Dealers,
     Employees,
+    MessageThreads,
+    Messages,
+    MessageReceipts,
     Billings,
     ReturnOrder,
     ClosingEntries,

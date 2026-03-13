@@ -32,6 +32,11 @@ type CustomerOfferSettings = {
   allowProductPriceOfferOnTableOrders?: boolean
   productPriceOffers?: OfferRule[]
 
+  enableAmountBasedFreeProductOffer?: boolean
+  allowAmountBasedFreeProductOfferOnBillings?: boolean
+  allowAmountBasedFreeProductOfferOnTableOrders?: boolean
+  amountBasedFreeProductOffers?: OfferRule[]
+
   enableRandomCustomerProductOffer?: boolean
   allowRandomCustomerProductOfferOnBillings?: boolean
   allowRandomCustomerProductOfferOnTableOrders?: boolean
@@ -73,6 +78,7 @@ type CustomerOfferSettings = {
 type ArrayFieldKey =
   | 'productToProductOffers'
   | 'productPriceOffers'
+  | 'amountBasedFreeProductOffers'
   | 'randomCustomerOfferProducts'
 
 type GlobalOfferBranchFieldKey =
@@ -150,6 +156,12 @@ const hydrateSettings = (input: CustomerOfferSettings): CustomerOfferSettings =>
         branches: getRelationshipIDs((row as OfferRule).branches),
       }))
     : [],
+  amountBasedFreeProductOffers: Array.isArray(input.amountBasedFreeProductOffers)
+    ? input.amountBasedFreeProductOffers.map((row) => ({
+        ...row,
+        branches: getRelationshipIDs((row as OfferRule).branches),
+      }))
+    : [],
   randomCustomerOfferProducts: Array.isArray(input.randomCustomerOfferProducts)
     ? input.randomCustomerOfferProducts.map((row) => ({
         ...row,
@@ -175,6 +187,10 @@ const normalizeForSave = (input: CustomerOfferSettings): CustomerOfferSettings =
     })),
     productPriceOffers: (input.productPriceOffers || []).map((row) => ({
       ...normalizeRuleProduct(row, 'product'),
+      branches: getRelationshipIDs(row.branches),
+    })),
+    amountBasedFreeProductOffers: (input.amountBasedFreeProductOffers || []).map((row) => ({
+      ...normalizeRuleProduct(row, 'freeProduct'),
       branches: getRelationshipIDs(row.branches),
     })),
     randomCustomerOfferProducts: (input.randomCustomerOfferProducts || []).map((row) => ({
@@ -213,6 +229,9 @@ const extractPreselectedProductIDs = (input: CustomerOfferSettings): string[] =>
     ? input.productToProductOffers
     : []
   const productPriceRules = Array.isArray(input.productPriceOffers) ? input.productPriceOffers : []
+  const amountBasedFreeProductRules = Array.isArray(input.amountBasedFreeProductOffers)
+    ? input.amountBasedFreeProductOffers
+    : []
   const randomRules = Array.isArray(input.randomCustomerOfferProducts)
     ? input.randomCustomerOfferProducts
     : []
@@ -227,6 +246,11 @@ const extractPreselectedProductIDs = (input: CustomerOfferSettings): string[] =>
   for (const rule of productPriceRules) {
     const productID = getRelationshipID((rule as OfferRule).product)
     if (productID) ids.add(productID)
+  }
+
+  for (const rule of amountBasedFreeProductRules) {
+    const freeProductID = getRelationshipID((rule as OfferRule).freeProduct)
+    if (freeProductID) ids.add(freeProductID)
   }
 
   for (const rule of randomRules) {
@@ -257,6 +281,12 @@ const extractPreselectedBranchIDs = (input: CustomerOfferSettings): string[] => 
   }
 
   for (const row of Array.isArray(input.productPriceOffers) ? input.productPriceOffers : []) {
+    for (const id of getRelationshipIDs((row as OfferRule).branches)) {
+      ids.add(id)
+    }
+  }
+
+  for (const row of Array.isArray(input.amountBasedFreeProductOffers) ? input.amountBasedFreeProductOffers : []) {
     for (const id of getRelationshipIDs((row as OfferRule).branches)) {
       ids.add(id)
     }
@@ -360,6 +390,7 @@ const CustomerOfferWidget: React.FC<CustomerOfferWidgetProps> = ({
     offer4: false,
     offer5: false,
     offer6: false,
+    offer7: false,
   })
   const [openRules, setOpenRules] = useState<Record<string, boolean>>({})
 
@@ -567,7 +598,8 @@ const CustomerOfferWidget: React.FC<CustomerOfferWidgetProps> = ({
     }
   }, [fetchBranchOptions, fetchProductOptions])
 
-  const shouldLoadProducts = openSections.offer2 || openSections.offer3 || openSections.offer4
+  const shouldLoadProducts =
+    openSections.offer2 || openSections.offer3 || openSections.offer4 || openSections.offer7
 
   useEffect(() => {
     if (!shouldLoadProducts) return
@@ -745,6 +777,7 @@ const CustomerOfferWidget: React.FC<CustomerOfferWidgetProps> = ({
 
   const productToProductOffers = getArrayRows('productToProductOffers')
   const productPriceOffers = getArrayRows('productPriceOffers')
+  const amountBasedFreeProductOffers = getArrayRows('amountBasedFreeProductOffers')
   const randomCustomerOfferProducts = getArrayRows('randomCustomerOfferProducts')
   const renderOfferBranchSelector = (field: GlobalOfferBranchFieldKey) => (
     <div className="co-grid co-grid-1">
@@ -796,7 +829,7 @@ const CustomerOfferWidget: React.FC<CustomerOfferWidgetProps> = ({
     <div className="customer-offer-widget">
       <div className="co-toolbar">
         <p>
-          Custom offer designer for all 6 customer offers.
+          Custom offer designer for all 7 customer offers.
           {productsLoading ? <span className="co-loading-products"> Loading products...</span> : null}
           {branchesLoading ? <span className="co-loading-products"> Loading branches...</span> : null}
         </p>
@@ -1901,6 +1934,234 @@ const CustomerOfferWidget: React.FC<CustomerOfferWidgetProps> = ({
                 Customers: {toNumberInput(settings.customerEntryPercentageOfferCustomerCount) || '0'}
               </span>
             </div>
+          </div>
+        )}
+      </div>
+
+      <div className="co-section">
+        <button type="button" className="co-section-head" onClick={() => toggleSection('offer7')}>
+          <span>Offer 7: Amount Based Free Product Offer</span>
+          {openSections.offer7 ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </button>
+        {openSections.offer7 && (
+          <div className="co-section-body">
+            <div className="co-toggle-row">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={Boolean(settings.enableAmountBasedFreeProductOffer)}
+                  onChange={(e) =>
+                    setField('enableAmountBasedFreeProductOffer', e.target.checked)
+                  }
+                />
+                Enable Offer
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={Boolean(settings.allowAmountBasedFreeProductOfferOnBillings)}
+                  onChange={(e) =>
+                    setField('allowAmountBasedFreeProductOfferOnBillings', e.target.checked)
+                  }
+                />
+                Allow Billings
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={Boolean(settings.allowAmountBasedFreeProductOfferOnTableOrders)}
+                  onChange={(e) =>
+                    setField('allowAmountBasedFreeProductOfferOnTableOrders', e.target.checked)
+                  }
+                />
+                Allow Table Orders
+              </label>
+            </div>
+
+            <div className="co-rule-list">
+              {amountBasedFreeProductOffers.map((rule, index) => (
+                <div className="co-rule-card" key={rule.id ? String(rule.id) : `amount-free-${index}`}>
+                  <div className="co-rule-head">
+                    <button
+                      type="button"
+                      className="co-rule-toggle"
+                      onClick={() => toggleRule('amountBasedFreeProductOffers', rule, index)}
+                    >
+                      <span>Rule {index + 1}</span>
+                      {isRuleOpen('amountBasedFreeProductOffers', rule, index) ? (
+                        <ChevronUp size={16} />
+                      ) : (
+                        <ChevronDown size={16} />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      className="co-remove-btn"
+                      onClick={() => removeArrayRow('amountBasedFreeProductOffers', index)}
+                    >
+                      <Trash2 size={14} /> Remove
+                    </button>
+                  </div>
+                  {isRuleOpen('amountBasedFreeProductOffers', rule, index) && (
+                    <>
+                      <div className="co-toggle-row">
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={rule.enabled !== false}
+                            onChange={(e) =>
+                              updateArrayRow('amountBasedFreeProductOffers', index, {
+                                enabled: e.target.checked,
+                              })
+                            }
+                          />
+                          Rule Enabled
+                        </label>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={rule.allowOnBillings !== false}
+                            onChange={(e) =>
+                              updateArrayRow('amountBasedFreeProductOffers', index, {
+                                allowOnBillings: e.target.checked,
+                              })
+                            }
+                          />
+                          Allow Billings
+                        </label>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={rule.allowOnTableOrders !== false}
+                            onChange={(e) =>
+                              updateArrayRow('amountBasedFreeProductOffers', index, {
+                                allowOnTableOrders: e.target.checked,
+                              })
+                            }
+                          />
+                          Allow Table Orders
+                        </label>
+                      </div>
+
+                      {renderRuleBranchSelector('amountBasedFreeProductOffers', index, rule)}
+
+                      <div className="co-grid co-grid-2">
+                        <label>
+                          Minimum Bill Amount (Rs)
+                          <input
+                            className="co-match-select-height"
+                            type="number"
+                            min={1}
+                            value={toNumberInput(rule.minimumBillAmount)}
+                            onChange={(e) =>
+                              updateArrayRow('amountBasedFreeProductOffers', index, {
+                                minimumBillAmount: parseNumberInput(e.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Free Quantity
+                          <input
+                            className="co-match-select-height"
+                            type="number"
+                            min={1}
+                            value={toNumberInput(rule.freeQuantity)}
+                            onChange={(e) =>
+                              updateArrayRow('amountBasedFreeProductOffers', index, {
+                                freeQuantity: parseNumberInput(e.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+
+                      <div className="co-grid co-grid-1">
+                        <label>
+                          Free Product
+                          <AsyncSelect
+                            cacheOptions
+                            defaultOptions={defaultProductOptions}
+                            loadOptions={loadProductOptions}
+                            value={getProductValue(rule.freeProduct)}
+                            isLoading={productsLoading}
+                            onChange={(option) =>
+                              updateArrayRow('amountBasedFreeProductOffers', index, {
+                                freeProduct: (option as Option | null)?.value || null,
+                              })
+                            }
+                            styles={customSelectStyles}
+                            placeholder="Select free product..."
+                          />
+                        </label>
+                      </div>
+
+                      <div className="co-grid">
+                        <label>
+                          Max Offer Uses (0 unlimited)
+                          <input
+                            type="number"
+                            min={0}
+                            value={toNumberInput(rule.maxOfferCount)}
+                            onChange={(e) =>
+                              updateArrayRow('amountBasedFreeProductOffers', index, {
+                                maxOfferCount: parseNumberInput(e.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Max Customers (0 unlimited)
+                          <input
+                            type="number"
+                            min={0}
+                            value={toNumberInput(rule.maxCustomerCount)}
+                            onChange={(e) =>
+                              updateArrayRow('amountBasedFreeProductOffers', index, {
+                                maxCustomerCount: parseNumberInput(e.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Max Uses / Customer (0 unlimited)
+                          <input
+                            type="number"
+                            min={0}
+                            value={toNumberInput(rule.maxUsagePerCustomer)}
+                            onChange={(e) =>
+                              updateArrayRow('amountBasedFreeProductOffers', index, {
+                                maxUsagePerCustomer: parseNumberInput(e.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              className="co-add-btn"
+              onClick={() =>
+                addArrayRow('amountBasedFreeProductOffers', {
+                  enabled: true,
+                  allowOnBillings: true,
+                  allowOnTableOrders: true,
+                  branches: [],
+                  minimumBillAmount: 1000,
+                  freeQuantity: 1,
+                  maxOfferCount: 0,
+                  maxCustomerCount: 0,
+                  maxUsagePerCustomer: 0,
+                })
+              }
+            >
+              <Plus size={14} /> Add Amount Rule
+            </button>
           </div>
         )}
       </div>

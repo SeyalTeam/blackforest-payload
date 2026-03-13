@@ -1991,5 +1991,250 @@ export const CustomerOfferSettings: GlobalConfig = {
         },
       ],
     },
+    {
+      type: 'collapsible',
+      label: 'Offer 7: Amount Based Free Product Offer',
+      admin: {
+        initCollapsed: true,
+        description:
+          'Add a free product when the bill amount reaches the configured minimum amount.',
+      },
+      fields: [
+        {
+          type: 'row',
+          fields: [
+            {
+              name: 'enableAmountBasedFreeProductOffer',
+              type: 'checkbox',
+              label: 'Enable Amount Based Free Product Offer',
+              defaultValue: DEFAULT_CUSTOMER_REWARD_SETTINGS.enableAmountBasedFreeProductOffer,
+              admin: {
+                width: '34%',
+              },
+            },
+            {
+              name: 'allowAmountBasedFreeProductOfferOnBillings',
+              type: 'checkbox',
+              label: 'Allow for Billings',
+              defaultValue:
+                DEFAULT_CUSTOMER_REWARD_SETTINGS.allowAmountBasedFreeProductOfferOnBillings,
+              admin: {
+                width: '33%',
+              },
+            },
+            {
+              name: 'allowAmountBasedFreeProductOfferOnTableOrders',
+              type: 'checkbox',
+              label: 'Allow for Table Orders',
+              defaultValue:
+                DEFAULT_CUSTOMER_REWARD_SETTINGS.allowAmountBasedFreeProductOfferOnTableOrders,
+              admin: {
+                width: '33%',
+              },
+            },
+          ],
+        },
+        {
+          name: 'amountBasedFreeProductOffers',
+          type: 'array',
+          label: 'Amount Based Free Product Rules',
+          labels: {
+            singular: 'Amount Free Rule',
+            plural: 'Amount Free Rules',
+          },
+          admin: {
+            condition: (data) => Boolean(data?.enableAmountBasedFreeProductOffer),
+          },
+          fields: [
+            {
+              type: 'row',
+              fields: [
+                {
+                  name: 'enabled',
+                  type: 'checkbox',
+                  label: 'Rule Enabled',
+                  defaultValue: true,
+                  admin: {
+                    width: '34%',
+                  },
+                },
+                {
+                  name: 'allowOnBillings',
+                  type: 'checkbox',
+                  label: 'Allow for Billings',
+                  defaultValue: true,
+                  admin: {
+                    width: '33%',
+                  },
+                },
+                {
+                  name: 'allowOnTableOrders',
+                  type: 'checkbox',
+                  label: 'Allow for Table Orders',
+                  defaultValue: true,
+                  admin: {
+                    width: '33%',
+                  },
+                },
+              ],
+            },
+            {
+              name: 'branches',
+              type: 'relationship',
+              relationTo: 'branches',
+              hasMany: true,
+              label: 'Allowed Branches',
+              admin: {
+                description: 'Leave empty to allow all branches for this rule.',
+              },
+            },
+            {
+              type: 'row',
+              fields: [
+                {
+                  name: 'minimumBillAmount',
+                  type: 'number',
+                  required: true,
+                  min: 1,
+                  defaultValue: 1000,
+                  label: 'Minimum Bill Amount (Rs)',
+                  admin: {
+                    width: '50%',
+                    description: 'Apply this free product only when gross bill amount reaches this value.',
+                  },
+                },
+                {
+                  name: 'freeQuantity',
+                  type: 'number',
+                  required: true,
+                  min: 1,
+                  defaultValue: 1,
+                  label: 'Free Quantity',
+                  admin: {
+                    width: '50%',
+                  },
+                },
+              ],
+            },
+            {
+              name: 'freeProduct',
+              type: 'relationship',
+              relationTo: 'products',
+              required: true,
+              label: 'Free Product',
+              admin: {
+                description: 'Search/filter and choose the free product to add.',
+              },
+            },
+            {
+              type: 'row',
+              fields: [
+                {
+                  name: 'maxOfferCount',
+                  type: 'number',
+                  min: 0,
+                  defaultValue: 0,
+                  label: 'Max Offer Uses',
+                  admin: {
+                    width: '33%',
+                    description: '0 means unlimited.',
+                  },
+                },
+                {
+                  name: 'maxCustomerCount',
+                  type: 'number',
+                  min: 0,
+                  defaultValue: 0,
+                  label: 'Max Customers',
+                  admin: {
+                    width: '33%',
+                    description: '0 means unlimited.',
+                  },
+                },
+                {
+                  name: 'maxUsagePerCustomer',
+                  type: 'number',
+                  min: 0,
+                  defaultValue: 0,
+                  label: 'Max Uses per Customer',
+                  admin: {
+                    width: '34%',
+                    description: '0 means unlimited per customer.',
+                  },
+                },
+              ],
+            },
+            {
+              type: 'row',
+              fields: [
+                {
+                  name: 'offerGivenCount',
+                  type: 'number',
+                  min: 0,
+                  defaultValue: 0,
+                  label: 'Given Count',
+                  admin: {
+                    width: '50%',
+                    readOnly: true,
+                  },
+                },
+                {
+                  name: 'offerCustomerCount',
+                  type: 'number',
+                  min: 0,
+                  defaultValue: 0,
+                  label: 'Customer Count',
+                  admin: {
+                    width: '50%',
+                    readOnly: true,
+                  },
+                },
+              ],
+            },
+            {
+              name: 'offerCustomers',
+              type: 'relationship',
+              relationTo: 'customers',
+              hasMany: true,
+              admin: {
+                readOnly: true,
+              },
+            },
+            {
+              name: 'offerCustomerUsage',
+              type: 'array',
+              label: 'Customer Usage',
+              admin: {
+                readOnly: true,
+                description: 'Per-customer usage count for this rule.',
+              },
+              fields: [
+                {
+                  name: 'customer',
+                  type: 'relationship',
+                  relationTo: 'customers',
+                  required: true,
+                  admin: {
+                    width: '70%',
+                    readOnly: true,
+                  },
+                },
+                {
+                  name: 'usageCount',
+                  type: 'number',
+                  min: 0,
+                  defaultValue: 0,
+                  required: true,
+                  admin: {
+                    width: '30%',
+                    readOnly: true,
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
   ],
 }

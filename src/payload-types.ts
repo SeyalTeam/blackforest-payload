@@ -76,6 +76,9 @@ export interface Config {
     media: Media;
     dealers: Dealer;
     employees: Employee;
+    'message-threads': MessageThread;
+    messages: Message;
+    'message-receipts': MessageReceipt;
     billings: Billing;
     'return-orders': ReturnOrder;
     'closing-entries': ClosingEntry;
@@ -103,6 +106,9 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     dealers: DealersSelect<false> | DealersSelect<true>;
     employees: EmployeesSelect<false> | EmployeesSelect<true>;
+    'message-threads': MessageThreadsSelect<false> | MessageThreadsSelect<true>;
+    messages: MessagesSelect<false> | MessagesSelect<true>;
+    'message-receipts': MessageReceiptsSelect<false> | MessageReceiptsSelect<true>;
     billings: BillingsSelect<false> | BillingsSelect<true>;
     'return-orders': ReturnOrdersSelect<false> | ReturnOrdersSelect<true>;
     'closing-entries': ClosingEntriesSelect<false> | ClosingEntriesSelect<true>;
@@ -478,6 +484,63 @@ export interface Employee {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "message-threads".
+ */
+export interface MessageThread {
+  id: string;
+  participantName: string;
+  staffUser: string | User;
+  employee: string | Employee;
+  status: 'open' | 'archived';
+  lastMessageAt?: string | null;
+  lastMessageText?: string | null;
+  lastMessageByUser?: (string | null) | User;
+  lastMessageByRole?: string | null;
+  adminLastReadAt?: string | null;
+  staffLastReadAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "messages".
+ */
+export interface Message {
+  id: string;
+  thread: string | MessageThread;
+  staffUser: string | User;
+  employee: string | Employee;
+  seq: number;
+  senderUser: string | User;
+  senderRole: string;
+  recipientAudience: 'admins' | 'staff';
+  text: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "message-receipts".
+ */
+export interface MessageReceipt {
+  id: string;
+  message: string | Message;
+  thread: string | MessageThread;
+  staffUser: string | User;
+  employee: string | Employee;
+  recipientAudience: 'admins' | 'staff';
+  recipientUser?: (string | null) | User;
+  status: 'sent' | 'delivered' | 'read';
+  sentAt: string;
+  deliveredAt?: string | null;
+  readAt?: string | null;
+  deliveredByUser?: (string | null) | User;
+  readByUser?: (string | null) | User;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "billings".
  */
 export interface Billing {
@@ -507,6 +570,8 @@ export interface Billing {
      */
     effectiveUnitPrice?: number | null;
     isRandomCustomerOfferItem?: boolean | null;
+    isAmountBasedFreeOfferItem?: boolean | null;
+    amountBasedFreeOfferRuleKey?: string | null;
     randomCustomerOfferCampaignCode?: string | null;
     orderedAt?: string | null;
     confirmedAt?: string | null;
@@ -903,6 +968,18 @@ export interface PayloadLockedDocument {
         value: string | Employee;
       } | null)
     | ({
+        relationTo: 'message-threads';
+        value: string | MessageThread;
+      } | null)
+    | ({
+        relationTo: 'messages';
+        value: string | Message;
+      } | null)
+    | ({
+        relationTo: 'message-receipts';
+        value: string | MessageReceipt;
+      } | null)
+    | ({
         relationTo: 'billings';
         value: string | Billing;
       } | null)
@@ -1227,6 +1304,60 @@ export interface EmployeesSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "message-threads_select".
+ */
+export interface MessageThreadsSelect<T extends boolean = true> {
+  participantName?: T;
+  staffUser?: T;
+  employee?: T;
+  status?: T;
+  lastMessageAt?: T;
+  lastMessageText?: T;
+  lastMessageByUser?: T;
+  lastMessageByRole?: T;
+  adminLastReadAt?: T;
+  staffLastReadAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "messages_select".
+ */
+export interface MessagesSelect<T extends boolean = true> {
+  thread?: T;
+  staffUser?: T;
+  employee?: T;
+  seq?: T;
+  senderUser?: T;
+  senderRole?: T;
+  recipientAudience?: T;
+  text?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "message-receipts_select".
+ */
+export interface MessageReceiptsSelect<T extends boolean = true> {
+  message?: T;
+  thread?: T;
+  staffUser?: T;
+  employee?: T;
+  recipientAudience?: T;
+  recipientUser?: T;
+  status?: T;
+  sentAt?: T;
+  deliveredAt?: T;
+  readAt?: T;
+  deliveredByUser?: T;
+  readByUser?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "billings_select".
  */
 export interface BillingsSelect<T extends boolean = true> {
@@ -1251,6 +1382,8 @@ export interface BillingsSelect<T extends boolean = true> {
         priceOfferAppliedUnits?: T;
         effectiveUnitPrice?: T;
         isRandomCustomerOfferItem?: T;
+        isAmountBasedFreeOfferItem?: T;
+        amountBasedFreeOfferRuleKey?: T;
         randomCustomerOfferCampaignCode?: T;
         orderedAt?: T;
         confirmedAt?: T;
@@ -2773,6 +2906,55 @@ export interface CustomerOfferSetting {
         id?: string | null;
       }[]
     | null;
+  enableAmountBasedFreeProductOffer?: boolean | null;
+  allowAmountBasedFreeProductOfferOnBillings?: boolean | null;
+  allowAmountBasedFreeProductOfferOnTableOrders?: boolean | null;
+  amountBasedFreeProductOffers?:
+    | {
+        enabled?: boolean | null;
+        allowOnBillings?: boolean | null;
+        allowOnTableOrders?: boolean | null;
+        /**
+         * Leave empty to allow all branches for this rule.
+         */
+        branches?: (string | Branch)[] | null;
+        /**
+         * Apply this free product only when gross bill amount reaches this value.
+         */
+        minimumBillAmount: number;
+        freeQuantity: number;
+        /**
+         * Search/filter and choose the free product to add.
+         */
+        freeProduct: string | Product;
+        /**
+         * 0 means unlimited.
+         */
+        maxOfferCount?: number | null;
+        /**
+         * 0 means unlimited.
+         */
+        maxCustomerCount?: number | null;
+        /**
+         * 0 means unlimited per customer.
+         */
+        maxUsagePerCustomer?: number | null;
+        offerGivenCount?: number | null;
+        offerCustomerCount?: number | null;
+        offerCustomers?: (string | Customer)[] | null;
+        /**
+         * Per-customer usage count for this rule.
+         */
+        offerCustomerUsage?:
+          | {
+              customer: string | Customer;
+              usageCount: number;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -3182,6 +3364,34 @@ export interface CustomerOfferSettingsSelect<T extends boolean = true> {
     | {
         customer?: T;
         usageCount?: T;
+        id?: T;
+      };
+  enableAmountBasedFreeProductOffer?: T;
+  allowAmountBasedFreeProductOfferOnBillings?: T;
+  allowAmountBasedFreeProductOfferOnTableOrders?: T;
+  amountBasedFreeProductOffers?:
+    | T
+    | {
+        enabled?: T;
+        allowOnBillings?: T;
+        allowOnTableOrders?: T;
+        branches?: T;
+        minimumBillAmount?: T;
+        freeQuantity?: T;
+        freeProduct?: T;
+        maxOfferCount?: T;
+        maxCustomerCount?: T;
+        maxUsagePerCustomer?: T;
+        offerGivenCount?: T;
+        offerCustomerCount?: T;
+        offerCustomers?: T;
+        offerCustomerUsage?:
+          | T
+          | {
+              customer?: T;
+              usageCount?: T;
+              id?: T;
+            };
         id?: T;
       };
   updatedAt?: T;

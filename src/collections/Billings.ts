@@ -6,6 +6,7 @@ import { CollectionConfig, APIError, type Payload } from 'payload'
 import { getProductStock } from '../utilities/inventory'
 import { updateItemStatus } from '../endpoints/updateItemStatus'
 import {
+  type AmountBasedFreeProductOfferRule,
   calculatePointsForSpend,
   type CustomerRewardSettings,
   getCustomerRewardSettings,
@@ -199,6 +200,8 @@ type BillingItemInput = {
   effectiveUnitPrice?: number
   isRandomCustomerOfferItem?: boolean
   randomCustomerOfferCampaignCode?: string
+  isAmountBasedFreeOfferItem?: boolean
+  amountBasedFreeOfferRuleKey?: string
   [key: string]: unknown
 }
 
@@ -431,7 +434,10 @@ const clearPriceOfferMetadata = (item: BillingItemInput): BillingItemInput => ({
 
 const buildSingleOfferBaseItems = (items: BillingItemInput[]): BillingItemInput[] => {
   return items
-    .filter((item) => !item.isOfferFreeItem && !item.isRandomCustomerOfferItem)
+    .filter(
+      (item) =>
+        !item.isOfferFreeItem && !item.isRandomCustomerOfferItem && !item.isAmountBasedFreeOfferItem,
+    )
     .map((item) => ({
       ...clearPriceOfferMetadata(item),
       isOfferFreeItem: false,
@@ -439,6 +445,8 @@ const buildSingleOfferBaseItems = (items: BillingItemInput[]): BillingItemInput[
       offerTriggerProduct: undefined,
       isRandomCustomerOfferItem: false,
       randomCustomerOfferCampaignCode: undefined,
+      isAmountBasedFreeOfferItem: false,
+      amountBasedFreeOfferRuleKey: undefined,
     }))
 }
 
@@ -455,10 +463,14 @@ const hasProductPriceOfferApplied = (items: BillingItemInput[]): boolean =>
 const hasRandomProductOfferApplied = (items: BillingItemInput[]): boolean =>
   items.some((item) => item.isRandomCustomerOfferItem)
 
+const hasAmountBasedFreeOfferApplied = (items: BillingItemInput[]): boolean =>
+  items.some((item) => item.isAmountBasedFreeOfferItem)
+
 const hasAnyItemLevelOfferApplied = (items: BillingItemInput[]): boolean =>
   hasProductToProductOfferApplied(items) ||
   hasProductPriceOfferApplied(items) ||
-  hasRandomProductOfferApplied(items)
+  hasRandomProductOfferApplied(items) ||
+  hasAmountBasedFreeOfferApplied(items)
 
 const getProductNameMap = async (
   payload: Payload,
@@ -491,6 +503,10 @@ const buildRuleKey = (rule: ProductToProductOfferRule): string => {
 
 const buildPriceOfferRuleKey = (rule: ProductPriceOfferRule): string => {
   return `${rule.id}:${rule.product}`
+}
+
+const buildAmountBasedFreeOfferRuleKey = (rule: AmountBasedFreeProductOfferRule): string => {
+  return `${rule.id}:${rule.minimumBillAmount}:${rule.freeProduct}`
 }
 
 const getCustomerUsageCount = (
@@ -946,6 +962,123 @@ const applyProductPriceOffers = (
   })
 }
 
+const applyAmountBasedFreeProductOffer = async (
+  items: BillingItemInput[],
+  payload: Payload,
+  status: string,
+  settings: CustomerRewardSettings,
+  customerID: string | null,
+  branchID: string | null,
+  isTableOrder: boolean,
+): Promise<BillingItemInput[]> => {
+  const manualItems = buildSingleOfferBaseItems(items)
+  const existingAmountBasedItem = items.find((item) => item.isAmountBasedFreeOfferItem)
+  const existingAmountBasedProductID = getRelationshipID(existingAmountBasedItem?.product)
+
+  if (
+    status === 'cancelled' ||
+    !settings.enableAmountBasedFreeProductOffer ||
+    settings.amountBasedFreeProductOffers.length === 0
+  ) {
+    return manualItems
+  }
+
+  if (status === 'completed' && existingAmountBasedItem && existingAmountBasedProductID) {
+    const productNameMap = await getProductNameMap(payload, [existingAmountBasedProductID])
+    const productName =
+      productNameMap[existingAmountBasedProductID] || 'Amount Based Free Product'
+
+    return [
+      ...manualItems,
+      {
+        ...existingAmountBasedItem,
+        product: existingAmountBasedProductID,
+        name: productName,
+        quantity: getPositiveNumericValue(existingAmountBasedItem.quantity) || 1,
+        unitPrice: 0,
+        effectiveUnitPrice: 0,
+        subtotal: 0,
+        isOfferFreeItem: false,
+        offerRuleKey: undefined,
+        offerTriggerProduct: undefined,
+        isPriceOfferApplied: false,
+        priceOfferRuleKey: undefined,
+        priceOfferDiscountPerUnit: 0,
+        priceOfferAppliedUnits: 0,
+        isRandomCustomerOfferItem: false,
+        randomCustomerOfferCampaignCode: undefined,
+        isAmountBasedFreeOfferItem: true,
+      },
+    ]
+  }
+
+  const grossAmount = manualItems.reduce((sum, item) => {
+    if (item.status === 'cancelled') return sum
+    const quantity = getPositiveNumericValue(item.quantity)
+    const unitPrice = getPositiveNumericValue(item.unitPrice)
+    return sum + quantity * unitPrice
+  }, 0)
+
+  const activeRules = settings.amountBasedFreeProductOffers.filter(
+    (rule) =>
+      rule.enabled &&
+      grossAmount >= rule.minimumBillAmount &&
+      isOfferAllowedByOrderType(isTableOrder, rule.allowOnTableOrders, rule.allowOnBillings) &&
+      isOfferAllowedForBranch(branchID, rule.branches) &&
+      canApplyRuleWithinLimits(
+        rule.maxOfferCount,
+        rule.offerGivenCount,
+        rule.maxCustomerCount,
+        rule.offerCustomerCount,
+        rule.offerCustomers,
+        customerID,
+        rule.maxUsagePerCustomer,
+        rule.offerCustomerUsage,
+      ),
+  )
+
+  if (activeRules.length === 0) {
+    return manualItems
+  }
+
+  const selectedRule = [...activeRules].sort((left, right) => {
+    if (right.minimumBillAmount !== left.minimumBillAmount) {
+      return right.minimumBillAmount - left.minimumBillAmount
+    }
+
+    return left.id.localeCompare(right.id)
+  })[0]
+
+  const productNameMap = await getProductNameMap(payload, [selectedRule.freeProduct])
+  const productName = productNameMap[selectedRule.freeProduct] || 'Amount Based Free Product'
+  const ruleKey = buildAmountBasedFreeOfferRuleKey(selectedRule)
+
+  const amountOfferItem: BillingItemInput = {
+    ...(existingAmountBasedItem || {}),
+    product: selectedRule.freeProduct,
+    status: existingAmountBasedItem?.status || 'ordered',
+    name: productName,
+    notes: `AMOUNT OFFER: Spend Rs ${selectedRule.minimumBillAmount} and get free product`,
+    quantity: selectedRule.freeQuantity,
+    unitPrice: 0,
+    effectiveUnitPrice: 0,
+    subtotal: 0,
+    isOfferFreeItem: false,
+    offerRuleKey: undefined,
+    offerTriggerProduct: undefined,
+    isPriceOfferApplied: false,
+    priceOfferRuleKey: undefined,
+    priceOfferDiscountPerUnit: 0,
+    priceOfferAppliedUnits: 0,
+    isRandomCustomerOfferItem: false,
+    randomCustomerOfferCampaignCode: undefined,
+    isAmountBasedFreeOfferItem: true,
+    amountBasedFreeOfferRuleKey: ruleKey,
+  }
+
+  return [...manualItems, amountOfferItem]
+}
+
 const applyRandomCustomerProductOffer = async (
   items: BillingItemInput[],
   payload: Payload,
@@ -1129,6 +1262,11 @@ const applyConfiguredItemOffers = async (
     settings.allowProductPriceOfferOnTableOrders,
     settings.allowProductPriceOfferOnBillings,
   )
+  const allowAmountBasedFreeProductOffer = isOfferAllowedByOrderType(
+    isTableOrder,
+    settings.allowAmountBasedFreeProductOfferOnTableOrders,
+    settings.allowAmountBasedFreeProductOfferOnBillings,
+  )
   const allowRandomProductOffer = isOfferAllowedByOrderType(
     isTableOrder,
     settings.allowRandomCustomerProductOfferOnTableOrders,
@@ -1159,6 +1297,7 @@ const applyConfiguredItemOffers = async (
   const existingSingleOfferType =
     (hasProductToProductOfferApplied(items) && 'product-to-product') ||
     (hasProductPriceOfferApplied(items) && 'product-price') ||
+    (hasAmountBasedFreeOfferApplied(items) && 'amount-based-free') ||
     (hasRandomProductOfferApplied(items) && 'random-product') ||
     null
 
@@ -1175,6 +1314,17 @@ const applyConfiguredItemOffers = async (
     : baseItems
   const productPriceItems = allowProductPriceOffer
     ? applyProductPriceOffers(items, status, settings, customerID, branchID, isTableOrder)
+    : baseItems
+  const amountBasedFreeProductItems = allowAmountBasedFreeProductOffer
+    ? await applyAmountBasedFreeProductOffer(
+        items,
+        payload,
+        status,
+        settings,
+        customerID,
+        branchID,
+        isTableOrder,
+      )
     : baseItems
   const randomItems = allowRandomProductOffer
     ? await applyRandomCustomerProductOffer(
@@ -1201,6 +1351,12 @@ const applyConfiguredItemOffers = async (
     ) {
       return productPriceItems
     }
+    if (
+      existingSingleOfferType === 'amount-based-free' &&
+      hasAmountBasedFreeOfferApplied(amountBasedFreeProductItems)
+    ) {
+      return amountBasedFreeProductItems
+    }
     if (existingSingleOfferType === 'random-product' && hasRandomProductOfferApplied(randomItems)) {
       return randomItems
     }
@@ -1212,6 +1368,10 @@ const applyConfiguredItemOffers = async (
 
   if (hasProductPriceOfferApplied(productPriceItems)) {
     return productPriceItems
+  }
+
+  if (hasAmountBasedFreeOfferApplied(amountBasedFreeProductItems)) {
+    return amountBasedFreeProductItems
   }
 
   if (hasRandomProductOfferApplied(randomItems)) {
@@ -2297,6 +2457,7 @@ const Billings: CollectionConfig = {
 
                   const p2pUsageByRule = new Map<string, number>()
                   const priceUsageByRule = new Map<string, number>()
+                  const amountBasedUsageByRule = new Map<string, number>()
 
                   const p2pRuleByKey = new Map(
                     settings.productToProductOffers.map((rule) => [buildRuleKey(rule), rule]),
@@ -2328,6 +2489,16 @@ const Billings: CollectionConfig = {
                       priceUsageByRule.set(
                         item.priceOfferRuleKey,
                         (priceUsageByRule.get(item.priceOfferRuleKey) || 0) + increment,
+                      )
+                    }
+
+                    if (
+                      item?.isAmountBasedFreeOfferItem &&
+                      typeof item?.amountBasedFreeOfferRuleKey === 'string'
+                    ) {
+                      amountBasedUsageByRule.set(
+                        item.amountBasedFreeOfferRuleKey,
+                        (amountBasedUsageByRule.get(item.amountBasedFreeOfferRuleKey) || 0) + 1,
                       )
                     }
                   }
@@ -2460,6 +2631,69 @@ const Billings: CollectionConfig = {
                     }
                   })
 
+                  const updatedAmountBasedFreeProductRules =
+                    settings.amountBasedFreeProductOffers.map((rule) => {
+                      const key = buildAmountBasedFreeOfferRuleKey(rule)
+                      const usageIncrement = amountBasedUsageByRule.get(key) || 0
+                      const nextCustomers = [...rule.offerCustomers]
+                      const nextCustomerUsage = [...rule.offerCustomerUsage]
+
+                      if (usageIncrement > 0 && customerID && !nextCustomers.includes(customerID)) {
+                        nextCustomers.push(customerID)
+                      }
+
+                      if (usageIncrement > 0 && customerID) {
+                        const usageIndex = nextCustomerUsage.findIndex(
+                          (entry) => entry.customer === customerID,
+                        )
+
+                        if (usageIndex >= 0) {
+                          const existingUsage = nextCustomerUsage[usageIndex]
+                          nextCustomerUsage[usageIndex] = {
+                            customer: existingUsage.customer,
+                            usageCount: existingUsage.usageCount + usageIncrement,
+                          }
+                        } else {
+                          nextCustomerUsage.push({
+                            customer: customerID,
+                            usageCount: usageIncrement,
+                          })
+                        }
+                      }
+
+                      const nextGivenCount =
+                        usageIncrement > 0
+                          ? rule.offerGivenCount + usageIncrement
+                          : rule.offerGivenCount
+                      const nextCustomerCount = nextCustomers.length
+
+                      if (
+                        usageIncrement > 0 ||
+                        nextGivenCount !== rule.offerGivenCount ||
+                        nextCustomerCount !== rule.offerCustomerCount
+                      ) {
+                        settingsChanged = true
+                      }
+
+                      return {
+                        id: rule.id,
+                        enabled: rule.enabled,
+                        allowOnBillings: rule.allowOnBillings,
+                        allowOnTableOrders: rule.allowOnTableOrders,
+                        branches: rule.branches,
+                        minimumBillAmount: rule.minimumBillAmount,
+                        freeProduct: rule.freeProduct,
+                        freeQuantity: rule.freeQuantity,
+                        maxOfferCount: rule.maxOfferCount,
+                        maxCustomerCount: rule.maxCustomerCount,
+                        maxUsagePerCustomer: rule.maxUsagePerCustomer,
+                        offerGivenCount: nextGivenCount,
+                        offerCustomerCount: nextCustomerCount,
+                        offerCustomers: nextCustomers,
+                        offerCustomerUsage: nextCustomerUsage,
+                      }
+                    })
+
                   const totalPercentageOfferUsageIncrement =
                     Boolean((doc as any).totalPercentageOfferApplied) &&
                     getPositiveNumericValue((doc as any).totalPercentageOfferDiscount) > 0
@@ -2583,6 +2817,7 @@ const Billings: CollectionConfig = {
                         data: {
                           productToProductOffers: updatedProductToProductRules,
                           productPriceOffers: updatedProductPriceRules,
+                          amountBasedFreeProductOffers: updatedAmountBasedFreeProductRules,
                           totalPercentageOfferGivenCount: nextTotalPercentageOfferGivenCount,
                           totalPercentageOfferCustomerCount: nextTotalPercentageOfferCustomerCount,
                           totalPercentageOfferCustomers: nextTotalPercentageOfferCustomers,
@@ -2910,6 +3145,23 @@ const Billings: CollectionConfig = {
           name: 'isRandomCustomerOfferItem',
           type: 'checkbox',
           defaultValue: false,
+          admin: {
+            readOnly: true,
+            position: 'sidebar',
+          },
+        },
+        {
+          name: 'isAmountBasedFreeOfferItem',
+          type: 'checkbox',
+          defaultValue: false,
+          admin: {
+            readOnly: true,
+            position: 'sidebar',
+          },
+        },
+        {
+          name: 'amountBasedFreeOfferRuleKey',
+          type: 'text',
           admin: {
             readOnly: true,
             position: 'sidebar',
