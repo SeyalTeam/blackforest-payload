@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
+import Image from 'next/image'
 import {
   Package,
   X,
@@ -23,8 +24,13 @@ import {
   Check,
   Gift,
   Star,
+  QrCode,
+  Globe,
+  Hash,
+  Crown,
+  Anchor,
 } from 'lucide-react'
-import Select from 'react-select'
+import Select, { type FormatOptionLabelMeta, type GroupBase } from 'react-select'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { getBill } from '@/app/actions/getBill'
@@ -55,6 +61,36 @@ type BillingCustomerDetailsRow = {
   autoSubmitCustomerDetailsForBillingOrders?: boolean | null
 }
 
+type TableQRDomainRow = {
+  id?: string
+  domainURL?: string | null
+  enabled?: boolean | null
+  type?: 'primary' | 'secondary' | null
+}
+
+type TableSectionConfigRow = {
+  id?: string
+  name?: string | null
+  tableCount?: number | null
+}
+
+type TableConfigRow = {
+  id?: string
+  branch?: string | { id?: string; name?: string } | null
+  sections?: TableSectionConfigRow[] | null
+}
+
+type TableQROption = Option & {
+  sectionName: string
+  tableNumber: string
+}
+
+type TableQRPreview = {
+  tableURL: string
+  qrDataURL: string
+  fileName: string
+}
+
 type AppRow = {
   id?: string
   appName: string
@@ -69,6 +105,7 @@ type AppDownloadSettings = {
 type WidgetSettingsGlobal = {
   tableOrderCustomerDetailsByBranch?: TableCustomerDetailsRow[] | null
   billingOrderCustomerDetailsByBranch?: BillingCustomerDetailsRow[] | null
+  tableQRDomains?: TableQRDomainRow[] | null
 }
 
 type LiveTableRow = {
@@ -105,6 +142,7 @@ type WidgetKey =
   | 'customer-offer-settings'
   | 'favorite-products'
   | 'favorite-categories'
+  | 'table-qr'
   | 'app-downloads'
 
 const getRelationshipID = (value: unknown): string | null => {
@@ -118,6 +156,55 @@ const getRelationshipID = (value: unknown): string | null => {
     return (value as { id: string }).id
   }
   return null
+}
+
+const getTableQRDomainRowKey = (row: TableQRDomainRow, index: number): string =>
+  row.id || row.domainURL || `table-qr-domain-${index}`
+
+const getBranchNameFromValue = (
+  value: string | { id?: string; name?: string } | null | undefined,
+  branchNameByID: Map<string, string>,
+): string => {
+  if (value && typeof value === 'object' && typeof value.name === 'string' && value.name.trim()) {
+    return value.name.trim()
+  }
+
+  const relationshipID = getRelationshipID(value)
+  if (!relationshipID) return 'Unknown Branch'
+  return branchNameByID.get(relationshipID) || relationshipID
+}
+
+const getSanitizedSectionName = (value: unknown): string =>
+  typeof value === 'string' && value.trim().length > 0 ? value.trim() : 'Unknown Section'
+
+const getSanitizedTableCount = (value: unknown): number => {
+  const count = Number(value)
+  if (!Number.isFinite(count) || count <= 0) return 0
+  return Math.floor(count)
+}
+
+const buildTableQRURL = ({
+  domainURL,
+  branch,
+  table,
+}: {
+  domainURL: string
+  branch: Option
+  table: TableQROption
+}): string => {
+  if (domainURL === 'SMART_REDIRECT') {
+    const bridgeURL = new URL(`${window.location.origin}/api/table-redirect`)
+    bridgeURL.searchParams.set('branchId', branch.value)
+    bridgeURL.searchParams.set('section', table.sectionName)
+    bridgeURL.searchParams.set('table', table.tableNumber)
+    return bridgeURL.toString()
+  }
+
+  const url = new URL(domainURL)
+  url.searchParams.set('branchId', branch.value)
+  url.searchParams.set('section', table.sectionName)
+  url.searchParams.set('table', table.tableNumber)
+  return url.toString()
 }
 
 const getElapsedLabel = (
@@ -248,6 +335,18 @@ const WidgetSettings: React.FC<any> = (props) => {
   const [billingOrderCustomerDetailsByBranch, setBillingOrderCustomerDetailsByBranch] = useState<
     BillingCustomerDetailsRow[]
   >([])
+  const [tableQRDomains, setTableQRDomains] = useState<TableQRDomainRow[]>([])
+  const [newTableQRDomainURL, setNewTableQRDomainURL] = useState('')
+  const [savingTableQRDomain, setSavingTableQRDomain] = useState(false)
+  const [removingTableQRDomainKey, setRemovingTableQRDomainKey] = useState<string | null>(null)
+  const [tableQRConfigs, setTableQRConfigs] = useState<TableConfigRow[]>([])
+  const [loadingTableQRConfigs, setLoadingTableQRConfigs] = useState(false)
+  const [tableQRConfigsLoaded, setTableQRConfigsLoaded] = useState(false)
+  const [selectedTableQRDomain, setSelectedTableQRDomain] = useState<Option | null>(null)
+  const [selectedTableQRBranch, setSelectedTableQRBranch] = useState<Option | null>(null)
+  const [selectedTableQRTable, setSelectedTableQRTable] = useState<TableQROption | null>(null)
+  const [generatingTableQR, setGeneratingTableQR] = useState(false)
+  const [generatedTableQR, setGeneratedTableQR] = useState<TableQRPreview | null>(null)
   const [appDownloadSettings, setAppDownloadSettings] = useState<AppDownloadSettings | null>(null)
 
   // Stock order modal state
@@ -320,6 +419,16 @@ const WidgetSettings: React.FC<any> = (props) => {
     () => [{ value: 'all', label: 'All Branches' }, ...branchOptions],
     [branchOptions],
   )
+  const tableQRDomainOptions = useMemo(
+    () => [
+      { value: 'SMART_REDIRECT', label: '✨ Smart Multi-Domain Bridge' },
+      ...tableQRDomains
+        .map((row) => row.domainURL?.trim())
+        .filter((value): value is string => Boolean(value))
+        .map((domainURL) => ({ value: domainURL, label: domainURL })),
+    ],
+    [tableQRDomains],
+  )
   const liveTableNowMs = useMemo(() => Date.now(), [liveTableTick])
 
   const visibilityOptions: Option[] = useMemo(
@@ -337,6 +446,64 @@ const WidgetSettings: React.FC<any> = (props) => {
     })
     return map
   }, [branches])
+
+  const tableQRBranchOptions = useMemo(() => {
+    return tableQRConfigs
+      .map((config) => {
+        const branchID = getRelationshipID(config.branch)
+        if (!branchID) return null
+
+        return {
+          value: branchID,
+          label: getBranchNameFromValue(config.branch, branchNameByID),
+        }
+      })
+      .filter((option): option is Option => option !== null)
+      .sort((left, right) => left.label.localeCompare(right.label))
+  }, [tableQRConfigs, branchNameByID])
+
+  const selectedTableQRConfig = useMemo(() => {
+    if (!selectedTableQRBranch) return null
+    return (
+      tableQRConfigs.find(
+        (config) => getRelationshipID(config.branch) === selectedTableQRBranch.value,
+      ) || null
+    )
+  }, [tableQRConfigs, selectedTableQRBranch])
+
+  const tableQROptionGroups = useMemo(() => {
+    if (!selectedTableQRConfig?.sections || selectedTableQRConfig.sections.length === 0) {
+      return []
+    }
+
+    return selectedTableQRConfig.sections
+      .map((section) => {
+        const sectionName = getSanitizedSectionName(section?.name)
+        const tableCount = getSanitizedTableCount(section?.tableCount)
+        if (tableCount <= 0) return null
+
+        return {
+          label: sectionName,
+          options: Array.from({ length: tableCount }, (_, index) => {
+            const tableNumber = String(index + 1)
+            return {
+              value: `${sectionName}::${tableNumber}`,
+              label: `${sectionName} / ${tableNumber}`,
+              sectionName,
+              tableNumber,
+            } satisfies TableQROption
+          }),
+        }
+      })
+      .filter(
+        (
+          group,
+        ): group is {
+          label: string
+          options: TableQROption[]
+        } => group !== null,
+      )
+  }, [selectedTableQRConfig])
 
   const configuredTableRows = useMemo(() => {
     return tableOrderCustomerDetailsByBranch
@@ -421,6 +588,7 @@ const WidgetSettings: React.FC<any> = (props) => {
           setBillingOrderCustomerDetailsByBranch(
             settingsJSON.billingOrderCustomerDetailsByBranch || [],
           )
+          setTableQRDomains(settingsJSON.tableQRDomains || [])
         }
 
         if (appDownloadsResponse.ok) {
@@ -436,6 +604,29 @@ const WidgetSettings: React.FC<any> = (props) => {
 
     fetchInitialData()
   }, [])
+
+  const fetchTableQRConfigs = async () => {
+    setLoadingTableQRConfigs(true)
+    try {
+      const response = await fetch('/api/tables?limit=1000&depth=1&pagination=false&sort=updatedAt')
+      const json = await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          typeof json?.message === 'string' ? json.message : 'Failed to load table QR options',
+        )
+      }
+
+      const docs = Array.isArray(json?.docs) ? (json.docs as TableConfigRow[]) : []
+      setTableQRConfigs(docs)
+    } catch (error) {
+      console.error('Failed to load table QR configs:', error)
+      alert(error instanceof Error ? error.message : 'Failed to load table QR options')
+    } finally {
+      setTableQRConfigsLoaded(true)
+      setLoadingTableQRConfigs(false)
+    }
+  }
 
   const fetchLiveTableStatus = async (branchId: string) => {
     setLiveTableLoading(true)
@@ -473,6 +664,12 @@ const WidgetSettings: React.FC<any> = (props) => {
   }, [activeWidget, selectedLiveTableBranch.value])
 
   useEffect(() => {
+    if (activeWidget !== 'table-qr') return
+    if (tableQRConfigsLoaded || loadingTableQRConfigs) return
+    void fetchTableQRConfigs()
+  }, [activeWidget, tableQRConfigsLoaded, loadingTableQRConfigs])
+
+  useEffect(() => {
     if (activeWidget !== 'live-table') return
 
     const interval = window.setInterval(() => {
@@ -481,6 +678,44 @@ const WidgetSettings: React.FC<any> = (props) => {
 
     return () => window.clearInterval(interval)
   }, [activeWidget])
+
+  useEffect(() => {
+    if (tableQRDomainOptions.length === 0) {
+      setSelectedTableQRDomain(null)
+      return
+    }
+
+    const hasSelectedDomain = tableQRDomainOptions.some(
+      (option) => option.value === selectedTableQRDomain?.value,
+    )
+
+    if (!hasSelectedDomain) {
+      setSelectedTableQRDomain(tableQRDomainOptions[0])
+    }
+  }, [tableQRDomainOptions, selectedTableQRDomain])
+
+  useEffect(() => {
+    if (tableQRBranchOptions.length === 0) {
+      setSelectedTableQRBranch(null)
+      return
+    }
+
+    const hasSelectedBranch = tableQRBranchOptions.some(
+      (option) => option.value === selectedTableQRBranch?.value,
+    )
+
+    if (!hasSelectedBranch) {
+      setSelectedTableQRBranch(tableQRBranchOptions[0])
+    }
+  }, [tableQRBranchOptions, selectedTableQRBranch])
+
+  useEffect(() => {
+    setSelectedTableQRTable(null)
+  }, [selectedTableQRBranch?.value])
+
+  useEffect(() => {
+    setGeneratedTableQR(null)
+  }, [selectedTableQRDomain?.value, selectedTableQRBranch?.value, selectedTableQRTable?.value])
 
   const handleViewBillClick = async (billId: string | null | undefined) => {
     if (!billId) {
@@ -695,18 +930,9 @@ const WidgetSettings: React.FC<any> = (props) => {
     )
   }, [selectedBillingCustomerDetailsBranch, billingOrderCustomerDetailsByBranch, visibilityOptions])
 
-  const persistCustomerSettings = async ({
-    tableRows = tableOrderCustomerDetailsByBranch,
-    billingRows = billingOrderCustomerDetailsByBranch,
-  }: {
-    tableRows?: TableCustomerDetailsRow[]
-    billingRows?: BillingCustomerDetailsRow[]
-  }): Promise<WidgetSettingsGlobal> => {
-    const payloadData = {
-      tableOrderCustomerDetailsByBranch: tableRows,
-      billingOrderCustomerDetailsByBranch: billingRows,
-    }
-
+  const persistWidgetSettings = async (
+    payloadData: Partial<WidgetSettingsGlobal>,
+  ): Promise<WidgetSettingsGlobal> => {
     let response: Response | null = null
     let methodsTried = 0
     for (const method of ['POST', 'PATCH']) {
@@ -739,6 +965,19 @@ const WidgetSettings: React.FC<any> = (props) => {
     }
 
     return json as WidgetSettingsGlobal
+  }
+
+  const persistCustomerSettings = async ({
+    tableRows = tableOrderCustomerDetailsByBranch,
+    billingRows = billingOrderCustomerDetailsByBranch,
+  }: {
+    tableRows?: TableCustomerDetailsRow[]
+    billingRows?: BillingCustomerDetailsRow[]
+  }): Promise<WidgetSettingsGlobal> => {
+    return persistWidgetSettings({
+      tableOrderCustomerDetailsByBranch: tableRows,
+      billingOrderCustomerDetailsByBranch: billingRows,
+    })
   }
 
   const saveTableCustomerDetailsSetting = async () => {
@@ -909,6 +1148,186 @@ const WidgetSettings: React.FC<any> = (props) => {
     }
   }
 
+  const addTableQRDomain = async () => {
+    const nextDomainURL = newTableQRDomainURL.trim()
+
+    if (!nextDomainURL) {
+      alert('Please enter the table domain URL')
+      return
+    }
+
+    let normalizedURL: string
+    try {
+      normalizedURL = new URL(nextDomainURL).toString().replace(/\/$/, '')
+    } catch {
+      alert('Please enter a valid domain URL, including http:// or https://')
+      return
+    }
+
+    const existingDomains = tableQRDomains
+      .map((row) => row.domainURL?.trim())
+      .filter((value): value is string => Boolean(value))
+
+    if (existingDomains.some((value) => value.toLowerCase() === normalizedURL.toLowerCase())) {
+      alert('This domain URL is already added')
+      return
+    }
+
+    setSavingTableQRDomain(true)
+    try {
+      const isFirst = tableQRDomains.length === 0
+      const nextRows: TableQRDomainRow[] = [
+        ...tableQRDomains.map((row) => ({
+          ...row,
+          domainURL: row.domainURL?.trim() || '',
+        })),
+        {
+          domainURL: normalizedURL,
+          enabled: true,
+          type: isFirst ? 'primary' : 'secondary',
+        },
+      ]
+
+      const persistedSettings = await persistWidgetSettings({ tableQRDomains: nextRows })
+      setTableQRDomains(persistedSettings.tableQRDomains || nextRows)
+      setNewTableQRDomainURL('')
+      alert('Table QR domain added')
+    } catch (error) {
+      console.error('Failed to save table QR domain:', error)
+      alert('Failed to add table QR domain')
+    } finally {
+      setSavingTableQRDomain(false)
+    }
+  }
+
+  const toggleTableQRDomainType = async (row: TableQRDomainRow, index: number) => {
+    try {
+      // If clicking a primary, we don't allow de-selecting it (must have one primary)
+      if (row.type === 'primary') return
+
+      const nextRows: TableQRDomainRow[] = tableQRDomains.map((currentRow, currentIndex) => {
+        const isMatch = row.id && currentRow.id ? currentRow.id === row.id : currentIndex === index
+        if (isMatch) {
+          return { ...currentRow, type: 'primary' }
+        }
+        // Always demote other primaries when a new one is set
+        if (currentRow.type === 'primary') {
+          return { ...currentRow, type: 'secondary' }
+        }
+        return currentRow
+      })
+
+      const persistedSettings = await persistWidgetSettings({ tableQRDomains: nextRows })
+      setTableQRDomains(persistedSettings.tableQRDomains || nextRows)
+    } catch (error) {
+      console.error('Failed to toggle domain type:', error)
+      alert('Failed to update domain priority')
+    }
+  }
+
+  const toggleTableQRDomainEnabled = async (row: TableQRDomainRow, index: number) => {
+    try {
+      const nextRows = tableQRDomains.map((currentRow, currentIndex) => {
+        const isMatch = row.id && currentRow.id ? currentRow.id === row.id : currentIndex === index
+        if (isMatch) {
+          return { ...currentRow, enabled: !currentRow.enabled }
+        }
+        return currentRow
+      })
+
+      const persistedSettings = await persistWidgetSettings({ tableQRDomains: nextRows })
+      setTableQRDomains(persistedSettings.tableQRDomains || nextRows)
+    } catch (error) {
+      console.error('Failed to toggle domain:', error)
+      alert('Failed to update domain status')
+    }
+  }
+
+  const removeTableQRDomain = async (row: TableQRDomainRow, index: number) => {
+    const domainURL = row.domainURL?.trim() || 'this domain'
+    if (!confirm(`Remove "${domainURL}" from Table QR domains?`)) {
+      return
+    }
+
+    const rowKey = getTableQRDomainRowKey(row, index)
+    setRemovingTableQRDomainKey(rowKey)
+
+    try {
+      let nextRows: TableQRDomainRow[] = tableQRDomains
+        .filter((currentRow, currentIndex) => {
+          if (row.id && currentRow.id) return currentRow.id !== row.id
+          return currentIndex !== index
+        })
+        .map((currentRow) => ({
+          ...currentRow,
+          domainURL: currentRow.domainURL?.trim() || '',
+        }))
+
+      // Auto-promote a secondary to primary if the primary was deleted
+      if (nextRows.length > 0 && !nextRows.some((r) => r.type === 'primary')) {
+        nextRows = nextRows.map((r, i) => (i === 0 ? { ...r, type: 'primary' } : r))
+      }
+
+      const persistedSettings = await persistWidgetSettings({ tableQRDomains: nextRows })
+      setTableQRDomains(persistedSettings.tableQRDomains || nextRows)
+      alert('Table QR domain removed')
+    } catch (error) {
+      console.error('Failed to remove table QR domain:', error)
+      alert('Failed to remove table QR domain')
+    } finally {
+      setRemovingTableQRDomainKey(null)
+    }
+  }
+
+  const generateTableQR = async () => {
+    if (!selectedTableQRDomain) {
+      alert('Please select a table domain first')
+      return
+    }
+
+    if (!selectedTableQRBranch) {
+      alert('Please select a branch')
+      return
+    }
+
+    if (!selectedTableQRTable) {
+      alert('Please select a table')
+      return
+    }
+
+    setGeneratingTableQR(true)
+    try {
+      const tableURL = buildTableQRURL({
+        domainURL: selectedTableQRDomain.value,
+        branch: selectedTableQRBranch,
+        table: selectedTableQRTable,
+      })
+
+      const response = await fetch('/api/widgets/table-qr-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tableURL,
+          branchName: selectedTableQRBranch.label,
+          sectionName: selectedTableQRTable.sectionName,
+          tableNumber: selectedTableQRTable.tableNumber,
+        }),
+      })
+
+      const json = (await response.json()) as TableQRPreview & { message?: string }
+      if (!response.ok) {
+        throw new Error(json?.message || 'Failed to generate table QR')
+      }
+
+      setGeneratedTableQR(json)
+    } catch (error) {
+      console.error('Failed to generate table QR:', error)
+      alert(error instanceof Error ? error.message : 'Failed to generate table QR')
+    } finally {
+      setGeneratingTableQR(false)
+    }
+  }
+
   const customSelectStyles = {
     control: (base: any) => ({
       ...base,
@@ -1001,6 +1420,14 @@ const WidgetSettings: React.FC<any> = (props) => {
           >
             <ListFilter className="tile-icon" size={48} />
             <span className="tile-label">Favorite Categories</span>
+          </button>
+          <button
+            type="button"
+            className={`tile ${activeWidget === 'table-qr' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('table-qr')}
+          >
+            <QrCode className="tile-icon" size={48} />
+            <span className="tile-label">Table QR</span>
           </button>
           <button
             type="button"
@@ -1164,16 +1591,13 @@ const WidgetSettings: React.FC<any> = (props) => {
 
                 <div className="form-group">
                   <label>
-                    <ListFilter size={14} style={{ marginRight: 4 }} /> Show Customer History
-                    Button
+                    <ListFilter size={14} style={{ marginRight: 4 }} /> Show Customer History Button
                   </label>
                   <Select
                     options={visibilityOptions}
                     value={tableCustomerHistoryVisibility}
                     onChange={(option) =>
-                      setTableCustomerHistoryVisibility(
-                        (option as Option) || visibilityOptions[0],
-                      )
+                      setTableCustomerHistoryVisibility((option as Option) || visibilityOptions[0])
                     }
                     styles={customSelectStyles}
                     isSearchable={false}
@@ -1361,8 +1785,7 @@ const WidgetSettings: React.FC<any> = (props) => {
 
                 <div className="form-group">
                   <label>
-                    <ListFilter size={14} style={{ marginRight: 4 }} /> Show Customer History
-                    Button
+                    <ListFilter size={14} style={{ marginRight: 4 }} /> Show Customer History Button
                   </label>
                   <Select
                     options={visibilityOptions}
@@ -1867,6 +2290,314 @@ const WidgetSettings: React.FC<any> = (props) => {
             </div>
           )}
 
+          {activeWidget === 'table-qr' && (
+            <div className="widget-modal">
+              <div className="modal-header">
+                <h2>Table QR Generator</h2>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="modal-body">
+                <div className="table-qr-intro">
+                  <QrCode size={20} />
+                  <span>
+                    Select a saved domain, choose the branch and table, then generate the table QR
+                    code for digital menu access.
+                  </span>
+                </div>
+
+                <div className="table-qr-sections">
+                  {/* Generation Section */}
+                  <section className="table-qr-card-section">
+                    <h3>
+                      <RefreshCw size={18} />
+                      Generate New QR Code
+                    </h3>
+
+                    <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                      <label>
+                        <Globe size={14} /> Table Domain
+                      </label>
+                      <Select
+                        options={tableQRDomainOptions}
+                        value={selectedTableQRDomain}
+                        onChange={(option) => setSelectedTableQRDomain(option as Option | null)}
+                        styles={customSelectStyles}
+                        placeholder="Select saved domain..."
+                        isDisabled={tableQRDomainOptions.length === 0}
+                        isSearchable={false}
+                      />
+                    </div>
+
+                    <div className="table-qr-generate-row">
+                      <div className="form-group">
+                        <label>
+                          <MapPin size={14} /> Branch
+                        </label>
+                        <Select
+                          options={tableQRBranchOptions}
+                          value={selectedTableQRBranch}
+                          onChange={(option) => setSelectedTableQRBranch(option as Option | null)}
+                          styles={customSelectStyles}
+                          placeholder="Select branch..."
+                          isLoading={loadingTableQRConfigs}
+                          isDisabled={loadingTableQRConfigs || tableQRBranchOptions.length === 0}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>
+                          <Hash size={14} /> Table
+                        </label>
+                        <Select<TableQROption, false, GroupBase<TableQROption>>
+                          options={tableQROptionGroups}
+                          value={selectedTableQRTable}
+                          onChange={(option) =>
+                            setSelectedTableQRTable(option as TableQROption | null)
+                          }
+                          styles={customSelectStyles}
+                          placeholder={
+                            selectedTableQRBranch ? 'Select table...' : 'Select branch first...'
+                          }
+                          isDisabled={!selectedTableQRBranch || tableQROptionGroups.length === 0}
+                          formatOptionLabel={(
+                            option: TableQROption,
+                            meta: FormatOptionLabelMeta<TableQROption>,
+                          ) => {
+                            if (meta.context === 'menu' && option?.tableNumber) {
+                              return <span>{option.tableNumber}</span>
+                            }
+                            return <span>{option?.label || ''}</span>
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="table-qr-generate-btn-wrapper">
+                      <button
+                        type="button"
+                        className="btn btn-primary table-qr-generate-btn"
+                        onClick={() => void generateTableQR()}
+                        disabled={
+                          generatingTableQR ||
+                          !selectedTableQRDomain ||
+                          !selectedTableQRBranch ||
+                          !selectedTableQRTable
+                        }
+                      >
+                        {generatingTableQR ? (
+                          <>
+                            <Loader2 className="animate-spin" size={18} />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <QrCode size={18} />
+                            Generate QR
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {generatedTableQR && (
+                      <div className="table-qr-preview-container">
+                        <div className="table-qr-preview-card">
+                          <div className="table-qr-preview-header">
+                            <div className="preview-info">
+                              <h3>QR Code Ready</h3>
+                              <p>
+                                <MapPin size={12} />
+                                {selectedTableQRBranch?.label} • {selectedTableQRTable?.sectionName}{' '}
+                                • Table {selectedTableQRTable?.tableNumber}
+                              </p>
+                            </div>
+                            <div className="table-qr-preview-actions">
+                              <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={() =>
+                                  handleCopyLink(generatedTableQR.tableURL, 'table-qr-url')
+                                }
+                              >
+                                {copySuccessID === 'table-qr-url' ? (
+                                  <>
+                                    <Check size={14} style={{ color: '#22c55e' }} />
+                                    <span>Copied!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy size={14} />
+                                    <span>Copy URL</span>
+                                  </>
+                                )}
+                              </button>
+                              <a
+                                href={generatedTableQR.qrDataURL}
+                                download={generatedTableQR.fileName}
+                                className="btn btn-primary"
+                              >
+                                <Download size={14} />
+                                <span>Download QR</span>
+                              </a>
+                            </div>
+                          </div>
+
+                          <div className="table-qr-preview-body">
+                            <div className="table-qr-preview-image-wrapper">
+                              <Image
+                                src={generatedTableQR.qrDataURL}
+                                alt="Generated table QR code"
+                                className="table-qr-preview-image"
+                                width={200}
+                                height={200}
+                                unoptimized
+                              />
+                            </div>
+                            <div className="table-qr-preview-meta">
+                              <span className="meta-label">Generated Destination</span>
+                              <div className="table-qr-preview-url">
+                                {generatedTableQR.tableURL}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+
+                  {/* Domain Management Section */}
+                  <section className="table-qr-card-section">
+                    <h3>
+                      <Globe size={18} />
+                      Domain Configuration
+                    </h3>
+
+                    <div className="table-qr-domain-management">
+                      <div className="table-qr-add-row">
+                        <div className="form-group">
+                          <label>
+                            <Plus size={12} style={{ marginRight: 4 }} /> Add New Base URL
+                          </label>
+                          <input
+                            type="url"
+                            value={newTableQRDomainURL}
+                            onChange={(e) => setNewTableQRDomainURL(e.target.value)}
+                            placeholder="https://order.yourbakery.com"
+                          />
+                        </div>
+                        <div
+                          className="form-group"
+                          style={{ display: 'flex', alignItems: 'flex-end' }}
+                        >
+                          <button
+                            type="button"
+                            className="btn btn-primary table-qr-add-btn"
+                            onClick={() => void addTableQRDomain()}
+                            disabled={savingTableQRDomain || !newTableQRDomainURL.trim()}
+                          >
+                            {savingTableQRDomain ? (
+                              <Loader2 className="animate-spin" size={16} />
+                            ) : (
+                              <Plus size={16} />
+                            )}
+                            Add Domain
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="configured-settings">
+                        <h3>Saved Domains</h3>
+                        {tableQRDomains.length === 0 ? (
+                          <div className="empty-state">
+                            <p>No table QR domains saved yet.</p>
+                          </div>
+                        ) : (
+                          <div className="configured-list">
+                            {tableQRDomains.map((row, index) => {
+                              const rowKey = getTableQRDomainRowKey(row, index)
+                              const domainLabel = row.domainURL?.trim() || 'Untitled domain'
+
+                              return (
+                                <div className="configured-row" key={rowKey}>
+                                  <div className="table-qr-domain-meta">
+                                    <div
+                                      className={`domain-icon-wrapper ${row.type === 'primary' ? 'primary' : 'secondary'}`}
+                                    >
+                                      {row.type === 'primary' ? (
+                                        <Crown size={18} />
+                                      ) : (
+                                        <Globe size={18} />
+                                      )}
+                                    </div>
+                                    <span className="branch-name" title={domainLabel}>
+                                      {domainLabel}
+                                    </span>
+                                  </div>
+                                  <div className="row-controls">
+                                    <button
+                                      type="button"
+                                      className={`priority-toggle-btn ${row.type === 'primary' ? 'primary' : 'secondary'}`}
+                                      onClick={() => void toggleTableQRDomainType(row, index)}
+                                      title={
+                                        row.type === 'primary'
+                                          ? 'Primary Domain (Click to make Secondary)'
+                                          : 'Secondary Domain (Click to make Primary)'
+                                      }
+                                    >
+                                      {row.type === 'primary' ? (
+                                        <Crown size={14} />
+                                      ) : (
+                                        <Anchor size={14} />
+                                      )}
+                                      <span>
+                                        {row.type === 'primary' ? 'Primary' : 'Secondary'}
+                                      </span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`status-toggle-btn ${row.enabled !== false ? 'active' : ''}`}
+                                      onClick={() => void toggleTableQRDomainEnabled(row, index)}
+                                      title={
+                                        row.enabled !== false
+                                          ? 'Active (Click to Disable)'
+                                          : 'Disabled (Click to Enable)'
+                                      }
+                                    >
+                                      {row.enabled !== false ? (
+                                        <Check size={14} />
+                                      ) : (
+                                        <X size={14} />
+                                      )}
+                                      <span>{row.enabled !== false ? 'Active' : 'Disabled'}</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="remove-row-btn"
+                                      onClick={() => void removeTableQRDomain(row, index)}
+                                      disabled={removingTableQRDomainKey !== null}
+                                      title="Delete Domain"
+                                    >
+                                      {removingTableQRDomainKey === rowKey ? (
+                                        <Loader2 className="animate-spin" size={14} />
+                                      ) : (
+                                        <Trash2 size={14} />
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

@@ -78,6 +78,8 @@ import { CustomerOfferSettings } from './globals/CustomerOfferSettings'
 import APKFiles from './collections/APKFiles'
 import { AppDownloadSettings } from './globals/AppDownloadSettings'
 import { getLatestAppDownloadHandler } from './endpoints/getLatestAppDownload'
+import { generateTableQRHandler } from './endpoints/generateTableQR'
+import { tableRedirectHandler } from './endpoints/tableRedirect'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -286,6 +288,16 @@ export default buildConfig({
       path: '/widgets/product-options',
       method: 'get',
       handler: getWidgetProductOptionsHandler,
+    },
+    {
+      path: '/widgets/table-qr-preview',
+      method: 'post',
+      handler: generateTableQRHandler,
+    },
+    {
+      path: '/table-redirect',
+      method: 'get',
+      handler: tableRedirectHandler,
     },
     {
       path: '/billing/customer-lookup',

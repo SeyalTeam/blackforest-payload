@@ -191,5 +191,37 @@ export const WidgetSettingsGlobal: GlobalConfig = {
         },
       ],
     },
+    {
+      name: 'tableQRDomains',
+      label: 'Table QR Domains',
+      type: 'array',
+      admin: {
+        description: 'Domain URLs used as the base for generating table QR links in the future.',
+      },
+      fields: [
+        {
+          name: 'domainURL',
+          label: 'Domain URL',
+          type: 'text',
+          required: true,
+        },
+        {
+          name: 'type',
+          label: 'Type',
+          type: 'select',
+          options: [
+            { label: 'Primary', value: 'primary' },
+            { label: 'Secondary', value: 'secondary' },
+          ],
+          defaultValue: 'primary',
+        },
+        {
+          name: 'enabled',
+          label: 'Enabled',
+          type: 'checkbox',
+          defaultValue: true,
+        },
+      ],
+    },
   ],
 }

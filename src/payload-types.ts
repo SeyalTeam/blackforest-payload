@@ -2004,6 +2004,17 @@ export interface WidgetSetting {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Domain URLs used as the base for generating table QR links in the future.
+   */
+  tableQRDomains?:
+    | {
+        domainURL: string;
+        type?: ('primary' | 'secondary') | null;
+        enabled?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -3209,6 +3220,14 @@ export interface WidgetSettingsSelect<T extends boolean = true> {
         ruleName?: T;
         branches?: T;
         categories?: T;
+        id?: T;
+      };
+  tableQRDomains?:
+    | T
+    | {
+        domainURL?: T;
+        type?: T;
+        enabled?: T;
         id?: T;
       };
   updatedAt?: T;
