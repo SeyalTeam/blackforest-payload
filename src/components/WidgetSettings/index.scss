@@ -421,11 +421,12 @@
     }
 
     .table-qr-preview-card {
-      background: linear-gradient(145deg, #18181b, #09090b);
-      border: 1px solid #3b82f644;
-      border-radius: 1.25rem;
-      padding: 1.75rem;
-      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+      background: linear-gradient(165deg, rgba(24, 24, 27, 0.95), rgba(9, 9, 11, 0.98));
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: 1.5rem;
+      padding: 2.25rem;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(12px);
     }
 
     .table-qr-preview-header {
@@ -433,9 +434,9 @@
       align-items: center;
       justify-content: space-between;
       gap: 1.5rem;
-      margin-bottom: 2rem;
+      margin-bottom: 2.5rem;
       padding-bottom: 1.5rem;
-      border-bottom: 1px solid #27272a;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 
       .preview-info {
         h3 {
@@ -461,13 +462,75 @@
     .table-qr-preview-actions {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: 1rem;
 
-      .btn {
-        height: 40px;
-        padding: 0 1rem;
+      .btn-copy-url {
+        height: 42px;
+        padding: 0 1.25rem;
+        background: rgba(39, 39, 42, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: #e4e4e7;
+        font-weight: 600;
         font-size: 0.85rem;
-        border-radius: 0.5rem;
+        border-radius: 0.75rem;
+        backdrop-filter: blur(8px);
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+        svg {
+          color: #a1a1aa;
+          transition: color 0.3s;
+        }
+
+        &:hover {
+          background: rgba(63, 63, 70, 0.8);
+          border-color: rgba(255, 255, 255, 0.15);
+          transform: translateY(-2px);
+          color: #fff;
+
+          svg {
+            color: #3b82f6;
+          }
+        }
+
+        &.copied {
+          background: rgba(34, 197, 94, 0.15);
+          border-color: rgba(34, 197, 94, 0.3);
+          color: #4ade80;
+
+          svg {
+            color: #4ade80;
+          }
+        }
+      }
+
+      .btn-download-qr {
+        height: 42px;
+        padding: 0 1.5rem;
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        border: none;
+        color: #fff;
+        font-weight: 700;
+        font-size: 0.85rem;
+        border-radius: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        text-decoration: none;
+
+        &:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 20px rgba(37, 99, 235, 0.4);
+          background: linear-gradient(135deg, #60a5fa, #3b82f6);
+        }
+
+        &:active {
+          transform: translateY(0);
+        }
       }
     }
 
@@ -516,10 +579,10 @@
       }
 
       .table-qr-preview-url {
-        background: #111113;
-        border: 1px solid #27272a;
-        padding: 1rem 1.25rem;
-        border-radius: 0.75rem;
+        background: rgba(9, 9, 11, 0.8);
+        border: 1px solid rgba(59, 130, 246, 0.15);
+        padding: 1.25rem;
+        border-radius: 1rem;
         color: #e4e4e7;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         font-size: 0.85rem;
@@ -528,15 +591,18 @@
         position: relative;
 
         &::after {
-          content: 'Target URL';
+          content: 'GENERATED DESTINATION';
           position: absolute;
-          top: -8px;
-          right: 12px;
-          background: #111113;
-          padding: 0 6px;
+          top: -10px;
+          right: 20px;
+          background: #3b82f6;
+          color: #fff;
+          padding: 2px 10px;
+          border-radius: 4px;
           font-size: 0.65rem;
-          color: #3b82f6;
-          font-weight: 600;
+          font-weight: 800;
+          letter-spacing: 0.05em;
+          box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
         }
       }
     }
@@ -593,15 +659,16 @@
 
         .table-qr-add-btn {
           height: 42px;
-          padding: 0 1.5rem;
-          border-radius: 0.75rem;
+          padding: 0 1.75rem;
+          border-radius: 0.85rem;
           font-size: 0.85rem;
-          font-weight: 600;
-          gap: 0.6rem;
-          background: #3b82f6;
+          font-weight: 700;
+          gap: 0.75rem;
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
           border: none;
           color: white;
-          transition: all 0.2s;
+          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
           &:hover:not(:disabled) {
             background: #2563eb;
@@ -628,10 +695,10 @@
         letter-spacing: 0.05em;
       }
 
-      .configured-list {
+      .table-qr-domains-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-        gap: 1.25rem;
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        gap: 1.5rem;
       }
 
       .configured-row {

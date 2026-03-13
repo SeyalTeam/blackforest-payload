@@ -617,7 +617,12 @@ const WidgetSettings: React.FC<any> = (props) => {
         )
       }
 
-      const docs = Array.isArray(json?.docs) ? (json.docs as TableConfigRow[]) : []
+      let docs: TableConfigRow[] = []
+      if (Array.isArray(json)) {
+        docs = json as TableConfigRow[]
+      } else if (Array.isArray(json?.docs)) {
+        docs = json.docs as TableConfigRow[]
+      }
       setTableQRConfigs(docs)
     } catch (error) {
       console.error('Failed to load table QR configs:', error)
@@ -2366,8 +2371,15 @@ const WidgetSettings: React.FC<any> = (props) => {
                             option: TableQROption,
                             meta: FormatOptionLabelMeta<TableQROption>,
                           ) => {
-                            if (meta.context === 'menu' && option?.tableNumber) {
-                              return <span>{option.tableNumber}</span>
+                            if (meta.context === 'menu') {
+                              return (
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <span style={{ fontWeight: 600 }}>{option.tableNumber}</span>
+                                  <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>
+                                    {option.sectionName}
+                                  </span>
+                                </div>
+                              )
                             }
                             return <span>{option?.label || ''}</span>
                           }}
@@ -2416,19 +2428,19 @@ const WidgetSettings: React.FC<any> = (props) => {
                             <div className="table-qr-preview-actions">
                               <button
                                 type="button"
-                                className="btn btn-secondary"
+                                className={`btn-copy-url ${copySuccessID === 'table-qr-url' ? 'copied' : ''}`}
                                 onClick={() =>
                                   handleCopyLink(generatedTableQR.tableURL, 'table-qr-url')
                                 }
                               >
                                 {copySuccessID === 'table-qr-url' ? (
                                   <>
-                                    <Check size={14} style={{ color: '#22c55e' }} />
+                                    <Check size={16} />
                                     <span>Copied!</span>
                                   </>
                                 ) : (
                                   <>
-                                    <Copy size={14} />
+                                    <Copy size={16} />
                                     <span>Copy URL</span>
                                   </>
                                 )}
@@ -2436,9 +2448,9 @@ const WidgetSettings: React.FC<any> = (props) => {
                               <a
                                 href={generatedTableQR.qrDataURL}
                                 download={generatedTableQR.fileName}
-                                className="btn btn-primary"
+                                className="btn-download-qr"
                               >
-                                <Download size={14} />
+                                <Download size={16} />
                                 <span>Download QR</span>
                               </a>
                             </div>
@@ -2514,7 +2526,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                             <p>No table QR domains saved yet.</p>
                           </div>
                         ) : (
-                          <div className="configured-list">
+                          <div className="table-qr-domains-grid">
                             {tableQRDomains.map((row, index) => {
                               const rowKey = getTableQRDomainRowKey(row, index)
                               const domainLabel = row.domainURL?.trim() || 'Untitled domain'
