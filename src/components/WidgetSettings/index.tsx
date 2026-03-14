@@ -1347,6 +1347,10 @@ const WidgetSettings: React.FC<any> = (props) => {
       border: '1px solid #27272a',
       zIndex: 1001,
     }),
+    menuPortal: (base: any) => ({
+      ...base,
+      zIndex: 2000,
+    }),
     option: (base: any, state: any) => ({
       ...base,
       backgroundColor: state.isFocused ? '#27272a' : 'transparent',
@@ -2363,6 +2367,9 @@ const WidgetSettings: React.FC<any> = (props) => {
                             setSelectedTableQRTable(option as TableQROption | null)
                           }
                           styles={customSelectStyles}
+                          menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                          menuPosition="fixed"
+                          maxMenuHeight={420}
                           placeholder={
                             selectedTableQRBranch ? 'Select table...' : 'Select branch first...'
                           }
