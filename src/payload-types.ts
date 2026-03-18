@@ -272,6 +272,10 @@ export interface Branch {
    */
   printerIp?: string | null;
   /**
+   * MAC address of the Bluetooth printer for this branch (e.g., 00:11:22:33:44:55). Used for printing bills over Bluetooth.
+   */
+  printerBtMac?: string | null;
+  /**
    * Inventory counts before this date will be ignored in reports.
    */
   inventoryResetDate?: string | null;
@@ -1125,6 +1129,7 @@ export interface BranchesSelect<T extends boolean = true> {
   email?: T;
   ipAddress?: T;
   printerIp?: T;
+  printerBtMac?: T;
   inventoryResetDate?: T;
   productResets?:
     | T
@@ -1912,6 +1917,10 @@ export interface BranchGeoSetting {
          * Default Local Network IP for billing printer
          */
         printerIp?: string | null;
+        /**
+         * Bluetooth MAC address for billing printer (e.g., 00:11:22:33:44:55)
+         */
+        printerBtMac?: string | null;
         kotPrinters?:
           | {
               kitchens: (string | Kitchen)[];
@@ -1919,6 +1928,10 @@ export interface BranchGeoSetting {
                * Local IP for this category group
                */
               printerIp: string;
+              /**
+               * Bluetooth MAC for this KOT group
+               */
+              printerBtMac?: string | null;
               /**
                * e.g. Kitchen, Bar, Juice Counter
                */
@@ -3155,11 +3168,13 @@ export interface BranchGeoSettingsSelect<T extends boolean = true> {
         radius?: T;
         ipAddress?: T;
         printerIp?: T;
+        printerBtMac?: T;
         kotPrinters?:
           | T
           | {
               kitchens?: T;
               printerIp?: T;
+              printerBtMac?: T;
               label?: T;
               id?: T;
             };
