@@ -84,15 +84,6 @@ export const BranchGeoSettings: GlobalConfig = {
                 description: 'Default Local Network IP for billing printer',
               },
             },
-            {
-              name: 'printerBtMac',
-              type: 'text',
-              label: 'Default Printer BT MAC',
-              admin: {
-                width: '50%',
-                description: 'Bluetooth MAC address for billing printer (e.g., 00:11:22:33:44:55)',
-              },
-            },
           ],
         },
         {
@@ -121,15 +112,6 @@ export const BranchGeoSettings: GlobalConfig = {
                   admin: {
                     width: '50%',
                     description: 'Local IP for this category group',
-                  },
-                },
-                {
-                  name: 'printerBtMac',
-                  type: 'text',
-                  label: 'Printer BT MAC',
-                  admin: {
-                    width: '50%',
-                    description: 'Bluetooth MAC for this KOT group',
                   },
                 },
               ],

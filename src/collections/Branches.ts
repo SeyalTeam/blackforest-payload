@@ -56,15 +56,6 @@ export const Branches: CollectionConfig = {
       },
     },
     {
-      name: 'printerBtMac',
-      type: 'text',
-      label: 'Printer Bluetooth MAC',
-      admin: {
-        description:
-          'MAC address of the Bluetooth printer for this branch (e.g., 00:11:22:33:44:55). Used for printing bills over Bluetooth.',
-      },
-    },
-    {
       name: 'inventoryResetDate',
       type: 'date',
       admin: {
