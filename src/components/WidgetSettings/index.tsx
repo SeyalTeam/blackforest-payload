@@ -145,6 +145,44 @@ type WidgetKey =
   | 'table-qr'
   | 'app-downloads'
 
+const sanitizeUploadedAPKFile = (file: File): File => {
+  const originalName = file.name.trim() || 'app.apk'
+  const lastDotIndex = originalName.lastIndexOf('.')
+  const baseName = lastDotIndex > 0 ? originalName.slice(0, lastDotIndex) : originalName
+  const extension = lastDotIndex > 0 ? originalName.slice(lastDotIndex).toLowerCase() : '.apk'
+
+  const safeBaseName =
+    baseName
+      .replace(/[^a-zA-Z0-9._-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'app'
+
+  const safeFileName = `${safeBaseName}${extension === '.apk' ? extension : '.apk'}`
+
+  if (safeFileName === originalName) {
+    return file
+  }
+
+  return new File([file], safeFileName, {
+    type: file.type || 'application/vnd.android.package-archive',
+    lastModified: file.lastModified,
+  })
+}
+
+const getResponseErrorMessage = async (response: Response, fallback: string): Promise<string> => {
+  try {
+    const payload = (await response.json()) as {
+      message?: string
+      error?: string
+      errors?: { message?: string }[]
+    }
+
+    return payload.message || payload.error || payload.errors?.[0]?.message || fallback
+  } catch (_error) {
+    return fallback
+  }
+}
+
 const getRelationshipID = (value: unknown): string | null => {
   if (typeof value === 'string' && value.trim().length > 0) return value
   if (
@@ -794,8 +832,9 @@ const WidgetSettings: React.FC<any> = (props) => {
     setUploadingApp(true)
     try {
       // 1. Upload APK File
+      const sanitizedAPKFile = sanitizeUploadedAPKFile(newAppFile)
       const formData = new FormData()
-      formData.append('file', newAppFile)
+      formData.append('file', sanitizedAPKFile)
       formData.append('alt', newAppName)
 
       const uploadRes = await fetch('/api/apk-files', {
@@ -804,8 +843,7 @@ const WidgetSettings: React.FC<any> = (props) => {
       })
 
       if (!uploadRes.ok) {
-        const errJson = await uploadRes.json()
-        throw new Error(errJson?.errors?.[0]?.message || 'Failed to upload APK file')
+        throw new Error(await getResponseErrorMessage(uploadRes, 'Failed to upload APK file'))
       }
 
       const uploadedFile = await uploadRes.json()
@@ -833,7 +871,9 @@ const WidgetSettings: React.FC<any> = (props) => {
       })
 
       if (!settingsRes.ok) {
-        throw new Error('Failed to update app download settings')
+        throw new Error(
+          await getResponseErrorMessage(settingsRes, 'Failed to update app download settings'),
+        )
       }
 
       const updatedSettings = await settingsRes.json()

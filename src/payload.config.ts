@@ -84,18 +84,39 @@ import { tableRedirectHandler } from './endpoints/tableRedirect'
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
-const publicServerURL = process.env.PAYLOAD_PUBLIC_SERVER_URL?.trim()
+const normalizeAbsoluteURL = (value?: string | null): string => {
+  const input = value?.trim() || ''
+  if (!input) return ''
+
+  try {
+    return new URL(input).toString().replace(/\/+$/, '')
+  } catch (_error) {
+    try {
+      return new URL(`https://${input}`).toString().replace(/\/+$/, '')
+    } catch (_nestedError) {
+      return ''
+    }
+  }
+}
+
+const publicServerURL = normalizeAbsoluteURL(process.env.PAYLOAD_PUBLIC_SERVER_URL)
 const vercelURL = process.env.VERCEL_URL?.trim()
 
-const r2Env = {
+const rawR2Env = {
   S3_BUCKET: process.env.S3_BUCKET?.trim(),
   S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID?.trim(),
   S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY?.trim(),
   S3_ENDPOINT: process.env.S3_ENDPOINT?.trim(),
+  S3_REGION: process.env.S3_REGION?.trim(),
+}
+
+const r2Env = {
+  ...rawR2Env,
+  S3_ENDPOINT: normalizeAbsoluteURL(rawR2Env.S3_ENDPOINT),
   S3_REGION: process.env.S3_REGION?.trim() || 'auto',
 }
 
-const missingR2Env = Object.entries(r2Env)
+const missingR2Env = Object.entries(rawR2Env)
   .filter(([key, value]) => key !== 'S3_REGION' && !value)
   .map(([key]) => key)
 
@@ -103,6 +124,10 @@ if (missingR2Env.length > 0) {
   throw new Error(
     `[R2 config] Missing required environment variable(s): ${missingR2Env.join(', ')}`,
   )
+}
+
+if (rawR2Env.S3_ENDPOINT && !r2Env.S3_ENDPOINT) {
+  throw new Error('[R2 config] Invalid S3_ENDPOINT. Use a full URL or hostname.')
 }
 
 export default buildConfig({
