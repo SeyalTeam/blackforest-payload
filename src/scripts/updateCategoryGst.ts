@@ -4,10 +4,22 @@ import { getPayload } from 'payload'
 import config from '../payload.config'
 
 const categoryName = process.argv[2]?.trim()
-const gstValue = process.argv[3]?.trim()
+const allowedGSTValues = ['0', '5', '12', '18', '22'] as const
+type AllowedGSTValue = (typeof allowedGSTValues)[number]
+
+const normalizeGSTValue = (value?: string): AllowedGSTValue | null => {
+  const normalizedValue = value?.trim() || ''
+  return allowedGSTValues.includes(normalizedValue as AllowedGSTValue)
+    ? (normalizedValue as AllowedGSTValue)
+    : null
+}
+
+const gstValue = normalizeGSTValue(process.argv[3])
 
 if (!categoryName || !gstValue) {
-  console.error('Usage: node --import tsx src/scripts/updateCategoryGst.ts "<CATEGORY NAME>" <GST>')
+  console.error(
+    `Usage: node --import tsx src/scripts/updateCategoryGst.ts "<CATEGORY NAME>" <${allowedGSTValues.join('|')}>`,
+  )
   process.exit(1)
 }
 
