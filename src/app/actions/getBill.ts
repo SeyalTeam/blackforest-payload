@@ -37,7 +37,11 @@ export async function getBill(id: string): Promise<BillData | null> {
     const billData: BillData = {
       id: bill.id,
       invoiceNumber: bill.invoiceNumber,
+      grossAmount: bill.grossAmount,
       totalAmount: bill.totalAmount,
+      customerOfferDiscount: bill.customerOfferDiscount,
+      customerEntryPercentageOfferDiscount: bill.customerEntryPercentageOfferDiscount,
+      totalPercentageOfferDiscount: bill.totalPercentageOfferDiscount,
       items: bill.items as any,
       createdAt: bill.createdAt,
       customerDetails: bill.customerDetails,

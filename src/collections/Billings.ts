@@ -1831,6 +1831,7 @@ const Billings: CollectionConfig = {
         if (pricingData.items && Array.isArray(pricingData.items)) {
           pricingData.items = pricingData.items.map(
             (item: {
+              status?: string
               quantity: number | string
               unitPrice: number | string
               effectiveUnitPrice?: number | string
@@ -1848,10 +1849,18 @@ const Billings: CollectionConfig = {
                 typeof effectiveUnitPriceRaw === 'number' && Number.isFinite(effectiveUnitPriceRaw)
                   ? effectiveUnitPriceRaw
                   : unitPrice
+              const isCancelled = item.status === 'cancelled'
               return {
                 ...item,
-                effectiveUnitPrice: toMoneyValue(Math.max(0, effectiveUnitPrice || 0)),
-                subtotal: parseFloat(((qty || 0) * (effectiveUnitPrice || 0)).toFixed(2)),
+                effectiveUnitPrice: toMoneyValue(
+                  isCancelled ? 0 : Math.max(0, effectiveUnitPrice || 0),
+                ),
+                subtotal: parseFloat(
+                  (
+                    ((isCancelled ? 0 : qty) || 0) *
+                    ((isCancelled ? 0 : effectiveUnitPrice) || 0)
+                  ).toFixed(2),
+                ),
               }
             },
           )

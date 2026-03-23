@@ -52,7 +52,11 @@ export default async function BillPage({ params }: Args) {
   const billData: BillData = {
     id: bill.id,
     invoiceNumber: bill.invoiceNumber,
+    grossAmount: bill.grossAmount,
     totalAmount: bill.totalAmount,
+    customerOfferDiscount: bill.customerOfferDiscount,
+    customerEntryPercentageOfferDiscount: bill.customerEntryPercentageOfferDiscount,
+    totalPercentageOfferDiscount: bill.totalPercentageOfferDiscount,
     items: bill.items as any, // Type assertion for compatibility
     createdAt: bill.createdAt,
     customerDetails: bill.customerDetails,

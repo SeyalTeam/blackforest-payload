@@ -6,6 +6,7 @@ import { Product } from '@/payload-types'
 // Reusing types
 export type BillItem = {
   product?: string | Product | null
+  status?: 'ordered' | 'prepared' | 'delivered' | 'cancelled' | null
   name?: string | null
   notes?: string | null
   quantity: number
@@ -21,7 +22,11 @@ export type BillData = {
   invoiceNumber?: string | null
   createdAt?: string
   items?: BillItem[]
+  grossAmount?: number | null
   totalAmount?: number
+  customerOfferDiscount?: number | null
+  customerEntryPercentageOfferDiscount?: number | null
+  totalPercentageOfferDiscount?: number | null
   existingReviews?: {
     items?: Array<{
       product: string | Product
@@ -47,12 +52,14 @@ export type BillData = {
         name?: string
         address?: string
         phone?: string
+        gst?: string
       }
     | string
     | null
   company?:
     | {
         name?: string
+        gst?: string | null
       }
     | string
     | null
@@ -64,7 +71,72 @@ export type BillData = {
 
 import { updateCustomer } from '@/app/actions/updateCustomer'
 
-// ... existing imports
+const roundMoney = (value: number): number => Number(value.toFixed(2))
+
+const toFiniteNumber = (value: unknown): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+
+  return 0
+}
+
+const getRelationshipId = (value: unknown): string | null => {
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value
+  }
+
+  if (value && typeof value === 'object' && 'id' in value) {
+    const id = (value as { id?: unknown }).id
+    return typeof id === 'string' && id.trim().length > 0 ? id : null
+  }
+
+  return null
+}
+
+const getDisplayUnitPrice = (item: BillItem): number => {
+  if (item.isPriceOfferApplied && typeof item.effectiveUnitPrice === 'number') {
+    return item.effectiveUnitPrice
+  }
+
+  return item.unitPrice
+}
+
+const getGSTDetails = (
+  item: BillItem,
+  branchId: string | null,
+): { hsnCode: string | null; rate: number } => {
+  const product = item.product
+  if (!product || typeof product !== 'object') {
+    return { hsnCode: null, rate: 0 }
+  }
+
+  const hsnCode = typeof product.hsnCode === 'string' ? product.hsnCode : null
+  let gstRate = toFiniteNumber(product.defaultPriceDetails?.gst)
+
+  if (branchId && Array.isArray(product.branchOverrides)) {
+    const override = product.branchOverrides.find((branchOverride) => {
+      const overrideBranchId = getRelationshipId(branchOverride?.branch)
+      return overrideBranchId === branchId
+    })
+
+    if (override?.gst) {
+      gstRate = toFiniteNumber(override.gst)
+    }
+  }
+
+  return {
+    hsnCode,
+    rate: gstRate,
+  }
+}
 
 const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
   const {
@@ -72,7 +144,11 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
     invoiceNumber,
     createdAt,
     items = [],
+    grossAmount = 0,
     totalAmount = 0,
+    customerOfferDiscount = 0,
+    customerEntryPercentageOfferDiscount = 0,
+    totalPercentageOfferDiscount = 0,
     customerDetails,
     paymentMethod,
     branch,
@@ -81,6 +157,81 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
     existingReviews,
     tableDetails,
   } = data
+
+  const branchId = getRelationshipId(branch)
+  const billedItems = items.filter((item) => item.status !== 'cancelled')
+  const cancelledItems = items.filter((item) => item.status === 'cancelled')
+  const billedLineCount = billedItems.length
+  const billedQuantity = billedItems.reduce((sum, item) => sum + toFiniteNumber(item.quantity), 0)
+  const billedGrossAmount = roundMoney(
+    billedItems.reduce(
+      (sum, item) =>
+        sum +
+        toFiniteNumber(
+          item.subtotal ?? toFiniteNumber(item.quantity) * getDisplayUnitPrice(item),
+        ),
+      0,
+    ),
+  )
+  const storedGrossAmount = roundMoney(toFiniteNumber(grossAmount) || billedGrossAmount)
+  const storedDiscountAmount = roundMoney(
+    toFiniteNumber(customerOfferDiscount) +
+      toFiniteNumber(customerEntryPercentageOfferDiscount) +
+      toFiniteNumber(totalPercentageOfferDiscount),
+  )
+  const hasCancelledTotalMismatch =
+    cancelledItems.length > 0 && Math.abs(storedGrossAmount - billedGrossAmount) > 0.01
+  const displayDiscountAmount = hasCancelledTotalMismatch
+    ? roundMoney(
+        storedGrossAmount > 0
+          ? Math.min(billedGrossAmount, (storedDiscountAmount * billedGrossAmount) / storedGrossAmount)
+          : 0,
+      )
+    : roundMoney(Math.min(billedGrossAmount, storedDiscountAmount))
+  const displayTotalAmount = hasCancelledTotalMismatch
+    ? roundMoney(Math.max(0, billedGrossAmount - displayDiscountAmount))
+    : roundMoney(totalAmount)
+  const discountRatio =
+    billedGrossAmount > 0 ? Math.min(displayDiscountAmount / billedGrossAmount, 1) : 0
+  const sellerGSTIN =
+    typeof branch === 'object' && branch !== null
+      ? branch.gst || (typeof company === 'object' && company !== null ? company.gst || '' : '')
+      : typeof company === 'object' && company !== null
+        ? company.gst || ''
+        : ''
+
+  const gstSummaryMap = new Map<number, { taxableValue: number; gstAmount: number; total: number }>()
+
+  billedItems.forEach((item) => {
+    const lineTotal = toFiniteNumber(
+      item.subtotal ?? toFiniteNumber(item.quantity) * getDisplayUnitPrice(item),
+    )
+    const discountedLineTotal = roundMoney(lineTotal * (1 - discountRatio))
+    const { rate } = getGSTDetails(item, branchId)
+    const taxableValue = rate > 0 ? discountedLineTotal / (1 + rate / 100) : discountedLineTotal
+    const gstAmount = discountedLineTotal - taxableValue
+    const existing = gstSummaryMap.get(rate) || { taxableValue: 0, gstAmount: 0, total: 0 }
+
+    gstSummaryMap.set(rate, {
+      taxableValue: existing.taxableValue + taxableValue,
+      gstAmount: existing.gstAmount + gstAmount,
+      total: existing.total + discountedLineTotal,
+    })
+  })
+
+  const gstSummaryRows = Array.from(gstSummaryMap.entries())
+    .map(([rate, values]) => ({
+      rate,
+      taxableValue: roundMoney(values.taxableValue),
+      gstAmount: roundMoney(values.gstAmount),
+      total: roundMoney(values.total),
+    }))
+    .sort((left, right) => left.rate - right.rate)
+
+  const totalTaxableValue = roundMoney(
+    gstSummaryRows.reduce((sum, row) => sum + row.taxableValue, 0),
+  )
+  const totalGSTAmount = roundMoney(gstSummaryRows.reduce((sum, row) => sum + row.gstAmount, 0))
 
   // Local state for customer details (initially from props)
   const [localCustomerDetails, setLocalCustomerDetails] = useState(
@@ -220,6 +371,8 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
   }
 
   const branchName = typeof branch === 'object' ? branch?.name : 'Branch'
+  const branchAddress = typeof branch === 'object' ? branch?.address : ''
+  const branchPhone = typeof branch === 'object' ? branch?.phone : ''
 
   let creatorName = 'Staff'
   if (typeof createdBy === 'object' && createdBy !== null) {
@@ -258,15 +411,23 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
       {/* Card 1: Bill Details */}
       <div className="bill-card bill-receipt">
         <div className="bill-header">
+          <p className="bill-document-type">Tax Invoice</p>
           <h2>
             {typeof company === 'object' && company !== null ? company.name : 'THE BLACK FOREST'}
           </h2>
           {branchName && <p>{branchName}</p>}
+          {branchAddress && <p>{branchAddress}</p>}
+          {(branchPhone || sellerGSTIN) && (
+            <div className="seller-meta">
+              {branchPhone && <span>Ph: {branchPhone}</span>}
+              {sellerGSTIN && <span>GSTIN: {sellerGSTIN}</span>}
+            </div>
+          )}
         </div>
 
         <div className="bill-meta">
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Bill No: {billNoSuffix}</span>
+            <span>Invoice No: {invoiceNumber || billNoSuffix}</span>
             <span>Date: {formattedDate}</span>
             <span>Time: {formattedTime}</span>
           </div>
@@ -309,7 +470,7 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
             </tr>
           </thead>
           <tbody>
-            {items.map((item, index) => {
+            {billedItems.map((item, index) => {
               // Update types (Add this near the top or update existing BillItem definition)
               // Wait, I should not redefine it if it's already there, but I need to make sure the prop passed has the data.
               // The data is passed as `any` in page.tsx line 56, so safely accessing it inside the component is key.
@@ -317,6 +478,7 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
               // In the map function:
               const product = typeof item.product === 'object' ? (item.product as any) : null
               const productId = product?.id || (item.product as string)
+              const gstDetails = getGSTDetails(item, branchId)
 
               const department = product?.category?.department
               const departmentName = typeof department === 'object' ? department?.name : null
@@ -337,6 +499,12 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
                   <tr>
                     <td>
                       {item.name}
+                      {(gstDetails.hsnCode || gstDetails.rate > 0) && (
+                        <div className="item-meta-line">
+                          {gstDetails.hsnCode ? `HSN: ${gstDetails.hsnCode}` : 'HSN: -'}
+                          {gstDetails.rate > 0 ? ` | GST: ${gstDetails.rate}%` : ''}
+                        </div>
+                      )}
                       {item.notes && (
                         <div
                           style={{
@@ -353,7 +521,11 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
                     <td className="item-qty">
                       {item.quantity} x {displayUnitPrice}
                     </td>
-                    <td className="item-total">{item.subtotal?.toFixed(2)}</td>
+                    <td className="item-total">
+                      {toFiniteNumber(
+                        item.subtotal ?? toFiniteNumber(item.quantity) * displayUnitPrice,
+                      ).toFixed(2)}
+                    </td>
                   </tr>
 
                   {/* Review Section for specific Product - Only if allowed */}
@@ -483,14 +655,59 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
           </tbody>
         </table>
 
+        {cancelledItems.length > 0 && (
+          <div className="bill-note">
+            {cancelledItems.length} cancelled item{cancelledItems.length > 1 ? 's were' : ' was'}{' '}
+            excluded from this GST invoice summary.
+          </div>
+        )}
+
         <div className="bill-totals">
           <div>
-            <span>Total Items:</span>
-            <span>{items.length}</span>
+            <span>Billed Lines:</span>
+            <span>{billedLineCount}</span>
+          </div>
+          <div>
+            <span>Total Qty:</span>
+            <span>{billedQuantity}</span>
+          </div>
+          <div>
+            <span>Subtotal:</span>
+            <span>{billedGrossAmount.toFixed(2)}</span>
+          </div>
+          {displayDiscountAmount > 0 && (
+            <div>
+              <span>Discount:</span>
+              <span>-{displayDiscountAmount.toFixed(2)}</span>
+            </div>
+          )}
+          <div>
+            <span>Taxable Value:</span>
+            <span>{totalTaxableValue.toFixed(2)}</span>
+          </div>
+          {gstSummaryRows.map((row) => (
+            <div key={row.rate}>
+              <span>{row.rate}% GST Included:</span>
+              <span>{row.gstAmount.toFixed(2)}</span>
+            </div>
+          ))}
+          <div>
+            <span>Total GST:</span>
+            <span>{totalGSTAmount.toFixed(2)}</span>
+          </div>
+          {hasCancelledTotalMismatch && (
+            <div className="bill-note-row">
+              <span>Adjusted for cancellations</span>
+              <span>Saved total was {roundMoney(totalAmount).toFixed(2)}</span>
+            </div>
+          )}
+          <div>
+            <span>Prices:</span>
+            <span>Inclusive of GST</span>
           </div>
           <div className="grand-total">
             <span>Grand Total:</span>
-            <span>{totalAmount.toFixed(2)}</span>
+            <span>{displayTotalAmount.toFixed(2)}</span>
           </div>
         </div>
       </div>
