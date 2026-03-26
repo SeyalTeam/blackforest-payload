@@ -32,7 +32,7 @@ const run = async () => {
 
     console.log(`Total bills for the whole day (any status): ${allBills.docs.length}`)
     
-    const countByStatus = {}
+    const countByStatus: Record<string, number> = {}
     let completedSum = 0
     let completedCount = 0
 

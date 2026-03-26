@@ -32,6 +32,8 @@ const run = async () => {
         let lastTime = startOfDay
         for (const entry of closingEntries.docs) {
             const entryTime = new Date(entry.createdAt).toISOString()
+            const storedSystemSales = entry.systemSales ?? 0
+            const storedBillCount = entry.totalBills ?? 0
             const bills = await payload.find({
                 collection: 'billings',
                 where: {
@@ -47,14 +49,14 @@ const run = async () => {
             const completedBills = bills.docs.filter((b: any) => b.status === 'completed')
             const sumCompleted = completedBills.reduce((s, b: any) => s + (b.totalAmount || 0), 0)
             
-            console.log(`\n- Entry ${entry.closingNumber}: stored sales ${entry.systemSales}, count ${entry.totalBills}`)
+            console.log(`\n- Entry ${entry.closingNumber}: stored sales ${storedSystemSales}, count ${storedBillCount}`)
             console.log(`  Actual: sum of completed ₹${sumCompleted.toFixed(2)}, total count ${bills.docs.length}`)
             
-            if (Math.abs(sumCompleted - (entry.systemSales || 0)) > 0.1) {
-                console.log(`  [!] Amount Discrepancy: ₹${(sumCompleted - entry.systemSales).toFixed(2)}`)
+            if (Math.abs(sumCompleted - storedSystemSales) > 0.1) {
+                console.log(`  [!] Amount Discrepancy: ₹${(sumCompleted - storedSystemSales).toFixed(2)}`)
             }
-            if (bills.docs.length !== (entry.totalBills || 0)) {
-                console.log(`  [!] Count Discrepancy: ${bills.docs.length - entry.totalBills} bills`)
+            if (bills.docs.length !== storedBillCount) {
+                console.log(`  [!] Count Discrepancy: ${bills.docs.length - storedBillCount} bills`)
             }
 
             lastTime = entryTime
