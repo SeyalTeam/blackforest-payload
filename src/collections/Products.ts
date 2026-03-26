@@ -103,7 +103,7 @@ const Products: CollectionConfig = {
   },
   hooks: {
     beforeChange: [
-      async ({ data, req, operation, originalDoc: _originalDoc }) => {
+	      async ({ data, req, operation, originalDoc: _originalDoc }) => {
         if (operation === 'create') {
           // Generate sequential productId
           const lastProduct = await req.payload.find({
@@ -130,6 +130,15 @@ const Products: CollectionConfig = {
           }
         } else if (operation === 'update') {
           // Allow updating UPC on edit if needed
+        }
+
+        const hasExplicitOutOfStock = typeof data.isOutOfStock === 'boolean'
+        const hasExplicitIsAvailable = typeof data.isAvailable === 'boolean'
+
+        if (hasExplicitOutOfStock) {
+          data.isAvailable = !data.isOutOfStock
+        } else if (hasExplicitIsAvailable) {
+          data.isOutOfStock = !data.isAvailable
         }
 
         // Existing duplicate branch check
