@@ -235,6 +235,13 @@ const Products: CollectionConfig = {
           label: 'Is Available',
         },
         {
+          name: 'isOutOfStock',
+          type: 'checkbox',
+          defaultValue: false,
+          index: true,
+          label: 'Is Out Of Stock',
+        },
+        {
           name: 'expiryDays',
           type: 'number',
           label: 'Expiry Days',
