@@ -5,6 +5,7 @@ import type { PipelineStage } from 'mongoose'
 import { CollectionConfig, APIError, type Payload } from 'payload'
 import { getProductStock } from '../utilities/inventory'
 import { updateItemStatus } from '../endpoints/updateItemStatus'
+import { getItemPreparationTime } from '../endpoints/getItemPreparationTime'
 import {
   type AmountBasedFreeProductOfferRule,
   calculatePointsForSpend,
@@ -1399,6 +1400,11 @@ const Billings: CollectionConfig = {
     },
   ],
   endpoints: [
+    {
+      path: '/:id/items/preparation-time',
+      method: 'get',
+      handler: getItemPreparationTime,
+    },
     {
       path: '/:id/items/status',
       method: 'patch',
