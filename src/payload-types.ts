@@ -316,6 +316,14 @@ export interface Product {
   name: string;
   category: string | Category;
   dealer?: (string | null) | Dealer;
+  /**
+   * Number of days the product is valid for after production/purchase.
+   */
+  expiryDays?: number | null;
+  /**
+   * Preparation time in minutes.
+   */
+  preparationTime?: number | null;
   images?:
     | {
         image: string | Media;
@@ -329,10 +337,6 @@ export interface Product {
   isAvailable?: boolean | null;
   isStock?: boolean | null;
   isOutOfStock?: boolean | null;
-  /**
-   * Number of days the product is valid for after production/purchase.
-   */
-  expiryDays?: number | null;
   defaultPriceDetails: {
     price: number;
     rate: number;
@@ -1178,6 +1182,8 @@ export interface ProductsSelect<T extends boolean = true> {
   name?: T;
   category?: T;
   dealer?: T;
+  expiryDays?: T;
+  preparationTime?: T;
   images?:
     | T
     | {
@@ -1191,7 +1197,6 @@ export interface ProductsSelect<T extends boolean = true> {
   isAvailable?: T;
   isStock?: T;
   isOutOfStock?: T;
-  expiryDays?: T;
   defaultPriceDetails?:
     | T
     | {

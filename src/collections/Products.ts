@@ -185,6 +185,24 @@ const Products: CollectionConfig = {
       },
     },
     {
+      name: 'expiryDays',
+      type: 'number',
+      label: 'Expiry Days',
+      admin: {
+        position: 'sidebar',
+        description: 'Number of days the product is valid for after production/purchase.',
+      },
+    },
+    {
+      name: 'preparationTime',
+      type: 'number',
+      label: 'Preparation Time',
+      admin: {
+        position: 'sidebar',
+        description: 'Preparation time in minutes.',
+      },
+    },
+    {
       name: 'images',
       type: 'array',
       fields: [
@@ -256,14 +274,6 @@ const Products: CollectionConfig = {
           defaultValue: false,
           index: true,
           label: 'Is Out Of Stock',
-        },
-        {
-          name: 'expiryDays',
-          type: 'number',
-          label: 'Expiry Days',
-          admin: {
-            description: 'Number of days the product is valid for after production/purchase.',
-          },
         },
       ],
     },
