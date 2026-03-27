@@ -327,6 +327,7 @@ export interface Product {
   upc?: string | null;
   isVeg?: boolean | null;
   isAvailable?: boolean | null;
+  isStock?: boolean | null;
   isOutOfStock?: boolean | null;
   /**
    * Number of days the product is valid for after production/purchase.
@@ -1188,6 +1189,7 @@ export interface ProductsSelect<T extends boolean = true> {
   upc?: T;
   isVeg?: T;
   isAvailable?: T;
+  isStock?: T;
   isOutOfStock?: T;
   expiryDays?: T;
   defaultPriceDetails?:

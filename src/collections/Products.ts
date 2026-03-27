@@ -132,13 +132,13 @@ const Products: CollectionConfig = {
           // Allow updating UPC on edit if needed
         }
 
+        const hasExplicitStock = typeof data.isStock === 'boolean'
         const hasExplicitOutOfStock = typeof data.isOutOfStock === 'boolean'
-        const hasExplicitIsAvailable = typeof data.isAvailable === 'boolean'
 
-        if (hasExplicitOutOfStock) {
-          data.isAvailable = !data.isOutOfStock
-        } else if (hasExplicitIsAvailable) {
-          data.isOutOfStock = !data.isAvailable
+        if (hasExplicitStock) {
+          data.isOutOfStock = !data.isStock
+        } else if (hasExplicitOutOfStock) {
+          data.isStock = !data.isOutOfStock
         }
 
         // Existing duplicate branch check
@@ -242,6 +242,13 @@ const Products: CollectionConfig = {
           type: 'checkbox',
           defaultValue: true,
           label: 'Is Available',
+        },
+        {
+          name: 'isStock',
+          type: 'checkbox',
+          defaultValue: true,
+          index: true,
+          label: 'Is Stock',
         },
         {
           name: 'isOutOfStock',
