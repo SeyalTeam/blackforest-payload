@@ -18,6 +18,9 @@ interface StockStat {
   cis: number
 }
 
+const DASHBOARD_API_BASE_URL = 'https://blackforest.vseyal.com'
+const withDashboardApiBase = (path: string) => `${DASHBOARD_API_BASE_URL}${path}`
+
 // Custom Date Input Component
 const CustomInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
   ({ value, onClick }, ref) => {
@@ -42,44 +45,57 @@ CustomInput.displayName = 'CustomInput'
 const customStyles = {
   control: (base: any, state: { isFocused: boolean }) => ({
     ...base,
-    backgroundColor: 'var(--theme-input-bg, var(--theme-elevation-50))',
-    borderColor: state.isFocused ? 'var(--theme-info-500)' : 'var(--theme-elevation-200)',
-    borderRadius: '6px',
-    height: '38px',
-    minHeight: '38px',
+    backgroundColor: 'rgba(16, 36, 70, 0.9)',
+    borderColor: state.isFocused ? '#38BDF8' : 'rgba(56, 189, 248, 0.24)',
+    borderRadius: '10px',
+    height: '40px',
+    minHeight: '40px',
     minWidth: '150px',
     boxShadow: 'none',
-    color: 'var(--theme-text-primary, var(--theme-text))',
+    color: '#E8F2FF',
     '&:hover': {
-      borderColor: 'var(--theme-elevation-350)',
+      borderColor: 'rgba(56, 189, 248, 0.48)',
     },
   }),
   singleValue: (base: any) => ({
     ...base,
-    color: 'var(--theme-text-primary, var(--theme-text))',
+    color: '#E8F2FF',
     fontWeight: '500',
   }),
   option: (base: any, state: { isSelected: boolean; isFocused: boolean }) => ({
     ...base,
     backgroundColor: state.isSelected
-      ? 'var(--theme-info-500)'
+      ? '#1B365D'
       : state.isFocused
-        ? 'var(--theme-elevation-100)'
-        : 'var(--theme-input-bg, var(--theme-elevation-50))',
-    color: state.isSelected
-      ? 'var(--theme-text-invert, #fff)'
-      : 'var(--theme-text-primary, var(--theme-text))',
+        ? 'rgba(56, 189, 248, 0.2)'
+        : 'rgba(16, 36, 70, 0.95)',
+    color: '#E8F2FF',
     cursor: 'pointer',
   }),
   menu: (base: any) => ({
     ...base,
-    backgroundColor: 'var(--theme-input-bg, var(--theme-elevation-50))',
-    border: '1px solid var(--theme-elevation-150)',
+    backgroundColor: '#0B1A33',
+    border: '1px solid rgba(56, 189, 248, 0.28)',
     zIndex: 9999,
+    borderRadius: '10px',
   }),
   input: (base: any) => ({
     ...base,
-    color: 'var(--theme-text-primary, var(--theme-text))',
+    color: '#E8F2FF',
+  }),
+  placeholder: (base: any) => ({
+    ...base,
+    color: '#9AB3D8',
+  }),
+  indicatorSeparator: () => ({
+    display: 'none',
+  }),
+  dropdownIndicator: (base: any) => ({
+    ...base,
+    color: '#9AB3D8',
+    '&:hover': {
+      color: '#E8F2FF',
+    },
   }),
 }
 
@@ -109,10 +125,16 @@ const Dashboard: React.FC = () => {
     const fetchOptions = async () => {
       try {
         const [resBranches, resDepts, resCats, resProds] = await Promise.all([
-          fetch('/api/reports/branches').then((res) => res.json()),
-          fetch('/api/departments?limit=1000&sort=name').then((res) => res.json()),
-          fetch('/api/categories?limit=1000&sort=name').then((res) => res.json()),
-          fetch('/api/products?limit=1000&sort=name').then((res) => res.json()),
+          fetch(withDashboardApiBase('/api/reports/branches')).then((res) => res.json()),
+          fetch(withDashboardApiBase('/api/departments?limit=1000&sort=name')).then((res) =>
+            res.json(),
+          ),
+          fetch(withDashboardApiBase('/api/categories?limit=1000&sort=name')).then((res) =>
+            res.json(),
+          ),
+          fetch(withDashboardApiBase('/api/products?limit=1000&sort=name')).then((res) =>
+            res.json(),
+          ),
         ])
         setBranches(resBranches.docs || [])
         setDepartments(resDepts.docs || [])
@@ -178,7 +200,7 @@ const Dashboard: React.FC = () => {
       if (selectedCat) query.append('category', selectedCat)
       if (selectedProd) query.append('product', selectedProd)
 
-      const res = await fetch(`/api/dashboard-stats?${query.toString()}`)
+      const res = await fetch(withDashboardApiBase(`/api/dashboard-stats?${query.toString()}`))
       if (res.ok) {
         const data = await res.json()
         setStats(data)

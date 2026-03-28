@@ -3,6 +3,9 @@ import { GlobalConfig } from 'payload'
 export const ClosingEntryReportGlobal: GlobalConfig = {
   slug: 'closing-entry-report',
   label: 'Closing Report', // Label in the sidebar
+  access: {
+    read: () => true,
+  },
   admin: {
     group: 'Report', // Groups under "Report"
     components: {

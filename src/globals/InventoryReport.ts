@@ -3,6 +3,9 @@ import { GlobalConfig } from 'payload'
 export const InventoryReportGlobal: GlobalConfig = {
   slug: 'inventory-report',
   label: 'Inventory Report',
+  access: {
+    read: () => true,
+  },
   admin: {
     group: 'Report',
     components: {

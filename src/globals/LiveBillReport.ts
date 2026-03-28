@@ -3,6 +3,9 @@ import type { GlobalConfig } from 'payload'
 export const LiveBillReportGlobal: GlobalConfig = {
   slug: 'live-bill-report',
   label: 'Live Bill Report',
+  access: {
+    read: () => true,
+  },
   admin: {
     group: 'Report',
     components: {

@@ -1,5 +1,55 @@
 // Payload Admin Sidebar Customization
 
+// ---------------------------------------------------------------------------
+// Global Slate Theme Tokens
+// ---------------------------------------------------------------------------
+:root,
+[data-theme='dark'],
+[data-theme='light'] {
+  --bf-primary-navy: #1b365d;
+  --bf-action-blue: #38bdf8;
+  --bf-neutral-text: #0f172a;
+  --bf-success-green: #22c55e;
+  --bf-alert-red: #ef4444;
+
+  --theme-bg: #06101f;
+  --theme-elevation-0: #06101f;
+  --theme-elevation-50: #102446;
+  --theme-elevation-100: #13305c;
+  --theme-elevation-150: rgba(56, 189, 248, 0.18);
+  --theme-elevation-200: rgba(56, 189, 248, 0.24);
+  --theme-elevation-300: rgba(56, 189, 248, 0.34);
+  --theme-elevation-400: rgba(56, 189, 248, 0.44);
+  --theme-text: #dce9ff;
+  --theme-text-primary: #e8f2ff;
+  --theme-text-secondary: #9ab3d8;
+  --theme-text-invert: #0f172a;
+  --theme-border-color: rgba(56, 189, 248, 0.2);
+  --theme-input-bg: rgba(17, 35, 64, 0.9);
+  --theme-bg-input: rgba(17, 35, 64, 0.9);
+  --theme-success-500: #22c55e;
+  --theme-error-500: #ef4444;
+  --theme-info-500: #38bdf8;
+  --theme-info-750: #0ea5e9;
+}
+
+html,
+body {
+  background: #06101f !important;
+  color: var(--theme-text-primary) !important;
+}
+
+.template-default,
+.template-default__wrap,
+.template-default__gutter,
+.payload__root,
+.template-default__main,
+main,
+.collection-edit,
+.render-fields-to-table {
+  background: #06101f !important;
+}
+
 // 1. LEFT NAVIGATION BAR
 // Increase font size (16px) and width (260px)
 aside.nav,
@@ -9,6 +59,9 @@ aside.nav,
   min-width: 260px !important;
   max-width: 260px !important;
   transition: width 0.3s ease; // Smooth collapse
+  background: linear-gradient(180deg, #0a1730 0%, #081428 100%) !important;
+  border-right: 1px solid rgba(56, 189, 248, 0.2) !important;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.03);
 
   .nav__scroll {
     // Enable Flexbox to reorder groups
@@ -19,7 +72,7 @@ aside.nav,
     // --- SECTION SEPARATORS ---
     // Apply line and spacing to ALL groups (Reports, Collections, Globals, etc)
     .nav-group {
-      border-bottom: 1px solid var(--theme-elevation-150); // "add each section after line"
+      border-bottom: 1px solid rgba(56, 189, 248, 0.16); // "add each section after line"
       margin-bottom: 16px !important;
       padding-bottom: 12px;
     }
@@ -61,11 +114,19 @@ aside.nav,
     align-items: center;
     border-radius: 8px; // Rounded corners from image
     transition: all 0.2s ease;
+    color: #b8cef0 !important;
+    border: 1px solid transparent;
 
     span {
       font-size: 16px !important;
       white-space: nowrap; // Prevent wrapping
       transition: opacity 0.2s;
+    }
+
+    &:hover {
+      background: rgba(56, 189, 248, 0.12) !important;
+      color: #e6f4ff !important;
+      border-color: rgba(56, 189, 248, 0.3);
     }
 
     // ICON MIXIN
@@ -91,6 +152,16 @@ aside.nav,
       -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3C/svg%3E");
       mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3C/svg%3E");
     }
+  }
+
+  .nav__link--active,
+  .nav-group__link--active,
+  a[aria-current='page'],
+  a.active {
+    background: rgba(56, 189, 248, 0.18) !important;
+    color: #eaf6ff !important;
+    border-color: rgba(56, 189, 248, 0.4);
+    box-shadow: inset 3px 0 0 #38bdf8;
   }
 
   // --- ICONS MAPPING ---
@@ -285,8 +356,8 @@ aside.sidebar,
 }
 
 .react-datepicker {
-  background: #12161d !important;
-  border: 1px solid #303747 !important;
+  background: #0b1a33 !important;
+  border: 1px solid rgba(56, 189, 248, 0.25) !important;
   border-radius: 10px !important;
   color: #e8edf6 !important;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45) !important;
@@ -295,12 +366,12 @@ aside.sidebar,
 .react-datepicker__triangle,
 .react-datepicker__triangle::before,
 .react-datepicker__triangle::after {
-  border-bottom-color: #12161d !important;
+  border-bottom-color: #0b1a33 !important;
 }
 
 .react-datepicker__header {
-  background: #171c24 !important;
-  border-bottom: 1px solid #303747 !important;
+  background: #102446 !important;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.25) !important;
 }
 
 .react-datepicker__current-month,
@@ -312,9 +383,9 @@ aside.sidebar,
 
 .react-datepicker__month-select,
 .react-datepicker__year-select {
-  background: #212836 !important;
+  background: #15305a !important;
   color: #f1f5fb !important;
-  border: 1px solid #3b465a !important;
+  border: 1px solid rgba(56, 189, 248, 0.3) !important;
   border-radius: 6px !important;
 }
 
@@ -326,7 +397,7 @@ aside.sidebar,
 
 .react-datepicker__day:hover,
 .react-datepicker__time-list-item:hover {
-  background: #293241 !important;
+  background: rgba(56, 189, 248, 0.22) !important;
   color: #ffffff !important;
 }
 
@@ -334,7 +405,7 @@ aside.sidebar,
 .react-datepicker__day--in-selecting-range,
 .react-datepicker__day--in-range,
 .react-datepicker__time-list-item--selected {
-  background: #2f80ed !important;
+  background: #38bdf8 !important;
   color: #ffffff !important;
 }
 
