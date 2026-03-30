@@ -358,6 +358,8 @@ export interface Product {
         quantity?: number | null;
         unit?: ('pcs' | 'kg' | 'g') | null;
         gst?: ('0' | '5' | '12' | '18' | '22') | null;
+        isStock?: boolean | null;
+        isOutOfStock?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -1218,6 +1220,8 @@ export interface ProductsSelect<T extends boolean = true> {
         quantity?: T;
         unit?: T;
         gst?: T;
+        isStock?: T;
+        isOutOfStock?: T;
         id?: T;
       };
   updatedAt?: T;

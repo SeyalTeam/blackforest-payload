@@ -5,6 +5,8 @@ type BranchScopeResult = {
   errorResponse?: Response
 }
 
+const COMPANY_HIDDEN_REPORT_BRANCH_IDS = new Set<string>(['69724ad6f91273ae0b1e121f'])
+
 const toId = (value: unknown): string | null => {
   if (!value) return null
 
@@ -87,7 +89,11 @@ export const resolveReportBranchScope = async (
     pagination: false,
   })
 
-  const allowedBranchIds = companyBranches.map((branch) => branch.id)
+  // Company-level report visibility exclusions:
+  // keep specific internal branches hidden from company role reports.
+  const allowedBranchIds = companyBranches
+    .map((branch) => branch.id)
+    .filter((id) => !COMPANY_HIDDEN_REPORT_BRANCH_IDS.has(id))
 
   // Company user with explicit branch filter: enforce branch ownership.
   if (requestedBranchIds.length > 0) {

@@ -38,7 +38,6 @@ type DatePresetOption = {
 }
 
 const PAGE_SIZE = 5
-const BRANCH_BILLING_API_BASE_URL = 'https://blackforest.vseyal.com'
 
 const getDefaultDateRange = (): [Date, Date] => {
   const now = new Date()
@@ -169,9 +168,7 @@ const BranchBillingReport: React.FC = () => {
     try {
       const startStr = toLocalDateStr(start)
       const endStr = toLocalDateStr(end)
-      const res = await fetch(
-        `${BRANCH_BILLING_API_BASE_URL}/api/reports/branch-billing?startDate=${startStr}&endDate=${endStr}`,
-      )
+      const res = await fetch(`/api/reports/branch-billing?startDate=${startStr}&endDate=${endStr}`)
 
       if (!res.ok) throw new Error('Failed to fetch report')
 
@@ -195,7 +192,7 @@ const BranchBillingReport: React.FC = () => {
   useEffect(() => {
     const fetchFirstBillDate = async () => {
       try {
-        const res = await fetch(`${BRANCH_BILLING_API_BASE_URL}/api/billings?sort=createdAt&limit=1`)
+        const res = await fetch('/api/billings?sort=createdAt&limit=1')
         if (!res.ok) return
 
         const json = await res.json()
