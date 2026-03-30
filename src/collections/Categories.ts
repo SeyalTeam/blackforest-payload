@@ -92,6 +92,24 @@ const Categories: CollectionConfig = {
           if (!companyId) return false
           return { id: { equals: companyId } } as Where // Explicit cast for TS safety
         }
+        if (user?.role === 'branch') {
+          const branchId = typeof user.branch === 'string' ? user.branch : user.branch?.id
+          if (!branchId) return false
+
+          const branch = await req.payload.findByID({
+            collection: 'branches',
+            id: branchId,
+            depth: 0,
+          })
+
+          const companyId =
+            typeof branch.company === 'object' && branch.company !== null
+              ? branch.company.id
+              : (branch.company as string | undefined)
+          if (!companyId) return false
+
+          return { id: { equals: companyId } } as Where
+        }
         return false // Deny for others
       },
     },
