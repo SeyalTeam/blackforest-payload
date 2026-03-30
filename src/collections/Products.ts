@@ -141,19 +141,6 @@ const Products: CollectionConfig = {
           data.isStock = !data.isOutOfStock
         }
 
-        if (data.branchOverrides && data.branchOverrides.length > 0) {
-          for (const override of data.branchOverrides) {
-            const hasBranchStock = typeof override?.isStock === 'boolean'
-            const hasBranchOutOfStock = typeof override?.isOutOfStock === 'boolean'
-
-            if (hasBranchStock) {
-              override.isOutOfStock = !override.isStock
-            } else if (hasBranchOutOfStock) {
-              override.isStock = !override.isOutOfStock
-            }
-          }
-        }
-
         // Existing duplicate branch check
         if (data.branchOverrides && data.branchOverrides.length > 0) {
           const seenBranches = new Set()
@@ -361,6 +348,16 @@ const Products: CollectionConfig = {
       },
     },
     {
+      name: 'outOfStockBranches',
+      type: 'relationship',
+      relationTo: 'branches',
+      hasMany: true,
+      label: 'Out Of Stock Branches',
+      admin: {
+        description: 'Branches where this product should show as out of stock.',
+      },
+    },
+    {
       name: 'branchOverrides',
       type: 'array', // Overrides for specific branches (e.g., the one at ₹12)
       label: 'Branch Overrides',
@@ -419,18 +416,6 @@ const Products: CollectionConfig = {
           ],
           defaultValue: '0',
           label: 'Override GST',
-        },
-        {
-          name: 'isStock',
-          type: 'checkbox',
-          defaultValue: true,
-          label: 'Override Is Stock',
-        },
-        {
-          name: 'isOutOfStock',
-          type: 'checkbox',
-          defaultValue: false,
-          label: 'Override Is Out Of Stock',
         },
       ],
     },
