@@ -16,7 +16,9 @@ const Categories: CollectionConfig = {
   access: {
     read: () => true,
     create: ({ req }: { req: PayloadRequest }) =>
-      req.user?.role === 'superadmin' || req.user?.role === 'company',
+      req.user?.role === 'superadmin' ||
+      req.user?.role === 'company' ||
+      req.user?.role === 'branch',
     update: ({ req }: { req: PayloadRequest }) =>
       req.user?.role === 'superadmin' || req.user?.role === 'company',
     delete: ({ req }: { req: PayloadRequest }) => req.user?.role === 'superadmin',
