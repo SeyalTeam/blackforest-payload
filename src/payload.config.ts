@@ -80,6 +80,7 @@ import { AppDownloadSettings } from './globals/AppDownloadSettings'
 import { getLatestAppDownloadHandler } from './endpoints/getLatestAppDownload'
 import { generateTableQRHandler } from './endpoints/generateTableQR'
 import { tableRedirectHandler } from './endpoints/tableRedirect'
+import { StockAlerts } from './collections/StockAlerts'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -390,6 +391,7 @@ export default buildConfig({
     Kitchens,
     Attendance,
     APKFiles,
+    StockAlerts,
   ],
 
   editor: lexicalEditor(),

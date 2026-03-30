@@ -91,6 +91,7 @@ export interface Config {
     kitchens: Kitchen;
     attendance: Attendance;
     'apk-files': ApkFile;
+    'stock-alerts': StockAlert;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -121,6 +122,7 @@ export interface Config {
     kitchens: KitchensSelect<false> | KitchensSelect<true>;
     attendance: AttendanceSelect<false> | AttendanceSelect<true>;
     'apk-files': ApkFilesSelect<false> | ApkFilesSelect<true>;
+    'stock-alerts': StockAlertsSelect<false> | StockAlertsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -936,6 +938,25 @@ export interface ApkFile {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "stock-alerts".
+ */
+export interface StockAlert {
+  id: string;
+  branch: string | Branch;
+  branchName?: string | null;
+  product: string | Product;
+  productName?: string | null;
+  requestedBy: string | User;
+  requestedByName?: string | null;
+  requestedByRole?: string | null;
+  status: 'open' | 'acknowledged';
+  acknowledgedAt?: string | null;
+  acknowledgedBy?: (string | null) | User;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -1036,6 +1057,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'apk-files';
         value: string | ApkFile;
+      } | null)
+    | ({
+        relationTo: 'stock-alerts';
+        value: string | StockAlert;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1718,6 +1743,24 @@ export interface ApkFilesSelect<T extends boolean = true> {
   height?: T;
   focalX?: T;
   focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "stock-alerts_select".
+ */
+export interface StockAlertsSelect<T extends boolean = true> {
+  branch?: T;
+  branchName?: T;
+  product?: T;
+  productName?: T;
+  requestedBy?: T;
+  requestedByName?: T;
+  requestedByRole?: T;
+  status?: T;
+  acknowledgedAt?: T;
+  acknowledgedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
