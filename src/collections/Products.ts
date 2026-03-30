@@ -97,7 +97,10 @@ const Products: CollectionConfig = {
       return true
     },
     create: ({ req: { user } }) =>
-      user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'company',
+      user?.role === 'superadmin' ||
+      user?.role === 'admin' ||
+      user?.role === 'company' ||
+      user?.role === 'branch',
     update: () => true, // Made public to allow updates without authentication
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
