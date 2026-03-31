@@ -567,6 +567,22 @@ export interface Billing {
     quantity: number;
     unitPrice: number;
     subtotal: number;
+    /**
+     * GST percentage applied for this item.
+     */
+    gstRate?: number | null;
+    /**
+     * Taxable portion of this line after bill-level discounts.
+     */
+    taxableAmount?: number | null;
+    /**
+     * GST amount included in this line after bill-level discounts.
+     */
+    gstAmount?: number | null;
+    /**
+     * Final payable total for this line (inclusive of GST).
+     */
+    finalLineTotal?: number | null;
     isOfferFreeItem?: boolean | null;
     offerRuleKey?: string | null;
     offerTriggerProduct?: (string | null) | Product;
@@ -601,6 +617,14 @@ export interface Billing {
    * Final payable total after all configured discounts.
    */
   totalAmount: number;
+  /**
+   * Total taxable value across all billed products.
+   */
+  totalTaxableAmount?: number | null;
+  /**
+   * Total GST amount across all billed products.
+   */
+  totalGSTAmount?: number | null;
   branch: string | Branch;
   createdBy: string | User;
   paymentMethod?: ('cash' | 'card' | 'upi' | 'other') | null;
@@ -1412,6 +1436,10 @@ export interface BillingsSelect<T extends boolean = true> {
         quantity?: T;
         unitPrice?: T;
         subtotal?: T;
+        gstRate?: T;
+        taxableAmount?: T;
+        gstAmount?: T;
+        finalLineTotal?: T;
         isOfferFreeItem?: T;
         offerRuleKey?: T;
         offerTriggerProduct?: T;
@@ -1434,6 +1462,8 @@ export interface BillingsSelect<T extends boolean = true> {
       };
   grossAmount?: T;
   totalAmount?: T;
+  totalTaxableAmount?: T;
+  totalGSTAmount?: T;
   branch?: T;
   createdBy?: T;
   paymentMethod?: T;

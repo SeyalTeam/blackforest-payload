@@ -15,6 +15,10 @@ export type BillItem = {
   isPriceOfferApplied?: boolean | null
   priceOfferDiscountPerUnit?: number | null
   subtotal: number
+  gstRate?: number | null
+  taxableAmount?: number | null
+  gstAmount?: number | null
+  finalLineTotal?: number | null
 }
 
 export type BillData = {
@@ -27,6 +31,8 @@ export type BillData = {
   customerOfferDiscount?: number | null
   customerEntryPercentageOfferDiscount?: number | null
   totalPercentageOfferDiscount?: number | null
+  totalTaxableAmount?: number | null
+  totalGSTAmount?: number | null
   existingReviews?: {
     items?: Array<{
       product: string | Product
@@ -149,6 +155,8 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
     customerOfferDiscount = 0,
     customerEntryPercentageOfferDiscount = 0,
     totalPercentageOfferDiscount = 0,
+    totalTaxableAmount: storedTotalTaxableAmount,
+    totalGSTAmount: storedTotalGSTAmount,
     customerDetails,
     paymentMethod,
     branch,
@@ -188,9 +196,6 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
           : 0,
       )
     : roundMoney(Math.min(billedGrossAmount, storedDiscountAmount))
-  const displayTotalAmount = hasCancelledTotalMismatch
-    ? roundMoney(Math.max(0, billedGrossAmount - displayDiscountAmount))
-    : roundMoney(totalAmount)
   const discountRatio =
     billedGrossAmount > 0 ? Math.min(displayDiscountAmount / billedGrossAmount, 1) : 0
   const sellerGSTIN =
@@ -200,22 +205,57 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
         ? company.gst || ''
         : ''
 
-  const gstSummaryMap = new Map<number, { taxableValue: number; gstAmount: number; total: number }>()
-
-  billedItems.forEach((item) => {
-    const lineTotal = toFiniteNumber(
+  const itemTaxBreakdowns = billedItems.map((item) => {
+    const lineTotalFromSubtotal = toFiniteNumber(
       item.subtotal ?? toFiniteNumber(item.quantity) * getDisplayUnitPrice(item),
     )
-    const discountedLineTotal = roundMoney(lineTotal * (1 - discountRatio))
-    const { rate } = getGSTDetails(item, branchId)
-    const taxableValue = rate > 0 ? discountedLineTotal / (1 + rate / 100) : discountedLineTotal
-    const gstAmount = discountedLineTotal - taxableValue
+    const fallbackTaxableValue = roundMoney(lineTotalFromSubtotal * (1 - discountRatio))
+    const fallbackGSTDetails = getGSTDetails(item, branchId)
+    const fallbackGSTAmount = roundMoney((fallbackTaxableValue * fallbackGSTDetails.rate) / 100)
+    const fallbackFinalLineTotal = roundMoney(fallbackTaxableValue + fallbackGSTAmount)
+
+    const hasStoredBreakdown =
+      item.finalLineTotal != null || item.taxableAmount != null || item.gstAmount != null
+
+    const storedRate = toFiniteNumber(item.gstRate)
+    const storedTaxable = toFiniteNumber(item.taxableAmount)
+    const storedGST = toFiniteNumber(item.gstAmount)
+    const storedLineTotal =
+      item.finalLineTotal != null ? toFiniteNumber(item.finalLineTotal) : storedTaxable + storedGST
+
+    const lineTotal = hasStoredBreakdown ? roundMoney(storedLineTotal) : fallbackFinalLineTotal
+    const rate = hasStoredBreakdown ? storedRate : fallbackGSTDetails.rate
+    const taxableValue = hasStoredBreakdown
+      ? roundMoney(
+          item.taxableAmount != null
+            ? storedTaxable
+            : rate > 0
+              ? lineTotal / (1 + rate / 100)
+              : lineTotal,
+        )
+      : fallbackTaxableValue
+    const gstAmount = hasStoredBreakdown
+      ? roundMoney(item.gstAmount != null ? storedGST : Math.max(0, lineTotal - taxableValue))
+      : fallbackGSTAmount
+
+    return {
+      lineTotal,
+      rate,
+      taxableValue,
+      gstAmount,
+    }
+  })
+
+  const gstSummaryMap = new Map<number, { taxableValue: number; gstAmount: number; total: number }>()
+
+  itemTaxBreakdowns.forEach((itemBreakdown) => {
+    const { rate, taxableValue, gstAmount, lineTotal } = itemBreakdown
     const existing = gstSummaryMap.get(rate) || { taxableValue: 0, gstAmount: 0, total: 0 }
 
     gstSummaryMap.set(rate, {
       taxableValue: existing.taxableValue + taxableValue,
       gstAmount: existing.gstAmount + gstAmount,
-      total: existing.total + discountedLineTotal,
+      total: existing.total + lineTotal,
     })
   })
 
@@ -228,10 +268,28 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
     }))
     .sort((left, right) => left.rate - right.rate)
 
-  const totalTaxableValue = roundMoney(
+  const calculatedTotalTaxableValue = roundMoney(
     gstSummaryRows.reduce((sum, row) => sum + row.taxableValue, 0),
   )
-  const totalGSTAmount = roundMoney(gstSummaryRows.reduce((sum, row) => sum + row.gstAmount, 0))
+  const calculatedTotalGSTAmount = roundMoney(gstSummaryRows.reduce((sum, row) => sum + row.gstAmount, 0))
+  const totalTaxableValue =
+    storedTotalTaxableAmount == null
+      ? calculatedTotalTaxableValue
+      : roundMoney(toFiniteNumber(storedTotalTaxableAmount))
+  const totalGSTAmount =
+    storedTotalGSTAmount == null ? calculatedTotalGSTAmount : roundMoney(toFiniteNumber(storedTotalGSTAmount))
+  const calculatedGrandTotal = roundMoney(itemTaxBreakdowns.reduce((sum, row) => sum + row.lineTotal, 0))
+  const hasStoredGSTBreakdown =
+    storedTotalGSTAmount != null ||
+    billedItems.some(
+      (item) =>
+        item.finalLineTotal != null || item.taxableAmount != null || item.gstAmount != null,
+    )
+  const displayTotalAmount = hasCancelledTotalMismatch
+    ? calculatedGrandTotal
+    : hasStoredGSTBreakdown
+      ? roundMoney(totalAmount)
+      : calculatedGrandTotal
 
   // Local state for customer details (initially from props)
   const [localCustomerDetails, setLocalCustomerDetails] = useState(
@@ -471,14 +529,15 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
           </thead>
           <tbody>
             {billedItems.map((item, index) => {
-              // Update types (Add this near the top or update existing BillItem definition)
-              // Wait, I should not redefine it if it's already there, but I need to make sure the prop passed has the data.
-              // The data is passed as `any` in page.tsx line 56, so safely accessing it inside the component is key.
-
-              // In the map function:
               const product = typeof item.product === 'object' ? (item.product as any) : null
               const productId = product?.id || (item.product as string)
               const gstDetails = getGSTDetails(item, branchId)
+              const itemTax = itemTaxBreakdowns[index] || {
+                rate: 0,
+                taxableValue: 0,
+                gstAmount: 0,
+                lineTotal: 0,
+              }
 
               const department = product?.category?.department
               const departmentName = typeof department === 'object' ? department?.name : null
@@ -499,12 +558,16 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
                   <tr>
                     <td>
                       {item.name}
-                      {(gstDetails.hsnCode || gstDetails.rate > 0) && (
+                      {(gstDetails.hsnCode || itemTax.rate > 0) && (
                         <div className="item-meta-line">
                           {gstDetails.hsnCode ? `HSN: ${gstDetails.hsnCode}` : 'HSN: -'}
-                          {gstDetails.rate > 0 ? ` | GST: ${gstDetails.rate}%` : ''}
+                          {itemTax.rate > 0 ? ` | GST: ${itemTax.rate}%` : ''}
                         </div>
                       )}
+                      <div className="item-meta-line">
+                        Taxable: {itemTax.taxableValue.toFixed(2)} | GST Amt: {itemTax.gstAmount.toFixed(2)} |
+                        Total: {itemTax.lineTotal.toFixed(2)}
+                      </div>
                       {item.notes && (
                         <div
                           style={{
@@ -522,9 +585,7 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
                       {item.quantity} x {displayUnitPrice}
                     </td>
                     <td className="item-total">
-                      {toFiniteNumber(
-                        item.subtotal ?? toFiniteNumber(item.quantity) * displayUnitPrice,
-                      ).toFixed(2)}
+                      {itemTax.lineTotal.toFixed(2)}
                     </td>
                   </tr>
 
@@ -692,7 +753,7 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
             </div>
           ))}
           <div>
-            <span>Total GST:</span>
+            <span>All Products GST Total:</span>
             <span>{totalGSTAmount.toFixed(2)}</span>
           </div>
           {hasCancelledTotalMismatch && (
@@ -703,10 +764,10 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
           )}
           <div>
             <span>Prices:</span>
-            <span>Inclusive of GST</span>
+            <span>GST Added Extra</span>
           </div>
           <div className="grand-total">
-            <span>Grand Total:</span>
+            <span>All Products Total:</span>
             <span>{displayTotalAmount.toFixed(2)}</span>
           </div>
         </div>

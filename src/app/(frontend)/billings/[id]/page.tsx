@@ -57,6 +57,8 @@ export default async function BillPage({ params }: Args) {
     customerOfferDiscount: bill.customerOfferDiscount,
     customerEntryPercentageOfferDiscount: bill.customerEntryPercentageOfferDiscount,
     totalPercentageOfferDiscount: bill.totalPercentageOfferDiscount,
+    totalTaxableAmount: (bill as any).totalTaxableAmount,
+    totalGSTAmount: (bill as any).totalGSTAmount,
     items: bill.items as any, // Type assertion for compatibility
     createdAt: bill.createdAt,
     customerDetails: bill.customerDetails,

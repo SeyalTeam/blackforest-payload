@@ -199,6 +199,10 @@ type BillingItemInput = {
   priceOfferDiscountPerUnit?: number
   priceOfferAppliedUnits?: number
   effectiveUnitPrice?: number
+  gstRate?: number
+  taxableAmount?: number
+  gstAmount?: number
+  finalLineTotal?: number
   isRandomCustomerOfferItem?: boolean
   randomCustomerOfferCampaignCode?: string
   isAmountBasedFreeOfferItem?: boolean
@@ -262,6 +266,138 @@ const getPositiveNumericValue = (value: unknown): number => {
   }
 
   return 0
+}
+
+const getNumericValue = (value: unknown): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+
+  return 0
+}
+
+const clampPercentage = (value: unknown): number => {
+  return Math.max(0, Math.min(100, getNumericValue(value)))
+}
+
+type ProductGSTInput = {
+  defaultPriceDetails?: {
+    gst?: unknown
+  } | null
+  branchOverrides?: Array<{
+    branch?: unknown
+    gst?: unknown
+  } | null> | null
+}
+
+const getGSTRateFromProduct = (product: ProductGSTInput | null, branchID: string | null): number => {
+  if (!product) {
+    return 0
+  }
+
+  let gstRate = clampPercentage(product.defaultPriceDetails?.gst)
+
+  if (branchID && Array.isArray(product.branchOverrides)) {
+    const override = product.branchOverrides.find(
+      (row) => getRelationshipID(row?.branch) === branchID && row?.gst != null,
+    )
+    if (override?.gst != null) {
+      gstRate = clampPercentage(override.gst)
+    }
+  }
+
+  return toMoneyValue(gstRate)
+}
+
+type BillingGSTBreakdown = {
+  items: BillingItemInput[]
+  totalTaxableAmount: number
+  totalGSTAmount: number
+}
+
+const computeBillingGSTBreakdown = async (
+  payload: Payload,
+  items: BillingItemInput[],
+  branchID: string | null,
+  totalDiscountAmount: number,
+): Promise<BillingGSTBreakdown> => {
+  if (!Array.isArray(items) || items.length === 0) {
+    return {
+      items: [],
+      totalTaxableAmount: 0,
+      totalGSTAmount: 0,
+    }
+  }
+
+  const itemLineTotals = items.map((item) =>
+    item.status === 'cancelled' ? 0 : toSafeNonNegativeNumber(item.subtotal),
+  )
+  const grossLineTotal = itemLineTotals.reduce((sum, lineTotal) => sum + lineTotal, 0)
+  const normalizedDiscount = Math.min(grossLineTotal, toSafeNonNegativeNumber(totalDiscountAmount))
+  const discountRatio = grossLineTotal > 0 ? normalizedDiscount / grossLineTotal : 0
+
+  const productIDs = [
+    ...new Set(
+      items
+        .map((item) => getRelationshipID(item.product))
+        .filter((productID): productID is string => Boolean(productID)),
+    ),
+  ]
+
+  const productCache = new Map<string, ProductGSTInput | null>()
+  await Promise.all(
+    productIDs.map(async (productID) => {
+      try {
+        const product = (await payload.findByID({
+          collection: 'products',
+          id: productID,
+          depth: 0,
+          overrideAccess: true,
+        })) as ProductGSTInput
+        productCache.set(productID, product)
+      } catch {
+        productCache.set(productID, null)
+      }
+    }),
+  )
+
+  let totalTaxableAmount = 0
+  let totalGSTAmount = 0
+
+  const updatedItems = items.map((item) => {
+    const taxableBeforeDiscount =
+      item.status === 'cancelled' ? 0 : toSafeNonNegativeNumber(item.subtotal)
+    const taxableAmount = toMoneyValue(taxableBeforeDiscount * (1 - discountRatio))
+    const productID = getRelationshipID(item.product)
+    const productDoc = productID ? (productCache.get(productID) ?? null) : null
+    const gstRate = getGSTRateFromProduct(productDoc, branchID)
+    const gstAmount = toMoneyValue((taxableAmount * gstRate) / 100)
+    const finalLineTotal = toMoneyValue(taxableAmount + gstAmount)
+
+    totalTaxableAmount += taxableAmount
+    totalGSTAmount += gstAmount
+
+    return {
+      ...item,
+      gstRate,
+      taxableAmount,
+      gstAmount,
+      finalLineTotal,
+    }
+  })
+
+  return {
+    items: updatedItems,
+    totalTaxableAmount: toMoneyValue(totalTaxableAmount),
+    totalGSTAmount: toMoneyValue(totalGSTAmount),
+  }
 }
 
 const normalizePhoneNumber = (value: unknown): string | null => {
@@ -2161,14 +2297,27 @@ const Billings: CollectionConfig = {
         )
         pricingData.totalPercentageOfferApplied = totalPercentageOfferApplied
         pricingData.totalPercentageOfferDiscount = toMoneyValue(totalPercentageOfferDiscount)
+        const billingItemsForTax = Array.isArray(pricingData.items)
+          ? (pricingData.items as BillingItemInput[])
+          : Array.isArray((originalDoc as any)?.items)
+            ? ((originalDoc as any).items as BillingItemInput[])
+            : []
+        const totalDiscountAmount = toMoneyValue(
+          pricingData.customerOfferDiscount +
+            pricingData.customerEntryPercentageOfferDiscount +
+            pricingData.totalPercentageOfferDiscount,
+        )
+        const gstBreakdown = await computeBillingGSTBreakdown(
+          req.payload,
+          billingItemsForTax,
+          branchID,
+          totalDiscountAmount,
+        )
+        pricingData.items = gstBreakdown.items
+        pricingData.totalTaxableAmount = gstBreakdown.totalTaxableAmount
+        pricingData.totalGSTAmount = gstBreakdown.totalGSTAmount
         pricingData.totalAmount = toMoneyValue(
-          Math.max(
-            0,
-            pricingData.grossAmount -
-              pricingData.customerOfferDiscount -
-              pricingData.customerEntryPercentageOfferDiscount -
-              pricingData.totalPercentageOfferDiscount,
-          ),
+          gstBreakdown.totalTaxableAmount + gstBreakdown.totalGSTAmount,
         )
 
         return data
@@ -3083,6 +3232,43 @@ const Billings: CollectionConfig = {
           admin: { readOnly: true },
         },
         {
+          name: 'gstRate',
+          type: 'number',
+          min: 0,
+          max: 100,
+          admin: {
+            readOnly: true,
+            description: 'GST percentage applied for this item.',
+          },
+        },
+        {
+          name: 'taxableAmount',
+          type: 'number',
+          min: 0,
+          admin: {
+            readOnly: true,
+            description: 'Taxable portion of this line after bill-level discounts.',
+          },
+        },
+        {
+          name: 'gstAmount',
+          type: 'number',
+          min: 0,
+          admin: {
+            readOnly: true,
+            description: 'GST amount included in this line after bill-level discounts.',
+          },
+        },
+        {
+          name: 'finalLineTotal',
+          type: 'number',
+          min: 0,
+          admin: {
+            readOnly: true,
+            description: 'Final payable total for this line (inclusive of GST).',
+          },
+        },
+        {
           name: 'isOfferFreeItem',
           type: 'checkbox',
           defaultValue: false,
@@ -3240,6 +3426,24 @@ const Billings: CollectionConfig = {
       admin: {
         readOnly: true,
         description: 'Final payable total after all configured discounts.',
+      },
+    },
+    {
+      name: 'totalTaxableAmount',
+      type: 'number',
+      min: 0,
+      admin: {
+        readOnly: true,
+        description: 'Total taxable value across all billed products.',
+      },
+    },
+    {
+      name: 'totalGSTAmount',
+      type: 'number',
+      min: 0,
+      admin: {
+        readOnly: true,
+        description: 'Total GST amount across all billed products.',
       },
     },
     {

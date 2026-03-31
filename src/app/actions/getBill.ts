@@ -42,6 +42,8 @@ export async function getBill(id: string): Promise<BillData | null> {
       customerOfferDiscount: bill.customerOfferDiscount,
       customerEntryPercentageOfferDiscount: bill.customerEntryPercentageOfferDiscount,
       totalPercentageOfferDiscount: bill.totalPercentageOfferDiscount,
+      totalTaxableAmount: (bill as any).totalTaxableAmount,
+      totalGSTAmount: (bill as any).totalGSTAmount,
       items: bill.items as any,
       createdAt: bill.createdAt,
       customerDetails: bill.customerDetails,
