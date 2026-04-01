@@ -28,6 +28,8 @@ export type BillData = {
   items?: BillItem[]
   grossAmount?: number | null
   totalAmount?: number
+  totalAmountBeforeRoundOff?: number | null
+  roundOffAmount?: number | null
   customerOfferDiscount?: number | null
   customerEntryPercentageOfferDiscount?: number | null
   totalPercentageOfferDiscount?: number | null
@@ -152,6 +154,8 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
     items = [],
     grossAmount = 0,
     totalAmount = 0,
+    totalAmountBeforeRoundOff: storedTotalAmountBeforeRoundOff,
+    roundOffAmount: storedRoundOffAmount,
     customerOfferDiscount = 0,
     customerEntryPercentageOfferDiscount = 0,
     totalPercentageOfferDiscount = 0,
@@ -279,17 +283,22 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
   const totalGSTAmount =
     storedTotalGSTAmount == null ? calculatedTotalGSTAmount : roundMoney(toFiniteNumber(storedTotalGSTAmount))
   const calculatedGrandTotal = roundMoney(itemTaxBreakdowns.reduce((sum, row) => sum + row.lineTotal, 0))
-  const hasStoredGSTBreakdown =
-    storedTotalGSTAmount != null ||
-    billedItems.some(
-      (item) =>
-        item.finalLineTotal != null || item.taxableAmount != null || item.gstAmount != null,
-    )
+  const calculatedRoundedTotal = Math.ceil(calculatedGrandTotal)
+  const hasStoredRoundOffValues =
+    storedTotalAmountBeforeRoundOff != null || storedRoundOffAmount != null
   const displayTotalAmount = hasCancelledTotalMismatch
-    ? calculatedGrandTotal
-    : hasStoredGSTBreakdown
+    ? calculatedRoundedTotal
+    : hasStoredRoundOffValues
       ? roundMoney(totalAmount)
-      : calculatedGrandTotal
+      : calculatedRoundedTotal
+  const displayTotalBeforeRoundOff =
+    storedTotalAmountBeforeRoundOff == null
+      ? calculatedGrandTotal
+      : roundMoney(toFiniteNumber(storedTotalAmountBeforeRoundOff))
+  const displayRoundOffAmount =
+    storedRoundOffAmount == null
+      ? roundMoney(Math.max(0, displayTotalAmount - displayTotalBeforeRoundOff))
+      : roundMoney(toFiniteNumber(storedRoundOffAmount))
 
   // Local state for customer details (initially from props)
   const [localCustomerDetails, setLocalCustomerDetails] = useState(
@@ -748,7 +757,7 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
           </div>
           {gstSummaryRows.map((row) => (
             <div key={row.rate}>
-              <span>{row.rate}% GST Included:</span>
+              <span>{row.rate}% GST:</span>
               <span>{row.gstAmount.toFixed(2)}</span>
             </div>
           ))}
@@ -756,6 +765,16 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
             <span>All Products GST Total:</span>
             <span>{totalGSTAmount.toFixed(2)}</span>
           </div>
+          <div>
+            <span>Total Before Round Off:</span>
+            <span>{displayTotalBeforeRoundOff.toFixed(2)}</span>
+          </div>
+          {displayRoundOffAmount > 0 && (
+            <div>
+              <span>Round Off:</span>
+              <span>+{displayRoundOffAmount.toFixed(2)}</span>
+            </div>
+          )}
           {hasCancelledTotalMismatch && (
             <div className="bill-note-row">
               <span>Adjusted for cancellations</span>
@@ -768,7 +787,7 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
           </div>
           <div className="grand-total">
             <span>All Products Total:</span>
-            <span>{displayTotalAmount.toFixed(2)}</span>
+            <span>{displayTotalAmount.toFixed(0)}</span>
           </div>
         </div>
       </div>

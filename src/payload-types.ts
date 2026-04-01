@@ -618,6 +618,14 @@ export interface Billing {
    */
   totalAmount: number;
   /**
+   * Final payable amount before rupee round-off.
+   */
+  totalAmountBeforeRoundOff?: number | null;
+  /**
+   * Round-up difference added to final amount.
+   */
+  roundOffAmount?: number | null;
+  /**
    * Total taxable value across all billed products.
    */
   totalTaxableAmount?: number | null;
@@ -1462,6 +1470,8 @@ export interface BillingsSelect<T extends boolean = true> {
       };
   grossAmount?: T;
   totalAmount?: T;
+  totalAmountBeforeRoundOff?: T;
+  roundOffAmount?: T;
   totalTaxableAmount?: T;
   totalGSTAmount?: T;
   branch?: T;

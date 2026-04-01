@@ -91,6 +91,14 @@ const toMoneyValue = (value: number): number => {
   return parseFloat(value.toFixed(2))
 }
 
+const roundUpToRupee = (value: number): number => {
+  return Math.ceil(toSafeNonNegativeNumber(value))
+}
+
+const getRoundOffAmount = (roundedValue: number, originalValue: number): number => {
+  return toMoneyValue(Math.max(0, roundedValue - toSafeNonNegativeNumber(originalValue)))
+}
+
 const wait = async (ms: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, ms)
@@ -2316,8 +2324,13 @@ const Billings: CollectionConfig = {
         pricingData.items = gstBreakdown.items
         pricingData.totalTaxableAmount = gstBreakdown.totalTaxableAmount
         pricingData.totalGSTAmount = gstBreakdown.totalGSTAmount
-        pricingData.totalAmount = toMoneyValue(
+        pricingData.totalAmountBeforeRoundOff = toMoneyValue(
           gstBreakdown.totalTaxableAmount + gstBreakdown.totalGSTAmount,
+        )
+        pricingData.totalAmount = roundUpToRupee(pricingData.totalAmountBeforeRoundOff)
+        pricingData.roundOffAmount = getRoundOffAmount(
+          pricingData.totalAmount,
+          pricingData.totalAmountBeforeRoundOff,
         )
 
         return data
@@ -3426,6 +3439,24 @@ const Billings: CollectionConfig = {
       admin: {
         readOnly: true,
         description: 'Final payable total after all configured discounts.',
+      },
+    },
+    {
+      name: 'totalAmountBeforeRoundOff',
+      type: 'number',
+      min: 0,
+      admin: {
+        readOnly: true,
+        description: 'Final payable amount before rupee round-off.',
+      },
+    },
+    {
+      name: 'roundOffAmount',
+      type: 'number',
+      min: 0,
+      admin: {
+        readOnly: true,
+        description: 'Round-up difference added to final amount.',
       },
     },
     {
