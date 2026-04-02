@@ -604,6 +604,7 @@ export interface Billing {
     orderedAt?: string | null;
     confirmedAt?: string | null;
     preparedAt?: string | null;
+    preparedBy?: (string | null) | User;
     deliveredAt?: string | null;
     cancelledAt?: string | null;
     branchOverride?: boolean | null;
@@ -1463,6 +1464,7 @@ export interface BillingsSelect<T extends boolean = true> {
         orderedAt?: T;
         confirmedAt?: T;
         preparedAt?: T;
+        preparedBy?: T;
         deliveredAt?: T;
         cancelledAt?: T;
         branchOverride?: T;

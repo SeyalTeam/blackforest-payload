@@ -3,6 +3,10 @@ import { PayloadHandler } from 'payload'
 export const updateItemStatus: PayloadHandler = async (req): Promise<Response> => {
   const { payload, json } = req
   const { id } = req.routeParams as { id: string }
+  const actingUserID =
+    req.user && typeof req.user === 'object' && 'id' in req.user && req.user.id
+      ? String(req.user.id)
+      : null
 
   try {
     if (!json) {
@@ -81,6 +85,7 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
           ...item,
           status: newStatus,
           [`${newStatus}At`]: now,
+          ...(newStatus === 'prepared' && actingUserID ? { preparedBy: actingUserID } : {}),
         }
       }
       return item

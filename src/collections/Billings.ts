@@ -3405,6 +3405,12 @@ const Billings: CollectionConfig = {
           admin: { readOnly: true, position: 'sidebar' },
         },
         {
+          name: 'preparedBy',
+          type: 'relationship',
+          relationTo: 'users',
+          admin: { readOnly: true, position: 'sidebar' },
+        },
+        {
           name: 'deliveredAt',
           type: 'text',
           admin: { readOnly: true, position: 'sidebar' },
