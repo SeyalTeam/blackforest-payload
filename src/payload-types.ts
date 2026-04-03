@@ -647,7 +647,7 @@ export interface Billing {
     phoneNumber?: string | null;
     address?: string | null;
   };
-  status?: ('ordered' | 'prepared' | 'delivered' | 'completed' | 'cancelled') | null;
+  status?: ('ordered' | 'prepared' | 'delivered' | 'completed' | 'settled' | 'cancelled') | null;
   customerOfferApplied?: boolean | null;
   customerOfferDiscount?: number | null;
   customerEntryPercentageOfferApplied?: boolean | null;

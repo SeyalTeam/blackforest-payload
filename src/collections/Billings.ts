@@ -91,6 +91,10 @@ const toMoneyValue = (value: number): number => {
   return parseFloat(value.toFixed(2))
 }
 
+const isBillingFinalizedStatus = (status: string | null | undefined): boolean => {
+  return status === 'completed' || status === 'settled'
+}
+
 const roundUpToRupee = (value: number): number => {
   return Math.ceil(toSafeNonNegativeNumber(value))
 }
@@ -728,7 +732,7 @@ const computeRewardSnapshotFromCompletedHistory = async (
           } as any,
           {
             status: {
-              equals: 'completed',
+              in: ['completed', 'settled'],
             },
           },
         ],
@@ -1128,7 +1132,7 @@ const applyAmountBasedFreeProductOffer = async (
     return manualItems
   }
 
-  if (status === 'completed' && existingAmountBasedItem && existingAmountBasedProductID) {
+  if (isBillingFinalizedStatus(status) && existingAmountBasedItem && existingAmountBasedProductID) {
     const productNameMap = await getProductNameMap(payload, [existingAmountBasedProductID])
     const productName =
       productNameMap[existingAmountBasedProductID] || 'Amount Based Free Product'
@@ -1246,7 +1250,7 @@ const applyRandomCustomerProductOffer = async (
     return nonRandomOfferItems
   }
 
-  if (status === 'completed' && existingRandomOfferItem && existingRandomOfferProductID) {
+  if (isBillingFinalizedStatus(status) && existingRandomOfferItem && existingRandomOfferProductID) {
     const productNameMap = await getProductNameMap(payload, [existingRandomOfferProductID])
     const productName = productNameMap[existingRandomOfferProductID] || 'Random Offer Product'
     const existingCampaignCode =
@@ -1483,7 +1487,7 @@ const applyConfiguredItemOffers = async (
       )
     : baseItems
 
-  if (status === 'completed' && existingSingleOfferType) {
+  if (isBillingFinalizedStatus(status) && existingSingleOfferType) {
     if (
       existingSingleOfferType === 'product-to-product' &&
       hasProductToProductOfferApplied(productToProductItems)
@@ -1535,7 +1539,8 @@ const Billings: CollectionConfig = {
     read: () => true,
     create: ({ req: { user } }) => user?.role != null && ['branch', 'waiter'].includes(user.role),
     update: ({ req: { user } }) =>
-      user?.role != null && ['branch', 'waiter', 'superadmin'].includes(user.role),
+      user?.role != null &&
+      ['branch', 'waiter', 'cashier', 'supervisor', 'superadmin'].includes(user.role),
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   indexes: [
@@ -1666,6 +1671,25 @@ const Billings: CollectionConfig = {
         }
         if (data.status === 'confirmed') {
           data.status = 'prepared'
+        }
+
+        if (operation === 'update' && data.status === 'settled') {
+          const previousStatus = typeof originalDoc?.status === 'string' ? originalDoc.status : null
+          const nextPaymentMethod =
+            typeof (data as { paymentMethod?: unknown }).paymentMethod === 'string'
+              ? (data as { paymentMethod?: string }).paymentMethod
+              : typeof (originalDoc as { paymentMethod?: unknown } | undefined)?.paymentMethod ===
+                    'string'
+                ? ((originalDoc as { paymentMethod?: string }).paymentMethod ?? '')
+                : ''
+
+          if (!['completed', 'settled'].includes(previousStatus || '')) {
+            throw new APIError('Bill can be settled only after it is completed.', 400)
+          }
+
+          if (!nextPaymentMethod) {
+            throw new APIError('Payment method is required before settling the bill.', 400)
+          }
         }
 
         // 🍱 Map item statuses for backward compatibility
@@ -1890,7 +1914,7 @@ const Billings: CollectionConfig = {
         if (
           operation === 'create' ||
           (operation === 'update' &&
-            data.status === 'completed' &&
+            isBillingFinalizedStatus(data.status) &&
             ['ordered', 'confirmed', 'prepared', 'delivered', 'pending'].includes(
               originalDoc?.status || '',
             ))
@@ -1910,7 +1934,7 @@ const Billings: CollectionConfig = {
 
           const needsNewNumber =
             operation === 'create' ||
-            (data.status === 'completed' && wasKOT && currentInvoiceNumber?.includes('-KOT')) ||
+            (isBillingFinalizedStatus(data.status) && wasKOT && currentInvoiceNumber?.includes('-KOT')) ||
             !currentInvoiceNumber
 
           if (needsNewNumber && (data.branch || originalDoc?.branch)) {
@@ -2055,7 +2079,7 @@ const Billings: CollectionConfig = {
         )
         const hasCustomerPhone = Boolean(normalizedPhoneNumber)
 
-        if (effectiveStatus === 'completed') {
+        if (isBillingFinalizedStatus(effectiveStatus)) {
           let settingsCache: CustomerRewardSettings | null = null
           const getSettings = async (): Promise<CustomerRewardSettings> => {
             if (!settingsCache) {
@@ -2272,7 +2296,7 @@ const Billings: CollectionConfig = {
         }
 
         // Preview Offer 6 before completion
-        if (effectiveStatus !== 'completed' && effectiveStatus !== 'cancelled') {
+        if (!isBillingFinalizedStatus(effectiveStatus) && effectiveStatus !== 'cancelled') {
           const settings = await getCustomerRewardSettings(req.payload)
           const canUseCustomerEntryPercentageOffer = isOfferAllowedByOrderType(
             isTableOrder,
@@ -2429,7 +2453,7 @@ const Billings: CollectionConfig = {
               }
 
               const randomOfferItem =
-                doc.status === 'completed' && Array.isArray(doc.items)
+                isBillingFinalizedStatus(doc.status) && Array.isArray(doc.items)
                   ? (doc.items as any[]).find((item) => item?.isRandomCustomerOfferItem)
                   : undefined
 
@@ -2623,7 +2647,7 @@ const Billings: CollectionConfig = {
 
               const shouldProcessOfferCounters =
                 !skipOfferCounterProcessing &&
-                doc.status === 'completed' &&
+                isBillingFinalizedStatus(doc.status) &&
                 !Boolean((doc as any).offerCountersProcessed)
 
               if (shouldProcessOfferCounters) {
@@ -3041,7 +3065,7 @@ const Billings: CollectionConfig = {
 
               const shouldProcessRewards =
                 !skipCustomerRewardProcessing &&
-                doc.status === 'completed' &&
+                isBillingFinalizedStatus(doc.status) &&
                 !Boolean((doc as any).customerRewardProcessed)
 
               if (shouldProcessRewards) {
@@ -3166,6 +3190,16 @@ const Billings: CollectionConfig = {
       unique: true,
       required: true,
       admin: { readOnly: true },
+    },
+    {
+      name: 'billDetailView',
+      type: 'ui',
+      admin: {
+        position: 'sidebar',
+        components: {
+          Field: '/components/BillDetailView/index.tsx#default',
+        },
+      },
     },
     {
       name: 'kotNumber',
@@ -3552,6 +3586,7 @@ const Billings: CollectionConfig = {
         { label: 'Prepared', value: 'prepared' },
         { label: 'Delivered', value: 'delivered' },
         { label: 'Completed', value: 'completed' },
+        { label: 'Settled', value: 'settled' },
         { label: 'Cancelled', value: 'cancelled' },
       ],
     },
@@ -3665,16 +3700,6 @@ const Billings: CollectionConfig = {
         },
       ],
       admin: {
-        position: 'sidebar',
-      },
-    },
-    {
-      name: 'billDetailView',
-      type: 'ui',
-      admin: {
-        components: {
-          Field: '/components/BillDetailView/index.tsx#default',
-        },
         position: 'sidebar',
       },
     },
