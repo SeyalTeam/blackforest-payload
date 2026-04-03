@@ -103,6 +103,62 @@ const getRoundOffAmount = (roundedValue: number, originalValue: number): number 
   return toMoneyValue(Math.max(0, roundedValue - toSafeNonNegativeNumber(originalValue)))
 }
 
+const normalizeBillingItemStatus = (status: unknown): 'ordered' | 'prepared' | 'delivered' | 'cancelled' => {
+  if (status === 'cancelled') return 'cancelled'
+  if (status === 'delivered') return 'delivered'
+  if (status === 'prepared' || status === 'preparing' || status === 'confirmed') return 'prepared'
+  return 'ordered'
+}
+
+const areAllBillingItemsCancelled = (items: unknown): boolean => {
+  if (!Array.isArray(items) || items.length === 0) {
+    return false
+  }
+
+  return items.every((item) => {
+    return (
+      Boolean(item && typeof item === 'object') &&
+      normalizeBillingItemStatus((item as { status?: unknown }).status) === 'cancelled'
+    )
+  })
+}
+
+const deriveBillStatusFromItems = (
+  items: unknown,
+  isTableOrder: boolean,
+): 'ordered' | 'prepared' | 'delivered' | 'cancelled' | null => {
+  if (!Array.isArray(items) || items.length === 0) {
+    return null
+  }
+
+  if (areAllBillingItemsCancelled(items)) {
+    return 'cancelled'
+  }
+
+  if (!isTableOrder) {
+    return null
+  }
+
+  const activeItemStatuses = items
+    .filter((item): item is { status?: unknown } => Boolean(item && typeof item === 'object'))
+    .map((item) => normalizeBillingItemStatus(item.status))
+    .filter((status) => status !== 'cancelled')
+
+  if (activeItemStatuses.length === 0) {
+    return 'cancelled'
+  }
+
+  if (activeItemStatuses.every((status) => status === 'delivered')) {
+    return 'delivered'
+  }
+
+  if (activeItemStatuses.every((status) => status === 'prepared' || status === 'delivered')) {
+    return 'prepared'
+  }
+
+  return 'ordered'
+}
+
 const wait = async (ms: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, ms)
@@ -1703,6 +1759,20 @@ const Billings: CollectionConfig = {
             }
             return item
           })
+        }
+
+        const incomingOverallStatus =
+          typeof data.status === 'string'
+            ? data.status
+            : typeof originalDoc?.status === 'string'
+              ? originalDoc.status
+              : null
+
+        if (!isBillingFinalizedStatus(incomingOverallStatus)) {
+          const derivedStatus = deriveBillStatusFromItems(data.items, hasTableDetails)
+          if (derivedStatus) {
+            data.status = derivedStatus
+          }
         }
 
         const mutableValidateData = data as { items?: BillingItemInput[]; status?: string }

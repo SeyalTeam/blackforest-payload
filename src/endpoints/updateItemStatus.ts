@@ -18,6 +18,14 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
     const itemId = body.itemId || body.id
     const status = body.status
 
+    const hasTableOrderValue = (value: unknown): boolean => {
+      if (value == null) return false
+      if (typeof value === 'string') return value.trim().length > 0
+      if (typeof value === 'number') return Number.isFinite(value)
+      if (typeof value === 'boolean') return value
+      return true
+    }
+
     if (!itemId) {
       return Response.json({ error: 'Missing itemId (or id)' }, { status: 400 })
     }
@@ -99,12 +107,54 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
       return Response.json({ error: transitionError }, { status: 400 })
     }
 
+    const isTableOrderBill =
+      hasTableOrderValue((bill as { section?: unknown }).section) ||
+      hasTableOrderValue((bill as { tableNumber?: unknown }).tableNumber) ||
+      hasTableOrderValue((bill as { tableDetails?: { section?: unknown } | null }).tableDetails?.section) ||
+      hasTableOrderValue(
+        (bill as { tableDetails?: { tableNumber?: unknown } | null }).tableDetails?.tableNumber,
+      )
+
+    const normalizedUpdatedItemStatuses = updatedItems
+      .filter((item): item is { status?: string } => Boolean(item && typeof item === 'object'))
+      .map((item) => normalizeStatus(item.status))
+    const isBillFinalized =
+      (bill as { status?: unknown }).status === 'completed' ||
+      (bill as { status?: unknown }).status === 'settled'
+
+    const allCancelled =
+      normalizedUpdatedItemStatuses.length > 0 &&
+      normalizedUpdatedItemStatuses.every((itemStatus) => itemStatus === 'cancelled')
+
+    const activeStatuses = normalizedUpdatedItemStatuses.filter((itemStatus) => itemStatus !== 'cancelled')
+    const allDelivered = activeStatuses.length > 0 && activeStatuses.every((itemStatus) => itemStatus === 'delivered')
+    const allPreparedOrDelivered =
+      activeStatuses.length > 0 &&
+      activeStatuses.every((itemStatus) => itemStatus === 'prepared' || itemStatus === 'delivered')
+
+    let nextBillStatus: 'ordered' | 'prepared' | 'delivered' | 'cancelled' | null = null
+
+    if (!isBillFinalized) {
+      if (allCancelled) {
+        nextBillStatus = 'cancelled'
+      } else if (isTableOrderBill) {
+        if (allDelivered) {
+          nextBillStatus = 'delivered'
+        } else if (allPreparedOrDelivered) {
+          nextBillStatus = 'prepared'
+        } else {
+          nextBillStatus = 'ordered'
+        }
+      }
+    }
+
     // 3. Save the updated bill
     const updatedBill = await payload.update({
       collection: 'billings',
       id,
       data: {
         items: updatedItems,
+        ...(nextBillStatus ? { status: nextBillStatus } : {}),
       },
       context: {
         // Status-only updates should not rerun offer/reward/inventory workflows.
