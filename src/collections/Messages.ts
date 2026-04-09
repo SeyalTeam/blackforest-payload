@@ -7,6 +7,39 @@ import {
   normalizeRelationshipID,
 } from '../utilities/messaging'
 
+type MessageType = 'text' | 'image' | 'video'
+
+const resolveAttachmentMessageType = (attachment: any): MessageType | null => {
+  if (attachment?.attachmentType === 'image' || attachment?.attachmentType === 'video') {
+    return attachment.attachmentType
+  }
+
+  const mimeType = typeof attachment?.mimeType === 'string' ? attachment.mimeType.toLowerCase() : ''
+
+  if (mimeType.startsWith('image/')) return 'image'
+  if (mimeType.startsWith('video/')) return 'video'
+
+  return null
+}
+
+const getThreadPreviewText = (doc: any): string => {
+  const trimmedText = typeof doc?.text === 'string' ? doc.text.trim() : ''
+
+  if (trimmedText) {
+    return trimmedText
+  }
+
+  if (doc?.messageType === 'image') {
+    return 'Image'
+  }
+
+  if (doc?.messageType === 'video') {
+    return 'Video'
+  }
+
+  return 'Message'
+}
+
 const prepareMessageForCreate = async ({ data, req }: any) => {
   const user = req.user as any
 
@@ -47,9 +80,43 @@ const prepareMessageForCreate = async ({ data, req }: any) => {
   }
 
   const trimmedText = typeof data?.text === 'string' ? data.text.trim() : ''
+  const attachmentID = normalizeRelationshipID(data?.attachment)
+  let messageType: MessageType = 'text'
 
-  if (!trimmedText) {
-    throw new Error('Message text cannot be empty.')
+  if (attachmentID) {
+    const attachment = await req.payload.findByID({
+      collection: 'message-attachments',
+      id: attachmentID,
+      depth: 0,
+      overrideAccess: true,
+    })
+
+    if (!attachment) {
+      throw new Error('Attachment not found.')
+    }
+
+    if (normalizeRelationshipID(attachment.thread) !== threadID) {
+      throw new Error('Attachment does not belong to this conversation.')
+    }
+
+    if (
+      normalizeRelationshipID(attachment.staffUser) !== staffUserID ||
+      normalizeRelationshipID(attachment.employee) !== employeeID
+    ) {
+      throw new Error('Attachment participant mismatch.')
+    }
+
+    const attachmentType = resolveAttachmentMessageType(attachment)
+
+    if (!attachmentType) {
+      throw new Error('Only image and video attachments are supported.')
+    }
+
+    messageType = attachmentType
+  }
+
+  if (!trimmedText && !attachmentID) {
+    throw new Error('Message must include text, an image, or a video.')
   }
 
   const latestMessage = await req.payload.find({
@@ -72,6 +139,8 @@ const prepareMessageForCreate = async ({ data, req }: any) => {
   data.senderUser = user.id
   data.senderRole = user.role
   data.recipientAudience = getMessagingAudienceForUser(user) === 'admins' ? 'staff' : 'admins'
+  data.messageType = messageType
+  data.attachment = attachmentID || null
   data.text = trimmedText
 
   return data
@@ -95,7 +164,7 @@ const createInitialReceiptAndUpdateThread = async ({ doc, operation, req }: any)
     id: normalizeRelationshipID(doc.thread) as string,
     data: {
       lastMessageAt: createdAt,
-      lastMessageText: doc.text,
+      lastMessageText: getThreadPreviewText(doc),
       lastMessageByUser: normalizeRelationshipID(doc.senderUser),
       lastMessageByRole: doc.senderRole,
       ...threadUpdate,
@@ -125,8 +194,8 @@ const createInitialReceiptAndUpdateThread = async ({ doc, operation, req }: any)
 export const Messages: CollectionConfig = {
   slug: 'messages',
   admin: {
-    useAsTitle: 'text',
-    defaultColumns: ['thread', 'seq', 'senderUser', 'senderRole', 'createdAt'],
+    useAsTitle: 'messageType',
+    defaultColumns: ['thread', 'seq', 'senderUser', 'senderRole', 'messageType', 'createdAt'],
   },
   access: {
     create: ({ req }) => canAccessMessaging(req.user as any),
@@ -219,9 +288,35 @@ export const Messages: CollectionConfig = {
       },
     },
     {
+      name: 'messageType',
+      type: 'select',
+      options: [
+        { label: 'Text', value: 'text' },
+        { label: 'Image', value: 'image' },
+        { label: 'Video', value: 'video' },
+      ],
+      required: true,
+      index: true,
+      admin: {
+        readOnly: true,
+      },
+    },
+    {
+      name: 'attachment',
+      type: 'relationship',
+      relationTo: 'message-attachments',
+      index: true,
+      admin: {
+        description: 'Attach an uploaded image or video for this message.',
+      },
+    },
+    {
       name: 'text',
       type: 'textarea',
-      required: true,
+      required: false,
+      admin: {
+        description: 'Optional text or caption. Required when no attachment is provided.',
+      },
     },
   ],
   timestamps: true,

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import './index.scss' // reusing the same scss or creating new one? Let's assume we can reuse basic table styles if they are global or in a similar scss.
 // However, the prompt implies "follow same table ui in product wise".
 // ProductWise has its own index.scss. I should probably create one or reuse it.
@@ -10,6 +10,8 @@ import './index.scss' // reusing the same scss or creating new one? Let's assume
 import Select from 'react-select'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
+import { getBill } from '@/app/actions/getBill'
+import BillReceipt, { BillData } from '@/components/BillReceipt'
 
 type CustomerStat = {
   sNo: number
@@ -18,6 +20,8 @@ type CustomerStat = {
   totalBills: number
   totalAmount: number
   lastPurchasingDate: string
+  billId?: string
+  billIds?: string[]
   branchName?: string
   waiterName?: string
 }
@@ -28,6 +32,75 @@ type ReportData = {
   stats: CustomerStat[]
 }
 
+type ReportBranch = {
+  id: string
+  name: string
+}
+
+type ReportWaiter = {
+  id: string
+  name?: string | null
+}
+
+const BillModal: React.FC<{
+  billData: BillData | null
+  loading: boolean
+  customerName: string
+  customerPhone: string
+  currentIndex: number
+  totalBills: number
+  hasPrev: boolean
+  hasNext: boolean
+  onPrev: () => void
+  onNext: () => void
+  onNavigatorWheel: (event: React.WheelEvent<HTMLDivElement>) => void
+  onClose: () => void
+}> = ({
+  billData,
+  loading,
+  customerName,
+  customerPhone,
+  currentIndex,
+  totalBills,
+  hasPrev,
+  hasNext,
+  onPrev,
+  onNext,
+  onNavigatorWheel,
+  onClose,
+}) => {
+  if (!billData && !loading) return null
+
+  return (
+    <div className="bill-modal-overlay" onClick={onClose}>
+      <div className="bill-modal-content" onClick={(event) => event.stopPropagation()}>
+        <div className="bill-modal-toolbar" onWheel={onNavigatorWheel}>
+          <div className="bill-modal-customer">
+            <strong>{customerName?.toUpperCase() || 'CUSTOMER'}</strong>
+            <span>{customerPhone}</span>
+          </div>
+          <div className="bill-modal-navigation">
+            <button type="button" onClick={onPrev} disabled={loading || !hasPrev}>
+              Prev
+            </button>
+            <span className="bill-modal-counter">
+              {totalBills > 0 ? `${currentIndex + 1} / ${totalBills}` : '0 / 0'}
+            </span>
+            <button type="button" onClick={onNext} disabled={loading || !hasNext}>
+              Next
+            </button>
+          </div>
+        </div>
+        {loading ? (
+          <div className="bill-modal-loading">Loading Bill...</div>
+        ) : (
+          billData && <BillReceipt data={billData} />
+        )}
+      </div>
+    </div>
+  )
+}
+
 const AfterstockCustomerReport: React.FC = () => {
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()])
   const [startDate, endDate] = dateRange
@@ -36,12 +109,20 @@ const AfterstockCustomerReport: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const [branches, setBranches] = useState<any[]>([])
+  const [branches, setBranches] = useState<ReportBranch[]>([])
   const [selectedBranch, setSelectedBranch] = useState('all')
-  const [waiters, setWaiters] = useState<any[]>([])
+  const [waiters, setWaiters] = useState<ReportWaiter[]>([])
   const [selectedWaiter, setSelectedWaiter] = useState('all')
 
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [selectedBill, setSelectedBill] = useState<BillData | null>(null)
+  const [loadingBill, setLoadingBill] = useState(false)
+  const [selectedBillIDs, setSelectedBillIDs] = useState<string[]>([])
+  const [selectedBillIndex, setSelectedBillIndex] = useState(0)
+  const [activeCustomerName, setActiveCustomerName] = useState('')
+  const [activeCustomerPhone, setActiveCustomerPhone] = useState('')
+  const billFetchTokenRef = useRef(0)
+  const billNavigatorWheelLockRef = useRef(0)
 
   const toLocalDateStr = (d: Date) => {
     const year = d.getFullYear()
@@ -53,6 +134,79 @@ const AfterstockCustomerReport: React.FC = () => {
   const formatValue = (val: number) => {
     const fixed = val.toFixed(2)
     return fixed.endsWith('.00') ? fixed.slice(0, -3) : fixed
+  }
+
+  const loadBillAtIndex = async (billIDs: string[], index: number) => {
+    if (!billIDs[index]) return
+
+    const fetchToken = billFetchTokenRef.current + 1
+    billFetchTokenRef.current = fetchToken
+    setLoadingBill(true)
+    setSelectedBill(null)
+
+    try {
+      const bill = await getBill(billIDs[index])
+      if (billFetchTokenRef.current !== fetchToken) return
+      if (!bill) {
+        alert('Unable to load bill details')
+        return
+      }
+      setSelectedBill(bill)
+      setSelectedBillIndex(index)
+    } catch (billError) {
+      if (billFetchTokenRef.current !== fetchToken) return
+      console.error('Failed to fetch bill details', billError)
+      alert('Failed to load bill details')
+    } finally {
+      if (billFetchTokenRef.current === fetchToken) {
+        setLoadingBill(false)
+      }
+    }
+  }
+
+  const handleCustomerRowClick = async (row: CustomerStat) => {
+    const billIDs =
+      Array.isArray(row.billIds) && row.billIds.length > 0
+        ? row.billIds
+        : row.billId
+          ? [row.billId]
+          : []
+
+    if (billIDs.length === 0) {
+      alert('Bill details are not available for this customer.')
+      return
+    }
+
+    setActiveCustomerName(row.customerName || '')
+    setActiveCustomerPhone(row.phoneNumber || '')
+    setSelectedBillIDs(billIDs)
+    setSelectedBillIndex(0)
+
+    await loadBillAtIndex(billIDs, 0)
+  }
+
+  const handleBillStep = async (step: -1 | 1) => {
+    if (loadingBill || selectedBillIDs.length === 0) return
+    const nextIndex = selectedBillIndex + step
+    if (nextIndex < 0 || nextIndex >= selectedBillIDs.length) return
+    await loadBillAtIndex(selectedBillIDs, nextIndex)
+  }
+
+  const handleBillNavigatorWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    if (loadingBill || selectedBillIDs.length <= 1) return
+    if (Math.abs(event.deltaY) < 20) return
+
+    event.preventDefault()
+
+    const now = Date.now()
+    if (now - billNavigatorWheelLockRef.current < 250) return
+    billNavigatorWheelLockRef.current = now
+
+    if (event.deltaY > 0) {
+      void handleBillStep(1)
+    } else {
+      void handleBillStep(-1)
+    }
   }
 
   useEffect(() => {
@@ -118,17 +272,20 @@ const AfterstockCustomerReport: React.FC = () => {
         'S.NO',
         'CUSTOMER NAME',
         'PHONE NUMBER',
+        'STATUS',
         'TOTAL BILLS',
         'TOTAL AMOUNT',
         'LAST PURCHASING DATE',
       ].join(','),
     )
     data.stats.forEach((row) => {
+      const customerStatus = row.totalBills > 1 ? 'Existing' : 'New'
       csvRows.push(
         [
           row.sNo,
           `"${row.customerName}"`,
           `"${row.phoneNumber}"`,
+          customerStatus,
           row.totalBills,
           row.totalAmount,
           `"${new Date(row.lastPurchasingDate).toLocaleString()}"`,
@@ -371,6 +528,7 @@ const AfterstockCustomerReport: React.FC = () => {
                 <th style={{ width: '50px' }}>S.NO</th>
                 <th>CUSTOMER NAME</th>
                 <th>PHONE NUMBER</th>
+                <th>STATUS</th>
                 <th>BRANCH</th>
                 <th>WAITER</th>
                 <th style={{ textAlign: 'right' }}>TOTAL BILLS</th>
@@ -379,25 +537,70 @@ const AfterstockCustomerReport: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {data.stats.map((row) => (
-                <tr key={row.sNo}>
-                  <td>{row.sNo}</td>
-                  <td>{row.customerName?.toUpperCase()}</td>
-                  <td>{row.phoneNumber}</td>
-                  <td>{row.branchName?.toUpperCase()}</td>
-                  <td>{row.waiterName?.toUpperCase()}</td>
-                  <td style={{ textAlign: 'right', fontWeight: '600' }}>{row.totalBills}</td>
-                  <td style={{ textAlign: 'right', fontWeight: '600', fontSize: '1.1rem' }}>
-                    {formatValue(row.totalAmount)}
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    {new Date(row.lastPurchasingDate).toLocaleString()}
-                  </td>
-                </tr>
-              ))}
+              {data.stats.map((row) => {
+                const canViewBill = Boolean(
+                  (Array.isArray(row.billIds) && row.billIds.length > 0) || row.billId,
+                )
+                const customerStatus = row.totalBills > 1 ? 'Existing' : 'New'
+                return (
+                  <tr
+                    key={`${row.sNo}-${row.phoneNumber}`}
+                    className={canViewBill ? 'customer-row customer-row--clickable' : 'customer-row'}
+                    onClick={canViewBill ? () => void handleCustomerRowClick(row) : undefined}
+                    title={canViewBill ? 'Click to view latest bill' : 'Bill unavailable'}
+                  >
+                    <td>{row.sNo}</td>
+                    <td>{row.customerName?.toUpperCase()}</td>
+                    <td>{row.phoneNumber}</td>
+                    <td
+                      className={
+                        customerStatus === 'Existing'
+                          ? 'customer-status customer-status--existing'
+                          : 'customer-status customer-status--new'
+                      }
+                    >
+                      {customerStatus}
+                    </td>
+                    <td>{row.branchName?.toUpperCase()}</td>
+                    <td>{row.waiterName?.toUpperCase()}</td>
+                    <td style={{ textAlign: 'right', fontWeight: '600' }}>{row.totalBills}</td>
+                    <td style={{ textAlign: 'right', fontWeight: '600', fontSize: '1.1rem' }}>
+                      {formatValue(row.totalAmount)}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      {new Date(row.lastPurchasingDate).toLocaleString()}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
+      )}
+
+      {(selectedBill || loadingBill) && (
+        <BillModal
+          billData={selectedBill}
+          loading={loadingBill}
+          customerName={activeCustomerName}
+          customerPhone={activeCustomerPhone}
+          currentIndex={selectedBillIndex}
+          totalBills={selectedBillIDs.length}
+          hasPrev={selectedBillIndex > 0}
+          hasNext={selectedBillIndex < selectedBillIDs.length - 1}
+          onPrev={() => void handleBillStep(-1)}
+          onNext={() => void handleBillStep(1)}
+          onNavigatorWheel={handleBillNavigatorWheel}
+          onClose={() => {
+            billFetchTokenRef.current += 1
+            setSelectedBill(null)
+            setLoadingBill(false)
+            setSelectedBillIDs([])
+            setSelectedBillIndex(0)
+            setActiveCustomerName('')
+            setActiveCustomerPhone('')
+          }}
+        />
       )}
     </div>
   )

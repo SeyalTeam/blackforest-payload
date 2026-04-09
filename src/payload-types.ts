@@ -77,6 +77,7 @@ export interface Config {
     dealers: Dealer;
     employees: Employee;
     'message-threads': MessageThread;
+    'message-attachments': MessageAttachment;
     messages: Message;
     'message-receipts': MessageReceipt;
     billings: Billing;
@@ -108,6 +109,7 @@ export interface Config {
     dealers: DealersSelect<false> | DealersSelect<true>;
     employees: EmployeesSelect<false> | EmployeesSelect<true>;
     'message-threads': MessageThreadsSelect<false> | MessageThreadsSelect<true>;
+    'message-attachments': MessageAttachmentsSelect<false> | MessageAttachmentsSelect<true>;
     messages: MessagesSelect<false> | MessagesSelect<true>;
     'message-receipts': MessageReceiptsSelect<false> | MessageReceiptsSelect<true>;
     billings: BillingsSelect<false> | BillingsSelect<true>;
@@ -515,6 +517,34 @@ export interface MessageThread {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "message-attachments".
+ */
+export interface MessageAttachment {
+  id: string;
+  thread: string | MessageThread;
+  staffUser: string | User;
+  employee: string | Employee;
+  uploadedBy: string | User;
+  attachmentType: 'image' | 'video';
+  /**
+   * Optional accessibility text for images.
+   */
+  alt?: string | null;
+  prefix?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "messages".
  */
 export interface Message {
@@ -526,7 +556,15 @@ export interface Message {
   senderUser: string | User;
   senderRole: string;
   recipientAudience: 'admins' | 'staff';
-  text: string;
+  messageType: 'text' | 'image' | 'video';
+  /**
+   * Attach an uploaded image or video for this message.
+   */
+  attachment?: (string | null) | MessageAttachment;
+  /**
+   * Optional text or caption. Required when no attachment is provided.
+   */
+  text?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1036,6 +1074,10 @@ export interface PayloadLockedDocument {
         value: string | MessageThread;
       } | null)
     | ({
+        relationTo: 'message-attachments';
+        value: string | MessageAttachment;
+      } | null)
+    | ({
         relationTo: 'messages';
         value: string | Message;
       } | null)
@@ -1394,6 +1436,30 @@ export interface MessageThreadsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "message-attachments_select".
+ */
+export interface MessageAttachmentsSelect<T extends boolean = true> {
+  thread?: T;
+  staffUser?: T;
+  employee?: T;
+  uploadedBy?: T;
+  attachmentType?: T;
+  alt?: T;
+  prefix?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "messages_select".
  */
 export interface MessagesSelect<T extends boolean = true> {
@@ -1404,6 +1470,8 @@ export interface MessagesSelect<T extends boolean = true> {
   senderUser?: T;
   senderRole?: T;
   recipientAudience?: T;
+  messageType?: T;
+  attachment?: T;
   text?: T;
   updatedAt?: T;
   createdAt?: T;

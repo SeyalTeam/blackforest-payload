@@ -21,6 +21,7 @@ import Billings from './collections/Billings'
 import { MessageThreads } from './collections/MessageThreads'
 import { Messages } from './collections/Messages'
 import { MessageReceipts } from './collections/MessageReceipts'
+import { MessageAttachments } from './collections/MessageAttachments'
 import ReturnOrder from './collections/ReturnOrder'
 import ClosingEntries from './collections/ClosingEntries'
 import Expenses from './collections/Expenses'
@@ -377,6 +378,7 @@ export default buildConfig({
     Dealers,
     Employees,
     MessageThreads,
+    MessageAttachments,
     Messages,
     MessageReceipts,
     Billings,
@@ -424,6 +426,9 @@ export default buildConfig({
       collections: {
         media: {
           prefix: 'blackforest/uploads',
+        },
+        'message-attachments': {
+          prefix: 'blackforest/uploads/messages',
         },
         'apk-files': {
           prefix: 'blackforest/uploads/apk',

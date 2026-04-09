@@ -81,6 +81,8 @@ export const getAfterstockCustomerReportHandler: PayloadHandler = async (
           _id: '$customerDetails.phoneNumber',
           customerName: { $first: '$customerDetails.name' },
           phoneNumber: { $first: '$customerDetails.phoneNumber' },
+          billId: { $first: '$_id' },
+          billIds: { $push: '$_id' },
           totalBills: { $sum: 1 },
           totalAmount: { $sum: '$totalAmount' },
           lastPurchasingDate: { $max: '$createdAt' },
@@ -124,6 +126,8 @@ export const getAfterstockCustomerReportHandler: PayloadHandler = async (
           _id: 0,
           customerName: 1,
           phoneNumber: 1,
+          billId: 1,
+          billIds: 1,
           totalBills: 1,
           totalAmount: 1,
           lastPurchasingDate: 1,
@@ -140,6 +144,12 @@ export const getAfterstockCustomerReportHandler: PayloadHandler = async (
       sNo: index + 1,
       customerName: stat.customerName || 'Unknown',
       phoneNumber: stat.phoneNumber,
+      billId: stat.billId ? String(stat.billId) : undefined,
+      billIds: Array.isArray(stat.billIds)
+        ? stat.billIds
+            .map((billID) => (billID ? String(billID) : ''))
+            .filter((billID) => billID.length > 0)
+        : [],
       branchName: stat.branchName || 'N/A',
       waiterName: stat.waiterName || 'N/A',
       totalBills: stat.totalBills,
