@@ -147,8 +147,8 @@ export const getAfterstockCustomerReportHandler: PayloadHandler = async (
       billId: stat.billId ? String(stat.billId) : undefined,
       billIds: Array.isArray(stat.billIds)
         ? stat.billIds
-            .map((billID) => (billID ? String(billID) : ''))
-            .filter((billID) => billID.length > 0)
+            .map((billID: unknown) => (billID ? String(billID) : ''))
+            .filter((billID: string) => billID.length > 0)
         : [],
       branchName: stat.branchName || 'N/A',
       waiterName: stat.waiterName || 'N/A',
