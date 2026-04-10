@@ -96,6 +96,40 @@ const toFiniteNumber = (value: unknown): number => {
   return 0
 }
 
+const toPaiseValue = (value: number): number => Math.max(0, Math.round(toFiniteNumber(value) * 100))
+
+const fromPaiseValue = (paise: number): number => roundMoney(Math.max(0, paise) / 100)
+
+const splitGSTFromInclusiveLine = (
+  lineTotalInclusiveInPaise: number,
+  gstRate: number,
+): {
+  taxableInPaise: number
+  gstInPaise: number
+  cgstInPaise: number
+  sgstInPaise: number
+} => {
+  const normalizedLineTotalInPaise = Math.max(0, lineTotalInclusiveInPaise)
+  const normalizedRate = Math.max(0, toFiniteNumber(gstRate))
+  const taxableInPaise =
+    normalizedRate > 0
+      ? Math.min(
+          normalizedLineTotalInPaise,
+          Math.max(0, Math.round((normalizedLineTotalInPaise * 100) / (100 + normalizedRate))),
+        )
+      : normalizedLineTotalInPaise
+  const gstInPaise = normalizedLineTotalInPaise - taxableInPaise
+  const cgstInPaise = Math.floor(gstInPaise / 2)
+  const sgstInPaise = gstInPaise - cgstInPaise
+
+  return {
+    taxableInPaise,
+    gstInPaise: cgstInPaise + sgstInPaise,
+    cgstInPaise,
+    sgstInPaise,
+  }
+}
+
 const getRelationshipId = (value: unknown): string | null => {
   if (typeof value === 'string' && value.trim().length > 0) {
     return value
@@ -175,33 +209,79 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
   const cancelledItems = items.filter((item) => item.status === 'cancelled')
   const billedLineCount = billedItems.length
   const billedQuantity = billedItems.reduce((sum, item) => sum + toFiniteNumber(item.quantity), 0)
-  const billedGrossAmount = roundMoney(
-    billedItems.reduce(
-      (sum, item) =>
-        sum +
-        toFiniteNumber(
-          item.subtotal ?? toFiniteNumber(item.quantity) * getDisplayUnitPrice(item),
-        ),
-      0,
-    ),
+  const billedLineTotalsInPaise = billedItems.map((item) =>
+    toPaiseValue(toFiniteNumber(item.subtotal ?? toFiniteNumber(item.quantity) * getDisplayUnitPrice(item))),
   )
-  const storedGrossAmount = roundMoney(toFiniteNumber(grossAmount) || billedGrossAmount)
-  const storedDiscountAmount = roundMoney(
+  const billedGrossAmountInPaise = billedLineTotalsInPaise.reduce((sum, lineTotal) => sum + lineTotal, 0)
+  const billedGrossAmount = fromPaiseValue(billedGrossAmountInPaise)
+  const storedGrossAmountInPaise = toPaiseValue(toFiniteNumber(grossAmount) || billedGrossAmount)
+  const storedDiscountAmountInPaise = toPaiseValue(
     toFiniteNumber(customerOfferDiscount) +
       toFiniteNumber(customerEntryPercentageOfferDiscount) +
       toFiniteNumber(totalPercentageOfferDiscount),
   )
   const hasCancelledTotalMismatch =
-    cancelledItems.length > 0 && Math.abs(storedGrossAmount - billedGrossAmount) > 0.01
-  const displayDiscountAmount = hasCancelledTotalMismatch
-    ? roundMoney(
-        storedGrossAmount > 0
-          ? Math.min(billedGrossAmount, (storedDiscountAmount * billedGrossAmount) / storedGrossAmount)
-          : 0,
-      )
-    : roundMoney(Math.min(billedGrossAmount, storedDiscountAmount))
-  const discountRatio =
-    billedGrossAmount > 0 ? Math.min(displayDiscountAmount / billedGrossAmount, 1) : 0
+    cancelledItems.length > 0 &&
+    Math.abs(storedGrossAmountInPaise - billedGrossAmountInPaise) > 1
+  const displayDiscountAmountInPaise = hasCancelledTotalMismatch
+    ? storedGrossAmountInPaise > 0
+      ? Math.min(
+          billedGrossAmountInPaise,
+          Math.round((storedDiscountAmountInPaise * billedGrossAmountInPaise) / storedGrossAmountInPaise),
+        )
+      : 0
+    : Math.min(billedGrossAmountInPaise, storedDiscountAmountInPaise)
+  const displayDiscountAmount = fromPaiseValue(displayDiscountAmountInPaise)
+
+  const distributeDiscountAcrossLines = (
+    lineTotalsInPaise: number[],
+    discountInPaise: number,
+  ): number[] => {
+    const discounts = lineTotalsInPaise.map(() => 0)
+    if (discountInPaise <= 0) return discounts
+
+    const grossInPaise = lineTotalsInPaise.reduce((sum, lineTotal) => sum + lineTotal, 0)
+    if (grossInPaise <= 0) return discounts
+
+    type Share = { index: number; remainder: number }
+    const shares: Share[] = []
+    let assignedDiscountInPaise = 0
+
+    lineTotalsInPaise.forEach((lineTotalInPaise, index) => {
+      if (lineTotalInPaise <= 0) return
+
+      const rawShare = (discountInPaise * lineTotalInPaise) / grossInPaise
+      const baseShare = Math.floor(rawShare)
+      discounts[index] = baseShare
+      assignedDiscountInPaise += baseShare
+      shares.push({ index, remainder: rawShare - baseShare })
+    })
+
+    const remainingInPaise = discountInPaise - assignedDiscountInPaise
+    if (remainingInPaise <= 0 || shares.length === 0) return discounts
+
+    shares.sort((left, right) => right.remainder - left.remainder)
+
+    for (let offset = 0; offset < remainingInPaise; offset += 1) {
+      const share = shares[offset % shares.length]
+      if (!share) continue
+
+      const index = share.index
+      if (discounts[index] < lineTotalsInPaise[index]) {
+        discounts[index] += 1
+      }
+    }
+
+    return discounts
+  }
+
+  const billedLineDiscountsInPaise = distributeDiscountAcrossLines(
+    billedLineTotalsInPaise,
+    displayDiscountAmountInPaise,
+  )
+  const fallbackLineTotalsInclusiveInPaise = billedLineTotalsInPaise.map((lineTotalInPaise, index) =>
+    Math.max(0, lineTotalInPaise - (billedLineDiscountsInPaise[index] || 0)),
+  )
   const sellerGSTIN =
     typeof branch === 'object' && branch !== null
       ? branch.gst || (typeof company === 'object' && company !== null ? company.gst || '' : '')
@@ -209,81 +289,92 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
         ? company.gst || ''
         : ''
 
-  const itemTaxBreakdowns = billedItems.map((item) => {
-    const lineTotalFromSubtotal = toFiniteNumber(
-      item.subtotal ?? toFiniteNumber(item.quantity) * getDisplayUnitPrice(item),
-    )
-    const fallbackTaxableValue = roundMoney(lineTotalFromSubtotal * (1 - discountRatio))
+  const itemTaxBreakdowns = billedItems.map((item, index) => {
     const fallbackGSTDetails = getGSTDetails(item, branchId)
-    const fallbackGSTAmount = roundMoney((fallbackTaxableValue * fallbackGSTDetails.rate) / 100)
-    const fallbackFinalLineTotal = roundMoney(fallbackTaxableValue + fallbackGSTAmount)
+    const fallbackLineTotalInPaise = fallbackLineTotalsInclusiveInPaise[index] || 0
+    const fallbackSplit = splitGSTFromInclusiveLine(fallbackLineTotalInPaise, fallbackGSTDetails.rate)
 
     const hasStoredBreakdown =
       item.finalLineTotal != null || item.taxableAmount != null || item.gstAmount != null
 
     const storedRate = toFiniteNumber(item.gstRate)
-    const storedTaxable = toFiniteNumber(item.taxableAmount)
-    const storedGST = toFiniteNumber(item.gstAmount)
-    const storedLineTotal =
-      item.finalLineTotal != null ? toFiniteNumber(item.finalLineTotal) : storedTaxable + storedGST
+    const storedTaxableInPaise = toPaiseValue(toFiniteNumber(item.taxableAmount))
+    const storedGSTInPaise = toPaiseValue(toFiniteNumber(item.gstAmount))
+    const storedLineTotalInPaise =
+      item.finalLineTotal != null
+        ? toPaiseValue(toFiniteNumber(item.finalLineTotal))
+        : Math.max(0, storedTaxableInPaise + storedGSTInPaise)
 
-    const lineTotal = hasStoredBreakdown ? roundMoney(storedLineTotal) : fallbackFinalLineTotal
     const rate = hasStoredBreakdown ? storedRate : fallbackGSTDetails.rate
-    const taxableValue = hasStoredBreakdown
-      ? roundMoney(
-          item.taxableAmount != null
-            ? storedTaxable
-            : rate > 0
-              ? lineTotal / (1 + rate / 100)
-              : lineTotal,
-        )
-      : fallbackTaxableValue
-    const gstAmount = hasStoredBreakdown
-      ? roundMoney(item.gstAmount != null ? storedGST : Math.max(0, lineTotal - taxableValue))
-      : fallbackGSTAmount
+    const lineTotalInPaise = hasStoredBreakdown ? storedLineTotalInPaise : fallbackLineTotalInPaise
+    const inferredTaxableInPaise = splitGSTFromInclusiveLine(lineTotalInPaise, rate).taxableInPaise
+    const taxableInPaise = hasStoredBreakdown
+      ? item.taxableAmount != null
+        ? Math.min(lineTotalInPaise, Math.max(0, storedTaxableInPaise))
+        : item.gstAmount != null
+          ? Math.min(lineTotalInPaise, Math.max(0, lineTotalInPaise - storedGSTInPaise))
+          : inferredTaxableInPaise
+      : fallbackSplit.taxableInPaise
+    const gstInPaise = lineTotalInPaise - taxableInPaise
+    const cgstInPaise = Math.floor(gstInPaise / 2)
+    const sgstInPaise = gstInPaise - cgstInPaise
 
     return {
-      lineTotal,
+      lineTotal: fromPaiseValue(lineTotalInPaise),
+      lineTotalInPaise,
       rate,
-      taxableValue,
-      gstAmount,
+      taxableValue: fromPaiseValue(taxableInPaise),
+      taxableInPaise,
+      gstAmount: fromPaiseValue(gstInPaise),
+      gstInPaise,
+      cgstInPaise,
+      sgstInPaise,
     }
   })
 
-  const gstSummaryMap = new Map<number, { taxableValue: number; gstAmount: number; total: number }>()
+  const gstSummaryMap = new Map<number, { taxableInPaise: number; gstInPaise: number; totalInPaise: number }>()
 
   itemTaxBreakdowns.forEach((itemBreakdown) => {
-    const { rate, taxableValue, gstAmount, lineTotal } = itemBreakdown
-    const existing = gstSummaryMap.get(rate) || { taxableValue: 0, gstAmount: 0, total: 0 }
+    const { rate, taxableInPaise, gstInPaise, lineTotalInPaise } = itemBreakdown
+    const existing = gstSummaryMap.get(rate) || { taxableInPaise: 0, gstInPaise: 0, totalInPaise: 0 }
 
     gstSummaryMap.set(rate, {
-      taxableValue: existing.taxableValue + taxableValue,
-      gstAmount: existing.gstAmount + gstAmount,
-      total: existing.total + lineTotal,
+      taxableInPaise: existing.taxableInPaise + taxableInPaise,
+      gstInPaise: existing.gstInPaise + gstInPaise,
+      totalInPaise: existing.totalInPaise + lineTotalInPaise,
     })
   })
 
   const gstSummaryRows = Array.from(gstSummaryMap.entries())
     .map(([rate, values]) => ({
       rate,
-      taxableValue: roundMoney(values.taxableValue),
-      gstAmount: roundMoney(values.gstAmount),
-      total: roundMoney(values.total),
+      taxableValue: fromPaiseValue(values.taxableInPaise),
+      gstAmount: fromPaiseValue(values.gstInPaise),
+      total: fromPaiseValue(values.totalInPaise),
     }))
     .sort((left, right) => left.rate - right.rate)
 
-  const calculatedTotalTaxableValue = roundMoney(
-    gstSummaryRows.reduce((sum, row) => sum + row.taxableValue, 0),
+  const calculatedTotalTaxableInPaise = itemTaxBreakdowns.reduce(
+    (sum, row) => sum + row.taxableInPaise,
+    0,
   )
-  const calculatedTotalGSTAmount = roundMoney(gstSummaryRows.reduce((sum, row) => sum + row.gstAmount, 0))
+  const calculatedTotalGSTInPaise = itemTaxBreakdowns.reduce((sum, row) => sum + row.gstInPaise, 0)
+  const calculatedCGSTInPaise = itemTaxBreakdowns.reduce((sum, row) => sum + row.cgstInPaise, 0)
+  const calculatedSGSTInPaise = itemTaxBreakdowns.reduce((sum, row) => sum + row.sgstInPaise, 0)
+  const calculatedTotalTaxableValue = fromPaiseValue(calculatedTotalTaxableInPaise)
+  const calculatedTotalGSTAmount = fromPaiseValue(calculatedTotalGSTInPaise)
   const totalTaxableValue =
     storedTotalTaxableAmount == null
       ? calculatedTotalTaxableValue
       : roundMoney(toFiniteNumber(storedTotalTaxableAmount))
   const totalGSTAmount =
     storedTotalGSTAmount == null ? calculatedTotalGSTAmount : roundMoney(toFiniteNumber(storedTotalGSTAmount))
-  const calculatedGrandTotal = roundMoney(itemTaxBreakdowns.reduce((sum, row) => sum + row.lineTotal, 0))
-  const calculatedRoundedTotal = Math.ceil(calculatedGrandTotal)
+  const cgstAmount = fromPaiseValue(calculatedCGSTInPaise)
+  const sgstAmount = fromPaiseValue(calculatedSGSTInPaise)
+  const calculatedGrandTotal = fromPaiseValue(
+    itemTaxBreakdowns.reduce((sum, row) => sum + row.lineTotalInPaise, 0),
+  )
+  const calculatedRoundedTotal = Math.round(calculatedGrandTotal)
   const hasStoredRoundOffValues =
     storedTotalAmountBeforeRoundOff != null || storedRoundOffAmount != null
   const displayTotalAmount = hasCancelledTotalMismatch
@@ -297,7 +388,7 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
       : roundMoney(toFiniteNumber(storedTotalAmountBeforeRoundOff))
   const displayRoundOffAmount =
     storedRoundOffAmount == null
-      ? roundMoney(Math.max(0, displayTotalAmount - displayTotalBeforeRoundOff))
+      ? roundMoney(displayTotalAmount - displayTotalBeforeRoundOff)
       : roundMoney(toFiniteNumber(storedRoundOffAmount))
 
   // Local state for customer details (initially from props)
@@ -766,13 +857,24 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
             <span>{totalGSTAmount.toFixed(2)}</span>
           </div>
           <div>
+            <span>CGST:</span>
+            <span>{cgstAmount.toFixed(2)}</span>
+          </div>
+          <div>
+            <span>SGST:</span>
+            <span>{sgstAmount.toFixed(2)}</span>
+          </div>
+          <div>
             <span>Total Before Round Off:</span>
             <span>{displayTotalBeforeRoundOff.toFixed(2)}</span>
           </div>
-          {displayRoundOffAmount > 0 && (
+          {Math.abs(displayRoundOffAmount) > 0 && (
             <div>
               <span>Round Off:</span>
-              <span>+{displayRoundOffAmount.toFixed(2)}</span>
+              <span>
+                {displayRoundOffAmount > 0 ? '+' : ''}
+                {displayRoundOffAmount.toFixed(2)}
+              </span>
             </div>
           )}
           {hasCancelledTotalMismatch && (
@@ -783,7 +885,7 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
           )}
           <div>
             <span>Prices:</span>
-            <span>GST Added Extra</span>
+            <span>GST Inclusive (MRP)</span>
           </div>
           <div className="grand-total">
             <span>All Products Total:</span>

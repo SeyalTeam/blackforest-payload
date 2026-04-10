@@ -91,16 +91,24 @@ const toMoneyValue = (value: number): number => {
   return parseFloat(value.toFixed(2))
 }
 
+const toPaiseValue = (value: number): number => {
+  return Math.max(0, Math.round(toSafeNonNegativeNumber(value) * 100))
+}
+
+const fromPaiseValue = (paise: number): number => {
+  return toMoneyValue(Math.max(0, paise) / 100)
+}
+
 const isBillingFinalizedStatus = (status: string | null | undefined): boolean => {
   return status === 'completed' || status === 'settled'
 }
 
-const roundUpToRupee = (value: number): number => {
-  return Math.ceil(toSafeNonNegativeNumber(value))
+const roundToNearestRupee = (value: number): number => {
+  return Math.round(toSafeNonNegativeNumber(value))
 }
 
 const getRoundOffAmount = (roundedValue: number, originalValue: number): number => {
-  return toMoneyValue(Math.max(0, roundedValue - toSafeNonNegativeNumber(originalValue)))
+  return toMoneyValue(roundedValue - toSafeNonNegativeNumber(originalValue))
 }
 
 const normalizeBillingItemStatus = (status: unknown): 'ordered' | 'prepared' | 'delivered' | 'cancelled' => {
@@ -388,6 +396,7 @@ type BillingGSTBreakdown = {
   items: BillingItemInput[]
   totalTaxableAmount: number
   totalGSTAmount: number
+  totalInclusiveAmount: number
 }
 
 const computeBillingGSTBreakdown = async (
@@ -401,15 +410,65 @@ const computeBillingGSTBreakdown = async (
       items: [],
       totalTaxableAmount: 0,
       totalGSTAmount: 0,
+      totalInclusiveAmount: 0,
     }
   }
 
-  const itemLineTotals = items.map((item) =>
-    item.status === 'cancelled' ? 0 : toSafeNonNegativeNumber(item.subtotal),
+  const itemLineTotalsInPaise = items.map((item) =>
+    item.status === 'cancelled' ? 0 : toPaiseValue(toSafeNonNegativeNumber(item.subtotal)),
   )
-  const grossLineTotal = itemLineTotals.reduce((sum, lineTotal) => sum + lineTotal, 0)
-  const normalizedDiscount = Math.min(grossLineTotal, toSafeNonNegativeNumber(totalDiscountAmount))
-  const discountRatio = grossLineTotal > 0 ? normalizedDiscount / grossLineTotal : 0
+  const grossLineTotalInPaise = itemLineTotalsInPaise.reduce((sum, lineTotal) => sum + lineTotal, 0)
+  const normalizedDiscountInPaise = Math.min(
+    grossLineTotalInPaise,
+    toPaiseValue(toSafeNonNegativeNumber(totalDiscountAmount)),
+  )
+
+  const distributeDiscountAcrossLines = (
+    lineTotalsInPaise: number[],
+    discountInPaise: number,
+  ): number[] => {
+    const discounts = lineTotalsInPaise.map(() => 0)
+    if (discountInPaise <= 0) return discounts
+
+    const grossInPaise = lineTotalsInPaise.reduce((sum, lineTotal) => sum + lineTotal, 0)
+    if (grossInPaise <= 0) return discounts
+
+    type Share = { index: number; remainder: number }
+    const shares: Share[] = []
+    let assignedDiscountInPaise = 0
+
+    lineTotalsInPaise.forEach((lineTotalInPaise, index) => {
+      if (lineTotalInPaise <= 0) return
+
+      const rawShare = (discountInPaise * lineTotalInPaise) / grossInPaise
+      const baseShare = Math.floor(rawShare)
+      discounts[index] = baseShare
+      assignedDiscountInPaise += baseShare
+      shares.push({ index, remainder: rawShare - baseShare })
+    })
+
+    const remainingInPaise = discountInPaise - assignedDiscountInPaise
+    if (remainingInPaise <= 0 || shares.length === 0) return discounts
+
+    shares.sort((left, right) => right.remainder - left.remainder)
+
+    for (let offset = 0; offset < remainingInPaise; offset += 1) {
+      const share = shares[offset % shares.length]
+      if (!share) continue
+
+      const index = share.index
+      if (discounts[index] < lineTotalsInPaise[index]) {
+        discounts[index] += 1
+      }
+    }
+
+    return discounts
+  }
+
+  const lineDiscountsInPaise = distributeDiscountAcrossLines(
+    itemLineTotalsInPaise,
+    normalizedDiscountInPaise,
+  )
 
   const productIDs = [
     ...new Set(
@@ -436,35 +495,50 @@ const computeBillingGSTBreakdown = async (
     }),
   )
 
-  let totalTaxableAmount = 0
-  let totalGSTAmount = 0
+  let totalTaxableAmountInPaise = 0
+  let totalGSTAmountInPaise = 0
+  let totalInclusiveAmountInPaise = 0
 
-  const updatedItems = items.map((item) => {
-    const taxableBeforeDiscount =
-      item.status === 'cancelled' ? 0 : toSafeNonNegativeNumber(item.subtotal)
-    const taxableAmount = toMoneyValue(taxableBeforeDiscount * (1 - discountRatio))
+  const updatedItems = items.map((item, index) => {
+    const lineTotalInclusiveInPaise = Math.max(
+      0,
+      itemLineTotalsInPaise[index] - (lineDiscountsInPaise[index] || 0),
+    )
     const productID = getRelationshipID(item.product)
     const productDoc = productID ? (productCache.get(productID) ?? null) : null
     const gstRate = getGSTRateFromProduct(productDoc, branchID)
-    const gstAmount = toMoneyValue((taxableAmount * gstRate) / 100)
-    const finalLineTotal = toMoneyValue(taxableAmount + gstAmount)
+    const taxableAmountInPaise =
+      gstRate > 0
+        ? Math.min(
+            lineTotalInclusiveInPaise,
+            Math.max(0, Math.round((lineTotalInclusiveInPaise * 100) / (100 + gstRate))),
+          )
+        : lineTotalInclusiveInPaise
+    const gstAmountInPaise = lineTotalInclusiveInPaise - taxableAmountInPaise
 
-    totalTaxableAmount += taxableAmount
-    totalGSTAmount += gstAmount
+    // Explicit CGST/SGST split keeps odd paise deterministic per line.
+    const cgstAmountInPaise = Math.floor(gstAmountInPaise / 2)
+    const sgstAmountInPaise = gstAmountInPaise - cgstAmountInPaise
+    const normalizedGSTAmountInPaise = cgstAmountInPaise + sgstAmountInPaise
+
+    totalTaxableAmountInPaise += taxableAmountInPaise
+    totalGSTAmountInPaise += normalizedGSTAmountInPaise
+    totalInclusiveAmountInPaise += lineTotalInclusiveInPaise
 
     return {
       ...item,
       gstRate,
-      taxableAmount,
-      gstAmount,
-      finalLineTotal,
+      taxableAmount: fromPaiseValue(taxableAmountInPaise),
+      gstAmount: fromPaiseValue(normalizedGSTAmountInPaise),
+      finalLineTotal: fromPaiseValue(lineTotalInclusiveInPaise),
     }
   })
 
   return {
     items: updatedItems,
-    totalTaxableAmount: toMoneyValue(totalTaxableAmount),
-    totalGSTAmount: toMoneyValue(totalGSTAmount),
+    totalTaxableAmount: fromPaiseValue(totalTaxableAmountInPaise),
+    totalGSTAmount: fromPaiseValue(totalGSTAmountInPaise),
+    totalInclusiveAmount: fromPaiseValue(totalInclusiveAmountInPaise),
   }
 }
 
@@ -2418,10 +2492,8 @@ const Billings: CollectionConfig = {
         pricingData.items = gstBreakdown.items
         pricingData.totalTaxableAmount = gstBreakdown.totalTaxableAmount
         pricingData.totalGSTAmount = gstBreakdown.totalGSTAmount
-        pricingData.totalAmountBeforeRoundOff = toMoneyValue(
-          gstBreakdown.totalTaxableAmount + gstBreakdown.totalGSTAmount,
-        )
-        pricingData.totalAmount = roundUpToRupee(pricingData.totalAmountBeforeRoundOff)
+        pricingData.totalAmountBeforeRoundOff = gstBreakdown.totalInclusiveAmount
+        pricingData.totalAmount = roundToNearestRupee(pricingData.totalAmountBeforeRoundOff)
         pricingData.roundOffAmount = getRoundOffAmount(
           pricingData.totalAmount,
           pricingData.totalAmountBeforeRoundOff,

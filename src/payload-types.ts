@@ -93,6 +93,7 @@ export interface Config {
     attendance: Attendance;
     'apk-files': ApkFile;
     'stock-alerts': StockAlert;
+    'gst-settings': GstSetting;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -125,6 +126,7 @@ export interface Config {
     attendance: AttendanceSelect<false> | AttendanceSelect<true>;
     'apk-files': ApkFilesSelect<false> | ApkFilesSelect<true>;
     'stock-alerts': StockAlertsSelect<false> | StockAlertsSelect<true>;
+    'gst-settings': GstSettingsSelect<false> | GstSettingsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -1028,6 +1030,27 @@ export interface StockAlert {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gst-settings".
+ */
+export interface GstSetting {
+  id: string;
+  scope: 'branch' | 'company' | 'global';
+  branch?: (string | null) | Branch;
+  company?: (string | null) | Company;
+  /**
+   * Categories where GST should be forced to 0%.
+   */
+  disabledCategoryIds?: (string | Category)[] | null;
+  /**
+   * Products where GST should be forced to 0%.
+   */
+  disabledProductIds?: (string | Product)[] | null;
+  updatedBy?: (string | null) | User;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -1136,6 +1159,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'stock-alerts';
         value: string | StockAlert;
+      } | null)
+    | ({
+        relationTo: 'gst-settings';
+        value: string | GstSetting;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1869,6 +1896,20 @@ export interface StockAlertsSelect<T extends boolean = true> {
   status?: T;
   acknowledgedAt?: T;
   acknowledgedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gst-settings_select".
+ */
+export interface GstSettingsSelect<T extends boolean = true> {
+  scope?: T;
+  branch?: T;
+  company?: T;
+  disabledCategoryIds?: T;
+  disabledProductIds?: T;
+  updatedBy?: T;
   updatedAt?: T;
   createdAt?: T;
 }
