@@ -26,6 +26,11 @@ type FavoriteProductsWidgetProps = {
   preloadedBranchOptions?: Option[]
 }
 
+type DraggingProductState = {
+  ruleIndex: number
+  sourceIndex: number
+}
+
 const getRelationshipID = (value: unknown): string | null => {
   if (typeof value === 'string' && value.trim().length > 0) return value
   if (
@@ -192,6 +197,7 @@ const FavoriteProductsWidget: React.FC<FavoriteProductsWidgetProps> = ({
   const [categoryOptionsByID, setCategoryOptionsByID] = useState<Record<string, Option>>(
     cachedCategoryOptionsByID,
   )
+  const [draggingProduct, setDraggingProduct] = useState<DraggingProductState | null>(null)
 
   const upsertProductOptionsCache = useCallback((options: Option[]) => {
     if (!Array.isArray(options) || options.length === 0) return
@@ -490,6 +496,120 @@ const FavoriteProductsWidget: React.FC<FavoriteProductsWidgetProps> = ({
       if (!previous) return previous
       return previous.filter((_, currentIndex) => currentIndex !== index)
     })
+  }
+
+  const removeProductFromRule = (ruleIndex: number, productID: string) => {
+    setRules((previous) => {
+      if (!previous) return previous
+      const rule = previous[ruleIndex]
+      if (!rule) return previous
+
+      const next = [...previous]
+      next[ruleIndex] = {
+        ...rule,
+        products: rule.products.filter((id) => id !== productID),
+      }
+      return next
+    })
+  }
+
+  const moveProductInRule = useCallback(
+    (ruleIndex: number, sourceIndex: number, targetIndex: number) => {
+      if (sourceIndex === targetIndex) return
+
+      setRules((previous) => {
+        if (!previous) return previous
+        const rule = previous[ruleIndex]
+        if (!rule) return previous
+        if (
+          sourceIndex < 0 ||
+          sourceIndex >= rule.products.length ||
+          targetIndex < 0 ||
+          targetIndex >= rule.products.length
+        ) {
+          return previous
+        }
+
+        const nextProducts = [...rule.products]
+        const [movedProductID] = nextProducts.splice(sourceIndex, 1)
+        if (!movedProductID) return previous
+
+        nextProducts.splice(targetIndex, 0, movedProductID)
+
+        const next = [...previous]
+        next[ruleIndex] = {
+          ...rule,
+          products: nextProducts,
+        }
+        return next
+      })
+    },
+    [],
+  )
+
+  const getDragSourceIndex = (event: React.DragEvent<HTMLElement>, ruleIndex: number): number | null => {
+    if (draggingProduct && draggingProduct.ruleIndex === ruleIndex) {
+      return draggingProduct.sourceIndex
+    }
+
+    const draggedIndex = Number.parseInt(event.dataTransfer.getData('text/plain'), 10)
+    return Number.isNaN(draggedIndex) ? null : draggedIndex
+  }
+
+  const handleProductDragStart = (
+    event: React.DragEvent<HTMLDivElement>,
+    ruleIndex: number,
+    productIndex: number,
+  ) => {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', String(productIndex))
+    setDraggingProduct({ ruleIndex, sourceIndex: productIndex })
+  }
+
+  const handleProductDragOver = (event: React.DragEvent<HTMLElement>, ruleIndex: number) => {
+    if (draggingProduct && draggingProduct.ruleIndex !== ruleIndex) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+  }
+
+  const handleProductDropOnChip = (
+    event: React.DragEvent<HTMLDivElement>,
+    ruleIndex: number,
+    targetIndex: number,
+  ) => {
+    event.preventDefault()
+    event.stopPropagation()
+
+    const sourceIndex = getDragSourceIndex(event, ruleIndex)
+    if (sourceIndex === null) {
+      setDraggingProduct(null)
+      return
+    }
+
+    moveProductInRule(ruleIndex, sourceIndex, targetIndex)
+    setDraggingProduct(null)
+  }
+
+  const handleProductDropToEnd = (
+    event: React.DragEvent<HTMLDivElement>,
+    ruleIndex: number,
+    productCount: number,
+  ) => {
+    event.preventDefault()
+
+    const sourceIndex = getDragSourceIndex(event, ruleIndex)
+    if (sourceIndex === null) {
+      setDraggingProduct(null)
+      return
+    }
+
+    const targetIndex = Math.max(productCount - 1, 0)
+    moveProductInRule(ruleIndex, sourceIndex, targetIndex)
+    setDraggingProduct(null)
+  }
+
+  const handleProductDragEnd = () => {
+    setDraggingProduct(null)
   }
 
   const buildRuleKey = (rule: FavoriteProductsRule, index: number): string =>
@@ -811,23 +931,36 @@ const FavoriteProductsWidget: React.FC<FavoriteProductsWidgetProps> = ({
                     {rule.products.length === 0 ? (
                       <span className="fp-selected-empty">No products selected yet</span>
                     ) : (
-                      <div className="fp-selected-chip-list">
-                        {rule.products.map((productID) => {
+                      <div
+                        className={`fp-selected-chip-list ${draggingProduct?.ruleIndex === index ? 'is-dragging' : ''}`}
+                        onDragOver={(event) => handleProductDragOver(event, index)}
+                        onDrop={(event) => handleProductDropToEnd(event, index, rule.products.length)}
+                      >
+                        {rule.products.map((productID, productIndex) => {
                           const productLabel = productOptionsByID[productID]?.label || productID
+                          const isDraggingCurrentProduct =
+                            draggingProduct?.ruleIndex === index &&
+                            draggingProduct.sourceIndex === productIndex
                           return (
-                            <button
-                              key={`${productID}-${index}`}
-                              type="button"
-                              className="fp-selected-chip"
-                              onClick={() =>
-                                setRule(index, {
-                                  products: rule.products.filter((id) => id !== productID),
-                                })
-                              }
+                            <div
+                              key={`${productID}-${index}-${productIndex}`}
+                              className={`fp-selected-chip ${isDraggingCurrentProduct ? 'is-dragging' : ''}`}
+                              draggable
+                              onDragStart={(event) => handleProductDragStart(event, index, productIndex)}
+                              onDragOver={(event) => handleProductDragOver(event, index)}
+                              onDrop={(event) => handleProductDropOnChip(event, index, productIndex)}
+                              onDragEnd={handleProductDragEnd}
                             >
                               <span>{productLabel}</span>
-                              <span className="fp-chip-remove">x</span>
-                            </button>
+                              <button
+                                type="button"
+                                className="fp-chip-remove-btn"
+                                onClick={() => removeProductFromRule(index, productID)}
+                                aria-label={`Remove ${productLabel}`}
+                              >
+                                <span className="fp-chip-remove">x</span>
+                              </button>
+                            </div>
                           )
                         })}
                       </div>
