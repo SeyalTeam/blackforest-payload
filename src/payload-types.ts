@@ -342,7 +342,11 @@ export interface Product {
   isStock?: boolean | null;
   isOutOfStock?: boolean | null;
   defaultPriceDetails: {
+    enableAC?: boolean | null;
+    enableNonAC?: boolean | null;
     price: number;
+    acPrice?: number | null;
+    nonACPrice?: number | null;
     rate: number;
     offer?: number | null;
     quantity: number;
@@ -1324,7 +1328,11 @@ export interface ProductsSelect<T extends boolean = true> {
   defaultPriceDetails?:
     | T
     | {
+        enableAC?: T;
+        enableNonAC?: T;
         price?: T;
+        acPrice?: T;
+        nonACPrice?: T;
         rate?: T;
         offer?: T;
         quantity?: T;

@@ -286,11 +286,68 @@ const Products: CollectionConfig = {
       label: 'Default Price Details',
       fields: [
         {
-          name: 'price',
-          type: 'number',
-          required: true,
-          min: 0,
-          label: 'Price (MRP)',
+          type: 'row',
+          fields: [
+            {
+              name: 'enableAC',
+              type: 'checkbox',
+              defaultValue: false,
+              label: 'Enable AC',
+              admin: {
+                width: '50%',
+              },
+            },
+            {
+              name: 'enableNonAC',
+              type: 'checkbox',
+              defaultValue: false,
+              label: 'Enable NON AC',
+              admin: {
+                width: '50%',
+              },
+            },
+          ],
+        },
+        {
+          type: 'row',
+          fields: [
+            {
+              name: 'price',
+              type: 'number',
+              required: true,
+              min: 0,
+              max: 999999,
+              label: 'Price (MRP)',
+              admin: {
+                width: '33%',
+                step: 1,
+              },
+            },
+            {
+              name: 'acPrice',
+              type: 'number',
+              min: 0,
+              max: 999999,
+              label: 'AC',
+              admin: {
+                width: '33%',
+                step: 1,
+                condition: (_data, siblingData) => Boolean(siblingData?.enableAC),
+              },
+            },
+            {
+              name: 'nonACPrice',
+              type: 'number',
+              min: 0,
+              max: 999999,
+              label: 'NON AC',
+              admin: {
+                width: '33%',
+                step: 1,
+                condition: (_data, siblingData) => Boolean(siblingData?.enableNonAC),
+              },
+            },
+          ],
         },
         {
           name: 'rate',
