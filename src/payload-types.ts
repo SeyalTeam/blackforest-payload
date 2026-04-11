@@ -93,7 +93,6 @@ export interface Config {
     attendance: Attendance;
     'apk-files': ApkFile;
     'stock-alerts': StockAlert;
-    'gst-settings': GstSetting;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -126,7 +125,6 @@ export interface Config {
     attendance: AttendanceSelect<false> | AttendanceSelect<true>;
     'apk-files': ApkFilesSelect<false> | ApkFilesSelect<true>;
     'stock-alerts': StockAlertsSelect<false> | StockAlertsSelect<true>;
-    'gst-settings': GstSettingsSelect<false> | GstSettingsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -620,6 +618,14 @@ export interface Billing {
      */
     gstAmount?: number | null;
     /**
+     * CGST component included in this line (paise-safe split).
+     */
+    cgstAmount?: number | null;
+    /**
+     * SGST component included in this line (paise-safe split).
+     */
+    sgstAmount?: number | null;
+    /**
      * Final payable total for this line (inclusive of GST).
      */
     finalLineTotal?: number | null;
@@ -659,11 +665,23 @@ export interface Billing {
    */
   totalAmount: number;
   /**
+   * Sum of taxable amounts across all billed products.
+   */
+  subTotal?: number | null;
+  /**
+   * Total CGST amount across all billed products.
+   */
+  cgstAmount?: number | null;
+  /**
+   * Total SGST amount across all billed products.
+   */
+  sgstAmount?: number | null;
+  /**
    * Final payable amount before rupee round-off.
    */
   totalAmountBeforeRoundOff?: number | null;
   /**
-   * Round-up difference added to final amount.
+   * Signed round-off difference applied to final amount.
    */
   roundOffAmount?: number | null;
   /**
@@ -1030,27 +1048,6 @@ export interface StockAlert {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "gst-settings".
- */
-export interface GstSetting {
-  id: string;
-  scope: 'branch' | 'company' | 'global';
-  branch?: (string | null) | Branch;
-  company?: (string | null) | Company;
-  /**
-   * Categories where GST should be forced to 0%.
-   */
-  disabledCategoryIds?: (string | Category)[] | null;
-  /**
-   * Products where GST should be forced to 0%.
-   */
-  disabledProductIds?: (string | Product)[] | null;
-  updatedBy?: (string | null) | User;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -1159,10 +1156,6 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'stock-alerts';
         value: string | StockAlert;
-      } | null)
-    | ({
-        relationTo: 'gst-settings';
-        value: string | GstSetting;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1543,6 +1536,8 @@ export interface BillingsSelect<T extends boolean = true> {
         gstRate?: T;
         taxableAmount?: T;
         gstAmount?: T;
+        cgstAmount?: T;
+        sgstAmount?: T;
         finalLineTotal?: T;
         isOfferFreeItem?: T;
         offerRuleKey?: T;
@@ -1567,6 +1562,9 @@ export interface BillingsSelect<T extends boolean = true> {
       };
   grossAmount?: T;
   totalAmount?: T;
+  subTotal?: T;
+  cgstAmount?: T;
+  sgstAmount?: T;
   totalAmountBeforeRoundOff?: T;
   roundOffAmount?: T;
   totalTaxableAmount?: T;
@@ -1896,20 +1894,6 @@ export interface StockAlertsSelect<T extends boolean = true> {
   status?: T;
   acknowledgedAt?: T;
   acknowledgedBy?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "gst-settings_select".
- */
-export interface GstSettingsSelect<T extends boolean = true> {
-  scope?: T;
-  branch?: T;
-  company?: T;
-  disabledCategoryIds?: T;
-  disabledProductIds?: T;
-  updatedBy?: T;
   updatedAt?: T;
   createdAt?: T;
 }

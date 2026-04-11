@@ -18,6 +18,8 @@ export type BillItem = {
   gstRate?: number | null
   taxableAmount?: number | null
   gstAmount?: number | null
+  cgstAmount?: number | null
+  sgstAmount?: number | null
   finalLineTotal?: number | null
 }
 
@@ -30,6 +32,9 @@ export type BillData = {
   totalAmount?: number
   totalAmountBeforeRoundOff?: number | null
   roundOffAmount?: number | null
+  subTotal?: number | null
+  cgstAmount?: number | null
+  sgstAmount?: number | null
   customerOfferDiscount?: number | null
   customerEntryPercentageOfferDiscount?: number | null
   totalPercentageOfferDiscount?: number | null
@@ -190,6 +195,9 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
     totalAmount = 0,
     totalAmountBeforeRoundOff: storedTotalAmountBeforeRoundOff,
     roundOffAmount: storedRoundOffAmount,
+    subTotal: storedSubTotal,
+    cgstAmount: storedCGSTAmount,
+    sgstAmount: storedSGSTAmount,
     customerOfferDiscount = 0,
     customerEntryPercentageOfferDiscount = 0,
     totalPercentageOfferDiscount = 0,
@@ -363,14 +371,22 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
   const calculatedSGSTInPaise = itemTaxBreakdowns.reduce((sum, row) => sum + row.sgstInPaise, 0)
   const calculatedTotalTaxableValue = fromPaiseValue(calculatedTotalTaxableInPaise)
   const calculatedTotalGSTAmount = fromPaiseValue(calculatedTotalGSTInPaise)
-  const totalTaxableValue =
+  const fallbackTaxableValue =
     storedTotalTaxableAmount == null
       ? calculatedTotalTaxableValue
       : roundMoney(toFiniteNumber(storedTotalTaxableAmount))
+  const totalTaxableValue =
+    storedSubTotal == null ? fallbackTaxableValue : roundMoney(toFiniteNumber(storedSubTotal))
   const totalGSTAmount =
     storedTotalGSTAmount == null ? calculatedTotalGSTAmount : roundMoney(toFiniteNumber(storedTotalGSTAmount))
-  const cgstAmount = fromPaiseValue(calculatedCGSTInPaise)
-  const sgstAmount = fromPaiseValue(calculatedSGSTInPaise)
+  const cgstAmount =
+    storedCGSTAmount == null
+      ? fromPaiseValue(calculatedCGSTInPaise)
+      : roundMoney(toFiniteNumber(storedCGSTAmount))
+  const sgstAmount =
+    storedSGSTAmount == null
+      ? fromPaiseValue(calculatedSGSTInPaise)
+      : roundMoney(toFiniteNumber(storedSGSTAmount))
   const calculatedGrandTotal = fromPaiseValue(
     itemTaxBreakdowns.reduce((sum, row) => sum + row.lineTotalInPaise, 0),
   )

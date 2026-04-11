@@ -278,6 +278,8 @@ type BillingItemInput = {
   gstRate?: number
   taxableAmount?: number
   gstAmount?: number
+  cgstAmount?: number
+  sgstAmount?: number
   finalLineTotal?: number
   isRandomCustomerOfferItem?: boolean
   randomCustomerOfferCampaignCode?: string
@@ -394,6 +396,9 @@ const getGSTRateFromProduct = (product: ProductGSTInput | null, branchID: string
 
 type BillingGSTBreakdown = {
   items: BillingItemInput[]
+  subTotal: number
+  cgstAmount: number
+  sgstAmount: number
   totalTaxableAmount: number
   totalGSTAmount: number
   totalInclusiveAmount: number
@@ -408,6 +413,9 @@ const computeBillingGSTBreakdown = async (
   if (!Array.isArray(items) || items.length === 0) {
     return {
       items: [],
+      subTotal: 0,
+      cgstAmount: 0,
+      sgstAmount: 0,
       totalTaxableAmount: 0,
       totalGSTAmount: 0,
       totalInclusiveAmount: 0,
@@ -497,6 +505,8 @@ const computeBillingGSTBreakdown = async (
 
   let totalTaxableAmountInPaise = 0
   let totalGSTAmountInPaise = 0
+  let totalCGSTAmountInPaise = 0
+  let totalSGSTAmountInPaise = 0
   let totalInclusiveAmountInPaise = 0
 
   const updatedItems = items.map((item, index) => {
@@ -523,6 +533,8 @@ const computeBillingGSTBreakdown = async (
 
     totalTaxableAmountInPaise += taxableAmountInPaise
     totalGSTAmountInPaise += normalizedGSTAmountInPaise
+    totalCGSTAmountInPaise += cgstAmountInPaise
+    totalSGSTAmountInPaise += sgstAmountInPaise
     totalInclusiveAmountInPaise += lineTotalInclusiveInPaise
 
     return {
@@ -530,12 +542,17 @@ const computeBillingGSTBreakdown = async (
       gstRate,
       taxableAmount: fromPaiseValue(taxableAmountInPaise),
       gstAmount: fromPaiseValue(normalizedGSTAmountInPaise),
+      cgstAmount: fromPaiseValue(cgstAmountInPaise),
+      sgstAmount: fromPaiseValue(sgstAmountInPaise),
       finalLineTotal: fromPaiseValue(lineTotalInclusiveInPaise),
     }
   })
 
   return {
     items: updatedItems,
+    subTotal: fromPaiseValue(totalTaxableAmountInPaise),
+    cgstAmount: fromPaiseValue(totalCGSTAmountInPaise),
+    sgstAmount: fromPaiseValue(totalSGSTAmountInPaise),
     totalTaxableAmount: fromPaiseValue(totalTaxableAmountInPaise),
     totalGSTAmount: fromPaiseValue(totalGSTAmountInPaise),
     totalInclusiveAmount: fromPaiseValue(totalInclusiveAmountInPaise),
@@ -2490,6 +2507,9 @@ const Billings: CollectionConfig = {
           totalDiscountAmount,
         )
         pricingData.items = gstBreakdown.items
+        pricingData.subTotal = gstBreakdown.subTotal
+        pricingData.cgstAmount = gstBreakdown.cgstAmount
+        pricingData.sgstAmount = gstBreakdown.sgstAmount
         pricingData.totalTaxableAmount = gstBreakdown.totalTaxableAmount
         pricingData.totalGSTAmount = gstBreakdown.totalGSTAmount
         pricingData.totalAmountBeforeRoundOff = gstBreakdown.totalInclusiveAmount
@@ -3449,6 +3469,24 @@ const Billings: CollectionConfig = {
           },
         },
         {
+          name: 'cgstAmount',
+          type: 'number',
+          min: 0,
+          admin: {
+            readOnly: true,
+            description: 'CGST component included in this line (paise-safe split).',
+          },
+        },
+        {
+          name: 'sgstAmount',
+          type: 'number',
+          min: 0,
+          admin: {
+            readOnly: true,
+            description: 'SGST component included in this line (paise-safe split).',
+          },
+        },
+        {
           name: 'finalLineTotal',
           type: 'number',
           min: 0,
@@ -3624,6 +3662,33 @@ const Billings: CollectionConfig = {
       },
     },
     {
+      name: 'subTotal',
+      type: 'number',
+      min: 0,
+      admin: {
+        readOnly: true,
+        description: 'Sum of taxable amounts across all billed products.',
+      },
+    },
+    {
+      name: 'cgstAmount',
+      type: 'number',
+      min: 0,
+      admin: {
+        readOnly: true,
+        description: 'Total CGST amount across all billed products.',
+      },
+    },
+    {
+      name: 'sgstAmount',
+      type: 'number',
+      min: 0,
+      admin: {
+        readOnly: true,
+        description: 'Total SGST amount across all billed products.',
+      },
+    },
+    {
       name: 'totalAmountBeforeRoundOff',
       type: 'number',
       min: 0,
@@ -3635,10 +3700,9 @@ const Billings: CollectionConfig = {
     {
       name: 'roundOffAmount',
       type: 'number',
-      min: 0,
       admin: {
         readOnly: true,
-        description: 'Round-up difference added to final amount.',
+        description: 'Signed round-off difference applied to final amount.',
       },
     },
     {
