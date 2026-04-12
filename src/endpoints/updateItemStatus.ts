@@ -1,5 +1,24 @@
 import { PayloadHandler } from 'payload'
 
+const hasOwnKey = (value: unknown, key: string): boolean =>
+  Boolean(value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, key))
+
+const parsePreparingTime = (value: unknown): number | null => {
+  if (value == null) return null
+
+  if (typeof value === 'string' && value.trim().length === 0) {
+    return null
+  }
+
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
+
+  if (!Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) {
+    throw new Error('Preparing time must be a non-negative whole number of minutes.')
+  }
+
+  return parsed
+}
+
 export const updateItemStatus: PayloadHandler = async (req): Promise<Response> => {
   const { payload, json } = req
   const { id } = req.routeParams as { id: string }
@@ -16,7 +35,23 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
     console.log('[updateItemStatus] Received body:', body)
 
     const itemId = body.itemId || body.id
-    const status = body.status
+    const status = typeof body.status === 'string' ? body.status.trim() : ''
+    const hasStatusUpdate = status.length > 0
+    const hasPreparingTimeUpdate =
+      hasOwnKey(body, 'preparingTime') || hasOwnKey(body, 'preparationTime')
+    const rawPreparingTime = hasOwnKey(body, 'preparingTime')
+      ? body.preparingTime
+      : body.preparationTime
+
+    let parsedPreparingTime: number | null | undefined
+    if (hasPreparingTimeUpdate) {
+      try {
+        parsedPreparingTime = parsePreparingTime(rawPreparingTime)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Invalid preparing time.'
+        return Response.json({ error: message }, { status: 400 })
+      }
+    }
 
     const hasTableOrderValue = (value: unknown): boolean => {
       if (value == null) return false
@@ -29,8 +64,8 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
     if (!itemId) {
       return Response.json({ error: 'Missing itemId (or id)' }, { status: 400 })
     }
-    if (!status) {
-      return Response.json({ error: 'Missing status' }, { status: 400 })
+    if (!hasStatusUpdate && !hasPreparingTimeUpdate) {
+      return Response.json({ error: 'Missing status or preparingTime' }, { status: 400 })
     }
 
     // 1. Fetch the bill
@@ -62,38 +97,54 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
         itemFound = true
 
         const currentStatus = normalizeStatus(item.status || 'ordered')
-        const newStatus = normalizeStatus(status)
+        const newStatus = hasStatusUpdate ? normalizeStatus(status) : currentStatus
         const now = new Date().toLocaleTimeString('en-IN', {
           timeZone: 'Asia/Kolkata',
           hour12: false,
         })
 
+        // Allow same-status updates when kitchen only updates preparing time.
+        if (hasStatusUpdate && newStatus === currentStatus && hasPreparingTimeUpdate) {
+          return {
+            ...item,
+            preparingTime: parsedPreparingTime,
+          }
+        }
+
         // ✅ Allow 'cancelled' at any time
-        if (newStatus === 'cancelled') {
+        if (hasStatusUpdate && newStatus === 'cancelled') {
           return {
             ...item,
             status: newStatus,
             cancelledAt: now,
+            ...(hasPreparingTimeUpdate ? { preparingTime: parsedPreparingTime } : {}),
           }
         }
 
-        // 🛑 Validate linear transition
-        const currentIndex = statusSequence.indexOf(currentStatus)
-        const newIndex = statusSequence.indexOf(newStatus)
+        if (hasStatusUpdate) {
+          // 🛑 Validate linear transition
+          const currentIndex = statusSequence.indexOf(currentStatus)
+          const newIndex = statusSequence.indexOf(newStatus)
 
-        if (currentIndex === -1) {
-          transitionError = `Current status "${currentStatus}" is not in the valid sequence.`
-        } else if (newIndex === -1) {
-          transitionError = `New status "${newStatus}" is not in the valid sequence.`
-        } else if (newIndex !== currentIndex + 1) {
-          transitionError = `Invalid transition: Cannot go from "${currentStatus}" to "${newStatus}". Must follow: ${statusSequence.join(' -> ')}`
+          if (currentIndex === -1) {
+            transitionError = `Current status "${currentStatus}" is not in the valid sequence.`
+          } else if (newIndex === -1) {
+            transitionError = `New status "${newStatus}" is not in the valid sequence.`
+          } else if (newIndex !== currentIndex + 1) {
+            transitionError = `Invalid transition: Cannot go from "${currentStatus}" to "${newStatus}". Must follow: ${statusSequence.join(' -> ')}`
+          }
         }
 
         return {
           ...item,
-          status: newStatus,
-          [`${newStatus}At`]: now,
-          ...(newStatus === 'prepared' && actingUserID ? { preparedBy: actingUserID } : {}),
+          ...(hasStatusUpdate
+            ? {
+                status: newStatus,
+                [`${newStatus}At`]: now,
+                ...(newStatus === 'prepared' && actingUserID ? { preparedBy: actingUserID } : {}),
+              }
+            : {}),
+          ...(hasPreparingTimeUpdate ? { preparingTime: parsedPreparingTime } : {}),
         }
       }
       return item
@@ -157,7 +208,7 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
         ...(nextBillStatus ? { status: nextBillStatus } : {}),
       },
       context: {
-        // Status-only updates should not rerun offer/reward/inventory workflows.
+        // Item status/timing updates should not rerun offer/reward/inventory workflows.
         skipOfferRecalculation: true,
         skipInventoryValidation: true,
         skipCustomerRewardProcessing: true,

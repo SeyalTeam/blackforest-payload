@@ -264,6 +264,7 @@ type BillingItemInput = {
   status?: string
   name?: string
   notes?: string
+  preparingTime?: number | string | null
   quantity?: number | string
   unitPrice?: number | string
   subtotal?: number
@@ -3612,6 +3613,16 @@ const Billings: CollectionConfig = {
           name: 'confirmedAt',
           type: 'text',
           admin: { readOnly: true, position: 'sidebar' },
+        },
+        {
+          name: 'preparingTime',
+          type: 'number',
+          min: 0,
+          admin: {
+            readOnly: true,
+            position: 'sidebar',
+            description: 'Estimated preparation time in minutes set by kitchen tracker.',
+          },
         },
         {
           name: 'preparedAt',

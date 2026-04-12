@@ -1,6 +1,20 @@
 // src/collections/Dealers.ts
 import { CollectionConfig } from 'payload'
 
+const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
+const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
+
+const normalizeText = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+const normalizeUpperText = (value: unknown): string | null => {
+  const normalized = normalizeText(value)
+  return normalized ? normalized.toUpperCase() : null
+}
+
 const Dealers: CollectionConfig = {
   slug: 'dealers',
   admin: {
@@ -9,8 +23,10 @@ const Dealers: CollectionConfig = {
     defaultColumns: ['companyName', 'gst', 'status'],
   },
   access: {
-    // Role-based access without custom User type import—use type assertions or any for compatibility with your existing setup
-    create: ({ req: { user } }) => (user as { role?: string })?.role === 'superadmin',
+    create: ({ req: { user } }) => {
+      const role = (user as { role?: string })?.role
+      return role === 'superadmin' || role === 'admin'
+    },
     read: () => true,
     update: ({ req: { user } }) => {
       const u = user as { role?: string } | null
@@ -57,7 +73,6 @@ const Dealers: CollectionConfig = {
       type: 'text',
       label: 'GST',
       required: false, // Handled in hook
-      unique: true,
       admin: {
         condition: (data) => data.isGSTRegistered,
       },
@@ -222,42 +237,118 @@ const Dealers: CollectionConfig = {
     },
   ],
   hooks: {
-    // Updated hook for conditional validations
     beforeChange: [
-      async ({ data, req: _req, operation }) => {
+      async ({ data, req, operation, originalDoc }) => {
+        if (!data) return data
+
         if (operation === 'create' || operation === 'update') {
-          if (data.isGSTRegistered) {
-            // Validate GST format if registered
-            const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
-            if (!data.gst || !gstRegex.test(data.gst)) {
+          const nextData = data as Record<string, unknown>
+          const currentDoc = (originalDoc || {}) as Record<string, unknown>
+
+          const isGSTRegistered =
+            typeof nextData.isGSTRegistered === 'boolean'
+              ? nextData.isGSTRegistered
+              : typeof currentDoc.isGSTRegistered === 'boolean'
+                ? (currentDoc.isGSTRegistered as boolean)
+                : true
+
+          const hasBankAccount =
+            typeof nextData.hasBankAccount === 'boolean'
+              ? nextData.hasBankAccount
+              : typeof currentDoc.hasBankAccount === 'boolean'
+                ? (currentDoc.hasBankAccount as boolean)
+                : true
+
+          nextData.isGSTRegistered = isGSTRegistered
+          nextData.hasBankAccount = hasBankAccount
+
+          if (isGSTRegistered) {
+            const normalizedGST = normalizeUpperText(nextData.gst ?? currentDoc.gst)
+            const normalizedPAN = normalizeUpperText(nextData.pan ?? currentDoc.pan)
+            const normalizedFSSAI = normalizeText(nextData.fssai ?? currentDoc.fssai)
+
+            if (!normalizedGST) throw new Error('GST is required for registered dealers')
+            if (!gstRegex.test(normalizedGST)) {
               throw new Error('Invalid GST format')
             }
-            // Validate PAN format if registered
-            const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
-            if (!data.pan || !panRegex.test(data.pan)) {
+
+            if (!normalizedPAN) throw new Error('PAN is required for registered dealers')
+            if (!panRegex.test(normalizedPAN)) {
               throw new Error('Invalid PAN format')
             }
-            // Require GST/PAN if registered
-            if (!data.gst) throw new Error('GST is required for registered dealers')
-            if (!data.pan) throw new Error('PAN is required for registered dealers')
+
+            const existingDealerWithSameGST = await req.payload.find({
+              collection: 'dealers',
+              limit: 1,
+              where: {
+                and: [
+                  { gst: { equals: normalizedGST } },
+                  ...((currentDoc.id as string | undefined)
+                    ? [{ id: { not_equals: currentDoc.id as string } }]
+                    : []),
+                ],
+              },
+            })
+
+            if (existingDealerWithSameGST.docs.length > 0) {
+              throw new Error('A dealer with this GST already exists')
+            }
+
+            nextData.gst = normalizedGST
+            nextData.pan = normalizedPAN
+            nextData.fssai = normalizedFSSAI
           } else {
-            // Clear fields if not registered
-            data.gst = null
-            data.pan = null
-            data.fssai = null
+            nextData.gst = null
+            nextData.pan = null
+            nextData.fssai = null
           }
 
-          if (data.hasBankAccount) {
-            // Require bank fields if has account
-            if (!data.bankDetails?.bankName) throw new Error('Bank Name is required')
-            if (!data.bankDetails?.accountNumber) throw new Error('Account Number is required')
-            if (!data.bankDetails?.ifscCode) throw new Error('IFSC Code is required')
+          const incomingBankDetails = nextData.bankDetails
+          const currentBankDetails = currentDoc.bankDetails
+          const mergedBankDetails =
+            incomingBankDetails === null
+              ? null
+              : {
+                  ...((currentBankDetails &&
+                  typeof currentBankDetails === 'object' &&
+                  !Array.isArray(currentBankDetails)
+                    ? currentBankDetails
+                    : {}) as Record<string, unknown>),
+                  ...((incomingBankDetails &&
+                  typeof incomingBankDetails === 'object' &&
+                  !Array.isArray(incomingBankDetails)
+                    ? incomingBankDetails
+                    : {}) as Record<string, unknown>),
+                }
+
+          if (hasBankAccount) {
+            const normalizedBankName = normalizeText(mergedBankDetails?.bankName)
+            const normalizedAccountNumber = normalizeText(mergedBankDetails?.accountNumber)
+            const normalizedIfscCode = normalizeUpperText(mergedBankDetails?.ifscCode)
+            const normalizedBranch = normalizeText(mergedBankDetails?.branch)
+
+            if (!normalizedBankName) throw new Error('Bank Name is required')
+            if (!normalizedAccountNumber) throw new Error('Account Number is required')
+            if (!normalizedIfscCode) throw new Error('IFSC Code is required')
+
+            nextData.bankDetails = {
+              bankName: normalizedBankName,
+              accountNumber: normalizedAccountNumber,
+              ifscCode: normalizedIfscCode,
+              branch: normalizedBranch,
+            }
+            nextData.preferredPaymentMethod = null
           } else {
-            // Clear bank details if no account
-            data.bankDetails = null
-            // Require preferred method if no bank
-            if (!data.preferredPaymentMethod)
+            const preferredPaymentMethod = normalizeText(
+              nextData.preferredPaymentMethod ?? currentDoc.preferredPaymentMethod ?? 'cash',
+            )
+
+            nextData.bankDetails = null
+            if (!preferredPaymentMethod) {
               throw new Error('Preferred Payment Method is required for non-bank dealers')
+            }
+
+            nextData.preferredPaymentMethod = preferredPaymentMethod
           }
         }
         return data

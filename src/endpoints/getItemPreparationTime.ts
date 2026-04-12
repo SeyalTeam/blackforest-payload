@@ -14,6 +14,7 @@ type BillingItemRecord = {
   status?: unknown
   orderedAt?: unknown
   preparedAt?: unknown
+  preparingTime?: unknown
 }
 
 const toId = (value: unknown): string | null => {
@@ -81,6 +82,16 @@ const parseTimeLikeValue = (value: unknown, fallbackDate: Dayjs): Dayjs | null =
     .millisecond(0)
 }
 
+const parsePreparingTimeValue = (value: unknown): number | null => {
+  if (value == null) return null
+  if (typeof value === 'string' && value.trim().length === 0) return null
+
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
+  if (!Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) return null
+
+  return parsed
+}
+
 export const getItemPreparationTime: PayloadHandler = async (req): Promise<Response> => {
   const { payload } = req
   const { id } = req.routeParams as { id: string }
@@ -132,6 +143,7 @@ export const getItemPreparationTime: PayloadHandler = async (req): Promise<Respo
 
     const orderedAt = parseTimeLikeValue(item.orderedAt, baseDate)
     const preparedAt = parseTimeLikeValue(item.preparedAt, baseDate)
+    const preparingTime = parsePreparingTimeValue(item.preparingTime)
     const now = dayjs().tz(BILLING_TIMEZONE)
 
     let preparedDurationMinutes: number | null = null
@@ -166,6 +178,7 @@ export const getItemPreparationTime: PayloadHandler = async (req): Promise<Respo
             typeof item.preparedAt === 'string' && item.preparedAt.trim().length > 0
               ? item.preparedAt
               : null,
+          preparingTime,
           preparedDurationMinutes,
           currentPreparationMinutes,
         },

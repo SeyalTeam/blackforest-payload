@@ -653,6 +653,7 @@ export interface Billing {
     randomCustomerOfferCampaignCode?: string | null;
     orderedAt?: string | null;
     confirmedAt?: string | null;
+    preparingTime?: number | null;
     preparedAt?: string | null;
     preparedBy?: (string | null) | User;
     deliveredAt?: string | null;
@@ -1561,6 +1562,7 @@ export interface BillingsSelect<T extends boolean = true> {
         randomCustomerOfferCampaignCode?: T;
         orderedAt?: T;
         confirmedAt?: T;
+        preparingTime?: T;
         preparedAt?: T;
         preparedBy?: T;
         deliveredAt?: T;
