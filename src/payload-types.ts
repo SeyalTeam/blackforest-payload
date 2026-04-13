@@ -138,6 +138,7 @@ export interface Config {
     'branch-billing-report': BranchBillingReport;
     'category-wise-report': CategoryWiseReport;
     'product-wise-report': ProductWiseReport;
+    'product-time-report': ProductTimeReport;
     'closing-entry-report': ClosingEntryReport;
     'waiter-wise-billing-report': WaiterWiseBillingReport;
     'inventory-report': InventoryReport;
@@ -160,6 +161,7 @@ export interface Config {
     'branch-billing-report': BranchBillingReportSelect<false> | BranchBillingReportSelect<true>;
     'category-wise-report': CategoryWiseReportSelect<false> | CategoryWiseReportSelect<true>;
     'product-wise-report': ProductWiseReportSelect<false> | ProductWiseReportSelect<true>;
+    'product-time-report': ProductTimeReportSelect<false> | ProductTimeReportSelect<true>;
     'closing-entry-report': ClosingEntryReportSelect<false> | ClosingEntryReportSelect<true>;
     'waiter-wise-billing-report': WaiterWiseBillingReportSelect<false> | WaiterWiseBillingReportSelect<true>;
     'inventory-report': InventoryReportSelect<false> | InventoryReportSelect<true>;
@@ -653,6 +655,9 @@ export interface Billing {
     randomCustomerOfferCampaignCode?: string | null;
     orderedAt?: string | null;
     confirmedAt?: string | null;
+    /**
+     * Estimated preparation time in minutes set by kitchen tracker.
+     */
     preparingTime?: number | null;
     preparedAt?: string | null;
     preparedBy?: (string | null) | User;
@@ -2003,6 +2008,15 @@ export interface ProductWiseReport {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "product-time-report".
+ */
+export interface ProductTimeReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "closing-entry-report".
  */
 export interface ClosingEntryReport {
@@ -3249,6 +3263,15 @@ export interface CategoryWiseReportSelect<T extends boolean = true> {
  * via the `definition` "product-wise-report_select".
  */
 export interface ProductWiseReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "product-time-report_select".
+ */
+export interface ProductTimeReportSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

@@ -31,10 +31,12 @@ import { DashboardGlobal } from './globals/Dashboard'
 import { BranchBillingReportGlobal } from './globals/BranchBillingReport'
 import { CategoryWiseReportGlobal } from './globals/CategoryWiseReport'
 import { ProductWiseReportGlobal } from './globals/ProductWiseReport'
+import { ProductTimeReportGlobal } from './globals/ProductTimeReport'
 import { getBranchBillingReportHandler } from './endpoints/getBranchBillingReport'
 import { getCategoryWiseReportHandler } from './endpoints/getCategoryWiseReport'
 import { getCategoryWiseReportPDFHandler } from './endpoints/getCategoryWiseReportPDF'
 import { getProductWiseReportHandler } from './endpoints/getProductWiseReport'
+import { getProductPreparationBillDetailsHandler } from './endpoints/getProductPreparationBillDetails'
 import { getClosingEntryReportHandler } from './endpoints/getClosingEntryReport'
 import { getWaiterWiseBillingReportHandler } from './endpoints/getWaiterWiseBillingReport'
 import { ClosingEntryReportGlobal } from './globals/ClosingEntryReport'
@@ -209,6 +211,11 @@ export default buildConfig({
       handler: getProductWiseReportHandler,
     },
     {
+      path: '/reports/product-preparation-bill-details',
+      method: 'get',
+      handler: getProductPreparationBillDetailsHandler,
+    },
+    {
       path: '/reports/closing-entry',
       method: 'get',
       handler: getClosingEntryReportHandler,
@@ -361,6 +368,7 @@ export default buildConfig({
     BranchBillingReportGlobal,
     CategoryWiseReportGlobal,
     ProductWiseReportGlobal,
+    ProductTimeReportGlobal,
     ClosingEntryReportGlobal,
     WaiterWiseBillingReportGlobal,
     InventoryReportGlobal,
