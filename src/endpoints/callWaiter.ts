@@ -1,7 +1,14 @@
 import type { PayloadHandler } from 'payload'
+import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
+
+dayjs.extend(utc)
+dayjs.extend(timezone)
 
 const ACTIVE_BILL_STATUSES = ['ordered', 'prepared', 'delivered'] as const
 const CLOSED_BILL_STATUSES = new Set(['completed', 'settled', 'cancelled'])
+const BILLING_TIMEZONE = 'Asia/Kolkata'
 
 type CallWaiterBody = {
   branchId?: unknown
@@ -267,7 +274,8 @@ export const callWaiterHandler: PayloadHandler = async (req): Promise<Response> 
       toText(matchedBill.tableDetails?.tableNumber) || requestedTableNumber || 'UNKNOWN'
     const resolvedSection = toText(matchedBill.tableDetails?.section) || requestedSection || 'UNKNOWN'
 
-    const signalLine = `WAITER_CALL_SOS ${new Date().toISOString()} TABLE-${resolvedTableNumber} SECTION-${resolvedSection}`
+    const timestampIST = dayjs().tz(BILLING_TIMEZONE).format('YYYY-MM-DDTHH:mm:ss.SSSZ')
+    const signalLine = `WAITER_CALL_SOS ${timestampIST} TABLE-${resolvedTableNumber} SECTION-${resolvedSection}`
     const existingNotes = toText(matchedBill.notes)
     const notes = existingNotes ? `${existingNotes}\n${signalLine}` : signalLine
 
