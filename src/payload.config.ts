@@ -82,6 +82,7 @@ import { getLatestAppDownloadHandler } from './endpoints/getLatestAppDownload'
 import { generateTableQRHandler } from './endpoints/generateTableQR'
 import { tableRedirectHandler } from './endpoints/tableRedirect'
 import { callWaiterHandler } from './endpoints/callWaiter'
+import { ackWaiterCallHandler } from './endpoints/ackWaiterCall'
 import { StockAlerts } from './collections/StockAlerts'
 
 // Path helpers
@@ -331,6 +332,11 @@ export default buildConfig({
       path: '/call-waiter',
       method: 'post',
       handler: callWaiterHandler,
+    },
+    {
+      path: '/call-waiter/ack',
+      method: 'post',
+      handler: ackWaiterCallHandler,
     },
     {
       path: '/billing/customer-lookup',
