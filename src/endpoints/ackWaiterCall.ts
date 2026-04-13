@@ -25,6 +25,8 @@ const SOS_NOTE_REGEX = /^WAITER_CALL_SOS\s+([0-9T:\.\+\-Z]+)\s+TABLE-([^\s|]+)\s
 
 type AckWaiterBody = {
   branchId?: unknown
+  branch?: unknown
+  selectedBranchId?: unknown
   billId?: unknown
   callTimestamp?: unknown
 }
@@ -86,9 +88,22 @@ const parseBody = async (req: {
   const url = new URL(req.url || 'http://localhost')
   return {
     branchId: url.searchParams.get('branchId'),
+    branch: url.searchParams.get('branch'),
+    selectedBranchId: url.searchParams.get('selectedBranchId'),
     billId: url.searchParams.get('billId'),
     callTimestamp: url.searchParams.get('callTimestamp'),
   }
+}
+
+const getHeaderValue = (headers: unknown, key: string): string | null => {
+  if (!headers || typeof headers !== 'object') return null
+  if (typeof (headers as { get?: unknown }).get === 'function') {
+    const value = (headers as { get: (name: string) => string | null }).get(key)
+    return toText(value)
+  }
+
+  const record = headers as Record<string, unknown>
+  return toText(record[key] ?? record[key.toLowerCase()] ?? record[key.toUpperCase()])
 }
 
 const getActorFromUser = (user: unknown): Actor | null => {
@@ -146,20 +161,63 @@ export const ackWaiterCallHandler: PayloadHandler = async (req): Promise<Respons
     }
 
     const body = await parseBody(req as { json?: () => Promise<unknown>; url?: string })
-    const branchId = toText(body.branchId)
     const billId = toText(body.billId)
     const callTimestamp = toText(body.callTimestamp)
+    const requestedBranchCandidates = [
+      {
+        source: 'body.branchId',
+        value: toText(body.branchId),
+      },
+      {
+        source: 'body.selectedBranchId',
+        value: toText(body.selectedBranchId),
+      },
+      {
+        source: 'body.branch',
+        value: toText(body.branch),
+      },
+      {
+        source: 'header.x-branch-id',
+        value: getHeaderValue(req.headers, 'x-branch-id'),
+      },
+      {
+        source: 'header.x-branch',
+        value: getHeaderValue(req.headers, 'x-branch'),
+      },
+    ].filter(
+      (item): item is { source: string; value: string } =>
+        typeof item.value === 'string' && item.value.length > 0,
+    )
 
-    if (!branchId || !billId) {
-      return Response.json({ ok: false, message: 'branchId and billId are required' }, { status: 400 })
+    if (!billId) {
+      return Response.json({ ok: false, message: 'billId is required' }, { status: 400 })
     }
 
-    if (BRANCH_SCOPED_ROLES.has(actor.role)) {
-      if (!actor.branchId) {
-        return Response.json({ ok: false, message: 'User is not assigned to a branch' }, { status: 403 })
+    const effectiveBranchId = actor.branchId || requestedBranchCandidates[0]?.value || null
+
+    if (!effectiveBranchId) {
+      return Response.json({ ok: false, message: 'Branch context missing' }, { status: 400 })
+    }
+
+    if (actor.branchId) {
+      const mismatchedSource = requestedBranchCandidates.find(
+        (candidate) => candidate.value !== actor.branchId,
+      )
+      if (mismatchedSource) {
+        return Response.json(
+          {
+            ok: false,
+            message: `You are not allowed to acknowledge another branch (${mismatchedSource.source})`,
+          },
+          { status: 403 },
+        )
       }
-      if (actor.branchId !== branchId) {
-        return Response.json({ ok: false, message: 'You are not allowed to acknowledge another branch' }, { status: 403 })
+    } else if (BRANCH_SCOPED_ROLES.has(actor.role)) {
+      const hasConflictingRequestBranch = requestedBranchCandidates.some(
+        (candidate) => candidate.value !== effectiveBranchId,
+      )
+      if (hasConflictingRequestBranch) {
+        return Response.json({ ok: false, message: 'Branch context mismatch in request' }, { status: 409 })
       }
     }
 
@@ -180,7 +238,7 @@ export const ackWaiterCallHandler: PayloadHandler = async (req): Promise<Respons
     }
 
     const billBranchId = getRelationshipId(bill.branch)
-    if (billBranchId !== branchId) {
+    if (billBranchId !== effectiveBranchId) {
       return Response.json({ ok: false, message: 'Branch mismatch' }, { status: 409 })
     }
 
