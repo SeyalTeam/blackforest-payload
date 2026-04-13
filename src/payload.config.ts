@@ -81,6 +81,7 @@ import { AppDownloadSettings } from './globals/AppDownloadSettings'
 import { getLatestAppDownloadHandler } from './endpoints/getLatestAppDownload'
 import { generateTableQRHandler } from './endpoints/generateTableQR'
 import { tableRedirectHandler } from './endpoints/tableRedirect'
+import { callWaiterHandler } from './endpoints/callWaiter'
 import { StockAlerts } from './collections/StockAlerts'
 
 // Path helpers
@@ -325,6 +326,11 @@ export default buildConfig({
       path: '/table-redirect',
       method: 'get',
       handler: tableRedirectHandler,
+    },
+    {
+      path: '/call-waiter',
+      method: 'post',
+      handler: callWaiterHandler,
     },
     {
       path: '/billing/customer-lookup',
