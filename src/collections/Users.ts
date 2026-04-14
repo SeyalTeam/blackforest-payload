@@ -42,12 +42,53 @@ export const Users: CollectionConfig = {
       },
     },
     {
+      type: 'row',
+      fields: [
+        {
+          name: 'isKitchen',
+          label: 'Kitchen',
+          type: 'checkbox',
+          defaultValue: false,
+          access: {
+            create: ({ req }) => req.user?.role === 'superadmin',
+            update: ({ req }) => req.user?.role === 'superadmin',
+          },
+        },
+        {
+          name: 'isStock',
+          label: 'Stock',
+          type: 'checkbox',
+          defaultValue: false,
+          access: {
+            create: ({ req }) => req.user?.role === 'superadmin',
+            update: ({ req }) => req.user?.role === 'superadmin',
+          },
+        },
+      ],
+    },
+    {
       name: 'branch',
       type: 'relationship',
       relationTo: 'branches',
       required: false,
       admin: {
-        condition: ({ role }) => ['branch', 'kitchen'].includes(role), // Show for branch, kitchen
+        condition: ({ role, isKitchen }) =>
+          ['branch', 'kitchen'].includes(role) && !Boolean(isKitchen),
+      },
+      access: {
+        create: ({ req }) => req.user?.role === 'superadmin',
+        update: ({ req }) => req.user?.role === 'superadmin',
+      },
+    },
+    {
+      name: 'kitchenBranches',
+      label: 'Kitchen Branches',
+      type: 'relationship',
+      relationTo: 'branches',
+      hasMany: true,
+      required: false,
+      admin: {
+        condition: ({ isKitchen }) => Boolean(isKitchen),
       },
       access: {
         create: ({ req }) => req.user?.role === 'superadmin',
@@ -60,7 +101,8 @@ export const Users: CollectionConfig = {
       relationTo: 'kitchens',
       required: false,
       admin: {
-        condition: ({ role }) => role === 'kitchen',
+        // If "Kitchen" checkbox is enabled, user is scoped to ALL kitchens in selected branch.
+        condition: ({ role, isKitchen }) => role === 'kitchen' && !Boolean(isKitchen),
       },
       filterOptions: ({ data }) => {
         if (data?.branch) {
@@ -533,13 +575,21 @@ export const Users: CollectionConfig = {
       },
     ],
     beforeChange: [
-      async ({ data, req, operation }) => {
+      async ({ data, req, operation, originalDoc }) => {
         const nextData = data as typeof data & {
           forceLogoutAllDevices?: boolean
           loginBlocked?: boolean
           password?: string
           sessions?: unknown[]
           deviceId?: null | string
+          role?: string
+          branch?: unknown
+          kitchen?: unknown
+          kitchenBranches?: unknown[]
+          company?: unknown
+          factory_companies?: unknown[]
+          employee?: unknown
+          isKitchen?: boolean | null
         }
 
         const isPasswordChange =
@@ -577,8 +627,46 @@ export const Users: CollectionConfig = {
               }
             }
           }
-          if (['branch', 'kitchen'].includes(nextData.role) && !nextData.branch) {
+          const resolvedRole =
+            nextData.role ||
+            ((operation === 'update'
+              ? (originalDoc as { role?: string } | undefined)?.role
+              : undefined) ??
+              '')
+          const resolvedBranch =
+            nextData.branch ??
+            (operation === 'update'
+              ? (originalDoc as { branch?: unknown } | undefined)?.branch
+              : undefined)
+          const resolvedKitchenBranches =
+            nextData.kitchenBranches ??
+            (operation === 'update'
+              ? (originalDoc as { kitchenBranches?: unknown[] } | undefined)?.kitchenBranches
+              : undefined)
+          const resolvedKitchenFlag =
+            typeof nextData.isKitchen === 'boolean'
+              ? nextData.isKitchen
+              : Boolean(
+                  operation === 'update'
+                    ? (originalDoc as { isKitchen?: boolean | null } | undefined)?.isKitchen
+                    : false,
+                )
+
+          if (
+            ['branch', 'kitchen'].includes(resolvedRole) &&
+            !resolvedKitchenFlag &&
+            !resolvedBranch
+          ) {
             throw new Error('Branch is required for branch or kitchen role users')
+          }
+
+          if (resolvedKitchenFlag) {
+            if (!Array.isArray(resolvedKitchenBranches) || resolvedKitchenBranches.length === 0) {
+              throw new Error('At least one Kitchen Branch is required when Kitchen checkbox is enabled')
+            }
+            nextData.branch = null
+            // Branch-level kitchen access should not be tied to one specific kitchen.
+            nextData.kitchen = null
           }
           if (nextData.role === 'company' && !nextData.company) {
             throw new Error('Company is required for company role users')

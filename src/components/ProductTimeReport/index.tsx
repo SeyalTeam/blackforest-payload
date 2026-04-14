@@ -43,6 +43,8 @@ type ReportData = {
   stats: ReportStat[]
 }
 
+type PreparationStatus = 'exceeded' | 'lower' | 'neutral'
+
 type BillPreparationDetail = {
   billingId: string
   billNumber: string
@@ -154,6 +156,17 @@ const toFiniteNumber = (value: unknown): number | null => {
     if (Number.isFinite(parsed)) return parsed
   }
   return null
+}
+
+const getPreparationStatus = (
+  actual: number | null | undefined,
+  baseline: number | null | undefined,
+): PreparationStatus => {
+  if (actual == null || baseline == null) return 'neutral'
+  if (!Number.isFinite(actual) || !Number.isFinite(baseline)) return 'neutral'
+  if (actual > baseline) return 'exceeded'
+  if (actual < baseline) return 'lower'
+  return 'neutral'
 }
 
 const formatAmount = (value: unknown): string => {
@@ -384,6 +397,7 @@ const ProductTimeReport: React.FC = () => {
   const [selectedBill, setSelectedBill] = useState<BillingDoc | null>(null)
   const [loadingSelectedBill, setLoadingSelectedBill] = useState(false)
   const [selectedBillError, setSelectedBillError] = useState('')
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false)
 
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -680,6 +694,7 @@ const ProductTimeReport: React.FC = () => {
         setSelectedBillRow(null)
         setSelectedBill(null)
         setSelectedBillError('')
+        setIsReceiptModalOpen(false)
         return
       }
 
@@ -736,6 +751,7 @@ const ProductTimeReport: React.FC = () => {
         if (details.length === 0) {
           setSelectedBill(null)
           setSelectedBillError('')
+          setIsReceiptModalOpen(false)
         }
       } catch (detailsError) {
         console.error(detailsError)
@@ -744,6 +760,7 @@ const ProductTimeReport: React.FC = () => {
         setSelectedBillRow(null)
         setSelectedBill(null)
         setSelectedBillError('')
+        setIsReceiptModalOpen(false)
       } finally {
         setLoadingBillDetails(false)
       }
@@ -981,11 +998,24 @@ const ProductTimeReport: React.FC = () => {
                 {data.stats.map((row, index) => {
                   const isSelected =
                     selectedProductRow != null && row.productId === selectedProductRow.productId
+                  const configuredPreparationTime = toFiniteNumber(row.preparationTime)
+                  const averagePreparationTime = toFiniteNumber(row.averagePreparationTime)
+                  const preparationStatus = getPreparationStatus(
+                    averagePreparationTime,
+                    configuredPreparationTime,
+                  )
+                  const rowClassName = [
+                    isSelected ? 'is-selected' : '',
+                    preparationStatus === 'exceeded' ? 'prep-row-exceeded' : '',
+                    preparationStatus === 'lower' ? 'prep-row-lower' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')
 
                   return (
                     <tr
                       key={`${row.productId}-${index}`}
-                      className={isSelected ? 'is-selected' : ''}
+                      className={rowClassName}
                       onClick={() => setSelectedProductRow(row)}
                     >
                       <td>{row.productName}</td>
@@ -1035,9 +1065,20 @@ const ProductTimeReport: React.FC = () => {
                         selectedBillRow != null &&
                         entry.billingId.length > 0 &&
                         entry.billingId === selectedBillRow.billingId
+                      const configuredPreparationTime =
+                        selectedProductRow && typeof selectedProductRow.preparationTime === 'number'
+                          ? selectedProductRow.preparationTime
+                          : null
+                      const billPreparedTime = toFiniteNumber(entry.preparationTime)
+                      const preparationStatus = getPreparationStatus(
+                        billPreparedTime,
+                        configuredPreparationTime,
+                      )
                       const rowClassName = [
                         entry.billingId.length > 0 ? 'is-clickable' : 'is-disabled',
                         isSelected ? 'is-selected' : '',
+                        preparationStatus === 'exceeded' ? 'prep-row-exceeded' : '',
+                        preparationStatus === 'lower' ? 'prep-row-lower' : '',
                       ]
                         .filter(Boolean)
                         .join(' ')
@@ -1049,6 +1090,7 @@ const ProductTimeReport: React.FC = () => {
                           onClick={() => {
                             if (!entry.billingId) return
                             setSelectedBillRow(entry)
+                            setIsReceiptModalOpen(true)
                           }}
                         >
                           <td>{entry.billNumber}</td>
@@ -1066,6 +1108,20 @@ const ProductTimeReport: React.FC = () => {
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {isReceiptModalOpen && (
+        <div className="thermal-modal-backdrop" onClick={() => setIsReceiptModalOpen(false)}>
+          <div className="thermal-modal" onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              className="thermal-modal-close"
+              onClick={() => setIsReceiptModalOpen(false)}
+            >
+              Close
+            </button>
 
             <div className="pt-table-wrap thermal-preview-wrap">
               {loadingSelectedBill && <p className="state">Loading bill...</p>}
@@ -1087,7 +1143,7 @@ const ProductTimeReport: React.FC = () => {
 
                   <div className="thermal-meta-row thermal-meta-row-main">
                     <p className="thermal-inline-left">Date: {selectedThermalDate}</p>
-                      <p className="thermal-inline-right">BILL NO -{selectedBillShortNo}</p>
+                    <p className="thermal-inline-right">BILL NO -{selectedBillShortNo}</p>
                   </div>
                   <div className="thermal-meta-row">
                     <p>Assigned by: {selectedCreatedByLabel}</p>

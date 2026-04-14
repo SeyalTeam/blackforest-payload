@@ -225,7 +225,10 @@ export interface User {
     | 'waiter'
     | 'supervisor'
     | 'driver';
+  isKitchen?: boolean | null;
+  isStock?: boolean | null;
   branch?: (string | null) | Branch;
+  kitchenBranches?: (string | Branch)[] | null;
   kitchen?: (string | null) | Kitchen;
   company?: (string | null) | Company;
   factory_companies?: (string | Company)[] | null;
@@ -1216,7 +1219,10 @@ export interface PayloadMigration {
 export interface UsersSelect<T extends boolean = true> {
   name?: T;
   role?: T;
+  isKitchen?: T;
+  isStock?: T;
   branch?: T;
+  kitchenBranches?: T;
   kitchen?: T;
   company?: T;
   factory_companies?: T;

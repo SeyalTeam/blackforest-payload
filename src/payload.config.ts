@@ -3,7 +3,7 @@ import { mongooseAdapter } from '@payloadcms/db-mongodb'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import path from 'path'
 // Force rebuild
-import { buildConfig } from 'payload'
+import { buildConfig, type CollectionConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
 
@@ -90,6 +90,17 @@ import { StockAlerts } from './collections/StockAlerts'
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
+
+const COLLECTION_GROUP_LABEL = 'Collections'
+
+const withCollectionGroup = <T extends CollectionConfig>(collection: T): T => ({
+  ...collection,
+  admin: {
+    ...(collection.admin || {}),
+    group: COLLECTION_GROUP_LABEL,
+  },
+})
+
 const normalizeAbsoluteURL = (value?: string | null): string => {
   const input = value?.trim() || ''
   if (!input) return ''
@@ -139,6 +150,7 @@ if (rawR2Env.S3_ENDPOINT && !r2Env.S3_ENDPOINT) {
 export default buildConfig({
   admin: {
     user: Users.slug,
+    theme: 'dark',
     importMap: {
       baseDir: path.resolve(dirname),
     },
@@ -414,7 +426,7 @@ export default buildConfig({
     Attendance,
     APKFiles,
     StockAlerts,
-  ],
+  ].map(withCollectionGroup),
 
   editor: lexicalEditor(),
 
