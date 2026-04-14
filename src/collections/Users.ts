@@ -616,8 +616,14 @@ export const Users: CollectionConfig = {
           // Auto-populate name from employee if not set
           if (!nextData.name && nextData.employee) {
             const employeeId =
-              typeof nextData.employee === 'string' ? nextData.employee : nextData.employee.id
-            if (employeeId) {
+              typeof nextData.employee === 'string'
+                ? nextData.employee
+                : typeof nextData.employee === 'object' &&
+                    nextData.employee !== null &&
+                    'id' in nextData.employee
+                  ? nextData.employee.id
+                  : undefined
+            if (typeof employeeId === 'string' && employeeId.length > 0) {
               const employee = await req.payload.findByID({
                 collection: 'employees',
                 id: employeeId,
@@ -678,6 +684,7 @@ export const Users: CollectionConfig = {
             throw new Error('At least one company is required for factory role users')
           }
           if (
+            typeof nextData.role === 'string' &&
             ['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef'].includes(
               nextData.role,
             ) &&
