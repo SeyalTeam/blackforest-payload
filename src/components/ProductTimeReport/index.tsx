@@ -967,8 +967,8 @@ const ProductTimeReport: React.FC = () => {
 
       {!loading && !loadingMeta && data && data.stats.length > 0 && (
         <div className="report-panels">
-          <div className="table-wrap main-table">
-            <table className="report-table">
+          <div className="pt-table-wrap main-table">
+            <table className="pt-report-table">
               <thead>
                 <tr>
                   <th>PRODUCT NAME</th>
@@ -1000,8 +1000,8 @@ const ProductTimeReport: React.FC = () => {
           </div>
 
           <div className="right-panels">
-            <div className="table-wrap details-table-wrap">
-              <table className="report-table details-table">
+            <div className="pt-table-wrap details-table-wrap">
+              <table className="pt-report-table pt-details-table">
                 <thead>
                   <tr>
                     <th>BILL NUMBER</th>
@@ -1067,7 +1067,7 @@ const ProductTimeReport: React.FC = () => {
               </table>
             </div>
 
-            <div className="table-wrap thermal-preview-wrap">
+            <div className="pt-table-wrap thermal-preview-wrap">
               {loadingSelectedBill && <p className="state">Loading bill...</p>}
               {!loadingSelectedBill && selectedBillError && <p className="state error">{selectedBillError}</p>}
               {!loadingSelectedBill && !selectedBillError && !selectedBill && (

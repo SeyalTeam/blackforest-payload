@@ -89,7 +89,7 @@
   }
 }
 
-.table-wrap {
+.pt-table-wrap {
   width: min(720px, 100%);
   border: 1px solid var(--theme-elevation-200);
   border-radius: 10px;
@@ -140,7 +140,7 @@
   }
 }
 
-.report-table {
+.pt-report-table {
   width: 100%;
   border-collapse: collapse;
 
@@ -181,7 +181,7 @@
   }
 }
 
-.details-table {
+.pt-details-table {
   th,
   td {
     font-size: 0.95rem;
