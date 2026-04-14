@@ -115,21 +115,22 @@ const parsePreparingTimeValue = (value: unknown): number | null => {
   return parsed
 }
 
-const resolveItemPreparationMinutes = (row: RawPreparationItem, now: Dayjs): number | null => {
-  const fallbackDate = parseToDayjs(row.billCreatedAt) ?? now
+const resolveItemPreparationMinutes = (row: RawPreparationItem): number | null => {
+  const fallbackDate = parseToDayjs(row.billCreatedAt) ?? dayjs().tz('Asia/Kolkata')
 
-  const orderedAt = parseTimeLikeValue(row.orderedAt, fallbackDate) ?? fallbackDate
+  const orderedAt = parseTimeLikeValue(row.orderedAt, fallbackDate)
   const preparedAt = parseTimeLikeValue(row.preparedAt, fallbackDate)
 
-  if (preparedAt) {
+  if (orderedAt && preparedAt) {
     const adjustedPreparedAt = preparedAt.isBefore(orderedAt) ? preparedAt.add(1, 'day') : preparedAt
-    return Math.max(0, adjustedPreparedAt.diff(orderedAt, 'minute'))
+    const diffMinutes = adjustedPreparedAt.diff(orderedAt, 'minute', true)
+    return Math.max(0, Number(diffMinutes.toFixed(2)))
   }
 
   const preparingTime = parsePreparingTimeValue(row.preparingTime)
   if (preparingTime != null) return preparingTime
 
-  return Math.max(0, now.diff(orderedAt, 'minute'))
+  return null
 }
 
 const resolveBillNumber = (row: RawPreparationItem): string => {
@@ -261,15 +262,16 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
     })
 
     const rows = (await BillingModel.aggregate(pipeline)) as unknown as RawPreparationItem[]
-    const now = dayjs().tz('Asia/Kolkata')
 
-    const groupedByBill = new Map<
+const groupedByBill = new Map<
       string,
       {
         billingId: string
         billNumber: string
         total: number
         count: number
+        chefTotal: number
+        chefCount: number
         createdAt: Dayjs | null
       }
     >()
@@ -277,8 +279,8 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
     rows.forEach((row, index) => {
       const billingId = toId(row.billingId) || ''
       const billNumber = resolveBillNumber(row)
-      const prep = resolveItemPreparationMinutes(row, now)
-      if (prep == null || !Number.isFinite(prep)) return
+      const prep = resolveItemPreparationMinutes(row)
+      const chefPreparingTime = parsePreparingTimeValue(row.preparingTime)
 
       const createdAt = parseToDayjs(row.billCreatedAt)
       const stableKey = billingId || `${billNumber}-${index}`
@@ -288,13 +290,21 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
         groupedByBill.set(stableKey, {
           billingId,
           billNumber,
-          total: prep,
-          count: 1,
+          total: prep != null && Number.isFinite(prep) ? prep : 0,
+          count: prep != null && Number.isFinite(prep) ? 1 : 0,
+          chefTotal: chefPreparingTime != null ? chefPreparingTime : 0,
+          chefCount: chefPreparingTime != null ? 1 : 0,
           createdAt,
         })
       } else {
-        existing.total += prep
-        existing.count += 1
+        if (prep != null && Number.isFinite(prep)) {
+          existing.total += prep
+          existing.count += 1
+        }
+        if (chefPreparingTime != null) {
+          existing.chefTotal += chefPreparingTime
+          existing.chefCount += 1
+        }
       }
     })
 
@@ -303,6 +313,8 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
         billingId: item.billingId,
         billNumber: item.billNumber,
         preparationTime: item.count > 0 ? Number((item.total / item.count).toFixed(2)) : null,
+        chefPreparationTime:
+          item.chefCount > 0 ? Number((item.chefTotal / item.chefCount).toFixed(2)) : null,
         createdAt: item.createdAt,
       }))
       .sort((a, b) => {
@@ -314,6 +326,7 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
         billingId: item.billingId,
         billNumber: item.billNumber,
         preparationTime: item.preparationTime,
+        chefPreparationTime: item.chefPreparationTime,
       }))
 
     return Response.json({

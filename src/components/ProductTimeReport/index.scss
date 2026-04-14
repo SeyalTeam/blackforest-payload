@@ -204,6 +204,17 @@
     text-align: center;
     white-space: nowrap;
   }
+
+  .prep-time-with-chef {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .chef-prep-time {
+    color: #1b8e3e;
+    font-weight: 700;
+  }
 }
 
 .thermal-bill {

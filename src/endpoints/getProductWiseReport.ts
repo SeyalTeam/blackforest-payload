@@ -125,23 +125,23 @@ const parseToDayjs = (value: unknown): Dayjs | null => {
 
 const resolveItemPreparationMinutes = (
   row: RawPreparationItem,
-  now: Dayjs,
 ): number | null => {
-  const fallbackDate = parseToDayjs(row.billCreatedAt) ?? now
+  const fallbackDate = parseToDayjs(row.billCreatedAt) ?? dayjs().tz('Asia/Kolkata')
 
-  const orderedAt = parseTimeLikeValue(row.orderedAt, fallbackDate) ?? fallbackDate
+  const orderedAt = parseTimeLikeValue(row.orderedAt, fallbackDate)
   const preparedAt = parseTimeLikeValue(row.preparedAt, fallbackDate)
 
-  if (preparedAt) {
+  if (orderedAt && preparedAt) {
     const adjustedPreparedAt =
       preparedAt.isBefore(orderedAt) ? preparedAt.add(1, 'day') : preparedAt
-    return Math.max(0, adjustedPreparedAt.diff(orderedAt, 'minute'))
+    const diffMinutes = adjustedPreparedAt.diff(orderedAt, 'minute', true)
+    return Math.max(0, Number(diffMinutes.toFixed(2)))
   }
 
   const preparingTime = parsePreparingTimeValue(row.preparingTime)
   if (preparingTime != null) return preparingTime
 
-  return Math.max(0, now.diff(orderedAt, 'minute'))
+  return null
 }
 
 export const getProductWiseReportHandler: PayloadHandler = async (
@@ -394,14 +394,13 @@ export const getProductWiseReportHandler: PayloadHandler = async (
     const rawPreparationItems = (await BillingModel.aggregate(
       preparationPipeline,
     )) as unknown as RawPreparationItem[]
-    const now = dayjs().tz('Asia/Kolkata')
     const preparationByProductId: Record<string, { totalMinutes: number; count: number }> = {}
 
     rawPreparationItems.forEach((row) => {
       const productId = toId(row.productId)
       if (!productId) return
 
-      const minutes = resolveItemPreparationMinutes(row, now)
+      const minutes = resolveItemPreparationMinutes(row)
       if (minutes == null || !Number.isFinite(minutes)) return
 
       if (!preparationByProductId[productId]) {

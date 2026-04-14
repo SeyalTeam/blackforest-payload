@@ -47,6 +47,7 @@ type BillPreparationDetail = {
   billingId: string
   billNumber: string
   preparationTime: number | null
+  chefPreparationTime: number | null
 }
 
 type BillItem = {
@@ -694,7 +695,12 @@ const ProductTimeReport: React.FC = () => {
         if (!res.ok) throw new Error('Failed to fetch bill details')
 
         const json = (await res.json()) as {
-          details?: Array<{ billingId?: unknown; billNumber?: unknown; preparationTime?: unknown }>
+          details?: Array<{
+            billingId?: unknown
+            billNumber?: unknown
+            preparationTime?: unknown
+            chefPreparationTime?: unknown
+          }>
         }
 
         const details = Array.isArray(json.details)
@@ -707,6 +713,10 @@ const ProductTimeReport: React.FC = () => {
               preparationTime:
                 typeof entry.preparationTime === 'number' && Number.isFinite(entry.preparationTime)
                   ? entry.preparationTime
+                  : null,
+              chefPreparationTime:
+                typeof entry.chefPreparationTime === 'number' && Number.isFinite(entry.chefPreparationTime)
+                  ? entry.chefPreparationTime
                   : null,
             }))
           : []
@@ -1042,7 +1052,14 @@ const ProductTimeReport: React.FC = () => {
                           }}
                         >
                           <td>{entry.billNumber}</td>
-                          <td>{formatMinutes(entry.preparationTime)}</td>
+                          <td>
+                            <span className="prep-time-with-chef">
+                              <span>{formatMinutes(entry.preparationTime)}</span>
+                              {entry.chefPreparationTime != null && (
+                                <span className="chef-prep-time">({formatMinutes(entry.chefPreparationTime)})</span>
+                              )}
+                            </span>
+                          </td>
                         </tr>
                       )
                     })}
@@ -1109,9 +1126,7 @@ const ProductTimeReport: React.FC = () => {
                             : null)
                         const itemPreparingTime = toFiniteNumber(item.preparingTime)
 
-                        const estimatedTotalPrepTime =
-                          itemPreparingTime ??
-                          (configuredProductPrepPerUnit != null ? configuredProductPrepPerUnit * quantity : null)
+                        const estimatedTotalPrepTime = itemPreparingTime
                         const actualTotalPrepTime = resolveItemActualPreparationMinutesForPreview(
                           item,
                           selectedBill?.createdAt,
