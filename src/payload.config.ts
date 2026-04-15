@@ -91,13 +91,11 @@ import { StockAlerts } from './collections/StockAlerts'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
-const COLLECTION_GROUP_LABEL = 'Collections'
-
-const withCollectionGroup = <T extends CollectionConfig>(collection: T): T => ({
+const withoutCollectionSidebarLinks = <T extends CollectionConfig>(collection: T): T => ({
   ...collection,
   admin: {
     ...(collection.admin || {}),
-    group: COLLECTION_GROUP_LABEL,
+    group: false,
   },
 })
 
@@ -155,12 +153,12 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
     components: {
-      // views: {
-      //   Dashboard: {
-      //     Component: '/components/Dashboard/index.tsx#default',
-      //   },
-      // },
-      // beforeNavLinks: [],
+      views: {
+        dashboard: {
+          Component: '/components/AdminCollectionsDashboard/index.tsx#default',
+        },
+      },
+      beforeNavLinks: ['/components/AdminCollectionsNavLink/index.tsx#default'],
     },
   },
 
@@ -197,7 +195,7 @@ export default buildConfig({
 
   bodyParser: {
     limits: {
-      fileSize: 50 * 1024 * 1024, // 50MB max upload size
+      fileSize: 250 * 1024 * 1024, // 250MB max upload size
     },
   },
 
@@ -426,7 +424,7 @@ export default buildConfig({
     Attendance,
     APKFiles,
     StockAlerts,
-  ].map(withCollectionGroup),
+  ].map(withoutCollectionSidebarLinks),
 
   editor: lexicalEditor(),
 

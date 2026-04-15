@@ -637,6 +637,214 @@
   }
 }
 
+/* Official black dark-mode overrides for Branch Billing Report */
+.branch-report-container {
+  --bg-main: #050505;
+  --bg-secondary: #101010;
+  --bg-card: #121212;
+  --bg-card-soft: #171717;
+  --text-primary: #f5f5f5;
+  --text-muted: #a3a3a3;
+  --border-soft: rgba(255, 255, 255, 0.12);
+  background: #050505;
+
+  .report-topbar {
+    .crumbs {
+      color: #d1d5db;
+    }
+
+    h1 {
+      color: #fafafa;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+    }
+  }
+
+  .action-btn,
+  .icon-btn {
+    background: linear-gradient(180deg, #1c1c1c, #121212) !important;
+    color: #f3f4f6;
+    border-color: var(--border-soft) !important;
+
+    &:hover {
+      border-color: rgba(255, 255, 255, 0.35);
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.15),
+        0 10px 20px rgba(0, 0, 0, 0.45);
+    }
+  }
+
+  .custom-date-input {
+    .separator {
+      color: #d1d5db;
+    }
+  }
+
+  .kpi-card {
+    background: linear-gradient(180deg, #171717, #111111) !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+    box-shadow: none !important;
+
+    .kpi-label {
+      color: #a3a3a3;
+    }
+
+    .kpi-footnote {
+      color: #d4d4d4;
+    }
+  }
+
+  .kpi-icon {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.14);
+  }
+
+  .icon-cyan {
+    color: #d1d5db;
+  }
+
+  .icon-violet {
+    color: #cbd5e1;
+  }
+
+  .icon-emerald {
+    background: rgba(34, 197, 94, 0.12);
+    border-color: rgba(34, 197, 94, 0.35);
+    color: #86efac;
+  }
+
+  .kpi-progress {
+    background: rgba(255, 255, 255, 0.12);
+
+    span {
+      background: linear-gradient(90deg, #737373, #a3a3a3) !important;
+    }
+
+    .progress-violet {
+      background: linear-gradient(90deg, #525252, #8a8a8a) !important;
+    }
+
+    &.segmented {
+      background: rgba(255, 255, 255, 0.1);
+
+      span {
+        background: linear-gradient(90deg, #22c55e, #16a34a) !important;
+      }
+    }
+  }
+
+  .table-panel,
+  .analytics-card {
+    background: linear-gradient(180deg, #171717, #101010) !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+  }
+
+  .table-panel-header,
+  .table-footer {
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .table-panel-header p,
+  .table-footer p,
+  .trend-label,
+  .distribution-head span,
+  .branch-meta,
+  .state-text {
+    color: #a3a3a3;
+  }
+
+  .search-box {
+    background: rgba(255, 255, 255, 0.04);
+    color: #d4d4d4;
+    border-color: rgba(255, 255, 255, 0.12);
+
+    input::placeholder {
+      color: #9ca3af;
+    }
+  }
+
+  .report-table {
+    th,
+    td {
+      border-bottom-color: rgba(255, 255, 255, 0.08);
+      border-right-color: rgba(255, 255, 255, 0.12);
+    }
+
+    th {
+      background: rgba(0, 0, 0, 0.35);
+      color: #a3a3a3;
+    }
+
+    td {
+      color: #f5f5f5;
+    }
+
+    tbody tr:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    tfoot td {
+      color: #e5e5e5;
+      border-top-color: rgba(255, 255, 255, 0.14);
+      background: #121212;
+    }
+  }
+
+  .branch-name,
+  .distribution-head strong,
+  .trend-percent,
+  .analytics-card h4 {
+    color: #f5f5f5;
+  }
+
+  .status-review,
+  .status-total {
+    color: #d1d5db;
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .pagination button {
+    border-color: rgba(255, 255, 255, 0.16);
+    background: #141414;
+    color: #d1d5db;
+
+    &:not(:disabled):hover,
+    &.active {
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.35);
+      background: linear-gradient(160deg, #2a2a2a, #1a1a1a);
+    }
+  }
+
+  .trend-col .bar {
+    background: rgba(255, 255, 255, 0.16);
+    box-shadow: none;
+
+    &.peak {
+      background: linear-gradient(180deg, #a3a3a3, #6b7280) !important;
+    }
+  }
+
+  .distribution-bar {
+    background: rgba(255, 255, 255, 0.12);
+
+    .mix-upi {
+      background: linear-gradient(90deg, #9ca3af, #6b7280);
+    }
+
+    .mix-card {
+      background: linear-gradient(90deg, #6b7280, #525252);
+    }
+
+    .mix-cash {
+      background: linear-gradient(90deg, #d4d4d4, #a3a3a3);
+    }
+  }
+}
+
 .custom-calendar {
   font-family: inherit;
   border: 1px solid var(--theme-elevation-200) !important;

@@ -220,6 +220,7 @@ export const AppDownloadSettings: GlobalConfig = {
   slug: 'app-download-settings',
   label: 'App Downloads',
   admin: {
+    hidden: true,
     group: 'Settings',
     components: {
       views: {

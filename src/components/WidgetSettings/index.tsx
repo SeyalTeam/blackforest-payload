@@ -170,18 +170,36 @@ const sanitizeUploadedAPKFile = (file: File): File => {
 }
 
 const getResponseErrorMessage = async (response: Response, fallback: string): Promise<string> => {
+  if (response.status === 413) {
+    return 'APK file is too large for the upload gateway (HTTP 413). If hosted on Vercel, large APK uploads may be blocked by platform request-size limits.'
+  }
+
   try {
-    const payload = (await response.json()) as {
-      message?: string
-      error?: string
-      errors?: { message?: string }[]
+    const contentType = response.headers.get('content-type') || ''
+
+    if (contentType.includes('application/json')) {
+      const payload = (await response.json()) as {
+        message?: string
+        error?: string
+        errors?: { message?: string }[]
+      }
+
+      return (
+        payload.message ||
+        payload.error ||
+        payload.errors?.[0]?.message ||
+        `${fallback} (HTTP ${response.status})`
+      )
     }
 
-    return payload.message || payload.error || payload.errors?.[0]?.message || fallback
+    const text = (await response.text()).trim()
+    return text || `${fallback} (HTTP ${response.status})`
   } catch (_error) {
-    return fallback
+    return `${fallback} (HTTP ${response.status})`
   }
 }
+
+const MAX_APK_UPLOAD_BYTES = 250 * 1024 * 1024
 
 const getRelationshipID = (value: unknown): string | null => {
   if (typeof value === 'string' && value.trim().length > 0) return value
@@ -826,6 +844,11 @@ const WidgetSettings: React.FC<any> = (props) => {
   const handleUploadApp = async () => {
     if (!newAppName.trim() || !newAppFile) {
       alert('Please provide an app name and select an APK file.')
+      return
+    }
+
+    if (newAppFile.size > MAX_APK_UPLOAD_BYTES) {
+      alert('APK file is larger than 250MB. Please upload a smaller build.')
       return
     }
 
