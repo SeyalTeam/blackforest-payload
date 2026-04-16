@@ -300,6 +300,7 @@ const ProductTimeReport: React.FC = () => {
             chefPreparationTime?: unknown
             productStandardPreparationTime?: unknown
             chefName?: unknown
+            quantity?: unknown
           }>
         }
 
@@ -326,6 +327,7 @@ const ProductTimeReport: React.FC = () => {
                   ? entry.productStandardPreparationTime
                   : null,
               chefName: typeof entry.chefName === 'string' ? entry.chefName : '--',
+              quantity: typeof entry.quantity === 'number' ? entry.quantity : 0,
             }))
           : []
 
