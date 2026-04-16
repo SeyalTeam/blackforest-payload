@@ -298,6 +298,7 @@ const ProductTimeReport: React.FC = () => {
             preparedAt?: unknown
             preparationTime?: unknown
             chefPreparationTime?: unknown
+            productStandardPreparationTime?: unknown
             chefName?: unknown
           }>
         }
