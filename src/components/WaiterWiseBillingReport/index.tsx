@@ -55,14 +55,14 @@ const CheckboxOption = (props: OptionProps<any>) => {
 const CustomValueContainer = ({ children, ...props }: any) => {
   const { getValue, hasValue, selectProps } = props
   const selected = getValue()
-  const count = selected.length
+  const count = Array.isArray(selected) ? selected.length : (selected ? 1 : 0)
   const isTyping = selectProps.inputValue && selectProps.inputValue.length > 0
 
   return (
     <components.ValueContainer {...props}>
       {hasValue && count > 0 && !isTyping && (
         <div style={{ paddingLeft: '8px', position: 'absolute', pointerEvents: 'none' }}>
-          {count === 1 ? selected[0].label : `${count} Selected`}
+          {count === 1 ? (Array.isArray(selected) ? selected[0]?.label : (selected as any)?.label) : `${count} Selected`}
         </div>
       )}
       {children}

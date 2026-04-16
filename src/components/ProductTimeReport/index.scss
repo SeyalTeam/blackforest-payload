@@ -3,6 +3,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-width: 60%;
 }
 
 .product-time-report-header {
@@ -90,40 +91,24 @@
 }
 
 .pt-table-wrap {
-  width: min(720px, 100%);
+  width: 100%;
   border: 1px solid var(--theme-elevation-200);
   border-radius: 10px;
   overflow: auto;
 }
 
-.report-panels {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  padding-bottom: 4px;
-}
-
+.report-panels,
 .right-panels {
   display: flex;
+  flex-direction: column;
   gap: 12px;
-  align-items: flex-start;
-  flex-wrap: nowrap;
+  width: 100%;
 }
 
-.main-table {
-  flex: 0 0 auto;
-  width: min(720px, 100%);
 
-  .pt-report-table tbody td:first-child {
-    font-weight: 700;
-  }
-}
 
 .details-table-wrap {
-  flex: 0 0 340px;
-  width: min(340px, 100%);
+  width: 100%;
 }
 
 .thermal-preview-wrap {
@@ -134,22 +119,7 @@
   padding: 10px;
 }
 
-@media (max-width: 1500px) {
-  .report-panels {
-    flex-wrap: wrap;
-    overflow-x: visible;
-  }
 
-  .right-panels {
-    flex-wrap: wrap;
-  }
-
-  .details-table-wrap,
-  .thermal-preview-wrap {
-    flex: 1 1 100%;
-    width: 100%;
-  }
-}
 
 .pt-report-table {
   width: 100%;
@@ -227,7 +197,9 @@
     background: var(--theme-elevation-100);
   }
 
-  td:nth-child(2) {
+  td:nth-child(4),
+  td:nth-child(5),
+  td:nth-child(6) {
     text-align: center;
     white-space: nowrap;
   }

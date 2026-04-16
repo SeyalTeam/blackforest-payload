@@ -600,8 +600,9 @@ const ClosingEntryReport: React.FC = () => {
   const CustomValueContainer = (
     props: ValueContainerProps<BranchOption, true, GroupBase<BranchOption>>,
   ) => {
-    const selectedCount = props.getValue().length
-    const allSelected = props.getValue().some((v) => v.value === 'all')
+    const selected = props.getValue()
+    const selectedCount = Array.isArray(selected) ? selected.length : selected ? 1 : 0
+    const allSelected = Array.isArray(selected) && selected.some((v) => v?.value === 'all')
     const { children, ...rest } = props
 
     const input = React.Children.toArray(children).find(

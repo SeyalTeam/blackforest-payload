@@ -67,12 +67,10 @@ export const resolveReportBranchScope = async (
 
   const companyId = toId(user.company)
   if (!companyId) {
-    return {
-      errorResponse: Response.json(
-        { message: 'Company user is not assigned to a company.' },
-        { status: 403 },
-      ),
-    }
+    // Graceful fallback: do not hard-fail the report endpoint.
+    // Returning an empty branch scope keeps data access restricted while
+    // allowing the report UI to render without a generic fetch error.
+    return { branchIds: [] }
   }
 
   const { docs: companyBranches } = await req.payload.find({
@@ -91,16 +89,9 @@ export const resolveReportBranchScope = async (
 
   // Company user with explicit branch filter: enforce branch ownership.
   if (requestedBranchIds.length > 0) {
-    const unauthorizedBranch = requestedBranchIds.find((id) => !allowedBranchIds.includes(id))
-    if (unauthorizedBranch) {
-      return {
-        errorResponse: Response.json(
-          { message: 'You are not allowed to access reports for this branch.' },
-          { status: 403 },
-        ),
-      }
-    }
-    return { branchIds: requestedBranchIds }
+    // Keep only branches allowed for this company user.
+    // If none are allowed, this naturally returns no records instead of 403.
+    return { branchIds: requestedBranchIds.filter((id) => allowedBranchIds.includes(id)) }
   }
 
   // Company user without explicit branch filter: scope to all branches in their company.

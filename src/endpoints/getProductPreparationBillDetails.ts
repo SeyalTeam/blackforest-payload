@@ -17,6 +17,10 @@ type RawPreparationItem = {
   orderedAt: unknown
   preparedAt: unknown
   preparingTime: unknown
+  productName: unknown
+  productStandardPreparationTime: unknown
+  chefName: unknown
+  quantity: unknown
 }
 
 const parseDateParam = (value: unknown): string => {
@@ -154,11 +158,10 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
   const categoryParam = typeof req.query.category === 'string' ? req.query.category : 'all'
   const departmentParam = typeof req.query.department === 'string' ? req.query.department : 'all'
   const productId = typeof req.query.productId === 'string' ? req.query.productId.trim() : ''
+  const chefId = typeof req.query.chefId === 'string' ? req.query.chefId.trim() : ''
 
-  if (!productId) {
-    return Response.json({ error: 'Missing productId' }, { status: 400 })
-  }
-  if (!mongoose.Types.ObjectId.isValid(productId)) {
+  const isAllProducts = !productId || productId === 'all'
+  if (!isAllProducts && !mongoose.Types.ObjectId.isValid(productId)) {
     return Response.json({ error: 'Invalid productId' }, { status: 400 })
   }
 
@@ -182,20 +185,27 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
       status: { $not: { $eq: 'cancelled' } },
     }
 
-    if (branchIds) {
-      matchQuery.$expr = {
-        $in: [{ $toString: '$branch' }, branchIds],
+    if (branchIds && branchIds.length > 0) {
+      matchQuery.branch = {
+        $in: branchIds.map((id) => new mongoose.Types.ObjectId(id)),
       }
+    }
+
+    const itemMatch: Record<string, unknown> = {
+      'items.status': { $ne: 'cancelled' },
+    }
+    if (!isAllProducts) {
+      itemMatch['items.product'] = { $eq: new mongoose.Types.ObjectId(productId) }
+    }
+    if (chefId && chefId !== 'all' && mongoose.Types.ObjectId.isValid(chefId)) {
+      itemMatch['items.preparedBy'] = { $eq: new mongoose.Types.ObjectId(chefId) }
     }
 
     const pipeline: PipelineStage[] = [
       { $match: matchQuery },
       { $unwind: '$items' },
       {
-        $match: {
-          'items.status': { $ne: 'cancelled' },
-          'items.product': { $eq: new mongoose.Types.ObjectId(productId) },
-        },
+        $match: itemMatch,
       },
       {
         $lookup: {
@@ -225,14 +235,31 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
           preserveNullAndEmptyArrays: true,
         },
       },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'items.preparedBy',
+          foreignField: '_id',
+          as: 'chefDetails',
+        },
+      },
+      {
+        $unwind: {
+          path: '$chefDetails',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
     ]
 
     if (categoryParam && categoryParam !== 'all') {
-      const categoryIds = categoryParam.split(',').map((id) => id.trim()).filter(Boolean)
+      const categoryIds = categoryParam
+        .split(',')
+        .map((id) => id.trim())
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
       if (categoryIds.length > 0) {
         pipeline.push({
           $match: {
-            'categoryDetails._id': {
+            'productDetails.category': {
               $in: categoryIds.map((id) => new mongoose.Types.ObjectId(id)),
             },
           },
@@ -240,7 +267,7 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
       }
     }
 
-    if (departmentParam && departmentParam !== 'all') {
+    if (departmentParam && departmentParam !== 'all' && mongoose.Types.ObjectId.isValid(departmentParam)) {
       pipeline.push({
         $match: {
           'categoryDetails.department': { $eq: new mongoose.Types.ObjectId(departmentParam) },
@@ -258,65 +285,34 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
         orderedAt: '$items.orderedAt',
         preparedAt: '$items.preparedAt',
         preparingTime: '$items.preparingTime',
+        productName: '$productDetails.name',
+        productStandardPreparationTime: '$productDetails.preparationTime',
+        chefName: '$chefDetails.name',
+        quantity: '$items.quantity',
       },
     })
 
     const rows = (await BillingModel.aggregate(pipeline)) as unknown as RawPreparationItem[]
 
-const groupedByBill = new Map<
-      string,
-      {
-        billingId: string
-        billNumber: string
-        total: number
-        count: number
-        chefTotal: number
-        chefCount: number
-        createdAt: Dayjs | null
-      }
-    >()
+    const details = rows
+      .map((row) => {
+        const prep = resolveItemPreparationMinutes(row)
+        const chefTime = parsePreparingTimeValue(row.preparingTime)
 
-    rows.forEach((row, index) => {
-      const billingId = toId(row.billingId) || ''
-      const billNumber = resolveBillNumber(row)
-      const prep = resolveItemPreparationMinutes(row)
-      const chefPreparingTime = parsePreparingTimeValue(row.preparingTime)
-
-      const createdAt = parseToDayjs(row.billCreatedAt)
-      const stableKey = billingId || `${billNumber}-${index}`
-      const existing = groupedByBill.get(stableKey)
-
-      if (!existing) {
-        groupedByBill.set(stableKey, {
-          billingId,
-          billNumber,
-          total: prep != null && Number.isFinite(prep) ? prep : 0,
-          count: prep != null && Number.isFinite(prep) ? 1 : 0,
-          chefTotal: chefPreparingTime != null ? chefPreparingTime : 0,
-          chefCount: chefPreparingTime != null ? 1 : 0,
-          createdAt,
-        })
-      } else {
-        if (prep != null && Number.isFinite(prep)) {
-          existing.total += prep
-          existing.count += 1
+        return {
+          billingId: toId(row.billingId) || '',
+          billNumber: resolveBillNumber(row),
+          productName: typeof row.productName === 'string' ? row.productName : '--',
+          orderedAt: typeof row.orderedAt === 'string' ? row.orderedAt : '--',
+          preparedAt: typeof row.preparedAt === 'string' ? row.preparedAt : '--',
+          preparationTime: prep != null && Number.isFinite(prep) ? prep : null,
+          chefPreparationTime: chefTime != null && Number.isFinite(chefTime) ? chefTime : null,
+          productStandardPreparationTime: parsePreparingTimeValue(row.productStandardPreparationTime),
+          chefName: typeof row.chefName === 'string' ? row.chefName : '--',
+          createdAt: parseToDayjs(row.billCreatedAt),
+          quantity: typeof row.quantity === 'number' ? row.quantity : 1,
         }
-        if (chefPreparingTime != null) {
-          existing.chefTotal += chefPreparingTime
-          existing.chefCount += 1
-        }
-      }
-    })
-
-    const details = Array.from(groupedByBill.values())
-      .map((item) => ({
-        billingId: item.billingId,
-        billNumber: item.billNumber,
-        preparationTime: item.count > 0 ? Number((item.total / item.count).toFixed(2)) : null,
-        chefPreparationTime:
-          item.chefCount > 0 ? Number((item.chefTotal / item.chefCount).toFixed(2)) : null,
-        createdAt: item.createdAt,
-      }))
+      })
       .sort((a, b) => {
         const aMs = a.createdAt ? a.createdAt.valueOf() : 0
         const bMs = b.createdAt ? b.createdAt.valueOf() : 0
@@ -325,8 +321,14 @@ const groupedByBill = new Map<
       .map((item) => ({
         billingId: item.billingId,
         billNumber: item.billNumber,
+        productName: item.productName,
+        orderedAt: item.orderedAt,
+        preparedAt: item.preparedAt,
         preparationTime: item.preparationTime,
         chefPreparationTime: item.chefPreparationTime,
+        productStandardPreparationTime: item.productStandardPreparationTime,
+        chefName: item.chefName,
+        quantity: item.quantity,
       }))
 
     return Response.json({

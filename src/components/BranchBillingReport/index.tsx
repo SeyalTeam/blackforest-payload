@@ -72,6 +72,31 @@ const getQuarterDates = (date: Date) => {
   return { start, end }
 }
 
+const getResponseErrorMessage = async (response: Response, fallback: string): Promise<string> => {
+  try {
+    const contentType = response.headers.get('content-type') || ''
+
+    if (contentType.includes('application/json')) {
+      const payload = (await response.json()) as {
+        message?: string
+        error?: string
+        errors?: { message?: string }[]
+      }
+      return (
+        payload.message ||
+        payload.error ||
+        payload.errors?.[0]?.message ||
+        `${fallback} (HTTP ${response.status})`
+      )
+    }
+
+    const text = (await response.text()).trim()
+    return text || `${fallback} (HTTP ${response.status})`
+  } catch (_error) {
+    return `${fallback} (HTTP ${response.status})`
+  }
+}
+
 const dateRangeOptions: DatePresetOption[] = [
   { value: 'till_now', label: 'Till Now' },
   { value: 'today', label: 'Today' },
@@ -170,14 +195,16 @@ const BranchBillingReport: React.FC = () => {
       const endStr = toLocalDateStr(end)
       const res = await fetch(`/api/reports/branch-billing?startDate=${startStr}&endDate=${endStr}`)
 
-      if (!res.ok) throw new Error('Failed to fetch report')
+      if (!res.ok) {
+        throw new Error(await getResponseErrorMessage(res, 'Failed to fetch report'))
+      }
 
       const json: ReportData = await res.json()
       setPage(1)
       setData(json)
     } catch (err) {
       console.error(err)
-      setError('Error loading report data')
+      setError(err instanceof Error ? err.message : 'Error loading report data')
     } finally {
       setLoading(false)
     }

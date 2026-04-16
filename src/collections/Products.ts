@@ -41,6 +41,11 @@ const Products: CollectionConfig = {
       }
       // Priority 3: Detect Branch by IP (for waiters/devices on branch WiFi)
       else {
+        // Optimization: Skip IP check if user is already authenticated but has no branch (e.g. Superadmin)
+        if (req.user && ['superadmin', 'admin', 'company'].includes(req.user.role)) {
+          return true
+        }
+
         // Detect Public IP
         let clientIp = '127.0.0.1'
         if (req.headers && typeof req.headers.get === 'function') {
@@ -51,37 +56,39 @@ const Products: CollectionConfig = {
           clientIp = (req as any).ip
         }
 
-        if (clientIp) {
+        if (clientIp && clientIp !== '127.0.0.1') {
           // Log detected IP for debugging
-          console.log(`[Products Access] Checking IP: ${clientIp}`)
           try {
-            // Fetch all branches to check IP ranges with a timeout
+            // Fetch lean branches (depth: 0, specific fields) with a slightly longer timeout
             const branchesPromise = req.payload.find({
               collection: 'branches',
+              depth: 0,
               limit: 100,
               pagination: false,
+              // select: { id: true, name: true, ipAddress: true }, // Optimization if supported by adapter
+              overrideAccess: true,
             })
 
-            // Simple timeout for the database call (5 seconds)
             const branches = await Promise.race([
               branchesPromise,
               new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error('Branch fetch timeout')), 5000),
+                setTimeout(() => reject(new Error('Branch fetch timeout (5s)')), 5000),
               ),
             ])
 
-            for (const branch of branches.docs) {
-              if (branch.ipAddress && isIPAllowed(clientIp, branch.ipAddress)) {
-                branchId = branch.id
-                console.log(
-                  `[Products Access] Match Found: ${clientIp} -> ${branch.name} (${branch.id})`,
-                )
-                break
+            if (branches && branches.docs) {
+              for (const branch of branches.docs) {
+                if (branch.ipAddress && isIPAllowed(clientIp, branch.ipAddress)) {
+                  branchId = branch.id
+                  console.log(
+                    `[Products Access] Match Found: ${clientIp} -> ${branch.name} (${branch.id})`,
+                  )
+                  break
+                }
               }
             }
           } catch (error: any) {
-            console.error(`[Products Access] IP Check Failed: ${error.message || error}`)
-            // Fallback: don't crash, just proceed without specific branch lock
+            console.error(`[Products Access] IP Check Failed for ${clientIp}: ${error.message || error}`)
           }
         }
       }

@@ -2,12 +2,13 @@
 
 aside.nav,
 .nav {
-  width: 320px !important;
-  min-width: 320px !important;
-  max-width: 320px !important;
+  width: 320px;
+  min-width: 320px;
+  max-width: 320px;
   background: #050505 !important;
   border-right: 1px solid #1b1b1b !important;
   box-shadow: none !important;
+  transition: width 0.3s ease;
 }
 
 .nav__scroll {
@@ -272,4 +273,99 @@ aside.nav,
 .nav__controls a:hover,
 .nav__controls button:hover {
   background: #141414 !important;
+}
+
+/* Collapsed desktop sidebar: show an icon rail instead of fully hiding nav */
+@media (min-width: 1025px) {
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open) {
+    grid-template-columns: 86px auto !important;
+  }
+
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open) .nav {
+    width: 86px !important;
+    min-width: 86px !important;
+    max-width: 86px !important;
+    opacity: 1 !important;
+  }
+
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open) .nav__scroll {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
+    .nav-group__toggle {
+    display: none !important;
+  }
+
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
+    .nav-group
+    .rah-static {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
+    .nav-group
+    .rah-static
+    > div {
+    display: block !important;
+  }
+
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open) .nav__link {
+    justify-content: center !important;
+    gap: 0 !important;
+    min-height: 48px;
+    padding: 10px 8px !important;
+  }
+
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
+    .nav__link
+    .nav__link-label,
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
+    .nav__link
+    span {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    margin: -1px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    border: 0 !important;
+    white-space: nowrap !important;
+  }
+
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
+    .nav-group.Report
+    .nav__link::before,
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
+    .nav-group.Settings
+    .nav__link::before,
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
+    .nav-group--collections-shortcut
+    .nav__link::before {
+    margin: 0 !important;
+    width: 22px;
+    height: 22px;
+    display: inline-block !important; /* Ensure visibility */
+    opacity: 1 !important; /* Prevent any unintended fading */
+  }
+
+  /* Ensure active icons have high contrast in collapsed rail */
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open) .nav__link.active::before,
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open) .nav__link[aria-current='page']::before {
+    background-color: #ffffff !important;
+  }
+
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
+    .nav__link-indicator {
+    display: none !important;
+  }
+
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
+    .nav__controls {
+    align-items: center;
+    padding-top: 10px !important;
+  }
 }

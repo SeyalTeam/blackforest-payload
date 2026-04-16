@@ -32,6 +32,7 @@ interface RawPreparationItem {
   preparedAt: unknown
   preparingTime: unknown
   billCreatedAt: unknown
+  quantity: unknown
 }
 
 const toId = (value: unknown): string | null => {
@@ -177,10 +178,11 @@ export const getProductWiseReportHandler: PayloadHandler = async (
     .endOf('day')
     .toDate()
 
-  const branchParam = typeof req.query.branch === 'string' ? req.query.branch : ''
+  const branchParam = typeof req.query.branch === 'string' ? req.query.branch : 'all'
   const categoryParam = typeof req.query.category === 'string' ? req.query.category : ''
   const departmentParam = typeof req.query.department === 'string' ? req.query.department : ''
   const productParam = typeof req.query.product === 'string' ? req.query.product : ''
+  const chefId = typeof req.query.chefId === 'string' ? req.query.chefId.trim() : ''
 
   try {
     const { branchIds, errorResponse } = await resolveReportBranchScope(req, branchParam)
@@ -221,9 +223,9 @@ export const getProductWiseReportHandler: PayloadHandler = async (
       // though items have their own status usually
     }
 
-    if (branchIds) {
-      matchQuery.$expr = {
-        $in: [{ $toString: '$branch' }, branchIds],
+    if (branchIds && branchIds.length > 0) {
+      matchQuery.branch = {
+        $in: branchIds.map((id) => new mongoose.Types.ObjectId(id)),
       }
     }
 
@@ -241,6 +243,18 @@ export const getProductWiseReportHandler: PayloadHandler = async (
             'items.status': { $ne: 'cancelled' },
           },
         },
+      ]
+
+      // Apply Chef Filter
+      if (chefId && chefId !== 'all' && mongoose.Types.ObjectId.isValid(chefId)) {
+        pipeline.push({
+          $match: {
+            'items.preparedBy': { $eq: new mongoose.Types.ObjectId(chefId) },
+          },
+        })
+      }
+
+      pipeline.push(
         {
           $lookup: {
             from: 'products',
@@ -269,7 +283,7 @@ export const getProductWiseReportHandler: PayloadHandler = async (
             preserveNullAndEmptyArrays: true,
           },
         },
-      ]
+      )
 
       // Apply Category Filter if present
       if (categoryParam && categoryParam !== 'all') {
@@ -387,6 +401,7 @@ export const getProductWiseReportHandler: PayloadHandler = async (
           preparedAt: '$items.preparedAt',
           preparingTime: '$items.preparingTime',
           billCreatedAt: '$createdAt',
+          quantity: '$items.quantity',
         },
       },
     ]

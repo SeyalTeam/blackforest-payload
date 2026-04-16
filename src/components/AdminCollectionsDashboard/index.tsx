@@ -20,6 +20,7 @@ const AdminCollectionsDashboard = (props: AdminViewServerProps) => {
 
   const collections = config.collections.filter(
     (collection) =>
+      Array.isArray(visibleEntities?.collections) &&
       visibleEntities.collections.includes(collection.slug) &&
       collection.admin?.hidden !== true,
   )

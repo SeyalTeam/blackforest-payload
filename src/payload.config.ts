@@ -95,7 +95,7 @@ const withoutCollectionSidebarLinks = <T extends CollectionConfig>(collection: T
   ...collection,
   admin: {
     ...(collection.admin || {}),
-    group: false,
+    group: undefined,
   },
 })
 
@@ -153,12 +153,15 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
     components: {
-      views: {
+      /* views: {
         dashboard: {
           Component: '/components/AdminCollectionsDashboard/index.tsx#default',
         },
       },
-      beforeNavLinks: ['/components/AdminCollectionsNavLink/index.tsx#default'],
+      beforeNavLinks: [
+        '/components/AdminCollapsedNavBehavior/index.tsx#default',
+        '/components/AdminCollectionsNavLink/index.tsx#default',
+      ], */
     },
   },
 
@@ -176,7 +179,7 @@ export default buildConfig({
     'https://blackforest1.vseyal.com',
     'https://superadmin.theblackforestcakes.com',
     'http://192.168.29.173:3000', // Local Network IP
-  ],
+  ].filter(Boolean) as string[],
 
   csrf: [
     'http://localhost:3000',
@@ -191,7 +194,7 @@ export default buildConfig({
     'https://blackforest1.vseyal.com',
     'https://superadmin.theblackforestcakes.com',
     'http://192.168.29.173:3000', // Local Network IP
-  ],
+  ].filter(Boolean) as string[],
 
   bodyParser: {
     limits: {
@@ -424,7 +427,7 @@ export default buildConfig({
     Attendance,
     APKFiles,
     StockAlerts,
-  ].map(withoutCollectionSidebarLinks),
+  ],
 
   editor: lexicalEditor(),
 
@@ -476,4 +479,7 @@ export default buildConfig({
       },
     }),
   ],
+  onInit: async (payload) => {
+    console.log('[Payload] Initialization successful')
+  },
 })

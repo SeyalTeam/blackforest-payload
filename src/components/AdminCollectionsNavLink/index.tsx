@@ -7,13 +7,16 @@ const getCollectionsHref = (adminRoute?: string): string => {
   return base || '/admin'
 }
 
-const AdminCollectionsNavLink = ({
+const AdminCollectionsNavLink = async ({
   i18n,
   params,
   payload,
 }: Pick<ServerProps, 'i18n' | 'params' | 'payload'>) => {
+  if (!i18n || !payload) return null
+
   const href = getCollectionsHref(payload?.config?.routes?.admin)
-  const routeSegments = params?.segments
+  const awaitedParams = await params
+  const routeSegments = awaitedParams?.segments
   const firstSegment = Array.isArray(routeSegments) ? routeSegments[0] : routeSegments
   const isCollectionsActive = !firstSegment
 
