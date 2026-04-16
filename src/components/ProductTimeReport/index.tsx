@@ -284,7 +284,7 @@ const ProductTimeReport: React.FC = () => {
       setBillDetailsError('')
       setLoading(true)
       try {
-        const url = `/api/reports/product-preparation-bill-details?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&branch=${encodeURIComponent(selectedBranch)}&category=${encodeURIComponent(categoryParam)}&department=all&productId=${encodeURIComponent(selectedProduct)}&chefId=${encodeURIComponent(selectedChef)}`
+        const url = `/api/reports/product-preparation-bill-details?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&branch=${encodeURIComponent(selectedBranch)}&kitchenId=${encodeURIComponent(selectedKitchen)}&category=${encodeURIComponent(categoryParam)}&department=all&productId=${encodeURIComponent(selectedProduct)}&chefId=${encodeURIComponent(selectedChef)}`
         const res = await fetch(url)
         if (!res.ok) throw new Error('Failed to fetch bill details')
 

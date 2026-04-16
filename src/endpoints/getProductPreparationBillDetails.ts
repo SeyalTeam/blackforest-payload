@@ -159,6 +159,7 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
   const departmentParam = typeof req.query.department === 'string' ? req.query.department : 'all'
   const productId = typeof req.query.productId === 'string' ? req.query.productId.trim() : ''
   const chefId = typeof req.query.chefId === 'string' ? req.query.chefId.trim() : ''
+  const kitchenId = typeof req.query.kitchenId === 'string' ? req.query.kitchenId.trim() : ''
 
   const isAllProducts = !productId || productId === 'all'
   if (!isAllProducts && !mongoose.Types.ObjectId.isValid(productId)) {
@@ -185,9 +186,76 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
       status: { $not: { $eq: 'cancelled' } },
     }
 
-    if (branchIds && branchIds.length > 0) {
+    let finalCategoryIds: string[] = []
+    let resolvedBranchIds: string[] = branchIds || []
+
+    // 1. Resolve Kitchen Scope if provided
+    if (kitchenId && mongoose.Types.ObjectId.isValid(kitchenId)) {
+      const kitchenRes = await payload.findByID({
+        collection: 'kitchens',
+        id: kitchenId,
+        depth: 0,
+      })
+
+      if (kitchenRes) {
+        // Kitchen's allowed branches
+        const kitchenBranchIds = (Array.isArray(kitchenRes.branches) ? kitchenRes.branches : [])
+          .map((b) => (typeof b === 'object' ? b.id : b))
+          .filter(Boolean) as string[]
+
+        if (resolvedBranchIds.length > 0) {
+          // Intersection: requested branch must belong to the kitchen
+          resolvedBranchIds = resolvedBranchIds.filter((id) => kitchenBranchIds.includes(id))
+          // If no intersection, set to dummy to ensure zero results
+          if (resolvedBranchIds.length === 0) {
+            resolvedBranchIds = ['000000000000000000000000']
+          }
+        } else {
+          // No specific branch requested, lock to all kitchen branches
+          resolvedBranchIds = kitchenBranchIds
+        }
+
+        // Kitchen's allowed categories
+        const kitchenCategoryIds = (Array.isArray(kitchenRes.categories) ? kitchenRes.categories : [])
+          .map((c) => (typeof c === 'object' ? c.id : c))
+          .filter(Boolean) as string[]
+
+        const requestedCategoryIds =
+          categoryParam && categoryParam !== 'all'
+            ? categoryParam
+                .split(',')
+                .map((id) => id.trim())
+                .filter((id) => mongoose.Types.ObjectId.isValid(id))
+            : []
+
+        if (requestedCategoryIds.length > 0) {
+          // Intersection
+          finalCategoryIds = requestedCategoryIds.filter((id) => kitchenCategoryIds.includes(id))
+          if (finalCategoryIds.length === 0) {
+            finalCategoryIds = ['000000000000000000000000']
+          }
+        } else {
+          // Lock to all kitchen categories
+          finalCategoryIds = kitchenCategoryIds
+        }
+      } else {
+        // Invalid kitchen ID provided -> Zero results
+        resolvedBranchIds = ['000000000000000000000000']
+      }
+    } else {
+      // No kitchen selected, use standard category param
+      if (categoryParam && categoryParam !== 'all') {
+        finalCategoryIds = categoryParam
+          .split(',')
+          .map((id) => id.trim())
+          .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      }
+    }
+
+    // Apply resolved branch filter
+    if (resolvedBranchIds.length > 0) {
       matchQuery.branch = {
-        $in: branchIds.map((id) => new mongoose.Types.ObjectId(id)),
+        $in: resolvedBranchIds.map((id) => new mongoose.Types.ObjectId(id)),
       }
     }
 
@@ -251,20 +319,14 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
       },
     ]
 
-    if (categoryParam && categoryParam !== 'all') {
-      const categoryIds = categoryParam
-        .split(',')
-        .map((id) => id.trim())
-        .filter((id) => mongoose.Types.ObjectId.isValid(id))
-      if (categoryIds.length > 0) {
-        pipeline.push({
-          $match: {
-            'productDetails.category': {
-              $in: categoryIds.map((id) => new mongoose.Types.ObjectId(id)),
-            },
+    if (finalCategoryIds.length > 0) {
+      pipeline.push({
+        $match: {
+          'productDetails.category': {
+            $in: finalCategoryIds.map((id) => new mongoose.Types.ObjectId(id)),
           },
-        })
-      }
+        },
+      })
     }
 
     if (departmentParam && departmentParam !== 'all' && mongoose.Types.ObjectId.isValid(departmentParam)) {
