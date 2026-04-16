@@ -9,6 +9,7 @@ import {
   KitchenDoc,
   BranchDoc,
   CategoryDoc,
+  UserDoc,
   ProductDoc,
   BillPreparationDetail,
   BillingDoc,
