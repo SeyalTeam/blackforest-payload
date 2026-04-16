@@ -248,13 +248,22 @@ aside.nav,
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 8v13H3V8'/%3E%3Cpath d='M1 3h22v5H1z'/%3E%3Cpath d='M10 12h4'/%3E%3C/svg%3E");
 }
 
-/* Enforce requested sidebar order: Report -> Settings -> Collections */
+/* Enforce requested sidebar order: Report -> Inventory/Org -> Settings -> Collections */
 .nav-group.Report {
-  order: 10;
+  order: -1 !important;
+}
+
+.nav-group.Inventory,
+.nav-group.Organization {
+  order: 5 !important;
 }
 
 .nav-group.Settings {
-  order: 30;
+  order: 30 !important;
+}
+
+.nav-group.Others {
+  order: 35 !important;
 }
 
 .nav__controls {

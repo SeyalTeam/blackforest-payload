@@ -27,7 +27,6 @@ const Layout = ({ children }: Args) => (
     config={config}
     importMap={importMap}
     serverFunction={serverFunction}
-    suppressHydrationWarning
   >
     {children}
   </RootLayout>
