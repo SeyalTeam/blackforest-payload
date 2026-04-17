@@ -586,11 +586,6 @@ const ProductTimeReport: React.FC = () => {
       .slice(0, topListLimit)
   }, [displayDetails, topListLimit])
 
-  const maxTopOrderCount = useMemo(
-    () => topProductRows.reduce((maxValue, row) => Math.max(maxValue, row.orderCount), 0),
-    [topProductRows],
-  )
-
   return (
     <div className="product-time-report-container">
       <div className="product-time-report-header">
@@ -840,21 +835,12 @@ const ProductTimeReport: React.FC = () => {
               {topProductRows.length === 0 && <p className="state">No products found.</p>}
 
               {topProductRows.map((row, index) => {
-                const ratio = maxTopOrderCount > 0 ? row.orderCount / maxTopOrderCount : 0
-                const progress = maxTopOrderCount > 0 ? Math.max(6, ratio * 100) : 0
-                const velocityTone = ratio >= 0.8 ? 'high' : ratio >= 0.5 ? 'mid' : 'low'
-
                 return (
-                  <div key={`${row.name}-${index}`} className={`pt-top-orders-row tone-${velocityTone}`}>
+                  <div key={`${row.name}-${index}`} className="pt-top-orders-row">
                     <span className="pt-top-orders-index">{String(index + 1).padStart(2, '0')}</span>
                     <div className="pt-top-orders-body">
-                      <div className="pt-top-orders-title-row">
-                        <span className="pt-top-orders-name">{row.name}</span>
-                        <span className="pt-top-orders-count">{row.orderCount} orders</span>
-                      </div>
-                      <div className="pt-top-orders-bar">
-                        <span style={{ width: `${progress}%` }} />
-                      </div>
+                      <span className="pt-top-orders-product">{row.name}</span>
+                      <span className="pt-top-orders-count">{row.orderCount}</span>
                     </div>
                   </div>
                 )
