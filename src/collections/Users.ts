@@ -227,7 +227,10 @@ export const Users: CollectionConfig = {
   hooks: {
     afterLogin: [
       async ({ req, user }) => {
-        const deviceId = req.headers.get('x-device-id')
+        let deviceId: string | null = null
+        if (req.headers && typeof req.headers.get === 'function') {
+          deviceId = req.headers.get('x-device-id')
+        }
         if (deviceId && user.id) {
           await req.payload.update({
             collection: 'users',
@@ -272,6 +275,7 @@ export const Users: CollectionConfig = {
                 user: { equals: user.id },
                 dateString: { equals: istDateStr },
               },
+              depth: 0,
             })
 
             let attendanceDoc
@@ -397,10 +401,15 @@ export const Users: CollectionConfig = {
           const restriction = ipSettingsData.roleRestrictions?.find((r) => r.role === user.role)
 
           // Detect IPs
-          const forwarded = req.headers.get('x-forwarded-for')
+          let forwarded: string | null = null
+          let privateIpHeader: string | null = null
+          if (req.headers && typeof req.headers.get === 'function') {
+            forwarded = req.headers.get('x-forwarded-for')
+            privateIpHeader = req.headers.get('x-private-ip')
+          }
+
           const publicIp =
             typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : '127.0.0.1'
-          const privateIpHeader = req.headers.get('x-private-ip')
           const privateIp = typeof privateIpHeader === 'string' ? privateIpHeader.trim() : null
 
           if (user.branch) {
@@ -520,8 +529,12 @@ export const Users: CollectionConfig = {
 
                 // Only check if coordinates are configured
                 if (targetLat !== undefined && targetLon !== undefined) {
-                  const headerLat = req.headers.get('x-latitude')
-                  const headerLon = req.headers.get('x-longitude')
+                  let headerLat: string | null = null
+                  let headerLon: string | null = null
+                  if (req.headers && typeof req.headers.get === 'function') {
+                    headerLat = req.headers.get('x-latitude')
+                    headerLon = req.headers.get('x-longitude')
+                  }
 
                   if (headerLat && headerLon) {
                     const userLat = parseFloat(headerLat)
