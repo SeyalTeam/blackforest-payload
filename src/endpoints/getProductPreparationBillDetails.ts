@@ -14,6 +14,7 @@ type RawPreparationItem = {
   invoiceNumber: unknown
   kotNumber: unknown
   billCreatedAt: unknown
+  productId: unknown
   orderedAt: unknown
   preparedAt: unknown
   preparingTime: unknown
@@ -408,6 +409,7 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
               invoiceNumber: '$invoiceNumber',
               kotNumber: '$kotNumber',
               billCreatedAt: '$createdAt',
+              productId: '$items.product',
               orderedAt: '$items.orderedAt',
               preparedAt: '$items.preparedAt',
               preparingTime: '$items.preparingTime',
@@ -451,6 +453,7 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
         return {
           billingId: toId(row.billingId) || '',
           billNumber: resolveBillNumber(row),
+          productId: toId(row.productId) || '',
           productName: typeof row.productName === 'string' ? row.productName : '--',
           orderedAt: typeof row.orderedAt === 'string' ? row.orderedAt : '--',
           preparedAt: typeof row.preparedAt === 'string' ? row.preparedAt : '--',
@@ -481,6 +484,7 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
       .map((item) => ({
         billingId: item.billingId,
         billNumber: item.billNumber,
+        productId: item.productId,
         productName: item.productName,
         orderedAt: item.orderedAt,
         preparedAt: item.preparedAt,

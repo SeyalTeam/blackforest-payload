@@ -33,6 +33,7 @@ export type PreparationStatus = 'exceeded' | 'lower' | 'neutral'
 export type BillPreparationDetail = {
   billingId: string
   billNumber: string
+  productId: string
   productName: string
   orderedAt: string
   preparedAt: string

@@ -39,6 +39,8 @@ import {
 
 import { DateRangeInput } from './components/DateRangeInput'
 
+type TopListLimit = 10 | 25 | 50 | 100 | 'all'
+
 const ProductTimeReport: React.FC = () => {
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()])
   const [rangeStartDate, rangeEndDate] = dateRange
@@ -58,7 +60,7 @@ const ProductTimeReport: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<string>('all')
   const [selectedChef, setSelectedChef] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
-  const [topListLimit, setTopListLimit] = useState<number>(10)
+  const [topListLimit, setTopListLimit] = useState<TopListLimit>(50)
 
   const [loading, setLoading] = useState(false)
   const [loadingMeta, setLoadingMeta] = useState(false)
@@ -328,6 +330,7 @@ const ProductTimeReport: React.FC = () => {
           details?: Array<{
             billingId?: unknown
             billNumber?: unknown
+            productId?: unknown
             productName?: unknown
             orderedAt?: unknown
             preparedAt?: unknown
@@ -348,6 +351,7 @@ const ProductTimeReport: React.FC = () => {
                   typeof entry.billNumber === 'string' && entry.billNumber.trim().length > 0
                     ? entry.billNumber
                     : 'Unknown',
+                productId: typeof entry.productId === 'string' ? entry.productId.trim() : '',
                 productName: typeof entry.productName === 'string' ? entry.productName : '--',
                 orderedAt: typeof entry.orderedAt === 'string' ? entry.orderedAt : '--',
                 preparedAt: typeof entry.preparedAt === 'string' ? entry.preparedAt : '--',
@@ -566,25 +570,50 @@ const ProductTimeReport: React.FC = () => {
   }, [billDetails, selectedStatus])
 
   const topProductRows = useMemo(() => {
-    const productCountMap = new Map<string, { name: string; orderCount: number }>()
+    const productCountMap = new Map<string, { productId: string; name: string; orderCount: number }>()
 
     displayDetails.forEach((entry) => {
       const name = entry.productName?.trim() || '--'
-      const existing = productCountMap.get(name)
+      const productId = entry.productId.trim()
+      const productKey = productId || `name:${name.toLowerCase()}`
+      const existing = productCountMap.get(productKey)
       if (existing) {
         existing.orderCount += 1
       } else {
-        productCountMap.set(name, { name, orderCount: 1 })
+        productCountMap.set(productKey, { productId, name, orderCount: 1 })
       }
     })
 
-    return Array.from(productCountMap.values())
+    const sortedRows = Array.from(productCountMap.values())
       .sort((a, b) => {
         if (b.orderCount === a.orderCount) return a.name.localeCompare(b.name)
         return b.orderCount - a.orderCount
       })
-      .slice(0, topListLimit)
+
+    if (topListLimit === 'all') return sortedRows
+    return sortedRows.slice(0, topListLimit)
   }, [displayDetails, topListLimit])
+
+  const hasAnyFilterSelection =
+    selectedBranch !== '' ||
+    selectedKitchen !== '' ||
+    selectedCategory !== 'all' ||
+    selectedProduct !== 'all' ||
+    selectedChef !== 'all' ||
+    selectedStatus !== 'all'
+
+  const handleClearAllFilters = () => {
+    setSelectedBranch('')
+    setSelectedKitchen('')
+    setSelectedCategory('all')
+    setSelectedProduct('all')
+    setSelectedChef('all')
+    setSelectedStatus('all')
+    setSelectedBillRow(null)
+    setSelectedBill(null)
+    setSelectedBillError('')
+    setIsReceiptModalOpen(false)
+  }
 
   return (
     <div className="product-time-report-container">
@@ -592,136 +621,161 @@ const ProductTimeReport: React.FC = () => {
         <h1>Product Time Report</h1>
       </div>
 
-      <div className="top-controls-row">
-        <label className="preset-filter">
-          Preset
-          <select value={dateRangePreset} onChange={(e) => handleDatePresetChange(e.target.value)}>
-            <option value="today">Today</option>
-            <option value="yesterday">Yesterday</option>
-            <option value="last_7_days">Last 7 Days</option>
-            <option value="this_month">This Month</option>
-            <option value="last_30_days">Last 30 Days</option>
-            <option value="last_month">Last Month</option>
-            <option value="last_quarter">Last Quarter</option>
-            <option value="till_now">Till Now</option>
-          </select>
-        </label>
+      <div className="pt-fixed-filters-panel">
+        <div className="top-controls-row">
+          <label className="preset-filter">
+            Preset
+            <select value={dateRangePreset} onChange={(e) => handleDatePresetChange(e.target.value)}>
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="last_7_days">Last 7 Days</option>
+              <option value="this_month">This Month</option>
+              <option value="last_30_days">Last 30 Days</option>
+              <option value="last_month">Last Month</option>
+              <option value="last_quarter">Last Quarter</option>
+              <option value="till_now">Till Now</option>
+            </select>
+          </label>
 
-        <label className="date-range-filter">
-          Date Range
-          <DatePicker
-            selectsRange
-            startDate={rangeStartDate}
-            endDate={rangeEndDate}
-            onChange={(update) => setDateRange(update)}
-            monthsShown={2}
-            dateFormat="yyyy-MM-dd"
-            customInput={<DateRangeInput />}
-            calendarClassName="custom-calendar"
-            popperPlacement="bottom-start"
-          />
-        </label>
+          <label className="date-range-filter">
+            Date Range
+            <DatePicker
+              selectsRange
+              startDate={rangeStartDate}
+              endDate={rangeEndDate}
+              onChange={(update) => setDateRange(update)}
+              monthsShown={2}
+              dateFormat="yyyy-MM-dd"
+              customInput={<DateRangeInput />}
+              calendarClassName="custom-calendar"
+              popperPlacement="bottom-start"
+            />
+          </label>
 
-        <button
-          type="button"
-          onClick={handleExportCSV}
-          disabled={billDetails.length === 0 || loading || loadingMeta}
-        >
-          Export
-        </button>
-      </div>
-
-      <div className="filters-wrap">
-        <label>
-          Branch
-          <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
-            <option value="">Select Branch</option>
-            <option value="all">All Branches</option>
-            {branches.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Kitchen
-          <select
-            value={selectedKitchen}
-            onChange={(e) => setSelectedKitchen(e.target.value)}
-            disabled={loadingMeta || !selectedBranch || filteredKitchens.length === 0}
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            disabled={billDetails.length === 0 || loading || loadingMeta}
           >
-            <option value="">{selectedBranch ? 'Select Kitchen' : 'Select Branch First'}</option>
-            {filteredKitchens.map((kitchen) => (
-              <option key={kitchen.id} value={kitchen.id}>
-                {kitchen.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            Export
+          </button>
+        </div>
 
-        <label>
-          Category
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            disabled={loadingMeta || !selectedKitchen}
-          >
-            <option value="all">All Categories</option>
-            {filteredCategories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="filters-wrap">
+          <label>
+            <select
+              aria-label="Branch filter"
+              value={selectedBranch}
+              onChange={(e) => setSelectedBranch(e.target.value)}
+            >
+              <option value="">Select Branch</option>
+              <option value="all">All Branches</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label>
-          Product
-          <select
-            value={selectedProduct}
-            onChange={(e) => setSelectedProduct(e.target.value)}
-            disabled={loadingMeta || !selectedKitchen}
-          >
-            <option value="all">All Products</option>
-            {filteredProducts.map((product) => (
-              <option key={product.id} value={product.id}>
-                {product.name}
-              </option>
-            ))}
-          </select>
-        </label>
+          <label>
+            <select
+              aria-label="Kitchen filter"
+              value={selectedKitchen}
+              onChange={(e) => setSelectedKitchen(e.target.value)}
+              disabled={loadingMeta || !selectedBranch || filteredKitchens.length === 0}
+            >
+              <option value="">{selectedBranch ? 'Select Kitchen' : 'Select Branch First'}</option>
+              {filteredKitchens.map((kitchen) => (
+                <option key={kitchen.id} value={kitchen.id}>
+                  {kitchen.name}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label>
-          Chef
-          <select
-            value={selectedChef}
-            onChange={(e) => setSelectedChef(e.target.value)}
-            disabled={loadingMeta}
-          >
-            <option value="all">All Chefs</option>
-            {activeChefList.map((chef) => (
-              <option key={chef.id} value={chef.id}>
-                {chef.name}
-              </option>
-            ))}
-          </select>
-        </label>
+          <label>
+            <select
+              aria-label="Category filter"
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              disabled={loadingMeta || !selectedKitchen}
+            >
+              <option value="all">All Categories</option>
+              {filteredCategories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label>
-          Status
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(normalizeStatusFilter(e.target.value))}
+          <label>
+            <select
+              aria-label="Product filter"
+              value={selectedProduct}
+              onChange={(e) => setSelectedProduct(e.target.value)}
+              disabled={loadingMeta || !selectedKitchen}
+            >
+              <option value="all">All Products</option>
+              {filteredProducts.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <select
+              aria-label="Chef filter"
+              value={selectedChef}
+              onChange={(e) => setSelectedChef(e.target.value)}
+              disabled={loadingMeta}
+            >
+              <option value="all">All Chefs</option>
+              {activeChefList.map((chef) => (
+                <option key={chef.id} value={chef.id}>
+                  {chef.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <select
+              aria-label="Status filter"
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(normalizeStatusFilter(e.target.value))}
+            >
+              <option value="all">All Status</option>
+              <option value="exceeded">Exceeded (Red)</option>
+              <option value="lower">Lower (Green)</option>
+              <option value="neutral">Neutral (Others)</option>
+              <option value="chef_preparing_time">Preparing Time Given (Chef)</option>
+            </select>
+          </label>
+
+          <button
+            type="button"
+            className="filters-clear-icon-btn"
+            onClick={handleClearAllFilters}
+            disabled={!hasAnyFilterSelection || loading || loadingMeta || loadingBillDetails}
+            aria-label="Clear all filters"
+            title="Clear all filters"
           >
-            <option value="all">All Status</option>
-            <option value="exceeded">Exceeded (Red)</option>
-            <option value="lower">Lower (Green)</option>
-            <option value="neutral">Neutral (Others)</option>
-            <option value="chef_preparing_time">Preparing Time Given (Chef)</option>
-          </select>
-        </label>
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path
+                d="M4 6h16m-13 0l1 13h8l1-13m-8 0V4h4v2m-6 6l6 6m0-6l-6 6"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {error && <p className="state error">{error}</p>}
@@ -798,9 +852,9 @@ const ProductTimeReport: React.FC = () => {
                           <td>{index + 1}</td>
                           <td>{entry.productName}</td>
                           <td>{entry.orderedAt}</td>
-                          <td>{formatMinutes(entry.productStandardPreparationTime)}</td>
+                          <td>{formatMinutes(entry.productStandardPreparationTime).replace(' min', '')}</td>
                           <td>{formatMinutes(entry.chefPreparationTime)}</td>
-                          <td>{formatMinutes(entry.preparationTime)}</td>
+                          <td>{formatMinutes(entry.preparationTime).replace(' min', '')}</td>
                           <td>{entry.preparedAt}</td>
                           <td>{entry.chefName}</td>
                         </tr>
@@ -821,12 +875,16 @@ const ProductTimeReport: React.FC = () => {
                 Top
                 <select
                   value={String(topListLimit)}
-                  onChange={(event) => setTopListLimit(Number(event.target.value))}
+                  onChange={(event) => {
+                    const nextValue = event.target.value
+                    setTopListLimit(nextValue === 'all' ? 'all' : (Number(nextValue) as TopListLimit))
+                  }}
                 >
                   <option value="10">10</option>
                   <option value="25">25</option>
                   <option value="50">50</option>
                   <option value="100">100</option>
+                  <option value="all">100+</option>
                 </select>
               </label>
             </div>
@@ -835,8 +893,41 @@ const ProductTimeReport: React.FC = () => {
               {topProductRows.length === 0 && <p className="state">No products found.</p>}
 
               {topProductRows.map((row, index) => {
+                const isFilterable = row.productId.length > 0
+                const isActive = isFilterable && selectedProduct === row.productId
+                const nextProductFilter = isActive ? 'all' : row.productId
+
                 return (
-                  <div key={`${row.name}-${index}`} className="pt-top-orders-row">
+                  <div
+                    key={`${row.productId || row.name}-${index}`}
+                    className={[
+                      'pt-top-orders-row',
+                      isFilterable ? 'is-filterable' : '',
+                      isActive ? 'is-active' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    onClick={() => {
+                      if (!isFilterable) return
+                      setSelectedProduct(nextProductFilter)
+                    }}
+                    onKeyDown={(event) => {
+                      if (!isFilterable) return
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        setSelectedProduct(nextProductFilter)
+                      }
+                    }}
+                    role={isFilterable ? 'button' : undefined}
+                    tabIndex={isFilterable ? 0 : -1}
+                    title={
+                      isFilterable
+                        ? isActive
+                          ? `Clear product filter (${row.name})`
+                          : `Filter by ${row.name}`
+                        : row.name
+                    }
+                  >
                     <span className="pt-top-orders-index">{String(index + 1).padStart(2, '0')}</span>
                     <div className="pt-top-orders-body">
                       <span className="pt-top-orders-product">{row.name}</span>
