@@ -621,161 +621,159 @@ const ProductTimeReport: React.FC = () => {
         <h1>Product Time Report</h1>
       </div>
 
-      <div className="pt-fixed-filters-panel">
-        <div className="top-controls-row">
-          <label className="preset-filter">
-            Preset
-            <select value={dateRangePreset} onChange={(e) => handleDatePresetChange(e.target.value)}>
-              <option value="today">Today</option>
-              <option value="yesterday">Yesterday</option>
-              <option value="last_7_days">Last 7 Days</option>
-              <option value="this_month">This Month</option>
-              <option value="last_30_days">Last 30 Days</option>
-              <option value="last_month">Last Month</option>
-              <option value="last_quarter">Last Quarter</option>
-              <option value="till_now">Till Now</option>
-            </select>
-          </label>
+      <div className="top-controls-row">
+        <label className="preset-filter">
+          Preset
+          <select value={dateRangePreset} onChange={(e) => handleDatePresetChange(e.target.value)}>
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="last_7_days">Last 7 Days</option>
+            <option value="this_month">This Month</option>
+            <option value="last_30_days">Last 30 Days</option>
+            <option value="last_month">Last Month</option>
+            <option value="last_quarter">Last Quarter</option>
+            <option value="till_now">Till Now</option>
+          </select>
+        </label>
 
-          <label className="date-range-filter">
-            Date Range
-            <DatePicker
-              selectsRange
-              startDate={rangeStartDate}
-              endDate={rangeEndDate}
-              onChange={(update) => setDateRange(update)}
-              monthsShown={2}
-              dateFormat="yyyy-MM-dd"
-              customInput={<DateRangeInput />}
-              calendarClassName="custom-calendar"
-              popperPlacement="bottom-start"
+        <label className="date-range-filter">
+          Date Range
+          <DatePicker
+            selectsRange
+            startDate={rangeStartDate}
+            endDate={rangeEndDate}
+            onChange={(update) => setDateRange(update)}
+            monthsShown={2}
+            dateFormat="yyyy-MM-dd"
+            customInput={<DateRangeInput />}
+            calendarClassName="custom-calendar"
+            popperPlacement="bottom-start"
+          />
+        </label>
+
+        <button
+          type="button"
+          onClick={handleExportCSV}
+          disabled={billDetails.length === 0 || loading || loadingMeta}
+        >
+          Export
+        </button>
+      </div>
+
+      <div className="filters-wrap">
+        <label>
+          <select
+            aria-label="Branch filter"
+            value={selectedBranch}
+            onChange={(e) => setSelectedBranch(e.target.value)}
+          >
+            <option value="">Select Branch</option>
+            <option value="all">All Branches</option>
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          <select
+            aria-label="Kitchen filter"
+            value={selectedKitchen}
+            onChange={(e) => setSelectedKitchen(e.target.value)}
+            disabled={loadingMeta || !selectedBranch || filteredKitchens.length === 0}
+          >
+            <option value="">{selectedBranch ? 'Select Kitchen' : 'Select Branch First'}</option>
+            {filteredKitchens.map((kitchen) => (
+              <option key={kitchen.id} value={kitchen.id}>
+                {kitchen.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          <select
+            aria-label="Category filter"
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            disabled={loadingMeta || !selectedKitchen}
+          >
+            <option value="all">All Categories</option>
+            {filteredCategories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          <select
+            aria-label="Product filter"
+            value={selectedProduct}
+            onChange={(e) => setSelectedProduct(e.target.value)}
+            disabled={loadingMeta || !selectedKitchen}
+          >
+            <option value="all">All Products</option>
+            {filteredProducts.map((product) => (
+              <option key={product.id} value={product.id}>
+                {product.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          <select
+            aria-label="Chef filter"
+            value={selectedChef}
+            onChange={(e) => setSelectedChef(e.target.value)}
+            disabled={loadingMeta}
+          >
+            <option value="all">All Chefs</option>
+            {activeChefList.map((chef) => (
+              <option key={chef.id} value={chef.id}>
+                {chef.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          <select
+            aria-label="Status filter"
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(normalizeStatusFilter(e.target.value))}
+          >
+            <option value="all">All Status</option>
+            <option value="exceeded">Exceeded (Red)</option>
+            <option value="lower">Lower (Green)</option>
+            <option value="neutral">Neutral (Others)</option>
+            <option value="chef_preparing_time">Preparing Time Given (Chef)</option>
+          </select>
+        </label>
+
+        <button
+          type="button"
+          className="filters-clear-icon-btn"
+          onClick={handleClearAllFilters}
+          disabled={!hasAnyFilterSelection || loading || loadingMeta || loadingBillDetails}
+          aria-label="Clear all filters"
+          title="Clear all filters"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path
+              d="M4 6h16m-13 0l1 13h8l1-13m-8 0V4h4v2m-6 6l6 6m0-6l-6 6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
-          </label>
-
-          <button
-            type="button"
-            onClick={handleExportCSV}
-            disabled={billDetails.length === 0 || loading || loadingMeta}
-          >
-            Export
-          </button>
-        </div>
-
-        <div className="filters-wrap">
-          <label>
-            <select
-              aria-label="Branch filter"
-              value={selectedBranch}
-              onChange={(e) => setSelectedBranch(e.target.value)}
-            >
-              <option value="">Select Branch</option>
-              <option value="all">All Branches</option>
-              {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>
-                  {branch.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <select
-              aria-label="Kitchen filter"
-              value={selectedKitchen}
-              onChange={(e) => setSelectedKitchen(e.target.value)}
-              disabled={loadingMeta || !selectedBranch || filteredKitchens.length === 0}
-            >
-              <option value="">{selectedBranch ? 'Select Kitchen' : 'Select Branch First'}</option>
-              {filteredKitchens.map((kitchen) => (
-                <option key={kitchen.id} value={kitchen.id}>
-                  {kitchen.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <select
-              aria-label="Category filter"
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              disabled={loadingMeta || !selectedKitchen}
-            >
-              <option value="all">All Categories</option>
-              {filteredCategories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <select
-              aria-label="Product filter"
-              value={selectedProduct}
-              onChange={(e) => setSelectedProduct(e.target.value)}
-              disabled={loadingMeta || !selectedKitchen}
-            >
-              <option value="all">All Products</option>
-              {filteredProducts.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <select
-              aria-label="Chef filter"
-              value={selectedChef}
-              onChange={(e) => setSelectedChef(e.target.value)}
-              disabled={loadingMeta}
-            >
-              <option value="all">All Chefs</option>
-              {activeChefList.map((chef) => (
-                <option key={chef.id} value={chef.id}>
-                  {chef.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <select
-              aria-label="Status filter"
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(normalizeStatusFilter(e.target.value))}
-            >
-              <option value="all">All Status</option>
-              <option value="exceeded">Exceeded (Red)</option>
-              <option value="lower">Lower (Green)</option>
-              <option value="neutral">Neutral (Others)</option>
-              <option value="chef_preparing_time">Preparing Time Given (Chef)</option>
-            </select>
-          </label>
-
-          <button
-            type="button"
-            className="filters-clear-icon-btn"
-            onClick={handleClearAllFilters}
-            disabled={!hasAnyFilterSelection || loading || loadingMeta || loadingBillDetails}
-            aria-label="Clear all filters"
-            title="Clear all filters"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path
-                d="M4 6h16m-13 0l1 13h8l1-13m-8 0V4h4v2m-6 6l6 6m0-6l-6 6"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-        </div>
+          </svg>
+        </button>
       </div>
 
       {error && <p className="state error">{error}</p>}
