@@ -662,6 +662,7 @@ const ProductTimeReport: React.FC = () => {
 
       <div className="filters-wrap">
         <label>
+          Branch
           <select
             aria-label="Branch filter"
             value={selectedBranch}
@@ -678,6 +679,7 @@ const ProductTimeReport: React.FC = () => {
         </label>
 
         <label>
+          Kitchen
           <select
             aria-label="Kitchen filter"
             value={selectedKitchen}
@@ -694,6 +696,7 @@ const ProductTimeReport: React.FC = () => {
         </label>
 
         <label>
+          Category
           <select
             aria-label="Category filter"
             value={selectedCategory}
@@ -710,6 +713,7 @@ const ProductTimeReport: React.FC = () => {
         </label>
 
         <label>
+          Product
           <select
             aria-label="Product filter"
             value={selectedProduct}
@@ -726,6 +730,7 @@ const ProductTimeReport: React.FC = () => {
         </label>
 
         <label>
+          Chef
           <select
             aria-label="Chef filter"
             value={selectedChef}
@@ -742,6 +747,7 @@ const ProductTimeReport: React.FC = () => {
         </label>
 
         <label>
+          Status
           <select
             aria-label="Status filter"
             value={selectedStatus}
