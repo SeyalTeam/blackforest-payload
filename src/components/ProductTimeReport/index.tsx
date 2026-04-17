@@ -50,12 +50,14 @@ const ProductTimeReport: React.FC = () => {
   const [categories, setCategories] = useState<CategoryDoc[]>([])
   const [products, setProducts] = useState<ProductDoc[]>([])
   const [chefs, setChefs] = useState<UserDoc[]>([])
+  const [availableChefs, setAvailableChefs] = useState<UserDoc[]>([])
 
-  const [selectedBranch, setSelectedBranch] = useState<string>('all')
+  const [selectedBranch, setSelectedBranch] = useState<string>('')
   const [selectedKitchen, setSelectedKitchen] = useState<string>('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [selectedProduct, setSelectedProduct] = useState<string>('all')
   const [selectedChef, setSelectedChef] = useState<string>('all')
+  const [selectedStatus, setSelectedStatus] = useState<string>('all')
 
   const [loading, setLoading] = useState(false)
   const [loadingMeta, setLoadingMeta] = useState(false)
@@ -69,14 +71,34 @@ const ProductTimeReport: React.FC = () => {
   const [selectedBillError, setSelectedBillError] = useState('')
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false)
 
+  const normalizeStatusFilter = (
+    value: string,
+  ): 'all' | 'exceeded' | 'lower' | 'neutral' | 'chef_preparing_time' => {
+    const normalized = value.trim().toLowerCase()
+
+    if (normalized === 'all' || normalized === 'all status') return 'all'
+    if (normalized === 'exceeded' || normalized.includes('exceed')) return 'exceeded'
+    if (normalized === 'lower' || normalized.includes('lower') || normalized.includes('green')) return 'lower'
+    if (normalized === 'neutral' || normalized.includes('neutral')) return 'neutral'
+    if (
+      normalized === 'chef_preparing_time' ||
+      normalized.includes('chef') ||
+      normalized.includes('preparing')
+    ) {
+      return 'chef_preparing_time'
+    }
+
+    return 'all'
+  }
+
   useEffect(() => {
     const fetchMetadata = async () => {
       setLoadingMeta(true)
       setError('')
 
       try {
-        const [branchRes, kitchenRes, categoryRes, productRes, chefRes, billRes] = await Promise.all([
-          fetch('/api/reports/branches'),
+        const branchResPromise = fetch('/api/reports/branches')
+        const filterMetaPromise = Promise.all([
           fetch('/api/kitchens?limit=200&pagination=false&depth=1'),
           fetch('/api/categories?limit=1000&pagination=false&depth=0'),
           fetch('/api/products?limit=2000&pagination=false&depth=0'),
@@ -84,29 +106,40 @@ const ProductTimeReport: React.FC = () => {
           fetch('/api/billings?sort=createdAt&limit=1'),
         ])
 
-        if (!branchRes.ok || !kitchenRes.ok || !categoryRes.ok || !productRes.ok || !chefRes.ok) {
+        // Load branches first so the branch dropdown becomes usable as early as possible.
+        try {
+          const branchRes = await branchResPromise
+          if (!branchRes.ok) throw new Error('Failed to load branches')
+
+          const branchJson = (await branchRes.json()) as ApiListResponse<BranchDoc>
+          const branchDocs = Array.isArray(branchJson.docs) ? branchJson.docs : []
+          branchDocs.sort(byNameAsc)
+          setBranches(branchDocs)
+        } catch (branchError) {
+          console.error(branchError)
+          setError('Error loading branch filters')
+        }
+
+        const [kitchenRes, categoryRes, productRes, chefRes, billRes] = await filterMetaPromise
+        if (!kitchenRes.ok || !categoryRes.ok || !productRes.ok || !chefRes.ok) {
           throw new Error('Failed to load filter metadata')
         }
 
-        const branchJson = (await branchRes.json()) as ApiListResponse<BranchDoc>
         const kitchenJson = (await kitchenRes.json()) as ApiListResponse<KitchenDoc>
         const categoryJson = (await categoryRes.json()) as ApiListResponse<CategoryDoc>
         const productJson = (await productRes.json()) as ApiListResponse<ProductDoc>
         const chefJson = (await chefRes.json()) as ApiListResponse<UserDoc>
 
-        const branchDocs = Array.isArray(branchJson.docs) ? branchJson.docs : []
         const kitchenDocs = Array.isArray(kitchenJson.docs) ? kitchenJson.docs : []
         const categoryDocs = Array.isArray(categoryJson.docs) ? categoryJson.docs : []
         const productDocs = Array.isArray(productJson.docs) ? productJson.docs : []
         const chefDocs = Array.isArray(chefJson.docs) ? chefJson.docs : []
 
-        branchDocs.sort(byNameAsc)
         kitchenDocs.sort(byNameAsc)
         categoryDocs.sort(byNameAsc)
         productDocs.sort(byNameAsc)
         chefDocs.sort(byNameAsc)
 
-        setBranches(branchDocs)
         setKitchens(kitchenDocs)
         setCategories(categoryDocs)
         setProducts(productDocs)
@@ -125,7 +158,7 @@ const ProductTimeReport: React.FC = () => {
 
       } catch (metadataError) {
         console.error(metadataError)
-        setError('Error loading kitchen/category/product filters')
+        setError((previous) => previous || 'Error loading kitchen/category/product filters')
       } finally {
         setLoadingMeta(false)
       }
@@ -135,6 +168,7 @@ const ProductTimeReport: React.FC = () => {
   }, [])
 
   const filteredKitchens = useMemo(() => {
+    if (!selectedBranch) return []
     if (selectedBranch === 'all') return kitchens
 
     return kitchens.filter((kitchen) => relationshipToIDList(kitchen.branches).includes(selectedBranch))
@@ -148,7 +182,7 @@ const ProductTimeReport: React.FC = () => {
 
     setSelectedKitchen((previous) => {
       if (previous && filteredKitchens.some((kitchen) => kitchen.id === previous)) return previous
-      return filteredKitchens[0].id
+      return '' // Don't auto-select first one to prevent loading data on branch change
     })
   }, [filteredKitchens])
 
@@ -263,11 +297,9 @@ const ProductTimeReport: React.FC = () => {
     }
   }
 
-
-
   useEffect(() => {
     const fetchBillDetails = async () => {
-      if (!rangeStartDate || !rangeEndDate) {
+      if (!rangeStartDate || !rangeEndDate || !selectedBranch || !selectedKitchen) {
         setBillDetails([])
         setBillDetailsError('')
         setSelectedBillRow(null)
@@ -280,16 +312,18 @@ const ProductTimeReport: React.FC = () => {
       const startDate = toLocalDateStr(rangeStartDate)
       const endDate = toLocalDateStr(rangeEndDate)
       const categoryParam = selectedCategory === 'all' ? kitchenCategoryIDs.join(',') : selectedCategory
+      const normalizedStatus = normalizeStatusFilter(selectedStatus)
 
       setLoadingBillDetails(true)
       setBillDetailsError('')
       setLoading(true)
       try {
-        const url = `/api/reports/product-preparation-bill-details?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&branch=${encodeURIComponent(selectedBranch)}&kitchenId=${encodeURIComponent(selectedKitchen)}&category=${encodeURIComponent(categoryParam)}&department=all&productId=${encodeURIComponent(selectedProduct)}&chefId=${encodeURIComponent(selectedChef)}`
+        const url = `/api/reports/product-preparation-bill-details?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&branch=${encodeURIComponent(selectedBranch)}&kitchenId=${encodeURIComponent(selectedKitchen)}&category=${encodeURIComponent(categoryParam)}&department=all&productId=${encodeURIComponent(selectedProduct)}&chefId=${encodeURIComponent(selectedChef)}&status=${encodeURIComponent(normalizedStatus)}`
         const res = await fetch(url)
         if (!res.ok) throw new Error('Failed to fetch bill details')
 
         const json = (await res.json()) as {
+          availableChefs?: Array<{ id: string; name: string }>
           details?: Array<{
             billingId?: unknown
             billNumber?: unknown
@@ -301,37 +335,61 @@ const ProductTimeReport: React.FC = () => {
             productStandardPreparationTime?: unknown
             chefName?: unknown
             quantity?: unknown
+            status?: unknown
           }>
         }
 
         const details = Array.isArray(json.details)
-          ? json.details.map((entry) => ({
-              billingId: typeof entry.billingId === 'string' ? entry.billingId.trim() : '',
-              billNumber:
-                typeof entry.billNumber === 'string' && entry.billNumber.trim().length > 0
-                  ? entry.billNumber
-                  : 'Unknown',
-              productName: typeof entry.productName === 'string' ? entry.productName : '--',
-              orderedAt: typeof entry.orderedAt === 'string' ? entry.orderedAt : '--',
-              preparedAt: typeof entry.preparedAt === 'string' ? entry.preparedAt : '--',
-              preparationTime:
-                typeof entry.preparationTime === 'number' && Number.isFinite(entry.preparationTime)
-                  ? entry.preparationTime
-                  : null,
-              chefPreparationTime:
-                typeof entry.chefPreparationTime === 'number' && Number.isFinite(entry.chefPreparationTime)
-                  ? entry.chefPreparationTime
-                  : null,
-              productStandardPreparationTime:
-                typeof entry.productStandardPreparationTime === 'number' && Number.isFinite(entry.productStandardPreparationTime)
-                  ? entry.productStandardPreparationTime
-                  : null,
-              chefName: typeof entry.chefName === 'string' ? entry.chefName : '--',
-              quantity: typeof entry.quantity === 'number' ? entry.quantity : 0,
-            }))
+          ? json.details.map((entry) => {
+              const mapped = {
+                billingId: typeof entry.billingId === 'string' ? entry.billingId.trim() : '',
+                billNumber:
+                  typeof entry.billNumber === 'string' && entry.billNumber.trim().length > 0
+                    ? entry.billNumber
+                    : 'Unknown',
+                productName: typeof entry.productName === 'string' ? entry.productName : '--',
+                orderedAt: typeof entry.orderedAt === 'string' ? entry.orderedAt : '--',
+                preparedAt: typeof entry.preparedAt === 'string' ? entry.preparedAt : '--',
+                preparationTime:
+                  typeof entry.preparationTime === 'number' && Number.isFinite(entry.preparationTime)
+                    ? entry.preparationTime
+                    : null,
+                chefPreparationTime:
+                  typeof entry.chefPreparationTime === 'number' && Number.isFinite(entry.chefPreparationTime)
+                    ? entry.chefPreparationTime
+                    : null,
+                productStandardPreparationTime:
+                  typeof entry.productStandardPreparationTime === 'number' &&
+                  Number.isFinite(entry.productStandardPreparationTime)
+                    ? entry.productStandardPreparationTime
+                    : null,
+                chefName: typeof entry.chefName === 'string' ? entry.chefName : '--',
+                quantity:
+                  typeof entry.quantity === 'number' && Number.isFinite(entry.quantity) && entry.quantity > 0
+                    ? entry.quantity
+                    : 1,
+              }
+              const configuredPerUnit = toFiniteNumber(mapped.productStandardPreparationTime)
+              const totalStandardTime =
+                configuredPerUnit != null && configuredPerUnit > 0
+                  ? configuredPerUnit * mapped.quantity
+                  : null
+              const billPreparedTime = toFiniteNumber(mapped.preparationTime)
+              const incomingStatus =
+                typeof entry.status === 'string' &&
+                ['exceeded', 'lower', 'neutral'].includes(entry.status.trim().toLowerCase())
+                  ? (entry.status.trim().toLowerCase() as 'exceeded' | 'lower' | 'neutral')
+                  : null
+
+              return {
+                ...mapped,
+                status: incomingStatus ?? getPreparationStatus(billPreparedTime, totalStandardTime),
+              }
+            })
           : []
 
         setBillDetails(details)
+        setAvailableChefs(Array.isArray(json.availableChefs) ? json.availableChefs : [])
         setSelectedBillRow((previous) => {
           if (details.length === 0) return null
           if (
@@ -372,6 +430,7 @@ const ProductTimeReport: React.FC = () => {
     selectedCategory,
     kitchenCategoryIDs,
     selectedChef,
+    selectedStatus,
   ])
 
   useEffect(() => {
@@ -453,23 +512,25 @@ const ProductTimeReport: React.FC = () => {
     const endDate = toLocalDateStr(rangeEndDate)
 
     const columns = [
-      'BILL NO',
-      'PRODUCT NAME',
-      'ORDERED AT',
+      'SNO',
+      'PRODUCT',
+      'ORD AT',
       'STD PREP',
+      'CHEF PREP',
       'PT (ACTUAL)',
-      'PREPARED AT',
+      'PREP AT',
       'CHEF',
     ]
 
     const csvRows = [
       columns.join(','),
-      ...billDetails.map((row) =>
+      ...billDetails.map((row, index) =>
         [
-          `"${row.billNumber.replace(/"/g, '""')}"`,
+          String(index + 1),
           `"${row.productName.replace(/"/g, '""')}"`,
           `"${row.orderedAt}"`,
           formatMinutes(row.productStandardPreparationTime).replace(' min', ''),
+          formatMinutes(row.chefPreparationTime).replace(' min', ''),
           formatMinutes(row.preparationTime).replace(' min', ''),
           `"${row.preparedAt}"`,
           `"${row.chefName.replace(/"/g, '""')}"`,
@@ -485,6 +546,23 @@ const ProductTimeReport: React.FC = () => {
     link.click()
     window.URL.revokeObjectURL(url)
   }
+
+  const activeChefList = useMemo(() => {
+    if (availableChefs.length > 0) return availableChefs
+    return chefs
+  }, [availableChefs, chefs])
+
+  const hasRequiredFilters = Boolean(rangeStartDate && rangeEndDate && selectedBranch && selectedKitchen)
+
+  const displayDetails = useMemo(() => {
+    const normalizedStatus = normalizeStatusFilter(selectedStatus)
+    if (normalizedStatus === 'all') return billDetails
+    if (normalizedStatus === 'chef_preparing_time') {
+      return billDetails.filter((entry) => entry.chefPreparationTime != null)
+    }
+
+    return billDetails.filter((entry) => entry.status === normalizedStatus)
+  }, [billDetails, selectedStatus])
 
   return (
     <div className="product-time-report-container">
@@ -535,6 +613,7 @@ const ProductTimeReport: React.FC = () => {
         <label>
           Branch
           <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
+            <option value="">Select Branch</option>
             <option value="all">All Branches</option>
             {branches.map((branch) => (
               <option key={branch.id} value={branch.id}>
@@ -549,9 +628,9 @@ const ProductTimeReport: React.FC = () => {
           <select
             value={selectedKitchen}
             onChange={(e) => setSelectedKitchen(e.target.value)}
-            disabled={loadingMeta || filteredKitchens.length === 0}
+            disabled={loadingMeta || !selectedBranch || filteredKitchens.length === 0}
           >
-            {filteredKitchens.length === 0 && <option value="">No kitchens</option>}
+            <option value="">{selectedBranch ? 'Select Kitchen' : 'Select Branch First'}</option>
             {filteredKitchens.map((kitchen) => (
               <option key={kitchen.id} value={kitchen.id}>
                 {kitchen.name}
@@ -600,19 +679,33 @@ const ProductTimeReport: React.FC = () => {
             disabled={loadingMeta}
           >
             <option value="all">All Chefs</option>
-            {chefs.map((chef) => (
+            {activeChefList.map((chef) => (
               <option key={chef.id} value={chef.id}>
                 {chef.name}
               </option>
             ))}
           </select>
         </label>
+
+        <label>
+          Status
+          <select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(normalizeStatusFilter(e.target.value))}
+          >
+            <option value="all">All Status</option>
+            <option value="exceeded">Exceeded (Red)</option>
+            <option value="lower">Lower (Green)</option>
+            <option value="neutral">Neutral (Others)</option>
+            <option value="chef_preparing_time">Preparing Time Given (Chef)</option>
+          </select>
+        </label>
       </div>
 
       {error && <p className="state error">{error}</p>}
-      {(loading || loadingMeta) && <p className="state">Loading report...</p>}
+      {hasRequiredFilters && (loading || loadingBillDetails) && <p className="state">Loading report...</p>}
 
-      {!loading && !loadingMeta && billDetails.length === 0 && (
+      {hasRequiredFilters && !loading && !loadingMeta && !loadingBillDetails && billDetails.length === 0 && (
         <p className="state">No data found for selected filters.</p>
       )}
 
@@ -623,50 +716,45 @@ const ProductTimeReport: React.FC = () => {
               <table className="pt-report-table pt-details-table">
                 <thead>
                   <tr>
-                    <th>BILL NO</th>
-                    <th>PRODUCT NAME</th>
-                    <th>ORDERED AT</th>
+                    <th>SNO</th>
+                    <th>PRODUCT</th>
+                    <th>ORD AT</th>
                     <th>STD PREP</th>
+                    <th>CHEF PREP</th>
                     <th>PT (ACTUAL)</th>
-                    <th>PREPARED AT</th>
+                    <th>PREP AT</th>
                     <th>CHEF</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loadingBillDetails && (
                     <tr>
-                      <td colSpan={7}>Loading...</td>
+                      <td colSpan={8}>Loading...</td>
                     </tr>
                   )}
 
                   {!loadingBillDetails && billDetailsError && (
                     <tr>
-                      <td colSpan={7}>{billDetailsError}</td>
+                      <td colSpan={8}>{billDetailsError}</td>
                     </tr>
                   )}
 
-                  {!loadingBillDetails && !billDetailsError && billDetails.length === 0 && (
+                  {!loadingBillDetails && !billDetailsError && displayDetails.length === 0 && (
                     <tr>
-                      <td colSpan={7}>No details found.</td>
+                      <td colSpan={8}>No details found.</td>
                     </tr>
                   )}
 
                   {!loadingBillDetails &&
                     !billDetailsError &&
-                    billDetails.map((entry, index) => {
-                      const key = entry.billingId || `${entry.billNumber}-${index}`
+                    displayDetails.map((entry, index) => {
+                      // billingId repeats for multiple items in the same bill; include index for a unique row key.
+                      const key = `${entry.billingId || entry.billNumber}-${index}`
                       const isSelected =
                         selectedBillRow != null &&
                         entry.billingId.length > 0 &&
                         entry.billingId === selectedBillRow.billingId
-                      const configuredPerUnit = entry.productStandardPreparationTime ?? 0
-                      const totalStandardTime = configuredPerUnit * (entry.quantity || 1)
-
-                      const billPreparedTime = toFiniteNumber(entry.preparationTime)
-                      const preparationStatus = getPreparationStatus(
-                        billPreparedTime,
-                        totalStandardTime,
-                      )
+                      const preparationStatus = entry.status
                       const rowClassName = [
                         entry.billingId.length > 0 ? 'is-clickable' : 'is-disabled',
                         isSelected ? 'is-selected' : '',
@@ -686,18 +774,12 @@ const ProductTimeReport: React.FC = () => {
                             setIsReceiptModalOpen(true)
                           }}
                         >
-                          <td>{entry.billNumber}</td>
+                          <td>{index + 1}</td>
                           <td>{entry.productName}</td>
                           <td>{entry.orderedAt}</td>
                           <td>{formatMinutes(entry.productStandardPreparationTime)}</td>
-                          <td>
-                            <span className="prep-time-with-chef">
-                              <span>{formatMinutes(entry.preparationTime)}</span>
-                              {entry.chefPreparationTime != null && (
-                                <span className="chef-prep-time">({formatMinutes(entry.chefPreparationTime)})</span>
-                              )}
-                            </span>
-                          </td>
+                          <td>{formatMinutes(entry.chefPreparationTime)}</td>
+                          <td>{formatMinutes(entry.preparationTime)}</td>
                           <td>{entry.preparedAt}</td>
                           <td>{entry.chefName}</td>
                         </tr>

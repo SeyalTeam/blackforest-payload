@@ -68,6 +68,8 @@ export const getPreparationStatus = (
 ): PreparationStatus => {
   if (actual == null || baseline == null) return 'neutral'
   if (!Number.isFinite(actual) || !Number.isFinite(baseline)) return 'neutral'
+  // A missing or non-positive configured baseline should not be treated as exceeded.
+  if (baseline <= 0) return 'neutral'
   if (actual > baseline) return 'exceeded'
   if (actual < baseline) return 'lower'
   return 'neutral'

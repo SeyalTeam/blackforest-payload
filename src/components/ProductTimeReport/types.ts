@@ -41,6 +41,7 @@ export type BillPreparationDetail = {
   productStandardPreparationTime: number | null
   chefName: string
   quantity: number
+  status: PreparationStatus
 }
 
 export type BillItem = {

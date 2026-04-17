@@ -23,6 +23,9 @@ type RawPreparationItem = {
   quantity: unknown
 }
 
+type PreparationStatus = 'exceeded' | 'lower' | 'neutral'
+type StatusFilter = 'all' | PreparationStatus | 'chef_preparing_time'
+
 const parseDateParam = (value: unknown): string => {
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
     return value.trim()
@@ -114,9 +117,37 @@ const parsePreparingTimeValue = (value: unknown): number | null => {
   if (typeof value === 'string' && value.trim().length === 0) return null
 
   const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
-  if (!Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) return null
+  if (!Number.isFinite(parsed) || parsed < 0) return null
 
   return parsed
+}
+
+const parseStatusParam = (value: unknown): StatusFilter => {
+  if (typeof value !== 'string') return 'all'
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'exceeded' || normalized.includes('exceed')) return 'exceeded'
+  if (normalized === 'lower' || normalized.includes('lower') || normalized.includes('green')) return 'lower'
+  if (normalized === 'neutral' || normalized.includes('neutral')) return 'neutral'
+  if (
+    normalized === 'chef_preparing_time' ||
+    normalized.includes('chef') ||
+    normalized.includes('preparing')
+  ) {
+    return 'chef_preparing_time'
+  }
+  return 'all'
+}
+
+const getPreparationStatus = (
+  actual: number | null | undefined,
+  baseline: number | null | undefined,
+): PreparationStatus => {
+  if (actual == null || baseline == null) return 'neutral'
+  if (!Number.isFinite(actual) || !Number.isFinite(baseline)) return 'neutral'
+  if (baseline <= 0) return 'neutral'
+  if (actual > baseline) return 'exceeded'
+  if (actual < baseline) return 'lower'
+  return 'neutral'
 }
 
 const resolveItemPreparationMinutes = (row: RawPreparationItem): number | null => {
@@ -160,6 +191,7 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
   const productId = typeof req.query.productId === 'string' ? req.query.productId.trim() : ''
   const chefId = typeof req.query.chefId === 'string' ? req.query.chefId.trim() : ''
   const kitchenId = typeof req.query.kitchenId === 'string' ? req.query.kitchenId.trim() : ''
+  const selectedStatus = parseStatusParam(req.query.status)
 
   const isAllProducts = !productId || productId === 'all'
   if (!isAllProducts && !mongoose.Types.ObjectId.isValid(productId)) {
@@ -255,25 +287,33 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
     // Apply resolved branch filter
     if (resolvedBranchIds.length > 0) {
       matchQuery.branch = {
-        $in: resolvedBranchIds.map((id) => new mongoose.Types.ObjectId(id)),
+        $in: resolvedBranchIds.map((id) => {
+          try {
+            return new mongoose.Types.ObjectId(id)
+          } catch {
+            return id // Fallback to string if not a valid ObjectId
+          }
+        }),
       }
     }
 
-    const itemMatch: Record<string, unknown> = {
+    const itemMatchWithoutChef: Record<string, unknown> = {
       'items.status': { $ne: 'cancelled' },
     }
     if (!isAllProducts) {
-      itemMatch['items.product'] = { $eq: new mongoose.Types.ObjectId(productId) }
+      itemMatchWithoutChef['items.product'] = { $eq: new mongoose.Types.ObjectId(productId) }
     }
+
+    const chefMatch: Record<string, unknown> = {}
     if (chefId && chefId !== 'all' && mongoose.Types.ObjectId.isValid(chefId)) {
-      itemMatch['items.preparedBy'] = { $eq: new mongoose.Types.ObjectId(chefId) }
+      chefMatch['items.preparedBy'] = { $eq: new mongoose.Types.ObjectId(chefId) }
     }
 
     const pipeline: PipelineStage[] = [
       { $match: matchQuery },
       { $unwind: '$items' },
       {
-        $match: itemMatch,
+        $match: itemMatchWithoutChef,
       },
       {
         $lookup: {
@@ -319,17 +359,36 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
       },
     ]
 
+    // Apply category filter if requested or locked to kitchen
     if (finalCategoryIds.length > 0) {
       pipeline.push({
         $match: {
           'productDetails.category': {
-            $in: finalCategoryIds.map((id) => new mongoose.Types.ObjectId(id)),
+            $in: finalCategoryIds.map((id) => {
+              try {
+                return new mongoose.Types.ObjectId(id)
+              } catch {
+                return id
+              }
+            }),
+          },
+        },
+      })
+    } else if (kitchenId || (categoryParam && categoryParam !== 'all')) {
+      pipeline.push({
+        $match: {
+          'productDetails.category': {
+            $in: [new mongoose.Types.ObjectId('000000000000000000000000')],
           },
         },
       })
     }
 
-    if (departmentParam && departmentParam !== 'all' && mongoose.Types.ObjectId.isValid(departmentParam)) {
+    if (
+      departmentParam &&
+      departmentParam !== 'all' &&
+      mongoose.Types.ObjectId.isValid(departmentParam)
+    ) {
       pipeline.push({
         $match: {
           'categoryDetails.department': { $eq: new mongoose.Types.ObjectId(departmentParam) },
@@ -337,29 +396,57 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
       })
     }
 
+    // Now use facet to get both filtered rows and all available chefs in the scope
     pipeline.push({
-      $project: {
-        _id: 0,
-        billingId: '$_id',
-        invoiceNumber: '$invoiceNumber',
-        kotNumber: '$kotNumber',
-        billCreatedAt: '$createdAt',
-        orderedAt: '$items.orderedAt',
-        preparedAt: '$items.preparedAt',
-        preparingTime: '$items.preparingTime',
-        productName: '$productDetails.name',
-        productStandardPreparationTime: '$productDetails.preparationTime',
-        chefName: '$chefDetails.name',
-        quantity: '$items.quantity',
+      $facet: {
+        filteredRows: [
+          { $match: chefMatch },
+          {
+            $project: {
+              _id: 0,
+              billingId: '$_id',
+              invoiceNumber: '$invoiceNumber',
+              kotNumber: '$kotNumber',
+              billCreatedAt: '$createdAt',
+              orderedAt: '$items.orderedAt',
+              preparedAt: '$items.preparedAt',
+              preparingTime: '$items.preparingTime',
+              productName: '$productDetails.name',
+              productStandardPreparationTime: '$productDetails.preparationTime',
+              chefName: '$chefDetails.name',
+              quantity: '$items.quantity',
+            },
+          },
+        ],
+        activeChefs: [
+          {
+            $group: {
+              _id: '$items.preparedBy',
+              name: { $first: '$chefDetails.name' },
+            },
+          },
+          { $match: { _id: { $ne: null } } },
+          { $project: { id: '$_id', name: '$name', _id: 0 } },
+        ],
       },
     })
 
-    const rows = (await BillingModel.aggregate(pipeline)) as unknown as RawPreparationItem[]
+    const [facetResult] = (await BillingModel.aggregate(pipeline)) as unknown as Array<{
+      filteredRows: RawPreparationItem[]
+      activeChefs: Array<{ id: string; name: string }>
+    }>
+
+    const rows = Array.isArray(facetResult?.filteredRows) ? facetResult.filteredRows : []
+    const availableChefs = Array.isArray(facetResult?.activeChefs) ? facetResult.activeChefs : []
 
     const details = rows
       .map((row) => {
         const prep = resolveItemPreparationMinutes(row)
         const chefTime = parsePreparingTimeValue(row.preparingTime)
+        const quantity = typeof row.quantity === 'number' && Number.isFinite(row.quantity) && row.quantity > 0 ? row.quantity : 1
+        const configuredPerUnit = parsePreparingTimeValue(row.productStandardPreparationTime)
+        const totalStandardTime =
+          configuredPerUnit != null && configuredPerUnit > 0 ? configuredPerUnit * quantity : null
 
         return {
           billingId: toId(row.billingId) || '',
@@ -369,15 +456,26 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
           preparedAt: typeof row.preparedAt === 'string' ? row.preparedAt : '--',
           preparationTime: prep != null && Number.isFinite(prep) ? prep : null,
           chefPreparationTime: chefTime != null && Number.isFinite(chefTime) ? chefTime : null,
-          productStandardPreparationTime: parsePreparingTimeValue(row.productStandardPreparationTime),
+          productStandardPreparationTime: configuredPerUnit,
           chefName: typeof row.chefName === 'string' ? row.chefName : '--',
           createdAt: parseToDayjs(row.billCreatedAt),
-          quantity: typeof row.quantity === 'number' ? row.quantity : 1,
+          quantity,
+          status: getPreparationStatus(prep, totalStandardTime),
         }
+      })
+      .filter((item) => {
+        if (selectedStatus === 'all') return true
+        if (selectedStatus === 'chef_preparing_time') return item.chefPreparationTime != null
+        return item.status === selectedStatus
       })
       .sort((a, b) => {
         const aMs = a.createdAt ? a.createdAt.valueOf() : 0
         const bMs = b.createdAt ? b.createdAt.valueOf() : 0
+
+        // If createdAt is same (same bill), fallback to descending bill number string
+        if (aMs === bMs) {
+          return b.billNumber.localeCompare(a.billNumber)
+        }
         return bMs - aMs
       })
       .map((item) => ({
@@ -391,12 +489,14 @@ export const getProductPreparationBillDetailsHandler: PayloadHandler = async (
         productStandardPreparationTime: item.productStandardPreparationTime,
         chefName: item.chefName,
         quantity: item.quantity,
+        status: item.status,
       }))
 
     return Response.json({
       startDate: startDateParam,
       endDate: endDateParam,
       productId,
+      availableChefs,
       details,
     })
   } catch (error) {
