@@ -410,6 +410,18 @@
     font-weight: 700;
   }
 
+  tbody tr.row-chef-vs-lower td {
+    background: #9a0046 !important;
+    color: #ffffff !important;
+    font-weight: 800;
+  }
+
+  tbody tr.row-chef-vs-higher td {
+    background: #1267c7 !important;
+    color: #ffffff !important;
+    font-weight: 800;
+  }
+
   .prep-time-with-chef {
     display: inline-flex;
     align-items: center;

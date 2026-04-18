@@ -833,12 +833,27 @@ const ProductTimeReport: React.FC = () => {
                         selectedBillRow != null &&
                         entry.billingId.length > 0 &&
                         entry.billingId === selectedBillRow.billingId
+                      const chefPrepTime = toFiniteNumber(entry.chefPreparationTime)
+                      const actualPrepTime = toFiniteNumber(entry.preparationTime)
+                      const rowChefVsActualClassName =
+                        chefPrepTime != null && actualPrepTime != null
+                          ? actualPrepTime < chefPrepTime
+                            ? 'row-chef-vs-lower'
+                            : actualPrepTime > chefPrepTime
+                              ? 'row-chef-vs-higher'
+                              : ''
+                          : ''
                       const preparationStatus = entry.status
                       const rowClassName = [
                         entry.billingId.length > 0 ? 'is-clickable' : 'is-disabled',
                         isSelected ? 'is-selected' : '',
-                        preparationStatus === 'exceeded' ? 'prep-row-exceeded' : '',
-                        preparationStatus === 'lower' ? 'prep-row-lower' : '',
+                        rowChefVsActualClassName,
+                        !rowChefVsActualClassName && preparationStatus === 'exceeded'
+                          ? 'prep-row-exceeded'
+                          : '',
+                        !rowChefVsActualClassName && preparationStatus === 'lower'
+                          ? 'prep-row-lower'
+                          : '',
                       ]
                         .filter(Boolean)
                         .join(' ')
