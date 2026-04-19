@@ -125,6 +125,10 @@ export const Branches: CollectionConfig = {
       }
       return false
     },
-    delete: ({ req }) => req.user?.role === 'superadmin',
-  },
+    },
+  indexes: [
+    {
+      fields: ['company'],
+    },
+  ],
 }

@@ -227,6 +227,22 @@ export const Users: CollectionConfig = {
   hooks: {
     afterLogin: [
       async ({ req, user }) => {
+        // --- Session Pruning Logic ---
+        // Keep only the last 20 sessions to prevent document bloat and performance degradation.
+        const MAX_SESSIONS = 20
+        if (Array.isArray(user.sessions) && user.sessions.length > MAX_SESSIONS) {
+          const newSessions = user.sessions.slice(-MAX_SESSIONS)
+          await req.payload.update({
+            collection: 'users',
+            id: user.id,
+            data: {
+              sessions: newSessions,
+            } as any,
+            depth: 0,
+            overrideAccess: true,
+          })
+        }
+
         let deviceId: string | null = null
         if (req.headers && typeof req.headers.get === 'function') {
           deviceId = req.headers.get('x-device-id')

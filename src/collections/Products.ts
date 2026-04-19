@@ -487,6 +487,11 @@ const Products: CollectionConfig = {
       ],
     },
   ],
+  indexes: [
+    {
+      fields: ['category'],
+    },
+  ],
 }
 
 export default Products

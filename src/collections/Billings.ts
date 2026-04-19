@@ -1695,6 +1695,18 @@ const Billings: CollectionConfig = {
     {
       fields: ['customerDetails.phoneNumber', 'createdAt'],
     },
+    {
+      fields: ['branch', 'createdAt'],
+    },
+    {
+      fields: ['createdAt'],
+    },
+    {
+      fields: ['items.product'],
+    },
+    {
+      fields: ['items.status'],
+    },
   ],
   endpoints: [
     {
