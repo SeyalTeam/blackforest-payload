@@ -32,12 +32,44 @@ type ReportData = {
   totals: Omit<ReportStats, 'branchName'>
 }
 
+type BranchBillingReportQueryResponse = {
+  data?: {
+    branchBillingReport?: ReportData
+  }
+  errors?: {
+    message?: string
+  }[]
+}
+
 type DatePresetOption = {
   value: string
   label: string
 }
 
 const PAGE_SIZE = 5
+const BRANCH_BILLING_REPORT_QUERY = `
+  query BranchBillingReport($filter: BranchBillingReportFilterInput) {
+    branchBillingReport(filter: $filter) {
+      startDate
+      endDate
+      stats {
+        branchName
+        totalBills
+        totalAmount
+        cash
+        upi
+        card
+      }
+      totals {
+        totalBills
+        totalAmount
+        cash
+        upi
+        card
+      }
+    }
+  }
+`
 
 const getDefaultDateRange = (): [Date, Date] => {
   const now = new Date()
@@ -193,15 +225,38 @@ const BranchBillingReport: React.FC = () => {
     try {
       const startStr = toLocalDateStr(start)
       const endStr = toLocalDateStr(end)
-      const res = await fetch(`/api/reports/branch-billing?startDate=${startStr}&endDate=${endStr}`)
+      const res = await fetch('/api/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: BRANCH_BILLING_REPORT_QUERY,
+          variables: {
+            filter: {
+              startDate: startStr,
+              endDate: endStr,
+            },
+          },
+        }),
+      })
 
       if (!res.ok) {
         throw new Error(await getResponseErrorMessage(res, 'Failed to fetch report'))
       }
 
-      const json: ReportData = await res.json()
+      const json = (await res.json()) as BranchBillingReportQueryResponse
+      if (Array.isArray(json.errors) && json.errors.length > 0) {
+        throw new Error(json.errors[0]?.message || 'Failed to fetch report')
+      }
+
+      const report = json.data?.branchBillingReport
+      if (!report) {
+        throw new Error('No report data returned from GraphQL')
+      }
+
       setPage(1)
-      setData(json)
+      setData(report)
     } catch (err) {
       console.error(err)
       setError(err instanceof Error ? err.message : 'Error loading report data')

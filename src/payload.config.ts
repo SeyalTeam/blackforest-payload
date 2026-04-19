@@ -86,6 +86,7 @@ import { tableRedirectHandler } from './endpoints/tableRedirect'
 import { callWaiterHandler } from './endpoints/callWaiter'
 import { ackWaiterCallHandler } from './endpoints/ackWaiterCall'
 import { StockAlerts } from './collections/StockAlerts'
+import { reportGraphQLQueries } from './graphql/reportQueries'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -195,6 +196,10 @@ export default buildConfig({
     'https://superadmin.theblackforestcakes.com',
     'http://192.168.29.173:3000', // Local Network IP
   ].filter(Boolean) as string[],
+
+  graphQL: {
+    queries: reportGraphQLQueries,
+  },
 
   bodyParser: {
     limits: {
