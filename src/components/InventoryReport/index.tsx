@@ -9,24 +9,71 @@ import './index.scss'
 
 type BranchInventory = {
   id: string
+  initial: number
+  instock: number
   name: string
   inventory: number
+  received: number
+  returned: number
+  sold: number
   value: number
   company?: { id: string; name: string } | string
 }
 
 type ProductInventory = {
+  branches: BranchInventory[]
   id: string
   name: string
+  totalInstock: number
   totalInventory: number
+  totalReceived: number
+  totalReturned: number
+  totalSold: number
   totalValue: number
-  branches: BranchInventory[]
 }
 
 type ReportData = {
-  timestamp: string
   products: ProductInventory[]
+  timestamp: string
 }
+
+type InventoryReportQueryResponse = {
+  data?: {
+    inventoryReport?: ReportData
+  }
+  errors?: {
+    message?: string
+  }[]
+}
+
+const INVENTORY_REPORT_QUERY = `
+  query InventoryReport($filter: InventoryReportFilterInput) {
+    inventoryReport(filter: $filter) {
+      timestamp
+      products {
+        id
+        name
+        totalInventory
+        totalValue
+        totalSold
+        totalReturned
+        totalReceived
+        totalInstock
+        branches {
+          id
+          name
+          inventory
+          value
+          sold
+          returned
+          received
+          instock
+          initial
+        }
+      }
+    }
+  }
+`
 
 const InventoryReport: React.FC = () => {
   const [data, setData] = useState<ReportData | null>(null)
@@ -97,22 +144,38 @@ const InventoryReport: React.FC = () => {
     setLoading(true)
     setError('')
     try {
-      const query = new URLSearchParams({
-        department: selectedDepartment,
-        category: selectedCategory,
-        product: selectedProduct,
-        branch: selectedBranch,
+      const res = await fetch('/api/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: INVENTORY_REPORT_QUERY,
+          variables: {
+            filter: {
+              department: selectedDepartment,
+              category: selectedCategory,
+              product: selectedProduct,
+              branch: selectedBranch,
+            },
+          },
+        }),
       })
-      const res = await fetch(`/api/reports/inventory?${query.toString()}`)
-      const json: ReportData = await res.json()
-      if (res.ok) {
-        setData(json)
-      } else {
-        throw new Error('Failed to fetch inventory data')
+
+      if (!res.ok) throw new Error(`Failed to fetch inventory data (HTTP ${res.status})`)
+
+      const json = (await res.json()) as InventoryReportQueryResponse
+      if (Array.isArray(json.errors) && json.errors.length > 0) {
+        throw new Error(json.errors[0]?.message || 'Failed to fetch inventory data')
       }
+
+      const report = json.data?.inventoryReport
+      if (!report) throw new Error('No report data returned from GraphQL')
+
+      setData(report)
     } catch (error) {
       console.error(error)
-      setError('Failed to fetch inventory report')
+      setError(error instanceof Error ? error.message : 'Failed to fetch inventory report')
     } finally {
       setLoading(false)
     }

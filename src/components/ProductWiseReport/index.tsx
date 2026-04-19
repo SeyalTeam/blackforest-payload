@@ -25,6 +25,47 @@ type ReportData = {
   }
 }
 
+type ProductWiseBranchSale = {
+  branchCode: string
+  amount: number
+  quantity: number
+}
+
+type ProductWiseBranchTotal = {
+  branchCode: string
+  amount: number
+}
+
+type ProductWiseGraphQLReportData = {
+  startDate: string
+  endDate: string
+  branchHeaders: string[]
+  stats: Array<{
+    sNo: number
+    productId: string
+    productName: string
+    price: number
+    unit: string
+    totalQuantity: number
+    totalAmount: number
+    branchSales: ProductWiseBranchSale[]
+  }>
+  totals: {
+    totalQuantity: number
+    totalAmount: number
+    branchTotals: ProductWiseBranchTotal[]
+  }
+}
+
+type ProductWiseReportQueryResponse = {
+  data?: {
+    productWiseReport?: ProductWiseGraphQLReportData
+  }
+  errors?: {
+    message?: string
+  }[]
+}
+
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import Select, { components, OptionProps, ValueContainerProps } from 'react-select'
@@ -62,6 +103,38 @@ const CustomValueContainer = ({ children, ...props }: ValueContainerProps<any>) 
 }
 
 const MultiValue = () => null
+
+const PRODUCT_WISE_REPORT_QUERY = `
+  query ProductWiseReport($filter: ProductWiseReportFilterInput) {
+    productWiseReport(filter: $filter) {
+      startDate
+      endDate
+      branchHeaders
+      stats {
+        sNo
+        productId
+        productName
+        price
+        unit
+        totalQuantity
+        totalAmount
+        branchSales {
+          branchCode
+          amount
+          quantity
+        }
+      }
+      totals {
+        totalQuantity
+        totalAmount
+        branchTotals {
+          branchCode
+          amount
+        }
+      }
+    }
+  }
+`
 
 const ProductWiseReport: React.FC = () => {
   // Combine start and end date into a single range state for the picker
@@ -405,11 +478,70 @@ const ProductWiseReport: React.FC = () => {
         const branchParam = branchIds.includes('all') ? 'all' : branchIds.join(',')
         const categoryParam = categoryIds.includes('all') ? 'all' : categoryIds.join(',')
         const productParam = productIds.includes('all') ? 'all' : productIds.join(',')
-        const res = await fetch(
-          `/api/reports/product-wise?startDate=${startStr}&endDate=${endStr}&branch=${branchParam}&category=${categoryParam}&department=${departmentId}&product=${productParam}`,
-        )
+        const res = await fetch('/api/graphql', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: PRODUCT_WISE_REPORT_QUERY,
+            variables: {
+              filter: {
+                startDate: startStr,
+                endDate: endStr,
+                branch: branchParam,
+                category: categoryParam,
+                department: departmentId,
+                product: productParam,
+              },
+            },
+          }),
+        })
         if (!res.ok) throw new Error('Failed to fetch report')
-        const json: ReportData = await res.json()
+        const json = (await res.json()) as ProductWiseReportQueryResponse
+        if (Array.isArray(json.errors) && json.errors.length > 0) {
+          throw new Error(json.errors[0]?.message || 'Failed to fetch report')
+        }
+
+        const report = json.data?.productWiseReport
+        if (!report) {
+          throw new Error('No report data returned from GraphQL')
+        }
+
+        const normalizedReport: ReportData = {
+          startDate: report.startDate,
+          endDate: report.endDate,
+          branchHeaders: report.branchHeaders,
+          stats: report.stats.map((row) => ({
+            sNo: row.sNo,
+            productName: row.productName,
+            price: row.price,
+            unit: row.unit,
+            totalQuantity: row.totalQuantity,
+            totalAmount: row.totalAmount,
+            branchSales: row.branchSales.reduce(
+              (acc, sale) => {
+                acc[sale.branchCode] = {
+                  amount: sale.amount,
+                  quantity: sale.quantity,
+                }
+                return acc
+              },
+              {} as Record<string, { amount: number; quantity: number }>,
+            ),
+          })),
+          totals: {
+            totalQuantity: report.totals.totalQuantity,
+            totalAmount: report.totals.totalAmount,
+            branchTotals: report.totals.branchTotals.reduce(
+              (acc, item) => {
+                acc[item.branchCode] = item.amount
+                return acc
+              },
+              {} as Record<string, number>,
+            ),
+          },
+        }
 
         // Automatically enable zero highlight if there are zero values -- REMOVED per user request
         /*
@@ -429,10 +561,10 @@ const ProductWiseReport: React.FC = () => {
       */
         // Default to false now
         setShowZeroHighlight(false)
-        setData(json)
+        setData(normalizedReport)
       } catch (err) {
         console.error(err)
-        setError('Error loading report data')
+        setError(err instanceof Error ? err.message : 'Error loading report data')
       } finally {
         setLoading(false)
       }

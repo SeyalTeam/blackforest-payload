@@ -62,6 +62,15 @@ type ReportData = {
   }
 }
 
+type ReturnOrderReportQueryResponse = {
+  data?: {
+    returnOrderReport?: ReportData
+  }
+  errors?: {
+    message?: string
+  }[]
+}
+
 const CheckboxOption = (props: OptionProps<SelectOption, true>) => {
   return (
     <components.Option {...props}>
@@ -95,6 +104,46 @@ const CustomValueContainer = ({ children, ...props }: ValueContainerProps<Select
 }
 
 const MultiValue = () => null
+
+const RETURN_ORDER_REPORT_QUERY = `
+  query ReturnOrderReport($filter: ReturnOrderReportFilterInput) {
+    returnOrderReport(filter: $filter) {
+      startDate
+      endDate
+      groups {
+        _id
+        branchName
+        totalAmount
+        totalQuantity
+        count
+        orderCount
+        items {
+          returnNumber
+          status
+          product
+          quantity
+          unitPrice
+          subtotal
+          notes
+          time
+          imageUrl
+        }
+      }
+      meta {
+        grandTotal
+        totalCount
+        totalQuantity
+        statuses
+        statusStats {
+          status
+          total
+          count
+          percentage
+        }
+      }
+    }
+  }
+`
 
 const STATUS_TABS = [
   { value: 'all', label: 'All' },
@@ -345,15 +394,37 @@ const ReturnOrderReport: React.FC = () => {
         const endStr = toLocalDateStr(end)
         const branchParam = branchIds.includes('all') ? 'all' : branchIds.join(',')
 
-        const res = await fetch(
-          `/api/reports/return-order?startDate=${startStr}&endDate=${endStr}&status=${status}&branch=${branchParam}`,
-        )
-        if (!res.ok) throw new Error('Failed to fetch return order report')
-        const json: ReportData = await res.json()
-        setData(json)
+        const res = await fetch('/api/graphql', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: RETURN_ORDER_REPORT_QUERY,
+            variables: {
+              filter: {
+                startDate: startStr,
+                endDate: endStr,
+                status,
+                branch: branchParam,
+              },
+            },
+          }),
+        })
+        if (!res.ok) throw new Error(`Failed to fetch return order report (HTTP ${res.status})`)
+
+        const json = (await res.json()) as ReturnOrderReportQueryResponse
+        if (Array.isArray(json.errors) && json.errors.length > 0) {
+          throw new Error(json.errors[0]?.message || 'Failed to fetch return order report')
+        }
+
+        const report = json.data?.returnOrderReport
+        if (!report) throw new Error('No report data returned from GraphQL')
+
+        setData(report)
       } catch (err) {
         console.error(err)
-        setError('Error loading return order report')
+        setError(err instanceof Error ? err.message : 'Error loading return order report')
       } finally {
         setLoading(false)
       }

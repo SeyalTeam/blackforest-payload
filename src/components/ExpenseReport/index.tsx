@@ -56,6 +56,15 @@ type ReportData = {
   }
 }
 
+type ExpenseReportQueryResponse = {
+  data?: {
+    expenseReport?: ReportData
+  }
+  errors?: {
+    message?: string
+  }[]
+}
+
 const CheckboxOption = (props: OptionProps<SelectOption>) => {
   return (
     <components.Option {...props}>
@@ -89,6 +98,39 @@ const CustomValueContainer = ({ children, ...props }: ValueContainerProps<Select
 }
 
 const MultiValue = () => null
+
+const EXPENSE_REPORT_QUERY = `
+  query ExpenseReport($filter: ExpenseReportFilterInput) {
+    expenseReport(filter: $filter) {
+      startDate
+      endDate
+      groups {
+        _id
+        branchName
+        total
+        count
+        items {
+          category
+          reason
+          amount
+          time
+          imageUrl
+        }
+      }
+      meta {
+        grandTotal
+        totalCount
+        categories
+        categoryStats {
+          category
+          total
+          count
+          percentage
+        }
+      }
+    }
+  }
+`
 
 const getStableColor = (category: string) => {
   const categoryColors: Record<string, string> = {
@@ -468,15 +510,37 @@ const ExpenseReport: React.FC = () => {
         const categoryParam = category
         const branchParam = branchIds.includes('all') ? 'all' : branchIds.join(',')
 
-        const res = await fetch(
-          `/api/reports/expense?startDate=${startStr}&endDate=${endStr}&category=${categoryParam}&branch=${branchParam}`,
-        )
-        if (!res.ok) throw new Error('Failed to fetch report')
-        const json: ReportData = await res.json()
-        setData(json)
+        const res = await fetch('/api/graphql', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: EXPENSE_REPORT_QUERY,
+            variables: {
+              filter: {
+                startDate: startStr,
+                endDate: endStr,
+                category: categoryParam,
+                branch: branchParam,
+              },
+            },
+          }),
+        })
+        if (!res.ok) throw new Error(`Failed to fetch report (HTTP ${res.status})`)
+
+        const json = (await res.json()) as ExpenseReportQueryResponse
+        if (Array.isArray(json.errors) && json.errors.length > 0) {
+          throw new Error(json.errors[0]?.message || 'Failed to fetch report')
+        }
+
+        const report = json.data?.expenseReport
+        if (!report) throw new Error('No report data returned from GraphQL')
+
+        setData(report)
       } catch (err) {
         console.error(err)
-        setError('Error loading report data')
+        setError(err instanceof Error ? err.message : 'Error loading report data')
       } finally {
         setLoading(false)
       }

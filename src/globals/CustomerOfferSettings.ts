@@ -192,6 +192,7 @@ const parseRandomOfferRows = (value: unknown): RandomOfferRow[] => {
 export const CustomerOfferSettings: GlobalConfig = {
   slug: 'customer-offer-settings',
   label: 'Customer Offer Settings',
+  graphQL: false,
   admin: {
     group: 'Settings',
     hidden: true,

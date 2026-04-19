@@ -41,6 +41,59 @@ import { DateRangeInput } from './components/DateRangeInput'
 
 type TopListLimit = 10 | 25 | 50 | 100 | 'all'
 
+type ProductPreparationBillDetailsQueryResponse = {
+  data?: {
+    productPreparationBillDetailsReport?: {
+      availableChefs?: Array<{ id?: unknown; name?: unknown }>
+      details?: Array<{
+        billNumber?: unknown
+        billingId?: unknown
+        chefName?: unknown
+        chefPreparationTime?: unknown
+        orderedAt?: unknown
+        preparedAt?: unknown
+        preparationTime?: unknown
+        productId?: unknown
+        productName?: unknown
+        productStandardPreparationTime?: unknown
+        quantity?: unknown
+        status?: unknown
+      }>
+    }
+  }
+  errors?: {
+    message?: string
+  }[]
+}
+
+const PRODUCT_PREPARATION_BILL_DETAILS_QUERY = `
+  query ProductPreparationBillDetailsReport($filter: ProductPreparationBillDetailsReportFilterInput) {
+    productPreparationBillDetailsReport(filter: $filter) {
+      startDate
+      endDate
+      productId
+      availableChefs {
+        id
+        name
+      }
+      details {
+        billingId
+        billNumber
+        productId
+        productName
+        orderedAt
+        preparedAt
+        preparationTime
+        chefPreparationTime
+        productStandardPreparationTime
+        chefName
+        quantity
+        status
+      }
+    }
+  }
+`
+
 const ProductTimeReport: React.FC = () => {
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()])
   const [rangeStartDate, rangeEndDate] = dateRange
@@ -321,30 +374,40 @@ const ProductTimeReport: React.FC = () => {
       setBillDetailsError('')
       setLoading(true)
       try {
-        const url = `/api/reports/product-preparation-bill-details?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&branch=${encodeURIComponent(selectedBranch)}&kitchenId=${encodeURIComponent(selectedKitchen)}&category=${encodeURIComponent(categoryParam)}&department=all&productId=${encodeURIComponent(selectedProduct)}&chefId=${encodeURIComponent(selectedChef)}&status=${encodeURIComponent(normalizedStatus)}`
-        const res = await fetch(url)
-        if (!res.ok) throw new Error('Failed to fetch bill details')
+        const res = await fetch('/api/graphql', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: PRODUCT_PREPARATION_BILL_DETAILS_QUERY,
+            variables: {
+              filter: {
+                startDate,
+                endDate,
+                branch: selectedBranch,
+                kitchenId: selectedKitchen,
+                category: categoryParam,
+                department: 'all',
+                productId: selectedProduct,
+                chefId: selectedChef,
+                status: normalizedStatus,
+              },
+            },
+          }),
+        })
+        if (!res.ok) throw new Error(`Failed to fetch bill details (HTTP ${res.status})`)
 
-        const json = (await res.json()) as {
-          availableChefs?: Array<{ id: string; name: string }>
-          details?: Array<{
-            billingId?: unknown
-            billNumber?: unknown
-            productId?: unknown
-            productName?: unknown
-            orderedAt?: unknown
-            preparedAt?: unknown
-            preparationTime?: unknown
-            chefPreparationTime?: unknown
-            productStandardPreparationTime?: unknown
-            chefName?: unknown
-            quantity?: unknown
-            status?: unknown
-          }>
+        const json = (await res.json()) as ProductPreparationBillDetailsQueryResponse
+        if (Array.isArray(json.errors) && json.errors.length > 0) {
+          throw new Error(json.errors[0]?.message || 'Failed to fetch bill details')
         }
 
-        const details = Array.isArray(json.details)
-          ? json.details.map((entry) => {
+        const report = json.data?.productPreparationBillDetailsReport
+        if (!report) throw new Error('No report data returned from GraphQL')
+
+        const details = Array.isArray(report.details)
+          ? report.details.map((entry) => {
               const mapped = {
                 billingId: typeof entry.billingId === 'string' ? entry.billingId.trim() : '',
                 billNumber:
@@ -394,7 +457,16 @@ const ProductTimeReport: React.FC = () => {
           : []
 
         setBillDetails(details)
-        setAvailableChefs(Array.isArray(json.availableChefs) ? json.availableChefs : [])
+        setAvailableChefs(
+          Array.isArray(report.availableChefs)
+            ? report.availableChefs
+                .filter((chef) => typeof chef?.id === 'string')
+                .map((chef) => ({
+                  id: typeof chef.id === 'string' ? chef.id : '',
+                  name: typeof chef.name === 'string' ? chef.name : '--',
+                }))
+            : [],
+        )
         setSelectedBillRow((previous) => {
           if (details.length === 0) return null
           if (
@@ -414,7 +486,9 @@ const ProductTimeReport: React.FC = () => {
       } catch (detailsError) {
         console.error(detailsError)
         setBillDetails([])
-        setBillDetailsError('Failed to load bill details')
+        setBillDetailsError(
+          detailsError instanceof Error ? detailsError.message : 'Failed to load bill details',
+        )
         setSelectedBillRow(null)
         setSelectedBill(null)
         setSelectedBillError('')

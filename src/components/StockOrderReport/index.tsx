@@ -103,6 +103,52 @@ type ReportData = {
   }>
 }
 
+const STOCK_ORDER_REPORT_QUERY = `
+  query StockOrderReport($filter: StockOrderReportFilterInput) {
+    stockOrderReport(filter: $filter) {
+      startDate
+      endDate
+      stats {
+        branchName
+        stockOrders
+        liveOrders
+        totalOrders
+      }
+      totals {
+        stockOrders
+        liveOrders
+        totalOrders
+      }
+      details {
+        productName
+        categoryName
+        departmentName
+        price
+        invoiceNumber
+        ordQty
+        ordTime
+        sntQty
+        sntTime
+        conQty
+        conTime
+        picQty
+        picTime
+        recQty
+        recTime
+        difQty
+        branchName
+        branchDisplay
+      }
+      invoiceNumbers {
+        invoice
+        isLive
+        createdAt
+        deliveryDate
+      }
+    }
+  }
+`
+
 const StockOrderReport: React.FC = () => {
   // ... (existing state)
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()])
@@ -290,22 +336,34 @@ const StockOrderReport: React.FC = () => {
     try {
       const startStr = toLocalDateStr(start)
       const endStr = toLocalDateStr(end)
-      const query = new URLSearchParams({
-        startDate: startStr,
-        endDate: endStr,
-        ...(filters.branch && { branch: filters.branch }),
-        ...(filters.department && { department: filters.department }),
-        ...(filters.category && { category: filters.category }),
-        ...(filters.product && { product: filters.product }),
-        ...(filters.status && { status: filters.status }),
-        ...(filters.orderType && { orderType: filters.orderType }),
-        ...(filters.orderType && { orderType: filters.orderType }),
+
+      const res = await fetch('/api/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: STOCK_ORDER_REPORT_QUERY,
+          variables: {
+            filter: {
+              startDate: startStr,
+              endDate: endStr,
+              branch: filters.branch || 'all',
+              department: filters.department || 'all',
+              category: filters.category || 'all',
+              product: filters.product || 'all',
+              status: filters.status || 'all',
+              orderType: filters.orderType || 'all',
+            },
+          },
+        }),
       })
 
-      const res = await fetch(`/api/reports/stock-order?${query.toString()}`)
       if (!res.ok) throw new Error('Failed to fetch report')
-      const json: ReportData = await res.json()
-      setData(json)
+      const json = await res.json()
+      if (json.errors) throw new Error(json.errors[0]?.message || 'Failed to fetch report')
+
+      setData(json.data.stockOrderReport)
     } catch (err) {
       console.error(err)
       setError('Error loading report data')

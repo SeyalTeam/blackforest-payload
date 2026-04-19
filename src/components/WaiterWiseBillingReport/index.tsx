@@ -34,6 +34,15 @@ type ReportData = {
   branchBenchmarks?: { _id: string; totalAmount: number; totalBills: number; totalWaiters: number }[]
 }
 
+type WaiterWiseReportQueryResponse = {
+  data?: {
+    waiterWiseReport?: ReportData
+  }
+  errors?: {
+    message?: string
+  }[]
+}
+
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import Select, { components, OptionProps } from 'react-select'
@@ -71,6 +80,50 @@ const CustomValueContainer = ({ children, ...props }: any) => {
 }
 
 const MultiValue = () => null
+
+const WAITER_WISE_REPORT_QUERY = `
+  query WaiterWiseReport($filter: WaiterWiseReportFilterInput) {
+    waiterWiseReport(filter: $filter) {
+      startDate
+      endDate
+      stats {
+        waiterId
+        waiterName
+        employeeId
+        branchNames
+        branchIds
+        lastBillTime
+        totalBills
+        totalAmount
+        cashAmount
+        upiAmount
+        cardAmount
+        customerCount
+      }
+      totals {
+        totalBills
+        totalAmount
+        cashAmount
+        upiAmount
+        cardAmount
+      }
+      activeBranches {
+        id
+        name
+      }
+      timeline {
+        minHour
+        maxHour
+      }
+      branchBenchmarks {
+        _id
+        totalAmount
+        totalBills
+        totalWaiters
+      }
+    }
+  }
+`
 
 /* Helper to format time (e.g. 2:30 pm) */
 const formatTime = (isoString?: string) => {
@@ -346,53 +399,63 @@ const WaiterWiseBillingReport: React.FC = () => {
       const startStr = startDate ? toLocalDateStr(startDate) : ''
       const endStr = endDate ? toLocalDateStr(endDate) : ''
 
-      // Construct URL with filters
-      let url = `/api/reports/waiter-wise?startDate=${startStr}&endDate=${endStr}`
-      if (!selectedBranch.includes('all')) {
-        url += `&branch=${selectedBranch.join(',')}`
+      const branchParam = selectedBranch.includes('all') ? 'all' : selectedBranch.join(',')
+      const waiterParam = selectedWaiter.includes('all') ? 'all' : selectedWaiter.join(',')
+
+      const res = await fetch('/api/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: WAITER_WISE_REPORT_QUERY,
+          variables: {
+            filter: {
+              startDate: startStr,
+              endDate: endStr,
+              branch: branchParam,
+              waiter: waiterParam,
+              hour: selectedHour,
+            },
+          },
+        }),
+      })
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch report (HTTP ${res.status})`)
       }
-      if (!selectedWaiter.includes('all')) {
-        url += `&waiter=${selectedWaiter.join(',')}`
+
+      const json = (await res.json()) as WaiterWiseReportQueryResponse
+      if (Array.isArray(json.errors) && json.errors.length > 0) {
+        throw new Error(json.errors[0]?.message || 'Failed to fetch report')
       }
-      if (selectedHour !== null) {
-        url += `&hour=${selectedHour}`
+
+      const report = json.data?.waiterWiseReport
+      if (!report) {
+        throw new Error('No report data returned from GraphQL')
       }
 
-      const res = await fetch(url)
-      const json: ReportData = await res.json()
+      setData(report)
 
-      if (res.ok) {
-        setData(json)
+      if (report.timeline) {
+        setTimelineRange({ min: report.timeline.minHour, max: report.timeline.maxHour })
+      }
 
-        // Timeline: Set range if available (and we are NOT currently filtering by hour,
-        // to keep the timeline stable? No, backend calculates it independent of hour filter?
-        // Yes, backend timeline calculation uses only branchMatchQuery which is date+branch.)
-        if (json.timeline) {
-          // Only update range if it's different or NULL.
-          // We want the range to represent the *day's* activity.
-          setTimelineRange({ min: json.timeline.minHour, max: json.timeline.maxHour })
-        }
-
-        // 2. Waiters: Use the stats to find unique waiters who worked.
-        // NOTE: If a waiter filter is applied, the response only contains that waiter.
-        // To keep the full list available, checking against "all" selection
-        if (selectedWaiter.includes('all') && json.stats) {
-          const uniqueWaitersMap = new Map()
-          json.stats.forEach((row: any) => {
-            if (!uniqueWaitersMap.has(row.waiterId)) {
-              uniqueWaitersMap.set(row.waiterId, {
-                id: row.waiterId,
-                name: row.waiterName,
-                // User requested to remove ID from filter, so label will be just Name
-              })
-            }
-          })
-          setWaiters(Array.from(uniqueWaitersMap.values()))
-        }
+      if (selectedWaiter.includes('all') && report.stats) {
+        const uniqueWaitersMap = new Map()
+        report.stats.forEach((row: any) => {
+          if (!uniqueWaitersMap.has(row.waiterId)) {
+            uniqueWaitersMap.set(row.waiterId, {
+              id: row.waiterId,
+              name: row.waiterName,
+            })
+          }
+        })
+        setWaiters(Array.from(uniqueWaitersMap.values()))
       }
     } catch (error) {
       console.error('Failed to fetch report:', error)
-      setError('Failed to fetch report')
+      setError(error instanceof Error ? error.message : 'Failed to fetch report')
     } finally {
       setLoading(false)
     }

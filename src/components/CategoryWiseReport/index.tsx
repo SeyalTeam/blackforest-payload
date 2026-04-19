@@ -23,6 +23,44 @@ type ReportData = {
   }
 }
 
+type CategoryWiseBranchSale = {
+  branchCode: string
+  amount: number
+  quantity: number
+}
+
+type CategoryWiseBranchTotal = {
+  branchCode: string
+  amount: number
+}
+
+type CategoryWiseGraphQLReportData = {
+  startDate: string
+  endDate: string
+  branchHeaders: string[]
+  stats: Array<{
+    sNo: number
+    categoryName: string
+    totalQuantity: number
+    totalAmount: number
+    branchSales: CategoryWiseBranchSale[]
+  }>
+  totals: {
+    totalQuantity: number
+    totalAmount: number
+    branchTotals: CategoryWiseBranchTotal[]
+  }
+}
+
+type CategoryWiseReportQueryResponse = {
+  data?: {
+    categoryWiseReport?: CategoryWiseGraphQLReportData
+  }
+  errors?: {
+    message?: string
+  }[]
+}
+
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import './index.scss'
@@ -63,6 +101,34 @@ const CustomValueContainer = ({ children, ...props }: any) => {
 const MultiValue = () => null
 
 // ... existing code ...
+const CATEGORY_WISE_REPORT_QUERY = `
+  query CategoryWiseReport($filter: CategoryWiseReportFilterInput) {
+    categoryWiseReport(filter: $filter) {
+      startDate
+      endDate
+      branchHeaders
+      stats {
+        sNo
+        categoryName
+        totalQuantity
+        totalAmount
+        branchSales {
+          branchCode
+          amount
+          quantity
+        }
+      }
+      totals {
+        totalQuantity
+        totalAmount
+        branchTotals {
+          branchCode
+          amount
+        }
+      }
+    }
+  }
+`
 
 const CategoryWiseReport: React.FC = () => {
   // Combine start and end date into a single range state for the picker
@@ -361,16 +427,68 @@ const CategoryWiseReport: React.FC = () => {
       const endStr = toLocalDateStr(end)
       const branchParam = branchIds.includes('all') ? 'all' : branchIds.join(',')
       const categoryParam = categoryIds.includes('all') ? 'all' : categoryIds.join(',')
-      const res = await fetch(
-        `/api/reports/category-wise?startDate=${startStr}&endDate=${endStr}&branch=${branchParam}&category=${categoryParam}&department=${deptId}`,
-      )
+      const res = await fetch('/api/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: CATEGORY_WISE_REPORT_QUERY,
+          variables: {
+            filter: {
+              startDate: startStr,
+              endDate: endStr,
+              branch: branchParam,
+              category: categoryParam,
+              department: deptId,
+            },
+          },
+        }),
+      })
       if (!res.ok) throw new Error('Failed to fetch report')
-      const json: ReportData = await res.json()
 
-      setData(json)
+      const json = (await res.json()) as CategoryWiseReportQueryResponse
+      if (Array.isArray(json.errors) && json.errors.length > 0) {
+        throw new Error(json.errors[0]?.message || 'Failed to fetch report')
+      }
+
+      const report = json.data?.categoryWiseReport
+      if (!report) throw new Error('No report data returned from GraphQL')
+
+      const normalizedReport: ReportData = {
+        startDate: report.startDate,
+        endDate: report.endDate,
+        branchHeaders: report.branchHeaders,
+        stats: report.stats.map((row) => ({
+          ...row,
+          branchSales: row.branchSales.reduce(
+            (acc, sale) => {
+              acc[sale.branchCode] = {
+                amount: sale.amount,
+                quantity: sale.quantity,
+              }
+              return acc
+            },
+            {} as Record<string, { amount: number; quantity: number }>,
+          ),
+        })),
+        totals: {
+          totalQuantity: report.totals.totalQuantity,
+          totalAmount: report.totals.totalAmount,
+          branchTotals: report.totals.branchTotals.reduce(
+            (acc, item) => {
+              acc[item.branchCode] = item.amount
+              return acc
+            },
+            {} as Record<string, number>,
+          ),
+        },
+      }
+
+      setData(normalizedReport)
     } catch (err) {
       console.error(err)
-      setError('Error loading report data')
+      setError(err instanceof Error ? err.message : 'Error loading report data')
     } finally {
       setLoading(false)
     }

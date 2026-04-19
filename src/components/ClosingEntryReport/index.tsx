@@ -78,10 +78,106 @@ type ReportData = {
   totals: Omit<ReportStats, 'branchName' | 'sNo' | 'entries' | 'closingNumbers' | 'lastUpdated'>
 }
 
+type ClosingEntryReportQueryResponse = {
+  data?: {
+    closingEntryReport?: ReportData
+  }
+  errors?: {
+    message?: string
+  }[]
+}
+
 interface BranchOption {
   value: string
   label: string
 }
+
+const CLOSING_ENTRY_REPORT_QUERY = `
+  query ClosingEntryReport($filter: ClosingEntryReportFilterInput) {
+    closingEntryReport(filter: $filter) {
+      startDate
+      endDate
+      stats {
+        _id
+        branchName
+        totalEntries
+        closingNumbers
+        lastUpdated
+        sNo
+        systemSales
+        totalBills
+        manualSales
+        onlineSales
+        totalSales
+        expenses
+        returnTotal
+        stockOrders
+        net
+        cash
+        upi
+        card
+        count2000
+        count500
+        count200
+        count100
+        count50
+        count10
+        count5
+        expenseDetails {
+          category
+          reason
+          amount
+          imageUrl
+          date
+        }
+        entries {
+          closingNumber
+          createdAt
+          systemSales
+          totalBills
+          manualSales
+          onlineSales
+          totalSales
+          expenses
+          cash
+          upi
+          card
+          denominations {
+            count2000
+            count500
+            count200
+            count100
+            count50
+            count10
+            count5
+          }
+          expenseDetails {
+            category
+            reason
+            amount
+            imageUrl
+            date
+          }
+        }
+      }
+      totals {
+        totalEntries
+        systemSales
+        totalBills
+        manualSales
+        onlineSales
+        totalSales
+        expenses
+        returnTotal
+        stockOrders
+        net
+        cash
+        upi
+        card
+      }
+    }
+  }
+`
 
 const ClosingEntryReport: React.FC = () => {
   const [dateRangePreset, setDateRangePreset] = useState<string>('today')
@@ -227,14 +323,36 @@ const ClosingEntryReport: React.FC = () => {
     try {
       const startStr = toLocalDateStr(start)
       const endStr = toLocalDateStr(end)
-      const res = await fetch(`/api/reports/closing-entry?startDate=${startStr}&endDate=${endStr}`)
-      if (!res.ok) throw new Error('Failed to fetch report')
-      const json: ReportData = await res.json()
+      const res = await fetch('/api/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: CLOSING_ENTRY_REPORT_QUERY,
+          variables: {
+            filter: {
+              startDate: startStr,
+              endDate: endStr,
+              branch: 'all',
+            },
+          },
+        }),
+      })
+      if (!res.ok) throw new Error(`Failed to fetch report (HTTP ${res.status})`)
 
-      setData(json)
+      const json = (await res.json()) as ClosingEntryReportQueryResponse
+      if (Array.isArray(json.errors) && json.errors.length > 0) {
+        throw new Error(json.errors[0]?.message || 'Failed to fetch report')
+      }
+
+      const report = json.data?.closingEntryReport
+      if (!report) throw new Error('No report data returned from GraphQL')
+
+      setData(report)
     } catch (err) {
       console.error(err)
-      setError('Error loading report data')
+      setError(err instanceof Error ? err.message : 'Error loading report data')
     } finally {
       setLoading(false)
     }
