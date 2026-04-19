@@ -39,8 +39,6 @@ type BranchBillingReportArgs = {
   startDate?: null | string
 }
 
-const FINALIZED_BILL_STATUSES = ['completed', 'settled'] as const
-
 const toDayBoundary = (dateParam: string, mode: 'start' | 'end'): Date => {
   const [yearRaw, monthRaw, dayRaw] = dateParam.split('-')
   const year = parseInt(yearRaw, 10)
@@ -77,9 +75,6 @@ export const getBranchBillingReportData = async (
     createdAt: {
       $gte: startOfDay,
       $lte: endOfDay,
-    },
-    status: {
-      $in: [...FINALIZED_BILL_STATUSES],
     },
   }
   if (branchIds) {
