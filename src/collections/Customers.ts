@@ -9,9 +9,9 @@ const Customers: CollectionConfig = {
   access: {
     read: () => true,
     create: ({ req: { user } }) =>
-      user?.role != null && ['superadmin', 'admin', 'branch', 'waiter', 'company'].includes(user.role),
+      user?.role != null && ['superadmin', 'admin', 'branch', 'waiter'].includes(user.role),
     update: ({ req: { user } }) =>
-      user?.role != null && ['superadmin', 'admin', 'branch', 'waiter', 'company'].includes(user.role),
+      user?.role != null && ['superadmin', 'admin', 'branch', 'waiter'].includes(user.role),
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   fields: [

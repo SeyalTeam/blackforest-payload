@@ -1685,11 +1685,10 @@ const Billings: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: ({ req: { user } }) =>
-      user?.role != null && ['superadmin', 'admin', 'branch', 'waiter', 'company'].includes(user.role),
+    create: ({ req: { user } }) => user?.role != null && ['branch', 'waiter'].includes(user.role),
     update: ({ req: { user } }) =>
       user?.role != null &&
-      ['superadmin', 'admin', 'branch', 'waiter', 'cashier', 'supervisor', 'company'].includes(user.role),
+      ['branch', 'waiter', 'cashier', 'supervisor', 'superadmin'].includes(user.role),
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   indexes: [

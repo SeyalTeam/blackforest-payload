@@ -16,12 +16,10 @@ const StockOrders: CollectionConfig = {
   access: {
     read: () => true,
     create: ({ req: { user } }) =>
-      user?.role != null && ['superadmin', 'admin', 'branch', 'waiter', 'company'].includes(user.role),
+      user?.role != null && ['branch', 'waiter', 'superadmin'].includes(user.role),
     update: ({ req: { user } }) =>
       user?.role != null &&
-      ['superadmin', 'admin', 'supervisor', 'driver', 'branch', 'factory', 'chef', 'company'].includes(
-        user.role,
-      ),
+      ['superadmin', 'supervisor', 'driver', 'branch', 'factory', 'chef'].includes(user.role),
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   hooks: {
