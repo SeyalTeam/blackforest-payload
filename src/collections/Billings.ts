@@ -1703,9 +1703,6 @@ const Billings: CollectionConfig = {
       fields: ['branch', 'createdAt'],
     },
     {
-      fields: ['createdAt'],
-    },
-    {
       fields: ['items.product'],
     },
     {
