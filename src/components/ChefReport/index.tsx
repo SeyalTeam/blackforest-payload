@@ -7,6 +7,11 @@ type BranchOption = {
   name: string
 }
 
+type BranchApiDoc = {
+  id: unknown
+  name: unknown
+}
+
 type ChefSummaryRow = {
   chefName: string
   sendingAmount: number
@@ -56,9 +61,11 @@ const ChefReport: React.FC = () => {
         const res = await fetch('/api/reports/branches')
         const json = await res.json()
         if (Array.isArray(json?.docs)) {
+          const branchDocs = json.docs as unknown[]
+
           setBranches(
-            json.docs
-              .filter((branch: unknown): branch is BranchOption => {
+            branchDocs
+              .filter((branch): branch is BranchApiDoc => {
                 if (!branch || typeof branch !== 'object') return false
                 return 'id' in branch && 'name' in branch
               })

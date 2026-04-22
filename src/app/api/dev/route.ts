@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
 import { getPayload } from 'payload'
-import config from '../../../../payload.config'
+import configPromise from '@payload-config'
 import dayjs from 'dayjs'
 
 export async function GET() {
-  const payload = await getPayload({ config })
+  const payload = await getPayload({ config: configPromise })
   const ExpenseModel = payload.db.collections['expenses']
   
   const trendStartDate = dayjs().subtract(7, 'day').startOf('day')

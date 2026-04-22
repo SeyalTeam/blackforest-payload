@@ -894,7 +894,7 @@ const CategoryWiseReport: React.FC = () => {
                 </thead>
                 <tbody>
                   {sortedStats.map((row) => (
-                    <tr>
+                    <tr key={row.categoryName}>
                       <td>{row.sNo}</td>
                       <td
                         style={{ whiteSpace: 'normal', cursor: 'pointer' }}

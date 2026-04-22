@@ -1,6 +1,5 @@
-import payload from "payload"
-require("dotenv").config()
-import dayjs from 'dayjs'
+import 'dotenv/config'
+import payload from 'payload'
 
 payload.init({ secret: process.env.PAYLOAD_SECRET, mongoURL: process.env.MONGODB_URI, local: true }).then(async () => {
     const ExpenseModel = payload.db.collections['expenses']

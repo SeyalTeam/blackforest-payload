@@ -107,7 +107,7 @@ const parseToDayjs = (value: unknown): Dayjs | null => {
   return null
 }
 
-const parseTimeLikeValue = (value: unknown, fallbackDate: Dayjs): Dayjs | null => {
+const parseTimeLikeValue = (value: unknown, fallbackDate: Dayjs | null): Dayjs | null => {
   if (value == null) return null
 
   if (value instanceof Date) {
@@ -147,6 +147,8 @@ const parseTimeLikeValue = (value: unknown, fallbackDate: Dayjs): Dayjs | null =
   ) {
     return null
   }
+
+  if (!fallbackDate) return null
 
   return fallbackDate
     .tz('Asia/Kolkata')
