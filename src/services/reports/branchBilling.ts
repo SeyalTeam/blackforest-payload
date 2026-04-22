@@ -16,6 +16,12 @@ export type BranchBillingReportStat = {
   cash: number
   upi: number
   card: number
+  completedCount: number
+  completedAmount: number
+  settledCount: number
+  settledAmount: number
+  cancelledCount: number
+  cancelledAmount: number
 }
 
 export type BranchBillingReportTotals = {
@@ -24,6 +30,36 @@ export type BranchBillingReportTotals = {
   cash: number
   upi: number
   card: number
+  completedCount: number
+  completedAmount: number
+  settledCount: number
+  settledAmount: number
+  cancelledCount: number
+  cancelledAmount: number
+  totalExpenses: number
+  totalReturns: number
+  totalClosingSales: number
+}
+
+export type TrendPoint = {
+  label: string
+  fullLabel: string
+  totalAmount: number
+  totalExpense: number
+  totalReturn: number
+}
+
+export type BranchBillingSummary = {
+  averageTrendAmount: number
+  trendPercentage: number
+  medianAmount: number
+}
+
+export type HeatmapPoint = {
+  day: number
+  hour: number
+  amount: number
+  count: number
 }
 
 export type BranchBillingReportResult = {
@@ -31,12 +67,16 @@ export type BranchBillingReportResult = {
   endDate: string
   stats: BranchBillingReportStat[]
   totals: BranchBillingReportTotals
+  trendData: TrendPoint[]
+  heatmapData: HeatmapPoint[]
+  summary: BranchBillingSummary
 }
 
 type BranchBillingReportArgs = {
   branch?: null | string
   endDate?: null | string
   startDate?: null | string
+  trendPeriod?: null | string
 }
 
 const toDayBoundary = (dateParam: string, mode: 'start' | 'end'): Date => {
@@ -91,22 +131,62 @@ export const getBranchBillingReportData = async (
     {
       $group: {
         _id: '$branch',
-        totalBills: { $sum: 1 },
-        totalAmount: { $sum: '$totalAmount' },
+        // Total should only include completed/settled as per previous request
+        totalBills: {
+          $sum: {
+            $cond: [{ $in: ['$status', ['completed', 'settled']] }, 1, 0],
+          },
+        },
+        totalAmount: {
+          $sum: {
+            $cond: [{ $in: ['$status', ['completed', 'settled']] }, '$totalAmount', 0],
+          },
+        },
         cash: {
           $sum: {
-            $cond: [{ $eq: ['$paymentMethod', 'cash'] }, '$totalAmount', 0],
+            $cond: [
+              { $and: [{ $eq: ['$paymentMethod', 'cash'] }, { $in: ['$status', ['completed', 'settled']] }] },
+              '$totalAmount',
+              0,
+            ],
           },
         },
         upi: {
           $sum: {
-            $cond: [{ $eq: ['$paymentMethod', 'upi'] }, '$totalAmount', 0],
+            $cond: [
+              { $and: [{ $eq: ['$paymentMethod', 'upi'] }, { $in: ['$status', ['completed', 'settled']] }] },
+              '$totalAmount',
+              0,
+            ],
           },
         },
         card: {
           $sum: {
-            $cond: [{ $eq: ['$paymentMethod', 'card'] }, '$totalAmount', 0],
+            $cond: [
+              { $and: [{ $eq: ['$paymentMethod', 'card'] }, { $in: ['$status', ['completed', 'settled']] }] },
+              '$totalAmount',
+              0,
+            ],
           },
+        },
+        // Detailed Status breakdown
+        completedCount: {
+          $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] },
+        },
+        completedAmount: {
+          $sum: { $cond: [{ $eq: ['$status', 'completed'] }, '$totalAmount', 0] },
+        },
+        settledCount: {
+          $sum: { $cond: [{ $eq: ['$status', 'settled'] }, 1, 0] },
+        },
+        settledAmount: {
+          $sum: { $cond: [{ $eq: ['$status', 'settled'] }, '$totalAmount', 0] },
+        },
+        cancelledCount: {
+          $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, 1, 0] },
+        },
+        cancelledAmount: {
+          $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, '$totalAmount', 0] },
         },
       },
     },
@@ -126,13 +206,19 @@ export const getBranchBillingReportData = async (
     },
     {
       $project: {
-        _id: 0,
+        _id: 1, // Keep _id for stats.find logic
         branchName: { $ifNull: ['$branchDetails.name', 'Unknown Branch'] },
         totalBills: 1,
         totalAmount: 1,
         cash: 1,
         upi: 1,
         card: 1,
+        completedCount: 1,
+        completedAmount: 1,
+        settledCount: 1,
+        settledAmount: 1,
+        cancelledCount: 1,
+        cancelledAmount: 1,
       },
     },
     {
@@ -140,20 +226,278 @@ export const getBranchBillingReportData = async (
     },
   ])
 
-  const totals = stats.reduce<BranchBillingReportTotals>(
+  const totalsWithoutExpenses = stats.reduce(
     (acc, curr) => ({
       totalBills: acc.totalBills + curr.totalBills,
       totalAmount: acc.totalAmount + curr.totalAmount,
       cash: acc.cash + curr.cash,
       upi: acc.upi + curr.upi,
       card: acc.card + curr.card,
+      completedCount: acc.completedCount + curr.completedCount,
+      completedAmount: acc.completedAmount + curr.completedAmount,
+      settledCount: acc.settledCount + curr.settledCount,
+      settledAmount: acc.settledAmount + curr.settledAmount,
+      cancelledCount: acc.cancelledCount + curr.cancelledCount,
+      cancelledAmount: acc.cancelledAmount + curr.cancelledAmount,
     }),
-    { totalBills: 0, totalAmount: 0, cash: 0, upi: 0, card: 0 },
+    {
+      totalBills: 0,
+      totalAmount: 0,
+      cash: 0,
+      upi: 0,
+      card: 0,
+      completedCount: 0,
+      completedAmount: 0,
+      settledCount: 0,
+      settledAmount: 0,
+      cancelledCount: 0,
+      cancelledAmount: 0,
+    },
   )
+
+  const ExpenseModel = payload.db.collections['expenses']
+  const ReturnOrderModel = payload.db.collections['return-orders']
+
+  // Align with detail report logic: source dates are queried as UTC day boundaries
+  const utcStart = dayjs.utc(startDateParam).startOf('day').toDate()
+  const utcEnd = dayjs.utc(endDateParam).endOf('day').toDate()
+
+  // Branch filter condition
+  const branchFilter = branchIds
+    ? {
+        $expr: {
+          $in: [{ $toString: '$branch' }, branchIds],
+        },
+      }
+    : {}
+
+  // Calculate Expenses
+  const expenseStats = await ExpenseModel.aggregate([
+    {
+      $match: {
+        date: { $gte: utcStart, $lte: utcEnd },
+        ...branchFilter,
+      },
+    },
+    { $unwind: '$details' },
+    { $group: { _id: null, total: { $sum: '$details.amount' } } },
+  ])
+
+  // Calculate Returns
+  const returnStats = await ReturnOrderModel.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: utcStart, $lte: utcEnd },
+        ...branchFilter,
+      },
+    },
+    { $group: { _id: null, total: { $sum: '$totalAmount' } } },
+  ])
+
+  const totalExpenses = expenseStats[0]?.total ?? 0
+  const totalReturns = returnStats[0]?.total ?? 0
+
+  // Calculate Closing Entries
+  const ClosingModel = payload.db.collections['closing-entries']
+  const closingStats = await ClosingModel.aggregate([
+    {
+      $match: {
+        date: { $gte: utcStart, $lte: utcEnd },
+        ...branchFilter,
+      },
+    },
+    { $group: { _id: null, total: { $sum: '$totalSales' } } },
+  ])
+  const totalClosingSales = closingStats[0]?.total ?? 0
+
+  const totals: BranchBillingReportTotals = {
+    ...totalsWithoutExpenses,
+    totalExpenses,
+    totalReturns,
+    totalClosingSales,
+  }
 
   const statsWithSn: BranchBillingReportStat[] = stats.map((item, index) => ({
     ...item,
     sNo: index + 1,
+  }))
+
+  // Calculate Sales Trend based on Selected Period
+  const trendPeriod = args.trendPeriod ?? '12months'
+  const now = dayjs().tz('Asia/Kolkata')
+  let trendStartDate = now.subtract(11, 'month').startOf('month')
+  let granularity: 'month' | 'day' = 'month'
+  let pointsCount = 12
+
+  if (trendPeriod === 'thisMonth') {
+    trendStartDate = now.startOf('month')
+    pointsCount = now.date()
+    granularity = 'day'
+  } else if (trendPeriod === '6months') {
+    trendStartDate = now.subtract(5, 'month').startOf('month')
+    pointsCount = 6
+    granularity = 'month'
+  } else if (trendPeriod === '30days') {
+    trendStartDate = now.subtract(29, 'day').startOf('day')
+    pointsCount = 30
+    granularity = 'day'
+  } else if (trendPeriod === '7days') {
+    trendStartDate = now.subtract(6, 'day').startOf('day')
+    pointsCount = 7
+    granularity = 'day'
+  }
+
+  const trendMatch: any = {
+    createdAt: { $gte: trendStartDate.toDate() },
+    status: { $in: ['completed', 'settled'] },
+    ...branchFilter,
+  }
+
+  const rawTrendStats = await BillingModel.aggregate([
+    { $match: trendMatch },
+    {
+      $group: {
+        _id: {
+          year: { $year: { $add: ['$createdAt', 19800000] } },
+          month: { $month: { $add: ['$createdAt', 19800000] } },
+          day: granularity === 'day' ? { $dayOfMonth: { $add: ['$createdAt', 19800000] } } : null,
+        },
+        totalAmount: { $sum: '$totalAmount' },
+      },
+    },
+    { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } },
+  ])
+
+  // Aggregate Expenses for the same trend period
+  const expenseTrendMatch: any = {
+    date: { $gte: trendStartDate.toDate() },
+    ...branchFilter,
+  }
+
+  const rawExpenseTrendStats = await ExpenseModel.aggregate([
+    { $match: expenseTrendMatch },
+    { $unwind: '$details' },
+    {
+      $group: {
+        _id: {
+          year: { $year: '$date' },
+          month: { $month: '$date' },
+          day: granularity === 'day' ? { $dayOfMonth: '$date' } : null,
+        },
+        totalExpense: { $sum: '$details.amount' },
+      },
+    },
+    { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } },
+  ])
+
+  // Aggregate Returns for the same trend period
+  const returnTrendMatch: any = {
+    createdAt: { $gte: trendStartDate.toDate() },
+    ...branchFilter,
+  }
+
+  const rawReturnTrendStats = await ReturnOrderModel.aggregate([
+    { $match: returnTrendMatch },
+    {
+      $group: {
+        _id: {
+          year: { $year: { $add: ['$createdAt', 19800000] } },
+          month: { $month: { $add: ['$createdAt', 19800000] } },
+          day: granularity === 'day' ? { $dayOfMonth: { $add: ['$createdAt', 19800000] } } : null,
+        },
+        totalReturn: { $sum: '$totalAmount' },
+      },
+    },
+    { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } },
+  ])
+
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const trendData: TrendPoint[] = []
+
+  for (let i = pointsCount - 1; i >= 0; i -= 1) {
+    const d = granularity === 'month' ? now.subtract(i, 'month') : now.subtract(i, 'day')
+    const year = d.year()
+    const month = d.month() + 1
+    const day = granularity === 'day' ? d.date() : null
+
+    const found = rawTrendStats.find(
+      (s) =>
+        s._id.year === year &&
+        s._id.month === month &&
+        (granularity === 'month' || s._id.day === day),
+    )
+
+    const foundExpense = rawExpenseTrendStats.find(
+      (s) =>
+        s._id.year === year &&
+        s._id.month === month &&
+        (granularity === 'month' || s._id.day === day),
+    )
+
+    const foundReturn = rawReturnTrendStats.find(
+      (s) =>
+        s._id.year === year &&
+        s._id.month === month &&
+        (granularity === 'month' || s._id.day === day),
+    )
+
+    const dayInitials = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+    const label =
+      granularity === 'month'
+        ? monthNames[month - 1]
+        : `${d.date()}|${dayInitials[d.day()]}`
+
+    const fullLabel =
+      granularity === 'month'
+        ? `${monthNames[month - 1]} ${year}`
+        : `${monthNames[month - 1]} ${d.date()}`
+
+    trendData.push({
+      label,
+      fullLabel,
+      totalAmount: found?.totalAmount ?? 0,
+      totalExpense: foundExpense?.totalExpense ?? 0,
+      totalReturn: foundReturn?.totalReturn ?? 0,
+    })
+  }
+
+  const nonZeroSales = trendData.map((s) => s.totalAmount).filter((a) => a > 0)
+  const averageTrendAmount =
+    nonZeroSales.length > 0 ? nonZeroSales.reduce((a, b) => a + b, 0) / nonZeroSales.length : 0
+
+  const sortedSales = [...trendData].map((s) => s.totalAmount).sort((a, b) => a - b)
+  const mid = Math.floor(sortedSales.length / 2)
+  const medianAmount =
+    sortedSales.length % 2 !== 0
+      ? sortedSales[mid]
+      : (sortedSales[mid - 1] + sortedSales[mid]) / 2
+
+  // Trend Calculation: compare current half of points vs previous half
+  const half = Math.floor(pointsCount / 2)
+  const currentTotal = trendData.slice(pointsCount - half).reduce((acc, curr) => acc + curr.totalAmount, 0)
+  const previousTotal = trendData.slice(0, half).reduce((acc, curr) => acc + curr.totalAmount, 0)
+  const trendPercentage = previousTotal > 0 ? ((currentTotal - previousTotal) / previousTotal) * 100 : 0
+
+  // Calculate Heatmap Data (Day vs Hour)
+  const heatmapStats = await BillingModel.aggregate([
+    { $match: trendMatch },
+    {
+      $group: {
+        _id: {
+          day: { $dayOfWeek: { $add: ['$createdAt', 19800000] } },
+          hour: { $hour: { $add: ['$createdAt', 19800000] } },
+        },
+        amount: { $sum: '$totalAmount' },
+        count: { $sum: 1 },
+      },
+    },
+  ])
+
+  const heatmapData: HeatmapPoint[] = heatmapStats.map((s) => ({
+    day: s._id.day,
+    hour: s._id.hour,
+    amount: s.amount,
+    count: s.count,
   }))
 
   return {
@@ -161,5 +505,12 @@ export const getBranchBillingReportData = async (
     endDate: endDateParam,
     stats: statsWithSn,
     totals,
+    trendData,
+    heatmapData,
+    summary: {
+      averageTrendAmount,
+      trendPercentage,
+      medianAmount,
+    },
   }
 }

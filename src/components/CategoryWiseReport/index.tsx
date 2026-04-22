@@ -544,42 +544,32 @@ const CategoryWiseReport: React.FC = () => {
       <div className="report-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
           <h1>Category Wise Report</h1>
-          <button
-            title="Toggle Zero Highlight"
-            onClick={() => setShowZeroHighlight(!showZeroHighlight)}
-            style={{
-              width: '16px',
-              height: '16px',
-              backgroundColor: '#800020',
-              border: showZeroHighlight ? '1px solid #ffffff' : '1px solid #800020',
-              cursor: 'pointer',
-              padding: 0,
-            }}
-          />
-          <button
-            title="Toggle Top Sale Highlight"
-            onClick={() => setShowTopSaleHighlight(!showTopSaleHighlight)}
-            style={{
-              width: '16px',
-              height: '16px',
-              backgroundColor: '#006400', // Dark Green
-              border: showTopSaleHighlight ? '1px solid #ffffff' : '1px solid #006400',
-              cursor: 'pointer',
-              padding: 0,
-            }}
-          />
-          <button
-            title="Toggle Lowest Sale Highlight"
-            onClick={() => setShowLowSaleHighlight(!showLowSaleHighlight)}
-            style={{
-              width: '16px',
-              height: '16px',
-              backgroundColor: '#B8860B', // Dark Goldenrod
-              border: showLowSaleHighlight ? '1px solid #ffffff' : '1px solid #B8860B',
-              cursor: 'pointer',
-              padding: 0,
-            }}
-          />
+          <div className="highlights-toggles">
+            <button
+              className={`highlight-toggle-btn zero ${showZeroHighlight ? 'active' : ''}`}
+              title="Highlight zero values"
+              onClick={() => setShowZeroHighlight(!showZeroHighlight)}
+            >
+              <div className="dot"></div>
+              <span>Zero</span>
+            </button>
+            <button
+              className={`highlight-toggle-btn top ${showTopSaleHighlight ? 'active' : ''}`}
+              title="Highlight highest sales"
+              onClick={() => setShowTopSaleHighlight(!showTopSaleHighlight)}
+            >
+              <div className="dot"></div>
+              <span>Highest</span>
+            </button>
+            <button
+              className={`highlight-toggle-btn low ${showLowSaleHighlight ? 'active' : ''}`}
+              title="Highlight lowest sales"
+              onClick={() => setShowLowSaleHighlight(!showLowSaleHighlight)}
+            >
+              <div className="dot"></div>
+              <span>Lowest</span>
+            </button>
+          </div>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div className="filter-group">
               <Select
@@ -876,40 +866,38 @@ const CategoryWiseReport: React.FC = () => {
               <table className="report-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '50px', fontSize: '1.2rem' }}>S.NO</th>
+                    <th style={{ width: '50px' }}>S.NO</th>
                     <th
                       style={{
                         width: '180px',
                         maxWidth: '180px',
                         whiteSpace: 'normal',
-                        fontSize: '1.2rem',
                       }}
                     >
                       CATEGORY
                     </th>
                     {/* Dynamically render branch headers */}
                     {data.branchHeaders.map((header) => (
-                      <th key={header} style={{ textAlign: 'center', fontSize: '1.2rem' }}>
+                      <th key={header} style={{ textAlign: 'center' }}>
                         {header}
                       </th>
                     ))}
                     <th
                       style={{
                         textAlign: 'center',
-                        fontSize: '1.2rem',
                       }}
                     >
                       TOTAL UNITS
                     </th>
-                    <th style={{ textAlign: 'center', fontSize: '1.2rem' }}>TOTAL AMOUNT</th>
+                    <th style={{ textAlign: 'center' }}>TOTAL AMOUNT</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedStats.map((row) => (
-                    <tr key={row.sNo}>
-                      <td style={{ fontSize: '1.2rem' }}>{row.sNo}</td>
+                    <tr>
+                      <td>{row.sNo}</td>
                       <td
-                        style={{ whiteSpace: 'normal', cursor: 'pointer', fontSize: '1.2rem' }}
+                        style={{ whiteSpace: 'normal', cursor: 'pointer' }}
                         onClick={() => {
                           setExpandedCategory(
                             expandedCategory === row.categoryName ? null : row.categoryName,
@@ -921,8 +909,8 @@ const CategoryWiseReport: React.FC = () => {
                           style={{
                             marginTop: '4px',
                             fontSize: '0.85rem',
-                            color: '#87CEFA',
-                            fontWeight: 500,
+                            color: 'var(--theme-info-600)',
+                            fontWeight: 600,
                           }}
                         >
                           {(() => {
@@ -972,27 +960,31 @@ const CategoryWiseReport: React.FC = () => {
                               verticalAlign: 'top',
                               backgroundColor:
                                 showZeroHighlight && isZero
-                                  ? '#800020'
+                                  ? 'var(--highlight-zero-bg)'
                                   : isTopSale
-                                    ? '#006400'
+                                    ? 'var(--highlight-top-bg)'
                                     : isLowSale
-                                      ? '#B8860B'
+                                      ? 'var(--highlight-low-bg)'
                                       : 'inherit',
                               color:
-                                (showZeroHighlight && isZero) || isTopSale || isLowSale
-                                  ? '#FFFFFF'
-                                  : 'inherit',
+                                showZeroHighlight && isZero
+                                  ? 'var(--highlight-zero-text)'
+                                  : isTopSale
+                                    ? 'var(--highlight-top-text)'
+                                    : isLowSale
+                                      ? 'var(--highlight-low-text)'
+                                      : 'inherit',
                               cursor: 'default',
                             }}
                           >
-                            <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>{mainValue}</div>
+                            <div style={{ fontWeight: 600 }}>{mainValue}</div>
                             {(sales.quantity > 0 || sales.amount > 0) && (
                               <div
                                 style={{
                                   fontSize: '0.85rem',
                                   color:
                                     isZero || isTopSale || isLowSale
-                                      ? '#FFFFFF'
+                                      ? 'inherit' // Already set by parent cell
                                       : 'var(--theme-elevation-400)',
                                   marginTop: '4px',
                                   display: 'flex',
@@ -1002,8 +994,8 @@ const CategoryWiseReport: React.FC = () => {
                                   minHeight: '32px',
                                 }}
                               >
-                                {isExpanded && <div>{subValue}</div>}
-                                {sales.amount > 0 && <div style={{ color: '#87CEFA' }}>{percentage}%</div>}
+                                 {isExpanded && <div>{subValue}</div>}
+                                 {sales.amount > 0 && <div style={{ color: '#87CEFA' }}>{percentage}%</div>}
                               </div>
                             )}
                           </td>
@@ -1013,11 +1005,10 @@ const CategoryWiseReport: React.FC = () => {
                         style={{
                           textAlign: 'center',
                           fontWeight: '600',
-                          fontSize: '1.2rem',
                           backgroundColor:
-                            showZeroHighlight && row.totalQuantity === 0 ? '#800020' : 'inherit',
+                            showZeroHighlight && row.totalQuantity === 0 ? 'var(--highlight-zero-bg)' : 'inherit',
                           color:
-                            showZeroHighlight && row.totalQuantity === 0 ? '#FFFFFF' : 'inherit',
+                            showZeroHighlight && row.totalQuantity === 0 ? 'var(--highlight-zero-text)' : 'inherit',
                           cursor: 'pointer',
                         }}
                         onClick={() => {
@@ -1026,7 +1017,7 @@ const CategoryWiseReport: React.FC = () => {
                           )
                         }}
                       >
-                        <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>
+                        <div style={{ fontWeight: 600 }}>
                           {row.totalQuantity === 0 ? '' : formatValue(row.totalQuantity)}
                         </div>
                         {row.totalQuantity > 0 && (
@@ -1045,10 +1036,9 @@ const CategoryWiseReport: React.FC = () => {
                         style={{
                           textAlign: 'center',
                           fontWeight: '600',
-                          fontSize: '1.2rem',
                           backgroundColor:
-                            showZeroHighlight && row.totalAmount === 0 ? '#800020' : 'inherit',
-                          color: showZeroHighlight && row.totalAmount === 0 ? '#FFFFFF' : 'inherit',
+                            showZeroHighlight && row.totalAmount === 0 ? 'var(--highlight-zero-bg)' : 'inherit',
+                          color: showZeroHighlight && row.totalAmount === 0 ? 'var(--highlight-zero-text)' : 'inherit',
                           cursor: 'pointer',
                         }}
                         onClick={() => {
@@ -1057,7 +1047,7 @@ const CategoryWiseReport: React.FC = () => {
                           )
                         }}
                       >
-                        <div style={{ fontWeight: 600, fontSize: '1.2rem' }}>
+                        <div style={{ fontWeight: 600 }}>
                           {row.totalAmount === 0 ? '' : formatValue(row.totalAmount)}
                         </div>
                         {row.totalAmount > 0 && (
@@ -1090,9 +1080,8 @@ const CategoryWiseReport: React.FC = () => {
                           style={{
                             textAlign: 'left',
                             fontWeight: 'bold',
-                            fontSize: '1.2rem',
-                            backgroundColor: showZeroHighlight && isZero ? '#800020' : 'inherit',
-                            color: showZeroHighlight && isZero ? '#FFFFFF' : 'inherit',
+                            backgroundColor: showZeroHighlight && isZero ? 'var(--highlight-zero-bg)' : 'inherit',
+                            color: showZeroHighlight && isZero ? 'var(--highlight-zero-text)' : 'inherit',
                           }}
                         >
                           {val === 0 ? '' : formatValue(val)}
@@ -1103,14 +1092,13 @@ const CategoryWiseReport: React.FC = () => {
                       style={{
                         textAlign: 'center',
                         fontWeight: '600',
-                        fontSize: '1.2rem',
                         backgroundColor:
                           showZeroHighlight && data.totals.totalQuantity === 0
-                            ? '#800020'
+                            ? 'var(--highlight-zero-bg)'
                             : 'inherit',
                         color:
                           showZeroHighlight && data.totals.totalQuantity === 0
-                            ? '#FFFFFF'
+                            ? 'var(--highlight-zero-text)'
                             : 'inherit',
                       }}
                     >
@@ -1122,14 +1110,13 @@ const CategoryWiseReport: React.FC = () => {
                       style={{
                         textAlign: 'center',
                         fontWeight: '600',
-                        fontSize: '1.2rem',
                         backgroundColor:
                           showZeroHighlight && data.totals.totalAmount === 0
-                            ? '#800020'
+                            ? 'var(--highlight-zero-bg)'
                             : 'inherit',
                         color:
                           showZeroHighlight && data.totals.totalAmount === 0
-                            ? '#FFFFFF'
+                            ? 'var(--highlight-zero-text)'
                             : 'inherit',
                       }}
                     >

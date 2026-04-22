@@ -141,6 +141,7 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       startDate: { type: graphQL.GraphQLString },
       endDate: { type: graphQL.GraphQLString },
       branch: { type: graphQL.GraphQLString },
+      trendPeriod: { type: graphQL.GraphQLString },
     },
   })
 
@@ -152,6 +153,15 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       cash: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       upi: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       card: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      completedCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+      completedAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      settledCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+      settledAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      cancelledCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+      cancelledAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      totalExpenses: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      totalReturns: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      totalClosingSales: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
     },
   })
 
@@ -165,6 +175,42 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       cash: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       upi: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       card: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      completedCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+      completedAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      settledCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+      settledAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      cancelledCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+      cancelledAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+    },
+  })
+
+  const BranchBillingTrendPointType = new graphQL.GraphQLObjectType({
+    name: 'BranchBillingTrendPoint',
+    fields: {
+      label: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+      fullLabel: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+      totalAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      totalExpense: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      totalReturn: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+    },
+  })
+
+  const BranchBillingHeatmapPointType = new graphQL.GraphQLObjectType({
+    name: 'BranchBillingHeatmapPoint',
+    fields: {
+      day: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+      hour: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+      amount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      count: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+    },
+  })
+
+  const BranchBillingSummaryType = new graphQL.GraphQLObjectType({
+    name: 'BranchBillingSummary',
+    fields: {
+      averageTrendAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      trendPercentage: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      medianAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
     },
   })
 
@@ -179,6 +225,17 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
         ),
       },
       totals: { type: new graphQL.GraphQLNonNull(BranchBillingTotalsType) },
+      trendData: {
+        type: new graphQL.GraphQLNonNull(
+          new graphQL.GraphQLList(new graphQL.GraphQLNonNull(BranchBillingTrendPointType)),
+        ),
+      },
+      summary: { type: new graphQL.GraphQLNonNull(BranchBillingSummaryType) },
+      heatmapData: {
+        type: new graphQL.GraphQLNonNull(
+          new graphQL.GraphQLList(new graphQL.GraphQLNonNull(BranchBillingHeatmapPointType)),
+        ),
+      },
     },
   })
 
@@ -907,8 +964,21 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       recQty: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       recTime: { type: graphQL.GraphQLString },
       difQty: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      ordUpdatedByName: { type: graphQL.GraphQLString },
+      sntUpdatedByName: { type: graphQL.GraphQLString },
+      conUpdatedByName: { type: graphQL.GraphQLString },
+      picUpdatedByName: { type: graphQL.GraphQLString },
+      recUpdatedByName: { type: graphQL.GraphQLString },
       branchName: { type: graphQL.GraphQLString },
       branchDisplay: { type: graphQL.GraphQLString },
+    },
+  })
+
+  const StockOrderReportChefSummaryType = new graphQL.GraphQLObjectType({
+    name: 'StockOrderReportChefSummary',
+    fields: {
+      chefName: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+      sendingAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
     },
   })
 
@@ -940,6 +1010,11 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       invoiceNumbers: {
         type: new graphQL.GraphQLNonNull(
           new graphQL.GraphQLList(new graphQL.GraphQLNonNull(StockOrderReportInvoiceType)),
+        ),
+      },
+      chefSummary: {
+        type: new graphQL.GraphQLNonNull(
+          new graphQL.GraphQLList(new graphQL.GraphQLNonNull(StockOrderReportChefSummaryType)),
         ),
       },
     },

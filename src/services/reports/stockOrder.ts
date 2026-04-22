@@ -41,6 +41,16 @@ export type StockOrderReportDetail = {
   difQty: number
   branchName: string
   branchDisplay: string
+  ordUpdatedByName?: string
+  sntUpdatedByName?: string
+  conUpdatedByName?: string
+  picUpdatedByName?: string
+  recUpdatedByName?: string
+}
+
+export type StockOrderChefSummary = {
+  chefName: string
+  sendingAmount: number
 }
 
 export type StockOrderReportResult = {
@@ -54,6 +64,7 @@ export type StockOrderReportResult = {
   }
   details: StockOrderReportDetail[]
   invoiceNumbers: StockOrderReportInvoice[]
+  chefSummary: StockOrderChefSummary[]
 }
 
 export type StockOrderReportArgs = {
@@ -156,6 +167,72 @@ export const getStockOrderReportData = async (
     })
   })
 
+  const extractUserId = (rawUser: unknown): string => {
+    if (typeof rawUser === 'string') return rawUser
+    if (rawUser && typeof rawUser === 'object' && 'id' in rawUser) {
+      return String((rawUser as { id?: unknown }).id || '')
+    }
+    return ''
+  }
+
+  const updaterUserIds = new Set<string>()
+  orders.forEach((order) => {
+    const creatorId = extractUserId(order?.createdBy)
+    if (creatorId) updaterUserIds.add(creatorId)
+
+    if (!Array.isArray(order.items)) return
+    order.items.forEach((item: any) => {
+      const sendingUpdaterId = extractUserId(item?.sendingUpdatedBy)
+      const confirmedUpdaterId = extractUserId(item?.confirmedUpdatedBy)
+      const pickedUpdaterId = extractUserId(item?.pickedUpdatedBy)
+
+      if (sendingUpdaterId) updaterUserIds.add(sendingUpdaterId)
+      if (confirmedUpdaterId) updaterUserIds.add(confirmedUpdaterId)
+      if (pickedUpdaterId) updaterUserIds.add(pickedUpdaterId)
+    })
+  })
+
+  const userNameMap = new Map<string, string>()
+  if (updaterUserIds.size > 0) {
+    const { docs: users } = await payload.find({
+      collection: 'users',
+      where: {
+        id: { in: Array.from(updaterUserIds) },
+      },
+      limit: 5000,
+      pagination: false,
+      depth: 0,
+    })
+    users.forEach((user: any) => {
+      if (!user?.id) return
+      userNameMap.set(user.id, typeof user.name === 'string' ? user.name : '')
+    })
+  }
+
+  const resolveUserName = (rawUser: unknown): string => {
+    if (rawUser && typeof rawUser === 'object') {
+      const maybeName = (rawUser as { name?: unknown }).name
+      if (typeof maybeName === 'string' && maybeName.trim()) return maybeName.trim()
+    }
+
+    const userId = extractUserId(rawUser)
+    if (!userId) return ''
+    return (userNameMap.get(userId) || '').trim()
+  }
+
+  const shouldUseIncomingStage = (
+    currentTime?: string | null,
+    incomingTime?: string | null,
+    currentName?: string | null,
+    incomingName?: string | null,
+  ) => {
+    if (!incomingTime) return false
+    if (!currentTime) return true
+    if (dayjs(incomingTime).isAfter(dayjs(currentTime))) return true
+    if (dayjs(incomingTime).isSame(dayjs(currentTime)) && !currentName && !!incomingName) return true
+    return false
+  }
+
   // 3. Aggregate Data
   const branchMap = new Map<
     string,
@@ -172,6 +249,7 @@ export const getStockOrderReportData = async (
     string,
     { isLive: boolean; createdAt: string; deliveryDate?: string }
   >()
+  const chefSummaryMap = new Map<string, number>()
 
   orders.forEach((order) => {
     const branchId = typeof order.branch === 'object' ? order.branch?.id : order.branch
@@ -219,10 +297,19 @@ export const getStockOrderReportData = async (
         if (departmentFilter && departmentFilter !== 'all' && productData.departmentId !== departmentFilter) return
         if (statusFilter && statusFilter !== 'all' && item.status !== statusFilter) return
 
-        const getMaxDate = (d1: string | null | undefined, d2: string | null | undefined) => {
-          if (!d1) return d2
-          if (!d2) return d1
-          return dayjs(d1).isAfter(dayjs(d2)) ? d1 : d2
+        const ordUpdaterName = resolveUserName(order.createdBy)
+        const sntUpdaterName = resolveUserName(item?.sendingUpdatedBy)
+        const conUpdaterName = resolveUserName(item?.confirmedUpdatedBy)
+        const picUpdaterName = resolveUserName(item?.pickedUpdatedBy)
+
+        const sendingAmount =
+          typeof item.sendingAmount === 'number'
+            ? item.sendingAmount
+            : (item.sendingQty || 0) * (productData.price || 0)
+        if (sendingAmount > 0) {
+          const fullChefName = sntUpdaterName
+          const firstChefName = fullChefName ? fullChefName.split(/\s+/)[0] : 'Unknown'
+          chefSummaryMap.set(firstChefName, (chefSummaryMap.get(firstChefName) || 0) + sendingAmount)
         }
 
         const branchCode = branchName ? branchName.substring(0, 3).toUpperCase() : ''
@@ -232,16 +319,60 @@ export const getStockOrderReportData = async (
         if (detailsMap.has(uniqueKey)) {
           const existing = detailsMap.get(uniqueKey)
           existing.ordQty += item.requiredQty || 0
-          existing.ordTime = getMaxDate(existing.ordTime, item.requiredDate)
           existing.sntQty += item.sendingQty || 0
-          existing.sntTime = getMaxDate(existing.sntTime, item.sendingDate)
           existing.conQty += item.confirmedQty || 0
-          existing.conTime = getMaxDate(existing.conTime, item.confirmedDate)
           existing.picQty += item.pickedQty || 0
-          existing.picTime = getMaxDate(existing.picTime, item.pickedDate)
           existing.recQty += item.receivedQty || 0
-          existing.recTime = getMaxDate(existing.recTime, item.receivedDate)
           existing.difQty += item.differenceQty || 0
+
+          if (
+            shouldUseIncomingStage(
+              existing.ordTime,
+              item.requiredDate,
+              existing.ordUpdatedByName,
+              ordUpdaterName,
+            )
+          ) {
+            existing.ordTime = item.requiredDate
+            existing.ordUpdatedByName = ordUpdaterName
+          }
+          if (
+            shouldUseIncomingStage(
+              existing.sntTime,
+              item.sendingDate,
+              existing.sntUpdatedByName,
+              sntUpdaterName,
+            )
+          ) {
+            existing.sntTime = item.sendingDate
+            existing.sntUpdatedByName = sntUpdaterName
+          }
+          if (
+            shouldUseIncomingStage(
+              existing.conTime,
+              item.confirmedDate,
+              existing.conUpdatedByName,
+              conUpdaterName,
+            )
+          ) {
+            existing.conTime = item.confirmedDate
+            existing.conUpdatedByName = conUpdaterName
+          }
+          if (
+            shouldUseIncomingStage(
+              existing.picTime,
+              item.pickedDate,
+              existing.picUpdatedByName,
+              picUpdaterName,
+            )
+          ) {
+            existing.picTime = item.pickedDate
+            existing.picUpdatedByName = picUpdaterName
+          }
+          if (shouldUseIncomingStage(existing.recTime, item.receivedDate, existing.recUpdatedByName, '')) {
+            existing.recTime = item.receivedDate
+            existing.recUpdatedByName = ''
+          }
 
           if (branchCode) {
             const currentQty = existing.branchStats.get(branchCode) || 0
@@ -272,6 +403,11 @@ export const getStockOrderReportData = async (
             difQty: item.differenceQty || 0,
             branchName: branchName,
             branchStats: initialBranchStats,
+            ordUpdatedByName: ordUpdaterName,
+            sntUpdatedByName: sntUpdaterName,
+            conUpdatedByName: conUpdaterName,
+            picUpdatedByName: picUpdaterName,
+            recUpdatedByName: '',
           })
         }
       })
@@ -346,5 +482,11 @@ export const getStockOrderReportData = async (
         const t2 = new Date(b.createdAt || 0).getTime()
         return t1 - t2
       }),
+    chefSummary: Array.from(chefSummaryMap.entries())
+      .map(([chefName, sendingAmount]) => ({
+        chefName,
+        sendingAmount,
+      }))
+      .sort((a, b) => a.chefName.localeCompare(b.chefName)),
   }
 }

@@ -109,6 +109,56 @@ const toTableLabel = (value: string): string => {
   return `Table ${trimmed}`
 }
 
+const parseConfiguredTableRange = (value: unknown): { start: number; end: number } | null => {
+  if (typeof value !== 'string') return null
+
+  const normalizedValue = value.trim()
+  if (!normalizedValue) return null
+
+  const match = normalizedValue.match(/^T?\s*(\d+)(?:\s*-\s*T?\s*(\d+))?$/i)
+  if (!match) return null
+
+  const start = Number.parseInt(match[1], 10)
+  const end = Number.parseInt(match[2] ?? match[1], 10)
+
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start <= 0 || end <= 0) return null
+  if (end < start) return null
+
+  return { start, end }
+}
+
+const resolveConfiguredTables = (section: any): string[] => {
+  const rangeRows = Array.isArray(section?.rangeRows) ? section.rangeRows : []
+  const tableNumbers: number[] = []
+  const seen = new Set<number>()
+
+  for (const row of rangeRows) {
+    const parsedRange = parseConfiguredTableRange(row?.tableRange)
+    if (!parsedRange) continue
+
+    for (let tableNumber = parsedRange.start; tableNumber <= parsedRange.end; tableNumber += 1) {
+      if (seen.has(tableNumber)) continue
+      seen.add(tableNumber)
+      tableNumbers.push(tableNumber)
+    }
+  }
+
+  if (tableNumbers.length > 0) {
+    return tableNumbers.map((value) => String(value))
+  }
+
+  const configuredCount = Number(section?.tableCount)
+  const tableCount =
+    Number.isFinite(configuredCount) && configuredCount > 0 ? Math.floor(configuredCount) : 0
+
+  const fallbackTables: string[] = []
+  for (let index = 1; index <= tableCount; index += 1) {
+    fallbackTables.push(String(index))
+  }
+
+  return fallbackTables
+}
+
 const toKotLabel = (value: string | null): string | null => {
   if (!value) return null
   const trimmed = value.trim()
@@ -523,12 +573,10 @@ export const getLiveTableStatusHandler: PayloadHandler = async (
             : 'Unknown'
         const sectionState = ensureSection(branch, sectionName)
 
-        const configuredCount = Number(section?.tableCount)
-        const tableCount =
-          Number.isFinite(configuredCount) && configuredCount > 0 ? Math.floor(configuredCount) : 0
+        const configuredTables = resolveConfiguredTables(section)
 
-        for (let index = 1; index <= tableCount; index += 1) {
-          ensureTable(sectionState, String(index), `Table ${index}`)
+        for (const tableNumber of configuredTables) {
+          ensureTable(sectionState, tableNumber, `Table ${tableNumber}`)
         }
       }
     }

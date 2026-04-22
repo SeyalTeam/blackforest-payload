@@ -25,6 +25,12 @@ const formatQty = (val: number) => {
   return n.toFixed(2)
 }
 
+const formatUpdaterName = (name?: string) => {
+  if (!name) return 'N/A'
+  const trimmed = name.trim()
+  return trimmed || 'N/A'
+}
+
 const getStatusColor = (currentQty: number, targetQty: number, currentTime?: string) => {
   if (currentQty > targetQty) return '#FA8603'
   if (currentQty < targetQty && currentTime) return '#ef4444'
@@ -78,6 +84,11 @@ type DetailItem = {
   recQty: number
   recTime?: string
   difQty: number
+  ordUpdatedByName?: string
+  sntUpdatedByName?: string
+  conUpdatedByName?: string
+  picUpdatedByName?: string
+  recUpdatedByName?: string
   branchName: string
   branchDisplay?: string
   categoryName?: string
@@ -100,6 +111,10 @@ type ReportData = {
     isLive: boolean
     createdAt?: string
     deliveryDate?: string
+  }>
+  chefSummary?: Array<{
+    chefName: string
+    sendingAmount: number
   }>
 }
 
@@ -136,6 +151,11 @@ const STOCK_ORDER_REPORT_QUERY = `
         recQty
         recTime
         difQty
+        ordUpdatedByName
+        sntUpdatedByName
+        conUpdatedByName
+        picUpdatedByName
+        recUpdatedByName
         branchName
         branchDisplay
       }
@@ -144,6 +164,10 @@ const STOCK_ORDER_REPORT_QUERY = `
         isLive
         createdAt
         deliveryDate
+      }
+      chefSummary {
+        chefName
+        sendingAmount
       }
     }
   }
@@ -434,6 +458,17 @@ const StockOrderReport: React.FC = () => {
     if (!data) return
     const csvRows = []
 
+    // Chef Summary Export (requested format)
+    csvRows.push(['CHEF REPORT'])
+    csvRows.push(['Chef Name', 'Sending Amount'])
+    const chefSummaryRows = data.chefSummary || []
+    chefSummaryRows.forEach((item) => {
+      csvRows.push([`"${item.chefName}"`, item.sendingAmount].join(','))
+    })
+    const chefSummaryTotal = chefSummaryRows.reduce((sum, item) => sum + item.sendingAmount, 0)
+    csvRows.push(['TOTAL', chefSummaryTotal].join(','))
+    csvRows.push([])
+
     // Header Row: Metric, Branch Name 1, Branch Name 2, ..., Total
     const branchNames = data.stats.map((s) => `"${s.branchName.substring(0, 3).toUpperCase()}"`)
     const headers = ['Metric', ...branchNames, 'TOTAL']
@@ -566,17 +601,81 @@ const StockOrderReport: React.FC = () => {
           existing.recQty += item.recQty
           existing.difQty += item.difQty
 
-          // Max Times
-          const getMaxTime = (t1?: string, t2?: string) => {
-            if (!t1) return t2
-            if (!t2) return t1
-            return t1 > t2 ? t1 : t2
+          // Keep latest stage time and matching updater name while aggregating
+          const getLatestStage = (
+            existingTime?: string,
+            existingName?: string,
+            incomingTime?: string,
+            incomingName?: string,
+          ) => {
+            if (!incomingTime) {
+              return {
+                time: existingTime,
+                name: existingName || incomingName || '',
+              }
+            }
+            if (!existingTime || incomingTime > existingTime) {
+              return {
+                time: incomingTime,
+                name: incomingName || '',
+              }
+            }
+            if (incomingTime === existingTime && !existingName && incomingName) {
+              return {
+                time: existingTime,
+                name: incomingName,
+              }
+            }
+            return {
+              time: existingTime,
+              name: existingName || '',
+            }
           }
-          existing.ordTime = getMaxTime(existing.ordTime, item.ordTime)
-          existing.sntTime = getMaxTime(existing.sntTime, item.sntTime)
-          existing.conTime = getMaxTime(existing.conTime, item.conTime)
-          existing.picTime = getMaxTime(existing.picTime, item.picTime)
-          existing.recTime = getMaxTime(existing.recTime, item.recTime)
+
+          const ordStage = getLatestStage(
+            existing.ordTime,
+            existing.ordUpdatedByName,
+            item.ordTime,
+            item.ordUpdatedByName,
+          )
+          existing.ordTime = ordStage.time
+          existing.ordUpdatedByName = ordStage.name
+
+          const sntStage = getLatestStage(
+            existing.sntTime,
+            existing.sntUpdatedByName,
+            item.sntTime,
+            item.sntUpdatedByName,
+          )
+          existing.sntTime = sntStage.time
+          existing.sntUpdatedByName = sntStage.name
+
+          const conStage = getLatestStage(
+            existing.conTime,
+            existing.conUpdatedByName,
+            item.conTime,
+            item.conUpdatedByName,
+          )
+          existing.conTime = conStage.time
+          existing.conUpdatedByName = conStage.name
+
+          const picStage = getLatestStage(
+            existing.picTime,
+            existing.picUpdatedByName,
+            item.picTime,
+            item.picUpdatedByName,
+          )
+          existing.picTime = picStage.time
+          existing.picUpdatedByName = picStage.name
+
+          const recStage = getLatestStage(
+            existing.recTime,
+            existing.recUpdatedByName,
+            item.recTime,
+            item.recUpdatedByName,
+          )
+          existing.recTime = recStage.time
+          existing.recUpdatedByName = recStage.name
 
           // Merge Branch Display
           existing.branchDisplay = mergeBranchDisplays(existing.branchDisplay, item.branchDisplay)
@@ -629,6 +728,134 @@ const StockOrderReport: React.FC = () => {
         amount: amounts.get(inv.invoice) || 0,
       }))
   }, [data?.invoiceNumbers, data?.details, selectedOrderType])
+
+  const chefSummaryRows = React.useMemo(() => data?.chefSummary || [], [data?.chefSummary])
+  const chefSummaryTotal = React.useMemo(
+    () => chefSummaryRows.reduce((sum, row) => sum + row.sendingAmount, 0),
+    [chefSummaryRows],
+  )
+  const stageSummaryCards = React.useMemo(() => {
+    type StageQtyKey = 'ordQty' | 'sntQty' | 'conQty' | 'picQty' | 'recQty' | 'difQty'
+    const allItems = Object.values(groupedDetails).flatMap((categories) =>
+      Object.values(categories).flat(),
+    ) as DetailItem[]
+
+    const toCard = (
+      title: string,
+      qtyKey: StageQtyKey,
+    ) => {
+      const amount = allItems.reduce((sum, item) => sum + item[qtyKey] * item.price, 0)
+      return { title, amount }
+    }
+
+    return [
+      toCard('BRANCH ORDERED', 'ordQty'),
+      toCard('CHEF PREPARED', 'sntQty'),
+      toCard('SUPERVISOR CONFIRMED', 'conQty'),
+      toCard('DRIVER PICKED', 'picQty'),
+      toCard('BRANCH RECEIVED', 'recQty'),
+      toCard('DIFFERENCE', 'difQty'),
+    ]
+  }, [groupedDetails])
+
+  const renderDetailsMetricHeaderRow = (rowKey: string) => {
+    const headerBg = '#f3f4f6'
+    const headerBorder = '#9ca3af'
+    const sharedHeaderCellStyle = {
+      padding: '6px 8px',
+      fontSize: '11px',
+      color: '#000000',
+      fontWeight: 700,
+      position: 'static' as const,
+      backgroundColor: headerBg,
+      borderColor: headerBorder,
+    }
+
+    return (
+      <tr
+        key={rowKey}
+        style={{
+          backgroundColor: headerBg,
+          borderTop: `1px solid ${headerBorder}`,
+          borderBottom: `1px solid ${headerBorder}`,
+        }}
+      >
+        <th
+          style={{
+            ...sharedHeaderCellStyle,
+            width: '180px',
+            textAlign: 'left',
+            padding: '6px 12px',
+          }}
+        >
+          PRODUCT NAME
+        </th>
+        <th
+          style={{
+            ...sharedHeaderCellStyle,
+            width: '75px',
+            textAlign: 'right',
+          }}
+        >
+          PRC
+        </th>
+        <th
+          style={{
+            ...sharedHeaderCellStyle,
+            width: '75px',
+            textAlign: 'center',
+          }}
+        >
+          ORD
+        </th>
+        <th
+          style={{
+            ...sharedHeaderCellStyle,
+            width: '75px',
+            textAlign: 'center',
+          }}
+        >
+          SNT
+        </th>
+        <th
+          style={{
+            ...sharedHeaderCellStyle,
+            width: '75px',
+            textAlign: 'center',
+          }}
+        >
+          CON
+        </th>
+        <th
+          style={{
+            ...sharedHeaderCellStyle,
+            width: '75px',
+            textAlign: 'center',
+          }}
+        >
+          PIC
+        </th>
+        <th
+          style={{
+            ...sharedHeaderCellStyle,
+            width: '75px',
+            textAlign: 'center',
+          }}
+        >
+          REC
+        </th>
+        <th
+          style={{
+            ...sharedHeaderCellStyle,
+            width: '75px',
+            textAlign: 'center',
+          }}
+        >
+          DIF
+        </th>
+      </tr>
+    )
+  }
 
   const formatCardDate = (iso?: string) => {
     if (!iso) return ''
@@ -921,6 +1148,121 @@ const StockOrderReport: React.FC = () => {
                 style={{
                   marginTop: '10px',
                   marginBottom: '10px',
+                }}
+              >
+                <h3 style={{ margin: 0, color: 'var(--theme-text-primary, var(--theme-text))' }}>
+                  Chef Report
+                </h3>
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '12px',
+                  alignItems: 'flex-start',
+                  flexWrap: 'wrap',
+                  marginBottom: '20px',
+                }}
+              >
+                <div className="table-container" style={{ width: '40%', minWidth: '320px', maxWidth: '100%' }}>
+                  <table className="report-table">
+                    <thead>
+                      <tr>
+                        <th style={{ minWidth: '220px' }}>CHEF NAME</th>
+                        <th style={{ minWidth: '180px', textAlign: 'right' }}>SENDING AMOUNT</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {chefSummaryRows.length > 0 ? (
+                        chefSummaryRows.map((row, idx) => (
+                          <tr key={`${row.chefName}-${idx}`}>
+                            <td style={{ fontSize: '1.08rem', fontWeight: 600 }}>{row.chefName}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 700 }}>
+                              ₹ {row.sendingAmount.toLocaleString('en-IN')}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={2} style={{ textAlign: 'center', padding: '20px' }}>
+                            No chef sending amount found.
+                          </td>
+                        </tr>
+                      )}
+                      <tr>
+                        <td style={{ fontWeight: 800, fontSize: '1.2rem' }}>TOTAL</td>
+                        <td style={{ textAlign: 'right', fontWeight: 800, fontSize: '1.2rem' }}>
+                          ₹ {chefSummaryTotal.toLocaleString('en-IN')}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div
+                  style={{
+                    flex: '1 1 560px',
+                    minWidth: '320px',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                    gap: '10px',
+                  }}
+                >
+                  {stageSummaryCards.map((card) => (
+                    <div
+                      key={card.title}
+                      style={{
+                        border: '1px solid var(--theme-elevation-250)',
+                        borderRadius: '12px',
+                        overflow: 'hidden',
+                        backgroundColor: 'var(--theme-elevation-0, var(--theme-bg))',
+                        minHeight: '112px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'flex-start',
+                      }}
+                    >
+                      <div
+                        style={{
+                          color: '#000000',
+                          fontWeight: 700,
+                          letterSpacing: '0.06em',
+                          fontSize: '0.9rem',
+                          textAlign: 'center',
+                          backgroundColor: '#e5e7eb',
+                          width: '100%',
+                          padding: '5px 10px',
+                          borderBottom: '1px solid #bfc6d1',
+                        }}
+                      >
+                        {card.title}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '2.1rem',
+                          lineHeight: 1.1,
+                          fontWeight: 700,
+                          color: 'var(--theme-text-primary, var(--theme-text))',
+                          textAlign: 'center',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flex: 1,
+                          padding: '14px 10px',
+                        }}
+                      >
+                        ₹ {card.amount.toLocaleString('en-IN')}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div
+                className="table-title"
+                style={{
+                  marginTop: '10px',
+                  marginBottom: '10px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '15px',
@@ -929,10 +1271,8 @@ const StockOrderReport: React.FC = () => {
                 <h3 style={{ margin: 0, color: 'var(--theme-text-primary, var(--theme-text))' }}>Product Order Details</h3>
               </div>
 
-              <div className="table-container details-table">
-                <table className="report-table">
-                  <tbody>
-                    {Object.entries(groupedDetails).map(([dept, categories]) => {
+              <div className="details-table">
+                {Object.entries(groupedDetails).map(([dept, categories]) => {
                       // Calculate Department Totals
                       const deptItems = Object.values(categories).flat()
                       // Items are already processed
@@ -962,17 +1302,26 @@ const StockOrderReport: React.FC = () => {
                         (sum, item) => sum + item.difQty * item.price,
                         0,
                       )
+                      const departmentTotalCellStyle: React.CSSProperties = {
+                        textAlign: 'center',
+                        fontWeight: 800,
+                        fontSize: '1.9rem',
+                        color: '#fbbf24',
+                        borderTop: '1px solid var(--theme-elevation-250)',
+                        borderBottom: '1px solid var(--theme-elevation-250)',
+                      }
 
                       // Don't render dept if empty after filter? (Optional, but user might want to see empty headers)
                       // If "All Branches" and filter hides everything, maybe hide dept.
                       if (filteredDeptItems.length === 0) return null
 
                       return (
-                        <React.Fragment key={dept}>
+                        <div key={dept} className="table-container" style={{ marginBottom: '18px' }}>
+                          <table className="report-table">
+                            <tbody>
                           {/* Department Header Row */}
                           <tr style={{ backgroundColor: 'var(--theme-elevation-50)' }}>
                             <td
-                              colSpan={8}
                               style={{
                                 padding: '10px 12px',
                                 fontWeight: '800',
@@ -985,30 +1334,44 @@ const StockOrderReport: React.FC = () => {
                                 textTransform: 'uppercase',
                               }}
                             >
-                              <div
-                                style={{
-                                  display: 'flex',
-                                  justifyContent: 'space-between',
-                                  alignItems: 'center',
-                                }}
-                              >
-                                <span>{dept}</span>
-                                <span
-                                  style={{
-                                    fontSize: '12px',
-                                    color: '#fbbf24',
-                                    fontWeight: '600',
-                                    letterSpacing: '0.5px',
-                                  }}
-                                >
-                                  ORD: {deptOrdTotal.toLocaleString('en-IN')} | SNT:{' '}
-                                  {deptSntTotal.toLocaleString('en-IN')} | CON:{' '}
-                                  {deptConTotal.toLocaleString('en-IN')} | PIC:{' '}
-                                  {deptPicTotal.toLocaleString('en-IN')} | REC:{' '}
-                                  {deptRecTotal.toLocaleString('en-IN')} | DIF:{' '}
-                                  {deptDifTotal.toLocaleString('en-IN')}
-                                </span>
-                              </div>
+                              {dept}
+                            </td>
+                            <td
+                              style={{
+                                padding: '10px 8px',
+                                borderTop: '1px solid var(--theme-elevation-250)',
+                                borderBottom: '1px solid var(--theme-elevation-250)',
+                              }}
+                            />
+                            <td
+                              style={departmentTotalCellStyle}
+                            >
+                              {deptOrdTotal.toLocaleString('en-IN')}
+                            </td>
+                            <td
+                              style={departmentTotalCellStyle}
+                            >
+                              {deptSntTotal.toLocaleString('en-IN')}
+                            </td>
+                            <td
+                              style={departmentTotalCellStyle}
+                            >
+                              {deptConTotal.toLocaleString('en-IN')}
+                            </td>
+                            <td
+                              style={departmentTotalCellStyle}
+                            >
+                              {deptPicTotal.toLocaleString('en-IN')}
+                            </td>
+                            <td
+                              style={departmentTotalCellStyle}
+                            >
+                              {deptRecTotal.toLocaleString('en-IN')}
+                            </td>
+                            <td
+                              style={departmentTotalCellStyle}
+                            >
+                              {deptDifTotal.toLocaleString('en-IN')}
                             </td>
                           </tr>
 
@@ -1042,13 +1405,21 @@ const StockOrderReport: React.FC = () => {
                               (sum, item) => sum + item.difQty * item.price,
                               0,
                             )
+                            const categoryTotalCellStyle: React.CSSProperties = {
+                              textAlign: 'center',
+                              fontWeight: 800,
+                              fontSize: '1.8rem',
+                              color: '#38bdf8',
+                              borderTop: '1px solid var(--theme-elevation-250)',
+                              borderBottom: '1px solid var(--theme-elevation-250)',
+                            }
 
                             return (
                               <React.Fragment key={category}>
+                                {renderDetailsMetricHeaderRow(`${dept}-${category}-metric-header`)}
                                 {/* Category Header Row */}
                                 <tr style={{ backgroundColor: 'var(--theme-elevation-100)' }}>
                                   <td
-                                    colSpan={8}
                                     style={{
                                       padding: '8px 12px',
                                       fontWeight: 'bold',
@@ -1060,135 +1431,45 @@ const StockOrderReport: React.FC = () => {
                                       borderBottom: '1px solid var(--theme-elevation-250)',
                                     }}
                                   >
-                                    <div
-                                      style={{
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center',
-                                      }}
-                                    >
-                                      <span>{category}</span>
-                                      <span
-                                        style={{
-                                          fontSize: '11px',
-                                          color: '#38bdf8',
-                                          fontWeight: '500',
-                                        }}
-                                      >
-                                        ORD: {catOrdTotal.toLocaleString('en-IN')} | SNT:{' '}
-                                        {catSntTotal.toLocaleString('en-IN')} | CON:{' '}
-                                        {catConTotal.toLocaleString('en-IN')} | PIC:{' '}
-                                        {catPicTotal.toLocaleString('en-IN')} | REC:{' '}
-                                        {catRecTotal.toLocaleString('en-IN')} | DIF:{' '}
-                                        {catDifTotal.toLocaleString('en-IN')}
-                                      </span>
-                                    </div>
+                                    {category}
                                   </td>
-                                </tr>
-
-                                {/* Column Sub-headers */}
-                                <tr
-                                  style={{
-                                    backgroundColor: 'var(--theme-elevation-150)',
-                                    borderBottom: '1px solid var(--theme-elevation-250)',
-                                  }}
-                                >
-                                  <th
+                                  <td
                                     style={{
-                                      width: '180px',
-                                      textAlign: 'left',
-                                      padding: '8px 12px',
-                                      fontSize: '11px',
-                                      color: 'var(--theme-text-secondary, var(--theme-elevation-600))',
-                                      fontWeight: '600',
-                                    }}
-                                  >
-                                    PRODUCT NAME
-                                  </th>
-                                  <th
-                                    style={{
-                                      width: '75px',
-                                      textAlign: 'right',
                                       padding: '8px',
-                                      fontSize: '11px',
-                                      color: 'var(--theme-text-secondary, var(--theme-elevation-600))',
-                                      fontWeight: '600',
+                                      borderTop: '1px solid var(--theme-elevation-250)',
+                                      borderBottom: '1px solid var(--theme-elevation-250)',
                                     }}
+                                  />
+                                  <td
+                                    style={categoryTotalCellStyle}
                                   >
-                                    PRC
-                                  </th>
-                                  <th
-                                    style={{
-                                      width: '75px',
-                                      textAlign: 'center',
-                                      padding: '8px',
-                                      fontSize: '11px',
-                                      color: 'var(--theme-text-secondary, var(--theme-elevation-600))',
-                                      fontWeight: '600',
-                                    }}
+                                    {catOrdTotal.toLocaleString('en-IN')}
+                                  </td>
+                                  <td
+                                    style={categoryTotalCellStyle}
                                   >
-                                    ORD
-                                  </th>
-                                  <th
-                                    style={{
-                                      width: '75px',
-                                      textAlign: 'center',
-                                      padding: '8px',
-                                      fontSize: '11px',
-                                      color: 'var(--theme-text-secondary, var(--theme-elevation-600))',
-                                      fontWeight: '600',
-                                    }}
+                                    {catSntTotal.toLocaleString('en-IN')}
+                                  </td>
+                                  <td
+                                    style={categoryTotalCellStyle}
                                   >
-                                    SNT
-                                  </th>
-                                  <th
-                                    style={{
-                                      width: '75px',
-                                      textAlign: 'center',
-                                      padding: '8px',
-                                      fontSize: '11px',
-                                      color: 'var(--theme-text-secondary, var(--theme-elevation-600))',
-                                      fontWeight: '600',
-                                    }}
+                                    {catConTotal.toLocaleString('en-IN')}
+                                  </td>
+                                  <td
+                                    style={categoryTotalCellStyle}
                                   >
-                                    CON
-                                  </th>
-                                  <th
-                                    style={{
-                                      width: '75px',
-                                      textAlign: 'center',
-                                      padding: '8px',
-                                      fontSize: '11px',
-                                      color: 'var(--theme-text-secondary, var(--theme-elevation-600))',
-                                      fontWeight: '600',
-                                    }}
+                                    {catPicTotal.toLocaleString('en-IN')}
+                                  </td>
+                                  <td
+                                    style={categoryTotalCellStyle}
                                   >
-                                    PIC
-                                  </th>
-                                  <th
-                                    style={{
-                                      width: '75px',
-                                      textAlign: 'center',
-                                      padding: '8px',
-                                      fontSize: '11px',
-                                      color: 'var(--theme-text-secondary, var(--theme-elevation-600))',
-                                      fontWeight: '600',
-                                    }}
+                                    {catRecTotal.toLocaleString('en-IN')}
+                                  </td>
+                                  <td
+                                    style={categoryTotalCellStyle}
                                   >
-                                    REC
-                                  </th>
-                                  <th
-                                    style={{
-                                      width: '75px',
-                                      textAlign: 'center',
-                                      padding: '8px',
-                                      fontSize: '11px',
-                                      color: 'var(--theme-text-secondary, var(--theme-elevation-600))',
-                                      fontWeight: '600',
-                                    }}
-                                  >
-                                    DIF
-                                  </th>
+                                    {catDifTotal.toLocaleString('en-IN')}
+                                  </td>
                                 </tr>
 
                                 {/* Items for this Category */}
@@ -1240,6 +1521,15 @@ const StockOrderReport: React.FC = () => {
                                       >
                                         {formatTime(item.ordTime)}
                                       </div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.72rem',
+                                          fontWeight: 600,
+                                          color: 'var(--theme-elevation-500)',
+                                        }}
+                                      >
+                                        {formatUpdaterName(item.ordUpdatedByName)}
+                                      </div>
                                     </td>
 
                                     <td
@@ -1277,6 +1567,15 @@ const StockOrderReport: React.FC = () => {
                                       >
                                         {formatTime(item.sntTime)}
                                       </div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.72rem',
+                                          fontWeight: 600,
+                                          color: 'var(--theme-elevation-500)',
+                                        }}
+                                      >
+                                        {formatUpdaterName(item.sntUpdatedByName)}
+                                      </div>
                                     </td>
                                     <td
                                       style={{
@@ -1312,6 +1611,15 @@ const StockOrderReport: React.FC = () => {
                                         }}
                                       >
                                         {formatTime(item.conTime)}
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.72rem',
+                                          fontWeight: 600,
+                                          color: 'var(--theme-elevation-500)',
+                                        }}
+                                      >
+                                        {formatUpdaterName(item.conUpdatedByName)}
                                       </div>
                                     </td>
                                     <td
@@ -1349,6 +1657,15 @@ const StockOrderReport: React.FC = () => {
                                       >
                                         {formatTime(item.picTime)}
                                       </div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.72rem',
+                                          fontWeight: 600,
+                                          color: 'var(--theme-elevation-500)',
+                                        }}
+                                      >
+                                        {formatUpdaterName(item.picUpdatedByName)}
+                                      </div>
                                     </td>
                                     <td
                                       style={{
@@ -1385,6 +1702,15 @@ const StockOrderReport: React.FC = () => {
                                       >
                                         {formatTime(item.recTime)}
                                       </div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.72rem',
+                                          fontWeight: 600,
+                                          color: 'var(--theme-elevation-500)',
+                                        }}
+                                      >
+                                        {formatUpdaterName(item.recUpdatedByName || item.ordUpdatedByName)}
+                                      </div>
                                     </td>
 
                                     <td
@@ -1409,18 +1735,24 @@ const StockOrderReport: React.FC = () => {
                               </React.Fragment>
                             )
                           })}
-                        </React.Fragment>
+                            </tbody>
+                          </table>
+                        </div>
                       )
                     })}
-                    {data.details.length === 0 && (
-                      <tr>
-                        <td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>
-                          No items found.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                {Object.keys(groupedDetails).length === 0 && (
+                  <div className="table-container">
+                    <table className="report-table">
+                      <tbody>
+                        <tr>
+                          <td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>
+                            No items found.
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
               <div className="table-container summary-table" style={{ marginTop: '40px' }}>
@@ -1601,6 +1933,9 @@ const ProductDetailPopup = ({
                     <div style={{ fontSize: '0.8rem', color: 'var(--theme-elevation-450)' }}>
                       {formatTime(item.ordTime)}
                     </div>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--theme-elevation-500)' }}>
+                      {formatUpdaterName(item.ordUpdatedByName)}
+                    </div>
                   </td>
 
                   {/* SNT */}
@@ -1625,6 +1960,9 @@ const ProductDetailPopup = ({
                       }}
                     >
                       {formatTime(item.sntTime)}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--theme-elevation-500)' }}>
+                      {formatUpdaterName(item.sntUpdatedByName)}
                     </div>
                   </td>
 
@@ -1651,6 +1989,9 @@ const ProductDetailPopup = ({
                     >
                       {formatTime(item.conTime)}
                     </div>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--theme-elevation-500)' }}>
+                      {formatUpdaterName(item.conUpdatedByName)}
+                    </div>
                   </td>
 
                   {/* PIC */}
@@ -1675,6 +2016,9 @@ const ProductDetailPopup = ({
                     >
                       {formatTime(item.picTime)}
                     </div>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--theme-elevation-500)' }}>
+                      {formatUpdaterName(item.picUpdatedByName)}
+                    </div>
                   </td>
 
                   {/* REC */}
@@ -1698,6 +2042,9 @@ const ProductDetailPopup = ({
                       }}
                     >
                       {formatTime(item.recTime)}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--theme-elevation-500)' }}>
+                      {formatUpdaterName(item.recUpdatedByName || item.ordUpdatedByName)}
                     </div>
                   </td>
 

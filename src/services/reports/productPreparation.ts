@@ -502,8 +502,11 @@ export const getProductPreparationBillDetailsData = async (
       return item.status === selectedStatus
     })
     .sort((a, b) => {
-      const aMs = a.createdAt ? a.createdAt.valueOf() : 0
-      const bMs = b.createdAt ? b.createdAt.valueOf() : 0
+      const aOrderTime = parseTimeLikeValue(a.orderedAt, a.createdAt) || a.createdAt
+      const bOrderTime = parseTimeLikeValue(b.orderedAt, b.createdAt) || b.createdAt
+
+      const aMs = aOrderTime ? aOrderTime.valueOf() : 0
+      const bMs = bOrderTime ? bOrderTime.valueOf() : 0
 
       if (aMs === bMs) {
         return b.billNumber.localeCompare(a.billNumber)

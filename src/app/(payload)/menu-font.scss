@@ -5,8 +5,8 @@ aside.nav,
   width: 320px;
   min-width: 320px;
   max-width: 320px;
-  background: #050505 !important;
-  border-right: 1px solid #1b1b1b !important;
+  background: var(--nav-bg) !important;
+  border-right: 1px solid var(--nav-border) !important;
   box-shadow: none !important;
   transition: width 0.3s ease;
 }
@@ -34,7 +34,7 @@ aside.nav,
 }
 
 .nav-group__label {
-  color: #a4a4a4 !important;
+  color: var(--nav-label) !important;
   font-size: 0.95rem !important;
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -44,12 +44,12 @@ aside.nav,
 .nav-group__indicator .stroke,
 .nav-group__toggle svg,
 .nav-group__toggle .stroke {
-  color: #8b8b8b !important;
-  stroke: #8b8b8b !important;
+  color: var(--nav-label) !important;
+  stroke: var(--nav-label) !important;
 }
 
 .nav__link {
-  color: #f0f0f0 !important;
+  color: var(--nav-text) !important;
   font-size: 1.55rem !important;
   line-height: 1.35 !important;
   padding: 10px 12px !important;
@@ -119,6 +119,10 @@ aside.nav,
 
 .nav-group.Report .nav__link[href*='globals/stock-order-report'] {
   --report-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='8' y1='6' x2='21' y2='6'/%3E%3Cline x1='8' y1='12' x2='21' y2='12'/%3E%3Cline x1='8' y1='18' x2='21' y2='18'/%3E%3Cline x1='3' y1='6' x2='3.01' y2='6'/%3E%3Cline x1='3' y1='12' x2='3.01' y2='12'/%3E%3Cline x1='3' y1='18' x2='3.01' y2='18'/%3E%3C/svg%3E");
+}
+
+.nav-group.Report .nav__link[href*='globals/chef-report'] {
+  --report-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 11h18v8H3z'/%3E%3Cpath d='M6 11V9a2 2 0 0 1 2-2'/%3E%3Cpath d='M18 11V9a2 2 0 0 0-2-2'/%3E%3Cpath d='M9 7a3 3 0 0 1 6 0'/%3E%3C/svg%3E");
 }
 
 .nav-group.Report .nav__link[href*='globals/afterstock-customer-report'] {
@@ -194,8 +198,11 @@ aside.nav,
 
 .nav__link:hover,
 .nav__link:focus-visible {
-  background: #141414 !important;
-  color: #ffffff !important;
+  background: var(--theme-elevation-50) !important;
+  [data-theme='light'] & {
+    background: rgba(0, 0, 0, 0.05) !important;
+  }
+  color: var(--theme-text-primary) !important;
   text-decoration: none !important;
 }
 
@@ -216,7 +223,7 @@ aside.nav,
 }
 
 .nav__link-indicator {
-  background: #f3f3f3 !important;
+  background: var(--nav-text) !important;
 }
 
 .nav-group--collections-shortcut {
@@ -268,7 +275,7 @@ aside.nav,
 
 .nav__controls {
   width: 100%;
-  border-top: 1px solid #1b1b1b;
+  border-top: 1px solid var(--nav-border);
   padding-top: 12px;
   margin-top: auto !important;
   order: 100;
@@ -276,7 +283,7 @@ aside.nav,
 
 .nav__controls a,
 .nav__controls button {
-  color: #d5d5d5 !important;
+  color: var(--nav-label) !important;
 }
 
 .nav__controls a:hover,

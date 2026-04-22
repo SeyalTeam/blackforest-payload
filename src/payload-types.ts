@@ -970,11 +970,38 @@ export interface Table {
    * Select the branch this table configuration belongs to.
    */
   branch: string | Branch;
+  /**
+   * Single section can have multiple rows. Add one table range per row (example: Row 1 = T1-T3, Row 2 = T4-T6).
+   */
   sections: {
     name: string;
-    tableCount: number;
+    /**
+     * Optional. Prefer using Table Rows below.
+     */
+    tableCount?: number | null;
+    /**
+     * Each row should contain one range (example: T1-T3).
+     */
+    rangeRows?:
+      | {
+          /**
+           * Auto-generated row label.
+           */
+          label?: string | null;
+          tableRange: string;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * Auto-generated section summary of row-wise ranges.
+     */
+    tableRange?: string | null;
     id?: string | null;
   }[];
+  /**
+   * Auto-generated summary used in collection list view to identify row-wise table mapping quickly.
+   */
+  tableLayoutSummary?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1827,8 +1854,17 @@ export interface TablesSelect<T extends boolean = true> {
     | {
         name?: T;
         tableCount?: T;
+        rangeRows?:
+          | T
+          | {
+              label?: T;
+              tableRange?: T;
+              id?: T;
+            };
+        tableRange?: T;
         id?: T;
       };
+  tableLayoutSummary?: T;
   updatedAt?: T;
   createdAt?: T;
 }

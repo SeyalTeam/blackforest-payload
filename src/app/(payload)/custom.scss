@@ -3,51 +3,68 @@
 // ---------------------------------------------------------------------------
 // Global Slate Theme Tokens
 // ---------------------------------------------------------------------------
-:root,
-[data-theme='dark'],
-[data-theme='light'] {
+:root {
   --bf-primary-navy: #1b365d;
   --bf-action-blue: #38bdf8;
   --bf-neutral-text: #0f172a;
   --bf-success-green: #22c55e;
   --bf-alert-red: #ef4444;
+}
 
-  --theme-bg: #06101f;
-  --theme-elevation-0: #06101f;
-  --theme-elevation-50: #102446;
-  --theme-elevation-100: #13305c;
-  --theme-elevation-150: rgba(56, 189, 248, 0.18);
-  --theme-elevation-200: rgba(56, 189, 248, 0.24);
-  --theme-elevation-300: rgba(56, 189, 248, 0.34);
-  --theme-elevation-400: rgba(56, 189, 248, 0.44);
-  --theme-text: #dce9ff;
-  --theme-text-primary: #e8f2ff;
-  --theme-text-secondary: #9ab3d8;
+[data-theme='dark'] {
+  --theme-bg: #0f0f0f;
+  --theme-elevation-0: #0f0f0f;
+  --theme-elevation-50: #1a1a1a;
+  --theme-elevation-100: #242424;
+  --theme-elevation-150: rgba(255, 255, 255, 0.08);
+  --theme-elevation-200: rgba(255, 255, 255, 0.12);
+  --theme-elevation-300: rgba(255, 255, 255, 0.18);
+  --theme-elevation-400: rgba(255, 255, 255, 0.24);
+  --theme-text: #f0f0f0;
+  --theme-text-primary: #ffffff;
+  --theme-text-secondary: #a3a3a3;
   --theme-text-invert: #0f172a;
-  --theme-border-color: rgba(56, 189, 248, 0.2);
-  --theme-input-bg: rgba(17, 35, 64, 0.9);
-  --theme-bg-input: rgba(17, 35, 64, 0.9);
+  --theme-border-color: rgba(255, 255, 255, 0.1);
+  --theme-input-bg: rgba(26, 26, 26, 0.9);
+  --theme-bg-input: rgba(26, 26, 26, 0.9);
   --theme-success-500: #22c55e;
   --theme-error-500: #ef4444;
   --theme-info-500: #38bdf8;
   --theme-info-750: #0ea5e9;
+
+  // Nav specific (Dark Defaults)
+  --nav-bg: #111111;
+  --nav-text: #d1d5db;
+  --nav-label: rgba(209, 213, 227, 0.6);
+  --nav-border: rgba(255, 255, 255, 0.08);
 }
 
-html,
-body {
-  background: #06101f !important;
-  color: var(--theme-text-primary) !important;
+[data-theme='light'] {
+  --theme-bg: #eceff4;
+  --theme-text-primary: #1b365d;
+  --nav-bg: #ffffff;
+  --nav-text: #1b365d;
+  --nav-label: #64748b;
+  --nav-border: rgba(0, 0, 0, 0.1);
 }
 
-.template-default,
-.template-default__wrap,
-.template-default__gutter,
-.payload__root,
-.template-default__main,
-main,
-.collection-edit,
-.render-fields-to-table {
-  background: #06101f !important;
+[data-theme='dark'] {
+  html,
+  body {
+    background: #0f0f0f !important;
+    color: var(--theme-text-primary) !important;
+  }
+
+  .template-default,
+  .template-default__wrap,
+  .template-default__gutter,
+  .payload__root,
+  .template-default__main,
+  main,
+  .collection-edit,
+  .render-fields-to-table {
+    background: #0f0f0f !important;
+  }
 }
 
 // 1. LEFT NAVIGATION BAR
@@ -59,8 +76,8 @@ aside.nav,
   min-width: 260px !important;
   max-width: 260px !important;
   transition: width 0.3s ease; // Smooth collapse
-  background: linear-gradient(180deg, #0a1730 0%, #081428 100%) !important;
-  border-right: 1px solid rgba(56, 189, 248, 0.2) !important;
+  background: var(--nav-bg) !important;
+  border-right: 1px solid var(--nav-border) !important;
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.03);
 
   .nav__scroll {
@@ -72,9 +89,20 @@ aside.nav,
     // --- SECTION SEPARATORS ---
     // Apply line and spacing to ALL groups (Reports, Collections, Globals, etc)
     .nav-group {
-      border-bottom: 1px solid rgba(56, 189, 248, 0.16); // "add each section after line"
+      border-bottom: 1px solid var(--nav-border); // "add each section after line"
       margin-bottom: 16px !important;
       padding-bottom: 12px;
+
+      // Group Labels (REPORT, COLLECTIONS)
+      .nav-group__label {
+        color: var(--nav-label) !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.05em !important;
+        text-transform: uppercase !important;
+        font-size: 0.75rem !important;
+        margin-bottom: 12px !important;
+        display: block !important;
+      }
     }
 
     // Remove line from the very last group
@@ -114,7 +142,7 @@ aside.nav,
     align-items: center;
     border-radius: 8px; // Rounded corners from image
     transition: all 0.2s ease;
-    color: #b8cef0 !important;
+    color: var(--nav-text) !important;
     border: 1px solid transparent;
 
     span {
@@ -125,7 +153,13 @@ aside.nav,
 
     &:hover {
       background: rgba(56, 189, 248, 0.12) !important;
-      color: #e6f4ff !important;
+      [data-theme='light'] & {
+        background: rgba(27, 54, 93, 0.05) !important;
+      }
+      color: var(--theme-text-primary) !important;
+      [data-theme='light'] & {
+        color: var(--bf-primary-navy) !important;
+      }
       border-color: rgba(56, 189, 248, 0.3);
     }
 
@@ -159,7 +193,13 @@ aside.nav,
   a[aria-current='page'],
   a.active {
     background: rgba(56, 189, 248, 0.18) !important;
-    color: #eaf6ff !important;
+    [data-theme='light'] & {
+      background: rgba(56, 189, 248, 0.1) !important;
+    }
+    color: var(--theme-text-primary) !important;
+    [data-theme='light'] & {
+      color: var(--bf-primary-navy) !important;
+    }
     border-color: rgba(56, 189, 248, 0.4);
     box-shadow: inset 3px 0 0 #38bdf8;
   }
@@ -356,36 +396,36 @@ aside.sidebar,
 }
 
 .react-datepicker {
-  background: #0b1a33 !important;
-  border: 1px solid rgba(56, 189, 248, 0.25) !important;
+  background: #1a1a1a !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
   border-radius: 10px !important;
-  color: #e8edf6 !important;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45) !important;
+  color: #f0f0f0 !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5) !important;
 }
 
 .react-datepicker__triangle,
 .react-datepicker__triangle::before,
 .react-datepicker__triangle::after {
-  border-bottom-color: #0b1a33 !important;
+  border-bottom-color: #1a1a1a !important;
 }
 
 .react-datepicker__header {
-  background: #102446 !important;
-  border-bottom: 1px solid rgba(56, 189, 248, 0.25) !important;
+  background: #242424 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
 }
 
 .react-datepicker__current-month,
 .react-datepicker-time__header,
 .react-datepicker-year-header,
 .react-datepicker__day-name {
-  color: #d6deea !important;
+  color: #d1d5db !important;
 }
 
 .react-datepicker__month-select,
 .react-datepicker__year-select {
-  background: #15305a !important;
-  color: #f1f5fb !important;
-  border: 1px solid rgba(56, 189, 248, 0.3) !important;
+  background: #2b2b2b !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
   border-radius: 6px !important;
 }
 

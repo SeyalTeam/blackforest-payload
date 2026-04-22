@@ -9,8 +9,8 @@
   padding: 1.2rem;
   min-height: calc(100vh - 2.5rem);
   border-radius: 0;
-  color: #e8f2ff;
-  background: #06101f;
+  color: #f5f5f5;
+  background: #0f0f0f;
   border: 0;
   box-shadow: none;
 
@@ -31,7 +31,7 @@
     gap: 0.9rem;
     margin-bottom: 1rem;
     padding-bottom: 0.95rem;
-    border-bottom: 1px solid rgba(56, 189, 248, 0.18);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 
     h1 {
       margin: 0;
@@ -60,8 +60,8 @@
     margin-bottom: 1rem;
     padding: 0.75rem;
     border-radius: 12px;
-    border: 1px solid rgba(56, 189, 248, 0.16);
-    background: rgba(16, 36, 70, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(26, 26, 26, 0.45);
 
     .filter-select-container {
       min-width: 180px;
@@ -72,10 +72,10 @@
     display: flex;
     align-items: center;
     padding: 0 0.8rem;
-    border: 1px solid rgba(56, 189, 248, 0.24);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 10px;
-    background-color: rgba(16, 36, 70, 0.9);
-    color: #e8f2ff;
+    background-color: rgba(26, 26, 26, 0.9);
+    color: #f5f5f5;
     cursor: pointer;
     font-size: 0.84rem;
     font-weight: 600;
@@ -88,8 +88,8 @@
     }
 
     &:hover {
-      border-color: rgba(56, 189, 248, 0.5);
-      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35);
+      border-color: rgba(255, 255, 255, 0.2);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
     }
   }
 
@@ -99,9 +99,9 @@
     justify-content: center;
     padding: 0 0.85rem;
     height: 40px;
-    background: linear-gradient(180deg, #13305c 0%, #102446 100%);
-    border: 1px solid rgba(56, 189, 248, 0.3);
-    color: #e8f2ff;
+    background: linear-gradient(180deg, #262626 0%, #1a1a1a 100%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #f5f5f5;
     border-radius: 10px;
     cursor: pointer;
     font-weight: 700;
@@ -110,8 +110,8 @@
     font-size: 0.72rem;
 
     &:hover {
-      border-color: rgba(56, 189, 248, 0.58);
-      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35);
+      border-color: rgba(255, 255, 255, 0.25);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
     }
   }
 
@@ -121,23 +121,23 @@
     justify-content: center;
     width: 40px;
     height: 40px;
-    background: rgba(16, 36, 70, 0.9);
-    border: 1px solid rgba(56, 189, 248, 0.24);
+    background: rgba(40, 40, 40, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 10px;
     cursor: pointer;
-    color: #e8f2ff;
+    color: #f5f5f5;
     padding: 0;
 
     &:hover {
-      border-color: rgba(56, 189, 248, 0.55);
+      border-color: rgba(255, 255, 255, 0.25);
       color: #ffffff;
     }
   }
 
   .table-container {
     overflow-x: auto;
-    background: linear-gradient(180deg, rgba(10, 23, 47, 0.95), rgba(8, 18, 37, 0.98));
-    border: 1px solid rgba(56, 189, 248, 0.2);
+    background: #111111;
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
     width: 100%;
   }
@@ -152,14 +152,14 @@
     th,
     td {
       padding: 0.68rem 0.8rem;
-      border-bottom: 1px solid rgba(56, 189, 248, 0.14);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
       text-align: right;
       white-space: nowrap;
     }
 
     th {
-      background-color: rgba(9, 23, 47, 0.92);
-      color: #9ab3d8;
+      background-color: #1a1a1a;
+      color: #a3a3a3;
       text-transform: uppercase;
       font-size: 0.66rem;
       letter-spacing: 0.14em;
@@ -167,7 +167,7 @@
       position: sticky;
       top: 0;
       z-index: 1;
-      border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     td.text-cell,
@@ -180,11 +180,11 @@
     }
 
     tbody tr:nth-child(even) {
-      background-color: rgba(14, 30, 57, 0.45);
+      background-color: rgba(255, 255, 255, 0.02);
     }
 
     tbody tr:hover td {
-      background-color: rgba(56, 189, 248, 0.1);
+      background-color: rgba(255, 255, 255, 0.05);
     }
   }
 

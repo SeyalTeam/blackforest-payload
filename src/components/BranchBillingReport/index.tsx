@@ -10,6 +10,14 @@ import {
   Zap,
   TrendingUp,
   CircleDollarSign,
+  RotateCcw,
+  ClipboardCheck,
+  ChevronUp,
+  ChevronDown,
+  MoreHorizontal,
+  CheckCircle2,
+  CreditCard,
+  XCircle,
 } from 'lucide-react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -23,22 +31,37 @@ type ReportStats = {
   cash: number
   upi: number
   card: number
+  completedCount: number
+  completedAmount: number
+  settledCount: number
+  settledAmount: number
+  cancelledCount: number
+  cancelledAmount: number
 }
 
 type ReportData = {
   startDate: string
   endDate: string
   stats: ReportStats[]
-  totals: Omit<ReportStats, 'branchName'>
+  totals: Omit<ReportStats, 'branchName'> & {
+    totalExpenses: number
+    totalReturns: number
+    totalClosingSales: number
+  }
+  trendData: Array<{ label: string; fullLabel: string; totalAmount: number; totalExpense: number; totalReturn: number }>
+  heatmapData: Array<{ day: number; hour: number; amount: number; count: number }>
+  summary: {
+    averageTrendAmount: number
+    trendPercentage: number
+    medianAmount: number
+  }
 }
 
 type BranchBillingReportQueryResponse = {
   data?: {
     branchBillingReport?: ReportData
   }
-  errors?: {
-    message?: string
-  }[]
+  errors?: Array<{ message: string }>
 }
 
 type DatePresetOption = {
@@ -46,7 +69,7 @@ type DatePresetOption = {
   label: string
 }
 
-const PAGE_SIZE = 5
+const PAGE_SIZE = 1000
 const BRANCH_BILLING_REPORT_QUERY = `
   query BranchBillingReport($filter: BranchBillingReportFilterInput) {
     branchBillingReport(filter: $filter) {
@@ -59,6 +82,12 @@ const BRANCH_BILLING_REPORT_QUERY = `
         cash
         upi
         card
+        completedCount
+        completedAmount
+        settledCount
+        settledAmount
+        cancelledCount
+        cancelledAmount
       }
       totals {
         totalBills
@@ -66,6 +95,58 @@ const BRANCH_BILLING_REPORT_QUERY = `
         cash
         upi
         card
+        completedCount
+        completedAmount
+        settledCount
+        settledAmount
+        cancelledCount
+        cancelledAmount
+        totalExpenses
+        totalReturns
+        totalClosingSales
+      }
+      trendData {
+        label
+        fullLabel
+        totalAmount
+        totalExpense
+        totalReturn
+      }
+      summary {
+        averageTrendAmount
+        trendPercentage
+        medianAmount
+      }
+      heatmapData {
+        day
+        hour
+        amount
+        count
+      }
+    }
+  }
+`
+
+const SALES_TREND_QUERY = `
+  query SalesTrend($filter: BranchBillingReportFilterInput) {
+    branchBillingReport(filter: $filter) {
+      trendData {
+        label
+        fullLabel
+        totalAmount
+        totalExpense
+        totalReturn
+      }
+      summary {
+        averageTrendAmount
+        trendPercentage
+        medianAmount
+      }
+      heatmapData {
+        day
+        hour
+        amount
+        count
       }
     }
   }
@@ -184,14 +265,74 @@ const customDatePresetStyles: StylesConfig<DatePresetOption, false> = {
   }),
 }
 
+const customBranchSelectStyles: StylesConfig<{ value: string, label: string }, false> = {
+  control: (base, state) => ({
+    ...base,
+    backgroundColor: 'var(--theme-elevation-50, #ffffff)',
+    borderColor: state.isFocused ? 'var(--theme-info-500, #38bdf8)' : 'var(--theme-elevation-200, #cbd5e1)',
+    borderRadius: '8px',
+    minHeight: '34px',
+    height: '34px',
+    minWidth: '180px',
+    boxShadow: state.isFocused ? '0 0 0 1px var(--theme-info-500, #38bdf8)' : 'none',
+    cursor: 'pointer',
+    '&:hover': {
+      borderColor: 'var(--theme-info-750, #0284c7)',
+    },
+  }),
+  valueContainer: (base) => ({
+    ...base,
+    padding: '0 12px',
+  }),
+  singleValue: (base) => ({
+    ...base,
+    color: 'var(--theme-text-primary, #1e293b)',
+    fontSize: '0.95rem',
+    fontWeight: 700,
+  }),
+  option: (base, state) => ({
+    ...base,
+    backgroundColor: state.isSelected
+      ? 'var(--theme-info-500, #38bdf8)'
+      : state.isFocused
+        ? 'var(--theme-elevation-100, #e2e8f0)'
+        : 'var(--theme-elevation-50, #ffffff)',
+    color: state.isSelected ? '#ffffff' : 'var(--theme-text-primary, #1e293b)',
+    fontSize: '0.95rem',
+    fontWeight: 700,
+    cursor: 'pointer',
+  }),
+  menu: (base) => ({
+    ...base,
+    backgroundColor: 'var(--theme-elevation-50, #ffffff)',
+    border: '1px solid var(--theme-elevation-150, #cbd5e1)',
+    borderRadius: '8px',
+    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+    zIndex: 9999,
+  }),
+  dropdownIndicator: (base) => ({
+    ...base,
+    padding: '4px 8px',
+    color: 'var(--text-primary)',
+    '&:hover': {
+      color: 'var(--theme-info-500)',
+    }
+  }),
+  indicatorSeparator: () => ({ display: 'none' })
+}
+
 const BranchBillingReport: React.FC = () => {
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>(() => getDefaultDateRange())
   const [startDate, endDate] = dateRange
   const [dateRangePreset, setDateRangePreset] = useState<string>('today')
+  const [activeTrendPeriod, setActiveTrendPeriod] = useState<string>('thisMonth')
   const [firstBillDate, setFirstBillDate] = useState<Date | null>(null)
+  const [branches, setBranches] = useState<{ id: string, name: string }[]>([])
+  const [selectedBranch, setSelectedBranch] = useState<string>('all')
 
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
+  const [trendLoading, setTrendLoading] = useState(false)
   const [error, setError] = useState('')
   const [searchValue, setSearchValue] = useState('')
   const [page, setPage] = useState(1)
@@ -210,6 +351,20 @@ const BranchBillingReport: React.FC = () => {
     return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(val)
   }
 
+  const formatPercent = (val: number) => {
+    return `${val.toFixed(1)}%`
+  }
+
+  const formatYAxisLabel = (val: number) => {
+    if (val >= 100000) {
+      return `${(val / 100000).toFixed(val % 100000 === 0 ? 0 : 2)}L`
+    }
+    if (val >= 1000) {
+      return `${(val / 1000).toFixed(0)}k`
+    }
+    return val.toString()
+  }
+
   const formatDateForLabel = (date: Date) => {
     return date.toLocaleDateString('en-IN', {
       day: '2-digit',
@@ -218,41 +373,65 @@ const BranchBillingReport: React.FC = () => {
     })
   }
 
-  const fetchReport = useCallback(async (start: Date, end: Date) => {
+  const fetchReport = useCallback(async (start: Date, end: Date, trendPeriod: string, branch: string) => {
+    if (loading) return
     setLoading(true)
     setError('')
 
     try {
       const startStr = toLocalDateStr(start)
       const endStr = toLocalDateStr(end)
-      const res = await fetch('/api/graphql', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: BRANCH_BILLING_REPORT_QUERY,
-          variables: {
-            filter: {
-              startDate: startStr,
-              endDate: endStr,
-            },
-          },
-        }),
-      })
 
-      if (!res.ok) {
-        throw new Error(await getResponseErrorMessage(res, 'Failed to fetch report'))
+      const promises = [
+        fetch('/api/graphql', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: BRANCH_BILLING_REPORT_QUERY,
+            variables: { filter: { startDate: startStr, endDate: endStr, trendPeriod, branch: 'all' } },
+          }),
+        }).then(res => {
+          if (!res.ok) throw new Error('Failed to fetch report')
+          return res.json()
+        })
+      ]
+
+      if (branch !== 'all') {
+        promises.push(
+          fetch('/api/graphql', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: SALES_TREND_QUERY,
+              variables: { filter: { startDate: startStr, endDate: endStr, trendPeriod, branch } },
+            }),
+          }).then(res => {
+            if (!res.ok) throw new Error('Failed to fetch isolated trend data')
+            return res.json()
+          })
+        )
       }
 
-      const json = (await res.json()) as BranchBillingReportQueryResponse
-      if (Array.isArray(json.errors) && json.errors.length > 0) {
-        throw new Error(json.errors[0]?.message || 'Failed to fetch report')
+      const [mainJson, trendJson] = await Promise.all(promises)
+
+      if (mainJson.errors && mainJson.errors.length > 0) {
+        throw new Error(mainJson.errors[0].message || 'GraphQL Error in main report')
       }
 
-      const report = json.data?.branchBillingReport
+      if (trendJson && trendJson.errors && trendJson.errors.length > 0) {
+        throw new Error(trendJson.errors[0].message || 'GraphQL Error in trend data')
+      }
+
+      const report = mainJson.data?.branchBillingReport
+      
       if (!report) {
         throw new Error('No report data returned from GraphQL')
+      }
+
+      if (trendJson && trendJson.data?.branchBillingReport) {
+        report.trendData = trendJson.data.branchBillingReport.trendData
+        report.summary = trendJson.data.branchBillingReport.summary
+        report.heatmapData = trendJson.data.branchBillingReport.heatmapData
       }
 
       setPage(1)
@@ -263,30 +442,93 @@ const BranchBillingReport: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [loading])
 
+  const fetchTrendData = useCallback(async (start: Date, end: Date, trendPeriod: string, branch: string) => {
+    if (trendLoading) return
+    setTrendLoading(true)
+
+    try {
+      const startStr = toLocalDateStr(start)
+      const endStr = toLocalDateStr(end)
+      const res = await fetch('/api/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: SALES_TREND_QUERY,
+          variables: {
+            filter: {
+              startDate: startStr,
+              endDate: endStr,
+              trendPeriod,
+              branch,
+            },
+          },
+        }),
+      })
+
+      if (!res.ok) return
+
+      const json = (await res.json()) as BranchBillingReportQueryResponse
+      const report = json.data?.branchBillingReport
+      if (report && report.trendData) {
+        setData(prev => prev ? {
+          ...prev,
+          trendData: report.trendData,
+          heatmapData: report.heatmapData,
+          summary: report.summary
+        } : null)
+      }
+    } catch (err) {
+      console.error('Error fetching trend data', err)
+    } finally {
+      setTrendLoading(false)
+    }
+  }, [trendLoading])
+
+  // Global Date Change (Fetches full table data for 'all' + graph data for selectedBranch)
   useEffect(() => {
     if (startDate && endDate) {
-      fetchReport(startDate, endDate)
+      fetchReport(startDate, endDate, activeTrendPeriod, selectedBranch)
     }
-  }, [fetchReport, startDate, endDate])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate, endDate])
+
+  // Chart-Only branch filter or period change (Fetches isolated trendData)
+  useEffect(() => {
+    if (startDate && endDate && data && !loading) {
+      fetchTrendData(startDate, endDate, activeTrendPeriod, selectedBranch)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTrendPeriod, selectedBranch])
 
   useEffect(() => {
-    const fetchFirstBillDate = async () => {
+    const fetchMetadata = async () => {
       try {
-        const res = await fetch('/api/billings?sort=createdAt&limit=1')
-        if (!res.ok) return
+        const [branchesRes, billingsRes] = await Promise.all([
+          fetch('/api/reports/branches'),
+          fetch('/api/billings?sort=createdAt&limit=1'),
+        ])
+        
+        if (branchesRes.ok) {
+          const branchesJson = await branchesRes.json()
+          setBranches(branchesJson.docs || [])
+        }
 
-        const json = await res.json()
-        if (json.docs && json.docs.length > 0) {
-          setFirstBillDate(new Date(json.docs[0].createdAt))
+        if (billingsRes.ok) {
+          const json = await billingsRes.json()
+          if (json.docs && json.docs.length > 0) {
+            setFirstBillDate(new Date(json.docs[0].createdAt))
+          }
         }
       } catch (err) {
-        console.error('Error fetching first bill date', err)
+        console.error('Error fetching metadata', err)
       }
     }
 
-    fetchFirstBillDate()
+    fetchMetadata()
   }, [])
 
   const filteredRows = useMemo(() => {
@@ -313,6 +555,9 @@ const BranchBillingReport: React.FC = () => {
   const totals = data?.totals
   const totalAmount = totals?.totalAmount ?? 0
   const totalBills = totals?.totalBills ?? 0
+  const totalExpenses = totals?.totalExpenses ?? 0
+  const totalReturns = totals?.totalReturns ?? 0
+  const totalClosingSales = totals?.totalClosingSales ?? 0
   const totalBranches = data?.stats.length ?? 0
   const averageBillValue = totalBills > 0 ? totalAmount / totalBills : 0
   const billPerBranch = totalBranches > 0 ? totalBills / totalBranches : 0
@@ -554,45 +799,81 @@ const BranchBillingReport: React.FC = () => {
         </div>
       </div>
 
-      <div className="kpi-grid">
+      <div className="kpi-grid top-kpis">
         <article className="kpi-card">
-          <div className="kpi-icon icon-cyan">
-            <CircleDollarSign size={18} />
+          <div className="kpi-card-header">
+            <div className="kpi-icon icon-cyan">
+              <CircleDollarSign size={16} />
+            </div>
+            <p className="kpi-label">TOTAL BILLS</p>
           </div>
-          <p className="kpi-label">Total Billable Amount</p>
           <h2>{formatCurrency(totalAmount)}</h2>
-          <p className="kpi-footnote">
-            Avg. {formatCurrency(totalBranches > 0 ? totalAmount / totalBranches : 0)} per branch
+          <p className="kpi-footnote highlight">
+            {formatInt(totalBills)} Bills / {formatCurrency(averageBillValue)} avg
           </p>
-          <div className="kpi-progress">
-            <span style={{ width: `${amountProgress}%` }} />
-          </div>
         </article>
 
         <article className="kpi-card">
-          <div className="kpi-icon icon-violet">
-            <ReceiptText size={18} />
+          <div className="kpi-card-header">
+            <div className="kpi-icon icon-emerald">
+              <CheckCircle2 size={16} />
+            </div>
+            <p className="kpi-label">COMPLETED</p>
           </div>
-          <p className="kpi-label">Total Bill Count</p>
-          <h2>{formatInt(totalBills)}</h2>
-          <p className="kpi-footnote">~{formatInt(Math.round(billPerBranch))} bills per branch</p>
-          <div className="kpi-progress">
-            <span
-              className="progress-violet"
-              style={{ width: `${Math.min(100, Math.max(8, totalBranches * 4))}%` }}
-            />
-          </div>
+          <h2>{formatCurrency(totals?.completedAmount ?? 0)}</h2>
+          <p className="kpi-footnote highlight">
+            {formatInt(totals?.completedCount ?? 0)} Bills
+          </p>
         </article>
 
         <article className="kpi-card">
-          <div className="kpi-icon icon-emerald">
-            <Zap size={18} />
+          <div className="kpi-card-header">
+            <div className="kpi-icon icon-cyan">
+              <CreditCard size={16} />
+            </div>
+            <p className="kpi-label">SETTLED</p>
           </div>
-          <p className="kpi-label">Average Bill Value</p>
-          <h2>{formatCurrency(averageBillValue)}</h2>
-          <p className="kpi-footnote">{formatInt(totalBills)} bills in selected range</p>
-          <div className="kpi-progress segmented">
-            <span style={{ width: `${averageBillProgress}%` }} />
+          <h2>{formatCurrency(totals?.settledAmount ?? 0)}</h2>
+          <p className="kpi-footnote highlight">
+            {formatInt(totals?.settledCount ?? 0)} Bills
+          </p>
+        </article>
+
+        <article className="kpi-card">
+          <div className="kpi-card-header">
+            <div className="kpi-icon icon-red">
+              <XCircle size={16} />
+            </div>
+            <p className="kpi-label">CANCELLED</p>
+          </div>
+          <h2 style={{ color: 'var(--danger)' }}>{formatCurrency(totals?.cancelledAmount ?? 0)}</h2>
+          <p className="kpi-footnote highlight" style={{ color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)' }}>
+            {formatInt(totals?.cancelledCount ?? 0)} Bills
+          </p>
+        </article>
+
+        <article className="kpi-card">
+          <div className="kpi-card-header">
+            <div className="kpi-icon icon-indigo">
+              <WalletCards size={16} />
+            </div>
+            <p className="kpi-label">PAYMENT METHOD</p>
+          </div>
+          <div className="distribution-list compact-kpi">
+            {orderedPaymentMix.map((item) => {
+              const percent = mixTotal === 0 ? 0 : Number(((item.value / mixTotal) * 100).toFixed(1))
+              return (
+                <div className="distribution-row" key={item.label}>
+                  <div className="distribution-head">
+                    <span>{item.label.split(' ')[0]}</span>
+                    <strong>{percent}%</strong>
+                  </div>
+                  <div className="distribution-bar">
+                    <span className={item.className} style={{ width: `${percent}%` }} />
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </article>
       </div>
@@ -673,101 +954,243 @@ const BranchBillingReport: React.FC = () => {
                 </tfoot>
               </table>
             </div>
-
-            <div className="table-footer">
-              <p>
-                Showing {paginatedRows.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}-
-                {(currentPage - 1) * PAGE_SIZE + paginatedRows.length} of {filteredRows.length} branches
-              </p>
-
-              <div className="pagination">
-                <button
-                  type="button"
-                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
-                >
-                  {'<'}
-                </button>
-                {Array.from({ length: totalPages }).map((_, idx) => {
-                  const number = idx + 1
-                  return (
-                    <button
-                      type="button"
-                      key={number}
-                      className={number === currentPage ? 'active' : ''}
-                      onClick={() => setPage(number)}
-                    >
-                      {number}
-                    </button>
-                  )
-                })}
-                <button
-                  type="button"
-                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  {'>'}
-                </button>
-              </div>
-            </div>
           </>
         )}
       </section>
 
-      <section className="analytics-grid">
-        <article className="analytics-card">
-          <h4>
-            <TrendingUp size={16} />
-            Historical Trend Analysis
-          </h4>
-          <div className="trend-bars">
-            {trendRows.length === 0 && <p className="state-text">No data to render trend chart.</p>}
-
-            {trendRows.map((row) => {
-              const trendPercent =
-                trendTotalAmount === 0 ? 0 : Number(((row.totalAmount / trendTotalAmount) * 100).toFixed(1))
-
-              return (
-                <div className="trend-col" key={`trend-${row.branchName}`}>
-                  <span className="trend-percent">{trendPercent}%</span>
-                  <div
-                    className={`bar ${row.totalAmount === maxTrend ? 'peak' : ''}`}
-                    style={{ height: `${Math.max(20, (row.totalAmount / maxTrend) * 160)}px` }}
-                  />
-                  <span className="trend-label" title={row.branchName}>
-                    {row.branchName}
-                  </span>
-                </div>
-              )
-            })}
+      <div className="kpi-grid bottom-kpis">
+        <article className="kpi-card">
+          <div className="kpi-card-header">
+            <div className="kpi-icon icon-red">
+              <WalletCards size={16} />
+            </div>
+            <p className="kpi-label">EXPENSES</p>
           </div>
+          <h2>{formatCurrency(totalExpenses)}</h2>
         </article>
 
-        <article className="analytics-card">
-          <h4>
-            <WalletCards size={16} />
-            Volume Distribution
-          </h4>
-
-          <div className="distribution-list">
-            {orderedPaymentMix.map((item) => {
-              const percent = mixTotal === 0 ? 0 : Number(((item.value / mixTotal) * 100).toFixed(1))
-
-              return (
-                <div className="distribution-row" key={item.label}>
-                  <div className="distribution-head">
-                    <span>{item.label}</span>
-                    <strong>{percent}%</strong>
-                  </div>
-                  <div className="distribution-bar">
-                    <span className={item.className} style={{ width: `${percent}%` }} />
-                  </div>
-                </div>
-              )
-            })}
+        <article className="kpi-card">
+          <div className="kpi-card-header">
+            <div className="kpi-icon icon-violet">
+              <ClipboardCheck size={16} />
+            </div>
+            <p className="kpi-label">CLOSING ENTRY</p>
           </div>
+          <h2>{formatCurrency(totalClosingSales)}</h2>
         </article>
-      </section>
+
+        <article className="kpi-card">
+          <div className="kpi-card-header">
+            <div className="kpi-icon icon-orange">
+              <Zap size={16} />
+            </div>
+            <p className="kpi-label">SALES DIF</p>
+          </div>
+          <h2>{formatCurrency(totalAmount - totalClosingSales)}</h2>
+        </article>
+
+        <article className="kpi-card">
+          <div className="kpi-card-header">
+            <div className="kpi-icon icon-orange">
+              <RotateCcw size={16} />
+            </div>
+            <p className="kpi-label">RETURN ORDER</p>
+          </div>
+          <h2>{formatCurrency(totalReturns)}</h2>
+        </article>
+      </div>
+
+      {data && data.trendData && (
+        <div className="sales-report-container">
+          {(() => {
+            const step = 50000
+            const rawMaxSales = Math.max(...data.trendData.map(s => s.totalAmount), 0)
+            const rawMaxExpense = Math.max(...data.trendData.map(s => s.totalExpense), 0)
+            const overallMax = Math.max(rawMaxSales, rawMaxExpense, 1)
+            
+            const topValue = Math.ceil(overallMax / step) * step || step
+            const tickCount = topValue / step
+            const yTicks = Array.from({ length: tickCount + 1 }, (_, i) => i * step).reverse()
+            const isDenseTrend = data.trendData.length > 14
+            const chartMinWidth = isDenseTrend ? Math.max(980, data.trendData.length * 62) : null
+
+            return (
+              <div className="report-analytics-grid">
+                {/* Left Side Card: Sales/Expense Trend */}
+                <section className="sales-report-card">
+                  <header className="report-header">
+                    <div className="header-main">
+                      <div className="title-row">
+                        <h3>Sales Report</h3>
+                        <span 
+                          className="trend-refresh" 
+                          style={{ 
+                            opacity: trendLoading ? 1 : 0, 
+                            visibility: trendLoading ? 'visible' : 'hidden',
+                            transition: 'opacity 0.2s',
+                            pointerEvents: 'none'
+                          }}
+                        >
+                          <RefreshCw size={14} className={trendLoading ? 'animate-spin' : ''} />
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div className="period-tabs">
+                          <button 
+                            type="button" 
+                            className={activeTrendPeriod === '12months' ? 'active' : ''}
+                            onClick={() => setActiveTrendPeriod('12months')}
+                          >12 Months</button>
+                          <button 
+                            type="button" 
+                            className={activeTrendPeriod === '6months' ? 'active' : ''}
+                            onClick={() => setActiveTrendPeriod('6months')}
+                          >6 Months</button>
+                          <button 
+                            type="button" 
+                            className={activeTrendPeriod === '30days' ? 'active' : ''}
+                            onClick={() => setActiveTrendPeriod('30days')}
+                          >30 Days</button>
+                          <button 
+                            type="button" 
+                            className={activeTrendPeriod === 'thisMonth' ? 'active' : ''}
+                            onClick={() => setActiveTrendPeriod('thisMonth')}
+                          >This Month</button>
+                          <button 
+                            type="button" 
+                            className={activeTrendPeriod === '7days' ? 'active' : ''}
+                            onClick={() => setActiveTrendPeriod('7days')}
+                          >7 Days</button>
+                        </div>
+
+                        <div className="branch-filter-dropdown" style={{ minWidth: '200px' }}>
+                          <Select
+                            instanceId="branch-filter-select"
+                            options={[{ value: 'all', label: 'All Branches' }, ...branches.map(b => ({ value: b.id, label: b.name }))]}
+                            value={[{ value: 'all', label: 'All Branches' }, ...branches.map(b => ({ value: b.id, label: b.name }))].find(opt => opt.value === selectedBranch) || { value: 'all', label: 'All Branches' }}
+                            onChange={(option) => {
+                              if (option) setSelectedBranch(option.value)
+                            }}
+                            styles={customBranchSelectStyles}
+                            classNamePrefix="react-select"
+                            isSearchable={false}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="report-actions">
+                      <button type="button" className="icon-btn" title="Download"><Download size={18} /></button>
+                      <button type="button" className="icon-btn" title="Options"><MoreHorizontal size={18} /></button>
+                    </div>
+                  </header>
+
+                  <div className={`report-content-wrapper ${trendLoading ? 'loading' : ''}`}>
+                    <div className="chart-container-root">
+                      <div className="chart-legend">
+                        <div className="legend-item">
+                          <span className="dot billing"></span>
+                          <span className="label">Billing</span>
+                        </div>
+                        <div className="legend-item">
+                          <span className="dot expense"></span>
+                          <span className="label">Expense</span>
+                        </div>
+                      </div>
+                      
+                      <div className="chart-wrapper">
+                        <div className="chart-y-axis">
+                          {yTicks.map(tick => (
+                            <div key={tick} className="y-axis-tick">
+                              {formatYAxisLabel(tick)}
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="chart-main-scroll">
+                          <div
+                            className={`chart-main-area${isDenseTrend ? ' dense' : ''}`}
+                            style={chartMinWidth ? { minWidth: `${chartMinWidth}px` } : undefined}
+                          >
+                            <div className="chart-grid-lines">
+                              {yTicks.map(tick => (
+                                <div key={tick} className="grid-line" />
+                              ))}
+                            </div>
+                            
+                            <div className="median-line" 
+                              style={{ 
+                                bottom: `${(data.summary.medianAmount / topValue) * 215 + 25}px` 
+                              }} 
+                            />
+
+                            <div className="chart-bars">
+                              {data.trendData.map((point, idx) => {
+                                const salesHeight = (point.totalAmount / topValue) * 215
+                                const expenseHeight = (point.totalExpense / topValue) * 215
+                                const pointTotal = point.totalAmount + point.totalExpense
+                                const pointBillingPercent = pointTotal > 0 ? (point.totalAmount / pointTotal) * 100 : 0
+                                const pointExpensePercent = pointTotal > 0 ? (point.totalExpense / pointTotal) * 100 : 0
+                                const isCurrent = idx === data.trendData.length - 1
+
+                                return (
+                                  <div className="chart-col" key={`${point.label}-${idx}`}>
+                                    <div className="bar-container">
+                                      <div className="bar-tooltip" style={{ bottom: `${Math.max(salesHeight, expenseHeight) + 25}px` }}>
+                                        <div className="tt-header">{point.fullLabel}</div>
+                                        <div className="tt-row">
+                                          <span className="dot billing"></span>
+                                          <span className="val">{formatCurrency(point.totalAmount)}</span>
+                                        </div>
+                                        <div className="tt-row">
+                                          <span className="dot expense"></span>
+                                          <span className="val">{formatCurrency(point.totalExpense)}</span>
+                                        </div>
+                                      </div>
+                                      <div className="bar-stack">
+                                        <span className="bar-fixed-percent billing">
+                                          {formatPercent(pointBillingPercent)}
+                                        </span>
+                                        <div
+                                          className="bar billing"
+                                          style={{ height: `${Math.max(4, salesHeight)}px` }}
+                                        />
+                                      </div>
+                                      <div className="bar-stack">
+                                        <span className="bar-fixed-percent expense">
+                                          {formatPercent(pointExpensePercent)}
+                                        </span>
+                                        <div
+                                          className="bar expense"
+                                          style={{ height: `${Math.max(4, expenseHeight)}px` }}
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className={`month-label ${isCurrent ? 'active' : ''}`}>
+                                      {point.label.includes('|') ? (
+                                        <>
+                                          <span className="date-num">{point.label.split('|')[0]}</span>
+                                          <span className="day-initial">{point.label.split('|')[1]}</span>
+                                        </>
+                                      ) : (
+                                        point.label
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+              </div>
+            )
+          })()}
+        </div>
+      )}
     </div>
   )
 }

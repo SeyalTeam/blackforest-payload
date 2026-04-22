@@ -149,7 +149,6 @@ if (rawR2Env.S3_ENDPOINT && !r2Env.S3_ENDPOINT) {
 export default buildConfig({
   admin: {
     user: Users.slug,
-    theme: 'dark',
     importMap: {
       baseDir: path.resolve(dirname),
     },
