@@ -952,29 +952,12 @@
       }
     }
 
-    .chart-main-scroll {
-      flex: 1;
-      overflow-x: auto;
-      overflow-y: visible;
-      padding-bottom: 2px;
-
-      &::-webkit-scrollbar {
-        height: 6px;
-      }
-
-      &::-webkit-scrollbar-thumb {
-        background: var(--border-soft);
-        border-radius: 10px;
-      }
-    }
-
     .chart-main-area {
+      flex: 1;
       position: relative;
       display: flex;
       align-items: flex-end;
       height: 240px;
-      width: 100%;
-      min-width: 100%;
 
       .chart-grid-lines {
         position: absolute;
@@ -1201,14 +1184,34 @@
 
       &.dense {
         .chart-bars {
-          justify-content: flex-start;
-          gap: 10px;
-          padding: 0 14px;
+          justify-content: space-between;
+          gap: 2px;
+          padding: 0 4px;
         }
 
         .chart-col {
-          flex: 0 0 56px;
-          max-width: 56px;
+          flex: 1 1 0;
+          max-width: none;
+          min-width: 0;
+        }
+
+        .bar-container {
+          gap: 2px;
+
+          .bar-stack {
+            width: 42%;
+            gap: 2px;
+          }
+
+          .bar-fixed-percent {
+            font-size: 0.52rem;
+            letter-spacing: -0.01em;
+          }
+        }
+
+        .month-label {
+          font-size: 0.62rem;
+          height: 28px;
         }
       }
     }

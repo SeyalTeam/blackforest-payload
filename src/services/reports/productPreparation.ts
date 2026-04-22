@@ -13,6 +13,7 @@ type RawPreparationItem = {
   billCreatedAt: unknown
   billingId: unknown
   chefName: unknown
+  finalLineTotal: unknown
   invoiceNumber: unknown
   kotNumber: unknown
   orderedAt: unknown
@@ -22,6 +23,7 @@ type RawPreparationItem = {
   productName: unknown
   productStandardPreparationTime: unknown
   quantity: unknown
+  subtotal: unknown
 }
 
 export type ProductPreparationStatus = 'exceeded' | 'lower' | 'neutral'
@@ -31,6 +33,7 @@ export type ProductPreparationStatusFilter =
   | 'chef_preparing_time'
 
 export type ProductPreparationBillDetail = {
+  amount: null | number
   billNumber: string
   billingId: string
   chefName: string
@@ -164,6 +167,16 @@ const parsePreparingTimeValue = (value: unknown): null | number => {
 
   const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
   if (!Number.isFinite(parsed) || parsed < 0) return null
+
+  return parsed
+}
+
+const parseAmountValue = (value: unknown): null | number => {
+  if (value == null) return null
+  if (typeof value === 'string' && value.trim().length === 0) return null
+
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
+  if (!Number.isFinite(parsed)) return null
 
   return parsed
 }
@@ -442,6 +455,8 @@ export const getProductPreparationBillDetailsData = async (
             orderedAt: '$items.orderedAt',
             preparedAt: '$items.preparedAt',
             preparingTime: '$items.preparingTime',
+            finalLineTotal: '$items.finalLineTotal',
+            subtotal: '$items.subtotal',
             productName: '$productDetails.name',
             productStandardPreparationTime: '$productDetails.preparationTime',
             chefName: '$chefDetails.name',
@@ -481,8 +496,10 @@ export const getProductPreparationBillDetailsData = async (
       const configuredPerUnit = parsePreparingTimeValue(row.productStandardPreparationTime)
       const totalStandardTime =
         configuredPerUnit != null && configuredPerUnit > 0 ? configuredPerUnit * quantity : null
+      const amount = parseAmountValue(row.finalLineTotal) ?? parseAmountValue(row.subtotal) ?? null
 
       return {
+        amount,
         billNumber: resolveBillNumber(row),
         billingId: toId(row.billingId) || '',
         chefName: typeof row.chefName === 'string' ? row.chefName : '--',
@@ -518,6 +535,7 @@ export const getProductPreparationBillDetailsData = async (
     .map((item) => ({
       billNumber: item.billNumber,
       billingId: item.billingId,
+      amount: item.amount,
       chefName: item.chefName,
       chefPreparationTime: item.chefPreparationTime,
       orderedAt: item.orderedAt,

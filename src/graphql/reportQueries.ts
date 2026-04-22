@@ -616,6 +616,7 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
     fields: {
       billingId: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       billNumber: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+      amount: { type: graphQL.GraphQLFloat },
       productId: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       productName: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       orderedAt: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },

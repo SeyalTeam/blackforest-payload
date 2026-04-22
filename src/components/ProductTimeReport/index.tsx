@@ -46,6 +46,7 @@ type ProductPreparationBillDetailsQueryResponse = {
     productPreparationBillDetailsReport?: {
       availableChefs?: Array<{ id?: unknown; name?: unknown }>
       details?: Array<{
+        amount?: unknown
         billNumber?: unknown
         billingId?: unknown
         chefName?: unknown
@@ -79,6 +80,7 @@ const PRODUCT_PREPARATION_BILL_DETAILS_QUERY = `
       details {
         billingId
         billNumber
+        amount
         productId
         productName
         orderedAt
@@ -409,6 +411,7 @@ const ProductTimeReport: React.FC = () => {
         const details = Array.isArray(report.details)
           ? report.details.map((entry) => {
               const mapped = {
+                amount: typeof entry.amount === 'number' && Number.isFinite(entry.amount) ? entry.amount : null,
                 billingId: typeof entry.billingId === 'string' ? entry.billingId.trim() : '',
                 billNumber:
                   typeof entry.billNumber === 'string' && entry.billNumber.trim().length > 0
@@ -676,6 +679,89 @@ const ProductTimeReport: React.FC = () => {
     selectedChef !== 'all' ||
     selectedStatus !== 'all'
 
+  const statusSummaryCards = useMemo(() => {
+    const summary = {
+      totalAmount: 0,
+      totalCount: 0,
+      exceededAmount: 0,
+      exceededCount: 0,
+      lowerAmount: 0,
+      lowerCount: 0,
+      neutralAmount: 0,
+      neutralCount: 0,
+      chefPrepGivenAmount: 0,
+      chefPrepGivenCount: 0,
+    }
+
+    displayDetails.forEach((entry) => {
+      const rowAmount = toFiniteNumber(entry.amount) ?? 0
+      summary.totalAmount += rowAmount
+      summary.totalCount += 1
+      if (entry.status === 'exceeded') {
+        summary.exceededAmount += rowAmount
+        summary.exceededCount += 1
+      }
+      if (entry.status === 'lower') {
+        summary.lowerAmount += rowAmount
+        summary.lowerCount += 1
+      }
+      if (entry.status === 'neutral') {
+        summary.neutralAmount += rowAmount
+        summary.neutralCount += 1
+      }
+      if (entry.chefPreparationTime != null) {
+        summary.chefPrepGivenAmount += rowAmount
+        summary.chefPrepGivenCount += 1
+      }
+    })
+
+    return [
+      {
+        key: 'total',
+        label: 'Total Amount',
+        amount: summary.totalAmount,
+        count: summary.totalCount,
+        tone: 'total',
+      },
+      {
+        key: 'exceeded',
+        label: 'Exceeded Amount',
+        amount: summary.exceededAmount,
+        count: summary.exceededCount,
+        tone: 'exceeded',
+      },
+      {
+        key: 'lower',
+        label: 'Lower Amount',
+        amount: summary.lowerAmount,
+        count: summary.lowerCount,
+        tone: 'lower',
+      },
+      {
+        key: 'neutral',
+        label: 'Neutral Amount',
+        amount: summary.neutralAmount,
+        count: summary.neutralCount,
+        tone: 'neutral',
+      },
+      {
+        key: 'chef-prep',
+        label: 'Chef Prep Amount',
+        amount: summary.chefPrepGivenAmount,
+        count: summary.chefPrepGivenCount,
+        tone: 'chef-prep',
+      },
+    ] as const
+  }, [displayDetails])
+
+  const formatSummaryAmount = (value: number): string => {
+    const minFractionDigits = Number.isInteger(value) ? 0 : 2
+    return `₹ ${value.toLocaleString('en-IN', {
+      minimumFractionDigits: minFractionDigits,
+      maximumFractionDigits: 2,
+    })}`
+  }
+
   const handleClearAllFilters = () => {
     setSelectedBranch('')
     setSelectedKitchen('')
@@ -854,6 +940,16 @@ const ProductTimeReport: React.FC = () => {
             />
           </svg>
         </button>
+      </div>
+
+      <div className="pt-status-summary-row">
+        {statusSummaryCards.map((card) => (
+          <div key={card.key} className={`pt-status-summary-card tone-${card.tone}`}>
+            <p className="pt-status-summary-title">{card.label}</p>
+            <p className="pt-status-summary-value">{formatSummaryAmount(card.amount)}</p>
+            <p className="pt-status-summary-count">order count: {formatCount(card.count)}</p>
+          </div>
+        ))}
       </div>
 
       {error && <p className="state error">{error}</p>}

@@ -1224,15 +1224,15 @@ const StockOrderReport: React.FC = () => {
                     >
                       <div
                         style={{
-                          color: '#000000',
+                          color: '#ffffff',
                           fontWeight: 700,
                           letterSpacing: '0.06em',
                           fontSize: '0.9rem',
                           textAlign: 'center',
-                          backgroundColor: '#e5e7eb',
+                          backgroundColor: 'var(--theme-elevation-100)',
                           width: '100%',
                           padding: '5px 10px',
-                          borderBottom: '1px solid #bfc6d1',
+                          borderBottom: '1px solid var(--theme-elevation-250)',
                         }}
                       >
                         {card.title}

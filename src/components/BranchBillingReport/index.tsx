@@ -1012,7 +1012,6 @@ const BranchBillingReport: React.FC = () => {
             const tickCount = topValue / step
             const yTicks = Array.from({ length: tickCount + 1 }, (_, i) => i * step).reverse()
             const isDenseTrend = data.trendData.length > 14
-            const chartMinWidth = isDenseTrend ? Math.max(980, data.trendData.length * 62) : null
 
             return (
               <div className="report-analytics-grid">
@@ -1106,11 +1105,7 @@ const BranchBillingReport: React.FC = () => {
                           ))}
                         </div>
 
-                        <div className="chart-main-scroll">
-                          <div
-                            className={`chart-main-area${isDenseTrend ? ' dense' : ''}`}
-                            style={chartMinWidth ? { minWidth: `${chartMinWidth}px` } : undefined}
-                          >
+                        <div className={`chart-main-area${isDenseTrend ? ' dense' : ''}`}>
                             <div className="chart-grid-lines">
                               {yTicks.map(tick => (
                                 <div key={tick} className="grid-line" />
@@ -1130,6 +1125,12 @@ const BranchBillingReport: React.FC = () => {
                                 const pointTotal = point.totalAmount + point.totalExpense
                                 const pointBillingPercent = pointTotal > 0 ? (point.totalAmount / pointTotal) * 100 : 0
                                 const pointExpensePercent = pointTotal > 0 ? (point.totalExpense / pointTotal) * 100 : 0
+                                const pointBillingPercentLabel = isDenseTrend
+                                  ? `${Math.round(pointBillingPercent)}%`
+                                  : formatPercent(pointBillingPercent)
+                                const pointExpensePercentLabel = isDenseTrend
+                                  ? `${Math.round(pointExpensePercent)}%`
+                                  : formatPercent(pointExpensePercent)
                                 const isCurrent = idx === data.trendData.length - 1
 
                                 return (
@@ -1148,7 +1149,7 @@ const BranchBillingReport: React.FC = () => {
                                       </div>
                                       <div className="bar-stack">
                                         <span className="bar-fixed-percent billing">
-                                          {formatPercent(pointBillingPercent)}
+                                          {pointBillingPercentLabel}
                                         </span>
                                         <div
                                           className="bar billing"
@@ -1157,7 +1158,7 @@ const BranchBillingReport: React.FC = () => {
                                       </div>
                                       <div className="bar-stack">
                                         <span className="bar-fixed-percent expense">
-                                          {formatPercent(pointExpensePercent)}
+                                          {pointExpensePercentLabel}
                                         </span>
                                         <div
                                           className="bar expense"
@@ -1179,7 +1180,6 @@ const BranchBillingReport: React.FC = () => {
                                 )
                               })}
                             </div>
-                          </div>
                         </div>
                       </div>
                     </div>
