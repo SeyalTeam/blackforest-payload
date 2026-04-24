@@ -40,10 +40,11 @@ export const Branches: CollectionConfig = {
     {
       name: 'branchPin',
       type: 'text',
-      label: 'Branch Login PIN (4 digits)',
+      label: 'Branch Login PIN (Daily, 4 digits)',
       admin: {
+        readOnly: true,
         description:
-          'Optional fallback PIN used to identify this branch when WiFi/IP detection fails during staff login.',
+          'Auto-generated every day (IST). Use this PIN only when staff login fails due to WiFi/IP/location issues.',
       },
       validate: (value: unknown) => {
         if (value == null || value === '') return true
@@ -130,7 +131,7 @@ export const Branches: CollectionConfig = {
   ],
   hooks: {
     beforeChange: [
-      async ({ data, req, operation, originalDoc }) => {
+      async ({ data, req, operation, originalDoc, context }) => {
         const nextData = (data || {}) as Record<string, unknown>
         const rawBranchPin = nextData.branchPin
         const normalizedBranchPin =
@@ -147,6 +148,13 @@ export const Branches: CollectionConfig = {
             : undefined)
 
         if (!resolvedBranchPin) {
+          return nextData
+        }
+
+        const skipUniquenessCheck =
+          (context as { skipBranchPinUniquenessCheck?: boolean } | undefined)
+            ?.skipBranchPinUniquenessCheck === true
+        if (skipUniquenessCheck) {
           return nextData
         }
 
