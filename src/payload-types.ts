@@ -273,7 +273,7 @@ export interface Branch {
   phone: string;
   email: string;
   /**
-   * Optional fallback PIN used to identify this branch when WiFi/IP detection fails during staff login.
+   * Auto-generated every day (IST). Use this PIN only when staff login fails due to WiFi/IP/location issues.
    */
   branchPin?: string | null;
   /**

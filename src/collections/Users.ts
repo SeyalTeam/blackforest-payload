@@ -1,132 +1,10 @@
-import { createHash } from 'crypto'
 import type { CollectionConfig, PayloadRequest } from 'payload'
 import { isIPAllowed } from '../utilities/ipCheck'
 import { getDistanceFromLatLonInMeters } from '../utilities/geo'
 import type { IpSetting } from '../payload-types'
+import { ensureDailyBranchPins } from '../utilities/branchPins'
 
 const BRANCH_PIN_REGEX = /^\d{4}$/
-const BRANCH_PIN_TIMEZONE = 'Asia/Kolkata'
-const BRANCH_PIN_SECRET =
-  process.env.BRANCH_PIN_DAILY_SECRET?.trim() || 'blackforest-branch-pin-secret'
-const MAX_DAILY_BRANCH_PINS = 10000
-
-let lastDailyBranchPinSyncDate: string | null = null
-let dailyBranchPinSyncPromise: Promise<void> | null = null
-
-type BranchPinDoc = {
-  id: string
-  branchPin?: string | null
-}
-
-const getISTDateKey = (date: Date = new Date()): string =>
-  date.toLocaleDateString('en-CA', { timeZone: BRANCH_PIN_TIMEZONE })
-
-const toPinString = (value: number): string => value.toString().padStart(4, '0')
-
-const hashSeedToNumber = (seed: string): number => {
-  const digest = createHash('sha256').update(seed).digest()
-  return digest.readUInt32BE(0)
-}
-
-const buildDailyPinMap = (branchIDs: string[], dateKey: string): Map<string, string> => {
-  const sortedBranchIDs = [...branchIDs].sort((a, b) => a.localeCompare(b))
-  const usedPins = new Set<string>()
-  const pinByBranchID = new Map<string, string>()
-
-  for (const branchID of sortedBranchIDs) {
-    const baseNumber = hashSeedToNumber(`${BRANCH_PIN_SECRET}:${dateKey}:${branchID}`) % 10000
-    let resolvedPin: string | null = null
-
-    for (let offset = 0; offset < 10000; offset += 1) {
-      const candidatePin = toPinString((baseNumber + offset) % 10000)
-      if (!usedPins.has(candidatePin)) {
-        usedPins.add(candidatePin)
-        resolvedPin = candidatePin
-        break
-      }
-    }
-
-    if (!resolvedPin) {
-      throw new Error('Unable to assign a unique daily 4-digit PIN for all branches.')
-    }
-
-    pinByBranchID.set(branchID, resolvedPin)
-  }
-
-  return pinByBranchID
-}
-
-const ensureDailyBranchPins = async (req: PayloadRequest): Promise<void> => {
-  const dateKey = getISTDateKey()
-
-  if (lastDailyBranchPinSyncDate === dateKey) {
-    return
-  }
-
-  if (dailyBranchPinSyncPromise) {
-    await dailyBranchPinSyncPromise
-    return
-  }
-
-  dailyBranchPinSyncPromise = (async () => {
-    const branchResult = await req.payload.find({
-      collection: 'branches',
-      depth: 0,
-      pagination: false,
-      limit: MAX_DAILY_BRANCH_PINS,
-      overrideAccess: true,
-    })
-
-    const branches = (branchResult.docs || []) as BranchPinDoc[]
-    if (branches.length === 0) {
-      lastDailyBranchPinSyncDate = dateKey
-      return
-    }
-
-    if (branches.length > MAX_DAILY_BRANCH_PINS) {
-      throw new Error('Daily PIN rotation supports at most 10,000 branches.')
-    }
-
-    const pinByBranchID = buildDailyPinMap(
-      branches.map((branch) => String(branch.id)),
-      dateKey,
-    )
-
-    const branchesToUpdate = branches.filter((branch) => {
-      const branchID = String(branch.id)
-      const nextPin = pinByBranchID.get(branchID)
-      const currentPin =
-        typeof branch.branchPin === 'string' ? branch.branchPin.trim() : ''
-      return Boolean(nextPin && currentPin !== nextPin)
-    })
-
-    for (const branch of branchesToUpdate) {
-      const branchID = String(branch.id)
-      const nextPin = pinByBranchID.get(branchID)
-      if (!nextPin) continue
-
-      await req.payload.update({
-        collection: 'branches',
-        id: branchID,
-        data: {
-          branchPin: nextPin,
-        } as any,
-        depth: 0,
-        overrideAccess: true,
-        context: {
-          skipBranchPinUniquenessCheck: true,
-          branchPinRotationDate: dateKey,
-        } as any,
-      })
-    }
-
-    lastDailyBranchPinSyncDate = dateKey
-  })().finally(() => {
-    dailyBranchPinSyncPromise = null
-  })
-
-  await dailyBranchPinSyncPromise
-}
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -559,6 +437,7 @@ export const Users: CollectionConfig = {
           if (!branchPin) return null
           if (pinMatchedBranch !== undefined) return pinMatchedBranch
 
+          console.log(`[Login Debug] Resolving branch for PIN: ${branchPin}`)
           const branchResult = await req.payload.find({
             collection: 'branches',
             where: {
@@ -572,8 +451,13 @@ export const Users: CollectionConfig = {
           })
 
           const matchedBranch = branchResult.docs[0]
+          if (matchedBranch) {
+            console.log(`[Login Debug] PIN ${branchPin} matched branch: ${matchedBranch.name} (${matchedBranch.id})`)
+          } else {
+            console.warn(`[Login Debug] PIN ${branchPin} matched NO branches.`)
+          }
           pinMatchedBranch = matchedBranch
-            ? { id: String(matchedBranch.id), name: matchedBranch.name }
+            ? { id: String(matchedBranch.id), name: (matchedBranch as any).name }
             : null
           return pinMatchedBranch
         }
@@ -644,17 +528,17 @@ export const Users: CollectionConfig = {
           const privateIp = typeof privateIpHeader === 'string' ? privateIpHeader.trim() : null
 
           if (user.branch) {
-            const userBranchId = (
-              typeof user.branch === 'string' ? user.branch : (user.branch as { id: string }).id
-            ).toString()
+            const userBranchId = String(
+              typeof user.branch === 'string' ? user.branch : (user.branch as { id: string }).id,
+            )
             console.log(`[Login Debug] User Branch ID: ${userBranchId}, Public IP: ${publicIp}`)
 
             // A. Check Branch-specific IP from BranchGeoSettings (New)
             if (geoSettings?.locations) {
               const branchGeo = geoSettings.locations.find((loc: any) => {
-                const locBranchId = (
-                  typeof loc.branch === 'string' ? loc.branch : loc.branch?.id
-                )?.toString()
+                const locBranchId = String(
+                  (typeof loc.branch === 'string' ? loc.branch : loc.branch?.id) || '',
+                )
                 return locBranchId === userBranchId
               })
 
@@ -798,6 +682,98 @@ export const Users: CollectionConfig = {
           }
         }
 
+        // If IP is good, we are done
+        if (isIpAuthorized) {
+          console.log(`[Login Success] Authorized by IP for ${user.email}`)
+          return
+        }
+
+        // --- 2. Geo Location Check (Fallback) ---
+        let isGeoAuthorized = false
+
+        const geoCheckRequiredRoles = ['branch', 'kitchen', 'cashier', 'waiter', 'supervisor']
+
+        // Check if user has a branch/role that requires geo-lock
+        if (user.branch && geoCheckRequiredRoles.includes(user.role)) {
+          try {
+            const geoSettingsResult = await req.payload.findGlobal({
+              slug: 'branch-geo-settings' as any,
+            })
+            const geoSettings = geoSettingsResult as any
+
+            if (geoSettings?.locations) {
+              const userBranchId = String(
+                typeof user.branch === 'string' ? user.branch : (user.branch as { id: string }).id,
+              )
+
+              const branchGeo = geoSettings.locations.find((loc: any) => {
+                const locBranchId = String(
+                  (typeof loc.branch === 'string' ? loc.branch : loc.branch?.id) || '',
+                )
+                return locBranchId === userBranchId
+              })
+
+              if (branchGeo) {
+                const { latitude: targetLat, longitude: targetLon, radius } = branchGeo
+
+                // Only check if coordinates are configured
+                if (targetLat !== undefined && targetLon !== undefined) {
+                  let headerLat: string | null = null
+                  let headerLon: string | null = null
+                  if (req.headers && typeof req.headers.get === 'function') {
+                    headerLat = req.headers.get('x-latitude')
+                    headerLon = req.headers.get('x-longitude')
+                  }
+
+                  if (headerLat && headerLon) {
+                    const userLat = parseFloat(headerLat)
+                    const userLon = parseFloat(headerLon)
+
+                    if (!isNaN(userLat) && !isNaN(userLon)) {
+                      const distance = getDistanceFromLatLonInMeters(
+                        userLat,
+                        userLon,
+                        targetLat,
+                        targetLon,
+                      )
+                      const allowedRadius = radius || 100
+
+                      if (distance <= allowedRadius) {
+                        isGeoAuthorized = true
+                        console.log(
+                          `[Login Success] Authorized by Geo-location for ${user.email}. Distance: ${distance.toFixed(2)}m`,
+                        )
+                      } else {
+                        console.warn(
+                          `[Login Debug] Geo Check Failed for ${user.email}: Distance ${distance.toFixed(2)}m > ${allowedRadius}m`,
+                        )
+                      }
+                    } else {
+                      console.warn(
+                        `[Login Debug] Geo Check Skipped for ${user.email}: Invalid coordinates in headers (${headerLat}, ${headerLon})`,
+                      )
+                    }
+                  } else {
+                    console.warn(
+                      `[Login Debug] Geo Check Skipped for ${user.email}: No GPS headers provided.`,
+                    )
+                  }
+                } else {
+                  console.warn(
+                    `[Login Debug] Geo Check Skipped for ${user.email}: Branch ${userBranchId} has no coordinates configured in Geo Settings.`,
+                  )
+                }
+              } else {
+                console.warn(
+                  `[Login Debug] Geo Check Skipped for ${user.email}: Branch ${userBranchId} not found in Geo Settings locations.`,
+                )
+              }
+            }
+          } catch (error) {
+            console.error('[Login Debug] Geo Check Error:', error)
+          }
+        }
+
         // If Geo is good, we are done
         if (isGeoAuthorized) return
 
@@ -809,14 +785,21 @@ export const Users: CollectionConfig = {
               const userBranchID = getRelationshipID(user.branch)
               const enforceBranchMatch = strictBranchAssignmentRoles.includes(user.role)
               if (enforceBranchMatch && userBranchID && userBranchID !== matchedBranch.id) {
+                console.warn(
+                  `[Login Debug] PIN Fallback Failed for ${user.email}: PIN matches branch ${matchedBranch.id} but user is assigned to ${userBranchID}`,
+                )
                 throw new Error('Branch PIN does not match your assigned branch.')
               }
 
               await attachBranchToUser(matchedBranch.id)
-              console.log(`[Login Debug] SUCCESS: Authorized by Branch PIN fallback`)
+              console.log(
+                `[Login Success] Authorized by Branch PIN fallback for ${user.email} (Branch: ${matchedBranch.name || matchedBranch.id})`,
+              )
               return
             }
-            console.warn('[Login Debug] Branch PIN fallback failed: no branch matched the PIN.')
+            console.warn(
+              `[Login Debug] PIN Fallback Failed for ${user.email}: Entered PIN ${branchPin} matched no branches.`,
+            )
           } catch (error) {
             if (
               error instanceof Error &&
@@ -829,13 +812,9 @@ export const Users: CollectionConfig = {
         }
 
         // --- 4. Final Decision ---
-        // If we are here, it means:
-        // 1. IP Check failed (or didn't run effectively but restriction exists).
-        // 2. Geo Check failed (or didn't run effectively but might be required).
-
-        // If the user role WAS restricted by IP, and IP failed, AND Geo failed (or wasn't setup), DENY.
-        // If the user role WAS NOT restricted by IP (isIpAuthorized was true), we returned early.
-        // So we only reach here if isIpAuthorized is false (meaning restriction existed and failed).
+        console.warn(
+          `[Login Denied] ${user.email} failed all checks. IP Authorized: ${isIpAuthorized}, Geo Authorized: ${isGeoAuthorized}, PIN provided: ${Boolean(branchPin)}`,
+        )
 
         // Construct error message depending on what failed
         if (isIpRestrictedRole || (geoCheckRequiredRoles.includes(user.role) && user.branch)) {

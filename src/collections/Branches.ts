@@ -1,9 +1,78 @@
 import type { CollectionConfig } from 'payload'
+import { ensureDailyBranchPins } from '../utilities/branchPins'
 
 export const Branches: CollectionConfig = {
   slug: 'branches',
   admin: {
     useAsTitle: 'name',
+  },
+  hooks: {
+    beforeRead: [
+      async ({ req }) => {
+        try {
+          await ensureDailyBranchPins(req)
+        } catch (e) {
+          console.error('[Branch PIN] Auto-rotation during read failed:', e)
+        }
+      },
+    ],
+    beforeChange: [
+      async ({ data, req, operation, originalDoc, context }) => {
+        const nextData = (data || {}) as Record<string, unknown>
+        const rawBranchPin = nextData.branchPin
+        const normalizedBranchPin =
+          typeof rawBranchPin === 'string' ? rawBranchPin.trim() : undefined
+
+        if (typeof normalizedBranchPin === 'string') {
+          nextData.branchPin = normalizedBranchPin
+        }
+
+        const resolvedBranchPin =
+          normalizedBranchPin ||
+          (operation === 'update'
+            ? (originalDoc as { branchPin?: string | null } | undefined)?.branchPin?.trim()
+            : undefined)
+
+        if (!resolvedBranchPin) {
+          return nextData
+        }
+
+        const skipUniquenessCheck =
+          (context as { skipBranchPinUniquenessCheck?: boolean } | undefined)
+            ?.skipBranchPinUniquenessCheck === true
+        if (skipUniquenessCheck) {
+          return nextData
+        }
+
+        const existingBranches = await req.payload.find({
+          collection: 'branches',
+          where: {
+            branchPin: {
+              equals: resolvedBranchPin,
+            },
+          },
+          limit: 2,
+          depth: 0,
+          overrideAccess: true,
+        })
+
+        const currentBranchID =
+          operation === 'update'
+            ? String((originalDoc as { id?: string } | undefined)?.id || '')
+            : ''
+        const duplicateBranch = existingBranches.docs.find(
+          (branch) => String(branch.id) !== currentBranchID,
+        )
+
+        if (duplicateBranch) {
+          throw new Error(
+            `Branch PIN ${resolvedBranchPin} is already assigned to ${duplicateBranch.name}. Use a unique 4-digit PIN.`,
+          )
+        }
+
+        return nextData
+      },
+    ],
   },
   fields: [
     {
@@ -129,65 +198,6 @@ export const Branches: CollectionConfig = {
       },
     },
   ],
-  hooks: {
-    beforeChange: [
-      async ({ data, req, operation, originalDoc, context }) => {
-        const nextData = (data || {}) as Record<string, unknown>
-        const rawBranchPin = nextData.branchPin
-        const normalizedBranchPin =
-          typeof rawBranchPin === 'string' ? rawBranchPin.trim() : undefined
-
-        if (typeof normalizedBranchPin === 'string') {
-          nextData.branchPin = normalizedBranchPin
-        }
-
-        const resolvedBranchPin =
-          normalizedBranchPin ||
-          (operation === 'update'
-            ? (originalDoc as { branchPin?: string | null } | undefined)?.branchPin?.trim()
-            : undefined)
-
-        if (!resolvedBranchPin) {
-          return nextData
-        }
-
-        const skipUniquenessCheck =
-          (context as { skipBranchPinUniquenessCheck?: boolean } | undefined)
-            ?.skipBranchPinUniquenessCheck === true
-        if (skipUniquenessCheck) {
-          return nextData
-        }
-
-        const existingBranches = await req.payload.find({
-          collection: 'branches',
-          where: {
-            branchPin: {
-              equals: resolvedBranchPin,
-            },
-          },
-          limit: 2,
-          depth: 0,
-          overrideAccess: true,
-        })
-
-        const currentBranchID =
-          operation === 'update'
-            ? String((originalDoc as { id?: string } | undefined)?.id || '')
-            : ''
-        const duplicateBranch = existingBranches.docs.find(
-          (branch) => String(branch.id) !== currentBranchID,
-        )
-
-        if (duplicateBranch) {
-          throw new Error(
-            `Branch PIN ${resolvedBranchPin} is already assigned to ${duplicateBranch.name}. Use a unique 4-digit PIN.`,
-          )
-        }
-
-        return nextData
-      },
-    ],
-  },
   access: {
     create: ({ req }) => req.user?.role === 'superadmin',
     read: () => true,
