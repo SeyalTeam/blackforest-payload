@@ -38,6 +38,23 @@ export const Branches: CollectionConfig = {
       required: true,
     },
     {
+      name: 'branchPin',
+      type: 'text',
+      label: 'Branch Login PIN (3 digits)',
+      admin: {
+        description:
+          'Optional fallback PIN used to identify this branch when WiFi/IP detection fails during staff login.',
+      },
+      validate: (value: unknown) => {
+        if (value == null || value === '') return true
+        if (typeof value !== 'string') return 'Branch PIN must be exactly 3 digits.'
+        if (!/^\d{3}$/.test(value.trim())) {
+          return 'Branch PIN must be exactly 3 digits (e.g., 042).'
+        }
+        return true
+      },
+    },
+    {
       name: 'ipAddress',
       type: 'text',
       label: 'Branch IP Address (from ISP)',
@@ -111,6 +128,58 @@ export const Branches: CollectionConfig = {
       },
     },
   ],
+  hooks: {
+    beforeChange: [
+      async ({ data, req, operation, originalDoc }) => {
+        const nextData = (data || {}) as Record<string, unknown>
+        const rawBranchPin = nextData.branchPin
+        const normalizedBranchPin =
+          typeof rawBranchPin === 'string' ? rawBranchPin.trim() : undefined
+
+        if (typeof normalizedBranchPin === 'string') {
+          nextData.branchPin = normalizedBranchPin
+        }
+
+        const resolvedBranchPin =
+          normalizedBranchPin ||
+          (operation === 'update'
+            ? (originalDoc as { branchPin?: string | null } | undefined)?.branchPin?.trim()
+            : undefined)
+
+        if (!resolvedBranchPin) {
+          return nextData
+        }
+
+        const existingBranches = await req.payload.find({
+          collection: 'branches',
+          where: {
+            branchPin: {
+              equals: resolvedBranchPin,
+            },
+          },
+          limit: 2,
+          depth: 0,
+          overrideAccess: true,
+        })
+
+        const currentBranchID =
+          operation === 'update'
+            ? String((originalDoc as { id?: string } | undefined)?.id || '')
+            : ''
+        const duplicateBranch = existingBranches.docs.find(
+          (branch) => String(branch.id) !== currentBranchID,
+        )
+
+        if (duplicateBranch) {
+          throw new Error(
+            `Branch PIN ${resolvedBranchPin} is already assigned to ${duplicateBranch.name}. Use a unique 3-digit PIN.`,
+          )
+        }
+
+        return nextData
+      },
+    ],
+  },
   access: {
     create: ({ req }) => req.user?.role === 'superadmin',
     read: () => true,
@@ -125,7 +194,7 @@ export const Branches: CollectionConfig = {
       }
       return false
     },
-    },
+  },
   indexes: [
     {
       fields: ['company'],

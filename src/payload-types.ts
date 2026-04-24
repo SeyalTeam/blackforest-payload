@@ -273,6 +273,10 @@ export interface Branch {
   phone: string;
   email: string;
   /**
+   * Optional fallback PIN used to identify this branch when WiFi/IP detection fails during staff login.
+   */
+  branchPin?: string | null;
+  /**
    * Public IP for auto-detecting branch on login (e.g., 192.0.2.1). Fetch via whatismyip.com at branch.
    */
   ipAddress?: string | null;
@@ -1296,6 +1300,7 @@ export interface BranchesSelect<T extends boolean = true> {
   gst?: T;
   phone?: T;
   email?: T;
+  branchPin?: T;
   ipAddress?: T;
   printerIp?: T;
   inventoryResetDate?: T;

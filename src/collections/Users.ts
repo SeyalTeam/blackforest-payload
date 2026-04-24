@@ -379,6 +379,119 @@ export const Users: CollectionConfig = {
 
         if (user.role === 'superadmin') return
 
+        const getRelationshipID = (value: unknown): string | null => {
+          if (!value) return null
+          if (typeof value === 'string') return value
+          if (typeof value === 'object' && value !== null && 'id' in value) {
+            const id = (value as { id?: unknown }).id
+            return typeof id === 'string' ? id : null
+          }
+          return null
+        }
+
+        const normalizeBranchPin = (value: unknown): string | null => {
+          if (typeof value !== 'string') return null
+          const normalized = value.trim()
+          if (!/^\d{3}$/.test(normalized)) return null
+          return normalized
+        }
+
+        const staffBranchPinRoles = [
+          'branch',
+          'kitchen',
+          'waiter',
+          'cashier',
+          'supervisor',
+          'delivery',
+          'driver',
+          'chef',
+        ]
+
+        const requestBody = (req as { body?: unknown } | undefined)?.body
+        const branchPinFromBody =
+          requestBody && typeof requestBody === 'object' && requestBody !== null
+            ? normalizeBranchPin((requestBody as { branchPin?: unknown }).branchPin)
+            : null
+
+        let branchPinFromHeader: string | null = null
+        if (req.headers && typeof req.headers.get === 'function') {
+          branchPinFromHeader =
+            normalizeBranchPin(req.headers.get('x-branch-pin')) ||
+            normalizeBranchPin(req.headers.get('x-branch-code'))
+        }
+
+        const branchPin = branchPinFromHeader || branchPinFromBody
+        let pinMatchedBranch: { id: string; name?: string } | null | undefined
+
+        const resolveBranchByPin = async () => {
+          if (!branchPin) return null
+          if (pinMatchedBranch !== undefined) return pinMatchedBranch
+
+          const branchResult = await req.payload.find({
+            collection: 'branches',
+            where: {
+              branchPin: {
+                equals: branchPin,
+              },
+            },
+            limit: 2,
+            depth: 0,
+            overrideAccess: true,
+          })
+
+          const matchedBranch = branchResult.docs[0]
+          pinMatchedBranch = matchedBranch
+            ? { id: String(matchedBranch.id), name: matchedBranch.name }
+            : null
+          return pinMatchedBranch
+        }
+
+        const attachBranchToUser = async (branchID: string) => {
+          const currentBranchID = getRelationshipID(user.branch)
+          if (currentBranchID === branchID) {
+            ;(user as { branch?: unknown }).branch = branchID
+            return
+          }
+
+          await req.payload.update({
+            collection: 'users',
+            id: user.id,
+            data: {
+              branch: branchID,
+            } as any,
+            depth: 0,
+            overrideAccess: true,
+          })
+
+          ;(user as { branch?: unknown }).branch = branchID
+        }
+
+        // Branch PIN can set the branch context before network checks (useful for waiter logins).
+        if (branchPin && staffBranchPinRoles.includes(user.role)) {
+          try {
+            const matchedBranch = await resolveBranchByPin()
+            if (matchedBranch) {
+              const userBranchID = getRelationshipID(user.branch)
+              if (userBranchID && userBranchID !== matchedBranch.id) {
+                throw new Error('Branch PIN does not match your assigned branch.')
+              }
+
+              await attachBranchToUser(matchedBranch.id)
+              console.log(
+                `[Login Debug] Branch resolved via PIN for ${user.email}: ${matchedBranch.name || matchedBranch.id}`,
+              )
+            }
+          } catch (error) {
+            if (
+              error instanceof Error &&
+              error.message === 'Branch PIN does not match your assigned branch.'
+            ) {
+              throw error
+            }
+            console.error('[Login Debug] Branch PIN pre-check error:', error)
+          }
+        }
+
         // Skip IP check in development mode
         if (process.env.NODE_ENV === 'development') {
           return
@@ -570,7 +683,33 @@ export const Users: CollectionConfig = {
         // If Geo is good, we are done
         if (isGeoAuthorized) return
 
-        // --- 3. Final Decision ---
+        // --- 3. Branch PIN Fallback ---
+        if (branchPin && staffBranchPinRoles.includes(user.role)) {
+          try {
+            const matchedBranch = await resolveBranchByPin()
+            if (matchedBranch) {
+              const userBranchID = getRelationshipID(user.branch)
+              if (userBranchID && userBranchID !== matchedBranch.id) {
+                throw new Error('Branch PIN does not match your assigned branch.')
+              }
+
+              await attachBranchToUser(matchedBranch.id)
+              console.log(`[Login Debug] SUCCESS: Authorized by Branch PIN fallback`)
+              return
+            }
+            console.warn('[Login Debug] Branch PIN fallback failed: no branch matched the PIN.')
+          } catch (error) {
+            if (
+              error instanceof Error &&
+              error.message === 'Branch PIN does not match your assigned branch.'
+            ) {
+              throw error
+            }
+            console.error('[Login Debug] Branch PIN fallback error:', error)
+          }
+        }
+
+        // --- 4. Final Decision ---
         // If we are here, it means:
         // 1. IP Check failed (or didn't run effectively but restriction exists).
         // 2. Geo Check failed (or didn't run effectively but might be required).
@@ -582,7 +721,7 @@ export const Users: CollectionConfig = {
         // Construct error message depending on what failed
         if (isIpRestrictedRole || (geoCheckRequiredRoles.includes(user.role) && user.branch)) {
           throw new Error(
-            'Login Failed: You must be connected to the Branch WiFi OR be at the shop location (GPS enabled).',
+            'Login Failed: You must be connected to Branch WiFi, be at the shop location (GPS enabled), or provide a valid 3-digit Branch PIN.',
           )
         }
       },
