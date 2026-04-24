@@ -392,7 +392,7 @@ export const Users: CollectionConfig = {
         const normalizeBranchPin = (value: unknown): string | null => {
           if (typeof value !== 'string') return null
           const normalized = value.trim()
-          if (!/^\d{3}$/.test(normalized)) return null
+          if (!/^\d{4}$/.test(normalized)) return null
           return normalized
         }
 
@@ -721,7 +721,7 @@ export const Users: CollectionConfig = {
         // Construct error message depending on what failed
         if (isIpRestrictedRole || (geoCheckRequiredRoles.includes(user.role) && user.branch)) {
           throw new Error(
-            'Login Failed: You must be connected to Branch WiFi, be at the shop location (GPS enabled), or provide a valid 3-digit Branch PIN.',
+            'Login Failed: You must be connected to Branch WiFi, be at the shop location (GPS enabled), or provide a valid 4-digit Branch PIN.',
           )
         }
       },

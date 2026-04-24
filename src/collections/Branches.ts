@@ -40,16 +40,16 @@ export const Branches: CollectionConfig = {
     {
       name: 'branchPin',
       type: 'text',
-      label: 'Branch Login PIN (3 digits)',
+      label: 'Branch Login PIN (4 digits)',
       admin: {
         description:
           'Optional fallback PIN used to identify this branch when WiFi/IP detection fails during staff login.',
       },
       validate: (value: unknown) => {
         if (value == null || value === '') return true
-        if (typeof value !== 'string') return 'Branch PIN must be exactly 3 digits.'
-        if (!/^\d{3}$/.test(value.trim())) {
-          return 'Branch PIN must be exactly 3 digits (e.g., 042).'
+        if (typeof value !== 'string') return 'Branch PIN must be exactly 4 digits.'
+        if (!/^\d{4}$/.test(value.trim())) {
+          return 'Branch PIN must be exactly 4 digits (e.g., 0042).'
         }
         return true
       },
@@ -172,7 +172,7 @@ export const Branches: CollectionConfig = {
 
         if (duplicateBranch) {
           throw new Error(
-            `Branch PIN ${resolvedBranchPin} is already assigned to ${duplicateBranch.name}. Use a unique 3-digit PIN.`,
+            `Branch PIN ${resolvedBranchPin} is already assigned to ${duplicateBranch.name}. Use a unique 4-digit PIN.`,
           )
         }
 
