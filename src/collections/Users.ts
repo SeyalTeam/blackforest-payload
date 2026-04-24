@@ -9,18 +9,6 @@ const BRANCH_PIN_TIMEZONE = 'Asia/Kolkata'
 const BRANCH_PIN_SECRET =
   process.env.BRANCH_PIN_DAILY_SECRET?.trim() || 'blackforest-branch-pin-secret'
 const MAX_DAILY_BRANCH_PINS = 10000
-const DAILY_PIN_ROTATION_USER_PAGE_SIZE = 200
-const DAILY_PIN_ROTATION_BATCH_SIZE = 20
-const DAILY_PIN_ROTATION_LOGOUT_ROLES = [
-  'branch',
-  'kitchen',
-  'waiter',
-  'cashier',
-  'supervisor',
-  'delivery',
-  'driver',
-  'chef',
-]
 
 let lastDailyBranchPinSyncDate: string | null = null
 let dailyBranchPinSyncPromise: Promise<void> | null = null
@@ -28,25 +16,6 @@ let dailyBranchPinSyncPromise: Promise<void> | null = null
 type BranchPinDoc = {
   id: string
   branchPin?: string | null
-}
-
-type BranchScopedUserDoc = {
-  id: string
-  role?: string | null
-  branch?: unknown
-}
-
-type AttendanceActivity = {
-  type?: string | null
-  status?: string | null
-  punchIn?: string | null
-  punchOut?: string | null
-  durationSeconds?: number | null
-}
-
-type AttendanceDoc = {
-  id: string
-  activities?: AttendanceActivity[] | null
 }
 
 const getISTDateKey = (date: Date = new Date()): string =>
@@ -57,187 +26,6 @@ const toPinString = (value: number): string => value.toString().padStart(4, '0')
 const hashSeedToNumber = (seed: string): number => {
   const digest = createHash('sha256').update(seed).digest()
   return digest.readUInt32BE(0)
-}
-
-const normalizeRelationshipID = (value: unknown): string | null => {
-  if (!value) return null
-  if (typeof value === 'string') return value
-  if (typeof value === 'object' && value !== null && 'id' in value) {
-    const id = (value as { id?: unknown }).id
-    return typeof id === 'string' ? id : null
-  }
-  return null
-}
-
-const closeActiveSessionActivities = (
-  activities: AttendanceActivity[],
-  forcedCloseTimeISO: string,
-): { changed: boolean; nextActivities: AttendanceActivity[] } => {
-  const forcedCloseTimeMs = new Date(forcedCloseTimeISO).getTime()
-  let changed = false
-
-  const nextActivities = activities.map((activity) => {
-    if (activity?.type !== 'session' || activity?.status !== 'active') {
-      return activity
-    }
-
-    const punchInMs = activity.punchIn ? new Date(activity.punchIn).getTime() : NaN
-    const computedDuration =
-      Number.isFinite(punchInMs) && Number.isFinite(forcedCloseTimeMs)
-        ? Math.max(0, Math.floor((forcedCloseTimeMs - punchInMs) / 1000))
-        : (activity.durationSeconds ?? 0)
-
-    changed = true
-    return {
-      ...activity,
-      status: 'closed',
-      punchOut: forcedCloseTimeISO,
-      durationSeconds: computedDuration,
-    }
-  })
-
-  return { changed, nextActivities }
-}
-
-const closeLatestActiveAttendanceForUser = async (
-  req: PayloadRequest,
-  userID: string,
-  forcedCloseTimeISO: string,
-): Promise<void> => {
-  const attendanceResult = await req.payload.find({
-    collection: 'attendance',
-    where: {
-      user: {
-        equals: userID,
-      },
-    },
-    sort: '-date',
-    limit: 5,
-    depth: 0,
-    overrideAccess: true,
-  })
-
-  const docs = (attendanceResult.docs || []) as AttendanceDoc[]
-  const activeAttendanceDoc = docs.find((doc) =>
-    Array.isArray(doc.activities)
-      ? doc.activities.some((activity) => activity?.type === 'session' && activity?.status === 'active')
-      : false,
-  )
-
-  if (!activeAttendanceDoc || !Array.isArray(activeAttendanceDoc.activities)) {
-    return
-  }
-
-  const { changed, nextActivities } = closeActiveSessionActivities(
-    activeAttendanceDoc.activities,
-    forcedCloseTimeISO,
-  )
-
-  if (!changed) {
-    return
-  }
-
-  await req.payload.update({
-    collection: 'attendance',
-    id: activeAttendanceDoc.id,
-    data: {
-      activities: nextActivities as any,
-    } as any,
-    depth: 0,
-    overrideAccess: true,
-  })
-}
-
-const runInBatches = async <T>(
-  items: T[],
-  batchSize: number,
-  handler: (item: T) => Promise<void>,
-): Promise<void> => {
-  for (let index = 0; index < items.length; index += batchSize) {
-    const batch = items.slice(index, index + batchSize)
-    await Promise.all(batch.map((item) => handler(item)))
-  }
-}
-
-const forceLogoutUsersForBranches = async (
-  req: PayloadRequest,
-  branchIDs: string[],
-  dateKey: string,
-): Promise<void> => {
-  const uniqueBranchIDs = [...new Set(branchIDs.map((id) => id.trim()).filter(Boolean))]
-  if (uniqueBranchIDs.length === 0) return
-
-  const usersToLogout: BranchScopedUserDoc[] = []
-  let page = 1
-
-  while (true) {
-    const usersResult = await req.payload.find({
-      collection: 'users',
-      where: {
-        and: [
-          {
-            role: {
-              in: DAILY_PIN_ROTATION_LOGOUT_ROLES,
-            },
-          },
-          {
-            branch: {
-              in: uniqueBranchIDs,
-            },
-          },
-        ],
-      } as any,
-      limit: DAILY_PIN_ROTATION_USER_PAGE_SIZE,
-      page,
-      depth: 0,
-      overrideAccess: true,
-    })
-
-    usersToLogout.push(...((usersResult.docs || []) as BranchScopedUserDoc[]))
-
-    if (page >= (usersResult.totalPages || 1)) {
-      break
-    }
-    page += 1
-  }
-
-  const uniqueUsersByID = new Map<string, BranchScopedUserDoc>()
-  for (const userDoc of usersToLogout) {
-    const userID = String(userDoc.id || '')
-    if (!userID) continue
-    const userBranchID = normalizeRelationshipID(userDoc.branch)
-    if (!userBranchID || !uniqueBranchIDs.includes(userBranchID)) continue
-    uniqueUsersByID.set(userID, userDoc)
-  }
-
-  const uniqueUsers = [...uniqueUsersByID.values()]
-  if (uniqueUsers.length === 0) return
-
-  const forcedCloseTimeISO = new Date().toISOString()
-
-  await runInBatches(uniqueUsers, DAILY_PIN_ROTATION_BATCH_SIZE, async (userDoc) => {
-    const userID = String(userDoc.id)
-
-    await req.payload.update({
-      collection: 'users',
-      id: userID,
-      data: {
-        sessions: [],
-        deviceId: null,
-      } as any,
-      depth: 0,
-      overrideAccess: true,
-      context: {
-        branchPinRotationDate: dateKey,
-      } as any,
-    })
-
-    await closeLatestActiveAttendanceForUser(req, userID, forcedCloseTimeISO)
-  })
-
-  console.log(
-    `[Branch PIN] Daily rotation (${dateKey}) forced logout for ${uniqueUsers.length} users across ${uniqueBranchIDs.length} branches.`,
-  )
 }
 
 const buildDailyPinMap = (branchIDs: string[], dateKey: string): Map<string, string> => {
@@ -330,14 +118,6 @@ const ensureDailyBranchPins = async (req: PayloadRequest): Promise<void> => {
           branchPinRotationDate: dateKey,
         } as any,
       })
-    }
-
-    if (branchesToUpdate.length > 0) {
-      await forceLogoutUsersForBranches(
-        req,
-        branchesToUpdate.map((branch) => String(branch.id)),
-        dateKey,
-      )
     }
 
     lastDailyBranchPinSyncDate = dateKey
@@ -757,6 +537,7 @@ export const Users: CollectionConfig = {
           'driver',
           'chef',
         ]
+        const strictBranchAssignmentRoles = ['branch', 'kitchen']
 
         const requestBody = (req as { body?: unknown } | undefined)?.body
         const branchPinFromBody =
@@ -798,22 +579,7 @@ export const Users: CollectionConfig = {
         }
 
         const attachBranchToUser = async (branchID: string) => {
-          const currentBranchID = getRelationshipID(user.branch)
-          if (currentBranchID === branchID) {
-            ;(user as { branch?: unknown }).branch = branchID
-            return
-          }
-
-          await req.payload.update({
-            collection: 'users',
-            id: user.id,
-            data: {
-              branch: branchID,
-            } as any,
-            depth: 0,
-            overrideAccess: true,
-          })
-
+          // Keep branch in login context only. Do not persist waiter/cashier-style users to one branch.
           ;(user as { branch?: unknown }).branch = branchID
         }
 
@@ -823,7 +589,8 @@ export const Users: CollectionConfig = {
             const matchedBranch = await resolveBranchByPin()
             if (matchedBranch) {
               const userBranchID = getRelationshipID(user.branch)
-              if (userBranchID && userBranchID !== matchedBranch.id) {
+              const enforceBranchMatch = strictBranchAssignmentRoles.includes(user.role)
+              if (enforceBranchMatch && userBranchID && userBranchID !== matchedBranch.id) {
                 throw new Error('Branch PIN does not match your assigned branch.')
               }
 
@@ -1040,7 +807,8 @@ export const Users: CollectionConfig = {
             const matchedBranch = await resolveBranchByPin()
             if (matchedBranch) {
               const userBranchID = getRelationshipID(user.branch)
-              if (userBranchID && userBranchID !== matchedBranch.id) {
+              const enforceBranchMatch = strictBranchAssignmentRoles.includes(user.role)
+              if (enforceBranchMatch && userBranchID && userBranchID !== matchedBranch.id) {
                 throw new Error('Branch PIN does not match your assigned branch.')
               }
 
