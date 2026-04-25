@@ -413,7 +413,7 @@ export const Users: CollectionConfig = {
         }
 
         const branchPin = branchPinFromHeader || branchPinFromLegacyHeader || branchPinFromBody
-        const isBranchPinRequired = BRANCH_PIN_REQUIRED_ROLES.has(user.role)
+        const isBranchPinRequired = false
         const hasAnyBranchPinInput = Boolean(
           branchPinFromHeader || branchPinFromLegacyHeader || branchPinFromBody,
         )
