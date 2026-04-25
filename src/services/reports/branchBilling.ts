@@ -36,6 +36,10 @@ export type BranchBillingReportTotals = {
   settledAmount: number
   cancelledCount: number
   cancelledAmount: number
+  tableOrderCount: number
+  tableOrderAmount: number
+  nonTableOrderCount: number
+  nonTableOrderAmount: number
   totalExpenses: number
   totalReturns: number
   totalClosingSales: number
@@ -123,6 +127,68 @@ export const getBranchBillingReportData = async (
     }
   }
 
+  const completedOrSettledExpression = { $in: ['$status', ['completed', 'settled']] }
+  const hasTableOrderReferenceExpression = {
+    $or: [
+      {
+        $gt: [
+          {
+            $strLenCP: {
+              $trim: {
+                input: {
+                  $convert: { input: '$section', to: 'string', onError: '', onNull: '' },
+                },
+              },
+            },
+          },
+          0,
+        ],
+      },
+      {
+        $gt: [
+          {
+            $strLenCP: {
+              $trim: {
+                input: {
+                  $convert: { input: '$tableNumber', to: 'string', onError: '', onNull: '' },
+                },
+              },
+            },
+          },
+          0,
+        ],
+      },
+      {
+        $gt: [
+          {
+            $strLenCP: {
+              $trim: {
+                input: {
+                  $convert: { input: '$tableDetails.section', to: 'string', onError: '', onNull: '' },
+                },
+              },
+            },
+          },
+          0,
+        ],
+      },
+      {
+        $gt: [
+          {
+            $strLenCP: {
+              $trim: {
+                input: {
+                  $convert: { input: '$tableDetails.tableNumber', to: 'string', onError: '', onNull: '' },
+                },
+              },
+            },
+          },
+          0,
+        ],
+      },
+    ],
+  }
+
   const BillingModel = payload.db.collections['billings']
   const stats = await BillingModel.aggregate([
     {
@@ -134,18 +200,18 @@ export const getBranchBillingReportData = async (
         // Total should only include completed/settled as per previous request
         totalBills: {
           $sum: {
-            $cond: [{ $in: ['$status', ['completed', 'settled']] }, 1, 0],
+            $cond: [completedOrSettledExpression, 1, 0],
           },
         },
         totalAmount: {
           $sum: {
-            $cond: [{ $in: ['$status', ['completed', 'settled']] }, '$totalAmount', 0],
+            $cond: [completedOrSettledExpression, '$totalAmount', 0],
           },
         },
         cash: {
           $sum: {
             $cond: [
-              { $and: [{ $eq: ['$paymentMethod', 'cash'] }, { $in: ['$status', ['completed', 'settled']] }] },
+              { $and: [{ $eq: ['$paymentMethod', 'cash'] }, completedOrSettledExpression] },
               '$totalAmount',
               0,
             ],
@@ -154,7 +220,7 @@ export const getBranchBillingReportData = async (
         upi: {
           $sum: {
             $cond: [
-              { $and: [{ $eq: ['$paymentMethod', 'upi'] }, { $in: ['$status', ['completed', 'settled']] }] },
+              { $and: [{ $eq: ['$paymentMethod', 'upi'] }, completedOrSettledExpression] },
               '$totalAmount',
               0,
             ],
@@ -163,7 +229,7 @@ export const getBranchBillingReportData = async (
         card: {
           $sum: {
             $cond: [
-              { $and: [{ $eq: ['$paymentMethod', 'card'] }, { $in: ['$status', ['completed', 'settled']] }] },
+              { $and: [{ $eq: ['$paymentMethod', 'card'] }, completedOrSettledExpression] },
               '$totalAmount',
               0,
             ],
@@ -187,6 +253,34 @@ export const getBranchBillingReportData = async (
         },
         cancelledAmount: {
           $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, '$totalAmount', 0] },
+        },
+        tableOrderCount: {
+          $sum: {
+            $cond: [{ $and: [completedOrSettledExpression, hasTableOrderReferenceExpression] }, 1, 0],
+          },
+        },
+        tableOrderAmount: {
+          $sum: {
+            $cond: [{ $and: [completedOrSettledExpression, hasTableOrderReferenceExpression] }, '$totalAmount', 0],
+          },
+        },
+        nonTableOrderCount: {
+          $sum: {
+            $cond: [
+              { $and: [completedOrSettledExpression, { $not: [hasTableOrderReferenceExpression] }] },
+              1,
+              0,
+            ],
+          },
+        },
+        nonTableOrderAmount: {
+          $sum: {
+            $cond: [
+              { $and: [completedOrSettledExpression, { $not: [hasTableOrderReferenceExpression] }] },
+              '$totalAmount',
+              0,
+            ],
+          },
         },
       },
     },
@@ -219,6 +313,10 @@ export const getBranchBillingReportData = async (
         settledAmount: 1,
         cancelledCount: 1,
         cancelledAmount: 1,
+        tableOrderCount: 1,
+        tableOrderAmount: 1,
+        nonTableOrderCount: 1,
+        nonTableOrderAmount: 1,
       },
     },
     {
@@ -239,6 +337,10 @@ export const getBranchBillingReportData = async (
       settledAmount: acc.settledAmount + curr.settledAmount,
       cancelledCount: acc.cancelledCount + curr.cancelledCount,
       cancelledAmount: acc.cancelledAmount + curr.cancelledAmount,
+      tableOrderCount: acc.tableOrderCount + curr.tableOrderCount,
+      tableOrderAmount: acc.tableOrderAmount + curr.tableOrderAmount,
+      nonTableOrderCount: acc.nonTableOrderCount + curr.nonTableOrderCount,
+      nonTableOrderAmount: acc.nonTableOrderAmount + curr.nonTableOrderAmount,
     }),
     {
       totalBills: 0,
@@ -252,6 +354,10 @@ export const getBranchBillingReportData = async (
       settledAmount: 0,
       cancelledCount: 0,
       cancelledAmount: 0,
+      tableOrderCount: 0,
+      tableOrderAmount: 0,
+      nonTableOrderCount: 0,
+      nonTableOrderAmount: 0,
     },
   )
 

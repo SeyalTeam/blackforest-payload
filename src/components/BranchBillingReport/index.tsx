@@ -1,23 +1,14 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Download,
   RefreshCw,
   Search,
-  ReceiptText,
-  WalletCards,
-  Zap,
   TrendingUp,
-  CircleDollarSign,
-  RotateCcw,
-  ClipboardCheck,
   ChevronUp,
   ChevronDown,
   MoreHorizontal,
-  CheckCircle2,
-  CreditCard,
-  XCircle,
 } from 'lucide-react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -44,6 +35,10 @@ type ReportData = {
   endDate: string
   stats: ReportStats[]
   totals: Omit<ReportStats, 'branchName'> & {
+    tableOrderCount: number
+    tableOrderAmount: number
+    nonTableOrderCount: number
+    nonTableOrderAmount: number
     totalExpenses: number
     totalReturns: number
     totalClosingSales: number
@@ -55,13 +50,6 @@ type ReportData = {
     trendPercentage: number
     medianAmount: number
   }
-}
-
-type BranchBillingReportQueryResponse = {
-  data?: {
-    branchBillingReport?: ReportData
-  }
-  errors?: Array<{ message: string }>
 }
 
 type DatePresetOption = {
@@ -101,35 +89,14 @@ const BRANCH_BILLING_REPORT_QUERY = `
         settledAmount
         cancelledCount
         cancelledAmount
+        tableOrderCount
+        tableOrderAmount
+        nonTableOrderCount
+        nonTableOrderAmount
         totalExpenses
         totalReturns
         totalClosingSales
       }
-      trendData {
-        label
-        fullLabel
-        totalAmount
-        totalExpense
-        totalReturn
-      }
-      summary {
-        averageTrendAmount
-        trendPercentage
-        medianAmount
-      }
-      heatmapData {
-        day
-        hour
-        amount
-        count
-      }
-    }
-  }
-`
-
-const SALES_TREND_QUERY = `
-  query SalesTrend($filter: BranchBillingReportFilterInput) {
-    branchBillingReport(filter: $filter) {
       trendData {
         label
         fullLabel
@@ -332,10 +299,11 @@ const BranchBillingReport: React.FC = () => {
 
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
-  const [trendLoading, setTrendLoading] = useState(false)
   const [error, setError] = useState('')
   const [searchValue, setSearchValue] = useState('')
   const [page, setPage] = useState(1)
+  const requestIdRef = useRef(0)
+  const trendLoading = loading
 
   const formatValue = (val: number) => {
     const fixed = val.toFixed(2)
@@ -374,7 +342,7 @@ const BranchBillingReport: React.FC = () => {
   }
 
   const fetchReport = useCallback(async (start: Date, end: Date, trendPeriod: string, branch: string) => {
-    if (loading) return
+    const requestId = ++requestIdRef.current
     setLoading(true)
     setError('')
 
@@ -382,127 +350,55 @@ const BranchBillingReport: React.FC = () => {
       const startStr = toLocalDateStr(start)
       const endStr = toLocalDateStr(end)
 
-      const promises = [
-        fetch('/api/graphql', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: BRANCH_BILLING_REPORT_QUERY,
-            variables: { filter: { startDate: startStr, endDate: endStr, trendPeriod, branch: 'all' } },
-          }),
-        }).then(res => {
-          if (!res.ok) throw new Error('Failed to fetch report')
-          return res.json()
-        })
-      ]
+      const response = await fetch('/api/graphql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: BRANCH_BILLING_REPORT_QUERY,
+          variables: { filter: { startDate: startStr, endDate: endStr, trendPeriod, branch } },
+        }),
+      })
 
-      if (branch !== 'all') {
-        promises.push(
-          fetch('/api/graphql', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              query: SALES_TREND_QUERY,
-              variables: { filter: { startDate: startStr, endDate: endStr, trendPeriod, branch } },
-            }),
-          }).then(res => {
-            if (!res.ok) throw new Error('Failed to fetch isolated trend data')
-            return res.json()
-          })
-        )
+      if (!response.ok) {
+        throw new Error(await getResponseErrorMessage(response, 'Failed to fetch report'))
       }
 
-      const [mainJson, trendJson] = await Promise.all(promises)
+      const json = await response.json()
 
-      if (mainJson.errors && mainJson.errors.length > 0) {
-        throw new Error(mainJson.errors[0].message || 'GraphQL Error in main report')
+      if (json.errors && json.errors.length > 0) {
+        throw new Error(json.errors[0].message || 'GraphQL Error in report')
       }
 
-      if (trendJson && trendJson.errors && trendJson.errors.length > 0) {
-        throw new Error(trendJson.errors[0].message || 'GraphQL Error in trend data')
-      }
-
-      const report = mainJson.data?.branchBillingReport
+      const report = json.data?.branchBillingReport
       
       if (!report) {
         throw new Error('No report data returned from GraphQL')
       }
 
-      if (trendJson && trendJson.data?.branchBillingReport) {
-        report.trendData = trendJson.data.branchBillingReport.trendData
-        report.summary = trendJson.data.branchBillingReport.summary
-        report.heatmapData = trendJson.data.branchBillingReport.heatmapData
+      if (requestId !== requestIdRef.current) {
+        return
       }
 
       setPage(1)
       setData(report)
     } catch (err) {
+      if (requestId !== requestIdRef.current) {
+        return
+      }
       console.error(err)
       setError(err instanceof Error ? err.message : 'Error loading report data')
     } finally {
-      setLoading(false)
-    }
-  }, [loading])
-
-  const fetchTrendData = useCallback(async (start: Date, end: Date, trendPeriod: string, branch: string) => {
-    if (trendLoading) return
-    setTrendLoading(true)
-
-    try {
-      const startStr = toLocalDateStr(start)
-      const endStr = toLocalDateStr(end)
-      const res = await fetch('/api/graphql', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: SALES_TREND_QUERY,
-          variables: {
-            filter: {
-              startDate: startStr,
-              endDate: endStr,
-              trendPeriod,
-              branch,
-            },
-          },
-        }),
-      })
-
-      if (!res.ok) return
-
-      const json = (await res.json()) as BranchBillingReportQueryResponse
-      const report = json.data?.branchBillingReport
-      if (report && report.trendData) {
-        setData(prev => prev ? {
-          ...prev,
-          trendData: report.trendData,
-          heatmapData: report.heatmapData,
-          summary: report.summary
-        } : null)
+      if (requestId === requestIdRef.current) {
+        setLoading(false)
       }
-    } catch (err) {
-      console.error('Error fetching trend data', err)
-    } finally {
-      setTrendLoading(false)
     }
-  }, [trendLoading])
+  }, [])
 
-  // Global Date Change (Fetches full table data for 'all' + graph data for selectedBranch)
   useEffect(() => {
     if (startDate && endDate) {
       fetchReport(startDate, endDate, activeTrendPeriod, selectedBranch)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startDate, endDate])
-
-  // Chart-Only branch filter or period change (Fetches isolated trendData)
-  useEffect(() => {
-    if (startDate && endDate && data && !loading) {
-      fetchTrendData(startDate, endDate, activeTrendPeriod, selectedBranch)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTrendPeriod, selectedBranch])
+  }, [startDate, endDate, activeTrendPeriod, selectedBranch, fetchReport])
 
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -558,6 +454,10 @@ const BranchBillingReport: React.FC = () => {
   const totalExpenses = totals?.totalExpenses ?? 0
   const totalReturns = totals?.totalReturns ?? 0
   const totalClosingSales = totals?.totalClosingSales ?? 0
+  const tableOrderAmount = totals?.tableOrderAmount ?? 0
+  const tableOrderCount = totals?.tableOrderCount ?? 0
+  const nonTableOrderAmount = totals?.nonTableOrderAmount ?? 0
+  const nonTableOrderCount = totals?.nonTableOrderCount ?? 0
   const totalBranches = data?.stats.length ?? 0
   const averageBillValue = totalBills > 0 ? totalAmount / totalBills : 0
   const billPerBranch = totalBranches > 0 ? totalBills / totalBranches : 0
@@ -757,6 +657,24 @@ const BranchBillingReport: React.FC = () => {
         </div>
 
         <div className="actions">
+          <div className="branch-filter-dropdown" style={{ minWidth: '200px' }}>
+            <Select
+              instanceId="topbar-branch-filter-select"
+              options={[{ value: 'all', label: 'All Branches' }, ...branches.map((b) => ({ value: b.id, label: b.name }))]}
+              value={
+                [{ value: 'all', label: 'All Branches' }, ...branches.map((b) => ({ value: b.id, label: b.name }))].find(
+                  (opt) => opt.value === selectedBranch,
+                ) || { value: 'all', label: 'All Branches' }
+              }
+              onChange={(option) => {
+                if (option) setSelectedBranch(option.value)
+              }}
+              styles={customBranchSelectStyles}
+              classNamePrefix="react-select"
+              isSearchable={false}
+            />
+          </div>
+
           <Select
             instanceId="date-preset-select"
             options={dateRangeOptions}
@@ -800,24 +718,16 @@ const BranchBillingReport: React.FC = () => {
       </div>
 
       <div className="kpi-grid top-kpis">
-        <article className="kpi-card">
+        <article className="kpi-card kpi-total">
           <div className="kpi-card-header">
-            <div className="kpi-icon icon-cyan">
-              <CircleDollarSign size={16} />
-            </div>
             <p className="kpi-label">TOTAL BILLS</p>
           </div>
           <h2>{formatCurrency(totalAmount)}</h2>
-          <p className="kpi-footnote highlight">
-            {formatInt(totalBills)} Bills / {formatCurrency(averageBillValue)} avg
-          </p>
+          <p className="kpi-footnote highlight">{formatInt(totalBills)} Bills</p>
         </article>
 
-        <article className="kpi-card">
+        <article className="kpi-card kpi-completed">
           <div className="kpi-card-header">
-            <div className="kpi-icon icon-emerald">
-              <CheckCircle2 size={16} />
-            </div>
             <p className="kpi-label">COMPLETED</p>
           </div>
           <h2>{formatCurrency(totals?.completedAmount ?? 0)}</h2>
@@ -826,11 +736,8 @@ const BranchBillingReport: React.FC = () => {
           </p>
         </article>
 
-        <article className="kpi-card">
+        <article className="kpi-card kpi-settled">
           <div className="kpi-card-header">
-            <div className="kpi-icon icon-cyan">
-              <CreditCard size={16} />
-            </div>
             <p className="kpi-label">SETTLED</p>
           </div>
           <h2>{formatCurrency(totals?.settledAmount ?? 0)}</h2>
@@ -839,11 +746,8 @@ const BranchBillingReport: React.FC = () => {
           </p>
         </article>
 
-        <article className="kpi-card">
+        <article className="kpi-card kpi-cancelled">
           <div className="kpi-card-header">
-            <div className="kpi-icon icon-red">
-              <XCircle size={16} />
-            </div>
             <p className="kpi-label">CANCELLED</p>
           </div>
           <h2 style={{ color: 'var(--danger)' }}>{formatCurrency(totals?.cancelledAmount ?? 0)}</h2>
@@ -852,11 +756,24 @@ const BranchBillingReport: React.FC = () => {
           </p>
         </article>
 
-        <article className="kpi-card">
+        <article className="kpi-card kpi-table-order">
           <div className="kpi-card-header">
-            <div className="kpi-icon icon-indigo">
-              <WalletCards size={16} />
-            </div>
+            <p className="kpi-label">TABLE ORDER</p>
+          </div>
+          <h2>{formatCurrency(tableOrderAmount)}</h2>
+          <p className="kpi-footnote highlight">{formatInt(tableOrderCount)} Bills</p>
+        </article>
+
+        <article className="kpi-card kpi-billing">
+          <div className="kpi-card-header">
+            <p className="kpi-label">BILLING</p>
+          </div>
+          <h2>{formatCurrency(nonTableOrderAmount)}</h2>
+          <p className="kpi-footnote highlight">{formatInt(nonTableOrderCount)} Bills</p>
+        </article>
+
+        <article className="kpi-card kpi-payment">
+          <div className="kpi-card-header">
             <p className="kpi-label">PAYMENT METHOD</p>
           </div>
           <div className="distribution-list compact-kpi">
@@ -959,41 +876,29 @@ const BranchBillingReport: React.FC = () => {
       </section>
 
       <div className="kpi-grid bottom-kpis">
-        <article className="kpi-card">
+        <article className="kpi-card kpi-expenses">
           <div className="kpi-card-header">
-            <div className="kpi-icon icon-red">
-              <WalletCards size={16} />
-            </div>
             <p className="kpi-label">EXPENSES</p>
           </div>
           <h2>{formatCurrency(totalExpenses)}</h2>
         </article>
 
-        <article className="kpi-card">
+        <article className="kpi-card kpi-closing">
           <div className="kpi-card-header">
-            <div className="kpi-icon icon-violet">
-              <ClipboardCheck size={16} />
-            </div>
             <p className="kpi-label">CLOSING ENTRY</p>
           </div>
           <h2>{formatCurrency(totalClosingSales)}</h2>
         </article>
 
-        <article className="kpi-card">
+        <article className="kpi-card kpi-sales-dif">
           <div className="kpi-card-header">
-            <div className="kpi-icon icon-orange">
-              <Zap size={16} />
-            </div>
             <p className="kpi-label">SALES DIF</p>
           </div>
           <h2>{formatCurrency(totalAmount - totalClosingSales)}</h2>
         </article>
 
-        <article className="kpi-card">
+        <article className="kpi-card kpi-return">
           <div className="kpi-card-header">
-            <div className="kpi-icon icon-orange">
-              <RotateCcw size={16} />
-            </div>
             <p className="kpi-label">RETURN ORDER</p>
           </div>
           <h2>{formatCurrency(totalReturns)}</h2>
@@ -1060,20 +965,6 @@ const BranchBillingReport: React.FC = () => {
                             className={activeTrendPeriod === '7days' ? 'active' : ''}
                             onClick={() => setActiveTrendPeriod('7days')}
                           >7 Days</button>
-                        </div>
-
-                        <div className="branch-filter-dropdown" style={{ minWidth: '200px' }}>
-                          <Select
-                            instanceId="branch-filter-select"
-                            options={[{ value: 'all', label: 'All Branches' }, ...branches.map(b => ({ value: b.id, label: b.name }))]}
-                            value={[{ value: 'all', label: 'All Branches' }, ...branches.map(b => ({ value: b.id, label: b.name }))].find(opt => opt.value === selectedBranch) || { value: 'all', label: 'All Branches' }}
-                            onChange={(option) => {
-                              if (option) setSelectedBranch(option.value)
-                            }}
-                            styles={customBranchSelectStyles}
-                            classNamePrefix="react-select"
-                            isSearchable={false}
-                          />
                         </div>
                       </div>
                     </div>

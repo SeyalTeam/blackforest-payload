@@ -115,6 +115,7 @@ const ProductTimeReport: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<string>('all')
   const [selectedChef, setSelectedChef] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
+  const [velocityMode, setVelocityMode] = useState<'products' | 'categories' | 'chefs'>('products')
   const [topListLimit, setTopListLimit] = useState<TopListLimit>(50)
 
   const [loading, setLoading] = useState(false)
@@ -636,15 +637,76 @@ const ProductTimeReport: React.FC = () => {
 
   const hasRequiredFilters = Boolean(rangeStartDate && rangeEndDate && selectedBranch && selectedKitchen)
 
+  const productToCategoryMap = useMemo(() => {
+    const map = new Map<string, { categoryId: string; categoryName: string }>()
+    products.forEach((product) => {
+      const categoryId = normalizeRelationshipID(product.category)
+      const category = categories.find((c) => c.id === categoryId)
+      if (categoryId && category) {
+        map.set(product.id, { categoryId, categoryName: category.name })
+      }
+    })
+    return map
+  }, [products, categories])
+
   const displayDetails = useMemo(() => {
+    let filtered = billDetails
+
+    // Status Filter
     const normalizedStatus = normalizeStatusFilter(selectedStatus)
-    if (normalizedStatus === 'all') return billDetails
-    if (normalizedStatus === 'chef_preparing_time') {
-      return billDetails.filter((entry) => entry.chefPreparationTime != null)
+    if (normalizedStatus !== 'all') {
+      if (normalizedStatus === 'chef_preparing_time') {
+        filtered = filtered.filter((entry) => entry.chefPreparationTime != null)
+      } else {
+        filtered = filtered.filter((entry) => entry.status === normalizedStatus)
+      }
     }
 
-    return billDetails.filter((entry) => entry.status === normalizedStatus)
-  }, [billDetails, selectedStatus])
+    // Category Filter
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter((entry) => {
+        const catInfo = productToCategoryMap.get(entry.productId)
+        return catInfo?.categoryId === selectedCategory
+      })
+    }
+
+    // Product Filter
+    if (selectedProduct !== 'all') {
+      filtered = filtered.filter((entry) => entry.productId === selectedProduct)
+    }
+
+    // Chef Filter
+    if (selectedChef !== 'all') {
+      filtered = filtered.filter((entry) => {
+        const name = String(entry.chefName || '').trim() || '--'
+        return name === selectedChef
+      })
+    }
+
+    return filtered
+  }, [billDetails, selectedStatus, selectedCategory, selectedProduct, selectedChef, productToCategoryMap])
+
+  const topCategoryRows = useMemo(() => {
+    const categoryCountMap = new Map<string, { categoryId: string; name: string; orderCount: number }>()
+
+    displayDetails.forEach((entry) => {
+      const catInfo = productToCategoryMap.get(entry.productId)
+      if (catInfo) {
+        const { categoryId, categoryName: name } = catInfo
+        const existing = categoryCountMap.get(categoryId)
+        if (existing) {
+          existing.orderCount += 1
+        } else {
+          categoryCountMap.set(categoryId, { categoryId, name, orderCount: 1 })
+        }
+      }
+    })
+
+    const sortedRows = Array.from(categoryCountMap.values()).sort((a, b) => b.orderCount - a.orderCount)
+
+    if (topListLimit === 'all') return sortedRows
+    return sortedRows.slice(0, topListLimit)
+  }, [displayDetails, productToCategoryMap, topListLimit])
 
   const topProductRows = useMemo(() => {
     const productCountMap = new Map<string, { productId: string; name: string; orderCount: number }>()
@@ -666,6 +728,27 @@ const ProductTimeReport: React.FC = () => {
         if (b.orderCount === a.orderCount) return a.name.localeCompare(b.name)
         return b.orderCount - a.orderCount
       })
+
+    if (topListLimit === 'all') return sortedRows
+    return sortedRows.slice(0, topListLimit)
+  }, [displayDetails, topListLimit])
+
+  const topChefRows = useMemo(() => {
+    const chefValueMap = new Map<string, { chefName: string; orderValue: number; orderCount: number }>()
+
+    billDetails.forEach((entry) => {
+      const name = String(entry.chefName || '').trim() || '--'
+      const rowAmount = toFiniteNumber(entry.amount) ?? 0
+      const existing = chefValueMap.get(name)
+      if (existing) {
+        existing.orderValue += rowAmount
+        existing.orderCount += 1
+      } else {
+        chefValueMap.set(name, { chefName: name, orderValue: rowAmount, orderCount: 1 })
+      }
+    })
+
+    const sortedRows = Array.from(chefValueMap.values()).sort((a, b) => b.orderValue - a.orderValue)
 
     if (topListLimit === 'all') return sortedRows
     return sortedRows.slice(0, topListLimit)
@@ -1055,76 +1138,157 @@ const ProductTimeReport: React.FC = () => {
 
           <aside className="pt-top-orders-card">
             <div className="pt-top-orders-header">
-              <div>
-                <p className="pt-top-orders-kicker">Performance Velocity</p>
-                <h3>Top Products</h3>
-              </div>
-
-              <label className="pt-top-orders-filter">
-                Top
-                <select
-                  value={String(topListLimit)}
-                  onChange={(event) => {
-                    const nextValue = event.target.value
-                    setTopListLimit(nextValue === 'all' ? 'all' : (Number(nextValue) as TopListLimit))
-                  }}
+              <div className="velocity-toggle-buttons">
+                <button
+                  className={velocityMode === 'categories' ? 'active' : ''}
+                  onClick={() => setVelocityMode('categories')}
                 >
-                  <option value="10">10</option>
-                  <option value="25">25</option>
-                  <option value="50">50</option>
-                  <option value="100">100</option>
-                  <option value="all">100+</option>
-                </select>
-              </label>
+                  Top Categories
+                </button>
+                <button
+                  className={velocityMode === 'products' ? 'active' : ''}
+                  onClick={() => setVelocityMode('products')}
+                >
+                  Top Products
+                </button>
+                <button
+                  className={velocityMode === 'chefs' ? 'active' : ''}
+                  onClick={() => setVelocityMode('chefs')}
+                >
+                  Top Chefs
+                </button>
+              </div>
+              <div className="pt-velocity-options-row">
+                <div className="pt-velocity-title-group">
+                  <p className="pt-top-orders-kicker">Performance Velocity</p>
+                  <h3>
+                    {velocityMode === 'products'
+                      ? 'Top Products'
+                      : velocityMode === 'categories'
+                        ? 'Top Categories'
+                        : 'Top Chefs'}
+                  </h3>
+                </div>
+
+                <label className="pt-top-orders-filter">
+                  Top
+                  <select
+                    value={String(topListLimit)}
+                    onChange={(event) => {
+                      const nextValue = event.target.value
+                      setTopListLimit(nextValue === 'all' ? 'all' : (Number(nextValue) as TopListLimit))
+                    }}
+                  >
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="all">100+</option>
+                  </select>
+                </label>
+              </div>
             </div>
 
             <div className="pt-top-orders-list">
-              {topProductRows.length === 0 && <p className="state">No products found.</p>}
+              {velocityMode === 'products' ? (
+                <>
+                  {topProductRows.length === 0 && <p className="state">No products found.</p>}
+                  {topProductRows.map((row, index) => {
+                    const isFilterable = row.productId.length > 0
+                    const isActive = isFilterable && selectedProduct === row.productId
+                    const nextProductFilter = isActive ? 'all' : row.productId
 
-              {topProductRows.map((row, index) => {
-                const isFilterable = row.productId.length > 0
-                const isActive = isFilterable && selectedProduct === row.productId
-                const nextProductFilter = isActive ? 'all' : row.productId
+                    return (
+                      <div
+                        key={`${row.productId || row.name}-${index}`}
+                        className={[
+                          'pt-top-orders-row',
+                          isFilterable ? 'is-filterable' : '',
+                          isActive ? 'is-active' : '',
+                        ].filter(Boolean).join(' ')}
+                        onClick={() => {
+                          if (!isFilterable) return
+                          setSelectedProduct(nextProductFilter)
+                        }}
+                      >
+                        <span className="pt-top-orders-index">{String(index + 1).padStart(2, '0')}</span>
+                        <div className="pt-top-orders-body">
+                          <span className="pt-top-orders-product">{row.name}</span>
+                          <span className="pt-top-orders-count">{row.orderCount}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </>
+              ) : velocityMode === 'categories' ? (
+                <>
+                  {topCategoryRows.length === 0 && <p className="state">No categories found.</p>}
+                  {topCategoryRows.map((row, index) => {
+                    const isFilterable = !!row.categoryId
+                    const isActive = isFilterable && selectedCategory === row.categoryId
+                    const nextCategoryFilter = isActive ? 'all' : row.categoryId
 
-                return (
-                  <div
-                    key={`${row.productId || row.name}-${index}`}
-                    className={[
-                      'pt-top-orders-row',
-                      isFilterable ? 'is-filterable' : '',
-                      isActive ? 'is-active' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
-                    onClick={() => {
-                      if (!isFilterable) return
-                      setSelectedProduct(nextProductFilter)
-                    }}
-                    onKeyDown={(event) => {
-                      if (!isFilterable) return
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
-                        setSelectedProduct(nextProductFilter)
-                      }
-                    }}
-                    role={isFilterable ? 'button' : undefined}
-                    tabIndex={isFilterable ? 0 : -1}
-                    title={
-                      isFilterable
-                        ? isActive
-                          ? `Clear product filter (${row.name})`
-                          : `Filter by ${row.name}`
-                        : row.name
-                    }
-                  >
-                    <span className="pt-top-orders-index">{String(index + 1).padStart(2, '0')}</span>
-                    <div className="pt-top-orders-body">
-                      <span className="pt-top-orders-product">{row.name}</span>
-                      <span className="pt-top-orders-count">{row.orderCount}</span>
-                    </div>
-                  </div>
-                )
-              })}
+                    return (
+                      <div
+                        key={`${row.categoryId || row.name}-${index}`}
+                        className={[
+                          'pt-top-orders-row',
+                          isFilterable ? 'is-filterable' : '',
+                          isActive ? 'is-active' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        onClick={() => {
+                          if (!isFilterable) return
+                          setSelectedCategory(nextCategoryFilter)
+                          setSelectedProduct('all')
+                        }}
+                      >
+                        <span className="pt-top-orders-index">{String(index + 1).padStart(2, '0')}</span>
+                        <div className="pt-top-orders-body">
+                          <span className="pt-top-orders-product">{row.name}</span>
+                          <span className="pt-top-orders-count">{row.orderCount}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </>
+              ) : (
+                <>
+                  {topChefRows.length === 0 && <p className="state">No chefs found.</p>}
+                  {topChefRows.map((row, index) => {
+                    const isFilterable = true
+                    const isActive = selectedChef === row.chefName
+                    const nextChefFilter = isActive ? 'all' : row.chefName
+
+                    return (
+                      <div
+                        key={`${row.chefName}-${index}`}
+                        className={[
+                          'pt-top-orders-row',
+                          'is-filterable',
+                          isActive ? 'is-active' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        onClick={() => {
+                          if (!isFilterable) return
+                          setSelectedChef(nextChefFilter)
+                        }}
+                      >
+                        <span className="pt-top-orders-index">{String(index + 1).padStart(2, '0')}</span>
+                        <div className="pt-top-orders-body">
+                          <span className="pt-top-orders-product">{row.chefName}</span>
+                          <span className="pt-top-orders-count">
+                            {formatAmount(row.orderValue)}{' '}
+                            <span className="pt-count-secondary">({row.orderCount})</span>
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </>
+              )}
             </div>
           </aside>
         </div>
@@ -1133,15 +1297,15 @@ const ProductTimeReport: React.FC = () => {
       {isReceiptModalOpen && (
         <div className="thermal-modal-backdrop" onClick={() => setIsReceiptModalOpen(false)}>
           <div className="thermal-modal" onClick={(event) => event.stopPropagation()}>
-            <button
-              type="button"
-              className="thermal-modal-close"
-              onClick={() => setIsReceiptModalOpen(false)}
-            >
-              Close
-            </button>
-
             <div className="pt-table-wrap thermal-preview-wrap">
+              <button
+                type="button"
+                className="thermal-modal-close"
+                onClick={() => setIsReceiptModalOpen(false)}
+              >
+                Close
+              </button>
+
               {loadingSelectedBill && <p className="state">Loading bill...</p>}
               {!loadingSelectedBill && selectedBillError && <p className="state error">{selectedBillError}</p>}
               {!loadingSelectedBill && !selectedBillError && !selectedBill && (

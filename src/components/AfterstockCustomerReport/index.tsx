@@ -10,7 +10,7 @@ import './index.scss' // reusing the same scss or creating new one? Let's assume
 import Select from 'react-select'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
-import { getBill } from '@/app/actions/getBill'
+import { getBills } from '@/app/actions/getBill'
 import BillReceipt, { BillData } from '@/components/BillReceipt'
 
 type CustomerStat = {
@@ -18,10 +18,14 @@ type CustomerStat = {
   customerName: string
   phoneNumber: string
   totalBills: number
+  lifetimeBillCount?: number
+  lifetimeTotalAmount?: number
+  isExistingCustomer?: boolean
   totalAmount: number
   lastPurchasingDate: string
   billId?: string
   billIds?: string[]
+  lifetimeBillIds?: string[]
   branchName?: string
   waiterName?: string
 }
@@ -30,6 +34,16 @@ type ReportData = {
   startDate: string
   endDate: string
   stats: CustomerStat[]
+  sourceSummary?: {
+    table?: {
+      amount?: number
+      bills?: number
+    }
+    billing?: {
+      amount?: number
+      bills?: number
+    }
+  }
 }
 
 type ReportBranch = {
@@ -42,59 +56,69 @@ type ReportWaiter = {
   name?: string | null
 }
 
+type CustomerStatusFilter = 'existing' | 'new' | 'bf_customer'
+type OrderSourceFilter = 'table' | 'billing'
+
+const toFiniteNumber = (value: unknown): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return 0
+}
+
+const formatCurrencyAmount = (value: number): string => {
+  const amount = toFiniteNumber(value)
+  return `₹${amount.toLocaleString('en-IN', {
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2,
+  })}`
+}
+
 const BillModal: React.FC<{
-  billData: BillData | null
+  billDataList: BillData[]
   loading: boolean
   customerName: string
   customerPhone: string
-  currentIndex: number
   totalBills: number
-  hasPrev: boolean
-  hasNext: boolean
-  onPrev: () => void
-  onNext: () => void
-  onNavigatorWheel: (event: React.WheelEvent<HTMLDivElement>) => void
   onClose: () => void
-}> = ({
-  billData,
-  loading,
-  customerName,
-  customerPhone,
-  currentIndex,
-  totalBills,
-  hasPrev,
-  hasNext,
-  onPrev,
-  onNext,
-  onNavigatorWheel,
-  onClose,
-}) => {
-  if (!billData && !loading) return null
+}> = ({ billDataList, loading, customerName, customerPhone, totalBills, onClose }) => {
+  if (billDataList.length === 0 && !loading) return null
+
+  const totalAmount = billDataList.reduce(
+    (sum, billData) => sum + toFiniteNumber(billData.totalAmount),
+    0,
+  )
 
   return (
     <div className="bill-modal-overlay" onClick={onClose}>
       <div className="bill-modal-content" onClick={(event) => event.stopPropagation()}>
-        <div className="bill-modal-toolbar" onWheel={onNavigatorWheel}>
+        <div className="bill-modal-toolbar">
           <div className="bill-modal-customer">
             <strong>{customerName?.toUpperCase() || 'CUSTOMER'}</strong>
             <span>{customerPhone}</span>
           </div>
-          <div className="bill-modal-navigation">
-            <button type="button" onClick={onPrev} disabled={loading || !hasPrev}>
-              Prev
-            </button>
-            <span className="bill-modal-counter">
-              {totalBills > 0 ? `${currentIndex + 1} / ${totalBills}` : '0 / 0'}
-            </span>
-            <button type="button" onClick={onNext} disabled={loading || !hasNext}>
-              Next
-            </button>
-          </div>
+          <span className="bill-modal-counter">{totalBills} Bills</span>
         </div>
         {loading ? (
-          <div className="bill-modal-loading">Loading Bill...</div>
+          <div className="bill-modal-loading">Loading Bills...</div>
         ) : (
-          billData && <BillReceipt data={billData} />
+          <>
+            <div className="bill-modal-list">
+              {billDataList.map((billData, index) => (
+                <div className="bill-modal-bill" key={`${index}-${billData.invoiceNumber || ''}`}>
+                  <BillReceipt data={billData} />
+                </div>
+              ))}
+            </div>
+            <div className="bill-modal-footer">
+              <button className="total-summary-btn">
+                Total Amount: {formatCurrencyAmount(totalAmount)} (
+                {billDataList.length || totalBills} Bills)
+              </button>
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -104,6 +128,8 @@ const BillModal: React.FC<{
 const AfterstockCustomerReport: React.FC = () => {
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()])
   const [startDate, endDate] = dateRange
+  const [dateRangePreset, setDateRangePreset] = useState<string>('today')
+  const [firstBillDate, setFirstBillDate] = useState<Date | null>(null)
 
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -113,16 +139,18 @@ const AfterstockCustomerReport: React.FC = () => {
   const [selectedBranch, setSelectedBranch] = useState('all')
   const [waiters, setWaiters] = useState<ReportWaiter[]>([])
   const [selectedWaiter, setSelectedWaiter] = useState('all')
+  const [selectedCustomerStatus, setSelectedCustomerStatus] = useState<CustomerStatusFilter | null>(
+    null,
+  )
+  const [selectedOrderSource, setSelectedOrderSource] = useState<OrderSourceFilter | null>(null)
 
   const [showExportMenu, setShowExportMenu] = useState(false)
-  const [selectedBill, setSelectedBill] = useState<BillData | null>(null)
-  const [loadingBill, setLoadingBill] = useState(false)
+  const [selectedBills, setSelectedBills] = useState<BillData[]>([])
+  const [loadingBills, setLoadingBills] = useState(false)
   const [selectedBillIDs, setSelectedBillIDs] = useState<string[]>([])
-  const [selectedBillIndex, setSelectedBillIndex] = useState(0)
   const [activeCustomerName, setActiveCustomerName] = useState('')
   const [activeCustomerPhone, setActiveCustomerPhone] = useState('')
   const billFetchTokenRef = useRef(0)
-  const billNavigatorWheelLockRef = useRef(0)
 
   const toLocalDateStr = (d: Date) => {
     const year = d.getFullYear()
@@ -131,46 +159,88 @@ const AfterstockCustomerReport: React.FC = () => {
     return `${year}-${month}-${day}`
   }
 
+  const getQuarterDates = (date: Date) => {
+    const currQuarter = Math.floor((date.getMonth() + 3) / 3)
+    const prevQuarter = currQuarter - 1
+    let startMonth = 0
+    let year = date.getFullYear()
+
+    if (prevQuarter === 0) {
+      startMonth = 9
+      year -= 1
+    } else {
+      startMonth = (prevQuarter - 1) * 3
+    }
+
+    const endMonth = startMonth + 2
+    const start = new Date(year, startMonth, 1)
+    const end = new Date(year, endMonth + 1, 0)
+
+    return { start, end }
+  }
+
   const formatValue = (val: number) => {
     const fixed = val.toFixed(2)
     return fixed.endsWith('.00') ? fixed.slice(0, -3) : fixed
   }
 
-  const loadBillAtIndex = async (billIDs: string[], index: number) => {
-    if (!billIDs[index]) return
+  const isExistingCustomer = (row: CustomerStat) => {
+    if (typeof row.isExistingCustomer === 'boolean') return row.isExistingCustomer
+    return row.totalBills > 1
+  }
 
+  const getCustomerStatus = (row: CustomerStat) => (isExistingCustomer(row) ? 'Existing' : 'New')
+
+  const isBFCustomer = (row: CustomerStat) =>
+    row.customerName?.trim().toUpperCase() === 'BF CUSTOMER'
+
+  const getCustomerHistoryBillCount = (row: CustomerStat) => row.lifetimeBillCount ?? row.totalBills
+
+  const getCustomerHistoryTotalAmount = (row: CustomerStat) =>
+    row.lifetimeTotalAmount ?? row.totalAmount
+
+  const getCustomerBillIds = (row: CustomerStat) => {
+    if (Array.isArray(row.lifetimeBillIds) && row.lifetimeBillIds.length > 0) {
+      return row.lifetimeBillIds
+    }
+    if (Array.isArray(row.billIds) && row.billIds.length > 0) return row.billIds
+    return row.billId ? [row.billId] : []
+  }
+
+  const loadCustomerBills = async (billIDs: string[]) => {
     const fetchToken = billFetchTokenRef.current + 1
     billFetchTokenRef.current = fetchToken
-    setLoadingBill(true)
-    setSelectedBill(null)
+    setLoadingBills(true)
+    setSelectedBills([])
 
     try {
-      const bill = await getBill(billIDs[index])
+      const bills = await getBills(billIDs)
       if (billFetchTokenRef.current !== fetchToken) return
-      if (!bill) {
+
+      const billsByID = new Map(bills.map((billData) => [billData.id, billData]))
+      const orderedBills = billIDs.flatMap((billID) => {
+        const bill = billsByID.get(billID)
+        return bill ? [bill] : []
+      })
+
+      if (orderedBills.length === 0) {
         alert('Unable to load bill details')
         return
       }
-      setSelectedBill(bill)
-      setSelectedBillIndex(index)
+      setSelectedBills(orderedBills)
     } catch (billError) {
       if (billFetchTokenRef.current !== fetchToken) return
       console.error('Failed to fetch bill details', billError)
       alert('Failed to load bill details')
     } finally {
       if (billFetchTokenRef.current === fetchToken) {
-        setLoadingBill(false)
+        setLoadingBills(false)
       }
     }
   }
 
   const handleCustomerRowClick = async (row: CustomerStat) => {
-    const billIDs =
-      Array.isArray(row.billIds) && row.billIds.length > 0
-        ? row.billIds
-        : row.billId
-          ? [row.billId]
-          : []
+    const billIDs = getCustomerBillIds(row)
 
     if (billIDs.length === 0) {
       alert('Bill details are not available for this customer.')
@@ -180,41 +250,17 @@ const AfterstockCustomerReport: React.FC = () => {
     setActiveCustomerName(row.customerName || '')
     setActiveCustomerPhone(row.phoneNumber || '')
     setSelectedBillIDs(billIDs)
-    setSelectedBillIndex(0)
 
-    await loadBillAtIndex(billIDs, 0)
-  }
-
-  const handleBillStep = async (step: -1 | 1) => {
-    if (loadingBill || selectedBillIDs.length === 0) return
-    const nextIndex = selectedBillIndex + step
-    if (nextIndex < 0 || nextIndex >= selectedBillIDs.length) return
-    await loadBillAtIndex(selectedBillIDs, nextIndex)
-  }
-
-  const handleBillNavigatorWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    if (loadingBill || selectedBillIDs.length <= 1) return
-    if (Math.abs(event.deltaY) < 20) return
-
-    event.preventDefault()
-
-    const now = Date.now()
-    if (now - billNavigatorWheelLockRef.current < 250) return
-    billNavigatorWheelLockRef.current = now
-
-    if (event.deltaY > 0) {
-      void handleBillStep(1)
-    } else {
-      void handleBillStep(-1)
-    }
+    await loadCustomerBills(billIDs)
   }
 
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
-        const [branchRes, waiterRes] = await Promise.all([
+        const [branchRes, waiterRes, billRes] = await Promise.all([
           fetch('/api/reports/branches'),
           fetch('/api/users?where[role][equals]=waiter&limit=1000&pagination=false'),
+          fetch('/api/billings?sort=createdAt&limit=1'),
         ])
 
         if (branchRes.ok) {
@@ -224,6 +270,12 @@ const AfterstockCustomerReport: React.FC = () => {
         if (waiterRes.ok) {
           const json = await waiterRes.json()
           setWaiters(json.docs)
+        }
+        if (billRes.ok) {
+          const json = await billRes.json()
+          if (json.docs && json.docs.length > 0) {
+            setFirstBillDate(new Date(json.docs[0].createdAt))
+          }
         }
       } catch (e) {
         console.error(e)
@@ -246,6 +298,9 @@ const AfterstockCustomerReport: React.FC = () => {
         if (selectedWaiter !== 'all') {
           url += `&waiter=${selectedWaiter}`
         }
+        if (selectedOrderSource) {
+          url += `&orderSource=${selectedOrderSource}`
+        }
 
         const res = await fetch(url)
         if (!res.ok) throw new Error('Failed to fetch report')
@@ -262,7 +317,7 @@ const AfterstockCustomerReport: React.FC = () => {
     if (startDate && endDate) {
       fetchReport(startDate, endDate)
     }
-  }, [startDate, endDate, selectedBranch, selectedWaiter])
+  }, [startDate, endDate, selectedBranch, selectedWaiter, selectedOrderSource])
 
   const handleExportExcel = () => {
     if (!data) return
@@ -278,15 +333,15 @@ const AfterstockCustomerReport: React.FC = () => {
         'LAST PURCHASING DATE',
       ].join(','),
     )
-    data.stats.forEach((row) => {
-      const customerStatus = row.totalBills > 1 ? 'Existing' : 'New'
+    filteredStats.forEach((row, index) => {
+      const customerStatus = getCustomerStatus(row)
       csvRows.push(
         [
-          row.sNo,
+          index + 1,
           `"${row.customerName}"`,
           `"${row.phoneNumber}"`,
           customerStatus,
-          row.totalBills,
+          getCustomerHistoryBillCount(row),
           row.totalAmount,
           `"${new Date(row.lastPurchasingDate).toLocaleString()}"`,
         ].join(','),
@@ -302,6 +357,69 @@ const AfterstockCustomerReport: React.FC = () => {
     }.csv`
     a.click()
     setShowExportMenu(false)
+  }
+
+  const dateRangeOptions = [
+    { value: 'till_now', label: 'Till Now' },
+    { value: 'today', label: 'Today' },
+    { value: 'yesterday', label: 'Yesterday' },
+    { value: 'last_7_days', label: 'Last 7 Days' },
+    { value: 'this_month', label: 'This Month' },
+    { value: 'last_30_days', label: 'Last 30 Days' },
+    { value: 'last_month', label: 'Last Month' },
+    { value: 'last_quarter', label: 'Last Quarter' },
+  ]
+
+  const handleDatePresetChange = (value: string) => {
+    setDateRangePreset(value)
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+    let start: Date | null = null
+    let end: Date | null = today
+
+    switch (value) {
+      case 'till_now':
+        start = firstBillDate || today
+        break
+      case 'today':
+        start = today
+        end = today
+        break
+      case 'yesterday':
+        const yest = new Date(today)
+        yest.setDate(yest.getDate() - 1)
+        start = yest
+        end = yest
+        break
+      case 'last_7_days':
+        const last7 = new Date(today)
+        last7.setDate(last7.getDate() - 6)
+        start = last7
+        break
+      case 'this_month':
+        start = new Date(today.getFullYear(), today.getMonth(), 1)
+        end = today
+        break
+      case 'last_30_days':
+        const last30 = new Date(today)
+        last30.setDate(last30.getDate() - 29)
+        start = last30
+        break
+      case 'last_month':
+        start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+        end = new Date(today.getFullYear(), today.getMonth(), 0)
+        break
+      case 'last_quarter':
+        const { start: qStart, end: qEnd } = getQuarterDates(today)
+        start = qStart
+        end = qEnd
+        break
+    }
+
+    if (start && end) {
+      setDateRange([start, end])
+    }
   }
 
   const CustomInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
@@ -343,6 +461,17 @@ const AfterstockCustomerReport: React.FC = () => {
   const waiterOptions = [
     { value: 'all', label: 'All Waiters' },
     ...waiters.map((w) => ({ value: w.id, label: (w.name || 'Unknown').toUpperCase() })),
+  ]
+
+  const customerStatusOptions: { value: CustomerStatusFilter; label: string }[] = [
+    { value: 'existing', label: 'EXISTING' },
+    { value: 'new', label: 'NEW' },
+    { value: 'bf_customer', label: 'BF CUSTOMER' },
+  ]
+
+  const orderSourceOptions: { value: OrderSourceFilter; label: string }[] = [
+    { value: 'table', label: 'TABLE' },
+    { value: 'billing', label: 'BILLING' },
   ]
 
   const customStyles = {
@@ -393,13 +522,133 @@ const AfterstockCustomerReport: React.FC = () => {
     }),
   }
 
+  const customerSummary = data?.stats.reduce(
+    (summary, row) => {
+      const bucket = isExistingCustomer(row) ? summary.existing : summary.new
+      bucket.amount += row.totalAmount
+      bucket.bills += row.totalBills
+      summary.total.amount += row.totalAmount
+      summary.total.bills += row.totalBills
+      return summary
+    },
+    {
+      existing: { amount: 0, bills: 0 },
+      new: { amount: 0, bills: 0 },
+      total: { amount: 0, bills: 0 },
+    },
+  ) ?? {
+    existing: { amount: 0, bills: 0 },
+    new: { amount: 0, bills: 0 },
+    total: { amount: 0, bills: 0 },
+  }
+
+  const orderSourceSummary = {
+    table: {
+      amount: data?.sourceSummary?.table?.amount ?? 0,
+      bills: data?.sourceSummary?.table?.bills ?? 0,
+    },
+    billing: {
+      amount: data?.sourceSummary?.billing?.amount ?? 0,
+      bills: data?.sourceSummary?.billing?.bills ?? 0,
+    },
+  }
+
+  const filteredStats =
+    data?.stats.filter((row) => {
+      if (!selectedCustomerStatus) return true
+      if (selectedCustomerStatus === 'bf_customer') return isBFCustomer(row)
+      return selectedCustomerStatus === 'existing'
+        ? isExistingCustomer(row)
+        : !isExistingCustomer(row)
+    }) ?? []
+
+  const handleResetFilters = () => {
+    setDateRangePreset('today')
+    setDateRange([new Date(), new Date()])
+    setSelectedBranch('all')
+    setSelectedWaiter('all')
+    setSelectedCustomerStatus(null)
+    setSelectedOrderSource(null)
+  }
+
   return (
     <div className="customer-report-container">
       <div className="report-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div className="report-title-row">
           <h1>Customer Report</h1>
+          <div className="report-header-actions">
+            <div className="export-container">
+              <button
+                className="export-btn"
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                title="Export Report"
+                type="button"
+              >
+                <span>Export</span>
+                <span className="icon">↓</span>
+              </button>
+              {showExportMenu && (
+                <div className="export-menu">
+                  <button onClick={handleExportExcel} type="button">
+                    Excel
+                  </button>
+                </div>
+              )}
+            </div>
+            {showExportMenu && (
+              <div
+                className="export-backdrop"
+                onClick={() => setShowExportMenu(false)}
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  zIndex: 9998,
+                  cursor: 'default',
+                }}
+              />
+            )}
+            <button
+              className="refresh-btn"
+              onClick={handleResetFilters}
+              title="Reset Filters"
+              type="button"
+            >
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M23 4v6h-6"></path>
+                <path d="M1 20v-6h6"></path>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+            </button>
+          </div>
         </div>
         <div className="date-filter">
+          <div className="filter-group select-group">
+            <Select
+              instanceId="date-preset-select"
+              options={dateRangeOptions}
+              value={dateRangeOptions.find((o) => o.value === dateRangePreset)}
+              onChange={(option: { value: string; label: string } | null) => {
+                if (option) handleDatePresetChange(option.value)
+              }}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Date Range..."
+              isSearchable={false}
+            />
+          </div>
+
           <div className="filter-group">
             <DatePicker
               selectsRange={true}
@@ -447,75 +696,83 @@ const AfterstockCustomerReport: React.FC = () => {
             />
           </div>
 
-          <div className="filter-group">
-            <div className="export-container">
-              <button
-                className="export-btn"
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                title="Export Report"
-              >
-                <span>Export</span>
-                <span className="icon">↓</span>
-              </button>
-              {showExportMenu && (
-                <div className="export-menu">
-                  <button onClick={handleExportExcel}>Excel</button>
-                </div>
-              )}
-            </div>
-            {showExportMenu && (
-              <div
-                className="export-backdrop"
-                onClick={() => setShowExportMenu(false)}
-                style={{
-                  position: 'fixed',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  zIndex: 9998,
-                  cursor: 'default',
-                }}
-              />
-            )}
+          <div className="filter-group select-group">
+            <Select
+              instanceId="customer-status-select"
+              options={customerStatusOptions}
+              value={customerStatusOptions.find((o) => o.value === selectedCustomerStatus) ?? null}
+              onChange={(option: { value: CustomerStatusFilter; label: string } | null) =>
+                setSelectedCustomerStatus(option?.value ?? null)
+              }
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="EXISTING / NEW / BF"
+              isSearchable={false}
+              isClearable={true}
+            />
           </div>
-          <div className="filter-group">
-            <button
-              onClick={() => {
-                setDateRange([new Date(), new Date()])
-                setSelectedBranch('all')
-                setSelectedWaiter('all')
-              }}
-              title="Reset Filters"
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '0 0 0 10px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--theme-text-primary)',
-              }}
-            >
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M23 4v6h-6"></path>
-                <path d="M1 20v-6h6"></path>
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-              </svg>
-            </button>
+
+          <div className="filter-group select-group">
+            <Select
+              instanceId="order-source-select"
+              options={orderSourceOptions}
+              value={orderSourceOptions.find((o) => o.value === selectedOrderSource) ?? null}
+              onChange={(option: { value: OrderSourceFilter; label: string } | null) =>
+                setSelectedOrderSource(option?.value ?? null)
+              }
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="TABLE / BILLING"
+              isSearchable={false}
+              isClearable={true}
+            />
           </div>
         </div>
       </div>
+
+      {data && (
+        <div className="customer-summary-grid">
+          <article className="customer-summary-card customer-summary-card--total">
+            <div className="customer-summary-title">Total Amount</div>
+            <div className="customer-summary-amount">
+              {formatCurrencyAmount(customerSummary.total.amount)}
+            </div>
+            <div className="customer-summary-bills">{customerSummary.total.bills} Bills</div>
+          </article>
+
+          <article className="customer-summary-card customer-summary-card--existing">
+            <div className="customer-summary-title">Existing Customer</div>
+            <div className="customer-summary-amount">
+              {formatCurrencyAmount(customerSummary.existing.amount)}
+            </div>
+            <div className="customer-summary-bills">{customerSummary.existing.bills} Bills</div>
+          </article>
+
+          <article className="customer-summary-card customer-summary-card--new">
+            <div className="customer-summary-title">New Customer</div>
+            <div className="customer-summary-amount">
+              {formatCurrencyAmount(customerSummary.new.amount)}
+            </div>
+            <div className="customer-summary-bills">{customerSummary.new.bills} Bills</div>
+          </article>
+
+          <article className="customer-summary-card customer-summary-card--table">
+            <div className="customer-summary-title">Table Order</div>
+            <div className="customer-summary-amount">
+              {formatCurrencyAmount(orderSourceSummary.table.amount)}
+            </div>
+            <div className="customer-summary-bills">{orderSourceSummary.table.bills} Bills</div>
+          </article>
+
+          <article className="customer-summary-card customer-summary-card--billing">
+            <div className="customer-summary-title">Billing</div>
+            <div className="customer-summary-amount">
+              {formatCurrencyAmount(orderSourceSummary.billing.amount)}
+            </div>
+            <div className="customer-summary-bills">{orderSourceSummary.billing.bills} Bills</div>
+          </article>
+        </div>
+      )}
 
       {loading && <p>Loading...</p>}
       {error && <p className="error">{error}</p>}
@@ -537,19 +794,19 @@ const AfterstockCustomerReport: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {data.stats.map((row) => {
-                const canViewBill = Boolean(
-                  (Array.isArray(row.billIds) && row.billIds.length > 0) || row.billId,
-                )
-                const customerStatus = row.totalBills > 1 ? 'Existing' : 'New'
+              {filteredStats.map((row, index) => {
+                const canViewBill = getCustomerBillIds(row).length > 0
+                const customerStatus = getCustomerStatus(row)
                 return (
                   <tr
-                    key={`${row.sNo}-${row.phoneNumber}`}
-                    className={canViewBill ? 'customer-row customer-row--clickable' : 'customer-row'}
+                    key={`${row.sNo}-${row.phoneNumber}-${row.billId || index}`}
+                    className={
+                      canViewBill ? 'customer-row customer-row--clickable' : 'customer-row'
+                    }
                     onClick={canViewBill ? () => void handleCustomerRowClick(row) : undefined}
                     title={canViewBill ? 'Click to view latest bill' : 'Bill unavailable'}
                   >
-                    <td>{row.sNo}</td>
+                    <td>{index + 1}</td>
                     <td>{row.customerName?.toUpperCase()}</td>
                     <td>{row.phoneNumber}</td>
                     <td
@@ -563,7 +820,9 @@ const AfterstockCustomerReport: React.FC = () => {
                     </td>
                     <td>{row.branchName?.toUpperCase()}</td>
                     <td>{row.waiterName?.toUpperCase()}</td>
-                    <td style={{ textAlign: 'right', fontWeight: '600' }}>{row.totalBills}</td>
+                    <td style={{ textAlign: 'right', fontWeight: '600' }}>
+                      {getCustomerHistoryBillCount(row)}
+                    </td>
                     <td style={{ textAlign: 'right', fontWeight: '600', fontSize: '1.1rem' }}>
                       {formatValue(row.totalAmount)}
                     </td>
@@ -578,25 +837,18 @@ const AfterstockCustomerReport: React.FC = () => {
         </div>
       )}
 
-      {(selectedBill || loadingBill) && (
+      {(selectedBills.length > 0 || loadingBills) && (
         <BillModal
-          billData={selectedBill}
-          loading={loadingBill}
+          billDataList={selectedBills}
+          loading={loadingBills}
           customerName={activeCustomerName}
           customerPhone={activeCustomerPhone}
-          currentIndex={selectedBillIndex}
           totalBills={selectedBillIDs.length}
-          hasPrev={selectedBillIndex > 0}
-          hasNext={selectedBillIndex < selectedBillIDs.length - 1}
-          onPrev={() => void handleBillStep(-1)}
-          onNext={() => void handleBillStep(1)}
-          onNavigatorWheel={handleBillNavigatorWheel}
           onClose={() => {
             billFetchTokenRef.current += 1
-            setSelectedBill(null)
-            setLoadingBill(false)
+            setSelectedBills([])
+            setLoadingBills(false)
             setSelectedBillIDs([])
-            setSelectedBillIndex(0)
             setActiveCustomerName('')
             setActiveCustomerPhone('')
           }}
