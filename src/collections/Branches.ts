@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { ensureDailyBranchPins } from '../utilities/branchPins'
+import { ensureDailyBranchPins, isValidBranchPin } from '../utilities/branchPins'
 
 export const Branches: CollectionConfig = {
   slug: 'branches',
@@ -118,7 +118,7 @@ export const Branches: CollectionConfig = {
       validate: (value: unknown) => {
         if (value == null || value === '') return true
         if (typeof value !== 'string') return 'Branch PIN must be exactly 4 digits.'
-        if (!/^\d{4}$/.test(value.trim())) {
+        if (!isValidBranchPin(value.trim())) {
           return 'Branch PIN must be exactly 4 digits (e.g., 0042).'
         }
         return true

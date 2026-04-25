@@ -7,12 +7,26 @@ const BRANCH_PIN_SECRET =
   process.env.BRANCH_PIN_DAILY_SECRET?.trim() || 'blackforest-branch-pin-secret'
 const MAX_DAILY_BRANCH_PINS = 10000
 
+export const BRANCH_PIN_HEADER = 'x-branch-pin'
+export const BRANCH_PIN_REQUIRED_ROLES = new Set(['branch', 'waiter', 'cashier'])
+
 let lastDailyBranchPinSyncDate: string | null = null
 let dailyBranchPinSyncPromise: Promise<void> | null = null
 
 type BranchPinDoc = {
   id: string
   branchPin?: string | null
+}
+
+export const normalizeBranchPin = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim()
+  return normalized.length > 0 ? normalized : null
+}
+
+export const isValidBranchPin = (value: unknown): value is string => {
+  if (typeof value !== 'string') return false
+  return BRANCH_PIN_REGEX.test(value)
 }
 
 export const getISTDateKey = (date: Date = new Date()): string =>

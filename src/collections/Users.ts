@@ -2,9 +2,13 @@ import type { CollectionConfig, PayloadRequest } from 'payload'
 import { isIPAllowed } from '../utilities/ipCheck'
 import { getDistanceFromLatLonInMeters } from '../utilities/geo'
 import type { IpSetting } from '../payload-types'
-import { ensureDailyBranchPins } from '../utilities/branchPins'
-
-const BRANCH_PIN_REGEX = /^\d{4}$/
+import {
+  BRANCH_PIN_HEADER,
+  BRANCH_PIN_REQUIRED_ROLES,
+  ensureDailyBranchPins,
+  isValidBranchPin,
+  normalizeBranchPin,
+} from '../utilities/branchPins'
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -398,43 +402,41 @@ export const Users: CollectionConfig = {
           return null
         }
 
-        const normalizeBranchPin = (value: unknown): string | null => {
-          if (typeof value !== 'string') return null
-          const normalized = value.trim()
-          if (!BRANCH_PIN_REGEX.test(normalized)) return null
-          return normalized
-        }
-
-        const staffBranchPinRoles = [
-          'branch',
-          'kitchen',
-          'waiter',
-          'cashier',
-          'supervisor',
-          'delivery',
-          'driver',
-          'chef',
-        ]
-        const strictBranchAssignmentRoles = ['branch', 'kitchen']
+        const staffBranchPinRoles = Array.from(BRANCH_PIN_REQUIRED_ROLES)
+        const strictBranchAssignmentRoles = ['branch']
 
         const requestBody = (req as { body?: unknown } | undefined)?.body
-        const branchPinFromBody =
+        const rawBranchPinFromBody =
           requestBody && typeof requestBody === 'object' && requestBody !== null
-            ? normalizeBranchPin((requestBody as { branchPin?: unknown }).branchPin)
+            ? (requestBody as { branchPin?: unknown }).branchPin
             : null
+        const branchPinFromBody = normalizeBranchPin(rawBranchPinFromBody)
 
         let branchPinFromHeader: string | null = null
+        let branchPinFromLegacyHeader: string | null = null
         if (req.headers && typeof req.headers.get === 'function') {
-          branchPinFromHeader =
-            normalizeBranchPin(req.headers.get('x-branch-pin')) ||
-            normalizeBranchPin(req.headers.get('x-branch-code'))
+          branchPinFromHeader = normalizeBranchPin(req.headers.get(BRANCH_PIN_HEADER))
+          branchPinFromLegacyHeader = normalizeBranchPin(req.headers.get('x-branch-code'))
         }
 
-        const branchPin = branchPinFromHeader || branchPinFromBody
+        const branchPin = branchPinFromHeader || branchPinFromLegacyHeader || branchPinFromBody
+        const isBranchPinRequired = BRANCH_PIN_REQUIRED_ROLES.has(user.role)
+        const hasAnyBranchPinInput = Boolean(
+          branchPinFromHeader || branchPinFromLegacyHeader || branchPinFromBody,
+        )
+
+        if (hasAnyBranchPinInput && (!branchPin || !isValidBranchPin(branchPin))) {
+          throw new Error('Branch PIN must be exactly 4 digits.')
+        }
+
+        if (isBranchPinRequired && !branchPin) {
+          throw new Error(`Branch PIN is required. Send ${BRANCH_PIN_HEADER} in the login request.`)
+        }
+
         let pinMatchedBranch: { id: string; name?: string } | null | undefined
 
         const resolveBranchByPin = async () => {
-          if (!branchPin) return null
+          if (!branchPin || !isValidBranchPin(branchPin)) return null
           if (pinMatchedBranch !== undefined) return pinMatchedBranch
 
           console.log(`[Login Debug] Resolving branch for PIN: ${branchPin}`)
@@ -471,7 +473,11 @@ export const Users: CollectionConfig = {
         if (branchPin && staffBranchPinRoles.includes(user.role)) {
           try {
             const matchedBranch = await resolveBranchByPin()
-            if (matchedBranch) {
+            if (!matchedBranch) {
+              if (isBranchPinRequired) {
+                throw new Error('Invalid Branch PIN.')
+              }
+            } else {
               const userBranchID = getRelationshipID(user.branch)
               const enforceBranchMatch = strictBranchAssignmentRoles.includes(user.role)
               if (enforceBranchMatch && userBranchID && userBranchID !== matchedBranch.id) {
