@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { ensureDailyBranchPins, isValidBranchPin } from '../utilities/branchPins'
+import { isValidBranchPin } from '../utilities/branchPins'
 
 export const Branches: CollectionConfig = {
   slug: 'branches',
@@ -7,17 +7,8 @@ export const Branches: CollectionConfig = {
     useAsTitle: 'name',
   },
   hooks: {
-    beforeRead: [
-      async ({ req }) => {
-        try {
-          await ensureDailyBranchPins(req)
-        } catch (e) {
-          console.error('[Branch PIN] Auto-rotation during read failed:', e)
-        }
-      },
-    ],
     beforeChange: [
-      async ({ data, req, operation, originalDoc, context }) => {
+      async ({ data, req, operation, originalDoc }) => {
         const nextData = (data || {}) as Record<string, unknown>
         const rawBranchPin = nextData.branchPin
         const normalizedBranchPin =
@@ -34,13 +25,6 @@ export const Branches: CollectionConfig = {
             : undefined)
 
         if (!resolvedBranchPin) {
-          return nextData
-        }
-
-        const skipUniquenessCheck =
-          (context as { skipBranchPinUniquenessCheck?: boolean } | undefined)
-            ?.skipBranchPinUniquenessCheck === true
-        if (skipUniquenessCheck) {
           return nextData
         }
 
@@ -109,11 +93,12 @@ export const Branches: CollectionConfig = {
     {
       name: 'branchPin',
       type: 'text',
-      label: 'Branch Login PIN (Daily, 4 digits)',
+      label: 'Branch Login PIN',
+      required: true,
       admin: {
-        readOnly: true,
+        position: 'sidebar',
         description:
-          'Auto-generated every day (IST). Use this PIN only when staff login fails due to WiFi/IP/location issues.',
+          'Manual 4-digit PIN used for branch staff login verification.',
       },
       validate: (value: unknown) => {
         if (value == null || value === '') return true
@@ -122,6 +107,11 @@ export const Branches: CollectionConfig = {
           return 'Branch PIN must be exactly 4 digits (e.g., 0042).'
         }
         return true
+      },
+      access: {
+        create: ({ req }) => req.user?.role === 'superadmin',
+        read: ({ req }) => req.user?.role === 'superadmin',
+        update: ({ req }) => req.user?.role === 'superadmin',
       },
     },
     {

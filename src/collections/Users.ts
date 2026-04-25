@@ -1,11 +1,10 @@
-import type { CollectionConfig, PayloadRequest } from 'payload'
+import type { CollectionConfig } from 'payload'
 import { isIPAllowed } from '../utilities/ipCheck'
 import { getDistanceFromLatLonInMeters } from '../utilities/geo'
 import type { IpSetting } from '../payload-types'
 import {
   BRANCH_PIN_HEADER,
   BRANCH_PIN_REQUIRED_ROLES,
-  ensureDailyBranchPins,
   isValidBranchPin,
   normalizeBranchPin,
 } from '../utilities/branchPins'
@@ -382,12 +381,6 @@ export const Users: CollectionConfig = {
         )
         if (isLoginBlocked) {
           throw new Error('Login blocked by superadmin. Please contact administrator.')
-        }
-
-        try {
-          await ensureDailyBranchPins(req)
-        } catch (error) {
-          console.error('[Branch PIN] Daily rotation failed:', error)
         }
 
         if (user.role === 'superadmin') return

@@ -273,9 +273,9 @@ export interface Branch {
   phone: string;
   email: string;
   /**
-   * Auto-generated every day (IST). Use this PIN only when staff login fails due to WiFi/IP/location issues.
+   * Manual 4-digit PIN used for branch staff login verification.
    */
-  branchPin?: string | null;
+  branchPin: string;
   /**
    * Public IP for auto-detecting branch on login (e.g., 192.0.2.1). Fetch via whatismyip.com at branch.
    */
