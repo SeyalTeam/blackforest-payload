@@ -228,6 +228,32 @@
     }
   }
 
+  .live-login-modal-header {
+    gap: 0.75rem;
+    justify-content: flex-start;
+
+    .live-login-toolbar {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+    }
+  }
+
+  .live-login-count {
+    display: inline-flex;
+    align-items: center;
+    height: 34px;
+    border-radius: 999px;
+    padding: 0 0.75rem;
+    background: rgba(22, 163, 74, 0.14);
+    border: 1px solid rgba(34, 197, 94, 0.35);
+    color: #86efac;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
   .modal-body {
     padding: 1.5rem;
     overflow-y: auto;
@@ -878,6 +904,102 @@
       font-size: 0.9rem;
     }
 
+    .live-login-generated-at {
+      margin: 0 0 0.8rem;
+      font-size: 0.78rem;
+      color: #71717a;
+      font-weight: 600;
+    }
+
+    .live-login-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+
+    .live-login-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.85rem;
+      background: rgba(24, 24, 27, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 0.7rem;
+      padding: 0.72rem 0.8rem;
+    }
+
+    .live-login-user {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .live-login-name {
+      color: #f4f4f5;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .live-login-meta {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+
+    .live-login-role,
+    .live-login-branch {
+      display: inline-flex;
+      align-items: center;
+      height: 20px;
+      border-radius: 999px;
+      padding: 0 0.45rem;
+      font-size: 0.66rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+
+    .live-login-role {
+      color: #dbeafe;
+      background: rgba(59, 130, 246, 0.18);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .live-login-branch {
+      color: #e4e4e7;
+      background: rgba(113, 113, 122, 0.22);
+      border: 1px solid rgba(113, 113, 122, 0.28);
+    }
+
+    .live-login-presence {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.42rem;
+      color: #86efac;
+      font-size: 0.74rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    .live-login-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #22c55e;
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45);
+      animation: live-login-dot-pulse 1.2s ease-in-out infinite;
+    }
+
+    .live-login-presence-label {
+      white-space: nowrap;
+    }
+
     .live-branch-block {
       margin-top: 0.7rem;
     }
@@ -994,6 +1116,50 @@
       margin-bottom: 0.2rem;
     }
 
+    .table-top-actions {
+      position: absolute;
+      top: 0.26rem;
+      right: 0.3rem;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      z-index: 2;
+    }
+
+    .table-call-status {
+      position: absolute;
+      top: 0.3rem;
+      left: 0.3rem;
+      padding: 0.14rem 0.4rem;
+      border-radius: 999px;
+      font-size: 0.58rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      z-index: 2;
+      pointer-events: none;
+      line-height: 1.2;
+
+      &.calling {
+        color: #166534;
+        border: 1px solid rgba(22, 163, 74, 0.5);
+        background: rgba(220, 252, 231, 0.92);
+        animation: table-call-status-pulse 0.9s ease-in-out infinite;
+      }
+
+      &.called {
+        color: #14532d;
+        border: 1px solid rgba(22, 163, 74, 0.55);
+        background: rgba(187, 247, 208, 0.95);
+      }
+
+      &.failed {
+        color: #991b1b;
+        border: 1px solid rgba(239, 68, 68, 0.45);
+        background: rgba(254, 226, 226, 0.95);
+      }
+    }
+
     .table-name {
       font-size: 1.18rem;
       font-weight: 700;
@@ -1042,6 +1208,111 @@
       &:hover {
         background: rgba(255, 255, 255, 0.68);
       }
+    }
+
+    .table-call-btn {
+      position: relative;
+      width: 26px;
+      height: 26px;
+      color: #15803d;
+      border-color: rgba(22, 163, 74, 0.55);
+      background: rgba(220, 252, 231, 0.95);
+      box-shadow: 0 2px 8px rgba(21, 128, 61, 0.22);
+
+      &.is-calling {
+        animation: table-call-btn-pulse 1s ease-in-out infinite;
+
+        &::after {
+          content: '';
+          position: absolute;
+          inset: -3px;
+          border-radius: inherit;
+          border: 2px solid rgba(22, 163, 74, 0.45);
+          animation: table-call-ring-wave 1.1s ease-out infinite;
+          pointer-events: none;
+        }
+      }
+
+      &.is-called {
+        color: #166534;
+        border-color: rgba(22, 163, 74, 0.75);
+      }
+
+      &.is-failed {
+        color: #b91c1c;
+        border-color: rgba(239, 68, 68, 0.6);
+        background: rgba(254, 226, 226, 0.95);
+        box-shadow: 0 2px 8px rgba(220, 38, 38, 0.18);
+      }
+
+      &:hover:not(:disabled) {
+        color: #166534;
+        border-color: rgba(22, 163, 74, 0.75);
+        background: rgba(187, 247, 208, 0.98);
+      }
+
+      &:disabled {
+        cursor: not-allowed;
+        opacity: 0.72;
+      }
+    }
+
+    .call-icon-ringing {
+      transform-origin: 65% 32%;
+      animation: table-call-icon-ring 0.9s ease-in-out infinite;
+    }
+  }
+
+  @keyframes table-call-btn-pulse {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.06);
+    }
+  }
+
+  @keyframes table-call-ring-wave {
+    0% {
+      transform: scale(0.9);
+      opacity: 0.7;
+    }
+    70% {
+      transform: scale(1.35);
+      opacity: 0;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes table-call-icon-ring {
+    0%,
+    100% {
+      transform: rotate(0deg);
+    }
+    20% {
+      transform: rotate(-15deg);
+    }
+    40% {
+      transform: rotate(15deg);
+    }
+    60% {
+      transform: rotate(-11deg);
+    }
+    80% {
+      transform: rotate(11deg);
+    }
+  }
+
+  @keyframes table-call-status-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.2);
+    }
+    50% {
+      box-shadow: 0 0 0 4px rgba(22, 163, 74, 0);
     }
   }
 
@@ -1161,6 +1432,18 @@
       }
     }
 
+    .live-login-modal-header {
+      flex-wrap: wrap;
+      align-items: flex-start;
+
+      .live-login-toolbar {
+        margin-left: 0;
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+
     .live-refresh-btn {
       width: 100%;
       justify-content: center;
@@ -1177,6 +1460,14 @@
 
       .table-name {
         font-size: 1.06rem;
+      }
+
+      .live-login-row {
+        align-items: flex-start;
+      }
+
+      .live-login-presence {
+        font-size: 0.7rem;
       }
 
       .form-row {
@@ -1218,6 +1509,16 @@
         max-width: 260px;
         justify-self: center;
       }
+    }
+  }
+
+  @keyframes live-login-dot-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.42);
+    }
+    70% {
+      box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
     }
   }
 }

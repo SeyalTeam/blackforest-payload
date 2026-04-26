@@ -74,6 +74,7 @@ import { WidgetSettingsGlobal } from './globals/Widgets'
 import { createWidgetOrderHandler } from './endpoints/createWidgetOrder'
 import { getTableCustomerDetailsVisibilityHandler } from './endpoints/getTableCustomerDetailsVisibility'
 import { getLiveTableStatusHandler } from './endpoints/getLiveTableStatus'
+import { getLiveLoggedInUsersHandler } from './endpoints/getLiveLoggedInUsers'
 import { getReportBranchesHandler } from './endpoints/getReportBranches'
 import { getWidgetProductOptionsHandler } from './endpoints/getWidgetProductOptions'
 import { getBillingCustomerLookupHandler } from './endpoints/getBillingCustomerLookup'
@@ -336,6 +337,11 @@ export default buildConfig({
       path: '/widgets/live-table-status',
       method: 'get',
       handler: getLiveTableStatusHandler,
+    },
+    {
+      path: '/widgets/live-logins',
+      method: 'get',
+      handler: getLiveLoggedInUsersHandler,
     },
     {
       path: '/widgets/product-options',

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
 import {
   Package,
@@ -10,6 +10,7 @@ import {
   MessageSquare,
   ListFilter,
   Loader2,
+  Users,
   UserRound,
   Save,
   Trash2,
@@ -29,6 +30,7 @@ import {
   Hash,
   Crown,
   Anchor,
+  PhoneCall,
 } from 'lucide-react'
 import Select, { type FormatOptionLabelMeta, type GroupBase } from 'react-select'
 import DatePicker from 'react-datepicker'
@@ -134,11 +136,24 @@ type LiveTableBranch = {
   sections: LiveTableSection[]
 }
 
+type LiveLoginUser = {
+  userId: string
+  name: string
+  role: string
+  branchId: string | null
+  branchName: string | null
+  activeSessionCount: number
+  latestLoginAt: string | null
+}
+
+type TableCallState = 'calling' | 'called' | 'failed'
+
 type WidgetKey =
   | 'stock-order'
   | 'table-customer-details'
   | 'billing-customer-details'
   | 'live-table'
+  | 'live-logins'
   | 'customer-offer-settings'
   | 'favorite-products'
   | 'favorite-categories'
@@ -297,6 +312,28 @@ const getKotAmountLabel = (
     typeof kotNumber === 'string' && kotNumber.trim().length > 0 ? kotNumber.trim() : '-'
   return `${normalizedKot} - ${getAmountLabel(amount)}`
 }
+
+const getLiveLoginTimeLabel = (value: string | null | undefined): string => {
+  if (typeof value !== 'string' || value.trim().length === 0) return 'Unknown login time'
+
+  const parsedMs = new Date(value).getTime()
+  if (!Number.isFinite(parsedMs)) return 'Unknown login time'
+
+  const deltaSeconds = Math.max(0, Math.floor((Date.now() - parsedMs) / 1000))
+  if (deltaSeconds < 60) return 'Just now'
+
+  const deltaMinutes = Math.floor(deltaSeconds / 60)
+  if (deltaMinutes < 60) return `${deltaMinutes}m ago`
+
+  const deltaHours = Math.floor(deltaMinutes / 60)
+  if (deltaHours < 24) return `${deltaHours}h ago`
+
+  const deltaDays = Math.floor(deltaHours / 24)
+  return `${deltaDays}d ago`
+}
+
+const getLiveTableCardKey = (branchId: string, sectionName: string, tableKey: string): string =>
+  `${branchId}::${sectionName}::${tableKey}`
 
 const CustomDateInput = React.forwardRef<
   HTMLInputElement,
@@ -464,6 +501,14 @@ const WidgetSettings: React.FC<any> = (props) => {
   const [liveTableLoading, setLiveTableLoading] = useState(false)
   const [liveTableError, setLiveTableError] = useState<string | null>(null)
   const [liveTableTick, setLiveTableTick] = useState(0)
+  const [liveLoginUsers, setLiveLoginUsers] = useState<LiveLoginUser[]>([])
+  const [liveLoginLoading, setLiveLoginLoading] = useState(false)
+  const [liveLoginError, setLiveLoginError] = useState<string | null>(null)
+  const [liveLoginGeneratedAt, setLiveLoginGeneratedAt] = useState<string | null>(null)
+  const [tableCallStatusByKey, setTableCallStatusByKey] = useState<Record<string, TableCallState>>(
+    {},
+  )
+  const tableCallStatusTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const [selectedBill, setSelectedBill] = useState<BillData | null>(null)
   const [loadingBill, setLoadingBill] = useState(false)
 
@@ -719,6 +764,42 @@ const WidgetSettings: React.FC<any> = (props) => {
     }
   }
 
+  const fetchLiveLoginUsers = async (showLoader = true) => {
+    if (showLoader) {
+      setLiveLoginLoading(true)
+    }
+    setLiveLoginError(null)
+
+    try {
+      const response = await fetch('/api/widgets/live-logins')
+      const json = (await response.json()) as {
+        message?: string
+        generatedAt?: string
+        users?: LiveLoginUser[]
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          typeof json?.message === 'string' ? json.message : 'Failed to load live logged-in users',
+        )
+      }
+
+      setLiveLoginUsers(Array.isArray(json?.users) ? json.users : [])
+      setLiveLoginGeneratedAt(typeof json?.generatedAt === 'string' ? json.generatedAt : null)
+    } catch (error) {
+      console.error('Failed to fetch live logged-in users:', error)
+      setLiveLoginError(
+        error instanceof Error ? error.message : 'Unable to fetch live logged-in users right now',
+      )
+      setLiveLoginUsers([])
+      setLiveLoginGeneratedAt(null)
+    } finally {
+      if (showLoader) {
+        setLiveLoginLoading(false)
+      }
+    }
+  }
+
   useEffect(() => {
     if (activeWidget !== 'live-table') return
     void fetchLiveTableStatus(selectedLiveTableBranch.value)
@@ -739,6 +820,26 @@ const WidgetSettings: React.FC<any> = (props) => {
 
     return () => window.clearInterval(interval)
   }, [activeWidget])
+
+  useEffect(() => {
+    if (activeWidget !== 'live-logins') return
+    void fetchLiveLoginUsers(true)
+
+    const interval = window.setInterval(() => {
+      void fetchLiveLoginUsers(false)
+    }, 8000)
+
+    return () => window.clearInterval(interval)
+  }, [activeWidget])
+
+  useEffect(() => {
+    return () => {
+      Object.values(tableCallStatusTimersRef.current).forEach((timerID) => {
+        clearTimeout(timerID)
+      })
+      tableCallStatusTimersRef.current = {}
+    }
+  }, [])
 
   useEffect(() => {
     if (tableQRDomainOptions.length === 0) {
@@ -798,6 +899,81 @@ const WidgetSettings: React.FC<any> = (props) => {
       alert('Failed to load bill details')
     } finally {
       setLoadingBill(false)
+    }
+  }
+
+  const handleCallWaiterClick = async ({
+    branchId,
+    sectionName,
+    tableNumber,
+    billId,
+    tableCardKey,
+  }: {
+    branchId: string
+    sectionName: string
+    tableNumber: string
+    billId?: string | null
+    tableCardKey: string
+  }) => {
+    const existingTimer = tableCallStatusTimersRef.current[tableCardKey]
+    if (existingTimer) {
+      clearTimeout(existingTimer)
+      delete tableCallStatusTimersRef.current[tableCardKey]
+    }
+    setTableCallStatusByKey((previous) => ({ ...previous, [tableCardKey]: 'calling' }))
+
+    try {
+      const payload: {
+        branchId: string
+        billId?: string
+        section?: string
+        tableNumber?: string
+      } = {
+        branchId,
+      }
+
+      if (typeof billId === 'string' && billId.trim().length > 0) {
+        payload.billId = billId
+      } else {
+        payload.section = sectionName
+        payload.tableNumber = tableNumber
+      }
+
+      const response = await fetch('/api/call-waiter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      const result = (await response.json().catch(() => null)) as { message?: string } | null
+
+      if (!response.ok) {
+        throw new Error(result?.message || 'Failed to call waiter for this table')
+      }
+
+      setTableCallStatusByKey((previous) => ({ ...previous, [tableCardKey]: 'called' }))
+      tableCallStatusTimersRef.current[tableCardKey] = setTimeout(() => {
+        setTableCallStatusByKey((previous) => {
+          if (!(tableCardKey in previous)) return previous
+          const next = { ...previous }
+          delete next[tableCardKey]
+          return next
+        })
+        delete tableCallStatusTimersRef.current[tableCardKey]
+      }, 2500)
+      void fetchLiveTableStatus(selectedLiveTableBranch.value)
+    } catch (error) {
+      console.error('Failed to call waiter from live table card:', error)
+      setTableCallStatusByKey((previous) => ({ ...previous, [tableCardKey]: 'failed' }))
+      tableCallStatusTimersRef.current[tableCardKey] = setTimeout(() => {
+        setTableCallStatusByKey((previous) => {
+          if (!(tableCardKey in previous)) return previous
+          const next = { ...previous }
+          delete next[tableCardKey]
+          return next
+        })
+        delete tableCallStatusTimersRef.current[tableCardKey]
+      }, 3000)
     }
   }
 
@@ -1471,6 +1647,14 @@ const WidgetSettings: React.FC<any> = (props) => {
           </button>
           <button
             type="button"
+            className={`tile ${activeWidget === 'live-logins' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('live-logins')}
+          >
+            <Users className="tile-icon" size={48} />
+            <span className="tile-label">Live Logins</span>
+          </button>
+          <button
+            type="button"
             className={`tile ${activeWidget === 'customer-offer-settings' ? 'active' : ''}`}
             onClick={() => setActiveWidget('customer-offer-settings')}
           >
@@ -2057,6 +2241,12 @@ const WidgetSettings: React.FC<any> = (props) => {
                           <h4 className="live-section-title">{section.sectionName}</h4>
                           <div className="live-table-grid">
                             {section.tables.map((table) => {
+                              const tableCardKey = getLiveTableCardKey(
+                                branch.branchId,
+                                section.sectionName,
+                                table.tableKey,
+                              )
+                              const tableCallState = tableCallStatusByKey[tableCardKey]
                               const tableVisualState =
                                 table.tableState === 'active' ||
                                 table.tableState === 'prepared' ||
@@ -2072,8 +2262,50 @@ const WidgetSettings: React.FC<any> = (props) => {
                               return (
                                 <div
                                   className={`live-table-card ${tableVisualState}`}
-                                  key={`${branch.branchId}-${section.sectionName}-${table.tableKey}`}
+                                  key={tableCardKey}
                                 >
+                                  {tableCallState && (
+                                    <div className={`table-call-status ${tableCallState}`}>
+                                      {tableCallState === 'calling'
+                                        ? 'Calling...'
+                                        : tableCallState === 'called'
+                                          ? 'Called'
+                                          : 'Call Failed'}
+                                    </div>
+                                  )}
+                                  <div className="table-top-actions">
+                                    <button
+                                      type="button"
+                                      className={`table-action-btn table-call-btn ${
+                                        tableCallState ? `is-${tableCallState}` : ''
+                                      }`}
+                                      aria-label={`Call waiter for ${table.tableLabel}`}
+                                      title="Call Waiter"
+                                      disabled={tableCallState === 'calling'}
+                                      onClick={() =>
+                                        void handleCallWaiterClick({
+                                          branchId: branch.branchId,
+                                          sectionName: section.sectionName,
+                                          tableNumber: table.tableNumber,
+                                          billId: table.billId,
+                                          tableCardKey,
+                                        })
+                                      }
+                                    >
+                                      {tableCallState === 'called' ? (
+                                        <Check size={14} />
+                                      ) : tableCallState === 'failed' ? (
+                                        <X size={14} />
+                                      ) : (
+                                        <PhoneCall
+                                          size={14}
+                                          className={
+                                            tableCallState === 'calling' ? 'call-icon-ringing' : undefined
+                                          }
+                                        />
+                                      )}
+                                    </button>
+                                  </div>
                                   {showActiveTimer && (
                                     <div className="table-timer">
                                       {getElapsedLabel(
@@ -2125,6 +2357,78 @@ const WidgetSettings: React.FC<any> = (props) => {
                     )}
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {activeWidget === 'live-logins' && (
+            <div className="widget-modal">
+              <div className="modal-header live-login-modal-header">
+                <h2>Live Logins</h2>
+                <div className="live-login-toolbar">
+                  <span className="live-login-count">
+                    {liveLoginUsers.length} Active {liveLoginUsers.length === 1 ? 'User' : 'Users'}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary live-refresh-btn"
+                    onClick={() => void fetchLiveLoginUsers(true)}
+                    disabled={liveLoginLoading}
+                  >
+                    {liveLoginLoading ? (
+                      <>
+                        <Loader2 className="animate-spin" size={16} />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw size={16} />
+                        Refresh
+                      </>
+                    )}
+                  </button>
+                </div>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="modal-body">
+                {liveLoginGeneratedAt && !liveLoginError && (
+                  <p className="live-login-generated-at">
+                    Updated {getLiveLoginTimeLabel(liveLoginGeneratedAt)}
+                  </p>
+                )}
+
+                {liveLoginError && <p className="live-error">{liveLoginError}</p>}
+
+                {!liveLoginLoading && !liveLoginError && liveLoginUsers.length === 0 && (
+                  <p className="live-empty-state">No users are currently logged in.</p>
+                )}
+
+                {liveLoginUsers.length > 0 && (
+                  <div className="live-login-list">
+                    {liveLoginUsers.map((user) => (
+                      <div className="live-login-row" key={user.userId}>
+                        <div className="live-login-user">
+                          <div className="live-login-name">{user.name}</div>
+                          <div className="live-login-meta">
+                            <span className="live-login-role">{user.role.toUpperCase()}</span>
+                            {user.branchName && (
+                              <span className="live-login-branch">{user.branchName}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="live-login-presence">
+                          <span className="live-login-dot" />
+                          <span className="live-login-presence-label">
+                            Live • {getLiveLoginTimeLabel(user.latestLoginAt)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
