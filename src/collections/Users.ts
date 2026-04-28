@@ -101,8 +101,8 @@ export const Users: CollectionConfig = {
             condition: ({ isKitchen }) => Boolean(isKitchen),
           },
           access: {
-            create: ({ req }) => req.user?.role === 'superadmin',
-            update: ({ req }) => req.user?.role === 'superadmin',
+            create: ({ req }) => ['superadmin', 'branch'].includes(req.user?.role || ''),
+            update: ({ req }) => ['superadmin', 'branch'].includes(req.user?.role || ''),
           },
         },
         {
@@ -134,8 +134,8 @@ export const Users: CollectionConfig = {
             return true
           },
           access: {
-            create: ({ req }) => req.user?.role === 'superadmin',
-            update: ({ req }) => req.user?.role === 'superadmin',
+            create: ({ req }) => ['superadmin', 'branch'].includes(req.user?.role || ''),
+            update: ({ req }) => ['superadmin', 'branch'].includes(req.user?.role || ''),
           },
         },
       ],
@@ -183,8 +183,8 @@ export const Users: CollectionConfig = {
             return true
           },
           access: {
-            create: ({ req }) => req.user?.role === 'superadmin',
-            update: ({ req }) => req.user?.role === 'superadmin',
+            create: ({ req }) => ['superadmin', 'branch'].includes(req.user?.role || ''),
+            update: ({ req }) => ['superadmin', 'branch'].includes(req.user?.role || ''),
           },
         },
       ],
@@ -913,8 +913,6 @@ export const Users: CollectionConfig = {
               throw new Error('At least one Kitchen Branch is required when Kitchen checkbox is enabled')
             }
             nextData.branch = null
-            // Branch-level kitchen access should not be tied to one specific kitchen.
-            nextData.kitchen = null
           }
           if (nextData.role === 'company' && !nextData.company) {
             throw new Error('Company is required for company role users')
