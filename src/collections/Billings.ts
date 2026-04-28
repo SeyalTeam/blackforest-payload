@@ -3,7 +3,7 @@ import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import type { PipelineStage } from 'mongoose'
 import { CollectionConfig, APIError, type Payload } from 'payload'
-import { getProductStock } from '../utilities/inventory'
+import { getProductStock, getMultipleProductsStock } from '../utilities/inventory'
 import { updateItemStatus } from '../endpoints/updateItemStatus'
 import { getItemPreparationTime } from '../endpoints/getItemPreparationTime'
 import {
@@ -488,21 +488,22 @@ const computeBillingGSTBreakdown = async (
   ]
 
   const productCache = new Map<string, ProductGSTInput | null>()
-  await Promise.all(
-    productIDs.map(async (productID) => {
-      try {
-        const product = (await payload.findByID({
-          collection: 'products',
-          id: productID,
-          depth: 0,
-          overrideAccess: true,
-        })) as ProductGSTInput
-        productCache.set(productID, product)
-      } catch {
-        productCache.set(productID, null)
-      }
-    }),
-  )
+  if (productIDs.length > 0) {
+    const products = await payload.find({
+      collection: 'products',
+      depth: 0,
+      limit: productIDs.length,
+      overrideAccess: true,
+      where: {
+        id: {
+          in: productIDs,
+        },
+      },
+    })
+    products.docs.forEach((product) => {
+      productCache.set(product.id, product as unknown as ProductGSTInput)
+    })
+  }
 
   let totalTaxableAmountInPaise = 0
   let totalGSTAmountInPaise = 0
@@ -1697,6 +1698,12 @@ const Billings: CollectionConfig = {
   },
   indexes: [
     {
+      fields: ['invoiceNumber'],
+    },
+    {
+      fields: ['kotNumber'],
+    },
+    {
       fields: ['customerDetails.phoneNumber', 'createdAt'],
     },
     {
@@ -1967,12 +1974,16 @@ const Billings: CollectionConfig = {
               .filter((row) => row.additionalQtyNeeded > 0)
 
             if (stockChecks.length > 0) {
-              const stockRows = await Promise.all(
-                stockChecks.map(async (row) => ({
-                  ...row,
-                  currentStock: await getProductStock(req.payload, row.productID, branchId),
-                })),
+              const productIDsToCheck = stockChecks.map((s) => s.productID)
+              const stockMap = await getMultipleProductsStock(
+                req.payload,
+                productIDsToCheck,
+                branchId,
               )
+              const stockRows = stockChecks.map((row) => ({
+                ...row,
+                currentStock: stockMap.get(row.productID) || 0,
+              }))
 
               for (const row of stockRows) {
                 if (row.additionalQtyNeeded > row.currentStock) {
