@@ -229,7 +229,8 @@ export interface User {
   isStock?: boolean | null;
   branch?: (string | null) | Branch;
   kitchenBranches?: (string | Branch)[] | null;
-  kitchen?: (string | null) | Kitchen;
+  kitchen?: (string | Kitchen)[] | null;
+  categories?: (string | Category)[] | null;
   company?: (string | null) | Company;
   factory_companies?: (string | Company)[] | null;
   employee?: (string | null) | Employee;
@@ -1255,6 +1256,7 @@ export interface UsersSelect<T extends boolean = true> {
   branch?: T;
   kitchenBranches?: T;
   kitchen?: T;
+  categories?: T;
   company?: T;
   factory_companies?: T;
   employee?: T;

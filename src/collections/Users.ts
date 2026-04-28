@@ -87,43 +87,107 @@ export const Users: CollectionConfig = {
       },
     },
     {
-      name: 'kitchenBranches',
-      label: 'Kitchen Branches',
-      type: 'relationship',
-      relationTo: 'branches',
-      hasMany: true,
-      required: false,
-      admin: {
-        condition: ({ isKitchen }) => Boolean(isKitchen),
-      },
-      access: {
-        create: ({ req }) => req.user?.role === 'superadmin',
-        update: ({ req }) => req.user?.role === 'superadmin',
-      },
+      type: 'row',
+      fields: [
+        {
+          name: 'kitchenBranches',
+          label: 'Kitchen Branches',
+          type: 'relationship',
+          relationTo: 'branches',
+          hasMany: true,
+          required: false,
+          admin: {
+            width: '50%',
+            condition: ({ isKitchen }) => Boolean(isKitchen),
+          },
+          access: {
+            create: ({ req }) => req.user?.role === 'superadmin',
+            update: ({ req }) => req.user?.role === 'superadmin',
+          },
+        },
+        {
+          name: 'kitchen',
+          label: 'Kitchens',
+          type: 'relationship',
+          relationTo: 'kitchens',
+          hasMany: true,
+          required: false,
+          admin: {
+            width: '50%',
+            condition: ({ role, isKitchen }) => Boolean(isKitchen) || role === 'kitchen',
+          },
+          filterOptions: ({ data }) => {
+            const kitchenBranches = data?.kitchenBranches
+            if (kitchenBranches && Array.isArray(kitchenBranches) && kitchenBranches.length > 0) {
+              return {
+                branches: {
+                  in: kitchenBranches.map((b: any) => (typeof b === 'object' ? b.id : b)),
+                },
+              }
+            } else if (data?.branch) {
+              return {
+                branches: {
+                  contains: typeof data.branch === 'object' ? data.branch.id : data.branch,
+                },
+              }
+            }
+            return true
+          },
+          access: {
+            create: ({ req }) => req.user?.role === 'superadmin',
+            update: ({ req }) => req.user?.role === 'superadmin',
+          },
+        },
+      ],
     },
     {
-      name: 'kitchen',
-      type: 'relationship',
-      relationTo: 'kitchens',
-      required: false,
-      admin: {
-        // If "Kitchen" checkbox is enabled, user is scoped to ALL kitchens in selected branch.
-        condition: ({ role, isKitchen }) => role === 'kitchen' && !Boolean(isKitchen),
-      },
-      filterOptions: ({ data }) => {
-        if (data?.branch) {
-          return {
-            branches: {
-              contains: typeof data.branch === 'object' ? data.branch.id : data.branch,
-            },
-          }
-        }
-        return true
-      },
-      access: {
-        create: ({ req }) => req.user?.role === 'superadmin',
-        update: ({ req }) => req.user?.role === 'superadmin',
-      },
+      type: 'row',
+      fields: [
+        {
+          name: 'categories',
+          label: 'Categories',
+          type: 'relationship',
+          relationTo: 'categories',
+          hasMany: true,
+          required: false,
+          admin: {
+            width: '100%',
+            condition: ({ role, isKitchen }) => Boolean(isKitchen) || role === 'kitchen',
+          },
+          filterOptions: async ({ data, req }) => {
+            const selectedKitchens = data?.kitchen
+            if (selectedKitchens && Array.isArray(selectedKitchens) && selectedKitchens.length > 0 && req?.payload) {
+              const kitchenIds = selectedKitchens.map((k: any) => (typeof k === 'object' ? k.id : k))
+              try {
+                const kitchensResult = await req.payload.find({
+                  collection: 'kitchens',
+                  where: { id: { in: kitchenIds } },
+                  depth: 0,
+                })
+                const categoryIds = kitchensResult.docs
+                  .flatMap((k: any) => k.categories || [])
+                  .map((c: any) => (typeof c === 'object' ? c.id : c))
+                  .filter(Boolean)
+
+                const uniqueCategoryIds = Array.from(new Set(categoryIds))
+
+                if (uniqueCategoryIds.length > 0) {
+                  return { id: { in: uniqueCategoryIds } }
+                } else {
+                  return { id: { equals: 'none' } }
+                }
+              } catch (e) {
+                console.error('Error fetching kitchen categories for filterOptions:', e)
+              }
+            }
+            return true
+          },
+          access: {
+            create: ({ req }) => req.user?.role === 'superadmin',
+            update: ({ req }) => req.user?.role === 'superadmin',
+          },
+        },
+      ],
     },
     {
       name: 'company',
