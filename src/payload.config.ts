@@ -88,6 +88,10 @@ import { callWaiterHandler } from './endpoints/callWaiter'
 import { ackWaiterCallHandler } from './endpoints/ackWaiterCall'
 import { StockAlerts } from './collections/StockAlerts'
 import { reportGraphQLQueries } from './graphql/reportQueries'
+import IdempotencyKeys from './collections/IdempotencyKeys'
+import { getIdempotencyMetricsHandler } from './endpoints/getIdempotencyMetrics'
+import { setupIdempotencyRetention } from './utilities/idempotencyRetention'
+import { readGraphQLQueries } from './graphql/readQueries'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -198,7 +202,10 @@ export default buildConfig({
   ].filter(Boolean) as string[],
 
   graphQL: {
-    queries: reportGraphQLQueries,
+    queries: (graphQL) => ({
+      ...reportGraphQLQueries(graphQL),
+      ...readGraphQLQueries(graphQL),
+    }),
   },
 
   bodyParser: {
@@ -383,6 +390,11 @@ export default buildConfig({
       method: 'get',
       handler: getLatestAppDownloadHandler,
     },
+    {
+      path: '/ops/idempotency-metrics',
+      method: 'get',
+      handler: getIdempotencyMetricsHandler,
+    },
   ],
 
   globals: [
@@ -437,6 +449,7 @@ export default buildConfig({
     Attendance,
     APKFiles,
     StockAlerts,
+    IdempotencyKeys,
   ],
 
   editor: lexicalEditor(),
@@ -490,6 +503,7 @@ export default buildConfig({
     }),
   ],
   onInit: async (payload) => {
+    await setupIdempotencyRetention(payload)
     console.log('[Payload] Initialization successful')
   },
 })

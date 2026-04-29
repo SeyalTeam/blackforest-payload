@@ -93,6 +93,7 @@ export interface Config {
     attendance: Attendance;
     'apk-files': ApkFile;
     'stock-alerts': StockAlert;
+    'idempotency-keys': IdempotencyKey;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -125,6 +126,7 @@ export interface Config {
     attendance: AttendanceSelect<false> | AttendanceSelect<true>;
     'apk-files': ApkFilesSelect<false> | ApkFilesSelect<true>;
     'stock-alerts': StockAlertsSelect<false> | StockAlertsSelect<true>;
+    'idempotency-keys': IdempotencyKeysSelect<false> | IdempotencyKeysSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -1093,6 +1095,35 @@ export interface StockAlert {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "idempotency-keys".
+ */
+export interface IdempotencyKey {
+  id: string;
+  key: string;
+  scope: string;
+  requestHash: string;
+  status: 'processing' | 'completed' | 'failed';
+  requestMethod?: string | null;
+  requestPath?: string | null;
+  requestId?: string | null;
+  userId?: string | null;
+  responseStatus?: number | null;
+  responsePayload?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  completedAt?: string | null;
+  expiresAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -1201,6 +1232,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'stock-alerts';
         value: string | StockAlert;
+      } | null)
+    | ({
+        relationTo: 'idempotency-keys';
+        value: string | IdempotencyKey;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1958,6 +1993,26 @@ export interface StockAlertsSelect<T extends boolean = true> {
   status?: T;
   acknowledgedAt?: T;
   acknowledgedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "idempotency-keys_select".
+ */
+export interface IdempotencyKeysSelect<T extends boolean = true> {
+  key?: T;
+  scope?: T;
+  requestHash?: T;
+  status?: T;
+  requestMethod?: T;
+  requestPath?: T;
+  requestId?: T;
+  userId?: T;
+  responseStatus?: T;
+  responsePayload?: T;
+  completedAt?: T;
+  expiresAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }
