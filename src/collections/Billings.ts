@@ -16,12 +16,23 @@ import {
   type ProductPriceOfferRule,
   type ProductToProductOfferRule,
 } from '../utilities/customerRewards'
-import { withWriteConflictRetry } from '../utilities/mongoRetry'
+import { isMongoWriteConflictError, withWriteConflictRetry } from '../utilities/mongoRetry'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
 
 const BILLING_TIMEZONE = 'Asia/Kolkata'
+const BILLINGS_REST_LIST_MAX_DEPTH = 1
+const BILLINGS_REST_LIST_MAX_DEPTH_PRIVILEGED = 2
+const BILLINGS_REST_LIST_MAX_LIMIT = 80
+const BILLINGS_REST_LIST_MAX_LIMIT_PRIVILEGED = 120
+const BILLINGS_READ_PRIVILEGED_ROLES = new Set(['superadmin', 'admin', 'company'])
+const BILLINGS_ASYNC_POST_PROCESSING_ENABLED =
+  process.env.BILLINGS_ASYNC_POST_PROCESSING === 'true'
+const BILLINGS_HOOK_WARN_MS = (() => {
+  const parsed = Number.parseInt(process.env.BILLINGS_HOOK_WARN_MS || '', 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 200
+})()
 
 type BillingNumberField = 'invoiceNumber' | 'kotNumber'
 
@@ -172,6 +183,21 @@ const wait = async (ms: number): Promise<void> =>
     setTimeout(resolve, ms)
   })
 
+const toNonNegativeInteger = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value >= 0 ? Math.floor(value) : null
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10)
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return parsed
+    }
+  }
+
+  return null
+}
+
 const isPayloadNotFoundError = (error: unknown): boolean => {
   if (!error || typeof error !== 'object') return false
 
@@ -191,6 +217,10 @@ const isPayloadNotFoundError = (error: unknown): boolean => {
     message.includes('document not found') ||
     name.includes('notfound')
   )
+}
+
+const isRetryableBillingFlagError = (error: unknown): boolean => {
+  return isPayloadNotFoundError(error) || isMongoWriteConflictError(error)
 }
 
 const scheduleDeferredBillingFlagUpdate = (
@@ -226,8 +256,8 @@ const scheduleDeferredBillingFlagUpdate = (
           return
         } catch (error) {
           lastError = error
-          const retryableNotFound = isPayloadNotFoundError(error) && attempt < maxAttempts
-          if (!retryableNotFound) {
+          const shouldRetry = isRetryableBillingFlagError(error) && attempt < maxAttempts
+          if (!shouldRetry) {
             break
           }
           await wait(150 * attempt)
@@ -293,6 +323,8 @@ type BillingRequestContext = {
   skipOfferRecalculation?: boolean
   skipPricingRecalculation?: boolean
   skipInventoryValidation?: boolean
+  skipCustomerRewardProcessing?: boolean
+  skipOfferCounterProcessing?: boolean
   offersAppliedInBeforeValidate?: boolean
 }
 
@@ -330,6 +362,33 @@ const getRelationshipID = (value: unknown): string | null => {
   }
 
   return null
+}
+
+const getDocLikeID = (value: unknown): string | null => {
+  if (!value || typeof value !== 'object') return null
+
+  const rawID = (value as { id?: unknown }).id
+  if (typeof rawID === 'string' && rawID.trim().length > 0) {
+    return rawID
+  }
+
+  if (typeof rawID === 'number' && Number.isFinite(rawID)) {
+    return String(rawID)
+  }
+
+  return null
+}
+
+const logBillingHookDuration = (
+  hookName: 'beforeValidate' | 'beforeChange' | 'afterChange',
+  operation: string,
+  startedAtMs: number,
+  meta: Record<string, unknown>,
+): void => {
+  const durationMs = Date.now() - startedAtMs
+  if (durationMs <= BILLINGS_HOOK_WARN_MS) return
+
+  console.warn(`[Billings hook] ${hookName} ${operation} took ${durationMs}ms`, meta)
 }
 
 const getPositiveNumericValue = (value: unknown): number => {
@@ -956,7 +1015,7 @@ const markBillingProcessingFlags = async (
       return true
     } catch (error) {
       lastError = error
-      const shouldRetry = isPayloadNotFoundError(error) && attempt < maxAttempts
+      const shouldRetry = isRetryableBillingFlagError(error) && attempt < maxAttempts
       if (!shouldRetry) {
         break
       }
@@ -964,12 +1023,13 @@ const markBillingProcessingFlags = async (
     }
   }
 
-  if (isPayloadNotFoundError(lastError)) {
+  if (isRetryableBillingFlagError(lastError)) {
     scheduleDeferredBillingFlagUpdate(payload, billID, data, reason)
-    console.warn('Billing flag update deferred because bill was temporarily not found.', {
+    console.warn('Billing flag update deferred because of transient billing update conflicts.', {
       billID,
       reason,
       data,
+      error: lastError,
     })
     return true
   }
@@ -1698,6 +1758,12 @@ const Billings: CollectionConfig = {
   },
   indexes: [
     {
+      fields: ['branch', 'invoiceNumber'],
+    },
+    {
+      fields: ['branch', 'kotNumber'],
+    },
+    {
       fields: ['invoiceNumber'],
     },
     {
@@ -1729,12 +1795,53 @@ const Billings: CollectionConfig = {
     },
   ],
   hooks: {
+    beforeOperation: [
+      ({ args, operation, req }) => {
+        if (operation !== 'read' || !args || req.payloadAPI !== 'REST') {
+          return args
+        }
+
+        // Keep single-document reads untouched; clamp only list queries.
+        if (Object.prototype.hasOwnProperty.call(args, 'id')) {
+          return args
+        }
+
+        const role = typeof req.user?.role === 'string' ? req.user.role : ''
+        const isPrivileged = BILLINGS_READ_PRIVILEGED_ROLES.has(role)
+        const maxListDepth = isPrivileged
+          ? BILLINGS_REST_LIST_MAX_DEPTH_PRIVILEGED
+          : BILLINGS_REST_LIST_MAX_DEPTH
+        const maxListLimit = isPrivileged
+          ? BILLINGS_REST_LIST_MAX_LIMIT_PRIVILEGED
+          : BILLINGS_REST_LIST_MAX_LIMIT
+
+        const nextArgs = { ...args } as Record<string, unknown>
+        const requestedDepth = toNonNegativeInteger(nextArgs.depth)
+        const requestedLimit = toNonNegativeInteger(nextArgs.limit)
+
+        if (requestedDepth !== null) {
+          nextArgs.depth = Math.min(requestedDepth, maxListDepth)
+        } else if (!isPrivileged) {
+          nextArgs.depth = 0
+        }
+
+        if (requestedLimit !== null) {
+          nextArgs.limit = Math.min(requestedLimit, maxListLimit)
+        }
+
+        return nextArgs
+      },
+    ],
     beforeValidate: [
       async ({ data, req, operation, originalDoc }) => {
-        if (!data) return
-        const requestContext = getBillingRequestContext(req)
-        const skipOfferRecalculation = Boolean(requestContext.skipOfferRecalculation)
-        const skipInventoryValidation = Boolean(requestContext.skipInventoryValidation)
+        const hookStartedAt = Date.now()
+        const billID = getDocLikeID(data) || getDocLikeID(originalDoc)
+
+        try {
+          if (!data) return
+          const requestContext = getBillingRequestContext(req)
+          const skipOfferRecalculation = Boolean(requestContext.skipOfferRecalculation)
+          const skipInventoryValidation = Boolean(requestContext.skipInventoryValidation)
 
         // 🪑 Map table details from Flutter app (top-level section/tableNumber) to nested group
         const rawData = data as any
@@ -2041,38 +2148,49 @@ const Billings: CollectionConfig = {
           }
         }
 
-        return data
+          return data
+        } finally {
+          logBillingHookDuration('beforeValidate', operation, hookStartedAt, {
+            billID,
+            payloadAPI: req.payloadAPI,
+          })
+        }
       },
     ],
     beforeChange: [
       async ({ data, req, operation, originalDoc }) => {
-        if (!data) return
+        const hookStartedAt = Date.now()
+        const billID = getDocLikeID(data) || getDocLikeID(originalDoc)
 
-        const requestContext = getBillingRequestContext(req)
-        const skipOfferRecalculation = Boolean(requestContext.skipOfferRecalculation)
-        const skipPricingRecalculation = Boolean(requestContext.skipPricingRecalculation)
-        const mutableData = data as { items?: BillingItemInput[]; status?: string }
-        const isTableOrder = isTableOrderBill(data as any, originalDoc as any)
-        const branchID = getBranchIDFromBillingData(data as any, originalDoc as any)
+        try {
+          if (!data) return
 
-        if (
-          Array.isArray(mutableData.items) &&
-          !skipOfferRecalculation &&
-          !requestContext.offersAppliedInBeforeValidate
-        ) {
-          const effectiveStatus = mutableData.status || originalDoc?.status || 'ordered'
-          const customerPhoneNumber =
-            (data as any)?.customerDetails?.phoneNumber || originalDoc?.customerDetails?.phoneNumber
-          mutableData.items = await applyConfiguredItemOffers(
-            mutableData.items,
-            req.payload,
-            effectiveStatus,
-            customerPhoneNumber || null,
-            branchID,
-            isTableOrder,
-          )
-        }
-        requestContext.offersAppliedInBeforeValidate = false
+          const requestContext = getBillingRequestContext(req)
+          const skipOfferRecalculation = Boolean(requestContext.skipOfferRecalculation)
+          const skipPricingRecalculation = Boolean(requestContext.skipPricingRecalculation)
+          const mutableData = data as { items?: BillingItemInput[]; status?: string }
+          const isTableOrder = isTableOrderBill(data as any, originalDoc as any)
+          const branchID = getBranchIDFromBillingData(data as any, originalDoc as any)
+
+          if (
+            Array.isArray(mutableData.items) &&
+            !skipOfferRecalculation &&
+            !requestContext.offersAppliedInBeforeValidate
+          ) {
+            const effectiveStatus = mutableData.status || originalDoc?.status || 'ordered'
+            const customerPhoneNumber =
+              (data as any)?.customerDetails?.phoneNumber ||
+              originalDoc?.customerDetails?.phoneNumber
+            mutableData.items = await applyConfiguredItemOffers(
+              mutableData.items,
+              req.payload,
+              effectiveStatus,
+              customerPhoneNumber || null,
+              branchID,
+              isTableOrder,
+            )
+          }
+          requestContext.offersAppliedInBeforeValidate = false
 
         // 🍱 Ensure each item has a status (Ordered by default) and timestamps
         if (data.items && Array.isArray(data.items)) {
@@ -2544,62 +2662,71 @@ const Billings: CollectionConfig = {
           pricingData.totalAmountBeforeRoundOff,
         )
 
-        return data
+          return data
+        } finally {
+          logBillingHookDuration('beforeChange', operation, hookStartedAt, {
+            billID,
+            payloadAPI: req.payloadAPI,
+          })
+        }
       },
     ],
     afterChange: [
       async ({ doc, req, operation }) => {
         if (!doc) return
 
-        const requestContext = (req as any).context as Record<string, unknown> | undefined
-        const skipCustomerRewardProcessing = Boolean(requestContext?.skipCustomerRewardProcessing)
-        const skipOfferCounterProcessing = Boolean(requestContext?.skipOfferCounterProcessing)
+        const hookStartedAt = Date.now()
+        const billID = getDocLikeID(doc)
 
-        if (skipCustomerRewardProcessing && skipOfferCounterProcessing) {
-          return doc
-        }
+        const runPostChangeProcessing = async () => {
+          const requestContext = (req as any).context as Record<string, unknown> | undefined
+          const skipCustomerRewardProcessing = Boolean(requestContext?.skipCustomerRewardProcessing)
+          const skipOfferCounterProcessing = Boolean(requestContext?.skipOfferCounterProcessing)
 
-        // Sync Customer Data
-        if (operation === 'create' || operation === 'update') {
-          const phoneNumber = doc.customerDetails?.phoneNumber
-          const customerName = doc.customerDetails?.name
-          // const address = doc.customerDetails?.address
+          if (skipCustomerRewardProcessing && skipOfferCounterProcessing) {
+            return doc
+          }
 
-          if (phoneNumber) {
-            const finalCustomerName = customerName || phoneNumber
-            try {
-              let settingsCache: CustomerRewardSettings | null = null
-              const getSettings = async (): Promise<CustomerRewardSettings> => {
-                if (!settingsCache) {
-                  settingsCache = await getCustomerRewardSettings(req.payload)
+          // Sync Customer Data
+          if (operation === 'create' || operation === 'update') {
+            const phoneNumber = doc.customerDetails?.phoneNumber
+            const customerName = doc.customerDetails?.name
+            // const address = doc.customerDetails?.address
+
+            if (phoneNumber) {
+              const finalCustomerName = customerName || phoneNumber
+              try {
+                let settingsCache: CustomerRewardSettings | null = null
+                const getSettings = async (): Promise<CustomerRewardSettings> => {
+                  if (!settingsCache) {
+                    settingsCache = await getCustomerRewardSettings(req.payload)
+                  }
+                  return settingsCache
                 }
-                return settingsCache
-              }
-
-              // 1. Check if customer exists
-              const existingCustomers = await req.payload.find({
-                collection: 'customers',
-                where: {
-                  phoneNumber: {
-                    equals: phoneNumber,
+                // 1. Check if customer exists
+                const existingCustomers = await req.payload.find({
+                  collection: 'customers',
+                  where: {
+                    phoneNumber: {
+                      equals: phoneNumber,
+                    },
                   },
-                },
-                depth: 0,
-                limit: 1,
-              })
+                  depth: 0,
+                  limit: 1,
+                })
 
-              let customerDoc: any
+                let customerDoc: any
 
-              if (existingCustomers.totalDocs > 0) {
-                // 2. Update existing customer
-                const customer = existingCustomers.docs[0]
-                const currentBills = extractBillIDs(customer.bills)
-                const customerUpdateData: Record<string, unknown> = {}
+                if (existingCustomers.totalDocs > 0) {
+                  // 2. Update existing customer
+                  const customer = existingCustomers.docs[0]
+                  const currentBills = extractBillIDs(customer.bills)
+                  const customerUpdateData: Record<string, unknown> = {}
 
-                // Add current bill if not already present
-                if (!currentBills.includes(doc.id)) {
-                  customerUpdateData.bills = [...currentBills, doc.id]
-                }
+                  // Add current bill if not already present
+                  if (!currentBills.includes(doc.id)) {
+                    customerUpdateData.bills = [...currentBills, doc.id]
+                  }
 
                 if (customerName && customer.name !== customerName) {
                   customerUpdateData.name = customerName
@@ -3361,12 +3488,43 @@ const Billings: CollectionConfig = {
                   )
                 }
               }
-            } catch (error) {
-              console.error('Error syncing customer data:', error)
+              } catch (error) {
+                console.error('Error syncing customer data:', error)
+              }
             }
           }
+          return doc
         }
-        return doc
+
+        if (BILLINGS_ASYNC_POST_PROCESSING_ENABLED) {
+          setTimeout(() => {
+            void runPostChangeProcessing().catch((error) => {
+              console.error('Deferred billing post-processing failed.', {
+                billID,
+                operation,
+                error,
+              })
+            })
+          }, 0)
+
+          logBillingHookDuration('afterChange', operation, hookStartedAt, {
+            billID,
+            payloadAPI: req.payloadAPI,
+            deferred: true,
+          })
+          return doc
+        }
+
+        try {
+          await runPostChangeProcessing()
+          return doc
+        } finally {
+          logBillingHookDuration('afterChange', operation, hookStartedAt, {
+            billID,
+            payloadAPI: req.payloadAPI,
+            deferred: false,
+          })
+        }
       },
     ],
   },

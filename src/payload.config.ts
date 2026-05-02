@@ -44,6 +44,7 @@ import { WaiterWiseBillingReportGlobal } from './globals/WaiterWiseBillingReport
 import { InventoryReportGlobal } from './globals/InventoryReport'
 import { getInventoryReportHandler } from './endpoints/getInventoryReport'
 import { StockOrderReportGlobal } from './globals/StockOrderReport'
+import { ChefReportGlobal } from './globals/ChefReport'
 import { getStockOrderReportHandler } from './endpoints/getStockOrderReport'
 import { getAfterstockCustomerReportHandler } from './endpoints/getAfterstockCustomerReport'
 import { AfterstockCustomerReportGlobal } from './globals/AfterstockCustomerReport'
@@ -408,6 +409,7 @@ export default buildConfig({
     WaiterWiseBillingReportGlobal,
     InventoryReportGlobal,
     StockOrderReportGlobal,
+    ChefReportGlobal,
     AfterstockCustomerReportGlobal,
     ReviewReportGlobal,
     LiveBillReportGlobal,
