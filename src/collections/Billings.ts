@@ -3442,22 +3442,38 @@ const Billings: CollectionConfig = {
                 }
 
                 try {
-                  await withWriteConflictRetry(() =>
-                    req.payload.update({
-                      collection: 'customers',
-                      id: customerDoc.id,
-                      data: {
-                        rewardPoints: updatedRewardPoints,
-                        rewardProgressAmount: updatedProgressAmount,
-                        isOfferEligible: updatedRewardPoints >= settings.pointsNeededForOffer,
-                        totalOffersRedeemed: offerWasApplied
-                          ? toSafeNonNegativeNumber(customerDoc?.totalOffersRedeemed) + 1
-                          : toSafeNonNegativeNumber(customerDoc?.totalOffersRedeemed),
-                      } as any,
-                      depth: 0,
-                      overrideAccess: true,
-                    }),
-                  )
+                  await withWriteConflictRetry(async () => {
+                    const db = req.payload.db as any
+                    if (db && db.collections && db.collections['customers']) {
+                      // Bypass Payload hooks for extreme speed and avoid Document Version WriteConflicts
+                      await db.collections['customers'].updateOne(
+                        { _id: customerDoc.id },
+                        {
+                          $set: {
+                            rewardPoints: updatedRewardPoints,
+                            rewardProgressAmount: updatedProgressAmount,
+                            isOfferEligible: updatedRewardPoints >= settings.pointsNeededForOffer,
+                          },
+                          ...(offerWasApplied ? { $inc: { totalOffersRedeemed: 1 } } : {})
+                        }
+                      )
+                    } else {
+                      await req.payload.update({
+                        collection: 'customers',
+                        id: customerDoc.id,
+                        data: {
+                          rewardPoints: updatedRewardPoints,
+                          rewardProgressAmount: updatedProgressAmount,
+                          isOfferEligible: updatedRewardPoints >= settings.pointsNeededForOffer,
+                          totalOffersRedeemed: offerWasApplied
+                            ? toSafeNonNegativeNumber(customerDoc?.totalOffersRedeemed) + 1
+                            : toSafeNonNegativeNumber(customerDoc?.totalOffersRedeemed),
+                        } as any,
+                        depth: 0,
+                        overrideAccess: true,
+                      })
+                    }
+                  })
                 } catch (customerRewardUpdateError) {
                   console.error('Failed to update customer reward snapshot.', {
                     billID: doc.id,
@@ -3921,6 +3937,7 @@ const Billings: CollectionConfig = {
       type: 'relationship',
       relationTo: 'branches',
       required: true,
+      index: true,
     },
     {
       type: 'row',
@@ -3964,6 +3981,7 @@ const Billings: CollectionConfig = {
       type: 'relationship',
       relationTo: 'companies',
       required: true,
+      index: true,
       admin: { readOnly: true },
     },
     {
@@ -3979,6 +3997,7 @@ const Billings: CollectionConfig = {
     {
       name: 'status',
       type: 'select',
+      index: true,
       defaultValue: 'ordered',
       options: [
         { label: 'Ordered', value: 'ordered' },
@@ -4093,6 +4112,7 @@ const Billings: CollectionConfig = {
         {
           name: 'tableNumber',
           type: 'text',
+          index: true,
           admin: {
             placeholder: 'e.g., 01, 10',
           },
