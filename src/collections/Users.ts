@@ -329,9 +329,18 @@ export const Users: CollectionConfig = {
               },
             },
             {
-              branch: {
-                equals: userBranchId,
-              },
+              or: [
+                {
+                  branch: {
+                    equals: userBranchId,
+                  },
+                },
+                {
+                  branch: {
+                    exists: false,
+                  },
+                },
+              ],
             },
           ],
         }
@@ -925,7 +934,7 @@ export const Users: CollectionConfig = {
             }
 
             if (originalRole === 'chef') {
-              if (!originalBranchId || originalBranchId !== branchManagerBranchId) {
+              if (originalBranchId && originalBranchId !== branchManagerBranchId) {
                 throw new Error('Branch users can update chefs only in their own branch')
               }
               if (nextData.role && nextData.role !== 'chef') {
