@@ -71,9 +71,11 @@ export type StockOrderReportArgs = {
   startDate?: string | null
   endDate?: string | null
   branch?: string | null
+  kitchen?: string | null
   department?: string | null
   category?: string | null
   product?: string | null
+  chef?: string | null
   status?: string | null
   orderType?: string | null
   invoice?: string | null
@@ -88,9 +90,11 @@ export const getStockOrderReportData = async (
   const startDateStr = args.startDate
   const endDateStr = args.endDate
   const branchFilter = args.branch
+  const kitchenFilter = typeof args.kitchen === 'string' ? args.kitchen.trim() : ''
   const departmentFilter = args.department
   const categoryFilter = args.category
   const productFilter = args.product
+  const chefFilter = typeof args.chef === 'string' ? args.chef.trim() : ''
   const statusFilter = args.status
   const orderTypeFilter = args.orderType
   const hasExplicitBranchFilter = !!(branchFilter && branchFilter !== 'all')
@@ -103,6 +107,29 @@ export const getStockOrderReportData = async (
     : dayjs().tz('Asia/Kolkata').endOf('day')
 
   const { branchIds } = await resolveReportBranchScope(req, branchFilter || undefined)
+
+  let kitchenCategoryIDSet: Set<string> | null = null
+  if (kitchenFilter && kitchenFilter !== 'all') {
+    const kitchen = await req.payload.findByID({
+      collection: 'kitchens',
+      id: kitchenFilter,
+      depth: 0,
+    })
+
+    const kitchenCategoryIDs = Array.isArray(kitchen?.categories)
+      ? kitchen.categories
+          .map((category) => {
+            if (typeof category === 'string') return category
+            if (category && typeof category === 'object' && 'id' in category) {
+              return String((category as { id?: unknown }).id || '')
+            }
+            return ''
+          })
+          .filter((id): id is string => id.length > 0)
+      : []
+
+    kitchenCategoryIDSet = new Set(kitchenCategoryIDs)
+  }
 
   // 1. Fetch Stock Orders
   const where: any = {
@@ -293,8 +320,11 @@ export const getStockOrderReportData = async (
         const productData = productMap.get(prodId)
 
         if (!productData) return
+        if (kitchenCategoryIDSet && !kitchenCategoryIDSet.has(productData.categoryId || '')) return
         if (categoryFilter && categoryFilter !== 'all' && productData.categoryId !== categoryFilter) return
         if (departmentFilter && departmentFilter !== 'all' && productData.departmentId !== departmentFilter) return
+        const sendingUpdaterId = extractUserId(item?.sendingUpdatedBy)
+        if (chefFilter && chefFilter !== 'all' && sendingUpdaterId !== chefFilter) return
         if (statusFilter && statusFilter !== 'all' && item.status !== statusFilter) return
 
         const ordUpdaterName = resolveUserName(order.createdBy)

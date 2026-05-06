@@ -62,13 +62,15 @@ aside.nav,
   font-size: 1.55rem !important;
 }
 
-.nav-group.Report .nav__link {
+.nav-group.Report .nav__link,
+.nav-group.Chef .nav__link {
   display: flex;
   align-items: center;
   gap: 14px;
 }
 
-.nav-group.Report .nav__link::before {
+.nav-group.Report .nav__link::before,
+.nav-group.Chef .nav__link::before {
   content: '';
   display: inline-block;
   width: 20px;
@@ -121,7 +123,8 @@ aside.nav,
   --report-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='8' y1='6' x2='21' y2='6'/%3E%3Cline x1='8' y1='12' x2='21' y2='12'/%3E%3Cline x1='8' y1='18' x2='21' y2='18'/%3E%3Cline x1='3' y1='6' x2='3.01' y2='6'/%3E%3Cline x1='3' y1='12' x2='3.01' y2='12'/%3E%3Cline x1='3' y1='18' x2='3.01' y2='18'/%3E%3C/svg%3E");
 }
 
-.nav-group.Report .nav__link[href*='globals/chef-report'] {
+.nav-group.Report .nav__link[href*='globals/chef-report'],
+.nav-group.Chef .nav__link[href*='globals/chef-report'] {
   --report-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 11h18v8H3z'/%3E%3Cpath d='M6 11V9a2 2 0 0 1 2-2'/%3E%3Cpath d='M18 11V9a2 2 0 0 0-2-2'/%3E%3Cpath d='M9 7a3 3 0 0 1 6 0'/%3E%3C/svg%3E");
 }
 
@@ -256,6 +259,10 @@ aside.nav,
 }
 
 /* Enforce requested sidebar order: Report -> Inventory/Org -> Settings -> Collections */
+.nav-group.Chef {
+  order: -2 !important;
+}
+
 .nav-group.Report {
   order: -1 !important;
 }
@@ -352,6 +359,9 @@ aside.nav,
     white-space: nowrap !important;
   }
 
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
+    .nav-group.Chef
+    .nav__link::before,
   .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
     .nav-group.Report
     .nav__link::before,

@@ -1,4 +1,4 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, Where } from 'payload'
 import { isIPAllowed } from '../utilities/ipCheck'
 import { getDistanceFromLatLonInMeters } from '../utilities/geo'
 import type { IpSetting } from '../payload-types'
@@ -8,6 +8,28 @@ import {
   isValidBranchPin,
   normalizeBranchPin,
 } from '../utilities/branchPins'
+
+const getRelationshipID = (value: unknown): string | null => {
+  if (!value) return null
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  if (typeof value === 'object' && value !== null && 'id' in value) {
+    const id = (value as { id?: unknown }).id
+    return typeof id === 'string' || typeof id === 'number' ? String(id) : null
+  }
+  return null
+}
+
+const getRelationshipIDs = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    const id = getRelationshipID(value)
+    return id ? [id] : []
+  }
+  return value.map((item) => getRelationshipID(item)).filter((id): id is string => Boolean(id))
+}
+
+const canManageChefDetails = (role?: string | null): boolean =>
+  role === 'superadmin' || role === 'branch'
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -79,11 +101,11 @@ export const Users: CollectionConfig = {
       required: false,
       admin: {
         condition: ({ role, isKitchen }) =>
-          ['branch', 'kitchen'].includes(role) && !Boolean(isKitchen),
+          ['branch', 'kitchen', 'chef'].includes(role) && !Boolean(isKitchen),
       },
       access: {
         create: ({ req }) => req.user?.role === 'superadmin',
-        update: ({ req }) => req.user?.role === 'superadmin',
+        update: ({ req }) => canManageChefDetails(req.user?.role),
       },
     },
     {
@@ -114,7 +136,8 @@ export const Users: CollectionConfig = {
           required: false,
           admin: {
             width: '50%',
-            condition: ({ role, isKitchen }) => Boolean(isKitchen) || role === 'kitchen',
+            condition: ({ role, isKitchen }) =>
+              Boolean(isKitchen) || ['kitchen', 'chef'].includes(role),
           },
           filterOptions: ({ data }) => {
             const kitchenBranches = data?.kitchenBranches
@@ -152,7 +175,8 @@ export const Users: CollectionConfig = {
           required: false,
           admin: {
             width: '100%',
-            condition: ({ role, isKitchen }) => Boolean(isKitchen) || role === 'kitchen',
+            condition: ({ role, isKitchen }) =>
+              Boolean(isKitchen) || ['kitchen', 'chef'].includes(role),
           },
           filterOptions: async ({ data, req }) => {
             const selectedKitchens = data?.kitchen
@@ -241,7 +265,7 @@ export const Users: CollectionConfig = {
       },
       access: {
         create: ({ req }) => req.user?.role === 'superadmin',
-        update: ({ req }) => req.user?.role === 'superadmin',
+        update: ({ req }) => canManageChefDetails(req.user?.role),
       },
     },
     {
@@ -288,9 +312,31 @@ export const Users: CollectionConfig = {
       if (!req.user) return false
       return true // Allow all authenticated users to read
     },
-    update: ({ req, id }) => {
+    update: ({ req, id }): boolean | Where => {
       if (!req.user) return false
-      return req.user.role === 'superadmin' || req.user.id === id
+      if (req.user.role === 'superadmin') return true
+      if (req.user.role === 'branch') {
+        if (req.user.id === id) return true
+
+        const userBranchId = getRelationshipID(req.user.branch)
+        if (!userBranchId) return false
+
+        return {
+          and: [
+            {
+              role: {
+                equals: 'chef',
+              },
+            },
+            {
+              branch: {
+                equals: userBranchId,
+              },
+            },
+          ],
+        }
+      }
+      return req.user.id === id
     },
     delete: ({ req }) => req.user?.role === 'superadmin',
   },
@@ -830,6 +876,7 @@ export const Users: CollectionConfig = {
           kitchenBranches?: unknown[]
           company?: unknown
           factory_companies?: unknown[]
+          categories?: unknown
           employee?: unknown
           isKitchen?: boolean | null
         }
@@ -855,6 +902,41 @@ export const Users: CollectionConfig = {
         }
 
         if (operation === 'create' || operation === 'update') {
+          const branchManagerBranchId =
+            req.user?.role === 'branch' ? getRelationshipID(req.user.branch) : null
+
+          if (operation === 'update' && req.user?.role === 'branch') {
+            if (!branchManagerBranchId) {
+              throw new Error('Branch user is not assigned to a branch')
+            }
+
+            const originalRole = (originalDoc as { role?: string } | undefined)?.role
+            const originalBranchId = getRelationshipID(
+              (originalDoc as { branch?: unknown } | undefined)?.branch,
+            )
+            const isEditingSelf = req.user.id === (originalDoc as { id?: string } | undefined)?.id
+            const protectedChefFields = ['branch', 'kitchen', 'categories', 'employee']
+            const isUpdatingChefDetails = protectedChefFields.some((field) =>
+              Object.prototype.hasOwnProperty.call(nextData, field),
+            )
+
+            if (isUpdatingChefDetails && originalRole !== 'chef') {
+              throw new Error('Branch users can update chef details only for chef role users')
+            }
+
+            if (originalRole === 'chef') {
+              if (!originalBranchId || originalBranchId !== branchManagerBranchId) {
+                throw new Error('Branch users can update chefs only in their own branch')
+              }
+              if (nextData.role && nextData.role !== 'chef') {
+                throw new Error('Branch users cannot change chef role')
+              }
+              if (!isEditingSelf) {
+                nextData.branch = branchManagerBranchId
+              }
+            }
+          }
+
           // Auto-populate name from employee if not set
           if (!nextData.name && nextData.employee) {
             const employeeId =
@@ -891,6 +973,16 @@ export const Users: CollectionConfig = {
             (operation === 'update'
               ? (originalDoc as { kitchenBranches?: unknown[] } | undefined)?.kitchenBranches
               : undefined)
+          const resolvedKitchen =
+            nextData.kitchen ??
+            (operation === 'update'
+              ? (originalDoc as { kitchen?: unknown } | undefined)?.kitchen
+              : undefined)
+          const resolvedCategories =
+            nextData.categories ??
+            (operation === 'update'
+              ? (originalDoc as { categories?: unknown } | undefined)?.categories
+              : undefined)
           const resolvedKitchenFlag =
             typeof nextData.isKitchen === 'boolean'
               ? nextData.isKitchen
@@ -901,11 +993,51 @@ export const Users: CollectionConfig = {
                 )
 
           if (
-            ['branch', 'kitchen'].includes(resolvedRole) &&
+            ['branch', 'kitchen', 'chef'].includes(resolvedRole) &&
             !resolvedKitchenFlag &&
             !resolvedBranch
           ) {
-            throw new Error('Branch is required for branch or kitchen role users')
+            throw new Error('Branch is required for branch, kitchen, or chef role users')
+          }
+
+          if (branchManagerBranchId && resolvedRole === 'chef') {
+            const kitchenIds = getRelationshipIDs(resolvedKitchen)
+            const categoryIds = getRelationshipIDs(resolvedCategories)
+
+            if (kitchenIds.length > 0) {
+              const kitchensResult = await req.payload.find({
+                collection: 'kitchens',
+                where: {
+                  id: {
+                    in: kitchenIds,
+                  },
+                },
+                depth: 0,
+                limit: kitchenIds.length,
+                pagination: false,
+                overrideAccess: true,
+              })
+
+              const allowedCategoryIds = new Set<string>()
+              const allowedKitchenCount = kitchensResult.docs.filter((kitchen: any) => {
+                const kitchenBranchIds = getRelationshipIDs(kitchen.branches)
+                const isBranchKitchen = kitchenBranchIds.includes(branchManagerBranchId)
+                if (isBranchKitchen) {
+                  getRelationshipIDs(kitchen.categories).forEach((id) => allowedCategoryIds.add(id))
+                }
+                return isBranchKitchen
+              }).length
+
+              if (allowedKitchenCount !== kitchenIds.length) {
+                throw new Error('Branch users can assign only kitchens from their own branch')
+              }
+
+              if (categoryIds.some((id) => !allowedCategoryIds.has(id))) {
+                throw new Error('Branch users can assign only categories from selected kitchens')
+              }
+            } else if (categoryIds.length > 0) {
+              throw new Error('Kitchen is required before assigning chef categories')
+            }
           }
 
           if (resolvedKitchenFlag) {

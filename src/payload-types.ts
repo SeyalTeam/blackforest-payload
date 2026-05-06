@@ -141,6 +141,7 @@ export interface Config {
     'category-wise-report': CategoryWiseReport;
     'product-wise-report': ProductWiseReport;
     'product-time-report': ProductTimeReport;
+    'chef-report': ChefReport;
     'closing-entry-report': ClosingEntryReport;
     'waiter-wise-billing-report': WaiterWiseBillingReport;
     'inventory-report': InventoryReport;
@@ -164,6 +165,7 @@ export interface Config {
     'category-wise-report': CategoryWiseReportSelect<false> | CategoryWiseReportSelect<true>;
     'product-wise-report': ProductWiseReportSelect<false> | ProductWiseReportSelect<true>;
     'product-time-report': ProductTimeReportSelect<false> | ProductTimeReportSelect<true>;
+    'chef-report': ChefReportSelect<false> | ChefReportSelect<true>;
     'closing-entry-report': ClosingEntryReportSelect<false> | ClosingEntryReportSelect<true>;
     'waiter-wise-billing-report': WaiterWiseBillingReportSelect<false> | WaiterWiseBillingReportSelect<true>;
     'inventory-report': InventoryReportSelect<false> | InventoryReportSelect<true>;
@@ -2121,6 +2123,15 @@ export interface ProductTimeReport {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "chef-report".
+ */
+export interface ChefReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "closing-entry-report".
  */
 export interface ClosingEntryReport {
@@ -3376,6 +3387,15 @@ export interface ProductWiseReportSelect<T extends boolean = true> {
  * via the `definition` "product-time-report_select".
  */
 export interface ProductTimeReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "chef-report_select".
+ */
+export interface ChefReportSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

@@ -32,6 +32,7 @@ import { BranchBillingReportGlobal } from './globals/BranchBillingReport'
 import { CategoryWiseReportGlobal } from './globals/CategoryWiseReport'
 import { ProductWiseReportGlobal } from './globals/ProductWiseReport'
 import { ProductTimeReportGlobal } from './globals/ProductTimeReport'
+import { ChefReportGlobal } from './globals/ChefReport'
 import { getBranchBillingReportHandler } from './endpoints/getBranchBillingReport'
 import { getCategoryWiseReportHandler } from './endpoints/getCategoryWiseReport'
 import { getCategoryWiseReportPDFHandler } from './endpoints/getCategoryWiseReportPDF'
@@ -404,6 +405,7 @@ export default buildConfig({
     CategoryWiseReportGlobal,
     ProductWiseReportGlobal,
     ProductTimeReportGlobal,
+    ChefReportGlobal,
     ClosingEntryReportGlobal,
     WaiterWiseBillingReportGlobal,
     InventoryReportGlobal,
