@@ -232,6 +232,10 @@ export interface User {
   isKitchen?: boolean | null;
   isStock?: boolean | null;
   branch?: (string | null) | Branch;
+  /**
+   * Automatically captured from login context for live monitoring widgets.
+   */
+  lastLoginBranch?: (string | null) | Branch;
   kitchenBranches?: (string | Branch)[] | null;
   kitchen?: (string | Kitchen)[] | null;
   categories?: (string | Category)[] | null;
@@ -980,16 +984,25 @@ export interface Table {
    */
   branch: string | Branch;
   /**
-   * Single section can have multiple rows. Add one table range per row (example: Row 1 = T1-T3, Row 2 = T4-T6).
+   * Configure section tables using explicit table list (recommended). Row ranges are still supported for legacy setups.
    */
   sections: {
     name: string;
     /**
-     * Optional. Prefer using Table Rows below.
+     * Optional legacy fallback when explicit table list and row ranges are not provided.
      */
     tableCount?: number | null;
     /**
-     * Each row should contain one range (example: T1-T3).
+     * Recommended: add exact tables for this section (examples: 1, 2, VIP-1). Supports single or multiple tables.
+     */
+    tableNumbers?:
+      | {
+          tableNumber: string;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * Legacy mode: each row contains one table range (example: T1-T3). Used only when Selected Tables is empty.
      */
     rangeRows?:
       | {
@@ -1002,13 +1015,13 @@ export interface Table {
         }[]
       | null;
     /**
-     * Auto-generated section summary of row-wise ranges.
+     * Auto-generated section summary from selected tables or legacy ranges.
      */
     tableRange?: string | null;
     id?: string | null;
   }[];
   /**
-   * Auto-generated summary used in collection list view to identify row-wise table mapping quickly.
+   * Auto-generated summary used in collection list view to identify section-wise table mapping quickly.
    */
   tableLayoutSummary?: string | null;
   updatedAt: string;
@@ -1291,6 +1304,7 @@ export interface UsersSelect<T extends boolean = true> {
   isKitchen?: T;
   isStock?: T;
   branch?: T;
+  lastLoginBranch?: T;
   kitchenBranches?: T;
   kitchen?: T;
   categories?: T;
@@ -1898,6 +1912,12 @@ export interface TablesSelect<T extends boolean = true> {
     | {
         name?: T;
         tableCount?: T;
+        tableNumbers?:
+          | T
+          | {
+              tableNumber?: T;
+              id?: T;
+            };
         rangeRows?:
           | T
           | {

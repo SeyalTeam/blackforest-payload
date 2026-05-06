@@ -154,6 +154,7 @@ type WidgetKey =
   | 'billing-customer-details'
   | 'live-table'
   | 'live-logins'
+  | 'attendance'
   | 'customer-offer-settings'
   | 'favorite-products'
   | 'favorite-categories'
@@ -330,6 +331,28 @@ const getLiveLoginTimeLabel = (value: string | null | undefined): string => {
 
   const deltaDays = Math.floor(deltaHours / 24)
   return `${deltaDays}d ago`
+}
+
+const getLiveLoginDateTimeLabel = (value: string | null | undefined): string => {
+  if (typeof value !== 'string' || value.trim().length === 0) return 'Unknown login time'
+
+  const parsedDate = new Date(value)
+  if (!Number.isFinite(parsedDate.getTime())) return 'Unknown login time'
+
+  return parsedDate.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  })
+}
+
+const getLiveLoginRoleLabel = (value: string | null | undefined): string => {
+  if (typeof value !== 'string') return '-'
+  const normalized = value.trim().toLowerCase()
+  return normalized.length > 0 ? normalized : '-'
 }
 
 const getLiveTableCardKey = (branchId: string, sectionName: string, tableKey: string): string =>
@@ -822,7 +845,7 @@ const WidgetSettings: React.FC<any> = (props) => {
   }, [activeWidget])
 
   useEffect(() => {
-    if (activeWidget !== 'live-logins') return
+    if (activeWidget !== 'live-logins' && activeWidget !== 'attendance') return
     void fetchLiveLoginUsers(true)
 
     const interval = window.setInterval(() => {
@@ -1613,6 +1636,7 @@ const WidgetSettings: React.FC<any> = (props) => {
 
       <div className="widgets-layout">
         <div className="tiles-grid">
+          <div className="tiles-group-title">General</div>
           <button
             type="button"
             className={`tile ${activeWidget === 'stock-order' ? 'active' : ''}`}
@@ -1636,22 +1660,6 @@ const WidgetSettings: React.FC<any> = (props) => {
           >
             <UserRound className="tile-icon" size={48} />
             <span className="tile-label">Billing Customer Details</span>
-          </button>
-          <button
-            type="button"
-            className={`tile ${activeWidget === 'live-table' ? 'active' : ''}`}
-            onClick={() => setActiveWidget('live-table')}
-          >
-            <LayoutGrid className="tile-icon" size={48} />
-            <span className="tile-label">Live Table</span>
-          </button>
-          <button
-            type="button"
-            className={`tile ${activeWidget === 'live-logins' ? 'active' : ''}`}
-            onClick={() => setActiveWidget('live-logins')}
-          >
-            <Users className="tile-icon" size={48} />
-            <span className="tile-label">Live Logins</span>
           </button>
           <button
             type="button"
@@ -1692,6 +1700,32 @@ const WidgetSettings: React.FC<any> = (props) => {
           >
             <Download className="tile-icon" size={48} />
             <span className="tile-label">App Downloads</span>
+          </button>
+
+          <div className="tiles-group-title">Live</div>
+          <button
+            type="button"
+            className={`tile ${activeWidget === 'live-table' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('live-table')}
+          >
+            <LayoutGrid className="tile-icon" size={48} />
+            <span className="tile-label">Live Table</span>
+          </button>
+          <button
+            type="button"
+            className={`tile ${activeWidget === 'live-logins' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('live-logins')}
+          >
+            <Users className="tile-icon" size={48} />
+            <span className="tile-label">Live Logins</span>
+          </button>
+          <button
+            type="button"
+            className={`tile ${activeWidget === 'attendance' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('attendance')}
+          >
+            <Calendar className="tile-icon" size={48} />
+            <span className="tile-label">Attendance</span>
           </button>
         </div>
 
@@ -2361,10 +2395,10 @@ const WidgetSettings: React.FC<any> = (props) => {
             </div>
           )}
 
-          {activeWidget === 'live-logins' && (
+          {(activeWidget === 'live-logins' || activeWidget === 'attendance') && (
             <div className="widget-modal">
               <div className="modal-header live-login-modal-header">
-                <h2>Live Logins</h2>
+                <h2>{activeWidget === 'attendance' ? 'Attendance' : 'Live Logins'}</h2>
                 <div className="live-login-toolbar">
                   <span className="live-login-count">
                     {liveLoginUsers.length} Active {liveLoginUsers.length === 1 ? 'User' : 'Users'}
@@ -2408,23 +2442,20 @@ const WidgetSettings: React.FC<any> = (props) => {
 
                 {liveLoginUsers.length > 0 && (
                   <div className="live-login-list">
+                    <div className="live-login-header">
+                      <span>Name</span>
+                      <span>Role</span>
+                      <span>Branch</span>
+                      <span>Login Time</span>
+                    </div>
                     {liveLoginUsers.map((user) => (
                       <div className="live-login-row" key={user.userId}>
-                        <div className="live-login-user">
-                          <div className="live-login-name">{user.name}</div>
-                          <div className="live-login-meta">
-                            <span className="live-login-role">{user.role.toUpperCase()}</span>
-                            {user.branchName && (
-                              <span className="live-login-branch">{user.branchName}</span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="live-login-presence">
-                          <span className="live-login-dot" />
-                          <span className="live-login-presence-label">
-                            Live • {getLiveLoginTimeLabel(user.latestLoginAt)}
-                          </span>
-                        </div>
+                        <span className="live-login-name">{user.name}</span>
+                        <span className="live-login-role">{getLiveLoginRoleLabel(user.role)}</span>
+                        <span className="live-login-branch">{user.branchName || '-'}</span>
+                        <span className="live-login-time">
+                          {getLiveLoginDateTimeLabel(user.latestLoginAt)}
+                        </span>
                       </div>
                     ))}
                   </div>

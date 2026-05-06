@@ -109,6 +109,17 @@ export const Users: CollectionConfig = {
       },
     },
     {
+      name: 'lastLoginBranch',
+      label: 'Last Login Branch',
+      type: 'relationship',
+      relationTo: 'branches',
+      required: false,
+      admin: {
+        readOnly: true,
+        description: 'Automatically captured from login context for live monitoring widgets.',
+      },
+    },
+    {
       type: 'row',
       fields: [
         {
@@ -356,14 +367,95 @@ export const Users: CollectionConfig = {
         if (req.headers && typeof req.headers.get === 'function') {
           deviceId = req.headers.get('x-device-id')
         }
-        if (deviceId && user.id) {
-          await req.payload.update({
-            collection: 'users',
-            id: user.id,
-            data: {
-              deviceId: deviceId,
-            } as any, // Cast to any to bypass type check until types are regenerated
-          })
+
+        const resolveLoginBranchId = async (): Promise<string | null> => {
+          const reqResolvedBranch =
+            (req as { context?: { resolvedLoginBranchId?: unknown }; resolvedLoginBranchId?: unknown })
+              .context?.resolvedLoginBranchId ??
+            (req as { resolvedLoginBranchId?: unknown }).resolvedLoginBranchId
+          if (typeof reqResolvedBranch === 'string' && reqResolvedBranch.trim().length > 0) {
+            return reqResolvedBranch.trim()
+          }
+
+          const userBranchId = getRelationshipID((user as { branch?: unknown }).branch)
+          if (userBranchId) return userBranchId
+
+          const requestBody = (req as { body?: unknown } | undefined)?.body
+          const bodyBranchId =
+            requestBody && typeof requestBody === 'object' && requestBody !== null
+              ? getRelationshipID((requestBody as { branchId?: unknown }).branchId) ||
+                getRelationshipID((requestBody as { branch?: unknown }).branch)
+              : null
+          const headerBranchId =
+            req.headers && typeof req.headers.get === 'function'
+              ? getRelationshipID(req.headers.get('x-branch-id')) ||
+                getRelationshipID(req.headers.get('x-branch'))
+              : null
+          const explicitBranchId = bodyBranchId || headerBranchId
+
+          if (explicitBranchId) {
+            try {
+              const branchDoc = await req.payload.findByID({
+                collection: 'branches',
+                id: explicitBranchId,
+                depth: 0,
+                overrideAccess: true,
+              })
+              if (branchDoc?.id) return String(branchDoc.id)
+            } catch (_error) {
+              // Ignore invalid explicit branch id and continue fallback resolution.
+            }
+          }
+
+          let headerPin: string | null = null
+          let legacyPin: string | null = null
+          if (req.headers && typeof req.headers.get === 'function') {
+            headerPin = normalizeBranchPin(req.headers.get(BRANCH_PIN_HEADER))
+            legacyPin = normalizeBranchPin(req.headers.get('x-branch-code'))
+          }
+
+          const rawBranchPinFromBody =
+            requestBody && typeof requestBody === 'object' && requestBody !== null
+              ? (requestBody as { branchPin?: unknown }).branchPin
+              : null
+          const bodyPin = normalizeBranchPin(rawBranchPinFromBody)
+          const branchPin = headerPin || legacyPin || bodyPin
+          if (!branchPin) return null
+          if (!isValidBranchPin(branchPin)) return null
+
+          try {
+            const result = await req.payload.find({
+              collection: 'branches',
+              where: {
+                branchPin: {
+                  equals: branchPin,
+                },
+              },
+              depth: 0,
+              limit: 1,
+              pagination: false,
+              overrideAccess: true,
+            })
+            return result.docs[0]?.id ? String(result.docs[0].id) : null
+          } catch (error) {
+            console.error('[Login Debug] Unable to resolve branch from branch PIN in afterLogin:', error)
+            return null
+          }
+        }
+
+        if (user.id) {
+          const loginBranchId = await resolveLoginBranchId()
+          const updateData: Record<string, unknown> = {}
+          if (deviceId) updateData.deviceId = deviceId
+          if (loginBranchId) updateData.lastLoginBranch = loginBranchId
+
+          if (Object.keys(updateData).length > 0) {
+            await req.payload.update({
+              collection: 'users',
+              id: user.id,
+              data: updateData as any, // Cast to any to bypass type check until types are regenerated
+            })
+          }
         }
 
         // --- Session Duration Logic ---
@@ -516,6 +608,19 @@ export const Users: CollectionConfig = {
 
         const staffBranchPinRoles = Array.from(BRANCH_PIN_REQUIRED_ROLES)
         const strictBranchAssignmentRoles = ['branch']
+        const setResolvedLoginBranchContext = (branchID: string | null) => {
+          if (!branchID) return
+
+          const reqWithContext = req as {
+            context?: Record<string, unknown>
+            resolvedLoginBranchId?: string
+          }
+          reqWithContext.resolvedLoginBranchId = branchID
+          reqWithContext.context = {
+            ...(reqWithContext.context || {}),
+            resolvedLoginBranchId: branchID,
+          }
+        }
 
         const requestBody = (req as { body?: unknown } | undefined)?.body
         const rawBranchPinFromBody =
@@ -579,6 +684,12 @@ export const Users: CollectionConfig = {
         const attachBranchToUser = async (branchID: string) => {
           // Keep branch in login context only. Do not persist waiter/cashier-style users to one branch.
           ;(user as { branch?: unknown }).branch = branchID
+          setResolvedLoginBranchContext(branchID)
+        }
+
+        const existingUserBranchID = getRelationshipID(user.branch)
+        if (existingUserBranchID) {
+          setResolvedLoginBranchContext(existingUserBranchID)
         }
 
         // Branch PIN can set the branch context before network checks (useful for waiter logins).

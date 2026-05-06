@@ -653,6 +653,230 @@ const hasTableOrderValue = (value: unknown): boolean => {
   return true
 }
 
+const parseSimpleTableNumberForLookup = (value: string): number | null => {
+  const normalizedValue = value.trim()
+  if (!normalizedValue) return null
+
+  const match = normalizedValue.match(/^(?:table|t)?\s*(\d+)$/i)
+  if (!match) return null
+
+  const parsed = Number.parseInt(match[1], 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) return null
+  return parsed
+}
+
+const normalizeSectionNameForLookup = (value: string): string =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+
+const normalizeTableNumberForLookup = (value: string): string => {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+
+  const numericValue = parseSimpleTableNumberForLookup(trimmed)
+  if (numericValue !== null) return String(numericValue)
+
+  return trimmed.toLowerCase().replace(/\s+/g, ' ')
+}
+
+const toConfiguredTableValue = (value: unknown): string | null => {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return String(Math.floor(value))
+  }
+
+  if (typeof value !== 'string') return null
+
+  const trimmed = value.trim()
+  if (!trimmed) return null
+
+  const numericValue = parseSimpleTableNumberForLookup(trimmed)
+  if (numericValue !== null) return String(numericValue)
+
+  return trimmed
+}
+
+const parseConfiguredTableRange = (value: unknown): { start: number; end: number } | null => {
+  if (typeof value !== 'string') return null
+
+  const normalizedValue = value.trim()
+  if (!normalizedValue) return null
+
+  const match = normalizedValue.match(/^T?\s*(\d+)(?:\s*-\s*T?\s*(\d+))?$/i)
+  if (!match) return null
+
+  const start = Number.parseInt(match[1], 10)
+  const end = Number.parseInt(match[2] ?? match[1], 10)
+
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start <= 0 || end <= 0 || end < start) {
+    return null
+  }
+
+  return { start, end }
+}
+
+const resolveConfiguredTableNumbersFromSection = (section: unknown): string[] => {
+  const sectionRecord = section && typeof section === 'object' ? (section as Record<string, unknown>) : {}
+  const explicitRows = Array.isArray(sectionRecord.tableNumbers) ? sectionRecord.tableNumbers : []
+  const explicitSeen = new Set<string>()
+  const explicitTables: string[] = []
+
+  for (const row of explicitRows) {
+    const rowRecord = row && typeof row === 'object' ? (row as Record<string, unknown>) : {}
+    const displayTableValue = toConfiguredTableValue(rowRecord.tableNumber)
+    if (!displayTableValue) continue
+
+    const normalizedTable = normalizeTableNumberForLookup(displayTableValue)
+    if (!normalizedTable || explicitSeen.has(normalizedTable)) continue
+
+    explicitSeen.add(normalizedTable)
+    explicitTables.push(displayTableValue)
+  }
+
+  if (explicitTables.length > 0) return explicitTables
+
+  const rangeRows = Array.isArray(sectionRecord.rangeRows) ? sectionRecord.rangeRows : []
+  const seen = new Set<string>()
+  const resolvedFromRanges: string[] = []
+
+  for (const row of rangeRows) {
+    const rowRecord = row && typeof row === 'object' ? (row as Record<string, unknown>) : {}
+    const parsedRange = parseConfiguredTableRange(rowRecord.tableRange)
+    if (!parsedRange) continue
+
+    for (let tableNumber = parsedRange.start; tableNumber <= parsedRange.end; tableNumber += 1) {
+      const normalized = String(tableNumber)
+      if (seen.has(normalized)) continue
+      seen.add(normalized)
+      resolvedFromRanges.push(normalized)
+    }
+  }
+
+  if (resolvedFromRanges.length > 0) return resolvedFromRanges
+
+  const rawTableCount = sectionRecord.tableCount
+  const tableCount =
+    typeof rawTableCount === 'number'
+      ? rawTableCount
+      : typeof rawTableCount === 'string'
+        ? Number(rawTableCount)
+        : 0
+
+  if (!Number.isFinite(tableCount) || tableCount <= 0) return []
+
+  const count = Math.floor(tableCount)
+  const fallback: string[] = []
+  for (let index = 1; index <= count; index += 1) {
+    fallback.push(String(index))
+  }
+
+  return fallback
+}
+
+type ResolvedTableSelection = {
+  section: string
+  tableNumber: string
+  normalizedSection: string
+  normalizedTableNumber: string
+}
+
+const resolveTableSelection = (
+  source: {
+    tableDetails?: { section?: unknown; tableNumber?: unknown } | null
+    section?: unknown
+    tableNumber?: unknown
+  } | null,
+  fallback?: { tableDetails?: { section?: unknown; tableNumber?: unknown } | null } | null,
+): ResolvedTableSelection | null => {
+  const sectionValue = source?.section ?? source?.tableDetails?.section ?? fallback?.tableDetails?.section
+  const tableNumberValue =
+    source?.tableNumber ?? source?.tableDetails?.tableNumber ?? fallback?.tableDetails?.tableNumber
+
+  const section = typeof sectionValue === 'string' ? sectionValue.trim() : ''
+  const tableNumber = typeof tableNumberValue === 'string' ? tableNumberValue.trim() : ''
+
+  if (!section || !tableNumber) return null
+
+  const normalizedSection = normalizeSectionNameForLookup(section)
+  const normalizedTableNumber = normalizeTableNumberForLookup(tableNumber)
+  if (!normalizedSection || !normalizedTableNumber) return null
+
+  return {
+    section,
+    tableNumber,
+    normalizedSection,
+    normalizedTableNumber,
+  }
+}
+
+const assertTableExistsInBranchConfiguration = async (
+  payload: Payload,
+  branchID: string,
+  tableSelection: ResolvedTableSelection,
+): Promise<void> => {
+  const tableConfigResult = await payload.find({
+    collection: 'tables',
+    where: {
+      branch: {
+        equals: branchID,
+      },
+    },
+    depth: 0,
+    limit: 1,
+    pagination: false,
+    overrideAccess: true,
+  })
+
+  const tableConfig = tableConfigResult.docs[0] as { sections?: unknown } | undefined
+  const sections = Array.isArray(tableConfig?.sections) ? tableConfig.sections : []
+  if (sections.length === 0) return
+
+  const sectionToTables = new Map<string, Set<string>>()
+  const availableSectionNames = new Map<string, string>()
+
+  for (const section of sections) {
+    const sectionRecord =
+      section && typeof section === 'object' ? (section as Record<string, unknown>) : {}
+    const sectionName = typeof sectionRecord.name === 'string' ? sectionRecord.name.trim() : ''
+    if (!sectionName) continue
+
+    const normalizedSectionName = normalizeSectionNameForLookup(sectionName)
+    if (!normalizedSectionName) continue
+
+    availableSectionNames.set(normalizedSectionName, sectionName)
+
+    const configuredTables = resolveConfiguredTableNumbersFromSection(sectionRecord)
+    const normalizedConfiguredTables = new Set<string>()
+    for (const tableValue of configuredTables) {
+      const normalizedTableValue = normalizeTableNumberForLookup(tableValue)
+      if (normalizedTableValue) {
+        normalizedConfiguredTables.add(normalizedTableValue)
+      }
+    }
+
+    sectionToTables.set(normalizedSectionName, normalizedConfiguredTables)
+  }
+
+  if (sectionToTables.size === 0) return
+
+  const allowedTables = sectionToTables.get(tableSelection.normalizedSection)
+  if (!allowedTables) {
+    const availableSections = Array.from(availableSectionNames.values()).join(', ')
+    throw new APIError(
+      `Section "${tableSelection.section}" is not configured for this branch.${availableSections ? ` Available sections: ${availableSections}.` : ''}`,
+      400,
+    )
+  }
+
+  if (!allowedTables.has(tableSelection.normalizedTableNumber)) {
+    throw new APIError(
+      `Table "${tableSelection.tableNumber}" is not configured under section "${tableSelection.section}".`,
+      400,
+    )
+  }
+}
+
 const isTableOrderBill = (
   data: {
     tableDetails?: { section?: unknown; tableNumber?: unknown } | null
@@ -1894,6 +2118,20 @@ const Billings: CollectionConfig = {
             ...data.tableDetails,
             section: rawData.section || data.tableDetails?.section,
             tableNumber: rawData.tableNumber || data.tableDetails?.tableNumber,
+          }
+        }
+
+        if (hasTableDetails) {
+          const resolvedTableSelection = resolveTableSelection(data as any, originalDoc as any)
+          if (!resolvedTableSelection) {
+            throw new APIError(
+              'Both tableDetails.section and tableDetails.tableNumber are required for table orders.',
+              400,
+            )
+          }
+
+          if (branchID) {
+            await assertTableExistsInBranchConfiguration(req.payload, branchID, resolvedTableSelection)
           }
         }
 

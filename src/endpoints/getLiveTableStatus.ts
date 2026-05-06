@@ -81,18 +81,27 @@ const getRelationshipID = (value: unknown): string | null => {
 
 const normalizeSectionName = (value: string): string => value.trim().toLowerCase()
 
-const extractNumericTableIndex = (value: string): number | null => {
-  const match = value.match(/\d+/)
+const parseSimpleTableNumber = (value: string): number | null => {
+  const normalizedValue = value.trim()
+  if (!normalizedValue) return null
+
+  const match = normalizedValue.match(/^(?:table|t)?\s*(\d+)$/i)
   if (!match) return null
-  const parsed = parseInt(match[0], 10)
-  return Number.isFinite(parsed) ? parsed : null
+
+  const parsed = Number.parseInt(match[1], 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) return null
+  return parsed
+}
+
+const extractNumericTableIndex = (value: string): number | null => {
+  return parseSimpleTableNumber(value)
 }
 
 const normalizeTableIdentifier = (value: string): string => {
   const trimmed = value.trim()
   if (!trimmed) return ''
 
-  const numericIndex = extractNumericTableIndex(trimmed)
+  const numericIndex = parseSimpleTableNumber(trimmed)
   if (numericIndex !== null) return String(numericIndex)
 
   return trimmed.toLowerCase().replace(/\s+/g, ' ')
@@ -102,7 +111,7 @@ const toTableLabel = (value: string): string => {
   const trimmed = value.trim()
   if (!trimmed) return 'Table'
 
-  const numericIndex = extractNumericTableIndex(trimmed)
+  const numericIndex = parseSimpleTableNumber(trimmed)
   if (numericIndex !== null) return `Table ${numericIndex}`
 
   if (/^table/i.test(trimmed)) return trimmed
@@ -128,6 +137,33 @@ const parseConfiguredTableRange = (value: unknown): { start: number; end: number
 }
 
 const resolveConfiguredTables = (section: any): string[] => {
+  const explicitRows = Array.isArray(section?.tableNumbers) ? section.tableNumbers : []
+  const explicitTableValues: string[] = []
+  const explicitSeen = new Set<string>()
+
+  for (const row of explicitRows) {
+    const rawTableValue =
+      typeof row?.tableNumber === 'number'
+        ? String(Math.floor(row.tableNumber))
+        : typeof row?.tableNumber === 'string'
+          ? row.tableNumber.trim()
+          : ''
+
+    if (!rawTableValue) continue
+
+    const numericValue = parseSimpleTableNumber(rawTableValue)
+    const displayValue = numericValue !== null ? String(numericValue) : rawTableValue
+    const normalized = normalizeTableIdentifier(displayValue)
+    if (!normalized || explicitSeen.has(normalized)) continue
+
+    explicitSeen.add(normalized)
+    explicitTableValues.push(displayValue)
+  }
+
+  if (explicitTableValues.length > 0) {
+    return explicitTableValues
+  }
+
   const rangeRows = Array.isArray(section?.rangeRows) ? section.rangeRows : []
   const tableNumbers: number[] = []
   const seen = new Set<number>()

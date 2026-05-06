@@ -38,6 +38,16 @@
     align-content: start;
   }
 
+  .tiles-group-title {
+    grid-column: 1 / -1;
+    margin: 0.1rem 0 0.1rem;
+    color: #a1a1aa;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
   .tile {
     aspect-ratio: 1 / 1;
     width: 100%;
@@ -914,13 +924,35 @@
     .live-login-list {
       display: flex;
       flex-direction: column;
-      gap: 0.55rem;
+      gap: 0.4rem;
+      overflow-x: auto;
+      padding-bottom: 0.2rem;
+    }
+
+    .live-login-header {
+      min-width: 720px;
+      display: grid;
+      grid-template-columns: minmax(150px, 1.25fr) minmax(100px, 0.8fr) minmax(130px, 1fr) minmax(
+          200px,
+          1fr
+        );
+      gap: 0.85rem;
+      padding: 0 0.8rem 0.35rem;
+      color: #a1a1aa;
+      font-size: 0.74rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
     }
 
     .live-login-row {
-      display: flex;
+      min-width: 720px;
+      display: grid;
+      grid-template-columns: minmax(150px, 1.25fr) minmax(100px, 0.8fr) minmax(130px, 1fr) minmax(
+          200px,
+          1fr
+        );
       align-items: center;
-      justify-content: space-between;
       gap: 0.85rem;
       background: rgba(24, 24, 27, 0.75);
       border: 1px solid rgba(255, 255, 255, 0.07);
@@ -928,14 +960,8 @@
       padding: 0.72rem 0.8rem;
     }
 
-    .live-login-user {
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-    }
-
     .live-login-name {
+      min-width: 0;
       color: #f4f4f5;
       font-size: 0.95rem;
       font-weight: 700;
@@ -945,58 +971,32 @@
       text-overflow: ellipsis;
     }
 
-    .live-login-meta {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 0.35rem;
-    }
-
-    .live-login-role,
     .live-login-branch {
-      display: inline-flex;
-      align-items: center;
-      height: 20px;
-      border-radius: 999px;
-      padding: 0 0.45rem;
-      font-size: 0.66rem;
-      font-weight: 700;
-      letter-spacing: 0.03em;
+      min-width: 0;
+      color: #e4e4e7;
+      font-size: 0.86rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .live-login-role {
+      min-width: 0;
       color: #dbeafe;
-      background: rgba(59, 130, 246, 0.18);
-      border: 1px solid rgba(59, 130, 246, 0.3);
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: lowercase;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    .live-login-branch {
-      color: #e4e4e7;
-      background: rgba(113, 113, 122, 0.22);
-      border: 1px solid rgba(113, 113, 122, 0.28);
-    }
-
-    .live-login-presence {
-      flex-shrink: 0;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.42rem;
+    .live-login-time {
       color: #86efac;
-      font-size: 0.74rem;
+      font-size: 0.78rem;
       font-weight: 700;
       letter-spacing: 0.01em;
-    }
-
-    .live-login-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
-      background: #22c55e;
-      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45);
-      animation: live-login-dot-pulse 1.2s ease-in-out infinite;
-    }
-
-    .live-login-presence-label {
       white-space: nowrap;
     }
 
@@ -1462,12 +1462,13 @@
         font-size: 1.06rem;
       }
 
+      .live-login-header,
       .live-login-row {
-        align-items: flex-start;
-      }
-
-      .live-login-presence {
-        font-size: 0.7rem;
+        min-width: 640px;
+        grid-template-columns: minmax(120px, 1.15fr) minmax(90px, 0.8fr) minmax(100px, 0.95fr) minmax(
+            180px,
+            1fr
+          );
       }
 
       .form-row {
@@ -1512,13 +1513,4 @@
     }
   }
 
-  @keyframes live-login-dot-pulse {
-    0%,
-    100% {
-      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.42);
-    }
-    70% {
-      box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
-    }
-  }
 }
