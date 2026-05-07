@@ -6,17 +6,11 @@ type TableRangeRowInput = {
   [key: string]: unknown
 }
 
-type TableNumberRowInput = {
-  tableNumber?: unknown
-  [key: string]: unknown
-}
-
 type TableSectionInput = {
   name?: unknown
   tableCount?: unknown
   tableRange?: unknown
   rangeRows?: unknown
-  tableNumbers?: unknown
   [key: string]: unknown
 }
 
@@ -40,60 +34,6 @@ const normalizeTableCount = (value: unknown): number => {
 const formatTableRange = (startTable: number, endTable: number): string => {
   if (startTable === endTable) return `T${startTable}`
   return `T${startTable} - T${endTable}`
-}
-
-const parseSimpleTableNumber = (value: string): number | null => {
-  const normalizedValue = value.trim()
-  if (!normalizedValue) return null
-
-  const match = normalizedValue.match(/^(?:table|t)?\s*(\d+)$/i)
-  if (!match) return null
-
-  const parsed = Number.parseInt(match[1], 10)
-  if (!Number.isFinite(parsed) || parsed <= 0) return null
-  return parsed
-}
-
-const normalizeTableIdentifier = (value: string): string => {
-  const trimmed = value.trim()
-  if (!trimmed) return ''
-
-  const numericValue = parseSimpleTableNumber(trimmed)
-  if (numericValue !== null) return String(numericValue)
-
-  return trimmed.toLowerCase().replace(/\s+/g, ' ')
-}
-
-const toDisplayTableValue = (value: unknown): string | null => {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-    return String(Math.floor(value))
-  }
-
-  if (typeof value !== 'string') return null
-
-  const trimmed = value.trim()
-  if (!trimmed) return null
-
-  const numericValue = parseSimpleTableNumber(trimmed)
-  if (numericValue !== null) return String(numericValue)
-
-  return trimmed
-}
-
-const formatTableLabel = (tableValue: string): string => {
-  const numericValue = parseSimpleTableNumber(tableValue)
-  return numericValue !== null ? `T${numericValue}` : tableValue
-}
-
-const buildTableListSummary = (tableValues: string[]): string => {
-  if (tableValues.length === 0) return 'No tables configured'
-
-  const labels = tableValues.map((value) => formatTableLabel(value))
-  const previewLimit = 12
-  const preview = labels.slice(0, previewLimit).join(', ')
-  const remaining = labels.length - previewLimit
-
-  return remaining > 0 ? `${preview}, +${remaining} more` : preview
 }
 
 const parseRangeText = (value: string): ParsedTableRange | null => {
@@ -174,51 +114,6 @@ const normalizeRangeRows = (
   return { normalizedRows, parsedRanges }
 }
 
-const normalizeTableNumberRows = (
-  tableNumbers: unknown,
-  options: { strict: boolean; sectionLabel: string },
-): { normalizedRows: TableNumberRowInput[]; normalizedTableValues: string[] } => {
-  if (!Array.isArray(tableNumbers)) return { normalizedRows: [], normalizedTableValues: [] }
-
-  const normalizedRows: TableNumberRowInput[] = []
-  const normalizedTableValues: string[] = []
-  const usedTableIdentifiers = new Set<string>()
-
-  tableNumbers.forEach((row, index) => {
-    const rowRecord: TableNumberRowInput =
-      row && typeof row === 'object' ? ({ ...row } as TableNumberRowInput) : {}
-    const displayTableValue = toDisplayTableValue(rowRecord.tableNumber)
-
-    if (!displayTableValue) {
-      if (options.strict) {
-        throw new Error(
-          `${options.sectionLabel}, Table ${index + 1}: table number is required (example: 1 or VIP-1).`,
-        )
-      }
-      return
-    }
-
-    const normalizedIdentifier = normalizeTableIdentifier(displayTableValue)
-    if (!normalizedIdentifier) return
-
-    if (usedTableIdentifiers.has(normalizedIdentifier)) {
-      if (options.strict) {
-        throw new Error(
-          `${options.sectionLabel}, Table ${index + 1}: duplicate table "${displayTableValue}".`,
-        )
-      }
-      return
-    }
-
-    usedTableIdentifiers.add(normalizedIdentifier)
-    rowRecord.tableNumber = displayTableValue
-    normalizedRows.push(rowRecord)
-    normalizedTableValues.push(displayTableValue)
-  })
-
-  return { normalizedRows, normalizedTableValues }
-}
-
 const normalizeSectionsWithMetadata = (
   sections: unknown,
   options: { strict: boolean },
@@ -233,15 +128,8 @@ const normalizeSectionsWithMetadata = (
         ? sectionRecord.name.trim()
         : `Section ${index + 1}`
 
-    const { normalizedRows: normalizedTableNumberRows, normalizedTableValues } =
-      normalizeTableNumberRows(sectionRecord.tableNumbers, {
-        strict: options.strict,
-        sectionLabel: sectionName,
-      })
-    const hasExplicitTableNumbers = normalizedTableValues.length > 0
-
     const { normalizedRows, parsedRanges } = normalizeRangeRows(sectionRecord.rangeRows, {
-      strict: options.strict && !hasExplicitTableNumbers,
+      strict: options.strict,
       sectionLabel: sectionName,
     })
 
@@ -250,17 +138,9 @@ const normalizeSectionsWithMetadata = (
       0,
     )
     const fallbackTableCount = normalizeTableCount(sectionRecord.tableCount)
-    const totalTables = hasExplicitTableNumbers
-      ? normalizedTableValues.length
-      : totalTablesFromRanges > 0
-        ? totalTablesFromRanges
-        : fallbackTableCount
+    const totalTables = totalTablesFromRanges > 0 ? totalTablesFromRanges : fallbackTableCount
 
-    sectionRecord.tableNumbers = normalizedTableNumberRows
-
-    if (hasExplicitTableNumbers) {
-      sectionRecord.tableRange = buildTableListSummary(normalizedTableValues)
-    } else if (normalizedRows.length > 0) {
+    if (normalizedRows.length > 0) {
       sectionRecord.rangeRows = normalizedRows
       sectionRecord.tableRange = normalizedRows
         .map((row) => `${String(row.label)}: ${String(row.tableRange)}`)
@@ -359,7 +239,7 @@ const Tables: CollectionConfig = {
       admin: {
         initCollapsed: false,
         description:
-          'Configure section tables using explicit table list (recommended). Row ranges are still supported for legacy setups.',
+          'Single section can have multiple rows. Add one table range per row (example: Row 1 = T1-T3, Row 2 = T4-T6).',
       },
       fields: [
         {
@@ -376,37 +256,16 @@ const Tables: CollectionConfig = {
           min: 1,
           admin: {
             placeholder: 'Legacy fallback: number of tables in this section',
-            description: 'Optional legacy fallback when explicit table list and row ranges are not provided.',
+            description: 'Optional. Prefer using Table Rows below.',
           },
-        },
-        {
-          name: 'tableNumbers',
-          label: 'Selected Tables',
-          type: 'array',
-          admin: {
-            initCollapsed: false,
-            description:
-              'Recommended: add exact tables for this section (examples: 1, 2, VIP-1). Supports single or multiple tables.',
-          },
-          fields: [
-            {
-              name: 'tableNumber',
-              type: 'text',
-              required: true,
-              admin: {
-                placeholder: 'e.g., 1 or VIP-1',
-              },
-            },
-          ],
         },
         {
           name: 'rangeRows',
-          label: 'Table Rows (Legacy)',
+          label: 'Table Rows',
           type: 'array',
           admin: {
-            initCollapsed: true,
-            description:
-              'Legacy mode: each row contains one table range (example: T1-T3). Used only when Selected Tables is empty.',
+            initCollapsed: false,
+            description: 'Each row should contain one range (example: T1-T3).',
           },
           fields: [
             {
@@ -432,7 +291,7 @@ const Tables: CollectionConfig = {
           type: 'textarea',
           admin: {
             readOnly: true,
-            description: 'Auto-generated section summary from selected tables or legacy ranges.',
+            description: 'Auto-generated section summary of row-wise ranges.',
           },
         },
       ],
@@ -444,7 +303,7 @@ const Tables: CollectionConfig = {
       admin: {
         readOnly: true,
         description:
-          'Auto-generated summary used in collection list view to identify section-wise table mapping quickly.',
+          'Auto-generated summary used in collection list view to identify row-wise table mapping quickly.',
       },
     },
   ],

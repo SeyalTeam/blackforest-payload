@@ -122,10 +122,13 @@ const getRoundOffAmount = (roundedValue: number, originalValue: number): number 
   return toMoneyValue(roundedValue - toSafeNonNegativeNumber(originalValue))
 }
 
-const normalizeBillingItemStatus = (status: unknown): 'ordered' | 'prepared' | 'delivered' | 'cancelled' => {
+const normalizeBillingItemStatus = (
+  status: unknown,
+): 'ordered' | 'prepared' | 'confirmed' | 'delivered' | 'cancelled' => {
   if (status === 'cancelled') return 'cancelled'
   if (status === 'delivered') return 'delivered'
-  if (status === 'prepared' || status === 'preparing' || status === 'confirmed') return 'prepared'
+  if (status === 'confirmed') return 'confirmed'
+  if (status === 'prepared' || status === 'preparing') return 'prepared'
   return 'ordered'
 }
 
@@ -145,7 +148,7 @@ const areAllBillingItemsCancelled = (items: unknown): boolean => {
 const deriveBillStatusFromItems = (
   items: unknown,
   isTableOrder: boolean,
-): 'ordered' | 'prepared' | 'delivered' | 'cancelled' | null => {
+): 'ordered' | 'prepared' | 'confirmed' | 'delivered' | 'cancelled' | null => {
   if (!Array.isArray(items) || items.length === 0) {
     return null
   }
@@ -171,7 +174,15 @@ const deriveBillStatusFromItems = (
     return 'delivered'
   }
 
-  if (activeItemStatuses.every((status) => status === 'prepared' || status === 'delivered')) {
+  if (activeItemStatuses.every((status) => status === 'confirmed' || status === 'delivered')) {
+    return 'confirmed'
+  }
+
+  if (
+    activeItemStatuses.every(
+      (status) => status === 'prepared' || status === 'confirmed' || status === 'delivered',
+    )
+  ) {
     return 'prepared'
   }
 
@@ -681,22 +692,6 @@ const normalizeTableNumberForLookup = (value: string): string => {
   return trimmed.toLowerCase().replace(/\s+/g, ' ')
 }
 
-const toConfiguredTableValue = (value: unknown): string | null => {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-    return String(Math.floor(value))
-  }
-
-  if (typeof value !== 'string') return null
-
-  const trimmed = value.trim()
-  if (!trimmed) return null
-
-  const numericValue = parseSimpleTableNumberForLookup(trimmed)
-  if (numericValue !== null) return String(numericValue)
-
-  return trimmed
-}
-
 const parseConfiguredTableRange = (value: unknown): { start: number; end: number } | null => {
   if (typeof value !== 'string') return null
 
@@ -718,24 +713,6 @@ const parseConfiguredTableRange = (value: unknown): { start: number; end: number
 
 const resolveConfiguredTableNumbersFromSection = (section: unknown): string[] => {
   const sectionRecord = section && typeof section === 'object' ? (section as Record<string, unknown>) : {}
-  const explicitRows = Array.isArray(sectionRecord.tableNumbers) ? sectionRecord.tableNumbers : []
-  const explicitSeen = new Set<string>()
-  const explicitTables: string[] = []
-
-  for (const row of explicitRows) {
-    const rowRecord = row && typeof row === 'object' ? (row as Record<string, unknown>) : {}
-    const displayTableValue = toConfiguredTableValue(rowRecord.tableNumber)
-    if (!displayTableValue) continue
-
-    const normalizedTable = normalizeTableNumberForLookup(displayTableValue)
-    if (!normalizedTable || explicitSeen.has(normalizedTable)) continue
-
-    explicitSeen.add(normalizedTable)
-    explicitTables.push(displayTableValue)
-  }
-
-  if (explicitTables.length > 0) return explicitTables
-
   const rangeRows = Array.isArray(sectionRecord.rangeRows) ? sectionRecord.rangeRows : []
   const seen = new Set<string>()
   const resolvedFromRanges: string[] = []
@@ -2182,9 +2159,6 @@ const Billings: CollectionConfig = {
         if (data.status === 'preparing') {
           data.status = 'prepared'
         }
-        if (data.status === 'confirmed') {
-          data.status = 'prepared'
-        }
 
         if (operation === 'update' && data.status === 'settled') {
           const previousStatus = typeof originalDoc?.status === 'string' ? originalDoc.status : null
@@ -2209,9 +2183,6 @@ const Billings: CollectionConfig = {
         if (data.items && Array.isArray(data.items)) {
           data.items = data.items.map((item: any) => {
             if (item.status === 'preparing') {
-              return { ...item, status: 'prepared' }
-            }
-            if (item.status === 'confirmed') {
               return { ...item, status: 'prepared' }
             }
             return item
@@ -2352,10 +2323,10 @@ const Billings: CollectionConfig = {
           Array.isArray(data.items) &&
           originalDoc?.items
         ) {
-          const statusSequence = ['ordered', 'prepared', 'delivered']
+          const statusSequence = ['ordered', 'prepared', 'confirmed', 'delivered']
           const normalizeStatus = (status?: string) => {
             if (!status || status === 'pending') return 'ordered'
-            if (status === 'preparing' || status === 'confirmed') return 'prepared'
+            if (status === 'preparing') return 'prepared'
             return status
           }
           for (const item of data.items) {
@@ -2465,7 +2436,7 @@ const Billings: CollectionConfig = {
           const formattedDate = getBillingDateStamp()
 
           const status = data.status || originalDoc?.status || 'ordered'
-          const isKOT = ['ordered', 'prepared', 'delivered'].includes(status)
+          const isKOT = ['ordered', 'prepared', 'confirmed', 'delivered'].includes(status)
 
           // Only generate a new number if it's a creation OR if we're moving out of a KOT status
           // and currently have a KOT number (or no number yet).
@@ -3829,11 +3800,12 @@ const Billings: CollectionConfig = {
           options: [
             { label: 'Ordered', value: 'ordered' },
             { label: 'Prepared', value: 'prepared' },
+            { label: 'Confirmed', value: 'confirmed' },
             { label: 'Delivered', value: 'delivered' },
             { label: 'Cancelled', value: 'cancelled' },
           ],
           admin: {
-            condition: (data) => ['ordered', 'prepared', 'delivered'].includes(data.status),
+            condition: (data) => ['ordered', 'prepared', 'confirmed', 'delivered'].includes(data.status),
           },
         },
 
@@ -4240,6 +4212,7 @@ const Billings: CollectionConfig = {
       options: [
         { label: 'Ordered', value: 'ordered' },
         { label: 'Prepared', value: 'prepared' },
+        { label: 'Confirmed', value: 'confirmed' },
         { label: 'Delivered', value: 'delivered' },
         { label: 'Completed', value: 'completed' },
         { label: 'Settled', value: 'settled' },

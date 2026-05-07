@@ -6,7 +6,7 @@ import timezone from 'dayjs/plugin/timezone'
 dayjs.extend(utc)
 dayjs.extend(timezone)
 
-const ACTIVE_BILLING_STATUSES = new Set(['ordered', 'prepared', 'delivered'])
+const ACTIVE_BILLING_STATUSES = new Set(['ordered', 'prepared', 'confirmed', 'delivered'])
 const LIVE_TABLE_TIMEZONE = 'Asia/Kolkata'
 const BRANCH_SCOPED_ROLES = new Set([
   'branch',
@@ -137,33 +137,6 @@ const parseConfiguredTableRange = (value: unknown): { start: number; end: number
 }
 
 const resolveConfiguredTables = (section: any): string[] => {
-  const explicitRows = Array.isArray(section?.tableNumbers) ? section.tableNumbers : []
-  const explicitTableValues: string[] = []
-  const explicitSeen = new Set<string>()
-
-  for (const row of explicitRows) {
-    const rawTableValue =
-      typeof row?.tableNumber === 'number'
-        ? String(Math.floor(row.tableNumber))
-        : typeof row?.tableNumber === 'string'
-          ? row.tableNumber.trim()
-          : ''
-
-    if (!rawTableValue) continue
-
-    const numericValue = parseSimpleTableNumber(rawTableValue)
-    const displayValue = numericValue !== null ? String(numericValue) : rawTableValue
-    const normalized = normalizeTableIdentifier(displayValue)
-    if (!normalized || explicitSeen.has(normalized)) continue
-
-    explicitSeen.add(normalized)
-    explicitTableValues.push(displayValue)
-  }
-
-  if (explicitTableValues.length > 0) {
-    return explicitTableValues
-  }
-
   const rangeRows = Array.isArray(section?.rangeRows) ? section.rangeRows : []
   const tableNumbers: number[] = []
   const seen = new Set<number>()
@@ -483,19 +456,29 @@ const areAllItemsCancelled = (items: unknown): boolean => {
   })
 }
 
-const normalizeItemStatus = (value: unknown): 'ordered' | 'prepared' | 'delivered' | 'cancelled' => {
+const normalizeItemStatus = (
+  value: unknown,
+): 'ordered' | 'prepared' | 'confirmed' | 'delivered' | 'cancelled' => {
   if (typeof value !== 'string') return 'ordered'
 
   if (value === 'pending') return 'ordered'
-  if (value === 'preparing' || value === 'confirmed') return 'prepared'
-  if (value === 'prepared' || value === 'delivered' || value === 'cancelled' || value === 'ordered') {
+  if (value === 'preparing') return 'prepared'
+  if (
+    value === 'prepared' ||
+    value === 'confirmed' ||
+    value === 'delivered' ||
+    value === 'cancelled' ||
+    value === 'ordered'
+  ) {
     return value
   }
 
   return 'ordered'
 }
 
-const getNonCancelledStatuses = (items: unknown): Array<'ordered' | 'prepared' | 'delivered'> => {
+const getNonCancelledStatuses = (
+  items: unknown,
+): Array<'ordered' | 'prepared' | 'confirmed' | 'delivered'> => {
   if (!Array.isArray(items)) return []
 
   return items
@@ -505,7 +488,8 @@ const getNonCancelledStatuses = (items: unknown): Array<'ordered' | 'prepared' |
         : 'ordered',
     )
     .filter(
-      (status): status is 'ordered' | 'prepared' | 'delivered' => status !== 'cancelled',
+      (status): status is 'ordered' | 'prepared' | 'confirmed' | 'delivered' =>
+        status !== 'cancelled',
     )
 }
 

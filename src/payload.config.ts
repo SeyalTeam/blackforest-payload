@@ -87,6 +87,7 @@ import { generateTableQRHandler } from './endpoints/generateTableQR'
 import { tableRedirectHandler } from './endpoints/tableRedirect'
 import { callWaiterHandler } from './endpoints/callWaiter'
 import { ackWaiterCallHandler } from './endpoints/ackWaiterCall'
+import { createTableOrderBatchHandler } from './endpoints/createTableOrderBatch'
 import { StockAlerts } from './collections/StockAlerts'
 import { reportGraphQLQueries } from './graphql/reportQueries'
 import IdempotencyKeys from './collections/IdempotencyKeys'
@@ -380,6 +381,11 @@ export default buildConfig({
       path: '/billing/customer-lookup',
       method: 'get',
       handler: getBillingCustomerLookupHandler,
+    },
+    {
+      path: '/billing/table-orders/batch',
+      method: 'post',
+      handler: createTableOrderBatchHandler,
     },
     {
       path: '/app-download/latest.apk',

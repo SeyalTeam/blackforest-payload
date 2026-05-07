@@ -6,7 +6,7 @@ import { Product } from '@/payload-types'
 // Reusing types
 export type BillItem = {
   product?: string | Product | null
-  status?: 'ordered' | 'prepared' | 'delivered' | 'cancelled' | null
+  status?: 'ordered' | 'prepared' | 'confirmed' | 'delivered' | 'cancelled' | null
   name?: string | null
   notes?: string | null
   quantity: number

@@ -6,7 +6,7 @@ import timezone from 'dayjs/plugin/timezone'
 dayjs.extend(utc)
 dayjs.extend(timezone)
 
-const ACTIVE_BILL_STATUSES = new Set(['ordered', 'prepared', 'delivered'])
+const ACTIVE_BILL_STATUSES = new Set(['ordered', 'prepared', 'confirmed', 'delivered'])
 const CLOSED_BILL_STATUSES = new Set(['completed', 'settled', 'cancelled'])
 const BRANCH_SCOPED_ROLES = new Set([
   'branch',

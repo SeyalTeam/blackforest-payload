@@ -81,10 +81,10 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
     }
 
     // 🚦 Define strict status sequence
-    const statusSequence = ['ordered', 'prepared', 'delivered']
+    const statusSequence = ['ordered', 'prepared', 'confirmed', 'delivered']
     const normalizeStatus = (input?: string) => {
       if (!input || input === 'pending') return 'ordered'
-      if (input === 'preparing' || input === 'confirmed') return 'prepared'
+      if (input === 'preparing') return 'prepared'
       return input
     }
 
@@ -179,11 +179,17 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
 
     const activeStatuses = normalizedUpdatedItemStatuses.filter((itemStatus) => itemStatus !== 'cancelled')
     const allDelivered = activeStatuses.length > 0 && activeStatuses.every((itemStatus) => itemStatus === 'delivered')
-    const allPreparedOrDelivered =
+    const allConfirmedOrDelivered =
       activeStatuses.length > 0 &&
-      activeStatuses.every((itemStatus) => itemStatus === 'prepared' || itemStatus === 'delivered')
+      activeStatuses.every((itemStatus) => itemStatus === 'confirmed' || itemStatus === 'delivered')
+    const allPreparedOrConfirmedOrDelivered =
+      activeStatuses.length > 0 &&
+      activeStatuses.every(
+        (itemStatus) =>
+          itemStatus === 'prepared' || itemStatus === 'confirmed' || itemStatus === 'delivered',
+      )
 
-    let nextBillStatus: 'ordered' | 'prepared' | 'delivered' | 'cancelled' | null = null
+    let nextBillStatus: 'ordered' | 'prepared' | 'confirmed' | 'delivered' | 'cancelled' | null = null
 
     if (!isBillFinalized) {
       if (allCancelled) {
@@ -191,7 +197,9 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
       } else if (isTableOrderBill) {
         if (allDelivered) {
           nextBillStatus = 'delivered'
-        } else if (allPreparedOrDelivered) {
+        } else if (allConfirmedOrDelivered) {
+          nextBillStatus = 'confirmed'
+        } else if (allPreparedOrConfirmedOrDelivered) {
           nextBillStatus = 'prepared'
         } else {
           nextBillStatus = 'ordered'

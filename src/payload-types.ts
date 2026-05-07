@@ -621,7 +621,7 @@ export interface Billing {
   kotNumber?: string | null;
   items: {
     product: string | Product;
-    status?: ('ordered' | 'prepared' | 'delivered' | 'cancelled') | null;
+    status?: ('ordered' | 'prepared' | 'confirmed' | 'delivered' | 'cancelled') | null;
     name: string;
     notes?: string | null;
     quantity: number;
@@ -731,7 +731,7 @@ export interface Billing {
     phoneNumber?: string | null;
     address?: string | null;
   };
-  status?: ('ordered' | 'prepared' | 'delivered' | 'completed' | 'settled' | 'cancelled') | null;
+  status?: ('ordered' | 'prepared' | 'confirmed' | 'delivered' | 'completed' | 'settled' | 'cancelled') | null;
   customerOfferApplied?: boolean | null;
   customerOfferDiscount?: number | null;
   customerEntryPercentageOfferApplied?: boolean | null;
@@ -984,25 +984,16 @@ export interface Table {
    */
   branch: string | Branch;
   /**
-   * Configure section tables using explicit table list (recommended). Row ranges are still supported for legacy setups.
+   * Single section can have multiple rows. Add one table range per row (example: Row 1 = T1-T3, Row 2 = T4-T6).
    */
   sections: {
     name: string;
     /**
-     * Optional legacy fallback when explicit table list and row ranges are not provided.
+     * Optional. Prefer using Table Rows below.
      */
     tableCount?: number | null;
     /**
-     * Recommended: add exact tables for this section (examples: 1, 2, VIP-1). Supports single or multiple tables.
-     */
-    tableNumbers?:
-      | {
-          tableNumber: string;
-          id?: string | null;
-        }[]
-      | null;
-    /**
-     * Legacy mode: each row contains one table range (example: T1-T3). Used only when Selected Tables is empty.
+     * Each row should contain one range (example: T1-T3).
      */
     rangeRows?:
       | {
@@ -1015,13 +1006,13 @@ export interface Table {
         }[]
       | null;
     /**
-     * Auto-generated section summary from selected tables or legacy ranges.
+     * Auto-generated section summary of row-wise ranges.
      */
     tableRange?: string | null;
     id?: string | null;
   }[];
   /**
-   * Auto-generated summary used in collection list view to identify section-wise table mapping quickly.
+   * Auto-generated summary used in collection list view to identify row-wise table mapping quickly.
    */
   tableLayoutSummary?: string | null;
   updatedAt: string;
@@ -1912,12 +1903,6 @@ export interface TablesSelect<T extends boolean = true> {
     | {
         name?: T;
         tableCount?: T;
-        tableNumbers?:
-          | T
-          | {
-              tableNumber?: T;
-              id?: T;
-            };
         rangeRows?:
           | T
           | {
