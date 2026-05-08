@@ -148,6 +148,28 @@ const BRANCH_STATUS_QTY_KEY: Record<
   received: 'recQty',
 }
 
+const BRANCH_STATUS_UPDATER_KEY: Record<
+  BranchStatusKey,
+  keyof Pick<
+    DetailItem,
+    'ordUpdatedByName' | 'sntUpdatedByName' | 'conUpdatedByName' | 'picUpdatedByName' | 'recUpdatedByName'
+  >
+> = {
+  ordered: 'ordUpdatedByName',
+  sending: 'sntUpdatedByName',
+  confirmed: 'conUpdatedByName',
+  picked: 'picUpdatedByName',
+  received: 'recUpdatedByName',
+}
+
+const BRANCH_STATUS_UPDATER_LABEL: Record<BranchStatusKey, string> = {
+  ordered: 'ORDERED BY',
+  sending: 'SENT BY',
+  confirmed: 'CONFIRMED BY',
+  picked: 'PICKED BY',
+  received: 'RECEIVED BY',
+}
+
 const SUMMARY_WIRE_STATUS_INDEX: Record<BranchStatusKey, number> = {
   ordered: 0,
   sending: 1,
@@ -251,6 +273,7 @@ const StockOrderReport: React.FC = () => {
   const [selectedOrderType, setSelectedOrderType] = useState<'' | 'stock' | 'live'>('')
   const [selectedDetailProduct, setSelectedDetailProduct] = useState<DetailItem | null>(null)
   const [selectedInvoice, setSelectedInvoice] = useState('')
+  const [selectedUpdater, setSelectedUpdater] = useState('')
   const branchRowRef = React.useRef<HTMLDivElement | null>(null)
   const branchCardRefs = React.useRef<Array<HTMLDivElement | null>>([])
   const [branchWireTargets, setBranchWireTargets] = useState<number[]>([])
@@ -854,6 +877,7 @@ const StockOrderReport: React.FC = () => {
   const summaryWireSourceRatio = (SUMMARY_WIRE_STATUS_INDEX[activeBranchStatus] + 0.5) / 6
   const summaryWireSourceX = branchWireViewportWidth * summaryWireSourceRatio
   const activeMindmapTheme = STATUS_MINDMAP_THEME[activeBranchStatus]
+  const activeUpdaterLabel = BRANCH_STATUS_UPDATER_LABEL[activeBranchStatus]
   const handleSummaryCardClick = (
     statusKey: '' | 'ordered' | 'sending' | 'confirmed' | 'picked' | 'received',
   ) => {
@@ -861,66 +885,14 @@ const StockOrderReport: React.FC = () => {
     setSelectedStatus((prev) => (prev === statusKey ? '' : statusKey))
   }
 
-  const departmentOrderedTotals = React.useMemo(() => {
+  const baseScopedDetails = React.useMemo(() => {
     if (!data?.details) return []
-
-    const scopedDetails = selectedInvoice
+    return selectedInvoice
       ? data.details.filter((item) => item.invoiceNumber === selectedInvoice)
       : data.details
-
-    const totalsByDepartment = new Map<
-      string,
-      {
-        amount: number
-        orderedAmount: number
-        sendingAmount: number
-        confirmedAmount: number
-        pickedAmount: number
-      }
-    >()
-    const qtyKey = BRANCH_STATUS_QTY_KEY[activeBranchStatus]
-    scopedDetails.forEach((item) => {
-      const departmentName = item.departmentName || 'No Department'
-      const current = totalsByDepartment.get(departmentName) || {
-        amount: 0,
-        orderedAmount: 0,
-        sendingAmount: 0,
-        confirmedAmount: 0,
-        pickedAmount: 0,
-      }
-      const statusAmount = current.amount + item[qtyKey] * item.price
-      const orderedAmount = current.orderedAmount + item.ordQty * item.price
-      const sendingAmount = current.sendingAmount + item.sntQty * item.price
-      const confirmedAmount = current.confirmedAmount + item.conQty * item.price
-      const pickedAmount = current.pickedAmount + item.picQty * item.price
-      totalsByDepartment.set(departmentName, {
-        amount: statusAmount,
-        orderedAmount,
-        sendingAmount,
-        confirmedAmount,
-        pickedAmount,
-      })
-    })
-
-    return Array.from(totalsByDepartment.entries())
-      .map(([departmentName, totals]) => ({
-        departmentName,
-        amount: totals.amount,
-        orderedAmount: totals.orderedAmount,
-        sendingAmount: totals.sendingAmount,
-        confirmedAmount: totals.confirmedAmount,
-        pickedAmount: totals.pickedAmount,
-      }))
-      .sort((a, b) => b.amount - a.amount)
-  }, [data?.details, selectedInvoice, activeBranchStatus])
+  }, [data?.details, selectedInvoice])
 
   const branchOrderedTotals = React.useMemo(() => {
-    if (!data?.details) return []
-
-    const scopedDetails = selectedInvoice
-      ? data.details.filter((item) => item.invoiceNumber === selectedInvoice)
-      : data.details
-
     const totalsByBranch = new Map<
       string,
       {
@@ -932,7 +904,7 @@ const StockOrderReport: React.FC = () => {
       }
     >()
     const qtyKey = BRANCH_STATUS_QTY_KEY[activeBranchStatus]
-    scopedDetails.forEach((item) => {
+    baseScopedDetails.forEach((item) => {
       const branchName = item.branchName || 'Unknown Branch'
       const current = totalsByBranch.get(branchName) || {
         amount: 0,
@@ -965,7 +937,7 @@ const StockOrderReport: React.FC = () => {
         pickedAmount: totals.pickedAmount,
       }))
       .sort((a, b) => b.amount - a.amount)
-  }, [data?.details, selectedInvoice, activeBranchStatus])
+  }, [baseScopedDetails, activeBranchStatus])
 
   const getComparisonRow = (totals: {
     orderedAmount: number
@@ -987,14 +959,167 @@ const StockOrderReport: React.FC = () => {
     }
   }
 
+  const employeeStatusTotals = React.useMemo(() => {
+    if (activeBranchStatus === 'ordered') {
+      return branchOrderedTotals.map((branch) => ({
+        name: branch.branchName,
+        amount: branch.amount,
+      }))
+    }
+
+    const qtyKey = BRANCH_STATUS_QTY_KEY[activeBranchStatus]
+    const updaterKey = BRANCH_STATUS_UPDATER_KEY[activeBranchStatus]
+    const totalsByEmployee = new Map<string, number>()
+
+    baseScopedDetails.forEach((item) => {
+      const updaterName = formatUpdaterName(item[updaterKey])
+      if (updaterName === 'N/A') return
+
+      const lineAmount = item[qtyKey] * item.price
+      if (!lineAmount) return
+
+      totalsByEmployee.set(updaterName, (totalsByEmployee.get(updaterName) || 0) + lineAmount)
+    })
+
+    return Array.from(totalsByEmployee.entries())
+      .map(([name, amount]) => ({ name, amount }))
+      .sort((a, b) => b.amount - a.amount)
+  }, [activeBranchStatus, branchOrderedTotals, baseScopedDetails])
+
+  const selectedUpdaterDetails = React.useMemo(() => {
+    if (!selectedUpdater) return baseScopedDetails
+
+    if (activeBranchStatus === 'ordered') {
+      return baseScopedDetails.filter(
+        (item) => (item.branchName || 'Unknown Branch') === selectedUpdater,
+      )
+    }
+
+    const qtyKey = BRANCH_STATUS_QTY_KEY[activeBranchStatus]
+    const updaterKey = BRANCH_STATUS_UPDATER_KEY[activeBranchStatus]
+    return baseScopedDetails.filter((item) => {
+      const updaterName = formatUpdaterName(item[updaterKey])
+      if (updaterName !== selectedUpdater) return false
+      return item[qtyKey] * item.price !== 0
+    })
+  }, [selectedUpdater, activeBranchStatus, baseScopedDetails])
+
+  const departmentOrderedTotals = React.useMemo(() => {
+    const totalsByDepartment = new Map<
+      string,
+      {
+        amount: number
+        orderedAmount: number
+        sendingAmount: number
+        confirmedAmount: number
+        pickedAmount: number
+      }
+    >()
+    const qtyKey = BRANCH_STATUS_QTY_KEY[activeBranchStatus]
+    selectedUpdaterDetails.forEach((item) => {
+      const departmentName = item.departmentName || 'No Department'
+      const current = totalsByDepartment.get(departmentName) || {
+        amount: 0,
+        orderedAmount: 0,
+        sendingAmount: 0,
+        confirmedAmount: 0,
+        pickedAmount: 0,
+      }
+      const statusAmount = current.amount + item[qtyKey] * item.price
+      const orderedAmount = current.orderedAmount + item.ordQty * item.price
+      const sendingAmount = current.sendingAmount + item.sntQty * item.price
+      const confirmedAmount = current.confirmedAmount + item.conQty * item.price
+      const pickedAmount = current.pickedAmount + item.picQty * item.price
+      totalsByDepartment.set(departmentName, {
+        amount: statusAmount,
+        orderedAmount,
+        sendingAmount,
+        confirmedAmount,
+        pickedAmount,
+      })
+    })
+
+    return Array.from(totalsByDepartment.entries())
+      .map(([departmentName, totals]) => ({
+        departmentName,
+        amount: totals.amount,
+        orderedAmount: totals.orderedAmount,
+        sendingAmount: totals.sendingAmount,
+        confirmedAmount: totals.confirmedAmount,
+        pickedAmount: totals.pickedAmount,
+      }))
+      .sort((a, b) => b.amount - a.amount)
+  }, [selectedUpdaterDetails, activeBranchStatus])
+
+  const visibleBranchOrderedTotals = React.useMemo(() => {
+    if (!selectedUpdater) return branchOrderedTotals
+
+    const totalsByBranch = new Map<
+      string,
+      {
+        amount: number
+        orderedAmount: number
+        sendingAmount: number
+        confirmedAmount: number
+        pickedAmount: number
+      }
+    >()
+    const qtyKey = BRANCH_STATUS_QTY_KEY[activeBranchStatus]
+    selectedUpdaterDetails.forEach((item) => {
+      const branchName = item.branchName || 'Unknown Branch'
+      const current = totalsByBranch.get(branchName) || {
+        amount: 0,
+        orderedAmount: 0,
+        sendingAmount: 0,
+        confirmedAmount: 0,
+        pickedAmount: 0,
+      }
+      const statusAmount = current.amount + item[qtyKey] * item.price
+      const orderedAmount = current.orderedAmount + item.ordQty * item.price
+      const sendingAmount = current.sendingAmount + item.sntQty * item.price
+      const confirmedAmount = current.confirmedAmount + item.conQty * item.price
+      const pickedAmount = current.pickedAmount + item.picQty * item.price
+      totalsByBranch.set(branchName, {
+        amount: statusAmount,
+        orderedAmount,
+        sendingAmount,
+        confirmedAmount,
+        pickedAmount,
+      })
+    })
+
+    return Array.from(totalsByBranch.entries())
+      .map(([branchName, totals]) => ({
+        branchName,
+        amount: totals.amount,
+        orderedAmount: totals.orderedAmount,
+        sendingAmount: totals.sendingAmount,
+        confirmedAmount: totals.confirmedAmount,
+        pickedAmount: totals.pickedAmount,
+      }))
+      .sort((a, b) => b.amount - a.amount)
+  }, [selectedUpdater, branchOrderedTotals, activeBranchStatus, selectedUpdaterDetails])
+
+  useEffect(() => {
+    setSelectedUpdater('')
+  }, [activeBranchStatus, selectedInvoice])
+
+  useEffect(() => {
+    if (!selectedUpdater) return
+    const isUpdaterAvailable = employeeStatusTotals.some((employee) => employee.name === selectedUpdater)
+    if (!isUpdaterAvailable) {
+      setSelectedUpdater('')
+    }
+  }, [selectedUpdater, employeeStatusTotals])
+
   const combinedEntityCardCount = Math.max(
-    branchOrderedTotals.length + departmentOrderedTotals.length,
+    visibleBranchOrderedTotals.length + departmentOrderedTotals.length,
     1,
   )
 
   const recalculateBranchWireTargets = React.useCallback(() => {
     const rowEl = branchRowRef.current
-    if (!rowEl || branchOrderedTotals.length === 0) {
+    if (!rowEl || visibleBranchOrderedTotals.length === 0) {
       setBranchWireTargets([])
       setBranchWireViewportWidth(0)
       return
@@ -1003,7 +1128,7 @@ const StockOrderReport: React.FC = () => {
     const rowRect = rowEl.getBoundingClientRect()
     const viewportWidth = rowEl.clientWidth
     const targets = branchCardRefs.current
-      .slice(0, branchOrderedTotals.length)
+      .slice(0, visibleBranchOrderedTotals.length)
       .map((cardEl) => {
         if (!cardEl) return null
         const cardRect = cardEl.getBoundingClientRect()
@@ -1014,7 +1139,7 @@ const StockOrderReport: React.FC = () => {
 
     setBranchWireViewportWidth(viewportWidth)
     setBranchWireTargets(targets)
-  }, [branchOrderedTotals])
+  }, [visibleBranchOrderedTotals])
 
   useEffect(() => {
     recalculateBranchWireTargets()
@@ -1437,7 +1562,7 @@ const StockOrderReport: React.FC = () => {
                 })}
               </div>
 
-              {branchOrderedTotals.length > 0 && branchWireTargets.length > 0 && (
+              {visibleBranchOrderedTotals.length > 0 && branchWireTargets.length > 0 && (
                 <div className="summary-branch-wire" aria-hidden="true">
                   {(() => {
                     const wireHeight = 92
@@ -1482,7 +1607,7 @@ const StockOrderReport: React.FC = () => {
                 </div>
               )}
 
-              {(branchOrderedTotals.length > 0 || departmentOrderedTotals.length > 0) && (
+              {(visibleBranchOrderedTotals.length > 0 || departmentOrderedTotals.length > 0) && (
                 <div
                   className={`branch-ordered-row${activeBranchStatus === 'ordered' ? ' branch-ordered-row--ordered' : ''}`}
                   style={
@@ -1492,7 +1617,7 @@ const StockOrderReport: React.FC = () => {
                   }
                   ref={branchRowRef}
                 >
-                  {branchOrderedTotals.map((branch, index) => {
+                  {visibleBranchOrderedTotals.map((branch, index) => {
                     const comparison = getComparisonRow(branch)
                     return (
                       <div
@@ -1534,6 +1659,31 @@ const StockOrderReport: React.FC = () => {
                       </div>
                     )
                   })}
+                </div>
+              )}
+
+              {employeeStatusTotals.length > 0 && (
+                <div className="employee-updater-section">
+                  <div className="employee-updater-title">{activeUpdaterLabel}</div>
+                  <div className="employee-updater-row">
+                    {employeeStatusTotals.map((employee) => (
+                      <button
+                        key={employee.name}
+                        type="button"
+                        className={`employee-updater-chip${selectedUpdater === employee.name ? ' employee-updater-chip--active' : ''}`}
+                        onClick={() =>
+                          setSelectedUpdater((prev) => (prev === employee.name ? '' : employee.name))
+                        }
+                        aria-pressed={selectedUpdater === employee.name}
+                      >
+                        <span className="employee-updater-name">{employee.name}</span>
+                        <span className="employee-updater-separator">-</span>
+                        <span className="employee-updater-amount">
+                          ₹ {employee.amount.toLocaleString('en-IN')}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
