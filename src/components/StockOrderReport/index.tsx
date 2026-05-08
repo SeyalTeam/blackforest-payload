@@ -31,6 +31,23 @@ const formatUpdaterName = (name?: string) => {
   return trimmed || 'N/A'
 }
 
+const getSummaryAmountFontSize = (formattedAmount: string) => {
+  const len = formattedAmount.length
+  if (len <= 8) return 'clamp(2.3rem, 2.8vw, 3rem)'
+  if (len <= 10) return 'clamp(2rem, 2.5vw, 2.6rem)'
+  if (len <= 12) return 'clamp(1.7rem, 2.2vw, 2.2rem)'
+  if (len <= 14) return 'clamp(1.45rem, 2vw, 1.9rem)'
+  return 'clamp(1.2rem, 1.7vw, 1.6rem)'
+}
+
+const getSummaryRefFontSize = (formattedAmount: string) => {
+  const len = formattedAmount.length
+  if (len <= 10) return '0.9rem'
+  if (len <= 12) return '0.85rem'
+  if (len <= 14) return '0.8rem'
+  return '0.76rem'
+}
+
 const getStatusColor = (currentQty: number, targetQty: number, currentTime?: string) => {
   if (currentQty > targetQty) return '#FA8603'
   if (currentQty < targetQty && currentTime) return '#ef4444'
@@ -118,6 +135,47 @@ type ReportData = {
   }>
 }
 
+type BranchStatusKey = 'ordered' | 'sending' | 'confirmed' | 'picked' | 'received'
+
+const BRANCH_STATUS_QTY_KEY: Record<
+  BranchStatusKey,
+  keyof Pick<DetailItem, 'ordQty' | 'sntQty' | 'conQty' | 'picQty' | 'recQty'>
+> = {
+  ordered: 'ordQty',
+  sending: 'sntQty',
+  confirmed: 'conQty',
+  picked: 'picQty',
+  received: 'recQty',
+}
+
+const SUMMARY_WIRE_STATUS_INDEX: Record<BranchStatusKey, number> = {
+  ordered: 0,
+  sending: 1,
+  confirmed: 2,
+  picked: 3,
+  received: 4,
+}
+
+const STATUS_MINDMAP_THEME: Record<BranchStatusKey, { stroke: string; glow: string }> = {
+  ordered: { stroke: '#818cf8', glow: 'rgba(129, 140, 248, 0.52)' },
+  sending: { stroke: '#34d399', glow: 'rgba(52, 211, 153, 0.5)' },
+  confirmed: { stroke: '#facc15', glow: 'rgba(250, 204, 21, 0.5)' },
+  picked: { stroke: '#38bdf8', glow: 'rgba(56, 189, 248, 0.5)' },
+  received: { stroke: '#fb7185', glow: 'rgba(251, 113, 133, 0.5)' },
+}
+
+const resolveBranchStatus = (status: string): BranchStatusKey => {
+  switch (status) {
+    case 'sending':
+    case 'confirmed':
+    case 'picked':
+    case 'received':
+      return status
+    default:
+      return 'ordered'
+  }
+}
+
 const STOCK_ORDER_REPORT_QUERY = `
   query StockOrderReport($filter: StockOrderReportFilterInput) {
     stockOrderReport(filter: $filter) {
@@ -193,6 +251,10 @@ const StockOrderReport: React.FC = () => {
   const [selectedOrderType, setSelectedOrderType] = useState<'' | 'stock' | 'live'>('')
   const [selectedDetailProduct, setSelectedDetailProduct] = useState<DetailItem | null>(null)
   const [selectedInvoice, setSelectedInvoice] = useState('')
+  const branchRowRef = React.useRef<HTMLDivElement | null>(null)
+  const branchCardRefs = React.useRef<Array<HTMLDivElement | null>>([])
+  const [branchWireTargets, setBranchWireTargets] = useState<number[]>([])
+  const [branchWireViewportWidth, setBranchWireViewportWidth] = useState(0)
 
   // React Select Constants
   const statusOptions = [
@@ -376,7 +438,9 @@ const StockOrderReport: React.FC = () => {
               department: filters.department || 'all',
               category: filters.category || 'all',
               product: filters.product || 'all',
-              status: filters.status || 'all',
+              // Keep full-stage data so status comparisons (e.g. SENDING vs ORDERED)
+              // are always accurate in branch/department cards.
+              status: 'all',
               orderType: filters.orderType || 'all',
             },
           },
@@ -729,34 +793,247 @@ const StockOrderReport: React.FC = () => {
       }))
   }, [data?.invoiceNumbers, data?.details, selectedOrderType])
 
-  const chefSummaryRows = React.useMemo(() => data?.chefSummary || [], [data?.chefSummary])
-  const chefSummaryTotal = React.useMemo(
-    () => chefSummaryRows.reduce((sum, row) => sum + row.sendingAmount, 0),
-    [chefSummaryRows],
-  )
   const stageSummaryCards = React.useMemo(() => {
     type StageQtyKey = 'ordQty' | 'sntQty' | 'conQty' | 'picQty' | 'recQty' | 'difQty'
+    type StageCardTone = 'total' | 'existing' | 'new' | 'table' | 'billing' | 'difference'
+    type StatusFilterKey = '' | 'ordered' | 'sending' | 'confirmed' | 'picked' | 'received'
+    type StageReference = {
+      label: string
+      amount: number
+    }
     const allItems = Object.values(groupedDetails).flatMap((categories) =>
       Object.values(categories).flat(),
     ) as DetailItem[]
 
+    const stageAmounts: Record<Exclude<StatusFilterKey, ''>, number> = {
+      ordered: allItems.reduce((sum, item) => sum + item.ordQty * item.price, 0),
+      sending: allItems.reduce((sum, item) => sum + item.sntQty * item.price, 0),
+      confirmed: allItems.reduce((sum, item) => sum + item.conQty * item.price, 0),
+      picked: allItems.reduce((sum, item) => sum + item.picQty * item.price, 0),
+      received: allItems.reduce((sum, item) => sum + item.recQty * item.price, 0),
+    }
+
+    const getReferenceForStatus = (statusKey: StatusFilterKey): StageReference | null => {
+      switch (statusKey) {
+        case 'sending':
+          return { label: 'ORDERED', amount: stageAmounts.ordered }
+        case 'confirmed':
+          return { label: 'SENDING', amount: stageAmounts.sending }
+        case 'picked':
+          return { label: 'CONFIRMED', amount: stageAmounts.confirmed }
+        case 'received':
+          return { label: 'PICKED', amount: stageAmounts.picked }
+        default:
+          return null
+      }
+    }
+
     const toCard = (
       title: string,
       qtyKey: StageQtyKey,
+      tone: StageCardTone,
+      statusKey: StatusFilterKey = '',
     ) => {
-      const amount = allItems.reduce((sum, item) => sum + item[qtyKey] * item.price, 0)
-      return { title, amount }
+      const baseAmount = allItems.reduce((sum, item) => sum + item[qtyKey] * item.price, 0)
+      const amount = selectedStatus && selectedStatus !== statusKey ? 0 : baseAmount
+      const reference = selectedStatus === statusKey ? getReferenceForStatus(statusKey) : null
+      return { title, amount, tone, reference, statusKey }
     }
 
     return [
-      toCard('BRANCH ORDERED', 'ordQty'),
-      toCard('CHEF PREPARED', 'sntQty'),
-      toCard('SUPERVISOR CONFIRMED', 'conQty'),
-      toCard('DRIVER PICKED', 'picQty'),
-      toCard('BRANCH RECEIVED', 'recQty'),
-      toCard('DIFFERENCE', 'difQty'),
+      toCard('BRANCH ORDERED', 'ordQty', 'total', 'ordered'),
+      toCard('CHEF PREPARED', 'sntQty', 'existing', 'sending'),
+      toCard('SUPERVISOR CONFIRMED', 'conQty', 'new', 'confirmed'),
+      toCard('DRIVER PICKED', 'picQty', 'table', 'picked'),
+      toCard('BRANCH RECEIVED', 'recQty', 'billing', 'received'),
+      toCard('DIFFERENCE', 'difQty', 'difference'),
     ]
-  }, [groupedDetails])
+  }, [groupedDetails, selectedStatus])
+
+  const activeBranchStatus = resolveBranchStatus(selectedStatus)
+  const summaryWireSourceRatio = (SUMMARY_WIRE_STATUS_INDEX[activeBranchStatus] + 0.5) / 6
+  const summaryWireSourceX = branchWireViewportWidth * summaryWireSourceRatio
+  const activeMindmapTheme = STATUS_MINDMAP_THEME[activeBranchStatus]
+  const handleSummaryCardClick = (
+    statusKey: '' | 'ordered' | 'sending' | 'confirmed' | 'picked' | 'received',
+  ) => {
+    if (!statusKey) return
+    setSelectedStatus((prev) => (prev === statusKey ? '' : statusKey))
+  }
+
+  const departmentOrderedTotals = React.useMemo(() => {
+    if (!data?.details) return []
+
+    const scopedDetails = selectedInvoice
+      ? data.details.filter((item) => item.invoiceNumber === selectedInvoice)
+      : data.details
+
+    const totalsByDepartment = new Map<
+      string,
+      {
+        amount: number
+        orderedAmount: number
+        sendingAmount: number
+        confirmedAmount: number
+        pickedAmount: number
+      }
+    >()
+    const qtyKey = BRANCH_STATUS_QTY_KEY[activeBranchStatus]
+    scopedDetails.forEach((item) => {
+      const departmentName = item.departmentName || 'No Department'
+      const current = totalsByDepartment.get(departmentName) || {
+        amount: 0,
+        orderedAmount: 0,
+        sendingAmount: 0,
+        confirmedAmount: 0,
+        pickedAmount: 0,
+      }
+      const statusAmount = current.amount + item[qtyKey] * item.price
+      const orderedAmount = current.orderedAmount + item.ordQty * item.price
+      const sendingAmount = current.sendingAmount + item.sntQty * item.price
+      const confirmedAmount = current.confirmedAmount + item.conQty * item.price
+      const pickedAmount = current.pickedAmount + item.picQty * item.price
+      totalsByDepartment.set(departmentName, {
+        amount: statusAmount,
+        orderedAmount,
+        sendingAmount,
+        confirmedAmount,
+        pickedAmount,
+      })
+    })
+
+    return Array.from(totalsByDepartment.entries())
+      .map(([departmentName, totals]) => ({
+        departmentName,
+        amount: totals.amount,
+        orderedAmount: totals.orderedAmount,
+        sendingAmount: totals.sendingAmount,
+        confirmedAmount: totals.confirmedAmount,
+        pickedAmount: totals.pickedAmount,
+      }))
+      .sort((a, b) => b.amount - a.amount)
+  }, [data?.details, selectedInvoice, activeBranchStatus])
+
+  const branchOrderedTotals = React.useMemo(() => {
+    if (!data?.details) return []
+
+    const scopedDetails = selectedInvoice
+      ? data.details.filter((item) => item.invoiceNumber === selectedInvoice)
+      : data.details
+
+    const totalsByBranch = new Map<
+      string,
+      {
+        amount: number
+        orderedAmount: number
+        sendingAmount: number
+        confirmedAmount: number
+        pickedAmount: number
+      }
+    >()
+    const qtyKey = BRANCH_STATUS_QTY_KEY[activeBranchStatus]
+    scopedDetails.forEach((item) => {
+      const branchName = item.branchName || 'Unknown Branch'
+      const current = totalsByBranch.get(branchName) || {
+        amount: 0,
+        orderedAmount: 0,
+        sendingAmount: 0,
+        confirmedAmount: 0,
+        pickedAmount: 0,
+      }
+      const statusAmount = current.amount + item[qtyKey] * item.price
+      const orderedAmount = current.orderedAmount + item.ordQty * item.price
+      const sendingAmount = current.sendingAmount + item.sntQty * item.price
+      const confirmedAmount = current.confirmedAmount + item.conQty * item.price
+      const pickedAmount = current.pickedAmount + item.picQty * item.price
+      totalsByBranch.set(branchName, {
+        amount: statusAmount,
+        orderedAmount,
+        sendingAmount,
+        confirmedAmount,
+        pickedAmount,
+      })
+    })
+
+    return Array.from(totalsByBranch.entries())
+      .map(([branchName, totals]) => ({
+        branchName,
+        amount: totals.amount,
+        orderedAmount: totals.orderedAmount,
+        sendingAmount: totals.sendingAmount,
+        confirmedAmount: totals.confirmedAmount,
+        pickedAmount: totals.pickedAmount,
+      }))
+      .sort((a, b) => b.amount - a.amount)
+  }, [data?.details, selectedInvoice, activeBranchStatus])
+
+  const getComparisonRow = (totals: {
+    orderedAmount: number
+    sendingAmount: number
+    confirmedAmount: number
+    pickedAmount: number
+  }) => {
+    switch (activeBranchStatus) {
+      case 'sending':
+        return { label: 'ORDERED', amount: totals.orderedAmount }
+      case 'confirmed':
+        return { label: 'SENDING', amount: totals.sendingAmount }
+      case 'picked':
+        return { label: 'CONFIRMED', amount: totals.confirmedAmount }
+      case 'received':
+        return { label: 'PICKED', amount: totals.pickedAmount }
+      default:
+        return null
+    }
+  }
+
+  const combinedEntityCardCount = Math.max(
+    branchOrderedTotals.length + departmentOrderedTotals.length,
+    1,
+  )
+
+  const recalculateBranchWireTargets = React.useCallback(() => {
+    const rowEl = branchRowRef.current
+    if (!rowEl || branchOrderedTotals.length === 0) {
+      setBranchWireTargets([])
+      setBranchWireViewportWidth(0)
+      return
+    }
+
+    const rowRect = rowEl.getBoundingClientRect()
+    const viewportWidth = rowEl.clientWidth
+    const targets = branchCardRefs.current
+      .slice(0, branchOrderedTotals.length)
+      .map((cardEl) => {
+        if (!cardEl) return null
+        const cardRect = cardEl.getBoundingClientRect()
+        const centerX = cardRect.left - rowRect.left + cardRect.width / 2
+        return Math.max(0, Math.min(viewportWidth, centerX))
+      })
+      .filter((x): x is number => typeof x === 'number')
+
+    setBranchWireViewportWidth(viewportWidth)
+    setBranchWireTargets(targets)
+  }, [branchOrderedTotals])
+
+  useEffect(() => {
+    recalculateBranchWireTargets()
+    const rowEl = branchRowRef.current
+    if (!rowEl) return
+
+    const rafId = requestAnimationFrame(recalculateBranchWireTargets)
+    const handleResize = () => recalculateBranchWireTargets()
+    const handleScroll = () => recalculateBranchWireTargets()
+
+    window.addEventListener('resize', handleResize)
+    rowEl.addEventListener('scroll', handleScroll, { passive: true })
+
+    return () => {
+      cancelAnimationFrame(rafId)
+      window.removeEventListener('resize', handleResize)
+      rowEl.removeEventListener('scroll', handleScroll)
+    }
+  }, [recalculateBranchWireTargets])
 
   const renderDetailsMetricHeaderRow = (rowKey: string) => {
     const headerBg = '#f3f4f6'
@@ -1109,154 +1386,156 @@ const StockOrderReport: React.FC = () => {
             </div>
           </div>
           <div className="report-body">
-            {/* Sidebar */}
-            <div className="report-sidebar">
-              <div className="order-list">
-                {invoiceList.map((inv) => (
-                  <div
-                    key={inv.invoice}
-                    className={`order-card ${selectedInvoice === inv.invoice ? 'active' : ''}`}
-                    onClick={() =>
-                      setSelectedInvoice((prev) => (prev === inv.invoice ? '' : inv.invoice))
-                    }
-                  >
-                    <div className="card-header">
-                      <h4>{inv.invoice}</h4>
-                    </div>
-                    <div className="card-row">
-                      <span className="value">Ord: {formatCardDate(inv.createdAt)}</span>
-                    </div>
-                    <div className="card-row">
-                      <span className="value">
-                        Del: {formatCardDate(inv.deliveryDate) || 'N/A'}
-                      </span>
-                    </div>
-                    <div className="card-row amount">
-                      <span className="value" style={{ color: 'var(--theme-success-500)' }}>
-                        Amt: ₹ {(inv.amount ?? 0).toLocaleString('en-IN')}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
             {/* Main Content */}
             <div className="main-content">
-              <div
-                className="table-title"
-                style={{
-                  marginTop: '10px',
-                  marginBottom: '10px',
-                }}
-              >
-                <h3 style={{ margin: 0, color: 'var(--theme-text-primary, var(--theme-text))' }}>
-                  Chef Report
-                </h3>
-              </div>
-
-              <div
-                style={{
-                  display: 'flex',
-                  gap: '12px',
-                  alignItems: 'flex-start',
-                  flexWrap: 'wrap',
-                  marginBottom: '20px',
-                }}
-              >
-                <div className="table-container" style={{ width: '40%', minWidth: '320px', maxWidth: '100%' }}>
-                  <table className="report-table">
-                    <thead>
-                      <tr>
-                        <th style={{ minWidth: '220px' }}>CHEF NAME</th>
-                        <th style={{ minWidth: '180px', textAlign: 'right' }}>SENDING AMOUNT</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {chefSummaryRows.length > 0 ? (
-                        chefSummaryRows.map((row, idx) => (
-                          <tr key={`${row.chefName}-${idx}`}>
-                            <td style={{ fontSize: '1.08rem', fontWeight: 600 }}>{row.chefName}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 700 }}>
-                              ₹ {row.sendingAmount.toLocaleString('en-IN')}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={2} style={{ textAlign: 'center', padding: '20px' }}>
-                            No chef sending amount found.
-                          </td>
-                        </tr>
-                      )}
-                      <tr>
-                        <td style={{ fontWeight: 800, fontSize: '1.2rem' }}>TOTAL</td>
-                        <td style={{ textAlign: 'right', fontWeight: 800, fontSize: '1.2rem' }}>
-                          ₹ {chefSummaryTotal.toLocaleString('en-IN')}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <div
-                  style={{
-                    flex: '1 1 560px',
-                    minWidth: '320px',
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                    gap: '10px',
-                  }}
-                >
-                  {stageSummaryCards.map((card) => (
-                    <div
+              <div className="summary-cards-grid">
+                {stageSummaryCards.map((card) => {
+                  const formattedAmount = card.amount.toLocaleString('en-IN')
+                  const isFilterCard = Boolean(card.statusKey)
+                  const isActiveFilterCard = Boolean(card.statusKey && selectedStatus === card.statusKey)
+                  return (
+                    <article
                       key={card.title}
-                      style={{
-                        border: '1px solid var(--theme-elevation-250)',
-                        borderRadius: '12px',
-                        overflow: 'hidden',
-                        backgroundColor: 'var(--theme-elevation-0, var(--theme-bg))',
-                        minHeight: '112px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'flex-start',
-                      }}
+                      className={`stock-summary-card stock-summary-card--${card.tone}${isFilterCard ? ' stock-summary-card--clickable' : ''}${isActiveFilterCard ? ' stock-summary-card--active' : ''}`}
+                      onClick={isFilterCard ? () => handleSummaryCardClick(card.statusKey) : undefined}
+                      onKeyDown={
+                        isFilterCard
+                          ? (event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault()
+                                handleSummaryCardClick(card.statusKey)
+                              }
+                            }
+                          : undefined
+                      }
+                      role={isFilterCard ? 'button' : undefined}
+                      tabIndex={isFilterCard ? 0 : undefined}
                     >
+                      <div className="stock-summary-title">{card.title}</div>
                       <div
+                        className="stock-summary-amount"
                         style={{
-                          color: '#ffffff',
-                          fontWeight: 700,
-                          letterSpacing: '0.06em',
-                          fontSize: '0.9rem',
-                          textAlign: 'center',
-                          backgroundColor: 'var(--theme-elevation-100)',
-                          width: '100%',
-                          padding: '5px 10px',
-                          borderBottom: '1px solid var(--theme-elevation-250)',
+                          fontSize: getSummaryAmountFontSize(formattedAmount),
                         }}
                       >
-                        {card.title}
+                        ₹ {formattedAmount}
                       </div>
-                      <div
-                        style={{
-                          fontSize: '2.1rem',
-                          lineHeight: 1.1,
-                          fontWeight: 700,
-                          color: 'var(--theme-text-primary, var(--theme-text))',
-                          textAlign: 'center',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flex: 1,
-                          padding: '14px 10px',
-                        }}
-                      >
-                        ₹ {card.amount.toLocaleString('en-IN')}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                      {card.reference && (
+                        <div
+                          className="stock-summary-ref"
+                          style={{
+                            fontSize: getSummaryRefFontSize(
+                              card.reference.amount.toLocaleString('en-IN'),
+                            ),
+                          }}
+                        >
+                          {card.reference.label}: ₹ {card.reference.amount.toLocaleString('en-IN')}
+                        </div>
+                      )}
+                    </article>
+                  )
+                })}
               </div>
+
+              {branchOrderedTotals.length > 0 && branchWireTargets.length > 0 && (
+                <div className="summary-branch-wire" aria-hidden="true">
+                  {(() => {
+                    const wireHeight = 92
+                    const startY = 4
+                    const endY = wireHeight - 4
+                    const c1Y = 34
+                    const c2Y = 66
+                    return (
+                  <svg
+                    className="summary-branch-wire-svg"
+                    viewBox={`0 0 ${Math.max(branchWireViewportWidth, 1)} ${wireHeight}`}
+                    preserveAspectRatio="none"
+                  >
+                    <g className="summary-branch-wire-paths">
+                      {branchWireTargets.map((targetX, index) => (
+                        <path
+                          key={`wire-path-${index}-${Math.round(targetX)}`}
+                          d={`M ${summaryWireSourceX} ${startY} C ${summaryWireSourceX} ${c1Y}, ${targetX} ${c2Y}, ${targetX} ${endY}`}
+                          fill="none"
+                          stroke={activeMindmapTheme.stroke}
+                          strokeWidth="3.2"
+                          strokeLinecap="round"
+                          style={{
+                            filter: `drop-shadow(0 0 6px ${activeMindmapTheme.glow})`,
+                          }}
+                        />
+                      ))}
+                    </g>
+                    <circle
+                      className="summary-branch-wire-node"
+                      cx={summaryWireSourceX}
+                      cy={startY}
+                      r={4.5}
+                      fill={activeMindmapTheme.stroke}
+                      style={{
+                        filter: `drop-shadow(0 0 7px ${activeMindmapTheme.glow})`,
+                      }}
+                    />
+                  </svg>
+                    )
+                  })()}
+                </div>
+              )}
+
+              {(branchOrderedTotals.length > 0 || departmentOrderedTotals.length > 0) && (
+                <div
+                  className={`branch-ordered-row${activeBranchStatus === 'ordered' ? ' branch-ordered-row--ordered' : ''}`}
+                  style={
+                    {
+                      '--entity-card-count': String(combinedEntityCardCount),
+                    } as React.CSSProperties
+                  }
+                  ref={branchRowRef}
+                >
+                  {branchOrderedTotals.map((branch, index) => {
+                    const comparison = getComparisonRow(branch)
+                    return (
+                      <div
+                        key={branch.branchName}
+                        className={`branch-ordered-chip branch-ordered-chip--tone-${index % 6}`}
+                        ref={(el) => {
+                          branchCardRefs.current[index] = el
+                        }}
+                      >
+                        <div className="branch-head">
+                          <span className="branch-name">{branch.branchName}</span>
+                        </div>
+                        <span className="branch-amount">₹ {branch.amount.toLocaleString('en-IN')}</span>
+                        {comparison && (
+                          <span className="branch-ordered-ref">
+                            {comparison.label}: ₹ {comparison.amount.toLocaleString('en-IN')}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {departmentOrderedTotals.map((department, index) => {
+                    const comparison = getComparisonRow(department)
+                    return (
+                      <div
+                        key={department.departmentName}
+                        className={`department-ordered-chip department-ordered-chip--tone-${index % 6}`}
+                      >
+                        <div className="department-ordered-head">{department.departmentName}</div>
+                        <div className="department-ordered-amount">
+                          ₹ {department.amount.toLocaleString('en-IN')}
+                        </div>
+                        {comparison && (
+                          <span className="department-ordered-ref">
+                            {comparison.label}: ₹ {comparison.amount.toLocaleString('en-IN')}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
 
               <div
                 className="table-title"
@@ -1268,10 +1547,14 @@ const StockOrderReport: React.FC = () => {
                   gap: '15px',
                 }}
               >
-                <h3 style={{ margin: 0, color: 'var(--theme-text-primary, var(--theme-text))' }}>Product Order Details</h3>
+                <h3 style={{ margin: 0, color: 'var(--theme-text-primary, var(--theme-text))' }}>
+                  Product Order Details
+                </h3>
               </div>
 
-              <div className="details-table">
+              <div className="tables-with-sidebar">
+                <div className="tables-main">
+                  <div className="details-table">
                 {Object.entries(groupedDetails).map(([dept, categories]) => {
                       // Calculate Department Totals
                       const deptItems = Object.values(categories).flat()
@@ -1860,6 +2143,39 @@ const StockOrderReport: React.FC = () => {
                       : data.details
                   }
                 />
+              </div>
+                </div>
+
+                <div className="report-sidebar">
+                  <div className="order-list">
+                    {invoiceList.map((inv) => (
+                      <div
+                        key={inv.invoice}
+                        className={`order-card ${selectedInvoice === inv.invoice ? 'active' : ''}`}
+                        onClick={() =>
+                          setSelectedInvoice((prev) => (prev === inv.invoice ? '' : inv.invoice))
+                        }
+                      >
+                        <div className="card-header">
+                          <h4>{inv.invoice}</h4>
+                        </div>
+                        <div className="card-row">
+                          <span className="value">Ord: {formatCardDate(inv.createdAt)}</span>
+                        </div>
+                        <div className="card-row">
+                          <span className="value">
+                            Del: {formatCardDate(inv.deliveryDate) || 'N/A'}
+                          </span>
+                        </div>
+                        <div className="card-row amount">
+                          <span className="value" style={{ color: 'var(--theme-success-500)' }}>
+                            Amt: ₹ {(inv.amount ?? 0).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
