@@ -70,6 +70,12 @@ type TableQRDomainRow = {
   type?: 'primary' | 'secondary' | null
 }
 
+type AppAPIDomainProfileRow = {
+  id?: string
+  appKey?: string | null
+  domains?: TableQRDomainRow[] | null
+}
+
 type TableSectionConfigRow = {
   id?: string
   name?: string | null
@@ -108,6 +114,7 @@ type WidgetSettingsGlobal = {
   tableOrderCustomerDetailsByBranch?: TableCustomerDetailsRow[] | null
   billingOrderCustomerDetailsByBranch?: BillingCustomerDetailsRow[] | null
   tableQRDomains?: TableQRDomainRow[] | null
+  appAPIDomains?: AppAPIDomainProfileRow[] | null
 }
 
 type LiveTableRow = {
@@ -154,12 +161,14 @@ type WidgetKey =
   | 'billing-customer-details'
   | 'live-table'
   | 'live-logins'
-  | 'attendance'
   | 'customer-offer-settings'
   | 'favorite-products'
   | 'favorite-categories'
   | 'table-qr'
+  | 'api'
   | 'app-downloads'
+
+const BILLING_APP_KEY = 'billing-app'
 
 const sanitizeUploadedAPKFile = (file: File): File => {
   const originalName = file.name.trim() || 'app.apk'
@@ -232,6 +241,12 @@ const getRelationshipID = (value: unknown): string | null => {
 
 const getTableQRDomainRowKey = (row: TableQRDomainRow, index: number): string =>
   row.id || row.domainURL || `table-qr-domain-${index}`
+
+const getBillingAPIDomainRowKey = (row: TableQRDomainRow, index: number): string =>
+  row.id || row.domainURL || `billing-api-domain-${index}`
+
+const normalizeAppKey = (value: unknown): string =>
+  typeof value === 'string' ? value.trim().toLowerCase() : ''
 
 const getBranchNameFromValue = (
   value: string | { id?: string; name?: string } | null | undefined,
@@ -452,9 +467,15 @@ const WidgetSettings: React.FC<any> = (props) => {
     BillingCustomerDetailsRow[]
   >([])
   const [tableQRDomains, setTableQRDomains] = useState<TableQRDomainRow[]>([])
+  const [appAPIDomains, setAppAPIDomains] = useState<AppAPIDomainProfileRow[]>([])
   const [newTableQRDomainURL, setNewTableQRDomainURL] = useState('')
   const [savingTableQRDomain, setSavingTableQRDomain] = useState(false)
   const [removingTableQRDomainKey, setRemovingTableQRDomainKey] = useState<string | null>(null)
+  const [newBillingAPIDomainURL, setNewBillingAPIDomainURL] = useState('')
+  const [savingBillingAPIDomain, setSavingBillingAPIDomain] = useState(false)
+  const [removingBillingAPIDomainKey, setRemovingBillingAPIDomainKey] = useState<string | null>(
+    null,
+  )
   const [tableQRConfigs, setTableQRConfigs] = useState<TableConfigRow[]>([])
   const [loadingTableQRConfigs, setLoadingTableQRConfigs] = useState(false)
   const [tableQRConfigsLoaded, setTableQRConfigsLoaded] = useState(false)
@@ -552,6 +573,15 @@ const WidgetSettings: React.FC<any> = (props) => {
         .map((domainURL) => ({ value: domainURL, label: domainURL })),
     ],
     [tableQRDomains],
+  )
+  const billingAPIDomainProfile = useMemo(
+    () => appAPIDomains.find((profile) => normalizeAppKey(profile.appKey) === BILLING_APP_KEY),
+    [appAPIDomains],
+  )
+  const billingAPIDomains = useMemo(
+    () =>
+      Array.isArray(billingAPIDomainProfile?.domains) ? (billingAPIDomainProfile.domains ?? []) : [],
+    [billingAPIDomainProfile],
   )
   const liveTableNowMs = useMemo(() => Date.now(), [liveTableTick])
 
@@ -713,6 +743,7 @@ const WidgetSettings: React.FC<any> = (props) => {
             settingsJSON.billingOrderCustomerDetailsByBranch || [],
           )
           setTableQRDomains(settingsJSON.tableQRDomains || [])
+          setAppAPIDomains(settingsJSON.appAPIDomains || [])
         }
 
         if (appDownloadsResponse.ok) {
@@ -845,7 +876,7 @@ const WidgetSettings: React.FC<any> = (props) => {
   }, [activeWidget])
 
   useEffect(() => {
-    if (activeWidget !== 'live-logins' && activeWidget !== 'attendance') return
+    if (activeWidget !== 'live-logins') return
     void fetchLiveLoginUsers(true)
 
     const interval = window.setInterval(() => {
@@ -1546,6 +1577,164 @@ const WidgetSettings: React.FC<any> = (props) => {
     }
   }
 
+  const saveBillingAPIDomains = async (nextDomains: TableQRDomainRow[]) => {
+    const normalizedDomains: TableQRDomainRow[] = nextDomains.map((row) => ({
+      ...row,
+      domainURL: row.domainURL?.trim() || '',
+      enabled: row.enabled !== false,
+      type: row.type === 'secondary' ? 'secondary' : 'primary',
+    }))
+
+    const hasPrimary = normalizedDomains.some((domain) => domain.type === 'primary')
+    const finalizedDomains: TableQRDomainRow[] =
+      normalizedDomains.length > 0 && !hasPrimary
+        ? normalizedDomains.map((domain, domainIndex) =>
+            domainIndex === 0 ? { ...domain, type: 'primary' } : domain,
+          )
+        : normalizedDomains
+
+    const otherProfiles = appAPIDomains.filter(
+      (profile) => normalizeAppKey(profile.appKey) !== BILLING_APP_KEY,
+    )
+    const nextProfiles: AppAPIDomainProfileRow[] = [
+      ...otherProfiles,
+      {
+        ...(billingAPIDomainProfile?.id ? { id: billingAPIDomainProfile.id } : {}),
+        appKey: BILLING_APP_KEY,
+        domains: finalizedDomains,
+      },
+    ]
+
+    const persistedSettings = await persistWidgetSettings({ appAPIDomains: nextProfiles })
+    setAppAPIDomains(persistedSettings.appAPIDomains || nextProfiles)
+  }
+
+  const addBillingAPIDomain = async () => {
+    const nextDomainURL = newBillingAPIDomainURL.trim()
+
+    if (!nextDomainURL) {
+      alert('Please enter the billing API domain URL')
+      return
+    }
+
+    let normalizedURL: string
+    try {
+      normalizedURL = new URL(nextDomainURL).toString().replace(/\/$/, '')
+    } catch {
+      alert('Please enter a valid domain URL, including http:// or https://')
+      return
+    }
+
+    const existingDomains = billingAPIDomains
+      .map((row) => row.domainURL?.trim())
+      .filter((value): value is string => Boolean(value))
+
+    if (existingDomains.some((value) => value.toLowerCase() === normalizedURL.toLowerCase())) {
+      alert('This billing API domain is already added')
+      return
+    }
+
+    setSavingBillingAPIDomain(true)
+    try {
+      const isFirst = billingAPIDomains.length === 0
+      const nextRows: TableQRDomainRow[] = [
+        ...billingAPIDomains.map((row) => ({
+          ...row,
+          domainURL: row.domainURL?.trim() || '',
+        })),
+        {
+          domainURL: normalizedURL,
+          enabled: true,
+          type: isFirst ? 'primary' : 'secondary',
+        },
+      ]
+
+      await saveBillingAPIDomains(nextRows)
+      setNewBillingAPIDomainURL('')
+      alert('Billing API domain added')
+    } catch (error) {
+      console.error('Failed to save billing API domain:', error)
+      alert('Failed to add billing API domain')
+    } finally {
+      setSavingBillingAPIDomain(false)
+    }
+  }
+
+  const toggleBillingAPIDomainType = async (row: TableQRDomainRow, index: number) => {
+    try {
+      if (row.type === 'primary') return
+
+      const nextRows: TableQRDomainRow[] = billingAPIDomains.map((currentRow, currentIndex) => {
+        const isMatch = row.id && currentRow.id ? currentRow.id === row.id : currentIndex === index
+        if (isMatch) {
+          return { ...currentRow, type: 'primary' }
+        }
+        if (currentRow.type === 'primary') {
+          return { ...currentRow, type: 'secondary' }
+        }
+        return currentRow
+      })
+
+      await saveBillingAPIDomains(nextRows)
+    } catch (error) {
+      console.error('Failed to toggle billing API domain type:', error)
+      alert('Failed to update billing API domain priority')
+    }
+  }
+
+  const toggleBillingAPIDomainEnabled = async (row: TableQRDomainRow, index: number) => {
+    try {
+      const nextRows = billingAPIDomains.map((currentRow, currentIndex) => {
+        const isMatch = row.id && currentRow.id ? currentRow.id === row.id : currentIndex === index
+        if (isMatch) {
+          return { ...currentRow, enabled: !currentRow.enabled }
+        }
+        return currentRow
+      })
+
+      await saveBillingAPIDomains(nextRows)
+    } catch (error) {
+      console.error('Failed to toggle billing API domain:', error)
+      alert('Failed to update billing API domain status')
+    }
+  }
+
+  const removeBillingAPIDomain = async (row: TableQRDomainRow, index: number) => {
+    const domainURL = row.domainURL?.trim() || 'this domain'
+    if (!confirm(`Remove "${domainURL}" from Billing API domains?`)) {
+      return
+    }
+
+    const rowKey = getBillingAPIDomainRowKey(row, index)
+    setRemovingBillingAPIDomainKey(rowKey)
+
+    try {
+      let nextRows: TableQRDomainRow[] = billingAPIDomains
+        .filter((currentRow, currentIndex) => {
+          if (row.id && currentRow.id) return currentRow.id !== row.id
+          return currentIndex !== index
+        })
+        .map((currentRow) => ({
+          ...currentRow,
+          domainURL: currentRow.domainURL?.trim() || '',
+        }))
+
+      if (nextRows.length > 0 && !nextRows.some((domain) => domain.type === 'primary')) {
+        nextRows = nextRows.map((domain, domainIndex) =>
+          domainIndex === 0 ? { ...domain, type: 'primary' } : domain,
+        )
+      }
+
+      await saveBillingAPIDomains(nextRows)
+      alert('Billing API domain removed')
+    } catch (error) {
+      console.error('Failed to remove billing API domain:', error)
+      alert('Failed to remove billing API domain')
+    } finally {
+      setRemovingBillingAPIDomainKey(null)
+    }
+  }
+
   const generateTableQR = async () => {
     if (!selectedTableQRDomain) {
       alert('Please select a table domain first')
@@ -1721,11 +1910,11 @@ const WidgetSettings: React.FC<any> = (props) => {
           </button>
           <button
             type="button"
-            className={`tile ${activeWidget === 'attendance' ? 'active' : ''}`}
-            onClick={() => setActiveWidget('attendance')}
+            className={`tile ${activeWidget === 'api' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('api')}
           >
-            <Calendar className="tile-icon" size={48} />
-            <span className="tile-label">Attendance</span>
+            <Globe className="tile-icon" size={48} />
+            <span className="tile-label">API</span>
           </button>
         </div>
 
@@ -2395,10 +2584,10 @@ const WidgetSettings: React.FC<any> = (props) => {
             </div>
           )}
 
-          {(activeWidget === 'live-logins' || activeWidget === 'attendance') && (
+          {activeWidget === 'live-logins' && (
             <div className="widget-modal">
               <div className="modal-header live-login-modal-header">
-                <h2>{activeWidget === 'attendance' ? 'Attendance' : 'Live Logins'}</h2>
+                <h2>Live Logins</h2>
                 <div className="live-login-toolbar">
                   <span className="live-login-count">
                     {liveLoginUsers.length} Active {liveLoginUsers.length === 1 ? 'User' : 'Users'}
@@ -2997,6 +3186,153 @@ const WidgetSettings: React.FC<any> = (props) => {
                                       title="Delete Domain"
                                     >
                                       {removingTableQRDomainKey === rowKey ? (
+                                        <Loader2 className="animate-spin" size={14} />
+                                      ) : (
+                                        <Trash2 size={14} />
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </section>
+
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeWidget === 'api' && (
+            <div className="widget-modal">
+              <div className="modal-header">
+                <h2>API</h2>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="modal-body">
+                <div className="table-qr-sections">
+                  <section className="table-qr-card-section">
+                    <h3>
+                      <Globe size={18} />
+                      Billing App API Domains
+                    </h3>
+
+                    <div className="table-qr-domain-management">
+                      <div className="table-qr-add-row">
+                        <div className="form-group">
+                          <label>
+                            <Plus size={12} style={{ marginRight: 4 }} /> Add Billing API Domain
+                          </label>
+                          <input
+                            type="url"
+                            value={newBillingAPIDomainURL}
+                            onChange={(e) => setNewBillingAPIDomainURL(e.target.value)}
+                            placeholder="https://blackforest.vseyal.com"
+                          />
+                        </div>
+                        <div
+                          className="form-group"
+                          style={{ display: 'flex', alignItems: 'flex-end' }}
+                        >
+                          <button
+                            type="button"
+                            className="btn btn-primary table-qr-add-btn"
+                            onClick={() => void addBillingAPIDomain()}
+                            disabled={savingBillingAPIDomain || !newBillingAPIDomainURL.trim()}
+                          >
+                            {savingBillingAPIDomain ? (
+                              <Loader2 className="animate-spin" size={16} />
+                            ) : (
+                              <Plus size={16} />
+                            )}
+                            Add Domain
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="configured-settings">
+                        <h3>Saved Billing Domains</h3>
+                        <p style={{ marginTop: 0, color: '#94a3b8', fontSize: '0.85rem' }}>
+                          Runtime endpoint:
+                          {' /api/runtime/api-domain?appKey=billing-app'}
+                        </p>
+                        {billingAPIDomains.length === 0 ? (
+                          <div className="empty-state">
+                            <p>No billing API domains saved yet.</p>
+                          </div>
+                        ) : (
+                          <div className="table-qr-domains-grid">
+                            {billingAPIDomains.map((row, index) => {
+                              const rowKey = getBillingAPIDomainRowKey(row, index)
+                              const domainLabel = row.domainURL?.trim() || 'Untitled domain'
+
+                              return (
+                                <div className="configured-row" key={rowKey}>
+                                  <div className="table-qr-domain-meta">
+                                    <div
+                                      className={`domain-icon-wrapper ${row.type === 'primary' ? 'primary' : 'secondary'}`}
+                                    >
+                                      {row.type === 'primary' ? (
+                                        <Crown size={18} />
+                                      ) : (
+                                        <Globe size={18} />
+                                      )}
+                                    </div>
+                                    <span className="branch-name" title={domainLabel}>
+                                      {domainLabel}
+                                    </span>
+                                  </div>
+                                  <div className="row-controls">
+                                    <button
+                                      type="button"
+                                      className={`priority-toggle-btn ${row.type === 'primary' ? 'primary' : 'secondary'}`}
+                                      onClick={() => void toggleBillingAPIDomainType(row, index)}
+                                      title={
+                                        row.type === 'primary'
+                                          ? 'Primary Domain'
+                                          : 'Secondary Domain (Click to make Primary)'
+                                      }
+                                    >
+                                      {row.type === 'primary' ? (
+                                        <Crown size={14} />
+                                      ) : (
+                                        <Anchor size={14} />
+                                      )}
+                                      <span>
+                                        {row.type === 'primary' ? 'Primary' : 'Secondary'}
+                                      </span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`status-toggle-btn ${row.enabled !== false ? 'active' : ''}`}
+                                      onClick={() => void toggleBillingAPIDomainEnabled(row, index)}
+                                      title={
+                                        row.enabled !== false
+                                          ? 'Active (Click to Disable)'
+                                          : 'Disabled (Click to Enable)'
+                                      }
+                                    >
+                                      {row.enabled !== false ? (
+                                        <Check size={14} />
+                                      ) : (
+                                        <X size={14} />
+                                      )}
+                                      <span>{row.enabled !== false ? 'Active' : 'Disabled'}</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="remove-row-btn"
+                                      onClick={() => void removeBillingAPIDomain(row, index)}
+                                      disabled={removingBillingAPIDomainKey !== null}
+                                      title="Delete Domain"
+                                    >
+                                      {removingBillingAPIDomainKey === rowKey ? (
                                         <Loader2 className="animate-spin" size={14} />
                                       ) : (
                                         <Trash2 size={14} />

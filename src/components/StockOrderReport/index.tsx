@@ -186,6 +186,24 @@ const STATUS_MINDMAP_THEME: Record<BranchStatusKey, { stroke: string; glow: stri
   received: { stroke: '#fb7185', glow: 'rgba(251, 113, 133, 0.5)' },
 }
 
+const DEPARTMENT_SUMMARY_ROW_TEXT_COLORS = [
+  '#fbbf24',
+  '#60a5fa',
+  '#34d399',
+  '#c084fc',
+  '#fb923c',
+  '#e2e8f0',
+]
+
+const EMPLOYEE_UPDATER_TEXT_COLORS = [
+  '#facc15',
+  '#60a5fa',
+  '#34d399',
+  '#c084fc',
+  '#fb7185',
+  '#fdba74',
+]
+
 const resolveBranchStatus = (status: string): BranchStatusKey => {
   switch (status) {
     case 'sending':
@@ -785,6 +803,61 @@ const StockOrderReport: React.FC = () => {
       {} as Record<string, Record<string, DetailItem[]>>,
     )
   }, [data?.details, selectedInvoice])
+
+  const tableGroupedDetails = React.useMemo(() => {
+    if (!selectedStatus) return groupedDetails
+
+    const shouldShowItem = (item: DetailItem) => {
+      switch (selectedStatus) {
+        case 'ordered':
+          return item.ordQty > 0 && item.sntQty === 0 && item.conQty === 0 && item.picQty === 0 && item.recQty === 0
+        case 'sending':
+          return item.sntQty > 0 && item.conQty === 0 && item.picQty === 0 && item.recQty === 0
+        case 'confirmed':
+          return item.conQty > 0 && item.picQty === 0 && item.recQty === 0
+        case 'picked':
+          return item.picQty > 0 && item.recQty === 0
+        case 'received':
+          return item.recQty > 0
+        default:
+          return true
+      }
+    }
+
+    const filtered: Record<string, Record<string, DetailItem[]>> = {}
+    Object.entries(groupedDetails).forEach(([dept, categories]) => {
+      const filteredCategories: Record<string, DetailItem[]> = {}
+      Object.entries(categories).forEach(([category, items]) => {
+        const visibleItems = items.filter(shouldShowItem)
+        if (visibleItems.length > 0) {
+          filteredCategories[category] = visibleItems
+        }
+      })
+
+      if (Object.keys(filteredCategories).length > 0) {
+        filtered[dept] = filteredCategories
+      }
+    })
+
+    return filtered
+  }, [groupedDetails, selectedStatus])
+
+  const departmentStageSummaryRows = React.useMemo(() => {
+    return Object.entries(tableGroupedDetails)
+      .map(([departmentName, categories]) => {
+        const items = Object.values(categories).flat()
+        return {
+          departmentName,
+          ordAmount: items.reduce((sum, item) => sum + item.ordQty * item.price, 0),
+          sntAmount: items.reduce((sum, item) => sum + item.sntQty * item.price, 0),
+          conAmount: items.reduce((sum, item) => sum + item.conQty * item.price, 0),
+          picAmount: items.reduce((sum, item) => sum + item.picQty * item.price, 0),
+          recAmount: items.reduce((sum, item) => sum + item.recQty * item.price, 0),
+          difAmount: items.reduce((sum, item) => sum + item.difQty * item.price, 0),
+        }
+      })
+      .sort((a, b) => b.ordAmount - a.ordAmount)
+  }, [tableGroupedDetails])
 
   const invoiceList = React.useMemo(() => {
     if (!data?.invoiceNumbers) return []
@@ -1662,27 +1735,228 @@ const StockOrderReport: React.FC = () => {
                 </div>
               )}
 
-              {employeeStatusTotals.length > 0 && (
+              {departmentStageSummaryRows.length > 0 && (
+                <div className="table-container summary-table" style={{ marginBottom: '16px' }}>
+                  <table className="report-table">
+                    <thead>
+                      <tr
+                        style={{
+                          backgroundColor: '#f3f4f6',
+                          borderTop: '1px solid #9ca3af',
+                          borderBottom: '1px solid #9ca3af',
+                        }}
+                      >
+                        <th
+                          style={{
+                            minWidth: '220px',
+                            position: 'sticky',
+                            left: 0,
+                            zIndex: 2,
+                            padding: '12px 12px',
+                            backgroundColor: '#f3f4f6',
+                            border: '1px solid #9ca3af',
+                            color: '#000000',
+                            fontWeight: 800,
+                            letterSpacing: '0.08em',
+                          }}
+                        >
+                          NAME
+                        </th>
+                        <th
+                          style={{
+                            textAlign: 'center',
+                            padding: '12px 10px',
+                            border: '1px solid #9ca3af',
+                            color: '#000000',
+                            fontWeight: 800,
+                            backgroundColor: '#f3f4f6',
+                          }}
+                        >
+                          ORD
+                        </th>
+                        <th
+                          style={{
+                            textAlign: 'center',
+                            padding: '12px 10px',
+                            border: '1px solid #9ca3af',
+                            color: '#000000',
+                            fontWeight: 800,
+                            backgroundColor: '#f3f4f6',
+                          }}
+                        >
+                          SNT
+                        </th>
+                        <th
+                          style={{
+                            textAlign: 'center',
+                            padding: '12px 10px',
+                            border: '1px solid #9ca3af',
+                            color: '#000000',
+                            fontWeight: 800,
+                            backgroundColor: '#f3f4f6',
+                          }}
+                        >
+                          CON
+                        </th>
+                        <th
+                          style={{
+                            textAlign: 'center',
+                            padding: '12px 10px',
+                            border: '1px solid #9ca3af',
+                            color: '#000000',
+                            fontWeight: 800,
+                            backgroundColor: '#f3f4f6',
+                          }}
+                        >
+                          PIC
+                        </th>
+                        <th
+                          style={{
+                            textAlign: 'center',
+                            padding: '12px 10px',
+                            border: '1px solid #9ca3af',
+                            color: '#000000',
+                            fontWeight: 800,
+                            backgroundColor: '#f3f4f6',
+                          }}
+                        >
+                          REC
+                        </th>
+                        <th
+                          style={{
+                            textAlign: 'center',
+                            padding: '12px 10px',
+                            border: '1px solid #9ca3af',
+                            color: '#000000',
+                            fontWeight: 800,
+                            backgroundColor: '#f3f4f6',
+                          }}
+                        >
+                          DIF
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {departmentStageSummaryRows.map((row, index) => {
+                        const rowTextColor =
+                          DEPARTMENT_SUMMARY_ROW_TEXT_COLORS[
+                            index % DEPARTMENT_SUMMARY_ROW_TEXT_COLORS.length
+                          ]
+                        const zebraBg =
+                          index % 2 === 0
+                            ? 'var(--theme-elevation-0, var(--theme-bg))'
+                            : 'var(--theme-elevation-50)'
+                        const valueCellStyle: React.CSSProperties = {
+                          textAlign: 'center',
+                          padding: '14px 10px',
+                          color: rowTextColor,
+                          fontWeight: 800,
+                          fontSize: '1.65rem',
+                          lineHeight: 1.15,
+                        }
+
+                        return (
+                          <tr key={`dept-summary-${row.departmentName}`}>
+                            <td
+                              style={{
+                                position: 'sticky',
+                                left: 0,
+                                zIndex: 1,
+                                padding: '14px 12px',
+                                backgroundColor: zebraBg,
+                                fontWeight: 800,
+                                color: rowTextColor,
+                                fontSize: '14px',
+                                letterSpacing: '1px',
+                                textTransform: 'uppercase',
+                              }}
+                            >
+                              {row.departmentName}
+                            </td>
+                            <td style={valueCellStyle}>{row.ordAmount.toLocaleString('en-IN')}</td>
+                            <td style={valueCellStyle}>{row.sntAmount.toLocaleString('en-IN')}</td>
+                            <td style={valueCellStyle}>{row.conAmount.toLocaleString('en-IN')}</td>
+                            <td style={valueCellStyle}>{row.picAmount.toLocaleString('en-IN')}</td>
+                            <td style={valueCellStyle}>{row.recAmount.toLocaleString('en-IN')}</td>
+                            <td style={valueCellStyle}>{row.difAmount.toLocaleString('en-IN')}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {activeBranchStatus !== 'ordered' && employeeStatusTotals.length > 0 && (
                 <div className="employee-updater-section">
                   <div className="employee-updater-title">{activeUpdaterLabel}</div>
-                  <div className="employee-updater-row">
-                    {employeeStatusTotals.map((employee) => (
-                      <button
-                        key={employee.name}
-                        type="button"
-                        className={`employee-updater-chip${selectedUpdater === employee.name ? ' employee-updater-chip--active' : ''}`}
-                        onClick={() =>
-                          setSelectedUpdater((prev) => (prev === employee.name ? '' : employee.name))
-                        }
-                        aria-pressed={selectedUpdater === employee.name}
-                      >
-                        <span className="employee-updater-name">{employee.name}</span>
-                        <span className="employee-updater-separator">-</span>
-                        <span className="employee-updater-amount">
-                          ₹ {employee.amount.toLocaleString('en-IN')}
-                        </span>
-                      </button>
-                    ))}
+                  <div className="employee-updater-table-wrap">
+                    <table className="employee-updater-table">
+                      <tbody>
+                        <tr>
+                          <th>NAME</th>
+                          {employeeStatusTotals.map((employee, index) => {
+                            const isActive = selectedUpdater === employee.name
+                            const columnTextColor =
+                              EMPLOYEE_UPDATER_TEXT_COLORS[index % EMPLOYEE_UPDATER_TEXT_COLORS.length]
+                            return (
+                              <td
+                                key={`${employee.name}-name`}
+                                className={`employee-updater-name employee-updater-clickable-cell${isActive ? ' employee-updater-cell--active' : ''}`}
+                                style={{ color: columnTextColor }}
+                                onClick={() =>
+                                  setSelectedUpdater((prev) => (prev === employee.name ? '' : employee.name))
+                                }
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault()
+                                    setSelectedUpdater((prev) =>
+                                      prev === employee.name ? '' : employee.name,
+                                    )
+                                  }
+                                }}
+                                tabIndex={0}
+                                role="button"
+                                aria-pressed={isActive}
+                              >
+                                {employee.name}
+                              </td>
+                            )
+                          })}
+                        </tr>
+                        <tr>
+                          <th>TOTAL AMOUNT</th>
+                          {employeeStatusTotals.map((employee, index) => {
+                            const isActive = selectedUpdater === employee.name
+                            const columnTextColor =
+                              EMPLOYEE_UPDATER_TEXT_COLORS[index % EMPLOYEE_UPDATER_TEXT_COLORS.length]
+                            return (
+                              <td
+                                key={`${employee.name}-amount`}
+                                className={`employee-updater-amount employee-updater-clickable-cell${isActive ? ' employee-updater-cell--active' : ''}`}
+                                style={{ color: columnTextColor }}
+                                onClick={() =>
+                                  setSelectedUpdater((prev) => (prev === employee.name ? '' : employee.name))
+                                }
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault()
+                                    setSelectedUpdater((prev) =>
+                                      prev === employee.name ? '' : employee.name,
+                                    )
+                                  }
+                                }}
+                                tabIndex={0}
+                                role="button"
+                                aria-pressed={isActive}
+                              >
+                                ₹ {employee.amount.toLocaleString('en-IN')}
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
@@ -1705,7 +1979,7 @@ const StockOrderReport: React.FC = () => {
               <div className="tables-with-sidebar">
                 <div className="tables-main">
                   <div className="details-table">
-                {Object.entries(groupedDetails).map(([dept, categories]) => {
+                {Object.entries(tableGroupedDetails).map(([dept, categories]) => {
                       // Calculate Department Totals
                       const deptItems = Object.values(categories).flat()
                       // Items are already processed
@@ -2173,7 +2447,7 @@ const StockOrderReport: React.FC = () => {
                         </div>
                       )
                     })}
-                {Object.keys(groupedDetails).length === 0 && (
+                {Object.keys(tableGroupedDetails).length === 0 && (
                   <div className="table-container">
                     <table className="report-table">
                       <tbody>

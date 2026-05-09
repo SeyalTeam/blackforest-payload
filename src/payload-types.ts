@@ -2351,6 +2351,23 @@ export interface WidgetSetting {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Per-app API domains with primary/secondary priority. Mobile apps can fetch this to switch API base URL without a new release.
+   */
+  appAPIDomains?:
+    | {
+        appKey: 'billing-app';
+        domains?:
+          | {
+              domainURL: string;
+              type?: ('primary' | 'secondary') | null;
+              enabled?: boolean | null;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -3582,6 +3599,20 @@ export interface WidgetSettingsSelect<T extends boolean = true> {
         domainURL?: T;
         type?: T;
         enabled?: T;
+        id?: T;
+      };
+  appAPIDomains?:
+    | T
+    | {
+        appKey?: T;
+        domains?:
+          | T
+          | {
+              domainURL?: T;
+              type?: T;
+              enabled?: T;
+              id?: T;
+            };
         id?: T;
       };
   updatedAt?: T;

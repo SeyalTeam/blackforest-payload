@@ -79,6 +79,7 @@ import { getLiveLoggedInUsersHandler } from './endpoints/getLiveLoggedInUsers'
 import { getReportBranchesHandler } from './endpoints/getReportBranches'
 import { getWidgetProductOptionsHandler } from './endpoints/getWidgetProductOptions'
 import { getBillingCustomerLookupHandler } from './endpoints/getBillingCustomerLookup'
+import { getRuntimeApiDomainHandler } from './endpoints/getRuntimeApiDomain'
 import { CustomerOfferSettings } from './globals/CustomerOfferSettings'
 import APKFiles from './collections/APKFiles'
 import { AppDownloadSettings } from './globals/AppDownloadSettings'
@@ -356,6 +357,11 @@ export default buildConfig({
       path: '/widgets/product-options',
       method: 'get',
       handler: getWidgetProductOptionsHandler,
+    },
+    {
+      path: '/runtime/api-domain',
+      method: 'get',
+      handler: getRuntimeApiDomainHandler,
     },
     {
       path: '/widgets/table-qr-preview',

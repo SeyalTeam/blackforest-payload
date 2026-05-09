@@ -223,5 +223,52 @@ export const WidgetSettingsGlobal: GlobalConfig = {
         },
       ],
     },
+    {
+      name: 'appAPIDomains',
+      label: 'App API Domains',
+      type: 'array',
+      admin: {
+        description:
+          'Per-app API domains with primary/secondary priority. Mobile apps can fetch this to switch API base URL without a new release.',
+      },
+      fields: [
+        {
+          name: 'appKey',
+          label: 'App',
+          type: 'select',
+          required: true,
+          options: [{ label: 'Billing App', value: 'billing-app' }],
+        },
+        {
+          name: 'domains',
+          label: 'Domains',
+          type: 'array',
+          fields: [
+            {
+              name: 'domainURL',
+              label: 'Domain URL',
+              type: 'text',
+              required: true,
+            },
+            {
+              name: 'type',
+              label: 'Type',
+              type: 'select',
+              options: [
+                { label: 'Primary', value: 'primary' },
+                { label: 'Secondary', value: 'secondary' },
+              ],
+              defaultValue: 'primary',
+            },
+            {
+              name: 'enabled',
+              label: 'Enabled',
+              type: 'checkbox',
+              defaultValue: true,
+            },
+          ],
+        },
+      ],
+    },
   ],
 }
