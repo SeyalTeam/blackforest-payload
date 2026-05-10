@@ -213,11 +213,11 @@ const DETAIL_STAGE_COLUMNS: StageColumnConfig[] = [
 ]
 
 const STATUS_VISIBLE_STAGE_COLUMN_KEYS: Record<BranchStatusKey, StageColumnKey[]> = {
-  ordered: ['ord'],
-  sending: ['ord', 'snt'],
-  confirmed: ['ord', 'snt', 'con'],
-  picked: ['ord', 'snt', 'con', 'pic'],
-  received: ['ord', 'snt', 'con', 'pic', 'rec'],
+  ordered: ['ord', 'snt', 'con', 'pic', 'rec', 'dif'],
+  sending: ['ord', 'snt', 'con', 'pic', 'rec', 'dif'],
+  confirmed: ['ord', 'snt', 'con', 'pic', 'rec', 'dif'],
+  picked: ['ord', 'snt', 'con', 'pic', 'rec', 'dif'],
+  received: ['ord', 'snt', 'con', 'pic', 'rec', 'dif'],
 }
 
 const BRANCH_STATUS_QTY_KEY: Record<
@@ -397,6 +397,7 @@ const StockOrderReport: React.FC = () => {
   const [selectedDetailProduct, setSelectedDetailProduct] = useState<DetailItem | null>(null)
   const [selectedInvoice, setSelectedInvoice] = useState('')
   const [selectedUpdater, setSelectedUpdater] = useState('')
+  const [selectedBranchCard, setSelectedBranchCard] = useState('')
   const branchRowRef = React.useRef<HTMLDivElement | null>(null)
   const branchCardRefs = React.useRef<Array<HTMLDivElement | null>>([])
   const [branchWireTargets, setBranchWireTargets] = useState<number[]>([])
@@ -770,12 +771,15 @@ const StockOrderReport: React.FC = () => {
   // Group Details by Department -> Category
   const groupedDetails = React.useMemo(() => {
     if (!data?.details) return {}
+    const branchScopedDetails = selectedBranchCard
+      ? data.details.filter((item) => (item.branchName || 'Unknown Branch') === selectedBranchCard)
+      : data.details
 
     let processedItems: DetailItem[] = []
 
     if (selectedInvoice) {
       // If invoice selected, show only items for that invoice
-      processedItems = data.details.filter((item) => item.invoiceNumber === selectedInvoice)
+      processedItems = branchScopedDetails.filter((item) => item.invoiceNumber === selectedInvoice)
     } else {
       // If NO invoice selected, Aggregate duplicates (same product in multiple invoices)
       const aggregationMap = new Map<string, DetailItem>()
@@ -796,7 +800,7 @@ const StockOrderReport: React.FC = () => {
           .join(',')
       }
 
-      data.details.forEach((item) => {
+      branchScopedDetails.forEach((item) => {
         const key = `${item.departmentName}||${item.categoryName}||${item.productName}`
 
         if (!aggregationMap.has(key)) {
@@ -907,11 +911,45 @@ const StockOrderReport: React.FC = () => {
       },
       {} as Record<string, Record<string, DetailItem[]>>,
     )
-  }, [data?.details, selectedInvoice])
+  }, [data?.details, selectedInvoice, selectedBranchCard])
 
   const tableGroupedDetails = React.useMemo(() => {
-    return groupedDetails
-  }, [groupedDetails])
+    if (!selectedStatus) return groupedDetails
+
+    const shouldShowItemByStatus = (item: DetailItem) => {
+      switch (selectedStatus) {
+        case 'ordered':
+          return item.ordQty > 0 && item.sntQty === 0 && item.conQty === 0 && item.picQty === 0 && item.recQty === 0
+        case 'sending':
+          return item.sntQty > 0 && item.conQty === 0 && item.picQty === 0 && item.recQty === 0
+        case 'confirmed':
+          return item.conQty > 0 && item.picQty === 0 && item.recQty === 0
+        case 'picked':
+          return item.picQty > 0 && item.recQty === 0
+        case 'received':
+          return item.recQty > 0
+        default:
+          return true
+      }
+    }
+
+    const filtered: Record<string, Record<string, DetailItem[]>> = {}
+    Object.entries(groupedDetails).forEach(([dept, categories]) => {
+      const filteredCategories: Record<string, DetailItem[]> = {}
+      Object.entries(categories).forEach(([category, items]) => {
+        const visibleItems = items.filter(shouldShowItemByStatus)
+        if (visibleItems.length > 0) {
+          filteredCategories[category] = visibleItems
+        }
+      })
+
+      if (Object.keys(filteredCategories).length > 0) {
+        filtered[dept] = filteredCategories
+      }
+    })
+
+    return filtered
+  }, [groupedDetails, selectedStatus])
 
   const departmentStageSummaryRows = React.useMemo<DepartmentStageSummaryRow[]>(() => {
     return Object.entries(groupedDetails)
@@ -1086,10 +1124,14 @@ const StockOrderReport: React.FC = () => {
 
   const baseScopedDetails = React.useMemo(() => {
     if (!data?.details) return []
-    return selectedInvoice
+    const invoiceScopedDetails = selectedInvoice
       ? data.details.filter((item) => item.invoiceNumber === selectedInvoice)
       : data.details
-  }, [data?.details, selectedInvoice])
+    if (!selectedBranchCard) return invoiceScopedDetails
+    return invoiceScopedDetails.filter(
+      (item) => (item.branchName || 'Unknown Branch') === selectedBranchCard,
+    )
+  }, [data?.details, selectedInvoice, selectedBranchCard])
 
   const branchOrderedTotals = React.useMemo(() => {
     const totalsByBranch = new Map<
@@ -1311,6 +1353,16 @@ const StockOrderReport: React.FC = () => {
     }
   }, [selectedUpdater, employeeStatusTotals])
 
+  useEffect(() => {
+    if (!selectedBranchCard) return
+    const hasBranchData = baseScopedDetails.some(
+      (item) => (item.branchName || 'Unknown Branch') === selectedBranchCard,
+    )
+    if (!hasBranchData) {
+      setSelectedBranchCard('')
+    }
+  }, [selectedBranchCard, baseScopedDetails])
+
   const combinedEntityCardCount = Math.max(
     visibleBranchOrderedTotals.length + departmentOrderedTotals.length,
     1,
@@ -1482,6 +1534,8 @@ const StockOrderReport: React.FC = () => {
                 setSelectedCat('')
                 setSelectedProd('')
                 setSelectedStatus('')
+                setSelectedBranchCard('')
+                setSelectedUpdater('')
               }}
               title="Reset Filters"
               style={{
@@ -1776,13 +1830,32 @@ const StockOrderReport: React.FC = () => {
                 >
                   {visibleBranchOrderedTotals.map((branch, index) => {
                     const comparison = getComparisonRow(branch)
+                    const isActiveBranchCard = selectedBranchCard === branch.branchName
                     return (
                       <div
                         key={branch.branchName}
-                        className={`branch-ordered-chip branch-ordered-chip--tone-${index % 6}`}
+                        className={`branch-ordered-chip branch-ordered-chip--tone-${index % 6}${isActiveBranchCard ? ' branch-ordered-chip--active' : ''}`}
                         ref={(el) => {
                           branchCardRefs.current[index] = el
                         }}
+                        onClick={() => {
+                          setSelectedUpdater('')
+                          setSelectedBranchCard((prev) =>
+                            prev === branch.branchName ? '' : branch.branchName,
+                          )
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setSelectedUpdater('')
+                            setSelectedBranchCard((prev) =>
+                              prev === branch.branchName ? '' : branch.branchName,
+                            )
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={isActiveBranchCard}
                       >
                         <div className="branch-head">
                           <span className="branch-name">{branch.branchName}</span>

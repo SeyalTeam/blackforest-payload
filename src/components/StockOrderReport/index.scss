@@ -306,6 +306,18 @@
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
     white-space: nowrap;
     overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+
+    &:hover {
+      border-color: rgba(239, 68, 68, 0.52);
+      transform: translateY(-1px);
+    }
+
+    &:focus-visible {
+      outline: 2px solid rgba(244, 114, 182, 0.75);
+      outline-offset: 1px;
+    }
 
     .branch-head {
       display: flex;
@@ -362,6 +374,11 @@
       text-transform: uppercase;
     }
 
+  }
+
+  .branch-ordered-chip--active {
+    border-color: rgba(251, 113, 133, 0.8);
+    box-shadow: 0 0 0 1px rgba(251, 113, 133, 0.46), 0 10px 24px rgba(0, 0, 0, 0.22);
   }
 
   .employee-updater-section {
