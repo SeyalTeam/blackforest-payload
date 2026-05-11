@@ -55,6 +55,7 @@ import { LiveBillReportGlobal } from './globals/LiveBillReport'
 import { resetInventoryHandler } from './endpoints/resetInventory'
 import Reviews from './collections/Reviews'
 import Customers from './collections/Customers'
+import BillingCustomers from './collections/BillingCustomers'
 import InstockEntries from './collections/InstockEntries'
 import { getInstockEntryReportHandler } from './endpoints/getInstockEntryReport'
 import { updateInstockStatusHandler } from './endpoints/updateInstockStatus'
@@ -457,6 +458,7 @@ export default buildConfig({
     StockOrders,
     Reviews,
     Customers,
+    BillingCustomers,
     InstockEntries,
     Tables,
     Kitchens,

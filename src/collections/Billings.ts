@@ -637,6 +637,124 @@ const normalizePhoneNumber = (value: unknown): string | null => {
   return trimmed.length > 0 ? trimmed : null
 }
 
+const normalizeCustomerName = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+const isMongoDuplicateKeyError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') return false
+  const candidate = error as { code?: unknown; message?: unknown }
+  if (candidate.code === 11000) return true
+  return typeof candidate.message === 'string' && candidate.message.includes('E11000')
+}
+
+const upsertBillingCustomerDirectory = async (
+  payload: Payload,
+  input: {
+    phoneNumber: unknown
+    customerName: unknown
+    billID?: string
+  },
+): Promise<void> => {
+  const phoneNumber = normalizePhoneNumber(input.phoneNumber)
+  if (!phoneNumber) return
+
+  const customerName = normalizeCustomerName(input.customerName) || phoneNumber
+  const syncTime = new Date().toISOString()
+
+  const existingCustomers = await payload.find({
+    collection: 'billing-customers' as any,
+    where: {
+      phoneNumber: {
+        equals: phoneNumber,
+      },
+    },
+    depth: 0,
+    limit: 1,
+    overrideAccess: true,
+  })
+
+  if (existingCustomers.totalDocs > 0) {
+    const existingCustomer = existingCustomers.docs[0] as Record<string, unknown>
+    const updateData: Record<string, unknown> = {
+      lastSyncedAt: syncTime,
+    }
+
+    if (existingCustomer.name !== customerName) {
+      updateData.name = customerName
+    }
+
+    const existingLastBill =
+      typeof existingCustomer.lastBill === 'string'
+        ? existingCustomer.lastBill
+        : existingCustomer.lastBill &&
+            typeof existingCustomer.lastBill === 'object' &&
+            typeof (existingCustomer.lastBill as { id?: unknown }).id === 'string'
+          ? ((existingCustomer.lastBill as { id: string }).id ?? null)
+          : null
+    if (input.billID && existingLastBill !== input.billID) {
+      updateData.lastBill = input.billID
+    }
+
+    await payload.update({
+      collection: 'billing-customers' as any,
+      id: String(existingCustomer.id),
+      data: updateData as any,
+      depth: 0,
+      overrideAccess: true,
+    })
+    return
+  }
+
+  try {
+    await payload.create({
+      collection: 'billing-customers' as any,
+      data: {
+        name: customerName,
+        phoneNumber,
+        lastBill: input.billID,
+        lastSyncedAt: syncTime,
+      } as any,
+      depth: 0,
+      overrideAccess: true,
+    })
+  } catch (createError) {
+    if (!isMongoDuplicateKeyError(createError)) {
+      throw createError
+    }
+
+    const existingAfterConflict = await payload.find({
+      collection: 'billing-customers' as any,
+      where: {
+        phoneNumber: {
+          equals: phoneNumber,
+        },
+      },
+      depth: 0,
+      limit: 1,
+      overrideAccess: true,
+    })
+
+    if (existingAfterConflict.totalDocs === 0) {
+      throw createError
+    }
+
+    await payload.update({
+      collection: 'billing-customers' as any,
+      id: String(existingAfterConflict.docs[0]?.id),
+      data: {
+        name: customerName,
+        lastBill: input.billID,
+        lastSyncedAt: syncTime,
+      } as any,
+      depth: 0,
+      overrideAccess: true,
+    })
+  }
+}
+
 const getQuantityByProduct = (items: unknown): Map<string, number> => {
   const quantityByProduct = new Map<string, number>()
   if (!Array.isArray(items)) return quantityByProduct
@@ -2904,6 +3022,19 @@ const Billings: CollectionConfig = {
 
             if (phoneNumber) {
               const finalCustomerName = customerName || phoneNumber
+              try {
+                await upsertBillingCustomerDirectory(req.payload, {
+                  phoneNumber,
+                  customerName: finalCustomerName,
+                  billID: doc.id,
+                })
+              } catch (billingCustomerSyncError) {
+                console.error('Failed syncing billing customer directory.', {
+                  billID: doc.id,
+                  phoneNumber,
+                  error: billingCustomerSyncError,
+                })
+              }
               try {
                 let settingsCache: CustomerRewardSettings | null = null
                 const getSettings = async (): Promise<CustomerRewardSettings> => {
