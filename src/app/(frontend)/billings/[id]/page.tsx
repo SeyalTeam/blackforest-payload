@@ -1,5 +1,6 @@
 import React from 'react'
 import { notFound } from 'next/navigation'
+import { unstable_cacheLife as cacheLife } from 'next/cache'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import BillReceipt, { BillData } from '@/components/BillReceipt'
@@ -11,17 +12,29 @@ type Args = {
   }>
 }
 
+async function getBillReceipt(id: string) {
+  'use cache'
+
+  cacheLife({
+    stale: 30,
+    revalidate: 60,
+    expire: 300,
+  })
+
+  const payload = await getPayload({ config: configPromise })
+  return payload.findByID({
+    collection: 'billings',
+    id,
+    depth: 3,
+  })
+}
+
 export default async function BillPage({ params }: Args) {
   const { id } = await params
   const payload = await getPayload({ config: configPromise })
-
   let bill
   try {
-    bill = await payload.findByID({
-      collection: 'billings',
-      id,
-      depth: 3,
-    })
+    bill = await getBillReceipt(id)
   } catch (error) {
     console.error('Error fetching billing:', error)
     return notFound()
