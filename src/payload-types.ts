@@ -87,6 +87,7 @@ export interface Config {
     'stock-orders': StockOrder;
     reviews: Review;
     customers: Customer;
+    'billing-customers': BillingCustomer;
     'instock-entries': InstockEntry;
     tables: Table;
     kitchens: Kitchen;
@@ -120,6 +121,7 @@ export interface Config {
     'stock-orders': StockOrdersSelect<false> | StockOrdersSelect<true>;
     reviews: ReviewsSelect<false> | ReviewsSelect<true>;
     customers: CustomersSelect<false> | CustomersSelect<true>;
+    'billing-customers': BillingCustomersSelect<false> | BillingCustomersSelect<true>;
     'instock-entries': InstockEntriesSelect<false> | InstockEntriesSelect<true>;
     tables: TablesSelect<false> | TablesSelect<true>;
     kitchens: KitchensSelect<false> | KitchensSelect<true>;
@@ -148,7 +150,6 @@ export interface Config {
     'stock-order-report': StockOrderReport;
     'afterstock-customer-report': AfterstockCustomerReport;
     'review-report': ReviewReport;
-    'live-bill-report': LiveBillReport;
     'instock-entry-report': InstockEntryReport;
     'expense-report': ExpenseReport;
     'return-order-report': ReturnOrderReport;
@@ -172,7 +173,6 @@ export interface Config {
     'stock-order-report': StockOrderReportSelect<false> | StockOrderReportSelect<true>;
     'afterstock-customer-report': AfterstockCustomerReportSelect<false> | AfterstockCustomerReportSelect<true>;
     'review-report': ReviewReportSelect<false> | ReviewReportSelect<true>;
-    'live-bill-report': LiveBillReportSelect<false> | LiveBillReportSelect<true>;
     'instock-entry-report': InstockEntryReportSelect<false> | InstockEntryReportSelect<true>;
     'expense-report': ExpenseReportSelect<false> | ExpenseReportSelect<true>;
     'return-order-report': ReturnOrderReportSelect<false> | ReturnOrderReportSelect<true>;
@@ -953,6 +953,19 @@ export interface Customer {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "billing-customers".
+ */
+export interface BillingCustomer {
+  id: string;
+  name: string;
+  phoneNumber: string;
+  lastBill?: (string | null) | Billing;
+  lastSyncedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "instock-entries".
  */
 export interface InstockEntry {
@@ -1214,6 +1227,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'customers';
         value: string | Customer;
+      } | null)
+    | ({
+        relationTo: 'billing-customers';
+        value: string | BillingCustomer;
       } | null)
     | ({
         relationTo: 'instock-entries';
@@ -1871,6 +1888,18 @@ export interface CustomersSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "billing-customers_select".
+ */
+export interface BillingCustomersSelect<T extends boolean = true> {
+  name?: T;
+  phoneNumber?: T;
+  lastBill?: T;
+  lastSyncedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "instock-entries_select".
  */
 export interface InstockEntriesSelect<T extends boolean = true> {
@@ -2185,15 +2214,6 @@ export interface AfterstockCustomerReport {
  * via the `definition` "review-report".
  */
 export interface ReviewReport {
-  id: string;
-  updatedAt?: string | null;
-  createdAt?: string | null;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "live-bill-report".
- */
-export interface LiveBillReport {
   id: string;
   updatedAt?: string | null;
   createdAt?: string | null;
@@ -3472,15 +3492,6 @@ export interface AfterstockCustomerReportSelect<T extends boolean = true> {
  * via the `definition` "review-report_select".
  */
 export interface ReviewReportSelect<T extends boolean = true> {
-  updatedAt?: T;
-  createdAt?: T;
-  globalType?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "live-bill-report_select".
- */
-export interface LiveBillReportSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

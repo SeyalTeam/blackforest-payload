@@ -50,8 +50,6 @@ import { getAfterstockCustomerReportHandler } from './endpoints/getAfterstockCus
 import { AfterstockCustomerReportGlobal } from './globals/AfterstockCustomerReport'
 import { getReviewReportHandler } from './endpoints/getReviewReport'
 import { ReviewReportGlobal } from './globals/ReviewReport'
-import { getLiveBillReportHandler } from './endpoints/getLiveBillReport'
-import { LiveBillReportGlobal } from './globals/LiveBillReport'
 import { resetInventoryHandler } from './endpoints/resetInventory'
 import Reviews from './collections/Reviews'
 import Customers from './collections/Customers'
@@ -285,11 +283,6 @@ export default buildConfig({
       handler: getReviewReportHandler,
     },
     {
-      path: '/reports/live-bill',
-      method: 'get',
-      handler: getLiveBillReportHandler,
-    },
-    {
       path: '/inventory/reset',
       method: 'post',
       handler: resetInventoryHandler,
@@ -425,7 +418,6 @@ export default buildConfig({
     StockOrderReportGlobal,
     AfterstockCustomerReportGlobal,
     ReviewReportGlobal,
-    LiveBillReportGlobal,
     InstockEntryReportGlobal,
     ExpenseReportGlobal,
     ReturnOrderReportGlobal,
