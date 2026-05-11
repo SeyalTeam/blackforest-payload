@@ -78,6 +78,7 @@ import { getLiveLoggedInUsersHandler } from './endpoints/getLiveLoggedInUsers'
 import { getReportBranchesHandler } from './endpoints/getReportBranches'
 import { getWidgetProductOptionsHandler } from './endpoints/getWidgetProductOptions'
 import { getBillingCustomerLookupHandler } from './endpoints/getBillingCustomerLookup'
+import { getBillingCustomerLookupLiteHandler } from './endpoints/getBillingCustomerLookupLite'
 import { getRuntimeApiDomainHandler } from './endpoints/getRuntimeApiDomain'
 import { CustomerOfferSettings } from './globals/CustomerOfferSettings'
 import APKFiles from './collections/APKFiles'
@@ -381,6 +382,11 @@ export default buildConfig({
       path: '/billing/customer-lookup',
       method: 'get',
       handler: getBillingCustomerLookupHandler,
+    },
+    {
+      path: '/billing/customer-lookup-lite',
+      method: 'get',
+      handler: getBillingCustomerLookupLiteHandler,
     },
     {
       path: '/billing/table-orders/batch',
