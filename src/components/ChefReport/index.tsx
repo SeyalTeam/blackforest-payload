@@ -1,24 +1,20 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
+import Select, { components, GroupBase, OptionProps, ValueContainerProps } from 'react-select'
+import './index.scss'
 
 type NamedOption = {
   id: string
   name: string
 }
 
-type KitchenOption = NamedOption & {
-  branchIds: string[]
-  categoryIds: string[]
-}
-
-type ProductOption = NamedOption & {
-  categoryId: string
-}
-
 type ChefSummaryRow = {
   chefName: string
-  sendingAmount: number
+  amount: number
+  role: 'stock order' | 'table order'
 }
 
 type ChefSummaryApiRow = {
@@ -26,41 +22,95 @@ type ChefSummaryApiRow = {
   sendingAmount?: unknown
 }
 
+type ChefTableOrderApiRow = {
+  chefName?: unknown
+  amount?: unknown
+}
+
 type ChefReportResponse = {
   data?: {
     stockOrderReport?: {
       chefSummary?: ChefSummaryApiRow[]
     }
+    productPreparationBillDetailsReport?: {
+      details?: ChefTableOrderApiRow[]
+    }
   }
   errors?: Array<{ message?: string }>
 }
 
+type SelectOption = {
+  value: string
+  label: string
+}
+
 type DatePreset =
+  | 'till_now'
   | 'today'
   | 'yesterday'
   | 'last_7_days'
   | 'this_month'
   | 'last_30_days'
   | 'last_month'
-  | 'custom'
 
-const STOCK_ORDER_CHEF_QUERY = `
-  query StockOrderChefSummary($filter: StockOrderReportFilterInput) {
-    stockOrderReport(filter: $filter) {
+type OrderTypeFilter = 'all' | 'stock' | 'table'
+
+const CHEF_REPORT_QUERY = `
+  query ChefReportSummary(
+    $stockFilter: StockOrderReportFilterInput
+    $tableFilter: ProductPreparationBillDetailsReportFilterInput
+  ) {
+    stockOrderReport(filter: $stockFilter) {
       chefSummary {
         chefName
         sendingAmount
       }
     }
+    productPreparationBillDetailsReport(filter: $tableFilter) {
+      details {
+        chefName
+        amount
+      }
+    }
   }
 `
 
-const toDateInputValue = (date: Date) => {
-  const yyyy = date.getFullYear()
-  const mm = String(date.getMonth() + 1).padStart(2, '0')
-  const dd = String(date.getDate()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}`
+const CheckboxOption = (props: OptionProps<SelectOption, true>) => {
+  return (
+    <components.Option {...props}>
+      <input
+        type="checkbox"
+        checked={props.isSelected}
+        onChange={() => null}
+        style={{ marginRight: 8 }}
+      />
+      {props.label}
+    </components.Option>
+  )
 }
+
+const CustomValueContainer = ({
+  children,
+  ...props
+}: ValueContainerProps<SelectOption, true, GroupBase<SelectOption>>) => {
+  const { getValue, hasValue, selectProps } = props
+  const selected = getValue()
+  const count = selected.length
+  const isTyping = selectProps.inputValue && selectProps.inputValue.length > 0
+
+  return (
+    <components.ValueContainer {...props}>
+      {hasValue && count > 0 && !isTyping && (
+        <div style={{ paddingLeft: '8px', position: 'absolute', pointerEvents: 'none' }}>
+          {count === 1 ? selected[0]?.label : `${count} Selected`}
+        </div>
+      )}
+      {children}
+    </components.ValueContainer>
+  )
+}
+
+const MultiValue = () => null
 
 const toFiniteNumber = (value: unknown): number => {
   if (typeof value === 'number' && Number.isFinite(value)) return value
@@ -77,260 +127,210 @@ const toStringValue = (value: unknown): string => {
   return ''
 }
 
-const getRelationshipId = (value: unknown): string => {
-  if (typeof value === 'string') return value
-  if (!value || typeof value !== 'object') return ''
-  if (!('id' in value)) return ''
-  return toStringValue((value as { id?: unknown }).id)
-}
-
-const getRelationshipIdList = (value: unknown): string[] => {
-  if (Array.isArray(value)) {
-    return value
-      .map((entry) => getRelationshipId(entry))
-      .filter((id): id is string => id.length > 0)
-  }
-
-  const single = getRelationshipId(value)
-  return single ? [single] : []
-}
-
 const toNamedOptions = (rawDocs: unknown[]): NamedOption[] =>
   rawDocs
     .filter((doc): doc is { id?: unknown; name?: unknown } => !!doc && typeof doc === 'object')
-    .map((doc) => {
-      const id = toStringValue(doc.id)
-      const name = toStringValue(doc.name)
-      return { id, name }
-    })
+    .map((doc) => ({
+      id: toStringValue(doc.id),
+      name: toStringValue(doc.name),
+    }))
     .filter((doc) => doc.id.length > 0 && doc.name.length > 0)
     .sort((a, b) => a.name.localeCompare(b.name))
 
-const toKitchenOptions = (rawDocs: unknown[]): KitchenOption[] =>
-  rawDocs
-    .filter(
-      (doc): doc is { id?: unknown; name?: unknown; branches?: unknown; categories?: unknown } =>
-        !!doc && typeof doc === 'object',
-    )
-    .map((doc) => {
-      const id = toStringValue(doc.id)
-      const name = toStringValue(doc.name)
-      const branchIds = getRelationshipIdList(doc.branches)
-      const categoryIds = getRelationshipIdList(doc.categories)
+/* Helper to format date as YYYY-MM-DD using local time to avoid timezone shifts */
+const toLocalDateStr = (d: Date) => {
+  const offset = d.getTimezoneOffset()
+  const local = new Date(d.getTime() - offset * 60 * 1000)
+  return local.toISOString().split('T')[0]
+}
 
-      return { id, name, branchIds, categoryIds }
-    })
-    .filter((doc) => doc.id.length > 0 && doc.name.length > 0)
-    .sort((a, b) => a.name.localeCompare(b.name))
-
-const toProductOptions = (rawDocs: unknown[]): ProductOption[] =>
-  rawDocs
-    .filter(
-      (doc): doc is { id?: unknown; name?: unknown; category?: unknown } =>
-        !!doc && typeof doc === 'object',
-    )
-    .map((doc) => {
-      const id = toStringValue(doc.id)
-      const name = toStringValue(doc.name)
-      const categoryId = getRelationshipId(doc.category)
-      return { id, name, categoryId }
-    })
-    .filter((doc) => doc.id.length > 0 && doc.name.length > 0)
-    .sort((a, b) => a.name.localeCompare(b.name))
-
-const getPresetRange = (preset: Exclude<DatePreset, 'custom'>): { start: Date; end: Date } => {
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-
-  if (preset === 'today') {
-    return { start: today, end: today }
-  }
-
-  if (preset === 'yesterday') {
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-    return { start: yesterday, end: yesterday }
-  }
-
-  if (preset === 'last_7_days') {
-    const start = new Date(today)
-    start.setDate(start.getDate() - 6)
-    return { start, end: today }
-  }
-
-  if (preset === 'this_month') {
-    return { start: new Date(today.getFullYear(), today.getMonth(), 1), end: today }
-  }
-
-  if (preset === 'last_30_days') {
-    const start = new Date(today)
-    start.setDate(start.getDate() - 29)
-    return { start, end: today }
-  }
-
-  const start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
-  const end = new Date(today.getFullYear(), today.getMonth(), 0)
-  return { start, end }
+const formatValue = (val: number) => {
+  return val.toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
 }
 
 const ChefReport: React.FC = () => {
-  const today = toDateInputValue(new Date())
-  const [datePreset, setDatePreset] = useState<DatePreset>('today')
-  const [startDate, setStartDate] = useState(today)
-  const [endDate, setEndDate] = useState(today)
-
-  const [selectedBranch, setSelectedBranch] = useState('all')
-  const [selectedKitchen, setSelectedKitchen] = useState('all')
-  const [selectedChef, setSelectedChef] = useState('all')
-  const [selectedCategory, setSelectedCategory] = useState('all')
-  const [selectedProduct, setSelectedProduct] = useState('all')
+  const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()])
+  const [startDate, endDate] = dateRange
+  const [dateRangePreset, setDateRangePreset] = useState<DatePreset>('today')
 
   const [branches, setBranches] = useState<NamedOption[]>([])
-  const [kitchens, setKitchens] = useState<KitchenOption[]>([])
   const [chefs, setChefs] = useState<NamedOption[]>([])
-  const [categories, setCategories] = useState<NamedOption[]>([])
-  const [products, setProducts] = useState<ProductOption[]>([])
+  const [selectedBranch, setSelectedBranch] = useState<string[]>(['all'])
+  const [selectedChef, setSelectedChef] = useState<string[]>(['all'])
+  const [selectedOrderType, setSelectedOrderType] = useState<OrderTypeFilter>('all')
 
+  const [firstBillDate, setFirstBillDate] = useState<Date | null>(null)
   const [loadingFilters, setLoadingFilters] = useState(false)
   const [loadingReport, setLoadingReport] = useState(false)
   const [error, setError] = useState('')
   const [rows, setRows] = useState<ChefSummaryRow[]>([])
+  const [showExportMenu, setShowExportMenu] = useState(false)
 
-  useEffect(() => {
-    const fetchFilterOptions = async () => {
-      setLoadingFilters(true)
-      try {
-        const [branchRes, kitchenRes, categoryRes, productRes, chefRes] = await Promise.all([
-          fetch('/api/reports/branches'),
-          fetch('/api/kitchens?limit=1000&pagination=false&sort=name&depth=0'),
-          fetch('/api/categories?limit=1000&pagination=false&sort=name&depth=0'),
-          fetch('/api/products?limit=2000&pagination=false&sort=name&depth=0'),
-          fetch('/api/users?where[role][equals]=chef&limit=1000&pagination=false&sort=name&depth=0'),
-        ])
+  const dateRangeOptions = [
+    { value: 'till_now', label: 'Till Now' },
+    { value: 'today', label: 'Today' },
+    { value: 'yesterday', label: 'Yesterday' },
+    { value: 'last_7_days', label: 'Last 7 Days' },
+    { value: 'this_month', label: 'This Month' },
+    { value: 'last_30_days', label: 'Last 30 Days' },
+    { value: 'last_month', label: 'Last Month' },
+  ]
 
-        const [branchJson, kitchenJson, categoryJson, productJson, chefJson] = await Promise.all([
-          branchRes.json(),
-          kitchenRes.json(),
-          categoryRes.json(),
-          productRes.json(),
-          chefRes.json(),
-        ])
+  const orderTypeOptions: SelectOption[] = [
+    { value: 'all', label: 'All Orders' },
+    { value: 'stock', label: 'Stock Order' },
+    { value: 'table', label: 'Table Order' },
+  ]
 
-        const branchDocs = Array.isArray(branchJson?.docs) ? branchJson.docs : []
-        const kitchenDocs = Array.isArray(kitchenJson?.docs) ? kitchenJson.docs : []
-        const categoryDocs = Array.isArray(categoryJson?.docs) ? categoryJson.docs : []
-        const productDocs = Array.isArray(productJson?.docs) ? productJson.docs : []
-        const chefDocs = Array.isArray(chefJson?.docs) ? chefJson.docs : []
+  const branchOptions = useMemo<SelectOption[]>(
+    () => [{ value: 'all', label: 'All Branches' }, ...branches.map((b) => ({ value: b.id, label: b.name }))],
+    [branches],
+  )
 
-        setBranches(toNamedOptions(branchDocs))
-        setKitchens(toKitchenOptions(kitchenDocs))
-        setCategories(toNamedOptions(categoryDocs))
-        setProducts(toProductOptions(productDocs))
-        setChefs(toNamedOptions(chefDocs))
-      } catch (_err) {
-        setBranches([])
-        setKitchens([])
-        setCategories([])
-        setProducts([])
-        setChefs([])
-      } finally {
-        setLoadingFilters(false)
+  const chefOptions = useMemo<SelectOption[]>(
+    () => [{ value: 'all', label: 'All Chefs' }, ...chefs.map((c) => ({ value: c.id, label: c.name.toUpperCase() }))],
+    [chefs],
+  )
+
+  const customStyles = {
+    control: (base: Record<string, unknown>, state: { isFocused: boolean }) => ({
+      ...base,
+      backgroundColor: 'var(--theme-input-bg, var(--theme-elevation-50))',
+      borderColor: state.isFocused ? 'var(--theme-info-500)' : 'var(--theme-elevation-400)',
+      borderRadius: '8px',
+      height: '42px',
+      minHeight: '42px',
+      minWidth: '200px',
+      padding: '0',
+      boxShadow: state.isFocused ? '0 0 0 1px var(--theme-info-500)' : 'none',
+      color: 'var(--theme-text-primary)',
+      '&:hover': {
+        borderColor: 'var(--theme-info-750)',
+      },
+    }),
+    singleValue: (base: Record<string, unknown>) => ({
+      ...base,
+      color: 'var(--theme-text-primary)',
+      fontWeight: '600',
+    }),
+    option: (
+      base: Record<string, unknown>,
+      state: { isSelected: boolean; isFocused: boolean },
+    ) => ({
+      ...base,
+      backgroundColor: state.isSelected
+        ? 'var(--theme-info-500)'
+        : state.isFocused
+          ? 'var(--theme-elevation-100)'
+          : 'var(--theme-input-bg, var(--theme-elevation-50))',
+      color: state.isSelected ? '#fff' : 'var(--theme-text-primary)',
+      cursor: 'pointer',
+    }),
+    menu: (base: Record<string, unknown>) => ({
+      ...base,
+      backgroundColor: 'var(--theme-input-bg, var(--theme-elevation-50))',
+      border: '1px solid var(--theme-elevation-150)',
+      zIndex: 9999,
+      minWidth: '200px',
+    }),
+    input: (base: Record<string, unknown>) => ({
+      ...base,
+      color: 'var(--theme-text-primary)',
+      fontWeight: '600',
+    }),
+  }
+
+  const handleDatePresetChange = (value: DatePreset) => {
+    setDateRangePreset(value)
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+    let start: Date | null = null
+    let end: Date | null = today
+
+    switch (value) {
+      case 'till_now':
+        if (firstBillDate) {
+          start = firstBillDate
+        }
+        break
+      case 'today':
+        start = today
+        end = today
+        break
+      case 'yesterday': {
+        const yest = new Date(today)
+        yest.setDate(yest.getDate() - 1)
+        start = yest
+        end = yest
+        break
+      }
+      case 'last_7_days': {
+        const last7 = new Date(today)
+        last7.setDate(last7.getDate() - 6)
+        start = last7
+        break
+      }
+      case 'this_month': {
+        const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+        start = thisMonthStart
+        end = today
+        break
+      }
+      case 'last_30_days': {
+        const last30 = new Date(today)
+        last30.setDate(last30.getDate() - 29)
+        start = last30
+        break
+      }
+      case 'last_month': {
+        const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+        const prevMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0)
+        start = prevMonthStart
+        end = prevMonthEnd
+        break
       }
     }
 
-    void fetchFilterOptions()
-  }, [])
-
-  const filteredKitchens = useMemo(() => {
-    if (selectedBranch === 'all') return kitchens
-    return kitchens.filter((kitchen) => kitchen.branchIds.includes(selectedBranch))
-  }, [kitchens, selectedBranch])
-
-  const allowedCategoryIDSet = useMemo(() => {
-    if (selectedKitchen !== 'all') {
-      const kitchen = kitchens.find((item) => item.id === selectedKitchen)
-      return new Set(kitchen?.categoryIds || [])
+    if (start && end) {
+      setDateRange([start, end])
     }
-
-    if (selectedBranch !== 'all') {
-      const union = new Set<string>()
-      filteredKitchens.forEach((kitchen) => {
-        kitchen.categoryIds.forEach((categoryId) => {
-          union.add(categoryId)
-        })
-      })
-      return union
-    }
-
-    return null
-  }, [filteredKitchens, kitchens, selectedBranch, selectedKitchen])
-
-  const filteredCategories = useMemo(() => {
-    if (!allowedCategoryIDSet) return categories
-    return categories.filter((category) => allowedCategoryIDSet.has(category.id))
-  }, [allowedCategoryIDSet, categories])
-
-  const filteredProducts = useMemo(() => {
-    if (selectedCategory === 'all') return products
-    return products.filter((product) => product.categoryId === selectedCategory)
-  }, [products, selectedCategory])
-
-  useEffect(() => {
-    if (selectedBranch === 'all') return
-    const exists = branches.some((branch) => branch.id === selectedBranch)
-    if (!exists) setSelectedBranch('all')
-  }, [branches, selectedBranch])
-
-  useEffect(() => {
-    if (selectedKitchen === 'all') return
-    const exists = filteredKitchens.some((kitchen) => kitchen.id === selectedKitchen)
-    if (!exists) setSelectedKitchen('all')
-  }, [filteredKitchens, selectedKitchen])
-
-  useEffect(() => {
-    if (selectedCategory === 'all') return
-    const exists = filteredCategories.some((category) => category.id === selectedCategory)
-    if (!exists) setSelectedCategory('all')
-  }, [filteredCategories, selectedCategory])
-
-  useEffect(() => {
-    if (selectedProduct === 'all') return
-    const exists = filteredProducts.some((product) => product.id === selectedProduct)
-    if (!exists) setSelectedProduct('all')
-  }, [filteredProducts, selectedProduct])
-
-  useEffect(() => {
-    if (selectedChef === 'all') return
-    const exists = chefs.some((chef) => chef.id === selectedChef)
-    if (!exists) setSelectedChef('all')
-  }, [chefs, selectedChef])
+  }
 
   const fetchReport = useCallback(async () => {
-    if (!startDate || !endDate) return
-    if (new Date(startDate).getTime() > new Date(endDate).getTime()) {
-      setError('Start date cannot be after end date.')
-      setRows([])
-      return
-    }
-
     setLoadingReport(true)
     setError('')
 
     try {
+      if (!startDate || !endDate) return
+
+      const startStr = toLocalDateStr(startDate)
+      const endStr = toLocalDateStr(endDate)
+
+      const branchParam = selectedBranch.includes('all') ? 'all' : selectedBranch.join(',')
+      const chefParam = selectedChef.includes('all') ? 'all' : selectedChef.join(',')
+
       const response = await fetch('/api/graphql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          query: STOCK_ORDER_CHEF_QUERY,
+          query: CHEF_REPORT_QUERY,
           variables: {
-            filter: {
-              startDate,
-              endDate,
-              branch: selectedBranch,
-              kitchen: selectedKitchen,
-              category: selectedCategory,
-              product: selectedProduct,
-              chef: selectedChef,
+            stockFilter: {
+              startDate: startStr,
+              endDate: endStr,
+              branch: branchParam,
+              chef: chefParam,
+            },
+            tableFilter: {
+              startDate: startStr,
+              endDate: endStr,
+              branch: branchParam,
+              chefId: chefParam,
+              orderType: 'table',
             },
           },
         }),
@@ -348,337 +348,389 @@ const ChefReport: React.FC = () => {
       const reportRows = Array.isArray(json.data?.stockOrderReport?.chefSummary)
         ? json.data?.stockOrderReport?.chefSummary
         : []
+      const tableRows = Array.isArray(json.data?.productPreparationBillDetailsReport?.details)
+        ? json.data?.productPreparationBillDetailsReport?.details
+        : []
 
-      const normalizedRows = reportRows
+      const stockSummaryRows = reportRows
         .map((row) => ({
           chefName: toStringValue(row.chefName).trim() || 'Unknown',
-          sendingAmount: toFiniteNumber(row.sendingAmount),
+          amount: toFiniteNumber(row.sendingAmount),
+          role: 'stock order' as const,
         }))
-        .filter((row) => row.sendingAmount > 0)
+        .filter((row) => row.amount > 0)
 
-      setRows(normalizedRows)
+      const tableSummaryMap = new Map<string, number>()
+      tableRows.forEach((row) => {
+        const chefName = toStringValue(row.chefName).trim() || 'Unknown'
+        const amount = toFiniteNumber(row.amount)
+        if (amount <= 0) return
+        tableSummaryMap.set(chefName, (tableSummaryMap.get(chefName) || 0) + amount)
+      })
+
+      const tableSummaryRows = Array.from(tableSummaryMap.entries())
+        .map(([chefName, amount]) => ({
+          chefName,
+          amount,
+          role: 'table order' as const,
+        }))
+        .sort((a, b) => a.chefName.localeCompare(b.chefName))
+
+      const normalizedRows = [...stockSummaryRows, ...tableSummaryRows].sort((a, b) => {
+        const byName = a.chefName.localeCompare(b.chefName)
+        if (byName !== 0) return byName
+        return a.role.localeCompare(b.role)
+      })
+
+      const filteredRows =
+        selectedOrderType === 'all'
+          ? normalizedRows
+          : normalizedRows.filter((row) =>
+              selectedOrderType === 'stock' ? row.role === 'stock order' : row.role === 'table order',
+            )
+
+      setRows(filteredRows)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error loading chef report')
       setRows([])
     } finally {
       setLoadingReport(false)
     }
-  }, [
-    endDate,
-    selectedBranch,
-    selectedCategory,
-    selectedChef,
-    selectedKitchen,
-    selectedProduct,
-    startDate,
-  ])
+  }, [endDate, selectedBranch, selectedChef, selectedOrderType, startDate])
+
+  useEffect(() => {
+    const fetchMetadata = async () => {
+      setLoadingFilters(true)
+      try {
+        const [branchRes, chefRes, billRes] = await Promise.all([
+          fetch('/api/reports/branches'),
+          fetch('/api/users?where[role][equals]=chef&limit=1000&pagination=false&sort=name&depth=0'),
+          fetch('/api/billings?sort=createdAt&limit=1'),
+        ])
+
+        if (branchRes.ok) {
+          const branchJson = await branchRes.json()
+          const branchDocs = Array.isArray(branchJson?.docs) ? branchJson.docs : []
+          setBranches(toNamedOptions(branchDocs))
+        }
+
+        if (chefRes.ok) {
+          const chefJson = await chefRes.json()
+          const chefDocs = Array.isArray(chefJson?.docs) ? chefJson.docs : []
+          setChefs(toNamedOptions(chefDocs))
+        }
+
+        if (billRes.ok) {
+          const billJson = await billRes.json()
+          if (Array.isArray(billJson?.docs) && billJson.docs.length > 0 && billJson.docs[0]?.createdAt) {
+            const parsed = new Date(billJson.docs[0].createdAt)
+            if (!Number.isNaN(parsed.getTime())) {
+              setFirstBillDate(parsed)
+            }
+          }
+        }
+      } catch (_err) {
+        setBranches([])
+        setChefs([])
+      } finally {
+        setLoadingFilters(false)
+      }
+    }
+
+    void fetchMetadata()
+  }, [])
 
   useEffect(() => {
     void fetchReport()
   }, [fetchReport])
 
-  const totalSendingAmount = useMemo(
-    () => rows.reduce((sum, row) => sum + (Number.isFinite(row.sendingAmount) ? row.sendingAmount : 0), 0),
+  const totalAmount = useMemo(
+    () => rows.reduce((sum, row) => sum + (Number.isFinite(row.amount) ? row.amount : 0), 0),
     [rows],
   )
 
-  const applyPreset = (preset: Exclude<DatePreset, 'custom'>) => {
-    const range = getPresetRange(preset)
-    setDatePreset(preset)
-    setStartDate(toDateInputValue(range.start))
-    setEndDate(toDateInputValue(range.end))
-  }
-
-  const handlePresetChange = (value: string) => {
-    if (value === 'custom') {
-      setDatePreset('custom')
-      return
-    }
-
-    if (
-      value === 'today' ||
-      value === 'yesterday' ||
-      value === 'last_7_days' ||
-      value === 'this_month' ||
-      value === 'last_30_days' ||
-      value === 'last_month'
-    ) {
-      applyPreset(value)
-    }
-  }
-
   const handleExportCsv = () => {
     const csvRows: string[] = []
-    csvRows.push(['Chef Name', 'Sending Amount'].join(','))
+    csvRows.push(['Chef Name', 'Amount', 'Role'].join(','))
     rows.forEach((row) => {
-      csvRows.push([`"${row.chefName.replace(/"/g, '""')}"`, row.sendingAmount.toString()].join(','))
+      csvRows.push(
+        [`"${row.chefName.replace(/"/g, '""')}"`, row.amount.toString(), `"${row.role}"`].join(','),
+      )
     })
-    csvRows.push(['"TOTAL"', totalSendingAmount.toString()].join(','))
+    csvRows.push(['"TOTAL"', totalAmount.toString(), '""'].join(','))
 
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `chef_report_${startDate}_to_${endDate}.csv`
+    link.download = `chef_report_${startDate ? toLocalDateStr(startDate) : ''}_to_${
+      endDate ? toLocalDateStr(endDate) : ''
+    }.csv`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
+    setShowExportMenu(false)
   }
 
   const resetFilters = () => {
-    applyPreset('today')
-    setSelectedBranch('all')
-    setSelectedKitchen('all')
-    setSelectedChef('all')
-    setSelectedCategory('all')
-    setSelectedProduct('all')
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    setDateRange([today, today])
+    setDateRangePreset('today')
+    setSelectedBranch(['all'])
+    setSelectedChef(['all'])
+    setSelectedOrderType('all')
+    setShowExportMenu(false)
   }
 
+  const CustomInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
+    ({ value, onClick }, ref) => {
+      const [start, end] = value ? value.split(' - ') : ['', '']
+
+      return (
+        <button className="custom-date-input" onClick={onClick} ref={ref}>
+          <span className="date-text">{start}</span>
+          <span className="separator">→</span>
+          <span className="date-text">{end || start}</span>
+          <span className="icon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+          </span>
+        </button>
+      )
+    },
+  )
+  CustomInput.displayName = 'CustomInput'
+
   return (
-    <div style={{ padding: '20px' }}>
-      <div
-        style={{
-          display: 'flex',
-          gap: '8px',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          marginBottom: '16px',
-        }}
-      >
-        <label>
-          Calendar Controller:{' '}
-          <select
-            value={datePreset}
-            onChange={(e) => handlePresetChange(e.target.value)}
-            style={{ padding: '6px 8px' }}
-          >
-            <option value="today">Today</option>
-            <option value="yesterday">Yesterday</option>
-            <option value="last_7_days">Last 7 Days</option>
-            <option value="this_month">This Month</option>
-            <option value="last_30_days">Last 30 Days</option>
-            <option value="last_month">Last Month</option>
-            <option value="custom">Custom</option>
-          </select>
-        </label>
+    <div className="chef-report-container">
+      <div className="report-header">
+        <div className="title-row">
+          <h1>Chef Report</h1>
+        </div>
 
-        <label>
-          Calendar Start:{' '}
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => {
-              setDatePreset('custom')
-              setStartDate(e.target.value)
-            }}
-            style={{ padding: '6px 8px' }}
-          />
-        </label>
+        <div className="date-filter">
+          <div className="filter-group">
+            <Select<SelectOption, false>
+              instanceId="chef-date-preset-select"
+              options={dateRangeOptions}
+              value={dateRangeOptions.find((o) => o.value === dateRangePreset)}
+              onChange={(option: { value: string; label: string } | null) => {
+                if (!option) return
+                handleDatePresetChange(option.value as DatePreset)
+              }}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Date Range..."
+              isSearchable={false}
+            />
+          </div>
 
-        <label>
-          Calendar End:{' '}
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => {
-              setDatePreset('custom')
-              setEndDate(e.target.value)
-            }}
-            style={{ padding: '6px 8px' }}
-          />
-        </label>
+          <div className="filter-group">
+            <DatePicker
+              selectsRange={true}
+              startDate={startDate}
+              endDate={endDate}
+              onChange={(update: [Date | null, Date | null]) => {
+                setDateRange(update)
+              }}
+              monthsShown={1}
+              dateFormat="yyyy-MM-dd"
+              className="date-input"
+              customInput={<CustomInput />}
+              calendarClassName="custom-calendar"
+              popperPlacement="bottom-start"
+            />
+          </div>
 
-        <label>
-          Branch:{' '}
-          <select
-            value={selectedBranch}
-            onChange={(e) => setSelectedBranch(e.target.value)}
-            style={{ padding: '6px 8px' }}
-            disabled={loadingFilters}
-          >
-            <option value="all">All Branches</option>
-            {branches.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
-              </option>
-            ))}
-          </select>
-        </label>
+          <div className="filter-group select-group">
+            <Select<SelectOption, true>
+              instanceId="chef-branch-select"
+              options={branchOptions}
+              isMulti
+              isDisabled={loadingFilters}
+              value={branchOptions.filter((o) => selectedBranch.includes(o.value))}
+              onChange={(newValue) => {
+                const selected = newValue ? newValue.map((x) => x.value) : []
+                const wasAll = selectedBranch.includes('all')
+                const hasAll = selected.includes('all')
+                let final = selected
+                if (hasAll && !wasAll) final = ['all']
+                else if (hasAll && wasAll && selected.length > 1)
+                  final = selected.filter((x) => x !== 'all')
+                else if (final.length === 0) final = ['all']
+                setSelectedBranch(final)
+              }}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Select Branch..."
+              isSearchable={true}
+              closeMenuOnSelect={false}
+              hideSelectedOptions={false}
+              components={{
+                Option: CheckboxOption,
+                ValueContainer: CustomValueContainer,
+                MultiValue,
+              }}
+            />
+          </div>
 
-        <label>
-          Kitchen:{' '}
-          <select
-            value={selectedKitchen}
-            onChange={(e) => setSelectedKitchen(e.target.value)}
-            style={{ padding: '6px 8px' }}
-            disabled={loadingFilters}
-          >
-            <option value="all">All Kitchens</option>
-            {filteredKitchens.map((kitchen) => (
-              <option key={kitchen.id} value={kitchen.id}>
-                {kitchen.name}
-              </option>
-            ))}
-          </select>
-        </label>
+          <div className="filter-group select-group">
+            <Select<SelectOption, true>
+              instanceId="chef-user-select"
+              options={chefOptions}
+              isMulti
+              isDisabled={loadingFilters}
+              value={chefOptions.filter((o) => selectedChef.includes(o.value))}
+              onChange={(newValue) => {
+                const selected = newValue ? newValue.map((x) => x.value) : []
+                const wasAll = selectedChef.includes('all')
+                const hasAll = selected.includes('all')
+                let final = selected
+                if (hasAll && !wasAll) final = ['all']
+                else if (hasAll && wasAll && selected.length > 1)
+                  final = selected.filter((x) => x !== 'all')
+                else if (final.length === 0) final = ['all']
+                setSelectedChef(final)
+              }}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Select Chef..."
+              isSearchable={true}
+              closeMenuOnSelect={false}
+              hideSelectedOptions={false}
+              components={{
+                Option: CheckboxOption,
+                ValueContainer: CustomValueContainer,
+                MultiValue,
+              }}
+            />
+          </div>
 
-        <label>
-          Chef:{' '}
-          <select
-            value={selectedChef}
-            onChange={(e) => setSelectedChef(e.target.value)}
-            style={{ padding: '6px 8px' }}
-            disabled={loadingFilters}
-          >
-            <option value="all">All Chefs</option>
-            {chefs.map((chef) => (
-              <option key={chef.id} value={chef.id}>
-                {chef.name}
-              </option>
-            ))}
-          </select>
-        </label>
+          <div className="filter-group">
+            <Select<SelectOption, false>
+              instanceId="chef-order-type-select"
+              options={orderTypeOptions}
+              value={orderTypeOptions.find((o) => o.value === selectedOrderType)}
+              onChange={(option: { value: string; label: string } | null) => {
+                if (!option) return
+                const value = option.value === 'stock' || option.value === 'table' ? option.value : 'all'
+                setSelectedOrderType(value)
+              }}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Order Type..."
+              isSearchable={false}
+            />
+          </div>
 
-        <label>
-          Category:{' '}
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            style={{ padding: '6px 8px' }}
-            disabled={loadingFilters}
-          >
-            <option value="all">All Categories</option>
-            {filteredCategories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-        </label>
+          <div className="filter-group">
+            <div className="export-container">
+              <button
+                className="export-btn"
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                title="Export Report"
+                type="button"
+              >
+                <span>Export</span>
+                <span className="icon">↓</span>
+              </button>
 
-        <label>
-          Product:{' '}
-          <select
-            value={selectedProduct}
-            onChange={(e) => setSelectedProduct(e.target.value)}
-            style={{ padding: '6px 8px' }}
-            disabled={loadingFilters}
-          >
-            <option value="all">All Products</option>
-            {filteredProducts.map((product) => (
-              <option key={product.id} value={product.id}>
-                {product.name}
-              </option>
-            ))}
-          </select>
-        </label>
+              {showExportMenu && (
+                <div className="export-menu">
+                  <button onClick={handleExportCsv}>Excel</button>
+                </div>
+              )}
+            </div>
 
-        <button
-          type="button"
-          onClick={() => void fetchReport()}
-          style={{ padding: '7px 10px', cursor: 'pointer' }}
-          disabled={loadingReport}
-        >
-          Refresh
-        </button>
+            {showExportMenu && <div className="export-backdrop" onClick={() => setShowExportMenu(false)} />}
+          </div>
 
-        <button
-          type="button"
-          onClick={handleExportCsv}
-          style={{ padding: '7px 10px', cursor: 'pointer' }}
-          disabled={rows.length === 0}
-        >
-          Export CSV
-        </button>
-
-        <button type="button" onClick={resetFilters} style={{ padding: '7px 10px', cursor: 'pointer' }}>
-          Reset
-        </button>
+          <div className="filter-group">
+            <button
+              onClick={resetFilters}
+              title="Reset Filters"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '0 0 0 10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--theme-text-primary)',
+              }}
+              type="button"
+            >
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M23 4v6h-6"></path>
+                <path d="M1 20v-6h6"></path>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
 
-      <h1 style={{ margin: '0 0 16px 0' }}>Chef Report</h1>
-
       {loadingReport && <p>Loading chef report...</p>}
-      {error && <p style={{ color: '#ef4444' }}>{error}</p>}
+      {error && <p className="error">{error}</p>}
 
-      <div style={{ overflowX: 'auto', width: '70%', maxWidth: '100%' }}>
-        <table
-          style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            border: '1px solid var(--theme-elevation-200)',
-          }}
-        >
+      <div className="table-container" style={{ width: '35%', maxWidth: '100%' }}>
+        <table className="report-table">
           <thead>
             <tr>
-              <th
-                style={{
-                  textAlign: 'left',
-                  padding: '10px',
-                  borderBottom: '1px solid var(--theme-elevation-200)',
-                }}
-              >
-                Chef Name
-              </th>
-              <th
-                style={{
-                  textAlign: 'right',
-                  padding: '10px',
-                  borderBottom: '1px solid var(--theme-elevation-200)',
-                }}
-              >
-                Sending Amount
-              </th>
+              <th>CHEF NAME</th>
+              <th className="text-right">AMOUNT</th>
+              <th>ROLE</th>
             </tr>
           </thead>
           <tbody>
             {rows.length > 0 ? (
               rows.map((row, index) => (
-                <tr key={`${row.chefName}-${index}`}>
-                  <td
-                    style={{
-                      padding: '10px',
-                      borderBottom: '1px solid var(--theme-elevation-150)',
-                      fontSize: '1.06rem',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {row.chefName}
-                  </td>
-                  <td
-                    style={{
-                      padding: '10px',
-                      borderBottom: '1px solid var(--theme-elevation-150)',
-                      textAlign: 'right',
-                      fontWeight: 700,
-                    }}
-                  >
-                    ₹ {row.sendingAmount.toLocaleString('en-IN')}
-                  </td>
+                <tr key={`${row.chefName}-${row.role}-${index}`}>
+                  <td className="name-cell">{row.chefName.toUpperCase()}</td>
+                  <td className="text-right amount-cell">{formatValue(row.amount)}</td>
+                  <td style={{ textTransform: 'uppercase', fontWeight: 600 }}>{row.role}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td
-                  colSpan={2}
-                  style={{
-                    textAlign: 'center',
-                    padding: '16px',
-                    borderBottom: '1px solid var(--theme-elevation-150)',
-                  }}
-                >
+                <td colSpan={3} style={{ textAlign: 'center' }}>
                   No chef report data found.
                 </td>
               </tr>
             )}
-            <tr>
-              <td style={{ padding: '10px', fontWeight: 800, fontSize: '1.18rem' }}>Total</td>
-              <td style={{ padding: '10px', textAlign: 'right', fontWeight: 800, fontSize: '1.18rem' }}>
-                ₹ {totalSendingAmount.toLocaleString('en-IN')}
-              </td>
-            </tr>
           </tbody>
+          <tfoot>
+            <tr className="grand-total">
+              <td>TOTAL</td>
+              <td className="text-right amount-cell">{formatValue(totalAmount)}</td>
+              <td></td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     </div>

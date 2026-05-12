@@ -621,6 +621,9 @@ export interface Billing {
   kotNumber?: string | null;
   items: {
     product: string | Product;
+    /**
+     * Current production status of this specific item.
+     */
     status?: ('ordered' | 'prepared' | 'confirmed' | 'delivered' | 'cancelled') | null;
     name: string;
     notes?: string | null;
@@ -677,7 +680,9 @@ export interface Billing {
     preparingTime?: number | null;
     preparedAt?: string | null;
     preparedBy?: (string | null) | User;
+    confirmedBy?: (string | null) | User;
     deliveredAt?: string | null;
+    deliveredBy?: (string | null) | User;
     cancelledAt?: string | null;
     branchOverride?: boolean | null;
     id?: string | null;
@@ -1669,7 +1674,9 @@ export interface BillingsSelect<T extends boolean = true> {
         preparingTime?: T;
         preparedAt?: T;
         preparedBy?: T;
+        confirmedBy?: T;
         deliveredAt?: T;
+        deliveredBy?: T;
         cancelledAt?: T;
         branchOverride?: T;
         id?: T;

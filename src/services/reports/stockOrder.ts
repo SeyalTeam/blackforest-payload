@@ -94,7 +94,14 @@ export const getStockOrderReportData = async (
   const departmentFilter = args.department
   const categoryFilter = args.category
   const productFilter = args.product
-  const chefFilter = typeof args.chef === 'string' ? args.chef.trim() : ''
+  const chefFilterRaw = typeof args.chef === 'string' ? args.chef.trim() : ''
+  const chefFilterIds =
+    chefFilterRaw && chefFilterRaw !== 'all'
+      ? chefFilterRaw
+          .split(',')
+          .map((id) => id.trim())
+          .filter((id) => id.length > 0 && id !== 'all')
+      : []
   const statusFilter = args.status
   const orderTypeFilter = args.orderType
   const hasExplicitBranchFilter = !!(branchFilter && branchFilter !== 'all')
@@ -324,7 +331,7 @@ export const getStockOrderReportData = async (
         if (categoryFilter && categoryFilter !== 'all' && productData.categoryId !== categoryFilter) return
         if (departmentFilter && departmentFilter !== 'all' && productData.departmentId !== departmentFilter) return
         const sendingUpdaterId = extractUserId(item?.sendingUpdatedBy)
-        if (chefFilter && chefFilter !== 'all' && sendingUpdaterId !== chefFilter) return
+        if (chefFilterIds.length > 0 && !chefFilterIds.includes(sendingUpdaterId)) return
         if (statusFilter && statusFilter !== 'all' && item.status !== statusFilter) return
 
         const ordUpdaterName = resolveUserName(order.createdBy)

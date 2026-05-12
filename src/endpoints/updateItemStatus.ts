@@ -22,17 +22,27 @@ const parsePreparingTime = (value: unknown): number | null => {
 export const updateItemStatus: PayloadHandler = async (req): Promise<Response> => {
   const { payload, json } = req
   const { id } = req.routeParams as { id: string }
-  const actingUserID =
-    req.user && typeof req.user === 'object' && 'id' in req.user && req.user.id
-      ? String(req.user.id)
-      : null
 
   try {
     if (!json) {
       return Response.json({ error: 'Invalid request' }, { status: 400 })
     }
     const body = await json()
-    console.log('[updateItemStatus] Received body:', body)
+    console.log('[updateItemStatus] Received body:', JSON.stringify(body))
+
+    console.log(`[updateItemStatus] req.user: ${req.user ? JSON.stringify({ id: req.user.id, role: req.user.role }) : 'NULL'}`)
+
+    const actingUserID = (() => {
+      if (req.user && typeof req.user === 'object' && 'id' in req.user && req.user.id) {
+        return String(req.user.id)
+      }
+      if (body.actorUserId && String(body.actorUserId).trim().length > 0) {
+        return String(body.actorUserId).trim()
+      }
+      return null
+    })()
+
+    console.log(`[updateItemStatus] Acting User ID resolved: ${actingUserID || 'NULL'}`)
 
     const itemId = body.itemId || body.id
     const status = typeof body.status === 'string' ? body.status.trim() : ''
@@ -73,7 +83,7 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
       collection: 'billings',
       id,
       depth: 0,
-      overrideAccess: true, // 🔓 Bypass access control to get full data publicly
+      overrideAccess: true,
     })
 
     if (!bill) {
@@ -91,6 +101,7 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
     // 2. Find and update the item status
     let itemFound = false
     let transitionError: string | null = null
+    let validationError: string | null = null
 
     const updatedItems = (bill.items || []).map((item: any) => {
       if (item.id === itemId) {
@@ -135,17 +146,41 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
           }
         }
 
-        return {
-          ...item,
-          ...(hasStatusUpdate
-            ? {
-                status: newStatus,
-                [`${newStatus}At`]: now,
-                ...(newStatus === 'prepared' && actingUserID ? { preparedBy: actingUserID } : {}),
-              }
-            : {}),
-          ...(hasPreparingTimeUpdate ? { preparingTime: parsedPreparingTime } : {}),
+        const statusOwnerField =
+          newStatus === 'prepared'
+            ? 'preparedBy'
+            : newStatus === 'confirmed'
+              ? 'confirmedBy'
+              : newStatus === 'delivered'
+                ? 'deliveredBy'
+                : null
+
+        // Strict fix: Reject if missing user context
+        if (hasStatusUpdate && statusOwnerField && !actingUserID) {
+          validationError = `Missing user context. Cannot update status to "${newStatus}" without an authenticated user or 'actorUserId' in request body.`
         }
+
+        const itemUpdateData: any = {
+          ...item,
+          status: hasStatusUpdate ? newStatus : item.status,
+        }
+
+        if (hasStatusUpdate) {
+          itemUpdateData[`${newStatus}At`] = now
+          if (statusOwnerField && actingUserID) {
+            itemUpdateData[statusOwnerField] = actingUserID
+            console.log(
+              `[updateItemStatus] SETTING OWNER: item.${statusOwnerField} = ${actingUserID}`,
+            )
+          }
+        }
+
+        if (hasPreparingTimeUpdate) {
+          itemUpdateData.preparingTime = parsedPreparingTime
+        }
+
+        console.log(`[updateItemStatus] SAVING ITEM DATA for ${itemId}:`, JSON.stringify(itemUpdateData))
+        return itemUpdateData
       }
       return item
     })
@@ -156,6 +191,10 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
 
     if (transitionError) {
       return Response.json({ error: transitionError }, { status: 400 })
+    }
+
+    if (validationError) {
+      return Response.json({ error: validationError }, { status: 400 })
     }
 
     const isTableOrderBill =
@@ -215,14 +254,15 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
         items: updatedItems,
         ...(nextBillStatus ? { status: nextBillStatus } : {}),
       },
+      depth: 0, // ⚡️ Use depth 0 to avoid any relationship stripping/bloating
       context: {
-        // Item status/timing updates should not rerun offer/reward/inventory workflows.
+        actingUserID,
         skipOfferRecalculation: true,
         skipInventoryValidation: true,
         skipCustomerRewardProcessing: true,
         skipOfferCounterProcessing: true,
       },
-      overrideAccess: true, // 🔓 Bypass access control to preserve all fields publicly
+      overrideAccess: true,
     })
 
     return Response.json(updatedBill, { status: 200 })

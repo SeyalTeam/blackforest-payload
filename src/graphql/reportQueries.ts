@@ -604,6 +604,7 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       chefId: { type: graphQL.GraphQLString },
       kitchenId: { type: graphQL.GraphQLString },
       status: { type: graphQL.GraphQLString },
+      orderType: { type: graphQL.GraphQLString },
     },
   })
 
@@ -629,6 +630,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       chefPreparationTime: { type: graphQL.GraphQLFloat },
       productStandardPreparationTime: { type: graphQL.GraphQLFloat },
       chefName: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+      confirmedByName: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+      deliveredByName: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       quantity: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       status: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
     },

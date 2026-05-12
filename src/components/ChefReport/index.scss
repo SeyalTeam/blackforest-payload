@@ -1,0 +1,279 @@
+.chef-report-container {
+  padding: 0.5rem;
+  background: var(--theme-elevation-0);
+  border-radius: var(--style-radius-m);
+  box-shadow: var(--theme-shadow-success);
+  margin: 0;
+  color: var(--theme-text-primary);
+
+  .report-header {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--theme-elevation-100);
+    position: relative;
+    z-index: 500;
+
+    h1 {
+      margin: 0;
+      font-size: 1.75rem;
+      font-weight: 600;
+      color: var(--theme-text-primary);
+    }
+
+    .date-filter {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      color: var(--theme-text-primary);
+      flex-wrap: wrap;
+      width: 100%;
+
+      .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-shrink: 0;
+      }
+
+      .custom-date-input {
+        background: var(--theme-bg-input);
+        border: 1px solid var(--theme-elevation-400);
+        border-radius: 8px;
+        color: var(--theme-text-primary);
+        padding: 0 1rem;
+        height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 1rem;
+        min-width: 250px;
+        transition: all 0.2s;
+
+        &:hover {
+          border-color: var(--theme-info-750);
+        }
+
+        .date-text {
+          font-weight: 600;
+          letter-spacing: 0.5px;
+          color: var(--theme-text-primary);
+        }
+
+        &::after {
+          display: none;
+        }
+
+        .icon {
+          display: flex;
+          align-items: center;
+          opacity: 0.6;
+          color: var(--theme-text-primary);
+        }
+      }
+    }
+  }
+
+  .table-container {
+    width: 100%;
+  }
+
+  .report-table {
+    width: 100%;
+    border-collapse: collapse;
+    white-space: nowrap;
+
+    th,
+    td {
+      padding: 0.5rem;
+      border-bottom: 1px solid var(--theme-elevation-100);
+      border-right: 1px solid var(--theme-elevation-100);
+      text-align: left;
+      font-size: 0.9rem;
+      color: var(--theme-text-primary);
+
+      &:first-child {
+        border-left: 1px solid var(--theme-elevation-100);
+      }
+
+      &:last-child {
+        border-right: 1px solid var(--theme-elevation-100);
+      }
+
+      &.text-right {
+        text-align: right;
+      }
+
+      &.amount-cell {
+        font-weight: 600;
+        font-size: 1.2rem;
+      }
+
+      &.name-cell {
+        font-weight: 600;
+        font-size: 1.2rem;
+      }
+    }
+
+    th {
+      background: var(--theme-elevation-50);
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      border-right: 1px solid var(--theme-elevation-100);
+      box-shadow: 0 1px 0 var(--theme-elevation-100);
+    }
+
+    tbody tr:nth-child(even) {
+      background-color: var(--theme-elevation-50);
+    }
+
+    .grand-total {
+      background: var(--theme-elevation-100);
+      font-weight: bold;
+      position: sticky;
+      bottom: 0;
+      z-index: 10;
+      box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+
+      td {
+        border-top: 2px solid var(--theme-border-color);
+        background: var(--theme-elevation-100);
+        font-size: 1.2rem;
+      }
+    }
+  }
+
+  .error {
+    color: var(--theme-error-500);
+  }
+}
+
+.custom-calendar {
+  font-family: inherit;
+  border: 1px solid var(--theme-elevation-400) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+  background-color: var(--theme-elevation-100) !important;
+  color: var(--theme-text-primary) !important;
+  padding: 1rem;
+  border-radius: 4px !important;
+  display: inline-block;
+
+  .react-datepicker__header {
+    background-color: transparent !important;
+    border-bottom: none !important;
+    padding: 0 0 1rem 0;
+  }
+
+  .react-datepicker__current-month,
+  .react-datepicker-time__header,
+  .react-datepicker-year-header {
+    color: var(--theme-text-primary) !important;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .react-datepicker__day-name {
+    color: var(--theme-text-primary) !important;
+    opacity: 0.6;
+  }
+
+  .react-datepicker__day {
+    color: var(--theme-text-primary) !important;
+    border: 1px solid var(--theme-elevation-150) !important;
+    border-radius: 0 !important;
+
+    &:hover {
+      background-color: var(--theme-elevation-200) !important;
+      border-color: var(--theme-elevation-300) !important;
+      border-radius: 0 !important;
+    }
+  }
+
+  .react-datepicker__day--selected,
+  .react-datepicker__day--in-selecting-range,
+  .react-datepicker__day--in-range {
+    background-color: transparent !important;
+    color: var(--theme-text-primary) !important;
+    border: 2px solid var(--theme-text-primary) !important;
+    font-weight: 700;
+  }
+}
+
+.react-datepicker-popper {
+  z-index: 9999 !important;
+}
+
+.export-container {
+  position: relative;
+
+  .export-btn {
+    border: 1px solid var(--theme-elevation-400);
+    background: var(--theme-input-bg, var(--theme-elevation-50));
+    color: var(--theme-text-primary);
+    padding: 0 1rem;
+    height: 42px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    transition: all 0.2s;
+    font-weight: 500;
+
+    &:hover {
+      border-color: var(--theme-info-500);
+    }
+  }
+
+  .export-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    background: var(--theme-input-bg, var(--theme-elevation-50));
+    border: 1px solid var(--theme-elevation-150);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    z-index: 9999 !important;
+    overflow: hidden;
+
+    button {
+      background: transparent;
+      border: none;
+      color: var(--theme-text-primary);
+      padding: 0.75rem 1rem;
+      text-align: left;
+      cursor: pointer;
+      font-size: 0.95rem;
+      width: 100%;
+      font-weight: 500;
+
+      &:hover {
+        background: var(--theme-info-500);
+        color: #fff;
+      }
+    }
+  }
+}
+
+.export-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 9998;
+  cursor: default;
+}

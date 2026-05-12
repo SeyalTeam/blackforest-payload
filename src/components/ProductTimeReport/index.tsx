@@ -50,6 +50,8 @@ type ProductPreparationBillDetailsQueryResponse = {
         billNumber?: unknown
         billingId?: unknown
         chefName?: unknown
+        confirmedByName?: unknown
+        deliveredByName?: unknown
         chefPreparationTime?: unknown
         orderedAt?: unknown
         preparedAt?: unknown
@@ -89,6 +91,8 @@ const PRODUCT_PREPARATION_BILL_DETAILS_QUERY = `
         chefPreparationTime
         productStandardPreparationTime
         chefName
+        confirmedByName
+        deliveredByName
         quantity
         status
       }
@@ -422,6 +426,8 @@ const ProductTimeReport: React.FC = () => {
                 productName: typeof entry.productName === 'string' ? entry.productName : '--',
                 orderedAt: typeof entry.orderedAt === 'string' ? entry.orderedAt : '--',
                 preparedAt: typeof entry.preparedAt === 'string' ? entry.preparedAt : '--',
+                confirmedByName: typeof entry.confirmedByName === 'string' ? entry.confirmedByName : '--',
+                deliveredByName: typeof entry.deliveredByName === 'string' ? entry.deliveredByName : '--',
                 preparationTime:
                   typeof entry.preparationTime === 'number' && Number.isFinite(entry.preparationTime)
                     ? entry.preparationTime
@@ -603,6 +609,8 @@ const ProductTimeReport: React.FC = () => {
       'PT (ACTUAL)',
       'PREP AT',
       'CHEF',
+      'CONFIRMED BY',
+      'DELIVERED BY',
     ]
 
     const csvRows = [
@@ -617,6 +625,8 @@ const ProductTimeReport: React.FC = () => {
           formatMinutes(row.preparationTime).replace(' min', ''),
           `"${row.preparedAt}"`,
           `"${row.chefName.replace(/"/g, '""')}"`,
+          `"${row.confirmedByName.replace(/"/g, '""')}"`,
+          `"${row.deliveredByName.replace(/"/g, '""')}"`,
         ].join(','),
       ),
     ]
@@ -1056,24 +1066,26 @@ const ProductTimeReport: React.FC = () => {
                     <th>PT (ACTUAL)</th>
                     <th>PREP AT</th>
                     <th>CHEF</th>
+                    <th>CONFIRMED BY</th>
+                    <th>DELIVERED BY</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loadingBillDetails && (
                     <tr>
-                      <td colSpan={8}>Loading...</td>
+                      <td colSpan={10}>Loading...</td>
                     </tr>
                   )}
 
                   {!loadingBillDetails && billDetailsError && (
                     <tr>
-                      <td colSpan={8}>{billDetailsError}</td>
+                      <td colSpan={10}>{billDetailsError}</td>
                     </tr>
                   )}
 
                   {!loadingBillDetails && !billDetailsError && displayDetails.length === 0 && (
                     <tr>
-                      <td colSpan={8}>No details found.</td>
+                      <td colSpan={10}>No details found.</td>
                     </tr>
                   )}
 
@@ -1129,6 +1141,8 @@ const ProductTimeReport: React.FC = () => {
                           <td>{formatMinutes(entry.preparationTime).replace(' min', '')}</td>
                           <td>{entry.preparedAt}</td>
                           <td>{entry.chefName}</td>
+                          <td>{entry.confirmedByName}</td>
+                          <td>{entry.deliveredByName}</td>
                         </tr>
                       )
                     })}

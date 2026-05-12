@@ -13,6 +13,8 @@ type RawPreparationItem = {
   billCreatedAt: unknown
   billingId: unknown
   chefName: unknown
+  confirmedByName: unknown
+  deliveredByName: unknown
   finalLineTotal: unknown
   invoiceNumber: unknown
   kotNumber: unknown
@@ -37,6 +39,8 @@ export type ProductPreparationBillDetail = {
   billNumber: string
   billingId: string
   chefName: string
+  confirmedByName: string
+  deliveredByName: string
   chefPreparationTime: null | number
   orderedAt: string
   preparedAt: string
@@ -68,6 +72,7 @@ type ProductPreparationBillDetailsArgs = {
   department?: null | string
   endDate?: null | string
   kitchenId?: null | string
+  orderType?: null | string
   productId?: null | string
   startDate?: null | string
   status?: null | string
@@ -249,9 +254,10 @@ export const getProductPreparationBillDetailsData = async (
   const categoryParam = typeof args.category === 'string' ? args.category : 'all'
   const departmentParam = typeof args.department === 'string' ? args.department : 'all'
   const productId = typeof args.productId === 'string' ? args.productId.trim() : ''
-  const chefId = typeof args.chefId === 'string' ? args.chefId.trim() : ''
+  const chefIdParam = typeof args.chefId === 'string' ? args.chefId.trim() : ''
   const kitchenId = typeof args.kitchenId === 'string' ? args.kitchenId.trim() : ''
   const selectedStatus = parseStatusParam(args.status)
+  const orderType = typeof args.orderType === 'string' ? args.orderType.trim().toLowerCase() : 'all'
 
   const isAllProducts = !productId || productId === 'all'
   if (!isAllProducts && !mongoose.Types.ObjectId.isValid(productId)) {
@@ -274,6 +280,71 @@ export const getProductPreparationBillDetailsData = async (
       $lte: endOfDay,
     },
     status: { $not: { $eq: 'cancelled' } },
+  }
+
+  const hasTableOrderReferenceExpression = {
+    $or: [
+      {
+        $gt: [
+          {
+            $strLenCP: {
+              $trim: {
+                input: {
+                  $convert: { input: '$section', to: 'string', onError: '', onNull: '' },
+                },
+              },
+            },
+          },
+          0,
+        ],
+      },
+      {
+        $gt: [
+          {
+            $strLenCP: {
+              $trim: {
+                input: {
+                  $convert: { input: '$tableNumber', to: 'string', onError: '', onNull: '' },
+                },
+              },
+            },
+          },
+          0,
+        ],
+      },
+      {
+        $gt: [
+          {
+            $strLenCP: {
+              $trim: {
+                input: {
+                  $convert: { input: '$tableDetails.section', to: 'string', onError: '', onNull: '' },
+                },
+              },
+            },
+          },
+          0,
+        ],
+      },
+      {
+        $gt: [
+          {
+            $strLenCP: {
+              $trim: {
+                input: {
+                  $convert: { input: '$tableDetails.tableNumber', to: 'string', onError: '', onNull: '' },
+                },
+              },
+            },
+          },
+          0,
+        ],
+      },
+    ],
+  }
+
+  if (orderType === 'table') {
+    matchQuery.$expr = hasTableOrderReferenceExpression
   }
 
   let finalCategoryIds: string[] = []
@@ -350,8 +421,21 @@ export const getProductPreparationBillDetailsData = async (
   }
 
   const chefMatch: Record<string, unknown> = {}
-  if (chefId && chefId !== 'all' && mongoose.Types.ObjectId.isValid(chefId)) {
-    chefMatch['items.preparedBy'] = { $eq: new mongoose.Types.ObjectId(chefId) }
+  const chefIds =
+    chefIdParam && chefIdParam !== 'all'
+      ? chefIdParam
+          .split(',')
+          .map((id) => id.trim())
+          .filter((id) => id.length > 0 && id !== 'all')
+      : []
+  const validChefObjectIds = chefIds
+    .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    .map((id) => new mongoose.Types.ObjectId(id))
+
+  if (validChefObjectIds.length > 0) {
+    chefMatch['items.preparedBy'] = { $in: validChefObjectIds }
+  } else if (chefIds.length > 0) {
+    chefMatch['items.preparedBy'] = { $in: [new mongoose.Types.ObjectId('000000000000000000000000')] }
   }
 
   const pipeline: PipelineStage[] = [
@@ -397,8 +481,36 @@ export const getProductPreparationBillDetailsData = async (
       },
     },
     {
+      $lookup: {
+        from: 'users',
+        localField: 'items.confirmedBy',
+        foreignField: '_id',
+        as: 'confirmedByUserDetails',
+      },
+    },
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'items.deliveredBy',
+        foreignField: '_id',
+        as: 'deliveredByUserDetails',
+      },
+    },
+    {
       $unwind: {
         path: '$chefDetails',
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $unwind: {
+        path: '$confirmedByUserDetails',
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $unwind: {
+        path: '$deliveredByUserDetails',
         preserveNullAndEmptyArrays: true,
       },
     },
@@ -460,6 +572,8 @@ export const getProductPreparationBillDetailsData = async (
             productName: '$productDetails.name',
             productStandardPreparationTime: '$productDetails.preparationTime',
             chefName: '$chefDetails.name',
+            confirmedByName: '$confirmedByUserDetails.name',
+            deliveredByName: '$deliveredByUserDetails.name',
             quantity: '$items.quantity',
           },
         },
@@ -503,6 +617,8 @@ export const getProductPreparationBillDetailsData = async (
         billNumber: resolveBillNumber(row),
         billingId: toId(row.billingId) || '',
         chefName: typeof row.chefName === 'string' ? row.chefName : '--',
+        confirmedByName: typeof row.confirmedByName === 'string' ? row.confirmedByName : '--',
+        deliveredByName: typeof row.deliveredByName === 'string' ? row.deliveredByName : '--',
         chefPreparationTime: chefTime != null && Number.isFinite(chefTime) ? chefTime : null,
         createdAt: parseToDayjs(row.billCreatedAt),
         orderedAt: typeof row.orderedAt === 'string' ? row.orderedAt : '--',
@@ -537,6 +653,8 @@ export const getProductPreparationBillDetailsData = async (
       billingId: item.billingId,
       amount: item.amount,
       chefName: item.chefName,
+      confirmedByName: item.confirmedByName,
+      deliveredByName: item.deliveredByName,
       chefPreparationTime: item.chefPreparationTime,
       orderedAt: item.orderedAt,
       preparedAt: item.preparedAt,

@@ -673,7 +673,24 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
                 <React.Fragment key={index}>
                   <tr>
                     <td>
-                      {item.name}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <span>{item.name}</span>
+                        {item.status && (
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              backgroundColor: item.status === 'cancelled' ? '#ffebee' : '#e8f5e9',
+                              color: item.status === 'cancelled' ? '#c62828' : '#2e7d32',
+                              fontWeight: 'bold',
+                              display: 'inline-block',
+                            }}
+                          >
+                            {item.status.toUpperCase()}
+                          </span>
+                        )}
+                      </div>
                       {(gstDetails.hsnCode || itemTax.rate > 0) && (
                         <div className="item-meta-line">
                           {gstDetails.hsnCode ? `HSN: ${gstDetails.hsnCode}` : 'HSN: -'}

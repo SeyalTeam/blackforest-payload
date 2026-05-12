@@ -2525,6 +2525,20 @@ const Billings: CollectionConfig = {
             timeZone: 'Asia/Kolkata',
             hour12: false,
           })
+          const actingUserID = (() => {
+            if (req.user && typeof req.user === 'object' && 'id' in req.user && req.user.id) {
+              return String(req.user.id)
+            }
+            const body = req.body as any
+            if (body?.actorUserId && String(body.actorUserId).trim().length > 0) {
+              return String(body.actorUserId).trim()
+            }
+            const context = (req as any).context
+            if (context?.actingUserID) {
+              return String(context.actingUserID)
+            }
+            return null
+          })()
           data.items = data.items.map((item: any) => {
             const status = item.status || 'ordered'
             const updatedItem = {
@@ -2536,6 +2550,19 @@ const Billings: CollectionConfig = {
             const timestampField = `${status}At`
             if (!updatedItem[timestampField]) {
               updatedItem[timestampField] = now
+            }
+
+            const statusOwnerField =
+              status === 'prepared'
+                ? 'preparedBy'
+                : status === 'confirmed'
+                  ? 'confirmedBy'
+                  : status === 'delivered'
+                    ? 'deliveredBy'
+                    : null
+
+            if (statusOwnerField && actingUserID && !updatedItem[statusOwnerField]) {
+              updatedItem[statusOwnerField] = actingUserID
             }
 
             return updatedItem
@@ -3936,7 +3963,7 @@ const Billings: CollectionConfig = {
             { label: 'Cancelled', value: 'cancelled' },
           ],
           admin: {
-            condition: (data) => ['ordered', 'prepared', 'confirmed', 'delivered'].includes(data.status),
+            description: 'Current production status of this specific item.',
           },
         },
 
@@ -4175,8 +4202,20 @@ const Billings: CollectionConfig = {
           admin: { readOnly: true, position: 'sidebar' },
         },
         {
+          name: 'confirmedBy',
+          type: 'relationship',
+          relationTo: 'users',
+          admin: { readOnly: true, position: 'sidebar' },
+        },
+        {
           name: 'deliveredAt',
           type: 'text',
+          admin: { readOnly: true, position: 'sidebar' },
+        },
+        {
+          name: 'deliveredBy',
+          type: 'relationship',
+          relationTo: 'users',
           admin: { readOnly: true, position: 'sidebar' },
         },
         {

@@ -44,6 +44,7 @@ export const getWidgetProductOptionsHandler: PayloadHandler = async (req): Promi
     const url = new URL(req.url || 'http://localhost')
     const query = (url.searchParams.get('q') || '').trim()
     const categoryID = (url.searchParams.get('categoryId') || '').trim()
+    const branchID = (url.searchParams.get('branch') || url.searchParams.get('branchId') || '').trim()
     const categoryIDs = (url.searchParams.get('categoryIds') || '')
       .split(',')
       .map((id) => id.trim())
@@ -76,6 +77,14 @@ export const getWidgetProductOptionsHandler: PayloadHandler = async (req): Promi
       whereClauses.push({
         category: {
           in: normalizedCategoryIDs,
+        },
+      } as Where)
+    }
+
+    if (branchID.length > 0) {
+      whereClauses.push({
+        inactiveBranches: {
+          not_equals: branchID,
         },
       } as Where)
     }

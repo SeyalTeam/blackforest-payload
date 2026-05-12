@@ -77,6 +77,7 @@ import { getLiveTableStatusHandler } from './endpoints/getLiveTableStatus'
 import { getLiveLoggedInUsersHandler } from './endpoints/getLiveLoggedInUsers'
 import { getReportBranchesHandler } from './endpoints/getReportBranches'
 import { getWidgetProductOptionsHandler } from './endpoints/getWidgetProductOptions'
+import { getBillingMenuHandler } from './endpoints/getBillingMenu'
 import { getBillingCustomerLookupHandler } from './endpoints/getBillingCustomerLookup'
 import { getRuntimeApiDomainHandler } from './endpoints/getRuntimeApiDomain'
 import { CustomerOfferSettings } from './globals/CustomerOfferSettings'
@@ -351,6 +352,11 @@ export default buildConfig({
       path: '/widgets/product-options',
       method: 'get',
       handler: getWidgetProductOptionsHandler,
+    },
+    {
+      path: '/widgets/billing-menu',
+      method: 'get',
+      handler: getBillingMenuHandler,
     },
     {
       path: '/runtime/api-domain',

@@ -491,6 +491,9 @@ const Products: CollectionConfig = {
     {
       fields: ['category'],
     },
+    {
+      fields: ['category', 'name'],
+    },
   ],
 }
 
