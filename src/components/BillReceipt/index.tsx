@@ -24,7 +24,7 @@ export type BillItem = {
 }
 
 export type BillData = {
-  id?: string
+  id?: string | number
   invoiceNumber?: string | null
   createdAt?: string
   items?: BillItem[]

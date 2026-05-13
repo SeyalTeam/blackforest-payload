@@ -22,8 +22,6 @@
     "start": "cross-env NODE_OPTIONS=--no-deprecation next start",
     "start:mongo": "cross-env PAYLOAD_DB_MODE=mongo NODE_OPTIONS=--no-deprecation next start",
     "start:postgres": "cross-env PAYLOAD_DB_MODE=postgres NODE_OPTIONS=--no-deprecation next start",
-    "migrate:export:mongo": "cross-env PAYLOAD_DB_MODE=mongo node --import tsx src/scripts/migrate-export.ts",
-    "migrate:import:postgres": "cross-env PAYLOAD_DB_MODE=postgres node --import tsx src/scripts/migrate-import.ts",
     "test": "pnpm run test:int && pnpm run test:e2e",
     "test:e2e": "cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-strip-types\" pnpm exec playwright test",
     "test:int": "cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts"

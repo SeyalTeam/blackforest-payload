@@ -571,7 +571,7 @@ const computeBillingGSTBreakdown = async (
       },
     })
     products.docs.forEach((product) => {
-      productCache.set(product.id, product as unknown as ProductGSTInput)
+      productCache.set(String(product.id), product as unknown as ProductGSTInput)
     })
   }
 
@@ -1834,11 +1834,14 @@ const applyRandomCustomerProductOffer = async (
 
   const customer = customerResult.docs[0] as
     | {
-        id?: string
+        id?: string | number
       }
     | undefined
 
-  const customerID = typeof customer?.id === 'string' ? customer.id : null
+  const customerID =
+    typeof customer?.id === 'string' || typeof customer?.id === 'number'
+      ? String(customer.id)
+      : null
   const customerRandomKey = customerID || customerPhoneNumber
 
   const passesRandomSelection = (
@@ -1964,7 +1967,7 @@ const applyConfiguredItemOffers = async (
   })
   const customer = customerResult.docs[0]
   if (customer?.id) {
-    customerID = customer.id
+    customerID = String(customer.id)
   }
 
   // One bill can carry only one offer type among item-level offers.
