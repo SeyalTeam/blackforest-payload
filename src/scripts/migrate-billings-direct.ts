@@ -109,7 +109,7 @@ const run = async () => {
         if (doc.items && Array.isArray(doc.items)) {
           for (let i = 0; i < doc.items.length; i++) {
             const item = doc.items[i]
-            let productId = mapping.products?.[item.product] || legacyProductId
+            const productId = mapping.products?.[item.product] || legacyProductId
             
             // If even legacy product is null (shouldn't happen), skip item to avoid crash
             if (!productId) {
