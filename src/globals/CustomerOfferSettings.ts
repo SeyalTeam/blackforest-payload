@@ -631,6 +631,7 @@ export const CustomerOfferSettings: GlobalConfig = {
         },
         {
           name: 'productToProductOffers',
+          dbName: 'p2p_offers',
           type: 'array',
           label: 'Product to Product Rules',
           labels: {
@@ -795,6 +796,7 @@ export const CustomerOfferSettings: GlobalConfig = {
             },
             {
               name: 'offerCustomerUsage',
+              dbName: 'p2p_usage',
               type: 'array',
               label: 'Customer Usage',
               admin: {
@@ -872,6 +874,7 @@ export const CustomerOfferSettings: GlobalConfig = {
         },
         {
           name: 'productPriceOffers',
+          dbName: 'price_offers',
           type: 'array',
           label: 'Product Price Offer Rules',
           labels: {
@@ -1051,6 +1054,7 @@ export const CustomerOfferSettings: GlobalConfig = {
             },
             {
               name: 'offerCustomerUsage',
+              dbName: 'price_usage',
               type: 'array',
               label: 'Customer Usage',
               admin: {
@@ -1222,6 +1226,7 @@ export const CustomerOfferSettings: GlobalConfig = {
               fields: [
                 {
                   name: 'randomCustomerOfferProducts',
+                  dbName: 'random_offers',
                   type: 'array',
                   label: 'Random Offer Products and Counts',
                   labels: {
@@ -1433,6 +1438,7 @@ export const CustomerOfferSettings: GlobalConfig = {
                             },
                             {
                               name: 'offerCustomerUsage',
+                              dbName: 'random_usage',
                               type: 'array',
                               label: 'Customer Usage',
                               admin: {
@@ -1649,6 +1655,7 @@ export const CustomerOfferSettings: GlobalConfig = {
                     },
                     {
                       name: 'totalPercentageOfferDailyStartTime',
+                      dbName: 'tp_start',
                       type: 'select',
                       options: RAILWAY_TIME_OPTIONS,
                       label: 'Daily Start Time',
@@ -1659,6 +1666,7 @@ export const CustomerOfferSettings: GlobalConfig = {
                     },
                     {
                       name: 'totalPercentageOfferDailyEndTime',
+                      dbName: 'tp_end',
                       type: 'select',
                       options: RAILWAY_TIME_OPTIONS,
                       label: 'Daily End Time',
@@ -1717,6 +1725,7 @@ export const CustomerOfferSettings: GlobalConfig = {
                 },
                 {
                   name: 'totalPercentageOfferCustomerUsage',
+                  dbName: 'tp_usage',
                   type: 'array',
                   label: 'Customer Usage',
                   admin: {
@@ -1885,6 +1894,7 @@ export const CustomerOfferSettings: GlobalConfig = {
                     },
                     {
                       name: 'customerEntryPercentageOfferDailyStartTime',
+                      dbName: 'cep_start',
                       type: 'select',
                       options: RAILWAY_TIME_OPTIONS,
                       label: 'Daily Start Time',
@@ -1895,6 +1905,7 @@ export const CustomerOfferSettings: GlobalConfig = {
                     },
                     {
                       name: 'customerEntryPercentageOfferDailyEndTime',
+                      dbName: 'cep_end',
                       type: 'select',
                       options: RAILWAY_TIME_OPTIONS,
                       label: 'Daily End Time',
@@ -1954,6 +1965,7 @@ export const CustomerOfferSettings: GlobalConfig = {
                 },
                 {
                   name: 'customerEntryPercentageOfferCustomerUsage',
+                  dbName: 'cep_usage',
                   type: 'array',
                   label: 'Customer Usage',
                   admin: {
@@ -2037,6 +2049,7 @@ export const CustomerOfferSettings: GlobalConfig = {
         },
         {
           name: 'amountBasedFreeProductOffers',
+          dbName: 'amount_offers',
           type: 'array',
           label: 'Amount Based Free Product Rules',
           labels: {
@@ -2203,6 +2216,7 @@ export const CustomerOfferSettings: GlobalConfig = {
             },
             {
               name: 'offerCustomerUsage',
+              dbName: 'amount_usage',
               type: 'array',
               label: 'Customer Usage',
               admin: {

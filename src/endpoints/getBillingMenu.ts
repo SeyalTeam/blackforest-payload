@@ -3,6 +3,10 @@ import type { PayloadHandler, Where } from 'payload'
 type CategoryDoc = {
   id?: string | number
   name?: string
+  image?: unknown
+  imageUrl?: unknown
+  thumbnail?: unknown
+  thumbnailURL?: unknown
 }
 
 type ProductDoc = {
@@ -16,10 +20,108 @@ type ProductDoc = {
   defaultPriceDetails?: {
     price?: number
   }
+  image?: unknown
+  imageUrl?: unknown
+  thumbnail?: unknown
+  thumbnailURL?: unknown
+  images?: unknown
+  media?: unknown
 }
 
 const toText = (value: unknown): string =>
   typeof value === 'string' ? value : value === null || value === undefined ? '' : String(value)
+
+const looksLikeMediaPath = (value: string): boolean => {
+  const normalized = value.toLowerCase()
+  return (
+    normalized.includes('/api/media/file/') ||
+    normalized.includes('/media/') ||
+    normalized.includes('/uploads/') ||
+    normalized.includes('/files/') ||
+    normalized.startsWith('api/media/file/') ||
+    normalized.startsWith('api/') ||
+    normalized.startsWith('media/') ||
+    normalized.startsWith('uploads/') ||
+    normalized.startsWith('files/')
+  )
+}
+
+const looksLikeImagePath = (value: string): boolean =>
+  /\.(png|jpe?g|webp|gif|avif|svg|jfif|bmp|heic|heif)(\?.*)?$/i.test(value)
+
+const normalizeImageUrl = (value: unknown): string | null => {
+  const input = toText(value).trim()
+  if (!input) return null
+  if (input.startsWith('data:image/')) return input
+
+  const encoded = input.replace(/ /g, '%20')
+  if (encoded.startsWith('//')) return `https:${encoded}`
+  if (encoded.startsWith('http://') || encoded.startsWith('https://')) {
+    return encoded
+  }
+
+  if (encoded.startsWith('/')) {
+    if (!looksLikeImagePath(encoded) && !looksLikeMediaPath(encoded)) return null
+    return encoded
+  }
+
+  if (looksLikeImagePath(encoded) || looksLikeMediaPath(encoded)) {
+    return encoded
+  }
+
+  return null
+}
+
+const extractImageUrl = (node: unknown): string | null => {
+  const direct = normalizeImageUrl(node)
+  if (direct) return direct
+
+  if (Array.isArray(node)) {
+    for (const entry of node) {
+      const nested = extractImageUrl(entry)
+      if (nested) return nested
+    }
+    return null
+  }
+
+  if (!node || typeof node !== 'object') return null
+
+  const map = node as Record<string, unknown>
+  const preferredKeys = [
+    'imageUrl',
+    'imageURL',
+    'thumbnail',
+    'thumbnailURL',
+    'thumbnailUrl',
+    'largeURL',
+    'largeUrl',
+    'mediumURL',
+    'mediumUrl',
+    'smallURL',
+    'smallUrl',
+    'image',
+    'images',
+    'media',
+    'url',
+    'src',
+    'path',
+    'filename',
+    'file',
+  ]
+
+  for (const key of preferredKeys) {
+    if (!(key in map)) continue
+    const nested = extractImageUrl(map[key])
+    if (nested) return nested
+  }
+
+  for (const value of Object.values(map)) {
+    const nested = extractImageUrl(value)
+    if (nested) return nested
+  }
+
+  return null
+}
 
 const toPositiveInt = (value: string | null, fallback: number, max: number): number => {
   if (!value) return fallback
@@ -69,7 +171,7 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
     if (mode === 'categories') {
       const categoriesResult = await req.payload.find({
         collection: 'categories',
-        depth: 0,
+        depth: 1,
         pagination: false,
         limit: 300,
         sort: 'name',
@@ -89,12 +191,30 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
         .map((doc) => {
           const id = toText(doc.id).trim()
           if (!id) return null
+
+          const imageUrl = extractImageUrl(
+            doc.imageUrl ?? doc.thumbnailURL ?? doc.thumbnail ?? doc.image,
+          )
+
           return {
             id,
             name: toText(doc.name).trim() || id,
+            imageUrl,
+            thumbnailURL: imageUrl,
+            image: imageUrl,
           }
         })
-        .filter((row): row is { id: string; name: string } => row !== null)
+        .filter(
+          (
+            row,
+          ): row is {
+            id: string
+            name: string
+            imageUrl: string | null
+            thumbnailURL: string | null
+            image: string | null
+          } => row !== null,
+        )
 
       return Response.json(
         {
@@ -149,7 +269,7 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
 
     const productsResult = await req.payload.find({
       collection: 'products',
-      depth: 0,
+      depth: 2,
       pagination: false,
       sort: 'name',
       limit,
@@ -172,6 +292,15 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
             ? doc.defaultPriceDetails.price
             : null
 
+        const imageUrl = extractImageUrl(
+          doc.imageUrl ??
+              doc.thumbnailURL ??
+              doc.thumbnail ??
+              doc.image ??
+              doc.images ??
+              doc.media,
+        )
+
         return {
           id,
           name: toText(doc.name).trim() || id,
@@ -181,6 +310,9 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
           isAvailable: doc.isAvailable !== false,
           isOutOfStock: doc.isOutOfStock === true,
           price,
+          imageUrl,
+          thumbnailURL: imageUrl,
+          image: imageUrl,
         }
       })
       .filter(
@@ -195,6 +327,9 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
           isAvailable: boolean
           isOutOfStock: boolean
           price: number | null
+          imageUrl: string | null
+          thumbnailURL: string | null
+          image: string | null
         } => row !== null,
       )
 

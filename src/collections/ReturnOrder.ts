@@ -46,14 +46,14 @@ const ReturnOrders: CollectionConfig = {
           // Get Branch Code
           let branchCode = 'RET' // Fallback
           if (data.branch) {
-            let branchId: string
-            if (typeof data.branch === 'string') {
+            let branchId: string | number
+            if (typeof data.branch === 'string' || typeof data.branch === 'number') {
               branchId = data.branch
             } else if (
               typeof data.branch === 'object' &&
               data.branch !== null &&
               'id' in data.branch &&
-              typeof data.branch.id === 'string'
+              (typeof data.branch.id === 'string' || typeof data.branch.id === 'number')
             ) {
               branchId = data.branch.id
             } else {

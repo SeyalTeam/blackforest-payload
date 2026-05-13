@@ -134,7 +134,7 @@ export interface Config {
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
   };
   db: {
-    defaultIDType: string;
+    defaultIDType: number;
   };
   globals: {
     'ip-settings': IpSetting;
@@ -214,7 +214,7 @@ export interface UserAuthOperations {
  * via the `definition` "users".
  */
 export interface User {
-  id: string;
+  id: number;
   name?: string | null;
   role:
     | 'superadmin'
@@ -231,17 +231,17 @@ export interface User {
     | 'driver';
   isKitchen?: boolean | null;
   isStock?: boolean | null;
-  branch?: (string | null) | Branch;
+  branch?: (number | null) | Branch;
   /**
    * Automatically captured from login context for live monitoring widgets.
    */
-  lastLoginBranch?: (string | null) | Branch;
-  kitchenBranches?: (string | Branch)[] | null;
-  kitchen?: (string | Kitchen)[] | null;
-  categories?: (string | Category)[] | null;
-  company?: (string | null) | Company;
-  factory_companies?: (string | Company)[] | null;
-  employee?: (string | null) | Employee;
+  lastLoginBranch?: (number | null) | Branch;
+  kitchenBranches?: (number | Branch)[] | null;
+  kitchen?: (number | Kitchen)[] | null;
+  categories?: (number | Category)[] | null;
+  company?: (number | null) | Company;
+  factory_companies?: (number | Company)[] | null;
+  employee?: (number | null) | Employee;
   deviceId?: string | null;
   /**
    * Enable and save to force logout this user from all devices. The value resets after save.
@@ -274,8 +274,8 @@ export interface User {
  * via the `definition` "branches".
  */
 export interface Branch {
-  id: string;
-  company: string | Company;
+  id: number;
+  company: number | Company;
   name: string;
   address: string;
   gst: string;
@@ -302,7 +302,7 @@ export interface Branch {
    */
   productResets?:
     | {
-        product: string | Product;
+        product: number | Product;
         resetDate: string;
         id?: string | null;
       }[]
@@ -322,7 +322,7 @@ export interface Branch {
  * via the `definition` "companies".
  */
 export interface Company {
-  id: string;
+  id: number;
   name: string;
   hqAddress?: string | null;
   gst?: string | null;
@@ -334,10 +334,10 @@ export interface Company {
  * via the `definition` "products".
  */
 export interface Product {
-  id: string;
+  id: number;
   name: string;
-  category: string | Category;
-  dealer?: (string | null) | Dealer;
+  category: number | Category;
+  dealer?: (number | null) | Dealer;
   /**
    * Number of days the product is valid for after production/purchase.
    */
@@ -348,7 +348,7 @@ export interface Product {
   preparationTime?: number | null;
   images?:
     | {
-        image: string | Media;
+        image: number | Media;
         id?: string | null;
       }[]
     | null;
@@ -374,14 +374,14 @@ export interface Product {
   /**
    * Select branches where this product should be inactive.
    */
-  inactiveBranches?: (string | Branch)[] | null;
+  inactiveBranches?: (number | Branch)[] | null;
   /**
    * Branches where this product should show as out of stock.
    */
-  outOfStockBranches?: (string | Branch)[] | null;
+  outOfStockBranches?: (number | Branch)[] | null;
   branchOverrides?:
     | {
-        branch: string | Branch;
+        branch: number | Branch;
         price?: number | null;
         rate?: number | null;
         offer?: number | null;
@@ -399,15 +399,15 @@ export interface Product {
  * via the `definition` "categories".
  */
 export interface Category {
-  id: string;
+  id: number;
   name: string;
-  image?: (string | null) | Media;
+  image?: (number | null) | Media;
   isBilling?: boolean | null;
   isCake?: boolean | null;
   isStock?: boolean | null;
   isKitchen?: boolean | null;
-  company?: (string | Company)[] | null;
-  department?: (string | null) | Department;
+  company?: (number | Company)[] | null;
+  department?: (number | null) | Department;
   updatedAt: string;
   createdAt: string;
 }
@@ -416,7 +416,7 @@ export interface Category {
  * via the `definition` "media".
  */
 export interface Media {
-  id: string;
+  id: number;
   alt?: string | null;
   prefix?: string | null;
   updatedAt: string;
@@ -446,8 +446,8 @@ export interface Media {
  * via the `definition` "departments".
  */
 export interface Department {
-  id: string;
-  company: (string | Company)[];
+  id: number;
+  company: (number | Company)[];
   name: string;
   updatedAt: string;
   createdAt: string;
@@ -457,7 +457,7 @@ export interface Department {
  * via the `definition` "dealers".
  */
 export interface Dealer {
-  id: string;
+  id: number;
   companyName: string;
   address: string;
   phoneNumber: string;
@@ -472,8 +472,8 @@ export interface Dealer {
     phone?: string | null;
     email?: string | null;
   };
-  allowedCompanies?: (string | Company)[] | null;
-  allowedBranches?: (string | Branch)[] | null;
+  allowedCompanies?: (number | Company)[] | null;
+  allowedBranches?: (number | Branch)[] | null;
   notes?: string | null;
   status: 'active' | 'inactive' | 'on-hold';
   hasBankAccount?: boolean | null;
@@ -492,11 +492,11 @@ export interface Dealer {
  * via the `definition` "kitchens".
  */
 export interface Kitchen {
-  id: string;
+  id: number;
   name: string;
-  department: (string | Department)[];
-  branches: (string | Branch)[];
-  categories: (string | Category)[];
+  department: (number | Department)[];
+  branches: (number | Branch)[];
+  categories: (number | Category)[];
   updatedAt: string;
   createdAt: string;
 }
@@ -505,7 +505,7 @@ export interface Kitchen {
  * via the `definition` "employees".
  */
 export interface Employee {
-  id: string;
+  id: number;
   name: string;
   employeeId: string;
   phoneNumber: string;
@@ -513,8 +513,8 @@ export interface Employee {
   address?: string | null;
   status: 'active' | 'inactive';
   team: 'waiter' | 'chef' | 'driver' | 'cashier' | 'manager' | 'supervisor' | 'delivery' | 'kitchen';
-  aadhaarPhoto?: (string | null) | Media;
-  photo?: (string | null) | Media;
+  aadhaarPhoto?: (number | null) | Media;
+  photo?: (number | null) | Media;
   updatedAt: string;
   createdAt: string;
 }
@@ -523,14 +523,14 @@ export interface Employee {
  * via the `definition` "message-threads".
  */
 export interface MessageThread {
-  id: string;
+  id: number;
   participantName: string;
-  staffUser: string | User;
-  employee: string | Employee;
+  staffUser: number | User;
+  employee: number | Employee;
   status: 'open' | 'archived';
   lastMessageAt?: string | null;
   lastMessageText?: string | null;
-  lastMessageByUser?: (string | null) | User;
+  lastMessageByUser?: (number | null) | User;
   lastMessageByRole?: string | null;
   adminLastReadAt?: string | null;
   staffLastReadAt?: string | null;
@@ -542,11 +542,11 @@ export interface MessageThread {
  * via the `definition` "message-attachments".
  */
 export interface MessageAttachment {
-  id: string;
-  thread: string | MessageThread;
-  staffUser: string | User;
-  employee: string | Employee;
-  uploadedBy: string | User;
+  id: number;
+  thread: number | MessageThread;
+  staffUser: number | User;
+  employee: number | Employee;
+  uploadedBy: number | User;
   attachmentType: 'image' | 'video';
   /**
    * Optional accessibility text for images.
@@ -570,19 +570,19 @@ export interface MessageAttachment {
  * via the `definition` "messages".
  */
 export interface Message {
-  id: string;
-  thread: string | MessageThread;
-  staffUser: string | User;
-  employee: string | Employee;
+  id: number;
+  thread: number | MessageThread;
+  staffUser: number | User;
+  employee: number | Employee;
   seq: number;
-  senderUser: string | User;
+  senderUser: number | User;
   senderRole: string;
   recipientAudience: 'admins' | 'staff';
   messageType: 'text' | 'image' | 'video';
   /**
    * Attach an uploaded image or video for this message.
    */
-  attachment?: (string | null) | MessageAttachment;
+  attachment?: (number | null) | MessageAttachment;
   /**
    * Optional text or caption. Required when no attachment is provided.
    */
@@ -595,19 +595,19 @@ export interface Message {
  * via the `definition` "message-receipts".
  */
 export interface MessageReceipt {
-  id: string;
-  message: string | Message;
-  thread: string | MessageThread;
-  staffUser: string | User;
-  employee: string | Employee;
+  id: number;
+  message: number | Message;
+  thread: number | MessageThread;
+  staffUser: number | User;
+  employee: number | Employee;
   recipientAudience: 'admins' | 'staff';
-  recipientUser?: (string | null) | User;
+  recipientUser?: (number | null) | User;
   status: 'sent' | 'delivered' | 'read';
   sentAt: string;
   deliveredAt?: string | null;
   readAt?: string | null;
-  deliveredByUser?: (string | null) | User;
-  readByUser?: (string | null) | User;
+  deliveredByUser?: (number | null) | User;
+  readByUser?: (number | null) | User;
   updatedAt: string;
   createdAt: string;
 }
@@ -616,11 +616,11 @@ export interface MessageReceipt {
  * via the `definition` "billings".
  */
 export interface Billing {
-  id: string;
+  id: number;
   invoiceNumber: string;
   kotNumber?: string | null;
   items: {
-    product: string | Product;
+    product: number | Product;
     /**
      * Current production status of this specific item.
      */
@@ -656,7 +656,7 @@ export interface Billing {
     finalLineTotal?: number | null;
     isOfferFreeItem?: boolean | null;
     offerRuleKey?: string | null;
-    offerTriggerProduct?: (string | null) | Product;
+    offerTriggerProduct?: (number | null) | Product;
     isPriceOfferApplied?: boolean | null;
     priceOfferRuleKey?: string | null;
     priceOfferDiscountPerUnit?: number | null;
@@ -679,10 +679,10 @@ export interface Billing {
      */
     preparingTime?: number | null;
     preparedAt?: string | null;
-    preparedBy?: (string | null) | User;
-    confirmedBy?: (string | null) | User;
+    preparedBy?: (number | null) | User;
+    confirmedBy?: (number | null) | User;
     deliveredAt?: string | null;
-    deliveredBy?: (string | null) | User;
+    deliveredBy?: (number | null) | User;
     cancelledAt?: string | null;
     branchOverride?: boolean | null;
     id?: string | null;
@@ -723,14 +723,14 @@ export interface Billing {
    * Total GST amount across all billed products.
    */
   totalGSTAmount?: number | null;
-  branch: string | Branch;
-  createdBy: string | User;
+  branch: number | Branch;
+  createdBy: number | User;
   paymentMethod?: ('cash' | 'card' | 'upi' | 'other') | null;
   /**
    * Apply configured offer if customer has required points. Offer can be used only once before earning again.
    */
   applyCustomerOffer?: boolean | null;
-  company: string | Company;
+  company: number | Company;
   customerDetails?: {
     name?: string | null;
     phoneNumber?: string | null;
@@ -759,21 +759,21 @@ export interface Billing {
  * via the `definition` "return-orders".
  */
 export interface ReturnOrder {
-  id: string;
+  id: number;
   returnNumber: string;
   items: {
-    product: string | Product;
+    product: number | Product;
     name: string;
     quantity: number;
     unitPrice: number;
     subtotal: number;
-    proofPhoto?: (string | null) | Media;
+    proofPhoto?: (number | null) | Media;
     id?: string | null;
   }[];
   totalAmount: number;
-  branch: string | Branch;
-  createdBy: string | User;
-  company: string | Company;
+  branch: number | Branch;
+  createdBy: number | User;
+  company: number | Company;
   status?: ('pending' | 'accepted' | 'returned' | 'cancelled') | null;
   notes?: string | null;
   updatedAt: string;
@@ -786,7 +786,7 @@ export interface ReturnOrder {
  * via the `definition` "closing-entries".
  */
 export interface ClosingEntry {
-  id: string;
+  id: number;
   closingNumber: string;
   date: string;
   systemSales: number;
@@ -814,7 +814,7 @@ export interface ClosingEntry {
   totalSales?: number | null;
   totalPayments?: number | null;
   net?: number | null;
-  branch: string | Branch;
+  branch: number | Branch;
   updatedAt: string;
   createdAt: string;
 }
@@ -823,9 +823,9 @@ export interface ClosingEntry {
  * via the `definition` "expenses".
  */
 export interface Expense {
-  id: string;
+  id: number;
   invoiceNumber?: string | null;
-  branch: string | Branch;
+  branch: number | Branch;
   details: {
     source:
       | 'MAINTENANCE'
@@ -843,7 +843,7 @@ export interface Expense {
       | 'OTHERS';
     reason: string;
     amount: number;
-    image: string | Media;
+    image: number | Media;
     id?: string | null;
   }[];
   total: number;
@@ -856,11 +856,11 @@ export interface Expense {
  * via the `definition` "stock-orders".
  */
 export interface StockOrder {
-  id: string;
+  id: number;
   invoiceNumber: string;
   deliveryDate: string;
   items: {
-    product: string | Product;
+    product: number | Product;
     name: string;
     inStock: number;
     inStockAmount?: number | null;
@@ -870,15 +870,15 @@ export interface StockOrder {
     sendingQty?: number | null;
     sendingAmount?: number | null;
     sendingDate?: string | null;
-    sendingUpdatedBy?: (string | null) | User;
+    sendingUpdatedBy?: (number | null) | User;
     confirmedQty?: number | null;
     confirmedAmount?: number | null;
     confirmedDate?: string | null;
-    confirmedUpdatedBy?: (string | null) | User;
+    confirmedUpdatedBy?: (number | null) | User;
     pickedQty?: number | null;
     pickedAmount?: number | null;
     pickedDate?: string | null;
-    pickedUpdatedBy?: (string | null) | User;
+    pickedUpdatedBy?: (number | null) | User;
     receivedQty?: number | null;
     receivedAmount?: number | null;
     receivedDate?: string | null;
@@ -887,9 +887,9 @@ export interface StockOrder {
     status?: ('ordered' | 'sending' | 'confirmed' | 'picked' | 'received') | null;
     id?: string | null;
   }[];
-  branch: string | Branch;
-  createdBy: string | User;
-  company: string | Company;
+  branch: number | Branch;
+  createdBy: number | User;
+  company: number | Company;
   status?: ('ordered' | 'sending' | 'confirmed' | 'picked' | 'received') | null;
   notes?: string | null;
   updatedAt: string;
@@ -900,11 +900,11 @@ export interface StockOrder {
  * via the `definition` "reviews".
  */
 export interface Review {
-  id: string;
-  bill: string | Billing;
+  id: number;
+  bill: number | Billing;
   items?:
     | {
-        product: string | Product;
+        product: number | Product;
         rating?: number | null;
         feedback: string;
         /**
@@ -919,7 +919,7 @@ export interface Review {
     | null;
   customerName?: string | null;
   customerPhone?: string | null;
-  branch?: (string | null) | Branch;
+  branch?: (number | null) | Branch;
   updatedAt: string;
   createdAt: string;
 }
@@ -928,10 +928,10 @@ export interface Review {
  * via the `definition` "customers".
  */
 export interface Customer {
-  id: string;
+  id: number;
   name: string;
   phoneNumber: string;
-  bills?: (string | Billing)[] | null;
+  bills?: (number | Billing)[] | null;
   /**
    * Editable: manually adjust customer points when required.
    */
@@ -950,7 +950,7 @@ export interface Customer {
   totalOffersRedeemed?: number | null;
   randomCustomerOfferAssigned?: boolean | null;
   randomCustomerOfferRedeemed?: boolean | null;
-  randomCustomerOfferProduct?: (string | null) | Product;
+  randomCustomerOfferProduct?: (number | null) | Product;
   randomCustomerOfferCampaignCode?: string | null;
   randomCustomerOfferAssignedAt?: string | null;
   updatedAt: string;
@@ -961,10 +961,10 @@ export interface Customer {
  * via the `definition` "billing-customers".
  */
 export interface BillingCustomer {
-  id: string;
+  id: number;
   name: string;
   phoneNumber: string;
-  lastBill?: (string | null) | Billing;
+  lastBill?: (number | null) | Billing;
   lastSyncedAt?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -974,19 +974,19 @@ export interface BillingCustomer {
  * via the `definition` "instock-entries".
  */
 export interface InstockEntry {
-  id: string;
+  id: number;
   invoiceNumber: string;
   date: string;
   items: {
-    product: string | Product;
-    dealer?: (string | null) | Dealer;
+    product: number | Product;
+    dealer?: (number | null) | Dealer;
     instock: number;
     status?: ('waiting' | 'approved') | null;
     id?: string | null;
   }[];
-  branch: string | Branch;
-  createdBy: string | User;
-  company: string | Company;
+  branch: number | Branch;
+  createdBy: number | User;
+  company: number | Company;
   status?: ('waiting' | 'approved') | null;
   updatedAt: string;
   createdAt: string;
@@ -996,11 +996,11 @@ export interface InstockEntry {
  * via the `definition` "tables".
  */
 export interface Table {
-  id: string;
+  id: number;
   /**
    * Select the branch this table configuration belongs to.
    */
-  branch: string | Branch;
+  branch: number | Branch;
   /**
    * Single section can have multiple rows. Add one table range per row (example: Row 1 = T1-T3, Row 2 = T4-T6).
    */
@@ -1041,8 +1041,8 @@ export interface Table {
  * via the `definition` "attendance".
  */
 export interface Attendance {
-  id: string;
-  user: string | User;
+  id: number;
+  user: number | User;
   /**
    * The local date this log represents (normalized to midnight)
    */
@@ -1084,7 +1084,7 @@ export interface Attendance {
  * via the `definition` "apk-files".
  */
 export interface ApkFile {
-  id: string;
+  id: number;
   prefix?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -1103,17 +1103,17 @@ export interface ApkFile {
  * via the `definition` "stock-alerts".
  */
 export interface StockAlert {
-  id: string;
-  branch: string | Branch;
+  id: number;
+  branch: number | Branch;
   branchName?: string | null;
-  product: string | Product;
+  product: number | Product;
   productName?: string | null;
-  requestedBy: string | User;
+  requestedBy: number | User;
   requestedByName?: string | null;
   requestedByRole?: string | null;
   status: 'open' | 'acknowledged';
   acknowledgedAt?: string | null;
-  acknowledgedBy?: (string | null) | User;
+  acknowledgedBy?: (number | null) | User;
   updatedAt: string;
   createdAt: string;
 }
@@ -1122,7 +1122,7 @@ export interface StockAlert {
  * via the `definition` "idempotency-keys".
  */
 export interface IdempotencyKey {
-  id: string;
+  id: number;
   key: string;
   scope: string;
   requestHash: string;
@@ -1151,124 +1151,124 @@ export interface IdempotencyKey {
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
-  id: string;
+  id: number;
   document?:
     | ({
         relationTo: 'users';
-        value: string | User;
+        value: number | User;
       } | null)
     | ({
         relationTo: 'companies';
-        value: string | Company;
+        value: number | Company;
       } | null)
     | ({
         relationTo: 'branches';
-        value: string | Branch;
+        value: number | Branch;
       } | null)
     | ({
         relationTo: 'departments';
-        value: string | Department;
+        value: number | Department;
       } | null)
     | ({
         relationTo: 'categories';
-        value: string | Category;
+        value: number | Category;
       } | null)
     | ({
         relationTo: 'products';
-        value: string | Product;
+        value: number | Product;
       } | null)
     | ({
         relationTo: 'media';
-        value: string | Media;
+        value: number | Media;
       } | null)
     | ({
         relationTo: 'dealers';
-        value: string | Dealer;
+        value: number | Dealer;
       } | null)
     | ({
         relationTo: 'employees';
-        value: string | Employee;
+        value: number | Employee;
       } | null)
     | ({
         relationTo: 'message-threads';
-        value: string | MessageThread;
+        value: number | MessageThread;
       } | null)
     | ({
         relationTo: 'message-attachments';
-        value: string | MessageAttachment;
+        value: number | MessageAttachment;
       } | null)
     | ({
         relationTo: 'messages';
-        value: string | Message;
+        value: number | Message;
       } | null)
     | ({
         relationTo: 'message-receipts';
-        value: string | MessageReceipt;
+        value: number | MessageReceipt;
       } | null)
     | ({
         relationTo: 'billings';
-        value: string | Billing;
+        value: number | Billing;
       } | null)
     | ({
         relationTo: 'return-orders';
-        value: string | ReturnOrder;
+        value: number | ReturnOrder;
       } | null)
     | ({
         relationTo: 'closing-entries';
-        value: string | ClosingEntry;
+        value: number | ClosingEntry;
       } | null)
     | ({
         relationTo: 'expenses';
-        value: string | Expense;
+        value: number | Expense;
       } | null)
     | ({
         relationTo: 'stock-orders';
-        value: string | StockOrder;
+        value: number | StockOrder;
       } | null)
     | ({
         relationTo: 'reviews';
-        value: string | Review;
+        value: number | Review;
       } | null)
     | ({
         relationTo: 'customers';
-        value: string | Customer;
+        value: number | Customer;
       } | null)
     | ({
         relationTo: 'billing-customers';
-        value: string | BillingCustomer;
+        value: number | BillingCustomer;
       } | null)
     | ({
         relationTo: 'instock-entries';
-        value: string | InstockEntry;
+        value: number | InstockEntry;
       } | null)
     | ({
         relationTo: 'tables';
-        value: string | Table;
+        value: number | Table;
       } | null)
     | ({
         relationTo: 'kitchens';
-        value: string | Kitchen;
+        value: number | Kitchen;
       } | null)
     | ({
         relationTo: 'attendance';
-        value: string | Attendance;
+        value: number | Attendance;
       } | null)
     | ({
         relationTo: 'apk-files';
-        value: string | ApkFile;
+        value: number | ApkFile;
       } | null)
     | ({
         relationTo: 'stock-alerts';
-        value: string | StockAlert;
+        value: number | StockAlert;
       } | null)
     | ({
         relationTo: 'idempotency-keys';
-        value: string | IdempotencyKey;
+        value: number | IdempotencyKey;
       } | null);
   globalSlug?: string | null;
   user: {
     relationTo: 'users';
-    value: string | User;
+    value: number | User;
   };
   updatedAt: string;
   createdAt: string;
@@ -1278,10 +1278,10 @@ export interface PayloadLockedDocument {
  * via the `definition` "payload-preferences".
  */
 export interface PayloadPreference {
-  id: string;
+  id: number;
   user: {
     relationTo: 'users';
-    value: string | User;
+    value: number | User;
   };
   key?: string | null;
   value?:
@@ -1301,7 +1301,7 @@ export interface PayloadPreference {
  * via the `definition` "payload-migrations".
  */
 export interface PayloadMigration {
-  id: string;
+  id: number;
   name?: string | null;
   batch?: number | null;
   updatedAt: string;
@@ -2096,7 +2096,7 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
  * via the `definition` "ip-settings".
  */
 export interface IpSetting {
-  id: string;
+  id: number;
   roleRestrictions?:
     | {
         role: 'chef' | 'driver' | 'supervisor' | 'waiter' | 'cashier' | 'delivery' | 'branch' | 'kitchen';
@@ -2122,7 +2122,7 @@ export interface IpSetting {
  * via the `definition` "general-dashboard".
  */
 export interface GeneralDashboard {
-  id: string;
+  id: number;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2131,7 +2131,7 @@ export interface GeneralDashboard {
  * via the `definition` "branch-billing-report".
  */
 export interface BranchBillingReport {
-  id: string;
+  id: number;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2140,7 +2140,7 @@ export interface BranchBillingReport {
  * via the `definition` "category-wise-report".
  */
 export interface CategoryWiseReport {
-  id: string;
+  id: number;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2149,7 +2149,7 @@ export interface CategoryWiseReport {
  * via the `definition` "product-wise-report".
  */
 export interface ProductWiseReport {
-  id: string;
+  id: number;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2158,7 +2158,7 @@ export interface ProductWiseReport {
  * via the `definition` "product-time-report".
  */
 export interface ProductTimeReport {
-  id: string;
+  id: number;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2167,7 +2167,7 @@ export interface ProductTimeReport {
  * via the `definition` "chef-report".
  */
 export interface ChefReport {
-  id: string;
+  id: number;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2176,7 +2176,7 @@ export interface ChefReport {
  * via the `definition` "closing-entry-report".
  */
 export interface ClosingEntryReport {
-  id: string;
+  id: number;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2185,7 +2185,7 @@ export interface ClosingEntryReport {
  * via the `definition` "waiter-wise-billing-report".
  */
 export interface WaiterWiseBillingReport {
-  id: string;
+  id: number;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2194,7 +2194,7 @@ export interface WaiterWiseBillingReport {
  * via the `definition` "inventory-report".
  */
 export interface InventoryReport {
-  id: string;
+  id: number;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2203,7 +2203,7 @@ export interface InventoryReport {
  * via the `definition` "stock-order-report".
  */
 export interface StockOrderReport {
-  id: string;
+  id: number;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2212,7 +2212,7 @@ export interface StockOrderReport {
  * via the `definition` "afterstock-customer-report".
  */
 export interface AfterstockCustomerReport {
-  id: string;
+  id: number;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2221,7 +2221,7 @@ export interface AfterstockCustomerReport {
  * via the `definition` "review-report".
  */
 export interface ReviewReport {
-  id: string;
+  id: number;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2230,7 +2230,7 @@ export interface ReviewReport {
  * via the `definition` "instock-entry-report".
  */
 export interface InstockEntryReport {
-  id: string;
+  id: number;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2239,7 +2239,7 @@ export interface InstockEntryReport {
  * via the `definition` "expense-report".
  */
 export interface ExpenseReport {
-  id: string;
+  id: number;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2248,7 +2248,7 @@ export interface ExpenseReport {
  * via the `definition` "return-order-report".
  */
 export interface ReturnOrderReport {
-  id: string;
+  id: number;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2257,10 +2257,10 @@ export interface ReturnOrderReport {
  * via the `definition` "branch-geo-settings".
  */
 export interface BranchGeoSetting {
-  id: string;
+  id: number;
   locations?:
     | {
-        branch: string | Branch;
+        branch: number | Branch;
         latitude: number;
         longitude: number;
         /**
@@ -2277,7 +2277,7 @@ export interface BranchGeoSetting {
         printerIp?: string | null;
         kotPrinters?:
           | {
-              kitchens: (string | Kitchen)[];
+              kitchens: (number | Kitchen)[];
               /**
                * Local IP for this category group
                */
@@ -2300,7 +2300,7 @@ export interface BranchGeoSetting {
  * via the `definition` "network-status".
  */
 export interface NetworkStatus {
-  id: string;
+  id: number;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2309,13 +2309,13 @@ export interface NetworkStatus {
  * via the `definition` "widget-settings".
  */
 export interface WidgetSetting {
-  id: string;
+  id: number;
   /**
    * Branch-wise control for showing customer details popup in table orders.
    */
   tableOrderCustomerDetailsByBranch?:
     | {
-        branch: string | Branch;
+        branch: number | Branch;
         showCustomerDetailsForTableOrders?: boolean | null;
         allowSkipCustomerDetailsForTableOrders?: boolean | null;
         showCustomerHistoryForTableOrders?: boolean | null;
@@ -2328,7 +2328,7 @@ export interface WidgetSetting {
    */
   billingOrderCustomerDetailsByBranch?:
     | {
-        branch: string | Branch;
+        branch: number | Branch;
         showCustomerDetailsForBillingOrders?: boolean | null;
         allowSkipCustomerDetailsForBillingOrders?: boolean | null;
         showCustomerHistoryForBillingOrders?: boolean | null;
@@ -2346,9 +2346,9 @@ export interface WidgetSetting {
          * Optional label to identify this rule quickly in the widget.
          */
         ruleName?: string | null;
-        branches: (string | Branch)[];
-        category?: (string | Category)[] | null;
-        products: (string | Product)[];
+        branches: (number | Branch)[];
+        category?: (number | Category)[] | null;
+        products: (number | Product)[];
         id?: string | null;
       }[]
     | null;
@@ -2362,8 +2362,8 @@ export interface WidgetSetting {
          * Optional label to identify this rule quickly in the widget.
          */
         ruleName?: string | null;
-        branches: (string | Branch)[];
-        categories: (string | Category)[];
+        branches: (number | Branch)[];
+        categories: (number | Category)[];
         id?: string | null;
       }[]
     | null;
@@ -2403,14 +2403,14 @@ export interface WidgetSetting {
  * via the `definition` "customer-offer-settings".
  */
 export interface CustomerOfferSetting {
-  id: string;
+  id: number;
   enabled?: boolean | null;
   allowCustomerCreditOfferOnBillings?: boolean | null;
   allowCustomerCreditOfferOnTableOrders?: boolean | null;
   /**
    * Leave empty to allow all branches.
    */
-  customerCreditOfferBranches?: (string | Branch)[] | null;
+  customerCreditOfferBranches?: (number | Branch)[] | null;
   /**
    * Example: 1000 means points are granted for every Rs 1000 spent.
    */
@@ -2442,16 +2442,16 @@ export interface CustomerOfferSetting {
         /**
          * Leave empty to allow all branches for this rule.
          */
-        branches?: (string | Branch)[] | null;
+        branches?: (number | Branch)[] | null;
         /**
          * Search/filter and choose product A.
          */
-        buyProduct: string | Product;
+        buyProduct: number | Product;
         buyQuantity: number;
         /**
          * Search/filter and choose product B.
          */
-        freeProduct: string | Product;
+        freeProduct: number | Product;
         freeQuantity: number;
         /**
          * 0 means unlimited.
@@ -2467,13 +2467,13 @@ export interface CustomerOfferSetting {
         maxUsagePerCustomer?: number | null;
         offerGivenCount?: number | null;
         offerCustomerCount?: number | null;
-        offerCustomers?: (string | Customer)[] | null;
+        offerCustomers?: (number | Customer)[] | null;
         /**
          * Per-customer usage count for this rule.
          */
         offerCustomerUsage?:
           | {
-              customer: string | Customer;
+              customer: number | Customer;
               usageCount: number;
               id?: string | null;
             }[]
@@ -2492,11 +2492,11 @@ export interface CustomerOfferSetting {
         /**
          * Leave empty to allow all branches for this rule.
          */
-        branches?: (string | Branch)[] | null;
+        branches?: (number | Branch)[] | null;
         /**
          * Search/filter and choose the product (e.g., Tea).
          */
-        product: string | Product;
+        product: number | Product;
         productCurrentPrice?: number | null;
         discountAmount: number;
         /**
@@ -2517,13 +2517,13 @@ export interface CustomerOfferSetting {
         maxUsagePerCustomer?: number | null;
         offerGivenCount?: number | null;
         offerCustomerCount?: number | null;
-        offerCustomers?: (string | Customer)[] | null;
+        offerCustomers?: (number | Customer)[] | null;
         /**
          * Per-customer usage count for this rule.
          */
         offerCustomerUsage?:
           | {
-              customer: string | Customer;
+              customer: number | Customer;
               usageCount: number;
               id?: string | null;
             }[]
@@ -2560,8 +2560,8 @@ export interface CustomerOfferSetting {
         /**
          * Leave empty to allow all branches for this rule.
          */
-        branches?: (string | Branch)[] | null;
-        product: string | Product;
+        branches?: (number | Branch)[] | null;
+        product: number | Product;
         winnerCount: number;
         /**
          * Chance to award this rule for an eligible customer bill.
@@ -2787,13 +2787,13 @@ export interface CustomerOfferSetting {
           | null;
         assignedCount?: number | null;
         redeemedCount?: number | null;
-        selectedCustomers?: (string | Customer)[] | null;
+        selectedCustomers?: (number | Customer)[] | null;
         /**
          * Per-customer usage count for this product rule.
          */
         offerCustomerUsage?:
           | {
-              customer: string | Customer;
+              customer: number | Customer;
               usageCount: number;
               id?: string | null;
             }[]
@@ -2807,7 +2807,7 @@ export interface CustomerOfferSetting {
   /**
    * Leave empty to allow all branches.
    */
-  totalPercentageOfferBranches?: (string | Branch)[] | null;
+  totalPercentageOfferBranches?: (number | Branch)[] | null;
   /**
    * Example: 10 means 10% discount on total amount.
    */
@@ -3044,13 +3044,13 @@ export interface CustomerOfferSetting {
     | null;
   totalPercentageOfferGivenCount?: number | null;
   totalPercentageOfferCustomerCount?: number | null;
-  totalPercentageOfferCustomers?: (string | Customer)[] | null;
+  totalPercentageOfferCustomers?: (number | Customer)[] | null;
   /**
    * Per-customer usage count for total percentage offer.
    */
   totalPercentageOfferCustomerUsage?:
     | {
-        customer: string | Customer;
+        customer: number | Customer;
         usageCount: number;
         id?: string | null;
       }[]
@@ -3061,7 +3061,7 @@ export interface CustomerOfferSetting {
   /**
    * Leave empty to allow all branches.
    */
-  customerEntryPercentageOfferBranches?: (string | Branch)[] | null;
+  customerEntryPercentageOfferBranches?: (number | Branch)[] | null;
   /**
    * Auto-applied to all eligible bills. Example: 5 means 5% discount.
    */
@@ -3286,13 +3286,13 @@ export interface CustomerOfferSetting {
     | null;
   customerEntryPercentageOfferGivenCount?: number | null;
   customerEntryPercentageOfferCustomerCount?: number | null;
-  customerEntryPercentageOfferCustomers?: (string | Customer)[] | null;
+  customerEntryPercentageOfferCustomers?: (number | Customer)[] | null;
   /**
    * Per-customer usage count for customer entry percentage offer.
    */
   customerEntryPercentageOfferCustomerUsage?:
     | {
-        customer: string | Customer;
+        customer: number | Customer;
         usageCount: number;
         id?: string | null;
       }[]
@@ -3308,7 +3308,7 @@ export interface CustomerOfferSetting {
         /**
          * Leave empty to allow all branches for this rule.
          */
-        branches?: (string | Branch)[] | null;
+        branches?: (number | Branch)[] | null;
         /**
          * Apply this free product only when gross bill amount reaches this value.
          */
@@ -3317,7 +3317,7 @@ export interface CustomerOfferSetting {
         /**
          * Search/filter and choose the free product to add.
          */
-        freeProduct: string | Product;
+        freeProduct: number | Product;
         /**
          * 0 means unlimited.
          */
@@ -3332,13 +3332,13 @@ export interface CustomerOfferSetting {
         maxUsagePerCustomer?: number | null;
         offerGivenCount?: number | null;
         offerCustomerCount?: number | null;
-        offerCustomers?: (string | Customer)[] | null;
+        offerCustomers?: (number | Customer)[] | null;
         /**
          * Per-customer usage count for this rule.
          */
         offerCustomerUsage?:
           | {
-              customer: string | Customer;
+              customer: number | Customer;
               usageCount: number;
               id?: string | null;
             }[]
@@ -3354,14 +3354,14 @@ export interface CustomerOfferSetting {
  * via the `definition` "app-download-settings".
  */
 export interface AppDownloadSetting {
-  id: string;
+  id: number;
   /**
    * Add each app with name + APK upload. Every app gets a stable download URL you can share with teammates.
    */
   apps?:
     | {
         appName: string;
-        apkFile?: (string | null) | ApkFile;
+        apkFile?: (number | null) | ApkFile;
         /**
          * Share this link with teammates for this app.
          */

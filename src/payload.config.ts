@@ -1,5 +1,6 @@
 import { s3Storage } from '@payloadcms/storage-s3'
 import { mongooseAdapter } from '@payloadcms/db-mongodb'
+import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import path from 'path'
 // Force rebuild
@@ -125,6 +126,76 @@ const normalizeAbsoluteURL = (value?: string | null): string => {
 
 const publicServerURL = normalizeAbsoluteURL(process.env.PAYLOAD_PUBLIC_SERVER_URL)
 const vercelURL = process.env.VERCEL_URL?.trim()
+
+type SupportedDBMode = 'postgres' | 'mongo'
+
+const resolveDBMode = (): SupportedDBMode => {
+  const rawMode = process.env.PAYLOAD_DB_MODE?.trim().toLowerCase()
+  if (rawMode === 'mongo') return 'mongo'
+  return 'postgres'
+}
+
+const dbMode = resolveDBMode()
+const postgresConnectionString =
+  process.env.POSTGRES_URI?.trim() || process.env.DATABASE_URI?.trim() || ''
+const mongoConnectionString =
+  process.env.MONGODB_URI?.trim() ||
+  process.env.MONGO_URI?.trim() ||
+  process.env.DATABASE_URI?.trim() ||
+  ''
+
+const looksLikeMongoURI = (value: string): boolean => /^mongodb(\+srv)?:\/\//i.test(value)
+const looksLikePostgresURI = (value: string): boolean => /^postgres(ql)?:\/\//i.test(value)
+
+if (dbMode === 'postgres') {
+  if (!postgresConnectionString) {
+    throw new Error(
+      '[DB config] Missing Postgres connection string. Set POSTGRES_URI or DATABASE_URI when PAYLOAD_DB_MODE=postgres.',
+    )
+  }
+
+  if (looksLikeMongoURI(postgresConnectionString)) {
+    throw new Error(
+      '[DB config] PAYLOAD_DB_MODE=postgres but connection string looks like MongoDB. Set POSTGRES_URI (or DATABASE_URI) to a postgres:// URL.',
+    )
+  }
+}
+
+if (dbMode === 'mongo') {
+  if (!mongoConnectionString) {
+    throw new Error(
+      '[DB config] Missing MongoDB connection string. Set MONGODB_URI (or DATABASE_URI fallback) when PAYLOAD_DB_MODE=mongo.',
+    )
+  }
+
+  if (looksLikePostgresURI(mongoConnectionString)) {
+    throw new Error(
+      '[DB config] PAYLOAD_DB_MODE=mongo but connection string looks like PostgreSQL. Set MONGODB_URI to a mongodb:// or mongodb+srv:// URL.',
+    )
+  }
+}
+
+const dbAdapter =
+  dbMode === 'mongo'
+    ? mongooseAdapter({
+        url: mongoConnectionString,
+        connectOptions: {
+          maxPoolSize: 100,
+          minPoolSize: 10,
+          maxIdleTimeMS: 20000,
+          waitQueueTimeoutMS: 8000,
+          serverSelectionTimeoutMS: 5000,
+          socketTimeoutMS: 45000,
+          retryWrites: true,
+          retryReads: true,
+        },
+      })
+    : postgresAdapter({
+        pool: {
+          connectionString: postgresConnectionString,
+        },
+        push: false,
+      })
 
 const rawR2Env = {
   S3_BUCKET: process.env.S3_BUCKET?.trim(),
@@ -474,21 +545,7 @@ export default buildConfig({
     outputFile: path.resolve(dirname, 'payload-types.ts'),
   },
 
-  db: mongooseAdapter({
-    url: process.env.DATABASE_URI || '',
-
-    connectOptions: {
-      maxPoolSize: 100,
-      minPoolSize: 10,
-      maxIdleTimeMS: 20000,
-      waitQueueTimeoutMS: 8000,
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-      retryWrites: true,
-      retryReads: true,
-    },
-  }),
-
+  db: dbAdapter,
   sharp,
   serverURL: publicServerURL || (vercelURL ? `https://${vercelURL}` : 'http://localhost:3000'),
   plugins: [
@@ -518,6 +575,6 @@ export default buildConfig({
   ],
   onInit: async (payload) => {
     await setupIdempotencyRetention(payload)
-    console.log('[Payload] Initialization successful')
+    console.log(`[Payload] Initialization successful (db mode: ${dbMode})`)
   },
 })

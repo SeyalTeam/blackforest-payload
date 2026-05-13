@@ -24,6 +24,26 @@ After you click the `Deploy` button above, you'll want to have standalone copy o
 
 That's it! Changes made in `./src` will be reflected in your app. Follow the on-screen instructions to login and create your first admin user. Then check out [Production](#production) once you're ready to build and serve your app, and [Deployment](#deployment) when you're ready to go live.
 
+### Database Mode Toggle (Mongo / Postgres)
+
+This project supports both MongoDB and PostgreSQL without editing source files.
+
+1. Set mode in `.env`:
+   - `PAYLOAD_DB_MODE=mongo`
+   - `PAYLOAD_DB_MODE=postgres`
+2. Set connection strings:
+   - Mongo mode uses `MONGODB_URI` (or `DATABASE_URI` fallback)
+   - Postgres mode uses `POSTGRES_URI` (or `DATABASE_URI` fallback)
+3. Start using mode-specific commands:
+   - `npm run dev:mongo`
+   - `npm run dev:postgres`
+   - `npm run start:mongo`
+   - `npm run start:postgres`
+
+Migration helpers:
+- Export from Mongo: `npm run migrate:export:mongo -- <collection-slug>`
+- Import to Postgres: `npm run migrate:import:postgres -- <collection-slug>`
+
 #### Docker (Optional)
 
 If you prefer to use Docker for local development instead of a local MongoDB instance, the provided docker-compose.yml file can be used.

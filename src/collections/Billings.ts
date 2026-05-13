@@ -22,8 +22,8 @@ dayjs.extend(utc)
 dayjs.extend(timezone)
 
 const BILLING_TIMEZONE = 'Asia/Kolkata'
-const BILLINGS_REST_LIST_MAX_DEPTH = 1
-const BILLINGS_REST_LIST_MAX_DEPTH_PRIVILEGED = 2
+const BILLINGS_REST_LIST_MAX_DEPTH = 2
+const BILLINGS_REST_LIST_MAX_DEPTH_PRIVILEGED = 3
 const BILLINGS_REST_LIST_MAX_LIMIT = 80
 const BILLINGS_REST_LIST_MAX_LIMIT_PRIVILEGED = 120
 const BILLINGS_READ_PRIVILEGED_ROLES = new Set(['superadmin', 'admin', 'company'])
@@ -2077,28 +2077,10 @@ const Billings: CollectionConfig = {
   },
   indexes: [
     {
-      fields: ['branch', 'invoiceNumber'],
-    },
-    {
-      fields: ['branch', 'kotNumber'],
-    },
-    {
-      fields: ['invoiceNumber'],
-    },
-    {
-      fields: ['kotNumber'],
-    },
-    {
       fields: ['customerDetails.phoneNumber', 'createdAt'],
     },
     {
       fields: ['branch', 'createdAt'],
-    },
-    {
-      fields: ['items.product'],
-    },
-    {
-      fields: ['items.status'],
     },
   ],
   endpoints: [
@@ -3950,11 +3932,13 @@ const Billings: CollectionConfig = {
           type: 'relationship',
           relationTo: 'products',
           required: true,
+          index: true,
         },
         {
           name: 'status',
           type: 'select',
           defaultValue: 'ordered',
+          index: true,
           options: [
             { label: 'Ordered', value: 'ordered' },
             { label: 'Prepared', value: 'prepared' },
