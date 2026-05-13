@@ -136,16 +136,27 @@ const resolveDBMode = (): SupportedDBMode => {
 }
 
 const dbMode = resolveDBMode()
-const databaseURI = process.env.DATABASE_URI?.trim() || ''
+const databaseURI = process.env.DATABASE_URI?.trim() || process.env.DATABASE_URL?.trim() || ''
 
 const looksLikeMongoURI = (value: string): boolean => /^mongodb(\+srv)?:\/\//i.test(value)
 const looksLikePostgresURI = (value: string): boolean => /^postgres(ql)?:\/\//i.test(value)
+
+const postgresEnvKeys = [
+  'POSTGRES_URI',
+  'POSTGRES_URL',
+  'POSTGRES_PRISMA_URL',
+  'POSTGRES_URL_NON_POOLING',
+  'DATABASE_URL',
+  'DIRECT_URL',
+] as const
 
 const rawPostgresConnectionString =
   process.env.POSTGRES_URI?.trim() ||
   process.env.POSTGRES_URL?.trim() ||
   process.env.POSTGRES_PRISMA_URL?.trim() ||
   process.env.POSTGRES_URL_NON_POOLING?.trim() ||
+  process.env.DATABASE_URL?.trim() ||
+  process.env.DIRECT_URL?.trim() ||
   ''
 
 const postgresConnectionString =
@@ -160,8 +171,13 @@ const mongoConnectionString =
 
 if (dbMode === 'postgres') {
   if (!postgresConnectionString) {
+    const presentPostgresEnv = postgresEnvKeys.filter((key) => Boolean(process.env[key]?.trim()))
+    const presentSummary = presentPostgresEnv.length
+      ? `Present vars: ${presentPostgresEnv.join(', ')}`
+      : 'No Postgres-like env vars detected.'
+
     throw new Error(
-      '[DB config] Missing Postgres connection string. Set POSTGRES_URI/POSTGRES_URL (or DATABASE_URI with a postgres:// URL) when PAYLOAD_DB_MODE=postgres.',
+      `[DB config] Missing Postgres connection string. Set one of ${postgresEnvKeys.join(', ')} (or DATABASE_URI with a postgres:// URL) when PAYLOAD_DB_MODE=postgres. ${presentSummary}`,
     )
   }
 
