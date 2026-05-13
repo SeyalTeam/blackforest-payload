@@ -132,7 +132,8 @@ type SupportedDBMode = 'postgres' | 'mongo'
 const resolveDBMode = (): SupportedDBMode => {
   const rawMode = process.env.PAYLOAD_DB_MODE?.trim().toLowerCase()
   if (rawMode === 'mongo') return 'mongo'
-  return 'postgres'
+  if (rawMode === 'postgres') return 'postgres'
+  return 'mongo'
 }
 
 const dbMode = resolveDBMode()
