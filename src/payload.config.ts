@@ -136,21 +136,32 @@ const resolveDBMode = (): SupportedDBMode => {
 }
 
 const dbMode = resolveDBMode()
-const postgresConnectionString =
-  process.env.POSTGRES_URI?.trim() || process.env.DATABASE_URI?.trim() || ''
-const mongoConnectionString =
-  process.env.MONGODB_URI?.trim() ||
-  process.env.MONGO_URI?.trim() ||
-  process.env.DATABASE_URI?.trim() ||
-  ''
+const databaseURI = process.env.DATABASE_URI?.trim() || ''
 
 const looksLikeMongoURI = (value: string): boolean => /^mongodb(\+srv)?:\/\//i.test(value)
 const looksLikePostgresURI = (value: string): boolean => /^postgres(ql)?:\/\//i.test(value)
 
+const rawPostgresConnectionString =
+  process.env.POSTGRES_URI?.trim() ||
+  process.env.POSTGRES_URL?.trim() ||
+  process.env.POSTGRES_PRISMA_URL?.trim() ||
+  process.env.POSTGRES_URL_NON_POOLING?.trim() ||
+  ''
+
+const postgresConnectionString =
+  rawPostgresConnectionString ||
+  (looksLikePostgresURI(databaseURI) ? databaseURI : '')
+
+const rawMongoConnectionString =
+  process.env.MONGODB_URI?.trim() || process.env.MONGO_URI?.trim() || ''
+
+const mongoConnectionString =
+  rawMongoConnectionString || (looksLikeMongoURI(databaseURI) ? databaseURI : '')
+
 if (dbMode === 'postgres') {
   if (!postgresConnectionString) {
     throw new Error(
-      '[DB config] Missing Postgres connection string. Set POSTGRES_URI or DATABASE_URI when PAYLOAD_DB_MODE=postgres.',
+      '[DB config] Missing Postgres connection string. Set POSTGRES_URI/POSTGRES_URL (or DATABASE_URI with a postgres:// URL) when PAYLOAD_DB_MODE=postgres.',
     )
   }
 
@@ -164,7 +175,7 @@ if (dbMode === 'postgres') {
 if (dbMode === 'mongo') {
   if (!mongoConnectionString) {
     throw new Error(
-      '[DB config] Missing MongoDB connection string. Set MONGODB_URI (or DATABASE_URI fallback) when PAYLOAD_DB_MODE=mongo.',
+      '[DB config] Missing MongoDB connection string. Set MONGODB_URI/MONGO_URI (or DATABASE_URI with a mongodb:// URL) when PAYLOAD_DB_MODE=mongo.',
     )
   }
 
