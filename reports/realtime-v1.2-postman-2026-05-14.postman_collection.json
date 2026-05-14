@@ -1,0 +1,391 @@
+{
+  "info": {
+    "_postman_id": "6f84796d-6f12-4e7f-8f36-9c8c2f8a2f50",
+    "name": "Blackforest Realtime v1.2 Validation",
+    "description": "REST baseline + realtime prep for KOT instant confirmed updates.\\n\\nUsage:\\n1. Set collection variables (baseUrl, email, password, billId, itemId, branchId, kitchenId optional).\\n2. Run Login request to store bearerToken.\\n3. Run Update Item Status -> Poll Bill By ID to verify backend status transition.\\n4. Use WebSocket tab in Postman with URL wss://<host>/ws/v1 and header Authorization: Bearer {{bearerToken}}.\\n5. Send subscribe/resume/unsubscribe payloads from the Examples folder in this collection.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 - Login",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('requestId', `req_${Date.now()}`);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "let body = {};",
+              "try { body = pm.response.json(); } catch (e) {}",
+              "",
+              "const token = body.accessToken || body?.data?.accessToken || body.token || null;",
+              "pm.test('access token returned', function () {",
+              "  pm.expect(token, 'Missing access token in response').to.be.a('string');",
+              "});",
+              "",
+              "if (token) {",
+              "  pm.collectionVariables.set('bearerToken', token);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-request-id",
+            "value": "{{requestId}}"
+          },
+          {
+            "key": "x-bf-response-envelope",
+            "value": "v1"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/users/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "login"
+          ]
+        },
+        "description": "Login and store bearer token in collection variable `bearerToken`."
+      },
+      "response": []
+    },
+    {
+      "name": "02 - Get Runtime API Domain",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const body = pm.response.json();",
+              "pm.test('has activeDomain', function () {",
+              "  pm.expect(body.activeDomain).to.be.a('string');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "x-request-id",
+            "value": "req_runtime_domain"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/runtime/api-domain?appKey=billing-app",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "runtime",
+            "api-domain"
+          ],
+          "query": [
+            {
+              "key": "appKey",
+              "value": "billing-app"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "03 - Update Item Status (to confirmed)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('requestId', `req_item_status_${Date.now()}`);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const body = pm.response.json();",
+              "const items = Array.isArray(body.items) ? body.items : [];",
+              "const target = items.find((i) => i.id === pm.collectionVariables.get('itemId'));",
+              "",
+              "pm.test('target item exists in response', function () {",
+              "  pm.expect(Boolean(target)).to.equal(true);",
+              "});",
+              "",
+              "if (target) {",
+              "  pm.test('target item is confirmed', function () {",
+              "    pm.expect(target.status).to.equal('confirmed');",
+              "  });",
+              "  if (target.confirmedAt) {",
+              "    pm.collectionVariables.set('lastConfirmedAt', target.confirmedAt);",
+              "  }",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bearerToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-request-id",
+            "value": "{{requestId}}"
+          },
+          {
+            "key": "x-bf-response-envelope",
+            "value": "v1"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"itemId\": \"{{itemId}}\",\n  \"status\": \"confirmed\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/billings/{{billId}}/items/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "billings",
+            "{{billId}}",
+            "items",
+            "status"
+          ]
+        },
+        "description": "Backend write used as trigger event source for realtime validation."
+      },
+      "response": []
+    },
+    {
+      "name": "04 - Poll Bill By ID",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const body = pm.response.json();",
+              "const items = Array.isArray(body.items) ? body.items : [];",
+              "const target = items.find((i) => i.id === pm.collectionVariables.get('itemId'));",
+              "",
+              "pm.test('target item exists', function () {",
+              "  pm.expect(Boolean(target)).to.equal(true);",
+              "});",
+              "",
+              "if (target) {",
+              "  pm.test('target item status is confirmed', function () {",
+              "    pm.expect(target.status).to.equal('confirmed');",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bearerToken}}"
+          },
+          {
+            "key": "x-request-id",
+            "value": "req_poll_bill_{{billId}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/billings/{{billId}}?depth=0",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "billings",
+            "{{billId}}"
+          ],
+          "query": [
+            {
+              "key": "depth",
+              "value": "0"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Examples - WS Frames",
+      "item": [
+        {
+          "name": "subscribe.json",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"subscribe\",\n  \"requestId\": \"sub_001\",\n  \"topic\": \"billing.item.status\",\n  \"branchId\": \"{{branchId}}\",\n  \"kitchenId\": \"{{kitchenId}}\"\n}"
+            },
+            "url": {
+              "raw": "https://example.invalid/ws-frame-template",
+              "protocol": "https",
+              "host": [
+                "example",
+                "invalid"
+              ],
+              "path": [
+                "ws-frame-template"
+              ]
+            },
+            "description": "Template only. Copy this JSON into Postman WebSocket message pane."
+          },
+          "response": []
+        },
+        {
+          "name": "resume.json",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"resume\",\n  \"requestId\": \"resume_001\",\n  \"lastEventId\": \"evt_...\"\n}"
+            },
+            "url": {
+              "raw": "https://example.invalid/ws-frame-template",
+              "protocol": "https",
+              "host": [
+                "example",
+                "invalid"
+              ],
+              "path": [
+                "ws-frame-template"
+              ]
+            },
+            "description": "Template only. Use on reconnect to request replay."
+          },
+          "response": []
+        },
+        {
+          "name": "unsubscribe.json",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"unsubscribe\",\n  \"requestId\": \"unsub_001\",\n  \"topic\": \"billing.item.status\",\n  \"branchId\": \"{{branchId}}\",\n  \"kitchenId\": \"{{kitchenId}}\"\n}"
+            },
+            "url": {
+              "raw": "https://example.invalid/ws-frame-template",
+              "protocol": "https",
+              "host": [
+                "example",
+                "invalid"
+              ],
+              "path": [
+                "ws-frame-template"
+              ]
+            },
+            "description": "Template only. Expect status=unsubscribed ACK."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://blackforest.vseyal.com"
+    },
+    {
+      "key": "email",
+      "value": "qa@example.com"
+    },
+    {
+      "key": "password",
+      "value": "replace-me"
+    },
+    {
+      "key": "bearerToken",
+      "value": ""
+    },
+    {
+      "key": "billId",
+      "value": ""
+    },
+    {
+      "key": "itemId",
+      "value": ""
+    },
+    {
+      "key": "branchId",
+      "value": ""
+    },
+    {
+      "key": "kitchenId",
+      "value": ""
+    },
+    {
+      "key": "requestId",
+      "value": ""
+    },
+    {
+      "key": "lastConfirmedAt",
+      "value": ""
+    }
+  ]
+}

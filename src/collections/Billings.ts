@@ -4178,6 +4178,29 @@ const Billings: CollectionConfig = {
           },
         },
         {
+          name: 'itemVersion',
+          type: 'number',
+          min: 0,
+          defaultValue: 0,
+          admin: {
+            readOnly: true,
+            position: 'sidebar',
+            description: 'Monotonic item version for realtime conflict handling.',
+          },
+        },
+        {
+          name: 'itemUpdatedAt',
+          type: 'date',
+          admin: {
+            readOnly: true,
+            position: 'sidebar',
+            date: {
+              pickerAppearance: 'dayAndTime',
+            },
+            description: 'Latest item mutation timestamp emitted through realtime.',
+          },
+        },
+        {
           name: 'preparedAt',
           type: 'text',
           admin: { readOnly: true, position: 'sidebar' },
@@ -4375,6 +4398,17 @@ const Billings: CollectionConfig = {
         { label: 'Settled', value: 'settled' },
         { label: 'Cancelled', value: 'cancelled' },
       ],
+    },
+    {
+      name: 'realtimeSeq',
+      type: 'number',
+      min: 0,
+      defaultValue: 0,
+      admin: {
+        readOnly: true,
+        position: 'sidebar',
+        description: 'Monotonic per-bill websocket sequence for replay ordering.',
+      },
     },
     {
       name: 'customerOfferApplied',
