@@ -169,22 +169,45 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
     }
 
     if (mode === 'categories') {
+      // Resolve company from branch
+      const branch = await req.payload.findByID({
+        collection: 'branches',
+        id: branchID,
+        depth: 0,
+        overrideAccess: true,
+      })
+
+      if (!branch) {
+        return Response.json({ message: 'Branch not found' }, { status: 404 })
+      }
+
+      const companyID = getRelationshipID(branch.company)
+
       const categoriesResult = await req.payload.find({
         collection: 'categories',
-        depth: 1,
+        depth: 0,
         pagination: false,
         limit: 300,
         sort: 'name',
         where: {
-          isBilling: {
-            equals: true,
-          },
+          and: [
+            {
+              isBilling: {
+                equals: true,
+              },
+            },
+            {
+              company: {
+                contains: companyID,
+              },
+            },
+          ],
         },
         overrideAccess: true,
       })
 
       const categoriesDocs = Array.isArray(categoriesResult?.docs)
-        ? (categoriesResult.docs as CategoryDoc[])
+        ? (categoriesResult.docs as any[])
         : []
 
       const categories = categoriesDocs
@@ -202,24 +225,17 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
             imageUrl,
             thumbnailURL: imageUrl,
             image: imageUrl,
+            company: doc.company,
+            department: doc.department,
           }
         })
-        .filter(
-          (
-            row,
-          ): row is {
-            id: string
-            name: string
-            imageUrl: string | null
-            thumbnailURL: string | null
-            image: string | null
-          } => row !== null,
-        )
+        .filter((row) => row !== null)
 
       return Response.json(
         {
           mode,
           branchId: branchID,
+          companyId: companyID,
           count: categories.length,
           categories,
         },
