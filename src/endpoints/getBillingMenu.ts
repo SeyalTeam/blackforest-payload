@@ -185,7 +185,7 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
 
       const categoriesResult = await req.payload.find({
         collection: 'categories',
-        depth: 0,
+        depth: 1,
         pagination: false,
         limit: 300,
         sort: 'name',
@@ -224,7 +224,7 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
             name: toText(doc.name).trim() || id,
             imageUrl,
             thumbnailURL: imageUrl,
-            image: imageUrl,
+            image: doc.image || imageUrl,
             company: doc.company,
             department: doc.department,
           }
