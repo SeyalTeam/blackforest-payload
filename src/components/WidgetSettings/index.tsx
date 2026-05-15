@@ -1613,7 +1613,7 @@ const WidgetSettings: React.FC<any> = (props) => {
     const nextDomainURL = newBillingAPIDomainURL.trim()
 
     if (!nextDomainURL) {
-      alert('Please enter the billing API domain URL')
+      alert('Please enter the billing LIVE API domain URL')
       return
     }
 
@@ -1630,7 +1630,7 @@ const WidgetSettings: React.FC<any> = (props) => {
       .filter((value): value is string => Boolean(value))
 
     if (existingDomains.some((value) => value.toLowerCase() === normalizedURL.toLowerCase())) {
-      alert('This billing API domain is already added')
+      alert('This billing LIVE API domain is already added')
       return
     }
 
@@ -1651,10 +1651,10 @@ const WidgetSettings: React.FC<any> = (props) => {
 
       await saveBillingAPIDomains(nextRows)
       setNewBillingAPIDomainURL('')
-      alert('Billing API domain added')
+      alert('Billing LIVE API domain added')
     } catch (error) {
       console.error('Failed to save billing API domain:', error)
-      alert('Failed to add billing API domain')
+      alert('Failed to add billing LIVE API domain')
     } finally {
       setSavingBillingAPIDomain(false)
     }
@@ -1701,7 +1701,7 @@ const WidgetSettings: React.FC<any> = (props) => {
 
   const removeBillingAPIDomain = async (row: TableQRDomainRow, index: number) => {
     const domainURL = row.domainURL?.trim() || 'this domain'
-    if (!confirm(`Remove "${domainURL}" from Billing API domains?`)) {
+    if (!confirm(`Remove "${domainURL}" from Billing LIVE API domains?`)) {
       return
     }
 
@@ -1726,10 +1726,10 @@ const WidgetSettings: React.FC<any> = (props) => {
       }
 
       await saveBillingAPIDomains(nextRows)
-      alert('Billing API domain removed')
+      alert('Billing LIVE API domain removed')
     } catch (error) {
       console.error('Failed to remove billing API domain:', error)
-      alert('Failed to remove billing API domain')
+      alert('Failed to remove billing LIVE API domain')
     } finally {
       setRemovingBillingAPIDomainKey(null)
     }
@@ -1914,7 +1914,7 @@ const WidgetSettings: React.FC<any> = (props) => {
             onClick={() => setActiveWidget('api')}
           >
             <Globe className="tile-icon" size={48} />
-            <span className="tile-label">API</span>
+            <span className="tile-label">LIVE API</span>
           </button>
         </div>
 
@@ -3209,7 +3209,7 @@ const WidgetSettings: React.FC<any> = (props) => {
           {activeWidget === 'api' && (
             <div className="widget-modal">
               <div className="modal-header">
-                <h2>API</h2>
+                <h2>LIVE API</h2>
                 <button className="close-btn" onClick={() => setActiveWidget(null)}>
                   <X size={20} />
                 </button>
@@ -3220,14 +3220,14 @@ const WidgetSettings: React.FC<any> = (props) => {
                   <section className="table-qr-card-section">
                     <h3>
                       <Globe size={18} />
-                      Billing App API Domains
+                      Billing App LIVE API Domains
                     </h3>
 
                     <div className="table-qr-domain-management">
                       <div className="table-qr-add-row">
                         <div className="form-group">
                           <label>
-                            <Plus size={12} style={{ marginRight: 4 }} /> Add Billing API Domain
+                            <Plus size={12} style={{ marginRight: 4 }} /> Add Billing LIVE API Domain
                           </label>
                           <input
                             type="url"
@@ -3257,14 +3257,14 @@ const WidgetSettings: React.FC<any> = (props) => {
                       </div>
 
                       <div className="configured-settings">
-                        <h3>Saved Billing Domains</h3>
+                        <h3>Saved Billing LIVE API Domains</h3>
                         <p style={{ marginTop: 0, color: '#94a3b8', fontSize: '0.85rem' }}>
                           Runtime endpoint:
                           {' /api/runtime/api-domain?appKey=billing-app'}
                         </p>
                         {billingAPIDomains.length === 0 ? (
                           <div className="empty-state">
-                            <p>No billing API domains saved yet.</p>
+                            <p>No billing LIVE API domains saved yet.</p>
                           </div>
                         ) : (
                           <div className="table-qr-domains-grid">

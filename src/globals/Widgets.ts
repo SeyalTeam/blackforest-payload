@@ -225,7 +225,7 @@ export const WidgetSettingsGlobal: GlobalConfig = {
     },
     {
       name: 'appAPIDomains',
-      label: 'App API Domains',
+      label: 'App LIVE API Domains',
       type: 'array',
       admin: {
         description:
