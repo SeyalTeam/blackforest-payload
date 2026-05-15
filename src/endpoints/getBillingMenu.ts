@@ -328,7 +328,9 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
           price,
           imageUrl,
           thumbnailURL: imageUrl,
-          image: imageUrl,
+          image: doc.image,
+          images: doc.images,
+          media: doc.media,
         }
       })
       .filter(
