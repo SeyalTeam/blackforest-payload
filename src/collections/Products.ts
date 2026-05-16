@@ -443,6 +443,58 @@ const Products: CollectionConfig = {
           label: 'Override Price (MRP)', // Optional override
         },
         {
+          type: 'row',
+          fields: [
+            {
+              name: 'enableAC',
+              type: 'checkbox',
+              defaultValue: false,
+              label: 'Enable AC',
+              admin: {
+                width: '50%',
+              },
+            },
+            {
+              name: 'enableNonAC',
+              type: 'checkbox',
+              defaultValue: false,
+              label: 'Enable NON AC',
+              admin: {
+                width: '50%',
+              },
+            },
+          ],
+        },
+        {
+          type: 'row',
+          fields: [
+            {
+              name: 'acPrice',
+              type: 'number',
+              min: 0,
+              max: 999999,
+              label: 'AC',
+              admin: {
+                width: '50%',
+                step: 1,
+                condition: (_data, siblingData) => Boolean(siblingData?.enableAC),
+              },
+            },
+            {
+              name: 'nonACPrice',
+              type: 'number',
+              min: 0,
+              max: 999999,
+              label: 'NON AC',
+              admin: {
+                width: '50%',
+                step: 1,
+                condition: (_data, siblingData) => Boolean(siblingData?.enableNonAC),
+              },
+            },
+          ],
+        },
+        {
           name: 'rate',
           type: 'number',
           min: 0,

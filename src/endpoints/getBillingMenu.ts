@@ -19,7 +19,29 @@ type ProductDoc = {
   isOutOfStock?: boolean
   defaultPriceDetails?: {
     price?: number
+    enableAC?: boolean
+    enableNonAC?: boolean
+    acPrice?: number
+    nonACPrice?: number
+    rate?: number
+    offer?: number
+    quantity?: number
+    unit?: string
+    gst?: string
   }
+  branchOverrides?: Array<{
+    branch?: string | number | { id: string | number }
+    price?: number
+    enableAC?: boolean
+    enableNonAC?: boolean
+    acPrice?: number
+    nonACPrice?: number
+    rate?: number
+    offer?: number
+    quantity?: number
+    unit?: string
+    gst?: string
+  }>
   image?: unknown
   imageUrl?: unknown
   thumbnail?: unknown
@@ -326,6 +348,8 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
           isAvailable: doc.isAvailable !== false,
           isOutOfStock: doc.isOutOfStock === true,
           price,
+          defaultPriceDetails: doc.defaultPriceDetails,
+          branchOverrides: doc.branchOverrides,
           imageUrl,
           thumbnailURL: imageUrl,
           image: doc.image,
@@ -345,9 +369,11 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
           isAvailable: boolean
           isOutOfStock: boolean
           price: number | null
+          defaultPriceDetails: any
+          branchOverrides: any
           imageUrl: string | null
           thumbnailURL: string | null
-          image: string | null
+          image: any
         } => row !== null,
       )
 
