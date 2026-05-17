@@ -139,6 +139,7 @@ const normalizeSectionsWithMetadata = (
     )
     const fallbackTableCount = normalizeTableCount(sectionRecord.tableCount)
     const totalTables = totalTablesFromRanges > 0 ? totalTablesFromRanges : fallbackTableCount
+    sectionRecord.tableCount = totalTables
 
     if (normalizedRows.length > 0) {
       sectionRecord.rangeRows = normalizedRows
