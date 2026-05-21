@@ -517,6 +517,14 @@ const getActiveTimerStart = (
   return createdAt
 }
 
+type CacheEntry = {
+  timestamp: number
+  branches: any[]
+}
+
+const responseCache = new Map<string, CacheEntry>()
+const CACHE_TTL_MS = 1500 // 1.5 seconds
+
 export const getLiveTableStatusHandler: PayloadHandler = async (
   req: PayloadRequest,
 ): Promise<Response> => {
@@ -525,6 +533,18 @@ export const getLiveTableStatusHandler: PayloadHandler = async (
     const requestedBranchId = requestURL.searchParams.get('branchId')
     const scope = await resolveBranchScope(req, requestedBranchId)
     if (scope.errorResponse) return scope.errorResponse
+
+    const sortedBranchIds = [...(scope.branchIds || [])].sort()
+    const cacheKey = sortedBranchIds.join(',')
+
+    const now = Date.now()
+    const cached = responseCache.get(cacheKey)
+    if (cached && now - cached.timestamp < CACHE_TTL_MS) {
+      return Response.json({
+        generatedAt: new Date().toISOString(),
+        branches: cached.branches,
+      })
+    }
 
     const branchWhere = buildBranchWhere(scope.branchIds)
     const startOfToday = dayjs().tz(LIVE_TABLE_TIMEZONE).startOf('day')
@@ -731,6 +751,11 @@ export const getLiveTableStatusHandler: PayloadHandler = async (
           sections,
         }
       })
+
+    responseCache.set(cacheKey, {
+      timestamp: Date.now(),
+      branches,
+    })
 
     return Response.json({
       generatedAt: new Date().toISOString(),
