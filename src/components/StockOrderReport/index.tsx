@@ -1200,17 +1200,35 @@ const StockOrderReport: React.FC = () => {
     }
   }
 
+  const reportDepartmentsOrdered = React.useMemo(() => {
+    const totalsByDept = new Map<string, number>()
+    const qtyKey = BRANCH_STATUS_QTY_KEY[activeBranchStatus]
+    baseScopedDetails.forEach((item) => {
+      const lineAmount = item[qtyKey] * item.price
+      if (!lineAmount) return
+      const deptName = item.departmentName || 'No Department'
+      totalsByDept.set(deptName, (totalsByDept.get(deptName) || 0) + lineAmount)
+    })
+    return Array.from(totalsByDept.entries())
+      .map(([name, amount]) => ({ name, amount }))
+      .sort((a, b) => b.amount - a.amount)
+  }, [baseScopedDetails, activeBranchStatus])
+
   const employeeStatusTotals = React.useMemo(() => {
     if (activeBranchStatus === 'ordered') {
       return branchOrderedTotals.map((branch) => ({
         name: branch.branchName,
         amount: branch.amount,
+        branchAmounts: { [branch.branchName]: branch.amount } as Record<string, number>,
+        departmentAmounts: {} as Record<string, number>,
       }))
     }
 
     const qtyKey = BRANCH_STATUS_QTY_KEY[activeBranchStatus]
     const updaterKey = BRANCH_STATUS_UPDATER_KEY[activeBranchStatus]
     const totalsByEmployee = new Map<string, number>()
+    const branchTotalsByEmployee = new Map<string, Map<string, number>>()
+    const departmentTotalsByEmployee = new Map<string, Map<string, number>>()
 
     baseScopedDetails.forEach((item) => {
       const updaterName = formatUpdaterName(item[updaterKey])
@@ -1220,10 +1238,42 @@ const StockOrderReport: React.FC = () => {
       if (!lineAmount) return
 
       totalsByEmployee.set(updaterName, (totalsByEmployee.get(updaterName) || 0) + lineAmount)
+
+      const branchName = item.branchName || 'Unknown Branch'
+      if (!branchTotalsByEmployee.has(updaterName)) {
+        branchTotalsByEmployee.set(updaterName, new Map<string, number>())
+      }
+      const employeeBranchMap = branchTotalsByEmployee.get(updaterName)!
+      employeeBranchMap.set(branchName, (employeeBranchMap.get(branchName) || 0) + lineAmount)
+
+      const departmentName = item.departmentName || 'No Department'
+      if (!departmentTotalsByEmployee.has(updaterName)) {
+        departmentTotalsByEmployee.set(updaterName, new Map<string, number>())
+      }
+      const employeeDeptMap = departmentTotalsByEmployee.get(updaterName)!
+      employeeDeptMap.set(departmentName, (employeeDeptMap.get(departmentName) || 0) + lineAmount)
     })
 
     return Array.from(totalsByEmployee.entries())
-      .map(([name, amount]) => ({ name, amount }))
+      .map(([name, amount]) => {
+        const branchMap = branchTotalsByEmployee.get(name)
+        const branchAmounts: Record<string, number> = {}
+        if (branchMap) {
+          branchMap.forEach((val, br) => {
+            branchAmounts[br] = val
+          })
+        }
+
+        const deptMap = departmentTotalsByEmployee.get(name)
+        const departmentAmounts: Record<string, number> = {}
+        if (deptMap) {
+          deptMap.forEach((val, dept) => {
+            departmentAmounts[dept] = val
+          })
+        }
+
+        return { name, amount, branchAmounts, departmentAmounts }
+      })
       .sort((a, b) => b.amount - a.amount)
   }, [activeBranchStatus, branchOrderedTotals, baseScopedDetails])
 
@@ -2028,65 +2078,124 @@ const StockOrderReport: React.FC = () => {
                   <div className="employee-updater-title">{activeUpdaterLabel}</div>
                   <div className="employee-updater-table-wrap">
                     <table className="employee-updater-table">
-                      <tbody>
+                      <thead>
                         <tr>
-                          <th>NAME</th>
-                          {employeeStatusTotals.map((employee, index) => {
-                            const isActive = selectedUpdater === employee.name
-                            const columnTextColor =
-                              EMPLOYEE_UPDATER_TEXT_COLORS[index % EMPLOYEE_UPDATER_TEXT_COLORS.length]
-                            return (
-                              <td
-                                key={`${employee.name}-name`}
-                                className={`employee-updater-name employee-updater-clickable-cell${isActive ? ' employee-updater-cell--active' : ''}`}
-                                style={{ color: columnTextColor }}
-                                onClick={() =>
-                                  setSelectedUpdater((prev) => (prev === employee.name ? '' : employee.name))
+                          <th style={{ textAlign: 'left' }}>NAME</th>
+                          <th style={{ textAlign: 'right' }}>TOTAL AMOUNT</th>
+                          {reportDepartmentsOrdered.map((dept) => (
+                            <th key={dept.name} style={{ textAlign: 'right' }}>
+                              {dept.name.toUpperCase()}
+                            </th>
+                          ))}
+                          {branchOrderedTotals.map((branch) => (
+                            <th key={branch.branchName} style={{ textAlign: 'right' }}>
+                              {branch.branchName.substring(0, 3).toUpperCase()}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {employeeStatusTotals.map((employee) => {
+                          const isActive = selectedUpdater === employee.name
+                          return (
+                            <tr
+                              key={employee.name}
+                              className={`employee-updater-clickable-row${isActive ? ' employee-updater-row--active' : ''}`}
+                              onClick={() =>
+                                setSelectedUpdater((prev) => (prev === employee.name ? '' : employee.name))
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  event.preventDefault()
+                                  setSelectedUpdater((prev) =>
+                                    prev === employee.name ? '' : employee.name,
+                                  )
                                 }
-                                onKeyDown={(event) => {
-                                  if (event.key === 'Enter' || event.key === ' ') {
-                                    event.preventDefault()
-                                    setSelectedUpdater((prev) =>
-                                      prev === employee.name ? '' : employee.name,
-                                    )
-                                  }
-                                }}
-                                tabIndex={0}
-                                role="button"
-                                aria-pressed={isActive}
+                              }}
+                              tabIndex={0}
+                              role="button"
+                              aria-pressed={isActive}
+                            >
+                              <td
+                                className="employee-updater-name"
+                                style={{ textAlign: 'left' }}
                               >
                                 {employee.name}
                               </td>
+                              <td
+                                className="employee-updater-amount"
+                                style={{ textAlign: 'right' }}
+                              >
+                                {employee.amount.toLocaleString('en-IN')}
+                              </td>
+                              {reportDepartmentsOrdered.map((dept) => {
+                                const amt = employee.departmentAmounts?.[dept.name] || 0
+                                return (
+                                  <td
+                                    key={dept.name}
+                                    className="employee-updater-branch-amount"
+                                    style={{ textAlign: 'right' }}
+                                  >
+                                    {amt > 0 ? amt.toLocaleString('en-IN') : '-'}
+                                  </td>
+                                )
+                              })}
+                              {branchOrderedTotals.map((branch) => {
+                                const amt = employee.branchAmounts?.[branch.branchName] || 0
+                                return (
+                                  <td
+                                    key={branch.branchName}
+                                    className="employee-updater-branch-amount"
+                                    style={{ textAlign: 'right' }}
+                                  >
+                                    {amt > 0 ? amt.toLocaleString('en-IN') : '-'}
+                                  </td>
+                                )
+                              })}
+                            </tr>
+                          )
+                        })}
+                        {/* Totals Row */}
+                        <tr style={{ borderTop: '2px solid rgba(148, 163, 184, 0.4)' }}>
+                          <td
+                            className="employee-updater-name"
+                            style={{ textAlign: 'left', color: '#fbbf24', backgroundColor: '#0f172a' }}
+                          >
+                            TOTAL
+                          </td>
+                          <td
+                            className="employee-updater-amount"
+                            style={{ textAlign: 'right', color: '#fbbf24', backgroundColor: '#0f172a' }}
+                          >
+                            {employeeStatusTotals.reduce((sum, e) => sum + e.amount, 0).toLocaleString('en-IN')}
+                          </td>
+                          {reportDepartmentsOrdered.map((dept) => {
+                            const totalDeptAmt = employeeStatusTotals.reduce(
+                              (sum, e) => sum + (e.departmentAmounts?.[dept.name] || 0),
+                              0,
                             )
-                          })}
-                        </tr>
-                        <tr>
-                          <th>TOTAL AMOUNT</th>
-                          {employeeStatusTotals.map((employee, index) => {
-                            const isActive = selectedUpdater === employee.name
-                            const columnTextColor =
-                              EMPLOYEE_UPDATER_TEXT_COLORS[index % EMPLOYEE_UPDATER_TEXT_COLORS.length]
                             return (
                               <td
-                                key={`${employee.name}-amount`}
-                                className={`employee-updater-amount employee-updater-clickable-cell${isActive ? ' employee-updater-cell--active' : ''}`}
-                                style={{ color: columnTextColor }}
-                                onClick={() =>
-                                  setSelectedUpdater((prev) => (prev === employee.name ? '' : employee.name))
-                                }
-                                onKeyDown={(event) => {
-                                  if (event.key === 'Enter' || event.key === ' ') {
-                                    event.preventDefault()
-                                    setSelectedUpdater((prev) =>
-                                      prev === employee.name ? '' : employee.name,
-                                    )
-                                  }
-                                }}
-                                tabIndex={0}
-                                role="button"
-                                aria-pressed={isActive}
+                                key={`total-dept-${dept.name}`}
+                                className="employee-updater-branch-amount"
+                                style={{ textAlign: 'right', color: '#fbbf24', backgroundColor: '#0f172a' }}
                               >
-                                ₹ {employee.amount.toLocaleString('en-IN')}
+                                {totalDeptAmt > 0 ? totalDeptAmt.toLocaleString('en-IN') : '-'}
+                              </td>
+                            )
+                          })}
+                          {branchOrderedTotals.map((branch) => {
+                            const totalBranchAmt = employeeStatusTotals.reduce(
+                              (sum, e) => sum + (e.branchAmounts?.[branch.branchName] || 0),
+                              0,
+                            )
+                            return (
+                              <td
+                                key={`total-branch-${branch.branchName}`}
+                                className="employee-updater-branch-amount"
+                                style={{ textAlign: 'right', color: '#fbbf24', backgroundColor: '#0f172a' }}
+                              >
+                                {totalBranchAmt > 0 ? totalBranchAmt.toLocaleString('en-IN') : '-'}
                               </td>
                             )
                           })}

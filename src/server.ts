@@ -11,7 +11,7 @@ const parsePort = (value: string | undefined, fallback: number): number => {
 }
 
 const isDevelopment = process.env.NODE_ENV !== 'production'
-const host = process.env.HOST || process.env.HOSTNAME || '0.0.0.0'
+const host = process.env.HOST || process.env.HOSTNAME || '127.0.0.1'
 const port = parsePort(process.env.PORT, 3000)
 
 const { loadEnvConfig } = nextEnv

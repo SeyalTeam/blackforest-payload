@@ -391,7 +391,7 @@
 
   .employee-updater-title {
     margin: 0;
-    font-size: 0.84rem;
+    font-size: 1.1rem;
     font-weight: 900;
     letter-spacing: 0.08em;
     color: #cbd5e1;
@@ -400,10 +400,11 @@
   }
 
   .employee-updater-table-wrap {
-    width: 100%;
+    width: max-content;
+    max-width: 100%;
+    overflow-x: auto;
     border: 1px solid rgba(148, 163, 184, 0.32);
     border-radius: 10px;
-    overflow: hidden;
     background: rgba(15, 23, 42, 0.58);
   }
 
@@ -414,14 +415,14 @@
     th,
     td {
       border: 1px solid rgba(148, 163, 184, 0.24);
-      padding: 0.52rem 0.7rem;
+      padding: 0.72rem 1.0rem;
       text-align: center;
     }
 
     th {
-      background: rgba(51, 65, 85, 0.85);
-      color: #dbeafe;
-      font-size: 0.8rem;
+      background: #ffffff;
+      color: #0f172a;
+      font-size: 1.15rem;
       font-weight: 900;
       letter-spacing: 0.06em;
       text-transform: uppercase;
@@ -429,14 +430,18 @@
       white-space: nowrap;
       min-width: 120px;
     }
+
+    tbody tr:nth-child(even) {
+      background-color: rgba(30, 41, 59, 0.4);
+    }
   }
 
-  .employee-updater-clickable-cell {
+  .employee-updater-clickable-row {
     cursor: pointer;
-    transition: background-color 0.16s ease, box-shadow 0.16s ease, color 0.16s ease;
+    transition: background-color 0.16s ease, color 0.16s ease;
 
     &:hover {
-      background: rgba(37, 99, 235, 0.16);
+      background: rgba(37, 99, 235, 0.16) !important;
     }
 
     &:focus-visible {
@@ -445,15 +450,26 @@
     }
   }
 
-  .employee-updater-cell--active {
+  .employee-updater-row--active {
     background: rgba(37, 99, 235, 0.24);
-    box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.64);
+    
+    td {
+      box-shadow: inset 0 1px 0 rgba(147, 197, 253, 0.64), inset 0 -1px 0 rgba(147, 197, 253, 0.64);
+      
+      &:first-child {
+        box-shadow: inset 1px 0 0 rgba(147, 197, 253, 0.64), inset 0 1px 0 rgba(147, 197, 253, 0.64), inset 0 -1px 0 rgba(147, 197, 253, 0.64);
+      }
+      
+      &:last-child {
+        box-shadow: inset -1px 0 0 rgba(147, 197, 253, 0.64), inset 0 1px 0 rgba(147, 197, 253, 0.64), inset 0 -1px 0 rgba(147, 197, 253, 0.64);
+      }
+    }
   }
 
   .employee-updater-name {
     color: #eff6ff;
-    font-size: 0.9rem;
-    font-weight: 900;
+    font-size: 1.18rem;
+    font-weight: 800;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     white-space: nowrap;
@@ -461,8 +477,15 @@
 
   .employee-updater-amount {
     color: #ffffff;
-    font-weight: 900;
-    font-size: 1.12rem;
+    font-weight: 800;
+    font-size: 1.28rem;
+    white-space: nowrap;
+  }
+
+  .employee-updater-branch-amount {
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 1.28rem;
     white-space: nowrap;
   }
 

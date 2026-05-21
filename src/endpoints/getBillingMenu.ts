@@ -358,23 +358,7 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
         }
       })
       .filter(
-        (
-          row,
-        ): row is {
-          id: string
-          name: string
-          productId: string | null
-          upc: string | null
-          categoryId: string | null
-          isAvailable: boolean
-          isOutOfStock: boolean
-          price: number | null
-          defaultPriceDetails: any
-          branchOverrides: any
-          imageUrl: string | null
-          thumbnailURL: string | null
-          image: any
-        } => row !== null,
+        (row): row is Exclude<typeof row, null> => row !== null,
       )
 
     return Response.json(

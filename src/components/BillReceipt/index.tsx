@@ -491,7 +491,9 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
 
     // 3. Background Sync (Fire and Forget)
     try {
-      await updateCustomer(id, modalName, modalPhone)
+      if (id) {
+        await updateCustomer(String(id), modalName, modalPhone)
+      }
     } catch (error) {
       console.error('Failed to sync customer details in background', error)
       // Optionally handle error (e.g., toast), but don't blocking UI

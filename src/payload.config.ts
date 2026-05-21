@@ -133,6 +133,25 @@ const resolveDBMode = (): SupportedDBMode => {
   const rawMode = process.env.PAYLOAD_DB_MODE?.trim().toLowerCase()
   if (rawMode === 'mongo') return 'mongo'
   if (rawMode === 'postgres') return 'postgres'
+
+  // If not explicitly set, auto-detect using database connection string patterns
+  const databaseURI = process.env.DATABASE_URI?.trim() || process.env.DATABASE_URL?.trim() || ''
+  if (/^postgres(ql)?:\/\//i.test(databaseURI)) return 'postgres'
+
+  const postgresKeys = [
+    'POSTGRES_URI',
+    'POSTGRES_URL',
+    'POSTGRES_PRISMA_URL',
+    'POSTGRES_URL_NON_POOLING',
+    'DATABASE_URL',
+    'DIRECT_URL',
+  ]
+  const hasPostgres = postgresKeys.some((key) => {
+    const val = process.env[key]?.trim()
+    return val && /^postgres(ql)?:\/\//i.test(val)
+  })
+  if (hasPostgres) return 'postgres'
+
   return 'mongo'
 }
 
