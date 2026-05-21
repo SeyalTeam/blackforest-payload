@@ -569,7 +569,7 @@ export const getLiveTableStatusHandler: PayloadHandler = async (
         where: {
           and: billingWhereConditions,
         },
-        depth: 1,
+        depth: 0,
         sort: '-createdAt',
         limit: 5000,
         pagination: false,
@@ -597,6 +597,35 @@ export const getLiveTableStatusHandler: PayloadHandler = async (
 
         for (const tableNumber of configuredTables) {
           ensureTable(sectionState, tableNumber, `Table ${tableNumber}`)
+        }
+      }
+    }
+
+    // Collect all unique user IDs for createdBy
+    const userIds = new Set<string>()
+    for (const billing of activeBillingResult.docs as any[]) {
+      const createdById = getRelationshipID(billing?.createdBy)
+      if (createdById) {
+        userIds.add(createdById)
+      }
+    }
+
+    const userMap = new Map<string, string>()
+    if (userIds.size > 0) {
+      const usersResult = await req.payload.find({
+        collection: 'users',
+        where: {
+          id: {
+            in: Array.from(userIds),
+          },
+        },
+        depth: 0,
+        limit: 1000,
+        pagination: false,
+      })
+      for (const user of usersResult.docs) {
+        if (user && typeof user === 'object' && 'name' in user && typeof user.name === 'string') {
+          userMap.set(String(user.id), user.name)
         }
       }
     }
@@ -642,13 +671,16 @@ export const getLiveTableStatusHandler: PayloadHandler = async (
           ? getActiveTimerStart(billing, startOfTodayMs, endOfTodayMs)
           : null
 
+      const createdById = getRelationshipID(billing?.createdBy)
+      const servedByName = createdById ? (userMap.get(createdById) || null) : null
+
       tableState.occupied = true
       tableState.tableState = liveTableState
       tableState.billId = typeof billing?.id === 'string' ? billing.id : null
       tableState.status = status
       tableState.kotNumber = toKotLabel(kotCandidate)
       tableState.totalAmount = getBillingTotalAmount(billing)
-      tableState.servedBy = getCreatedByName(billing?.createdBy)
+      tableState.servedBy = servedByName
       tableState.startedAt = activeTimerStart
       tableState.elapsedSeconds = toElapsedSeconds(activeTimerStart)
       tableState.tableLabel = toTableLabel(tableNumberValue)
