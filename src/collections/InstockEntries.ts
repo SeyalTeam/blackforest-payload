@@ -92,13 +92,16 @@ const InstockEntries: CollectionConfig = {
             const productId = typeof item.product === 'string' ? item.product : item.product?.id
             if (!productId) throw new Error('Invalid product')
 
-            const product = await req.payload.findByID({
-              collection: 'products',
-              id: productId,
-              depth: 1,
-            })
-
-            if (!product) throw new Error('Product not found')
+            let product = null
+            try {
+              product = await req.payload.findByID({
+                collection: 'products',
+                id: productId,
+                depth: 1,
+              })
+            } catch (error) {
+              console.warn(`[InstockEntries Hook] Product with ID ${productId} not found:`, error)
+            }
 
             // Force status to 'waiting' on create
             if (operation === 'create') {
@@ -106,7 +109,7 @@ const InstockEntries: CollectionConfig = {
             }
 
             // Auto-populate dealer from product if not provided
-            if (!item.dealer && product.dealer) {
+            if (product && !item.dealer && product.dealer) {
               const productDealerId =
                 typeof product.dealer === 'string' ? product.dealer : product.dealer.id
               if (productDealerId) {

@@ -66,6 +66,7 @@ export type BillData = {
         address?: string
         phone?: string
         gst?: string
+        gstMode?: 'inclusive' | 'exclusive'
       }
     | string
     | null
@@ -132,6 +133,56 @@ const splitGSTFromInclusiveLine = (
     gstInPaise: cgstInPaise + sgstInPaise,
     cgstInPaise,
     sgstInPaise,
+  }
+}
+
+const calculateGSTFromExclusiveLine = (
+  taxableInPaise: number,
+  gstRate: number,
+): {
+  taxableInPaise: number
+  gstInPaise: number
+  cgstInPaise: number
+  sgstInPaise: number
+  lineTotalInclusiveInPaise: number
+} => {
+  const normalizedTaxableInPaise = Math.max(0, taxableInPaise)
+  const normalizedRate = Math.max(0, toFiniteNumber(gstRate))
+  const gstInPaise =
+    normalizedRate > 0
+      ? Math.round((normalizedTaxableInPaise * normalizedRate) / 100)
+      : 0
+  const cgstInPaise = Math.floor(gstInPaise / 2)
+  const sgstInPaise = gstInPaise - cgstInPaise
+
+  return {
+    taxableInPaise: normalizedTaxableInPaise,
+    gstInPaise: cgstInPaise + sgstInPaise,
+    cgstInPaise,
+    sgstInPaise,
+    lineTotalInclusiveInPaise: normalizedTaxableInPaise + cgstInPaise + sgstInPaise,
+  }
+}
+
+const computeFallbackGST = (
+  rawTotalInPaise: number,
+  gstRate: number,
+  gstMode: 'inclusive' | 'exclusive',
+): {
+  taxableInPaise: number
+  gstInPaise: number
+  cgstInPaise: number
+  sgstInPaise: number
+  lineTotalInclusiveInPaise: number
+} => {
+  if (gstMode === 'exclusive') {
+    return calculateGSTFromExclusiveLine(rawTotalInPaise, gstRate)
+  } else {
+    const split = splitGSTFromInclusiveLine(rawTotalInPaise, gstRate)
+    return {
+      ...split,
+      lineTotalInclusiveInPaise: rawTotalInPaise,
+    }
   }
 }
 
@@ -297,10 +348,15 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
         ? company.gst || ''
         : ''
 
+  const gstMode =
+    typeof branch === 'object' && branch !== null && branch.gstMode === 'exclusive'
+      ? 'exclusive'
+      : 'inclusive'
+
   const itemTaxBreakdowns = billedItems.map((item, index) => {
     const fallbackGSTDetails = getGSTDetails(item, branchId)
-    const fallbackLineTotalInPaise = fallbackLineTotalsInclusiveInPaise[index] || 0
-    const fallbackSplit = splitGSTFromInclusiveLine(fallbackLineTotalInPaise, fallbackGSTDetails.rate)
+    const fallbackRawInPaise = fallbackLineTotalsInclusiveInPaise[index] || 0
+    const fallbackSplit = computeFallbackGST(fallbackRawInPaise, fallbackGSTDetails.rate, gstMode)
 
     const hasStoredBreakdown =
       item.finalLineTotal != null || item.taxableAmount != null || item.gstAmount != null
@@ -314,8 +370,11 @@ const BillReceipt: React.FC<{ data: BillData }> = ({ data }) => {
         : Math.max(0, storedTaxableInPaise + storedGSTInPaise)
 
     const rate = hasStoredBreakdown ? storedRate : fallbackGSTDetails.rate
-    const lineTotalInPaise = hasStoredBreakdown ? storedLineTotalInPaise : fallbackLineTotalInPaise
-    const inferredTaxableInPaise = splitGSTFromInclusiveLine(lineTotalInPaise, rate).taxableInPaise
+    const lineTotalInPaise = hasStoredBreakdown ? storedLineTotalInPaise : fallbackSplit.lineTotalInclusiveInPaise
+    const inferredTaxableInPaise =
+      rate > 0
+        ? Math.round((lineTotalInPaise * 100) / (100 + rate))
+        : lineTotalInPaise
     const taxableInPaise = hasStoredBreakdown
       ? item.taxableAmount != null
         ? Math.min(lineTotalInPaise, Math.max(0, storedTaxableInPaise))

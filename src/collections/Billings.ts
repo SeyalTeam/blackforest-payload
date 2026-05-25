@@ -481,6 +481,19 @@ const computeBillingGSTBreakdown = async (
   branchID: string | null,
   totalDiscountAmount: number,
 ): Promise<BillingGSTBreakdown> => {
+  let gstMode: 'inclusive' | 'exclusive' = 'inclusive'
+  if (branchID) {
+    const branchDoc = await payload.findByID({
+      collection: 'branches',
+      id: branchID,
+      depth: 0,
+      overrideAccess: true,
+    }).catch(() => null)
+    if (branchDoc && branchDoc.gstMode === 'exclusive') {
+      gstMode = 'exclusive'
+    }
+  }
+
   if (!Array.isArray(items) || items.length === 0) {
     return {
       items: [],
@@ -582,26 +595,47 @@ const computeBillingGSTBreakdown = async (
   let totalInclusiveAmountInPaise = 0
 
   const updatedItems = items.map((item, index) => {
-    const lineTotalInclusiveInPaise = Math.max(
+    const rawLineTotalInPaise = Math.max(
       0,
       itemLineTotalsInPaise[index] - (lineDiscountsInPaise[index] || 0),
     )
     const productID = getRelationshipID(item.product)
     const productDoc = productID ? (productCache.get(productID) ?? null) : null
     const gstRate = getGSTRateFromProduct(productDoc, branchID)
-    const taxableAmountInPaise =
-      gstRate > 0
-        ? Math.min(
-            lineTotalInclusiveInPaise,
-            Math.max(0, Math.round((lineTotalInclusiveInPaise * 100) / (100 + gstRate))),
-          )
-        : lineTotalInclusiveInPaise
-    const gstAmountInPaise = lineTotalInclusiveInPaise - taxableAmountInPaise
+
+    let taxableAmountInPaise = 0
+    let gstAmountInPaise = 0
+    let lineTotalInclusiveInPaise = 0
+
+    if (gstMode === 'exclusive') {
+      taxableAmountInPaise = rawLineTotalInPaise
+      gstAmountInPaise =
+        gstRate > 0
+          ? Math.max(0, Math.round((taxableAmountInPaise * gstRate) / 100))
+          : 0
+      lineTotalInclusiveInPaise = taxableAmountInPaise + gstAmountInPaise
+    } else {
+      lineTotalInclusiveInPaise = rawLineTotalInPaise
+      taxableAmountInPaise =
+        gstRate > 0
+          ? Math.min(
+              lineTotalInclusiveInPaise,
+              Math.max(0, Math.round((lineTotalInclusiveInPaise * 100) / (100 + gstRate))),
+            )
+          : lineTotalInclusiveInPaise
+      gstAmountInPaise = lineTotalInclusiveInPaise - taxableAmountInPaise
+    }
 
     // Explicit CGST/SGST split keeps odd paise deterministic per line.
     const cgstAmountInPaise = Math.floor(gstAmountInPaise / 2)
     const sgstAmountInPaise = gstAmountInPaise - cgstAmountInPaise
     const normalizedGSTAmountInPaise = cgstAmountInPaise + sgstAmountInPaise
+
+    if (gstMode === 'inclusive') {
+      taxableAmountInPaise = lineTotalInclusiveInPaise - normalizedGSTAmountInPaise
+    } else {
+      lineTotalInclusiveInPaise = taxableAmountInPaise + normalizedGSTAmountInPaise
+    }
 
     totalTaxableAmountInPaise += taxableAmountInPaise
     totalGSTAmountInPaise += normalizedGSTAmountInPaise

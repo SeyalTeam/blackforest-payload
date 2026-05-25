@@ -279,6 +279,10 @@ export interface Branch {
   name: string;
   address: string;
   gst: string;
+  /**
+   * Choose whether GST is inclusive or exclusive for this branch.
+   */
+  gstMode: 'inclusive' | 'exclusive';
   phone: string;
   email: string;
   /**
@@ -1380,6 +1384,7 @@ export interface BranchesSelect<T extends boolean = true> {
   name?: T;
   address?: T;
   gst?: T;
+  gstMode?: T;
   phone?: T;
   email?: T;
   branchPin?: T;

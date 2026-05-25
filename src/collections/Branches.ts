@@ -81,6 +81,20 @@ export const Branches: CollectionConfig = {
       required: true,
     },
     {
+      name: 'gstMode',
+      type: 'select',
+      label: 'GST Mode',
+      defaultValue: 'inclusive',
+      options: [
+        { label: 'Inclusive (GST included in price)', value: 'inclusive' },
+        { label: 'Exclusive (GST added on top of price)', value: 'exclusive' },
+      ],
+      required: true,
+      admin: {
+        description: 'Choose whether GST is inclusive or exclusive for this branch.',
+      },
+    },
+    {
       name: 'phone',
       type: 'text',
       required: true,

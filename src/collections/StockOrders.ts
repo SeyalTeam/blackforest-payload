@@ -133,16 +133,35 @@ const StockOrders: CollectionConfig = {
             const productId = typeof item.product === 'string' ? item.product : item.product?.id
             if (!productId) throw new Error('Invalid product')
 
-            const product = await req.payload.findByID({
-              collection: 'products',
-              id: productId,
-              depth: 1,
-            })
+            let product = null
+            let price = 0
+            try {
+              product = await req.payload.findByID({
+                collection: 'products',
+                id: productId,
+                depth: 1,
+              })
+              if (product) {
+                item.name = product.name
+                price = product?.defaultPriceDetails?.price || 0
+              }
+            } catch (error) {
+              console.warn(`[StockOrders Hook] Product with ID ${productId} not found:`, error)
+            }
 
-            if (!product) throw new Error('Product not found')
-
-            item.name = product.name
-            const price = product?.defaultPriceDetails?.price || 0
+            if (!product) {
+              const originalItem = originalDoc?.items?.[i]
+              if (originalItem) {
+                item.name = originalItem.name || 'Unknown Product'
+                const originalQty = originalItem.requiredQty || originalItem.inStock || 0
+                const originalAmount = originalItem.requiredAmount || originalItem.inStockAmount || 0
+                if (originalQty > 0) {
+                  price = originalAmount / originalQty
+                }
+              } else {
+                item.name = 'Unknown Product'
+              }
+            }
 
             // Calculate amounts
             item.inStockAmount = (item.inStock || 0) * price
