@@ -125,6 +125,24 @@ const resolveConfiguredTables = (section: unknown): string[] => {
   return fallback
 }
 
+const parseOfflineTablesToArrayOfStrings = (offlineTables: unknown): string[] => {
+  if (!Array.isArray(offlineTables)) return []
+  return offlineTables
+    .map((val) => {
+      if (typeof val === 'string') return val.trim()
+      if (typeof val === 'number') return String(val)
+      if (val && typeof val === 'object') {
+        const num = (val as { tableNumber?: unknown; table?: unknown; tableNo?: unknown }).tableNumber ?? 
+                    (val as { tableNumber?: unknown; table?: unknown; tableNo?: unknown }).table ?? 
+                    (val as { tableNumber?: unknown; table?: unknown; tableNo?: unknown }).tableNo
+        if (typeof num === 'string') return num.trim()
+        if (typeof num === 'number') return String(num)
+      }
+      return ''
+    })
+    .filter(Boolean)
+}
+
 const parseBody = async (req: { json?: () => Promise<unknown>; url?: string }): Promise<Record<string, unknown>> => {
   try {
     const payload = await req.json?.()
@@ -213,10 +231,15 @@ const buildBillingBaseData = (body: Record<string, unknown>): Record<string, unk
   return billingData
 }
 
+type AllowedTableConfig = {
+  allowed: Map<string, Set<string>>
+  offline: Map<string, Set<string>>
+}
+
 const resolveAllowedTablesBySection = async (
   req: PayloadRequest,
   branchId: string,
-): Promise<Map<string, Set<string>>> => {
+): Promise<AllowedTableConfig> => {
   const tableConfigResult = await req.payload.find({
     collection: 'tables',
     where: {
@@ -233,6 +256,7 @@ const resolveAllowedTablesBySection = async (
   const tableConfig = tableConfigResult.docs[0] as { sections?: unknown } | undefined
   const sections = Array.isArray(tableConfig?.sections) ? tableConfig.sections : []
   const allowed = new Map<string, Set<string>>()
+  const offline = new Map<string, Set<string>>()
 
   for (const section of sections) {
     const sectionRecord =
@@ -250,10 +274,18 @@ const resolveAllowedTablesBySection = async (
       if (normalized) normalizedTables.add(normalized)
     }
 
+    const offlineTables = parseOfflineTablesToArrayOfStrings(sectionRecord.offlineTables)
+    const offlineSet = new Set<string>()
+    for (const val of offlineTables) {
+      const normalized = normalizeTableNumber(val)
+      if (normalized) offlineSet.add(normalized)
+    }
+
     allowed.set(normalizedSection, normalizedTables)
+    offline.set(normalizedSection, offlineSet)
   }
 
-  return allowed
+  return { allowed, offline }
 }
 
 const getErrorStatus = (error: unknown): number => {
@@ -322,15 +354,33 @@ export const createTableOrderBatchHandler: PayloadHandler = async (
       )
     }
 
-    const allowedTablesBySection = await resolveAllowedTablesBySection(req, branchId)
+    const { allowed: allowedTablesBySection, offline: offlineTablesBySection } =
+      await resolveAllowedTablesBySection(req, branchId)
+
     if (allowedTablesBySection.size > 0) {
       for (const selection of selections) {
         const tables = allowedTablesBySection.get(selection.normalizedSection)
+        const offlineTables = offlineTablesBySection.get(selection.normalizedSection)
+
         if (!tables) {
           return Response.json(
             {
               ok: false,
               message: `Section "${selection.section}" is not configured for this branch.`,
+              failedSelection: {
+                section: selection.section,
+                tableNumber: selection.tableNumber,
+              },
+            },
+            { status: 400 },
+          )
+        }
+
+        if (offlineTables?.has(selection.normalizedTable)) {
+          return Response.json(
+            {
+              ok: false,
+              message: `Table "${selection.tableNumber}" in section "${selection.section}" is currently offline.`,
               failedSelection: {
                 section: selection.section,
                 tableNumber: selection.tableNumber,

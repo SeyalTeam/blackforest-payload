@@ -37,6 +37,9 @@ type MutableTableRow = {
   servedBy: string | null
   startedAt: string | null
   elapsedSeconds: number | null
+  isOffline?: boolean
+  assignedWaiterId?: string | null
+  assignedWaiterName?: string | null
 }
 
 type MutableSection = {
@@ -130,8 +133,9 @@ const parseConfiguredTableRange = (value: unknown): { start: number; end: number
   const start = Number.parseInt(match[1], 10)
   const end = Number.parseInt(match[2] ?? match[1], 10)
 
-  if (!Number.isFinite(start) || !Number.isFinite(end) || start <= 0 || end <= 0) return null
-  if (end < start) return null
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start <= 0 || end <= 0 || end < start) {
+    return null
+  }
 
   return { start, end }
 }
@@ -166,6 +170,24 @@ const resolveConfiguredTables = (section: any): string[] => {
   }
 
   return fallbackTables
+}
+
+const parseOfflineTablesToArrayOfStrings = (offlineTables: unknown): string[] => {
+  if (!Array.isArray(offlineTables)) return []
+  return offlineTables
+    .map((val) => {
+      if (typeof val === 'string') return val.trim()
+      if (typeof val === 'number') return String(val)
+      if (val && typeof val === 'object') {
+        const num = (val as { tableNumber?: unknown; table?: unknown; tableNo?: unknown }).tableNumber ?? 
+                    (val as { tableNumber?: unknown; table?: unknown; tableNo?: unknown }).table ?? 
+                    (val as { tableNumber?: unknown; table?: unknown; tableNo?: unknown }).tableNo
+        if (typeof num === 'string') return num.trim()
+        if (typeof num === 'number') return String(num)
+      }
+      return ''
+    })
+    .filter(Boolean)
 }
 
 const toKotLabel = (value: string | null): string | null => {
@@ -403,12 +425,26 @@ const ensureTable = (
   section: MutableSection,
   tableNumber: string,
   preferredLabel?: string,
+  isOffline = false,
+  assignedWaiterId: string | null = null,
+  assignedWaiterName: string | null = null,
 ): MutableTableRow | null => {
   const normalizedTable = normalizeTableIdentifier(tableNumber)
   if (!normalizedTable) return null
 
   const existing = section.tablesByKey.get(normalizedTable)
-  if (existing) return existing
+  if (existing) {
+    if (isOffline) {
+      existing.isOffline = true
+    }
+    if (assignedWaiterId) {
+      existing.assignedWaiterId = assignedWaiterId
+    }
+    if (assignedWaiterName) {
+      existing.assignedWaiterName = assignedWaiterName
+    }
+    return existing
+  }
 
   const tableLabel = preferredLabel || toTableLabel(tableNumber)
   const created: MutableTableRow = {
@@ -424,6 +460,9 @@ const ensureTable = (
     servedBy: null,
     startedAt: null,
     elapsedSeconds: null,
+    isOffline,
+    assignedWaiterId,
+    assignedWaiterName,
   }
 
   section.tablesByKey.set(normalizedTable, created)
@@ -538,8 +577,9 @@ export const getLiveTableStatusHandler: PayloadHandler = async (
     const cacheKey = sortedBranchIds.join(',')
 
     const now = Date.now()
+    const bypassCache = requestURL.searchParams.get('refresh') === 'true'
     const cached = responseCache.get(cacheKey)
-    if (cached && now - cached.timestamp < CACHE_TTL_MS) {
+    if (!bypassCache && cached && now - cached.timestamp < CACHE_TTL_MS) {
       return Response.json({
         generatedAt: new Date().toISOString(),
         branches: cached.branches,
@@ -597,6 +637,7 @@ export const getLiveTableStatusHandler: PayloadHandler = async (
     ])
 
     const branchMap = new Map<string, MutableBranch>()
+    const userIds = new Set<string>()
 
     for (const tableConfig of tableConfigResult.docs as any[]) {
       const branchId = getRelationshipID(tableConfig?.branch)
@@ -613,16 +654,47 @@ export const getLiveTableStatusHandler: PayloadHandler = async (
             : 'Unknown'
         const sectionState = ensureSection(branch, sectionName)
 
+        const offlineTables = parseOfflineTablesToArrayOfStrings(section?.offlineTables)
+        const offlineSet = new Set<string>(
+          offlineTables.map((val) => val.toLowerCase())
+        )
+
+        const waiterAllocations = Array.isArray(section?.waiterAllocations) ? section.waiterAllocations : []
+        const sectionWaiterMap = new Map<string, string>()
+        for (const alloc of waiterAllocations) {
+          if (typeof alloc === 'string') {
+            const parts = alloc.split('-')
+            const tNum = parts[0]?.trim()
+            const wId = parts.slice(1).join('-')?.trim()
+            if (tNum && wId) {
+              sectionWaiterMap.set(tNum, wId)
+              userIds.add(wId)
+            }
+          } else if (alloc && typeof alloc === 'object') {
+            const tNum = typeof alloc.tableNumber === 'string'
+              ? alloc.tableNumber.trim()
+              : typeof alloc.tableNumber === 'number'
+                ? String(alloc.tableNumber)
+                : ''
+            const wId = getRelationshipID(alloc.waiter)
+            if (tNum && wId) {
+              sectionWaiterMap.set(tNum, wId)
+              userIds.add(wId)
+            }
+          }
+        }
+
         const configuredTables = resolveConfiguredTables(section)
 
         for (const tableNumber of configuredTables) {
-          ensureTable(sectionState, tableNumber, `Table ${tableNumber}`)
+          const isOffline = offlineSet.has(tableNumber)
+          const assignedWaiterId = sectionWaiterMap.get(tableNumber) || null
+          ensureTable(sectionState, tableNumber, `Table ${tableNumber}`, isOffline, assignedWaiterId)
         }
       }
     }
 
     // Collect all unique user IDs for createdBy
-    const userIds = new Set<string>()
     for (const billing of activeBillingResult.docs as any[]) {
       const createdById = getRelationshipID(billing?.createdBy)
       if (createdById) {
@@ -646,6 +718,17 @@ export const getLiveTableStatusHandler: PayloadHandler = async (
       for (const user of usersResult.docs) {
         if (user && typeof user === 'object' && 'name' in user && typeof user.name === 'string') {
           userMap.set(String(user.id), user.name)
+        }
+      }
+    }
+
+    // Resolve assigned waiter names for all configured tables
+    for (const branch of branchMap.values()) {
+      for (const section of branch.sectionsByKey.values()) {
+        for (const table of section.tablesByKey.values()) {
+          if (table.assignedWaiterId) {
+            table.assignedWaiterName = userMap.get(table.assignedWaiterId) || null
+          }
         }
       }
     }

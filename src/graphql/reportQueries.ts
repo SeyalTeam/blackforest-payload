@@ -9,7 +9,7 @@ import { getProductWiseReportData } from '../services/reports/productWise'
 import { getReturnOrderReportData } from '../services/reports/returnOrder'
 import { getWaiterWiseBillingReportData } from '../services/reports/waiterWise'
 import { getStockOrderReportData } from '../services/reports/stockOrder'
-
+import { getTimeWiseReportData } from '../services/reports/timeWise'
 type BranchBillingFilter = {
   branch?: null | string
   endDate?: null | string
@@ -132,6 +132,16 @@ type StockOrderFilter = {
 
 type StockOrderQueryArgs = {
   filter?: StockOrderFilter
+}
+
+type TimeWiseReportFilter = {
+  branch?: null | string
+  endDate?: null | string
+  startDate?: null | string
+}
+
+type TimeWiseReportQueryArgs = {
+  filter?: TimeWiseReportFilter
 }
 
 export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
@@ -1279,5 +1289,98 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
         return getStockOrderReportData(context.req, args.filter || {})
       },
     },
+    timeWiseReport: {
+      type: new graphQL.GraphQLNonNull(new graphQL.GraphQLObjectType({
+        name: 'TimeWiseReportResult',
+        fields: {
+          startDate: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+          endDate: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+          totals: {
+            type: new graphQL.GraphQLNonNull(new graphQL.GraphQLObjectType({
+              name: 'TimeWiseReportTotals',
+              fields: {
+                totalAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+                totalBills: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                completedCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                completedAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+                settledCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                settledAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+                cancelledCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                cancelledAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+              }
+            }))
+          },
+          closingEntries: {
+            type: new graphQL.GraphQLNonNull(new graphQL.GraphQLList(new graphQL.GraphQLNonNull(new graphQL.GraphQLObjectType({
+              name: 'TimeWiseClosingEntry',
+              fields: {
+                id: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                createdAt: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                totalSales: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+                cash: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+                upi: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+                card: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+                expenses: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+                systemSales: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+                manualSales: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+                onlineSales: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+              }
+            }))))
+          },
+          hourlyStats: {
+            type: new graphQL.GraphQLNonNull(new graphQL.GraphQLList(new graphQL.GraphQLNonNull(new graphQL.GraphQLObjectType({
+              name: 'TimeWiseHourlyStat',
+              fields: {
+                hour: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                totalAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+                totalBills: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                completedCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                completedAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+                settledCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                settledAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+                cancelledCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                cancelledAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+              }
+            }))))
+          },
+          bills: {
+            type: new graphQL.GraphQLNonNull(new graphQL.GraphQLList(new graphQL.GraphQLNonNull(new graphQL.GraphQLObjectType({
+              name: 'TimeWiseBillDetail',
+              fields: {
+                id: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                createdAt: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                totalAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+                status: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                paymentMethod: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+              }
+            }))))
+          }
+        }
+      })),
+      args: {
+        filter: {
+          type: new graphQL.GraphQLInputObjectType({
+            name: 'TimeWiseReportFilterInput',
+            fields: {
+              startDate: { type: graphQL.GraphQLString },
+              endDate: { type: graphQL.GraphQLString },
+              branch: { type: graphQL.GraphQLString },
+            }
+          })
+        }
+      },
+      resolve: async (
+        _source: unknown,
+        args: TimeWiseReportQueryArgs,
+        context: {
+          req?: PayloadRequest
+        },
+      ) => {
+        if (!context.req) {
+          throw new Error('Request context is missing')
+        }
+        return getTimeWiseReportData(context.req, args.filter || {})
+      }
+    }
   }
 }

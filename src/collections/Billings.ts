@@ -865,24 +865,25 @@ const parseConfiguredTableRange = (value: unknown): { start: number; end: number
 
 const resolveConfiguredTableNumbersFromSection = (section: unknown): string[] => {
   const sectionRecord = section && typeof section === 'object' ? (section as Record<string, unknown>) : {}
+
   const rangeRows = Array.isArray(sectionRecord.rangeRows) ? sectionRecord.rangeRows : []
-  const seen = new Set<string>()
-  const resolvedFromRanges: string[] = []
+  const rangeValues: string[] = []
+  const rangeSeen = new Set<string>()
 
   for (const row of rangeRows) {
     const rowRecord = row && typeof row === 'object' ? (row as Record<string, unknown>) : {}
     const parsedRange = parseConfiguredTableRange(rowRecord.tableRange)
     if (!parsedRange) continue
 
-    for (let tableNumber = parsedRange.start; tableNumber <= parsedRange.end; tableNumber += 1) {
-      const normalized = String(tableNumber)
-      if (seen.has(normalized)) continue
-      seen.add(normalized)
-      resolvedFromRanges.push(normalized)
+    for (let table = parsedRange.start; table <= parsedRange.end; table += 1) {
+      const value = String(table)
+      if (rangeSeen.has(value)) continue
+      rangeSeen.add(value)
+      rangeValues.push(value)
     }
   }
 
-  if (resolvedFromRanges.length > 0) return resolvedFromRanges
+  if (rangeValues.length > 0) return rangeValues
 
   const rawTableCount = sectionRecord.tableCount
   const tableCount =
@@ -901,6 +902,24 @@ const resolveConfiguredTableNumbersFromSection = (section: unknown): string[] =>
   }
 
   return fallback
+}
+
+const parseOfflineTablesToArrayOfStrings = (offlineTables: unknown): string[] => {
+  if (!Array.isArray(offlineTables)) return []
+  return offlineTables
+    .map((val) => {
+      if (typeof val === 'string') return val.trim()
+      if (typeof val === 'number') return String(val)
+      if (val && typeof val === 'object') {
+        const num = (val as { tableNumber?: unknown; table?: unknown; tableNo?: unknown }).tableNumber ?? 
+                    (val as { tableNumber?: unknown; table?: unknown; tableNo?: unknown }).table ?? 
+                    (val as { tableNumber?: unknown; table?: unknown; tableNo?: unknown }).tableNo
+        if (typeof num === 'string') return num.trim()
+        if (typeof num === 'number') return String(num)
+      }
+      return ''
+    })
+    .filter(Boolean)
 }
 
 type ResolvedTableSelection = {
@@ -974,6 +993,22 @@ const assertTableExistsInBranchConfiguration = async (
     if (!normalizedSectionName) continue
 
     availableSectionNames.set(normalizedSectionName, sectionName)
+
+    if (normalizedSectionName === tableSelection.normalizedSection) {
+      const offlineTables = parseOfflineTablesToArrayOfStrings(sectionRecord.offlineTables)
+      const offlineTablesSet = new Set<string>()
+      for (const val of offlineTables) {
+        const normalized = normalizeTableNumberForLookup(val)
+        if (normalized) offlineTablesSet.add(normalized)
+      }
+
+      if (offlineTablesSet.has(tableSelection.normalizedTableNumber)) {
+        throw new APIError(
+          `Table "${tableSelection.tableNumber}" in section "${tableSelection.section}" is currently offline.`,
+          400,
+        )
+      }
+    }
 
     const configuredTables = resolveConfiguredTableNumbersFromSection(sectionRecord)
     const normalizedConfiguredTables = new Set<string>()

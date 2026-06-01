@@ -17,6 +17,7 @@ import {
   LayoutGrid,
   RefreshCw,
   Eye,
+  EyeOff,
   Printer,
   Download,
   Upload,
@@ -130,6 +131,9 @@ type LiveTableRow = {
   servedBy: string | null
   startedAt: string | null
   elapsedSeconds: number | null
+  isOffline?: boolean
+  assignedWaiterId?: string | null
+  assignedWaiterName?: string | null
 }
 
 type LiveTableSection = {
@@ -228,14 +232,28 @@ const MAX_APK_UPLOAD_BYTES = 250 * 1024 * 1024
 
 const getRelationshipID = (value: unknown): string | null => {
   if (typeof value === 'string' && value.trim().length > 0) return value
+  if (typeof value === 'number') return String(value)
+
   if (
     value &&
     typeof value === 'object' &&
     'id' in value &&
-    typeof (value as { id?: unknown }).id === 'string'
+    (typeof (value as { id?: unknown }).id === 'string' ||
+      typeof (value as { id?: unknown }).id === 'number')
   ) {
-    return (value as { id: string }).id
+    return String((value as { id: string | number }).id)
   }
+
+  if (
+    value &&
+    typeof value === 'object' &&
+    '_id' in value &&
+    (typeof (value as { _id?: unknown })._id === 'string' ||
+      typeof (value as { _id?: unknown })._id === 'number')
+  ) {
+    return String((value as { _id: string | number })._id)
+  }
+
   return null
 }
 
@@ -555,6 +573,7 @@ const WidgetSettings: React.FC<any> = (props) => {
   const tableCallStatusTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const [selectedBill, setSelectedBill] = useState<BillData | null>(null)
   const [loadingBill, setLoadingBill] = useState(false)
+  const [tempWaiterAllocations, setTempWaiterAllocations] = useState<Record<string, string>>({})
 
   const branchOptions = useMemo(
     () => branches.map((branch) => ({ value: branch.id, label: branch.name })),
@@ -763,7 +782,15 @@ const WidgetSettings: React.FC<any> = (props) => {
   const fetchTableQRConfigs = async () => {
     setLoadingTableQRConfigs(true)
     try {
-      const response = await fetch('/api/tables?limit=1000&depth=1&pagination=false&sort=updatedAt')
+      const response = await fetch(
+        `/api/tables?limit=1000&depth=1&pagination=false&sort=updatedAt&t=${Date.now()}`,
+        {
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+          },
+        }
+      )
       const json = await response.json()
 
       if (!response.ok) {
@@ -788,14 +815,21 @@ const WidgetSettings: React.FC<any> = (props) => {
     }
   }
 
-  const fetchLiveTableStatus = async (branchId: string) => {
+  const fetchLiveTableStatus = async (branchId: string, bypassCache = false) => {
     setLiveTableLoading(true)
     setLiveTableError(null)
 
     try {
-      const query =
-        branchId && branchId !== 'all' ? `?branchId=${encodeURIComponent(branchId)}` : ''
-      const response = await fetch(`/api/widgets/live-table-status${query}`)
+      let query = branchId && branchId !== 'all' ? `?branchId=${encodeURIComponent(branchId)}` : ''
+      if (bypassCache) {
+        query = query ? `${query}&refresh=true&t=${Date.now()}` : `?refresh=true&t=${Date.now()}`
+      }
+      const response = await fetch(`/api/widgets/live-table-status${query}`, {
+        headers: bypassCache ? {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+        } : undefined,
+      })
       const json = await response.json()
 
       if (!response.ok) {
@@ -816,6 +850,62 @@ const WidgetSettings: React.FC<any> = (props) => {
     } finally {
       setLiveTableLoading(false)
     }
+  }
+
+  const getWaiterOptionsForTable = (
+    branchId: string,
+    tableAssignedWaiterId?: string | null,
+    tableAssignedWaiterName?: string | null,
+    tempWaiterId?: string | null
+  ) => {
+    const today = new Date()
+    const todayYear = today.getFullYear()
+    const todayMonth = today.getMonth()
+    const todayDate = today.getDate()
+
+    const options = liveLoginUsers
+      .filter((u) => {
+        if (u.role !== 'waiter') return false
+        if (u.branchId !== branchId && u.branchId) return false
+        if (!u.latestLoginAt) return false
+
+        const loginDate = new Date(u.latestLoginAt)
+        const isSameCalendarDay =
+          loginDate.getFullYear() === todayYear &&
+          loginDate.getMonth() === todayMonth &&
+          loginDate.getDate() === todayDate
+
+        const isWithin24Hours = Date.now() - loginDate.getTime() < 24 * 60 * 60 * 1000
+
+        return isSameCalendarDay || isWithin24Hours
+      })
+      .map((u) => ({
+        id: u.userId,
+        name: u.name,
+      }))
+
+    if (
+      tableAssignedWaiterId &&
+      !options.some((o) => o.id === tableAssignedWaiterId)
+    ) {
+      options.push({
+        id: tableAssignedWaiterId,
+        name: tableAssignedWaiterName || 'Offline Waiter',
+      })
+    }
+
+    if (
+      tempWaiterId &&
+      !options.some((o) => o.id === tempWaiterId)
+    ) {
+      const liveUser = liveLoginUsers.find((u) => u.userId === tempWaiterId)
+      options.push({
+        id: tempWaiterId,
+        name: liveUser?.name || tableAssignedWaiterName || 'Selected Waiter',
+      })
+    }
+
+    return options.sort((a, b) => a.name.localeCompare(b.name))
   }
 
   const fetchLiveLoginUsers = async (showLoader = true) => {
@@ -856,11 +946,12 @@ const WidgetSettings: React.FC<any> = (props) => {
 
   useEffect(() => {
     if (activeWidget !== 'live-table') return
+    void fetchLiveLoginUsers(true)
     void fetchLiveTableStatus(selectedLiveTableBranch.value)
   }, [activeWidget, selectedLiveTableBranch.value])
 
   useEffect(() => {
-    if (activeWidget !== 'table-qr') return
+    if (activeWidget !== 'table-qr' && activeWidget !== 'live-table') return
     if (tableQRConfigsLoaded || loadingTableQRConfigs) return
     void fetchTableQRConfigs()
   }, [activeWidget, tableQRConfigsLoaded, loadingTableQRConfigs])
@@ -1028,6 +1119,134 @@ const WidgetSettings: React.FC<any> = (props) => {
         })
         delete tableCallStatusTimersRef.current[tableCardKey]
       }, 3000)
+    }
+  }
+
+  const [togglingOfflineTableKey, setTogglingOfflineTableKey] = useState<string | null>(null)
+
+  const handleToggleTableOfflineStatus = async ({
+    branchId,
+    sectionName,
+    tableNumber,
+  }: {
+    branchId: string
+    sectionName: string
+    tableNumber: string
+  }) => {
+    const tableCardKey = `${branchId}-${sectionName}-${tableNumber}`
+    setTogglingOfflineTableKey(tableCardKey)
+    try {
+      const tableConfig = tableQRConfigs.find(
+        (cfg) => getRelationshipID(cfg.branch) === branchId
+      )
+
+      if (!tableConfig) {
+        alert('Table configuration not found for this branch.')
+        return
+      }
+
+      // Clone sections to modify the matching one
+      const updatedSections = (tableConfig.sections || []).map((sec: any) => {
+        if (sec.name === sectionName) {
+          // Robust conversion of any legacy offlineTables format to a clean string array
+          const rawOffline = Array.isArray(sec.offlineTables) ? sec.offlineTables : []
+          const currentOffline = rawOffline
+            .map((val: any) => {
+              if (typeof val === 'string') return val.trim()
+              if (typeof val === 'number') return String(val)
+              if (val && typeof val === 'object') {
+                const num = val.tableNumber ?? val.table ?? val.tableNo
+                if (typeof num === 'string') return num.trim()
+                if (typeof num === 'number') return String(num)
+              }
+              return ''
+            })
+            .filter(Boolean)
+
+          const isCurrentlyOffline = currentOffline.includes(tableNumber)
+          
+          let nextOffline
+          if (isCurrentlyOffline) {
+            nextOffline = currentOffline.filter((val: any) => val !== tableNumber)
+          } else {
+            nextOffline = [...currentOffline, tableNumber]
+          }
+
+          return {
+            ...sec,
+            offlineTables: nextOffline,
+          }
+        }
+        return sec
+      })
+
+      const response = await fetch(`/api/tables/${tableConfig.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sections: updatedSections,
+        }),
+      })
+
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => null)
+        throw new Error(errJson?.message || 'Failed to toggle table offline status')
+      }
+
+      // Refetch both configs and live status to sync
+      await fetchTableQRConfigs()
+      await fetchLiveTableStatus(selectedLiveTableBranch.value, true)
+    } catch (error) {
+      console.error('Failed to toggle table offline status:', error)
+      alert(error instanceof Error ? error.message : 'Failed to update table offline status')
+    } finally {
+      setTogglingOfflineTableKey(null)
+    }
+  }
+
+  const handleAllocateTableWaiter = async ({
+    branchId,
+    sectionName,
+    tableNumber,
+    waiterId,
+  }: {
+    branchId: string
+    sectionName: string
+    tableNumber: string
+    waiterId: string
+  }) => {
+    try {
+      const response = await fetch('/api/widgets/allocate-table-waiter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          branchId,
+          sectionName,
+          tableNumber,
+          waiterId,
+        }),
+      })
+
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => null)
+        throw new Error(errJson?.message || 'Failed to allocate waiter')
+      }
+
+      // Clear temporary allocation state for this table card
+      const tableKey = tableNumber.trim().toLowerCase().replace(/\s+/g, ' ')
+      const tableCardKey = getLiveTableCardKey(branchId, sectionName, tableKey)
+      setTempWaiterAllocations((prev) => {
+        const next = { ...prev }
+        delete next[tableCardKey]
+        return next
+      })
+
+      // Refetch both configs and live status to sync
+      await fetchTableQRConfigs()
+      await fetchLiveTableStatus(selectedLiveTableBranch.value, true)
+    } catch (error) {
+      console.error('Failed to allocate waiter:', error)
+      alert(error instanceof Error ? error.message : 'Failed to allocate waiter')
     }
   }
 
@@ -2419,7 +2638,10 @@ const WidgetSettings: React.FC<any> = (props) => {
                   <button
                     type="button"
                     className="btn btn-secondary live-refresh-btn"
-                    onClick={() => void fetchLiveTableStatus(selectedLiveTableBranch.value)}
+                    onClick={() => {
+                      void fetchLiveLoginUsers(false)
+                      void fetchLiveTableStatus(selectedLiveTableBranch.value)
+                    }}
                     disabled={liveTableLoading}
                   >
                     {liveTableLoading ? (
@@ -2475,7 +2697,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                                 table.tableState === 'prepared' ||
                                 table.tableState === 'delivered' ||
                                 table.tableState === 'available'
-                                  ? table.tableState
+                  ? table.tableState
                                   : table.occupied
                                     ? 'active'
                                     : 'available'
@@ -2484,9 +2706,33 @@ const WidgetSettings: React.FC<any> = (props) => {
 
                               return (
                                 <div
-                                  className={`live-table-card ${tableVisualState}`}
+                                  className={`live-table-card ${tableVisualState} ${
+                                    table.isOffline ? 'is-offline' : ''
+                                  }`}
                                   key={tableCardKey}
                                 >
+                                  <div className="table-offline-toggle">
+                                    <button
+                                      type="button"
+                                      className={`table-offline-btn ${table.isOffline ? 'is-offline' : 'is-online'}`}
+                                      aria-label={table.isOffline ? 'Make Table Online' : 'Make Table Offline'}
+                                      title={table.isOffline ? 'Make Table Online' : 'Make Table Offline'}
+                                      onClick={() =>
+                                        void handleToggleTableOfflineStatus({
+                                          branchId: branch.branchId,
+                                          sectionName: section.sectionName,
+                                          tableNumber: table.tableNumber,
+                                        })
+                                      }
+                                      disabled={togglingOfflineTableKey === tableCardKey}
+                                    >
+                                      {table.isOffline ? (
+                                        <EyeOff size={14} className="grey-eye" />
+                                      ) : (
+                                        <Eye size={14} className="green-eye" />
+                                      )}
+                                    </button>
+                                  </div>
                                   {tableCallState && (
                                     <div className={`table-call-status ${tableCallState}`}>
                                       {tableCallState === 'calling'
@@ -2504,7 +2750,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                                       }`}
                                       aria-label={`Call waiter for ${table.tableLabel}`}
                                       title="Call Waiter"
-                                      disabled={tableCallState === 'calling'}
+                                      disabled={table.isOffline || tableCallState === 'calling'}
                                       onClick={() =>
                                         void handleCallWaiterClick({
                                           branchId: branch.branchId,
@@ -2555,6 +2801,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                                           type="button"
                                           className="table-action-btn"
                                           aria-label="View"
+                                          disabled={table.isOffline}
                                           onClick={() => void handleViewBillClick(table.billId)}
                                         >
                                           <Eye size={15} />
@@ -2563,14 +2810,61 @@ const WidgetSettings: React.FC<any> = (props) => {
                                           type="button"
                                           className="table-action-btn"
                                           aria-label="Print"
+                                          disabled={table.isOffline}
                                         >
                                           <Printer size={15} />
                                         </button>
                                       </div>
                                     </>
                                   ) : (
-                                    <div className="table-available-label">Available</div>
+                                    <div className="table-available-label">
+                                      {table.isOffline ? 'Offline' : 'Available'}
+                                    </div>
                                   )}
+
+                                  <div className="table-waiter-select-container">
+                                    <select
+                                      className="table-waiter-select"
+                                      aria-label="Allocate Waiter"
+                                      value={tempWaiterAllocations[tableCardKey] !== undefined ? tempWaiterAllocations[tableCardKey] : (table.assignedWaiterId || '')}
+                                      disabled={table.isOffline}
+                                      onChange={(e) => {
+                                        const val = e.target.value
+                                        setTempWaiterAllocations((prev) => ({
+                                          ...prev,
+                                          [tableCardKey]: val,
+                                        }))
+                                      }}
+                                    >
+                                      <option value="">No Waiter</option>
+                                      {getWaiterOptionsForTable(
+                                        branch.branchId,
+                                        table.assignedWaiterId,
+                                        table.assignedWaiterName,
+                                        tempWaiterAllocations[tableCardKey]
+                                      ).map((w) => (
+                                        <option key={w.id} value={w.id}>
+                                          {w.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    {tempWaiterAllocations[tableCardKey] !== undefined && tempWaiterAllocations[tableCardKey] !== (table.assignedWaiterId || '') && (
+                                      <button
+                                        type="button"
+                                        className="table-waiter-save-btn"
+                                        onClick={() =>
+                                          void handleAllocateTableWaiter({
+                                            branchId: branch.branchId,
+                                            sectionName: section.sectionName,
+                                            tableNumber: table.tableNumber,
+                                            waiterId: tempWaiterAllocations[tableCardKey],
+                                          })
+                                        }
+                                      >
+                                        Save
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                               )
                             })}

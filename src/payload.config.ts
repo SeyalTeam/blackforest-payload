@@ -75,6 +75,7 @@ import { WidgetSettingsGlobal } from './globals/Widgets'
 import { createWidgetOrderHandler } from './endpoints/createWidgetOrder'
 import { getTableCustomerDetailsVisibilityHandler } from './endpoints/getTableCustomerDetailsVisibility'
 import { getLiveTableStatusHandler } from './endpoints/getLiveTableStatus'
+import { allocateTableWaiterHandler } from './endpoints/allocateTableWaiter'
 import { getLiveLoggedInUsersHandler } from './endpoints/getLiveLoggedInUsers'
 import { getReportBranchesHandler } from './endpoints/getReportBranches'
 import { getWidgetProductOptionsHandler } from './endpoints/getWidgetProductOptions'
@@ -96,6 +97,8 @@ import IdempotencyKeys from './collections/IdempotencyKeys'
 import { getIdempotencyMetricsHandler } from './endpoints/getIdempotencyMetrics'
 import { setupIdempotencyRetention } from './utilities/idempotencyRetention'
 import { readGraphQLQueries } from './graphql/readQueries'
+import { TimeWiseReportGlobal } from './globals/TimeWiseReport'
+import { getTimeWiseReportHandler } from './endpoints/getTimeWiseReport'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -342,6 +345,11 @@ export default buildConfig({
       handler: getBranchBillingReportHandler,
     },
     {
+      path: '/reports/time-wise',
+      method: 'get',
+      handler: getTimeWiseReportHandler,
+    },
+    {
       path: '/reports/category-wise',
       method: 'get',
       handler: getCategoryWiseReportHandler,
@@ -462,6 +470,11 @@ export default buildConfig({
       handler: getLiveTableStatusHandler,
     },
     {
+      path: '/widgets/allocate-table-waiter',
+      method: 'post',
+      handler: allocateTableWaiterHandler,
+    },
+    {
       path: '/widgets/live-logins',
       method: 'get',
       handler: getLiveLoggedInUsersHandler,
@@ -531,6 +544,7 @@ export default buildConfig({
   globals: [
     IPSettings,
     DashboardGlobal,
+    TimeWiseReportGlobal,
     BranchBillingReportGlobal,
     CategoryWiseReportGlobal,
     ProductWiseReportGlobal,

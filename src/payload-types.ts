@@ -139,6 +139,7 @@ export interface Config {
   globals: {
     'ip-settings': IpSetting;
     'general-dashboard': GeneralDashboard;
+    'time-wise-report': TimeWiseReport;
     'branch-billing-report': BranchBillingReport;
     'category-wise-report': CategoryWiseReport;
     'product-wise-report': ProductWiseReport;
@@ -162,6 +163,7 @@ export interface Config {
   globalsSelect: {
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
     'general-dashboard': GeneralDashboardSelect<false> | GeneralDashboardSelect<true>;
+    'time-wise-report': TimeWiseReportSelect<false> | TimeWiseReportSelect<true>;
     'branch-billing-report': BranchBillingReportSelect<false> | BranchBillingReportSelect<true>;
     'category-wise-report': CategoryWiseReportSelect<false> | CategoryWiseReportSelect<true>;
     'product-wise-report': ProductWiseReportSelect<false> | ProductWiseReportSelect<true>;
@@ -1022,31 +1024,335 @@ export interface Table {
    */
   branch: string | Branch;
   /**
-   * Single section can have multiple rows. Add one table range per row (example: Row 1 = T1-T3, Row 2 = T4-T6).
+   * Define the sections and number of tables per section.
    */
   sections: {
     name: string;
     /**
-     * Optional. Prefer using Table Rows below.
+     * Define the number of tables in this section (e.g., 10 generates tables T1-T10).
      */
-    tableCount?: number | null;
+    tableCount: number;
     /**
-     * Each row should contain one range (example: T1-T3).
+     * Auto-generated section summary of table range.
      */
-    rangeRows?:
+    tableRange?: string | null;
+    /**
+     * Select table numbers in this section that are currently offline.
+     */
+    offlineTables?:
+      | (
+          | '1'
+          | '2'
+          | '3'
+          | '4'
+          | '5'
+          | '6'
+          | '7'
+          | '8'
+          | '9'
+          | '10'
+          | '11'
+          | '12'
+          | '13'
+          | '14'
+          | '15'
+          | '16'
+          | '17'
+          | '18'
+          | '19'
+          | '20'
+          | '21'
+          | '22'
+          | '23'
+          | '24'
+          | '25'
+          | '26'
+          | '27'
+          | '28'
+          | '29'
+          | '30'
+          | '31'
+          | '32'
+          | '33'
+          | '34'
+          | '35'
+          | '36'
+          | '37'
+          | '38'
+          | '39'
+          | '40'
+          | '41'
+          | '42'
+          | '43'
+          | '44'
+          | '45'
+          | '46'
+          | '47'
+          | '48'
+          | '49'
+          | '50'
+          | '51'
+          | '52'
+          | '53'
+          | '54'
+          | '55'
+          | '56'
+          | '57'
+          | '58'
+          | '59'
+          | '60'
+          | '61'
+          | '62'
+          | '63'
+          | '64'
+          | '65'
+          | '66'
+          | '67'
+          | '68'
+          | '69'
+          | '70'
+          | '71'
+          | '72'
+          | '73'
+          | '74'
+          | '75'
+          | '76'
+          | '77'
+          | '78'
+          | '79'
+          | '80'
+          | '81'
+          | '82'
+          | '83'
+          | '84'
+          | '85'
+          | '86'
+          | '87'
+          | '88'
+          | '89'
+          | '90'
+          | '91'
+          | '92'
+          | '93'
+          | '94'
+          | '95'
+          | '96'
+          | '97'
+          | '98'
+          | '99'
+          | '100'
+          | '101'
+          | '102'
+          | '103'
+          | '104'
+          | '105'
+          | '106'
+          | '107'
+          | '108'
+          | '109'
+          | '110'
+          | '111'
+          | '112'
+          | '113'
+          | '114'
+          | '115'
+          | '116'
+          | '117'
+          | '118'
+          | '119'
+          | '120'
+          | '121'
+          | '122'
+          | '123'
+          | '124'
+          | '125'
+          | '126'
+          | '127'
+          | '128'
+          | '129'
+          | '130'
+          | '131'
+          | '132'
+          | '133'
+          | '134'
+          | '135'
+          | '136'
+          | '137'
+          | '138'
+          | '139'
+          | '140'
+          | '141'
+          | '142'
+          | '143'
+          | '144'
+          | '145'
+          | '146'
+          | '147'
+          | '148'
+          | '149'
+          | '150'
+        )[]
+      | null;
+    /**
+     * Allocate waiters to tables in this section. Allocations made in the Live Table widget will automatically appear here.
+     */
+    waiterAllocations?:
       | {
-          /**
-           * Auto-generated row label.
-           */
-          label?: string | null;
-          tableRange: string;
+          tableNumber:
+            | '1'
+            | '2'
+            | '3'
+            | '4'
+            | '5'
+            | '6'
+            | '7'
+            | '8'
+            | '9'
+            | '10'
+            | '11'
+            | '12'
+            | '13'
+            | '14'
+            | '15'
+            | '16'
+            | '17'
+            | '18'
+            | '19'
+            | '20'
+            | '21'
+            | '22'
+            | '23'
+            | '24'
+            | '25'
+            | '26'
+            | '27'
+            | '28'
+            | '29'
+            | '30'
+            | '31'
+            | '32'
+            | '33'
+            | '34'
+            | '35'
+            | '36'
+            | '37'
+            | '38'
+            | '39'
+            | '40'
+            | '41'
+            | '42'
+            | '43'
+            | '44'
+            | '45'
+            | '46'
+            | '47'
+            | '48'
+            | '49'
+            | '50'
+            | '51'
+            | '52'
+            | '53'
+            | '54'
+            | '55'
+            | '56'
+            | '57'
+            | '58'
+            | '59'
+            | '60'
+            | '61'
+            | '62'
+            | '63'
+            | '64'
+            | '65'
+            | '66'
+            | '67'
+            | '68'
+            | '69'
+            | '70'
+            | '71'
+            | '72'
+            | '73'
+            | '74'
+            | '75'
+            | '76'
+            | '77'
+            | '78'
+            | '79'
+            | '80'
+            | '81'
+            | '82'
+            | '83'
+            | '84'
+            | '85'
+            | '86'
+            | '87'
+            | '88'
+            | '89'
+            | '90'
+            | '91'
+            | '92'
+            | '93'
+            | '94'
+            | '95'
+            | '96'
+            | '97'
+            | '98'
+            | '99'
+            | '100'
+            | '101'
+            | '102'
+            | '103'
+            | '104'
+            | '105'
+            | '106'
+            | '107'
+            | '108'
+            | '109'
+            | '110'
+            | '111'
+            | '112'
+            | '113'
+            | '114'
+            | '115'
+            | '116'
+            | '117'
+            | '118'
+            | '119'
+            | '120'
+            | '121'
+            | '122'
+            | '123'
+            | '124'
+            | '125'
+            | '126'
+            | '127'
+            | '128'
+            | '129'
+            | '130'
+            | '131'
+            | '132'
+            | '133'
+            | '134'
+            | '135'
+            | '136'
+            | '137'
+            | '138'
+            | '139'
+            | '140'
+            | '141'
+            | '142'
+            | '143'
+            | '144'
+            | '145'
+            | '146'
+            | '147'
+            | '148'
+            | '149'
+            | '150';
+          waiter: string | User;
           id?: string | null;
         }[]
       | null;
-    /**
-     * Auto-generated section summary of row-wise ranges.
-     */
-    tableRange?: string | null;
     id?: string | null;
   }[];
   /**
@@ -1967,14 +2273,15 @@ export interface TablesSelect<T extends boolean = true> {
     | {
         name?: T;
         tableCount?: T;
-        rangeRows?:
+        tableRange?: T;
+        offlineTables?: T;
+        waiterAllocations?:
           | T
           | {
-              label?: T;
-              tableRange?: T;
+              tableNumber?: T;
+              waiter?: T;
               id?: T;
             };
-        tableRange?: T;
         id?: T;
       };
   tableLayoutSummary?: T;
@@ -2150,6 +2457,15 @@ export interface IpSetting {
  * via the `definition` "general-dashboard".
  */
 export interface GeneralDashboard {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "time-wise-report".
+ */
+export interface TimeWiseReport {
   id: string;
   updatedAt?: string | null;
   createdAt?: string | null;
@@ -3428,6 +3744,15 @@ export interface IpSettingsSelect<T extends boolean = true> {
  * via the `definition` "general-dashboard_select".
  */
 export interface GeneralDashboardSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "time-wise-report_select".
+ */
+export interface TimeWiseReportSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

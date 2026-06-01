@@ -1,6 +1,5 @@
 import React from 'react'
 import { notFound } from 'next/navigation'
-import { unstable_cacheLife as cacheLife } from 'next/cache'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import BillReceipt, { BillData } from '@/components/BillReceipt'
@@ -13,14 +12,6 @@ type Args = {
 }
 
 async function getBillReceipt(id: string) {
-  'use cache'
-
-  cacheLife({
-    stale: 30,
-    revalidate: 60,
-    expire: 300,
-  })
-
   const payload = await getPayload({ config: configPromise })
   return payload.findByID({
     collection: 'billings',

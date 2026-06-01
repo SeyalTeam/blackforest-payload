@@ -1,23 +1,12 @@
 import type { CollectionConfig } from 'payload'
 
-type TableRangeRowInput = {
-  label?: unknown
-  tableRange?: unknown
-  [key: string]: unknown
-}
-
 type TableSectionInput = {
   name?: unknown
   tableCount?: unknown
   tableRange?: unknown
-  rangeRows?: unknown
+  offlineTables?: unknown
+  waiterAllocations?: unknown
   [key: string]: unknown
-}
-
-type ParsedTableRange = {
-  start: number
-  end: number
-  label: string
 }
 
 type NormalizedSectionResult = {
@@ -36,84 +25,6 @@ const formatTableRange = (startTable: number, endTable: number): string => {
   return `T${startTable} - T${endTable}`
 }
 
-const parseRangeText = (value: string): ParsedTableRange | null => {
-  const normalizedValue = value.trim()
-  if (!normalizedValue) return null
-
-  const match = normalizedValue.match(/^T?\s*(\d+)(?:\s*-\s*T?\s*(\d+))?$/i)
-  if (!match) return null
-
-  const start = Number.parseInt(match[1], 10)
-  const end = Number.parseInt(match[2] ?? match[1], 10)
-
-  if (!Number.isFinite(start) || !Number.isFinite(end) || start <= 0 || end <= 0) return null
-  if (end < start) return null
-
-  return {
-    start,
-    end,
-    label: formatTableRange(start, end),
-  }
-}
-
-const normalizeRangeRows = (
-  rangeRows: unknown,
-  options: { strict: boolean; sectionLabel: string },
-): { normalizedRows: TableRangeRowInput[]; parsedRanges: ParsedTableRange[] } => {
-  if (!Array.isArray(rangeRows)) return { normalizedRows: [], parsedRanges: [] }
-
-  const parsedRanges: ParsedTableRange[] = []
-  const normalizedRows: TableRangeRowInput[] = []
-  const usedTableNumbers = new Set<number>()
-  let rowCounter = 1
-
-  rangeRows.forEach((row, index) => {
-    const rowRecord: TableRangeRowInput =
-      row && typeof row === 'object' ? ({ ...row } as TableRangeRowInput) : {}
-    const rawRange = typeof rowRecord.tableRange === 'string' ? rowRecord.tableRange.trim() : ''
-
-    if (!rawRange) {
-      if (options.strict) {
-        throw new Error(
-          `${options.sectionLabel}, Row ${index + 1}: table range is required (example: T1-T3).`,
-        )
-      }
-      return
-    }
-
-    const parsed = parseRangeText(rawRange)
-    if (!parsed) {
-      if (options.strict) {
-        throw new Error(
-          `${options.sectionLabel}, Row ${index + 1}: invalid table range "${rawRange}". Use format like T1-T3.`,
-        )
-      }
-      return
-    }
-
-    for (let tableNumber = parsed.start; tableNumber <= parsed.end; tableNumber += 1) {
-      if (usedTableNumbers.has(tableNumber)) {
-        if (options.strict) {
-          throw new Error(
-            `${options.sectionLabel}, Row ${index + 1}: table T${tableNumber} overlaps another row range.`,
-          )
-        }
-        return
-      }
-      usedTableNumbers.add(tableNumber)
-    }
-
-    rowRecord.label = `Row ${rowCounter}`
-    rowRecord.tableRange = parsed.label
-    rowCounter += 1
-
-    parsedRanges.push(parsed)
-    normalizedRows.push(rowRecord)
-  })
-
-  return { normalizedRows, parsedRanges }
-}
-
 const normalizeSectionsWithMetadata = (
   sections: unknown,
   options: { strict: boolean },
@@ -123,32 +34,11 @@ const normalizeSectionsWithMetadata = (
   return sections.map((section, index) => {
     const sectionRecord: TableSectionInput =
       section && typeof section === 'object' ? ({ ...section } as TableSectionInput) : {}
-    const sectionName =
-      typeof sectionRecord.name === 'string' && sectionRecord.name.trim()
-        ? sectionRecord.name.trim()
-        : `Section ${index + 1}`
 
-    const { normalizedRows, parsedRanges } = normalizeRangeRows(sectionRecord.rangeRows, {
-      strict: options.strict,
-      sectionLabel: sectionName,
-    })
+    const totalTables = normalizeTableCount(sectionRecord.tableCount)
 
-    const totalTablesFromRanges = parsedRanges.reduce(
-      (sum, range) => sum + (range.end - range.start + 1),
-      0,
-    )
-    const fallbackTableCount = normalizeTableCount(sectionRecord.tableCount)
-    const totalTables = totalTablesFromRanges > 0 ? totalTablesFromRanges : fallbackTableCount
-
-    if (normalizedRows.length > 0) {
-      sectionRecord.rangeRows = normalizedRows
-      sectionRecord.tableRange = normalizedRows
-        .map((row) => `${String(row.label)}: ${String(row.tableRange)}`)
-        .join(', ')
-    } else {
-      sectionRecord.tableRange =
-        totalTables > 0 ? formatTableRange(1, totalTables) : 'No tables configured'
-    }
+    sectionRecord.tableRange =
+      totalTables > 0 ? formatTableRange(1, totalTables) : 'No tables configured'
 
     return {
       section: sectionRecord,
@@ -203,6 +93,7 @@ const Tables: CollectionConfig = {
         if (!data || typeof data !== 'object') return data
 
         const dataRecord = data as Record<string, unknown>
+        console.log('[beforeValidate] dataRecord.sections:', JSON.stringify(dataRecord.sections, null, 2))
         const originalRecord =
           originalDoc && typeof originalDoc === 'object' ? (originalDoc as Record<string, unknown>) : null
         const hasSectionsInData = Object.prototype.hasOwnProperty.call(dataRecord, 'sections')
@@ -211,6 +102,7 @@ const Tables: CollectionConfig = {
           strict: true,
         })
         const sectionsWithRanges = normalizedSections.map((entry) => entry.section)
+        console.log('[beforeValidate] sectionsWithRanges output:', JSON.stringify(sectionsWithRanges, null, 2))
 
         return {
           ...dataRecord,
@@ -238,8 +130,7 @@ const Tables: CollectionConfig = {
       minRows: 1,
       admin: {
         initCollapsed: false,
-        description:
-          'Single section can have multiple rows. Add one table range per row (example: Row 1 = T1-T3, Row 2 = T4-T6).',
+        description: 'Define the sections and number of tables per section.',
       },
       fields: [
         {
@@ -253,46 +144,57 @@ const Tables: CollectionConfig = {
         {
           name: 'tableCount',
           type: 'number',
+          required: true,
           min: 1,
           admin: {
-            placeholder: 'Legacy fallback: number of tables in this section',
-            description: 'Optional. Prefer using Table Rows below.',
+            placeholder: 'Number of tables in this section',
+            description: 'Define the number of tables in this section (e.g., 10 generates tables T1-T10).',
           },
-        },
-        {
-          name: 'rangeRows',
-          label: 'Table Rows',
-          type: 'array',
-          admin: {
-            initCollapsed: false,
-            description: 'Each row should contain one range (example: T1-T3).',
-          },
-          fields: [
-            {
-              name: 'label',
-              type: 'text',
-              admin: {
-                readOnly: true,
-                description: 'Auto-generated row label.',
-              },
-            },
-            {
-              name: 'tableRange',
-              type: 'text',
-              required: true,
-              admin: {
-                placeholder: 'e.g., T1-T3',
-              },
-            },
-          ],
         },
         {
           name: 'tableRange',
           type: 'textarea',
           admin: {
             readOnly: true,
-            description: 'Auto-generated section summary of row-wise ranges.',
+            description: 'Auto-generated section summary of table range.',
           },
+        },
+        {
+          name: 'offlineTables',
+          type: 'select',
+          hasMany: true,
+          admin: {
+            description: 'Select table numbers in this section that are currently offline.',
+            isClearable: true,
+          },
+          options: Array.from({ length: 150 }, (_, i) => String(i + 1)),
+        },
+        {
+          name: 'waiterAllocations',
+          label: 'Waiter Allocations',
+          type: 'array',
+          admin: {
+            description: 'Allocate waiters to tables in this section. Allocations made in the Live Table widget will automatically appear here.',
+          },
+          fields: [
+            {
+              name: 'tableNumber',
+              label: 'Table Number',
+              type: 'select',
+              required: true,
+              options: Array.from({ length: 150 }, (_, i) => String(i + 1)),
+            },
+            {
+              name: 'waiter',
+              label: 'Waiter',
+              type: 'relationship',
+              relationTo: 'users',
+              required: true,
+              filterOptions: {
+                role: { equals: 'waiter' },
+              },
+            },
+          ],
         },
       ],
     },

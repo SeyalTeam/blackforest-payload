@@ -2,9 +2,6 @@ import { withPayload } from '@payloadcms/next/withPayload'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    useCache: true,
-  },
   typescript: {
     // Temporary unblock for deployment while legacy numeric/string ID types are reconciled.
     ignoreBuildErrors: true,
