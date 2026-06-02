@@ -43,10 +43,32 @@ export const allocateTableWaiterHandler: PayloadHandler = async (req): Promise<R
       }
     }
 
-    const { branchId, sectionName, tableNumber, waiterId } = body
+    const { branchId, sectionName, tableNumber, waiterId, tables } = body
 
-    if (!branchId || !sectionName || !tableNumber) {
-      return Response.json({ message: 'Missing required fields' }, { status: 400 })
+    if (!branchId) {
+      return Response.json({ message: 'Missing branchId' }, { status: 400 })
+    }
+
+    // Determine tables to allocate/deallocate
+    const tablesToProcess: Array<{ sectionName: string, tableNumber: string }> = []
+    if (Array.isArray(tables)) {
+      for (const t of tables) {
+        if (t && typeof t.sectionName === 'string' && typeof t.tableNumber === 'string') {
+          tablesToProcess.push({
+            sectionName: t.sectionName.trim(),
+            tableNumber: t.tableNumber.trim(),
+          })
+        }
+      }
+    } else if (sectionName && tableNumber) {
+      tablesToProcess.push({
+        sectionName: String(sectionName).trim(),
+        tableNumber: String(tableNumber).trim(),
+      })
+    }
+
+    if (tablesToProcess.length === 0) {
+      return Response.json({ message: 'No tables specified for allocation' }, { status: 400 })
     }
 
     // Find the table config document for this branch
@@ -67,30 +89,45 @@ export const allocateTableWaiterHandler: PayloadHandler = async (req): Promise<R
 
     // Clone and update sections
     const updatedSections = (tableConfig.sections || []).map((sec: any) => {
-      const isMatch = typeof sec.name === 'string' &&
-        sec.name.trim().toLowerCase() === sectionName.trim().toLowerCase()
-      if (isMatch) {
-        const currentAllocations = Array.isArray(sec.waiterAllocations) ? sec.waiterAllocations : []
-        const cleanedAllocations = currentAllocations
-          .map((alloc: any) => {
-            if (typeof alloc === 'string') {
-              const parts = alloc.split('-')
-              const tNum = parts[0]?.trim()
-              const wId = parts.slice(1).join('-')?.trim()
-              return { tableNumber: tNum, waiterId: wId }
-            }
-            const tNum = typeof alloc?.tableNumber === 'string'
-              ? alloc.tableNumber.trim()
-              : typeof alloc?.tableNumber === 'number'
-                ? String(alloc.tableNumber)
-                : ''
-            const wId = getRelationshipID(alloc?.waiter)
+      const currentAllocations = Array.isArray(sec.waiterAllocations) ? sec.waiterAllocations : []
+      let cleanedAllocations = currentAllocations
+        .map((alloc: any) => {
+          if (typeof alloc === 'string') {
+            const parts = alloc.split('-')
+            const tNum = parts[0]?.trim()
+            const wId = parts.slice(1).join('-')?.trim()
             return { tableNumber: tNum, waiterId: wId }
-          })
-          .filter((alloc: any) => alloc.tableNumber && alloc.tableNumber !== tableNumber)
+          }
+          const tNum = typeof alloc?.tableNumber === 'string'
+            ? alloc.tableNumber.trim()
+            : typeof alloc?.tableNumber === 'number'
+              ? String(alloc.tableNumber)
+              : ''
+          const wId = getRelationshipID(alloc?.waiter)
+          return { tableNumber: tNum, waiterId: wId }
+        })
+        .filter((alloc: any) => alloc.tableNumber)
 
+      // Find updates for this specific section
+      const updatesForThisSection = tablesToProcess.filter(
+        (t) => t.sectionName.trim().toLowerCase() === (sec.name || '').trim().toLowerCase()
+      )
+
+      if (updatesForThisSection.length > 0) {
+        // Remove existing allocations for the tables in this section we are updating
+        const tableNumbersToUpdate = updatesForThisSection.map((t) => t.tableNumber)
+        cleanedAllocations = cleanedAllocations.filter(
+          (alloc: any) => !tableNumbersToUpdate.includes(alloc.tableNumber)
+        )
+
+        // If waiterId is provided (non-empty), add the new allocations
         if (waiterId) {
-          cleanedAllocations.push({ tableNumber, waiterId })
+          for (const update of updatesForThisSection) {
+            cleanedAllocations.push({
+              tableNumber: update.tableNumber,
+              waiterId: String(waiterId).trim(),
+            })
+          }
         }
 
         const dbAllocations = cleanedAllocations.map((alloc: any) => ({
