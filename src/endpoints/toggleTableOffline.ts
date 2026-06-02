@@ -24,7 +24,7 @@ export const toggleTableOfflineHandler: PayloadHandler = async (req): Promise<Re
     }
 
     // Determine the list of tables to process
-    let tablesToProcess: Array<{ sectionName: string, tableNumber: string }> = []
+    const tablesToProcess: Array<{ sectionName: string, tableNumber: string }> = []
     if (Array.isArray(tables)) {
       for (const t of tables) {
         if (t && typeof t.sectionName === 'string' && typeof t.tableNumber === 'string') {
