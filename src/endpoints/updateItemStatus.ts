@@ -158,6 +158,7 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
           collection: 'branches',
           id: branchID,
           depth: 0,
+          overrideAccess: true,
         })
         if (branch?.tableOrderWorkflow) {
           branchWorkflow = {
