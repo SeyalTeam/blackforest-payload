@@ -149,28 +149,6 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
       return Response.json({ error: 'Bill not found' }, { status: 404 })
     }
 
-    // Fetch branch workflow settings
-    const branchID = getRelationshipID((bill as { branch?: unknown }).branch)
-    let branchWorkflow = { skipSupervisor: false, skipWaiter: false }
-    if (branchID) {
-      try {
-        const branch = await payload.findByID({
-          collection: 'branches',
-          id: branchID,
-          depth: 0,
-          overrideAccess: true,
-        })
-        if (branch?.tableOrderWorkflow) {
-          branchWorkflow = {
-            skipSupervisor: !!branch.tableOrderWorkflow.skipSupervisor,
-            skipWaiter: !!branch.tableOrderWorkflow.skipWaiter,
-          }
-        }
-      } catch (error) {
-        console.error('[updateItemStatus] Error fetching branch workflow:', error)
-      }
-    }
-
     // Define strict status sequence
     const statusSequence = ['ordered', 'prepared', 'confirmed', 'delivered']
     const normalizeStatus = (input?: string): string => {
@@ -243,28 +221,9 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
 
       const nextItemVersion = parseNonNegativeInteger(item.itemVersion) + 1
 
-      // Compute final status and auto-skipped values
-      let finalStatus = nextStatus
-      let autoConfirmed = false
-      let autoDelivered = false
-
-      if (statusChanged && nextStatus === 'prepared' && branchWorkflow.skipSupervisor) {
-        autoConfirmed = true
-        finalStatus = 'confirmed'
-      }
-
-      if (
-        statusChanged &&
-        (finalStatus === 'confirmed') &&
-        branchWorkflow.skipWaiter
-      ) {
-        autoDelivered = true
-        finalStatus = 'delivered'
-      }
-
       const itemUpdateData: any = {
         ...item,
-        status: hasStatusUpdate ? finalStatus : item.status,
+        status: hasStatusUpdate ? nextStatus : item.status,
         itemVersion: nextItemVersion,
         itemUpdatedAt: changedAtISO,
       }
@@ -274,22 +233,6 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
         if (statusOwnerField && actingUserID) {
           itemUpdateData[statusOwnerField] = actingUserID
           console.log(`[updateItemStatus] SETTING OWNER: item.${statusOwnerField} = ${actingUserID}`)
-        }
-
-        // Apply skipped status properties
-        if (autoConfirmed) {
-          itemUpdateData.confirmedAt = changedAtDisplay
-          if (actingUserID) {
-            itemUpdateData.confirmedBy = actingUserID
-          }
-          console.log(`[updateItemStatus] AUTO-SKIPPING SUPERVISOR: item.confirmedBy = ${actingUserID}`)
-        }
-        if (autoDelivered) {
-          itemUpdateData.deliveredAt = changedAtDisplay
-          if (actingUserID) {
-            itemUpdateData.deliveredBy = actingUserID
-          }
-          console.log(`[updateItemStatus] AUTO-SKIPPING WAITER: item.deliveredBy = ${actingUserID}`)
         }
       }
 
@@ -303,7 +246,7 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
 
       itemChanged = true
       itemStatusBefore = currentStatus
-      itemStatusAfter = hasStatusUpdate ? finalStatus : currentStatus
+      itemStatusAfter = hasStatusUpdate ? nextStatus : currentStatus
       preparingTimeBefore = currentPreparingTime
       preparingTimeAfter = nextPreparingTime
       itemVersionAfter = nextItemVersion
@@ -383,6 +326,7 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
       }
     }
 
+    const branchID = getRelationshipID((bill as { branch?: unknown }).branch)
     const kitchenID =
       typeof body.kitchenId === 'string' && body.kitchenId.trim().length > 0
         ? body.kitchenId.trim()
