@@ -17,10 +17,32 @@ export const toggleTableOfflineHandler: PayloadHandler = async (req): Promise<Re
       }
     }
 
-    const { branchId, sectionName, tableNumber, isOffline } = body
+    const { branchId, sectionName, tableNumber, isOffline, tables } = body
 
-    if (!branchId || !sectionName || !tableNumber) {
-      return Response.json({ message: 'Missing required fields' }, { status: 400 })
+    if (!branchId || typeof isOffline !== 'boolean') {
+      return Response.json({ message: 'Missing branchId or isOffline parameter' }, { status: 400 })
+    }
+
+    // Determine the list of tables to process
+    let tablesToProcess: Array<{ sectionName: string, tableNumber: string }> = []
+    if (Array.isArray(tables)) {
+      for (const t of tables) {
+        if (t && typeof t.sectionName === 'string' && typeof t.tableNumber === 'string') {
+          tablesToProcess.push({
+            sectionName: t.sectionName.trim(),
+            tableNumber: t.tableNumber.trim(),
+          })
+        }
+      }
+    } else if (sectionName && tableNumber) {
+      tablesToProcess.push({
+        sectionName: String(sectionName).trim(),
+        tableNumber: String(tableNumber).trim(),
+      })
+    }
+
+    if (tablesToProcess.length === 0) {
+      return Response.json({ message: 'No tables specified for update' }, { status: 400 })
     }
 
     // Find the table config document for this branch
@@ -41,46 +63,39 @@ export const toggleTableOfflineHandler: PayloadHandler = async (req): Promise<Re
 
     // Clone and update sections
     const updatedSections = (tableConfig.sections || []).map((sec: any) => {
-      const isMatch = typeof sec.name === 'string' &&
-        sec.name.trim().toLowerCase() === sectionName.trim().toLowerCase()
-      if (isMatch) {
-        // Robust conversion of any legacy offlineTables format to a clean string array
-        const rawOffline = Array.isArray(sec.offlineTables) ? sec.offlineTables : []
-        const currentOffline = rawOffline
-          .map((val: any) => {
-            if (typeof val === 'string') return val.trim()
-            if (typeof val === 'number') return String(val)
-            if (val && typeof val === 'object') {
-              const num = val.tableNumber ?? val.table ?? val.tableNo
-              if (typeof num === 'string') return num.trim()
-              if (typeof num === 'number') return String(num)
-            }
-            return ''
-          })
-          .filter(Boolean)
-
-        const isCurrentlyOffline = currentOffline.includes(tableNumber)
-        let nextOffline: string[]
-        
-        // If isOffline is provided explicitly as a boolean
-        if (typeof isOffline === 'boolean') {
-          if (isOffline) {
-            nextOffline = isCurrentlyOffline ? currentOffline : [...currentOffline, tableNumber]
-          } else {
-            nextOffline = currentOffline.filter((val: any) => val !== tableNumber)
+      const rawOffline = Array.isArray(sec.offlineTables) ? sec.offlineTables : []
+      let currentOffline = rawOffline
+        .map((val: any) => {
+          if (typeof val === 'string') return val.trim()
+          if (typeof val === 'number') return String(val)
+          if (val && typeof val === 'object') {
+            const num = val.tableNumber ?? val.table ?? val.tableNo
+            if (typeof num === 'string') return num.trim()
+            if (typeof num === 'number') return String(num)
           }
-        } else {
-          // Fallback to simple toggle
-          if (isCurrentlyOffline) {
-            nextOffline = currentOffline.filter((val: any) => val !== tableNumber)
+          return ''
+        })
+        .filter(Boolean)
+
+      // Find all update instructions for this specific section
+      const updatesForThisSection = tablesToProcess.filter(
+        (t) => t.sectionName.trim().toLowerCase() === (sec.name || '').trim().toLowerCase()
+      )
+
+      if (updatesForThisSection.length > 0) {
+        for (const update of updatesForThisSection) {
+          const isCurrentlyOffline = currentOffline.includes(update.tableNumber)
+          if (isOffline) {
+            if (!isCurrentlyOffline) {
+              currentOffline.push(update.tableNumber)
+            }
           } else {
-            nextOffline = [...currentOffline, tableNumber]
+            currentOffline = currentOffline.filter((val: any) => val !== update.tableNumber)
           }
         }
-
         return {
           ...sec,
-          offlineTables: nextOffline,
+          offlineTables: currentOffline,
         }
       }
       return sec
