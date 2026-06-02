@@ -76,6 +76,7 @@ import { createWidgetOrderHandler } from './endpoints/createWidgetOrder'
 import { getTableCustomerDetailsVisibilityHandler } from './endpoints/getTableCustomerDetailsVisibility'
 import { getLiveTableStatusHandler } from './endpoints/getLiveTableStatus'
 import { allocateTableWaiterHandler } from './endpoints/allocateTableWaiter'
+import { toggleTableOfflineHandler } from './endpoints/toggleTableOffline'
 import { getLiveLoggedInUsersHandler } from './endpoints/getLiveLoggedInUsers'
 import { getReportBranchesHandler } from './endpoints/getReportBranches'
 import { getWidgetProductOptionsHandler } from './endpoints/getWidgetProductOptions'
@@ -473,6 +474,11 @@ export default buildConfig({
       path: '/widgets/allocate-table-waiter',
       method: 'post',
       handler: allocateTableWaiterHandler,
+    },
+    {
+      path: '/widgets/toggle-table-offline',
+      method: 'post',
+      handler: toggleTableOfflineHandler,
     },
     {
       path: '/widgets/live-logins',
