@@ -320,6 +320,13 @@ export interface Branch {
     skipSupervisor?: boolean | null;
     skipDriver?: boolean | null;
   };
+  /**
+   * Customize the table order process for this branch.
+   */
+  tableOrderWorkflow?: {
+    skipSupervisor?: boolean | null;
+    skipWaiter?: boolean | null;
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -1709,6 +1716,12 @@ export interface BranchesSelect<T extends boolean = true> {
     | {
         skipSupervisor?: T;
         skipDriver?: T;
+      };
+  tableOrderWorkflow?:
+    | T
+    | {
+        skipSupervisor?: T;
+        skipWaiter?: T;
       };
   updatedAt?: T;
   createdAt?: T;

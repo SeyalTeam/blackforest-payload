@@ -201,6 +201,33 @@ export const Branches: CollectionConfig = {
         description: 'Customize the stock order process for this branch.',
       },
     },
+    {
+      name: 'tableOrderWorkflow',
+      label: 'Table Order Workflow',
+      type: 'group',
+      fields: [
+        {
+          type: 'row',
+          fields: [
+            {
+              name: 'skipSupervisor',
+              label: 'Skip Supervisor (Confirmation)',
+              type: 'checkbox',
+              defaultValue: false,
+            },
+            {
+              name: 'skipWaiter',
+              label: 'Skip Waiter (Delivery)',
+              type: 'checkbox',
+              defaultValue: false,
+            },
+          ],
+        },
+      ],
+      admin: {
+        description: 'Customize the table order process for this branch.',
+      },
+    },
   ],
   access: {
     create: ({ req }) => req.user?.role === 'superadmin',
