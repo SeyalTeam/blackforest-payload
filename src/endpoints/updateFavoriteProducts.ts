@@ -1,15 +1,26 @@
-import { PayloadHandler } from 'payload/config'
+import type { PayloadHandler } from 'payload'
 
-export const updateFavoriteProductsHandler: PayloadHandler = async (req, res) => {
+export const updateFavoriteProductsHandler: PayloadHandler = async (req): Promise<Response> => {
   try {
     const user = req.user
     if (!user || user.role !== 'branch' || !user.branch) {
-      return res.status(403).json({ error: 'Unauthorized. Only branches can update their favorite products.' })
+      return Response.json(
+        { error: 'Unauthorized. Only branches can update their favorite products.' },
+        { status: 403 }
+      )
     }
 
-    const { products } = req.body
+    let body: any = {}
+    try {
+      body = await req.json?.() || {}
+    } catch (e) {
+      // Ignored
+    }
+    
+    const products = body.products
+    
     if (!Array.isArray(products)) {
-      return res.status(400).json({ error: 'products array is required' })
+      return Response.json({ error: 'products array is required' }, { status: 400 })
     }
 
     const branchId = typeof user.branch === 'object' ? user.branch.id : user.branch
@@ -23,7 +34,7 @@ export const updateFavoriteProductsHandler: PayloadHandler = async (req, res) =>
     
     // Find if a rule exists for this specific branch ONLY.
     let ruleFound = false
-    const updatedRules = rules.map((rule) => {
+    const updatedRules = rules.map((rule: any) => {
       const ruleBranches = rule.branches || []
       const branchIds = ruleBranches.map((b: any) => (typeof b === 'object' ? b.id : b))
       
@@ -56,9 +67,9 @@ export const updateFavoriteProductsHandler: PayloadHandler = async (req, res) =>
       overrideAccess: true,
     })
 
-    return res.status(200).json({ success: true, message: 'Favorite products updated' })
+    return Response.json({ success: true, message: 'Favorite products updated' }, { status: 200 })
   } catch (error) {
     req.payload.logger.error({ msg: 'Error updating favorite products', error })
-    return res.status(500).json({ error: 'Internal Server Error' })
+    return Response.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
