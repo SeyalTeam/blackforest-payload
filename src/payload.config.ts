@@ -100,6 +100,7 @@ import { setupIdempotencyRetention } from './utilities/idempotencyRetention'
 import { readGraphQLQueries } from './graphql/readQueries'
 import { TimeWiseReportGlobal } from './globals/TimeWiseReport'
 import { getTimeWiseReportHandler } from './endpoints/getTimeWiseReport'
+import { updateFavoriteProductsHandler } from './endpoints/updateFavoriteProducts'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -340,6 +341,11 @@ export default buildConfig({
   },
 
   endpoints: [
+    {
+      path: '/widgets/update-favorite-products',
+      method: 'post',
+      handler: updateFavoriteProductsHandler,
+    },
     {
       path: '/reports/branch-billing',
       method: 'get',
