@@ -749,11 +749,18 @@ export const getLiveTableStatusHandler: PayloadHandler = async (
       const branchName = getBranchNameFromRelation(billing.branch, branchId)
       const branch = ensureBranch(branchMap, branchId, branchName)
       const sectionState = ensureSection(branch, sectionValue)
-      const tableState = ensureTable(sectionState, tableNumberValue, toTableLabel(tableNumberValue))
+      let tableState = ensureTable(sectionState, tableNumberValue, toTableLabel(tableNumberValue))
       if (!tableState) continue
 
-      // Billing list is sorted newest first. Keep the latest active bill for each table.
-      if (tableState.occupied) continue
+      // Billing list is sorted newest first. If already occupied, create a ghost table in "Shared Tables" section.
+      if (tableState.occupied) {
+        const sharedSection = ensureSection(branch, 'Shared Tables')
+        const billIdString = typeof billing?.id === 'string' ? billing.id : Math.random().toString(36).substring(2, 9)
+        const ghostTableNumber = `${tableNumberValue}-${billIdString}`
+        
+        tableState = ensureTable(sharedSection, ghostTableNumber, toTableLabel(tableNumberValue))
+        if (!tableState) continue
+      }
 
       const createdAt = typeof billing?.createdAt === 'string' ? billing.createdAt : null
       if (!createdAt) continue
