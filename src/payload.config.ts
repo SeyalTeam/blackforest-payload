@@ -102,6 +102,8 @@ import { TimeWiseReportGlobal } from './globals/TimeWiseReport'
 import { getTimeWiseReportHandler } from './endpoints/getTimeWiseReport'
 import { toggleFavoriteRuleHandler } from './endpoints/toggleFavoriteRule'
 import { updateFavoriteRuleProductsHandler } from './endpoints/updateFavoriteRuleProducts'
+import { toggleFavoriteCategoryRuleHandler } from './endpoints/toggleFavoriteCategoryRule'
+import { updateFavoriteCategoryRuleCategoriesHandler } from './endpoints/updateFavoriteCategoryRuleCategories'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -558,6 +560,16 @@ export default buildConfig({
       path: '/widgets/update-favorite-rule-products',
       method: 'post',
       handler: updateFavoriteRuleProductsHandler,
+    },
+    {
+      path: '/widgets/toggle-favorite-category-rule',
+      method: 'post',
+      handler: toggleFavoriteCategoryRuleHandler,
+    },
+    {
+      path: '/widgets/update-favorite-category-rule-categories',
+      method: 'post',
+      handler: updateFavoriteCategoryRuleCategoriesHandler,
     },
   ],
 
