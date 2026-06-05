@@ -46,7 +46,7 @@ export const toggleFavoriteRuleHandler: PayloadHandler = async (req): Promise<Re
           return Response.json({ message: 'Branch ID missing from user' }, { status: 400 })
        }
 
-       let ruleBranches = rules[ruleIndex].branches || []
+       const ruleBranches = rules[ruleIndex].branches || []
        // Extract just the string IDs
        let ruleBranchIds = ruleBranches.map((b: any) => typeof b === 'string' ? b : b?.id).filter(Boolean)
 
