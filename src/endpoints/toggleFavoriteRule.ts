@@ -1,7 +1,7 @@
 import { PayloadHandler } from 'payload'
 
 export const toggleFavoriteRuleHandler: PayloadHandler = async (req): Promise<Response> => {
-  if (!req.user) {
+  if (!req.user || (req.user.role !== 'branch' && req.user.role !== 'superadmin')) {
     return Response.json({ message: 'Unauthorized' }, { status: 401 })
   }
 
@@ -40,31 +40,32 @@ export const toggleFavoriteRuleHandler: PayloadHandler = async (req): Promise<Re
       return Response.json({ message: 'Rule not found' }, { status: 404 })
     }
 
-    let userBranchId = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
-    if (!userBranchId && req.user.lastLoginBranch) {
-       userBranchId = typeof req.user.lastLoginBranch === 'string' ? req.user.lastLoginBranch : req.user.lastLoginBranch?.id
-    }
-    
-    if (!userBranchId) {
-       return Response.json({ message: 'Branch ID missing from user session' }, { status: 400 })
-    }
+    if (req.user.role === 'branch') {
+       const userBranchId = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
+       if (!userBranchId) {
+          return Response.json({ message: 'Branch ID missing from user' }, { status: 400 })
+       }
 
-    let ruleBranches = rules[ruleIndex].branches || []
-    // Extract just the string IDs
-    let ruleBranchIds = ruleBranches.map((b: any) => typeof b === 'string' ? b : b?.id).filter(Boolean)
+       let ruleBranches = rules[ruleIndex].branches || []
+       // Extract just the string IDs
+       let ruleBranchIds = ruleBranches.map((b: any) => typeof b === 'string' ? b : b?.id).filter(Boolean)
 
-    const shouldEnable = enabled === undefined ? !ruleBranchIds.includes(userBranchId) : Boolean(enabled)
+       const shouldEnable = enabled === undefined ? !ruleBranchIds.includes(userBranchId) : Boolean(enabled)
 
-    if (shouldEnable) {
-        if (!ruleBranchIds.includes(userBranchId)) {
-            ruleBranchIds.push(userBranchId)
-        }
+       if (shouldEnable) {
+           if (!ruleBranchIds.includes(userBranchId)) {
+               ruleBranchIds.push(userBranchId)
+           }
+       } else {
+           ruleBranchIds = ruleBranchIds.filter((id: string) => id !== userBranchId)
+       }
+
+       // Update the array with string IDs
+       rules[ruleIndex].branches = ruleBranchIds
     } else {
-        ruleBranchIds = ruleBranchIds.filter((id: string) => id !== userBranchId)
+       // Superadmin toggle global enabled state (fallback)
+       rules[ruleIndex].enabled = enabled === undefined ? !rules[ruleIndex].enabled : Boolean(enabled)
     }
-
-    // Update the array with string IDs
-    rules[ruleIndex].branches = ruleBranchIds
 
     await req.payload.updateGlobal({
       slug: 'widget-settings',
