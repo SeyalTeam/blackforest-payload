@@ -33,7 +33,6 @@ export const toggleFavoriteRuleHandler: PayloadHandler = async (req): Promise<Re
       depth: 0,
     })
 
-    // Assert type to any to avoid strict checking on generated types during dynamic updates
     const rules: any[] = (widgetSettings.favoriteProductsByBranchRules as any[]) || []
     
     const ruleIndex = rules.findIndex((r: any) => r.id === ruleId)
@@ -43,14 +42,30 @@ export const toggleFavoriteRuleHandler: PayloadHandler = async (req): Promise<Re
 
     if (req.user.role === 'branch') {
        const userBranchId = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
-       const ruleBranches = rules[ruleIndex].branches || []
-       const ruleBranchIds = ruleBranches.map((b: any) => typeof b === 'string' ? b : b?.id)
-       if (!ruleBranchIds.includes(userBranchId)) {
-          return Response.json({ message: 'Forbidden: Rule does not belong to your branch' }, { status: 403 })
+       if (!userBranchId) {
+          return Response.json({ message: 'Branch ID missing from user' }, { status: 400 })
        }
-    }
 
-    rules[ruleIndex].enabled = enabled === undefined ? !rules[ruleIndex].enabled : Boolean(enabled)
+       let ruleBranches = rules[ruleIndex].branches || []
+       // Extract just the string IDs
+       let ruleBranchIds = ruleBranches.map((b: any) => typeof b === 'string' ? b : b?.id).filter(Boolean)
+
+       const shouldEnable = enabled === undefined ? !ruleBranchIds.includes(userBranchId) : Boolean(enabled)
+
+       if (shouldEnable) {
+           if (!ruleBranchIds.includes(userBranchId)) {
+               ruleBranchIds.push(userBranchId)
+           }
+       } else {
+           ruleBranchIds = ruleBranchIds.filter((id: string) => id !== userBranchId)
+       }
+
+       // Update the array with string IDs
+       rules[ruleIndex].branches = ruleBranchIds
+    } else {
+       // Superadmin toggle global enabled state (fallback)
+       rules[ruleIndex].enabled = enabled === undefined ? !rules[ruleIndex].enabled : Boolean(enabled)
+    }
 
     await req.payload.updateGlobal({
       slug: 'widget-settings',
@@ -59,11 +74,11 @@ export const toggleFavoriteRuleHandler: PayloadHandler = async (req): Promise<Re
       },
     })
 
-    return Response.json({ message: 'Favorite rule toggled successfully', rule: rules[ruleIndex] })
+    return Response.json({ message: 'Favorite rule updated successfully', rule: rules[ruleIndex] })
   } catch (error: any) {
     req.payload.logger.error({
       err: error,
-      msg: 'Failed to toggle favorite rule',
+      msg: 'Failed to toggle favorite rule branch assignment',
     })
     return Response.json({ message: error.message || 'Internal server error' }, { status: 500 })
   }
