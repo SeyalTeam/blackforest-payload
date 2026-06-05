@@ -750,7 +750,22 @@ export const getLiveTableStatusHandler: PayloadHandler = async (
       const branchName = getBranchNameFromRelation(billing.branch, branchId)
       const branch = ensureBranch(branchMap, branchId, branchName)
       const sectionState = ensureSection(branch, sectionValue)
-      let tableState = ensureTable(sectionState, tableNumberValue, toTableLabel(tableNumberValue))
+      const rawTableNumberStr = tableNumberValue.trim()
+      const isShared = rawTableNumberStr.includes('-S-')
+      const baseTableNumberStr = isShared ? rawTableNumberStr.split('-S-')[0] : rawTableNumberStr
+
+      let baseWaiterId: string | null = null
+      let baseWaiterName: string | null = null
+      
+      if (isShared) {
+        const baseTableState = sectionState.tablesByKey.get(normalizeTableIdentifier(baseTableNumberStr))
+        if (baseTableState) {
+          baseWaiterId = baseTableState.assignedWaiterId ?? null
+          baseWaiterName = baseTableState.assignedWaiterName ?? null
+        }
+      }
+
+      let tableState = ensureTable(sectionState, tableNumberValue, toTableLabel(tableNumberValue), false, baseWaiterId, baseWaiterName)
       if (!tableState) continue
 
       // Billing list is sorted newest first. If already occupied, create a ghost table in "Shared Tables" section.
@@ -759,7 +774,10 @@ export const getLiveTableStatusHandler: PayloadHandler = async (
         const billIdString = typeof billing?.id === 'string' ? billing.id : Math.random().toString(36).substring(2, 9)
         const ghostTableNumber = `${tableNumberValue}-${billIdString}`
         
-        tableState = ensureTable(sharedSection, ghostTableNumber, toTableLabel(tableNumberValue))
+        const originalWaiterId = tableState.assignedWaiterId ?? null
+        const originalWaiterName = tableState.assignedWaiterName ?? null
+
+        tableState = ensureTable(sharedSection, ghostTableNumber, toTableLabel(tableNumberValue), false, originalWaiterId, originalWaiterName)
         if (!tableState) continue
       }
 
