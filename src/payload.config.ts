@@ -100,6 +100,7 @@ import { setupIdempotencyRetention } from './utilities/idempotencyRetention'
 import { readGraphQLQueries } from './graphql/readQueries'
 import { TimeWiseReportGlobal } from './globals/TimeWiseReport'
 import { getTimeWiseReportHandler } from './endpoints/getTimeWiseReport'
+import { toggleFavoriteRuleHandler } from './endpoints/toggleFavoriteRule'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -544,6 +545,11 @@ export default buildConfig({
       path: '/ops/idempotency-metrics',
       method: 'get',
       handler: getIdempotencyMetricsHandler,
+    },
+    {
+      path: '/widgets/toggle-favorite-rule',
+      method: 'post',
+      handler: toggleFavoriteRuleHandler,
     },
   ],
 
