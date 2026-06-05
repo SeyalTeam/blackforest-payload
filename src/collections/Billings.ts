@@ -838,10 +838,13 @@ const normalizeTableNumberForLookup = (value: string): string => {
   const trimmed = value.trim()
   if (!trimmed) return ''
 
-  const numericValue = parseSimpleTableNumberForLookup(trimmed)
+  // Strip shared table suffix before parsing, e.g., '1-S-12345' -> '1', or 'Balcony-S-12345' -> 'Balcony'
+  const baseValue = trimmed.replace(/-s-.*$/i, '').trim()
+
+  const numericValue = parseSimpleTableNumberForLookup(baseValue)
   if (numericValue !== null) return String(numericValue)
 
-  return trimmed.toLowerCase().replace(/\s+/g, ' ')
+  return baseValue.toLowerCase().replace(/\s+/g, ' ')
 }
 
 const parseConfiguredTableRange = (value: unknown): { start: number; end: number } | null => {
