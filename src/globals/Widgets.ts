@@ -129,7 +129,7 @@ export const WidgetSettingsGlobal: GlobalConfig = {
           type: 'relationship',
           relationTo: 'branches',
           hasMany: true,
-          required: true,
+          required: false,
           label: 'Branches',
         },
         {
@@ -178,7 +178,7 @@ export const WidgetSettingsGlobal: GlobalConfig = {
           type: 'relationship',
           relationTo: 'branches',
           hasMany: true,
-          required: true,
+          required: false,
           label: 'Branches',
         },
         {
