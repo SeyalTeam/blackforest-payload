@@ -733,7 +733,8 @@ export const getLiveTableStatusHandler: PayloadHandler = async (
       }
     }
 
-    for (const billing of activeBillingResult.docs as any[]) {
+    const sortedBillings = [...(activeBillingResult.docs as any[])].reverse()
+    for (const billing of sortedBillings) {
       const status = typeof billing?.status === 'string' ? billing.status : null
       if (!status || !ACTIVE_BILLING_STATUSES.has(status)) continue
       if (areAllItemsCancelled(billing?.items)) continue
