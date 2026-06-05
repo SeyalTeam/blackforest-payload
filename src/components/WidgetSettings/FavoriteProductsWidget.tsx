@@ -635,8 +635,16 @@ const FavoriteProductsWidget: React.FC<FavoriteProductsWidgetProps> = ({
   const getProductValues = (rule: FavoriteProductsRule): Option[] =>
     rule.products.map((id) => productOptionsByID[id] || { value: id, label: id })
 
-  const loadProductOptionsForRule = (rule: FavoriteProductsRule) => async (inputValue: string) =>
-    fetchProductOptions(inputValue, [], rule.category)
+  const loadProductOptionsForRule = (rule: FavoriteProductsRule) => async (inputValue: string) => {
+    const options = await fetchProductOptions(inputValue, [], rule.category)
+    if (inputValue.trim() === '') {
+      const selectedOptions = getProductValues(rule)
+      const selectedIds = new Set(rule.products)
+      const unselectedOptions = options.filter((opt) => !selectedIds.has(opt.value))
+      return [...selectedOptions, ...unselectedOptions]
+    }
+    return options
+  }
 
   const getRuleSelectionPlaceholder = (
     count: number,
@@ -892,7 +900,16 @@ const FavoriteProductsWidget: React.FC<FavoriteProductsWidgetProps> = ({
                       controlShouldRenderValue={false}
                       isClearable={false}
                       cacheOptions
-                      defaultOptions={rule.category.length > 0 ? true : defaultProductOptions}
+                      defaultOptions={
+                        rule.category.length > 0 
+                          ? true 
+                          : (() => {
+                              const selectedOptions = getProductValues(rule)
+                              const selectedIds = new Set(rule.products)
+                              const unselectedOptions = defaultProductOptions.filter((opt) => !selectedIds.has(opt.value))
+                              return [...selectedOptions, ...unselectedOptions]
+                            })()
+                      }
                       loadOptions={loadProductOptionsForRule(rule)}
                       closeMenuOnSelect={false}
                       hideSelectedOptions={false}
