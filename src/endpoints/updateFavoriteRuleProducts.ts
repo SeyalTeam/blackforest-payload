@@ -1,7 +1,7 @@
 import { PayloadHandler } from 'payload'
 
 export const updateFavoriteRuleProductsHandler: PayloadHandler = async (req): Promise<Response> => {
-  if (!req.user || (req.user.role !== 'branch' && req.user.role !== 'superadmin')) {
+  if (!req.user || !['branch', 'superadmin', 'admin', 'company'].includes(req.user.role)) {
     return Response.json({ message: 'Unauthorized' }, { status: 401 })
   }
 
