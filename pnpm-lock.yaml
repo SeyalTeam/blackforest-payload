@@ -14,6 +14,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.1000.0
         version: 3.1000.0
+      '@next/env':
+        specifier: ^16.2.7
+        version: 16.2.7
       '@payloadcms/db-mongodb':
         specifier: 3.60.0
         version: 3.60.0(payload@3.60.0(graphql@16.13.0)(typescript@5.7.3))
@@ -1534,6 +1537,9 @@ packages:
 
   '@next/env@15.5.12':
     resolution: {integrity: sha512-pUvdJN1on574wQHjaBfNGDt9Mz5utDSZFsIIQkMzPgNS8ZvT4H2mwOrOIClwsQOb6EGx5M76/CZr6G8i6pSpLg==}
+
+  '@next/env@16.2.7':
+    resolution: {integrity: sha512-tMJizPlj6ZYpBMMdK8S0LJufrP4QTdR6pcv9KQ/bVETPAmg0j1mlHE9G2c38UyGHxoBapgwuj7XjbGJ2RcDFOg==}
 
   '@next/eslint-plugin-next@15.4.4':
     resolution: {integrity: sha512-1FDsyN//ai3Jd97SEd7scw5h1yLdzDACGOPRofr2GD3sEFsBylEEoL0MHSerd4n2dq9Zm/mFMqi4+NRMOreOKA==}
@@ -6785,6 +6791,8 @@ snapshots:
     optional: true
 
   '@next/env@15.5.12': {}
+
+  '@next/env@16.2.7': {}
 
   '@next/eslint-plugin-next@15.4.4':
     dependencies:
