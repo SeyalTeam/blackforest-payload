@@ -137,6 +137,14 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
       typeof categoryDelayRow?.delayMinutes === 'number'
         ? categoryDelayRow.delayMinutes
         : 0
+    const applyToBilling =
+      typeof categoryDelayRow?.applyToBilling === 'boolean'
+        ? categoryDelayRow.applyToBilling
+        : true
+    const applyToTable =
+      typeof categoryDelayRow?.applyToTable === 'boolean'
+        ? categoryDelayRow.applyToTable
+        : true
 
     return Response.json({
       branchId: branchID,
@@ -150,6 +158,8 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
       autoSubmitCustomerDetailsForBillingOrders,
       skipDeliver,
       delayMinutes,
+      applyToBilling,
+      applyToTable,
       source: tableRow || billingRow || skipDeliverRow || categoryDelayRow ? 'branch-specific' : 'default',
     })
   } catch (error) {

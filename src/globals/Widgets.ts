@@ -315,6 +315,18 @@ export const WidgetSettingsGlobal: GlobalConfig = {
           max: 60,
           defaultValue: 1,
         },
+        {
+          name: 'applyToBilling',
+          label: 'Apply to Billing Orders',
+          type: 'checkbox',
+          defaultValue: true,
+        },
+        {
+          name: 'applyToTable',
+          label: 'Apply to Table Orders',
+          type: 'checkbox',
+          defaultValue: true,
+        },
       ],
     },
   ],

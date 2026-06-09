@@ -121,6 +121,8 @@ type CategoryDelayRow = {
   id?: string
   branch?: string | { id?: string; name?: string } | null
   delayMinutes?: number | null
+  applyToBilling?: boolean | null
+  applyToTable?: boolean | null
 }
 
 type WidgetSettingsGlobal = {
@@ -534,6 +536,14 @@ const WidgetSettings: React.FC<any> = (props) => {
     value: '1',
     label: '1 Minute',
   })
+  const [categoryDelayApplyToBilling, setCategoryDelayApplyToBilling] = useState<Option>({
+    value: 'enabled',
+    label: 'Enabled',
+  })
+  const [categoryDelayApplyToTable, setCategoryDelayApplyToTable] = useState<Option>({
+    value: 'enabled',
+    label: 'Enabled',
+  })
   const [savingCategoryDelaySetting, setSavingCategoryDelaySetting] = useState(false)
   const [removingCategoryDelayBranchID, setRemovingCategoryDelayBranchID] = useState<string | null>(null)
 
@@ -818,6 +828,8 @@ const WidgetSettings: React.FC<any> = (props) => {
           branchID,
           branchName: branchNameByID.get(branchID) || branchID,
           delayMinutes: row.delayMinutes || 1,
+          applyToBilling: row.applyToBilling !== false,
+          applyToTable: row.applyToTable !== false,
         }
       })
       .filter(
@@ -827,6 +839,8 @@ const WidgetSettings: React.FC<any> = (props) => {
           branchID: string
           branchName: string
           delayMinutes: number
+          applyToBilling: boolean
+          applyToTable: boolean
         } => row !== null,
       )
       .sort((a, b) => a.branchName.localeCompare(b.branchName))
@@ -1841,6 +1855,8 @@ const WidgetSettings: React.FC<any> = (props) => {
   useEffect(() => {
     if (!selectedCategoryDelayBranch) {
       setCategoryDelayMinutes({ value: '1', label: '1 Minute' })
+      setCategoryDelayApplyToBilling({ value: 'enabled', label: 'Enabled' })
+      setCategoryDelayApplyToTable({ value: 'enabled', label: 'Enabled' })
       return
     }
 
@@ -1851,7 +1867,11 @@ const WidgetSettings: React.FC<any> = (props) => {
     const delay = row?.delayMinutes || 1
     const matchingOption = delayMinutesOptions.find((opt) => opt.value === String(delay))
     setCategoryDelayMinutes(matchingOption || { value: String(delay), label: `${delay} Minutes` })
-  }, [selectedCategoryDelayBranch, categoryDelayByBranch, delayMinutesOptions])
+    const applyToBilling = row?.applyToBilling !== false
+    setCategoryDelayApplyToBilling(applyToBilling ? visibilityOptions[0] : visibilityOptions[1])
+    const applyToTable = row?.applyToTable !== false
+    setCategoryDelayApplyToTable(applyToTable ? visibilityOptions[0] : visibilityOptions[1])
+  }, [selectedCategoryDelayBranch, categoryDelayByBranch, delayMinutesOptions, visibilityOptions])
 
   const saveCategoryDelaySetting = async () => {
     if (!selectedCategoryDelayBranch) {
@@ -1863,6 +1883,8 @@ const WidgetSettings: React.FC<any> = (props) => {
     try {
       const branchID = selectedCategoryDelayBranch.value
       const delay = Number(categoryDelayMinutes.value) || 1
+      const applyToBilling = categoryDelayApplyToBilling.value === 'enabled'
+      const applyToTable = categoryDelayApplyToTable.value === 'enabled'
 
       const normalizedRows = categoryDelayByBranch.map((row) => ({
         ...row,
@@ -1877,6 +1899,8 @@ const WidgetSettings: React.FC<any> = (props) => {
         ...(existingRowForBranch?.id ? { id: existingRowForBranch.id } : {}),
         branch: branchID,
         delayMinutes: delay,
+        applyToBilling,
+        applyToTable,
       })
 
       const persistedSettings = await persistWidgetSettings({ categoryDelayByBranch: dedupedRows })
@@ -3040,6 +3064,36 @@ const WidgetSettings: React.FC<any> = (props) => {
                   />
                 </div>
 
+                <div className="form-group">
+                  <label>
+                    <ListFilter size={14} style={{ marginRight: 4 }} /> Apply to Billing Orders
+                  </label>
+                  <Select
+                    options={visibilityOptions}
+                    value={categoryDelayApplyToBilling}
+                    onChange={(option) =>
+                      setCategoryDelayApplyToBilling((option as Option) || visibilityOptions[0])
+                    }
+                    styles={customSelectStyles}
+                    isSearchable={false}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    <ListFilter size={14} style={{ marginRight: 4 }} /> Apply to Table Orders
+                  </label>
+                  <Select
+                    options={visibilityOptions}
+                    value={categoryDelayApplyToTable}
+                    onChange={(option) =>
+                      setCategoryDelayApplyToTable((option as Option) || visibilityOptions[0])
+                    }
+                    styles={customSelectStyles}
+                    isSearchable={false}
+                  />
+                </div>
+
                 <div className="configured-settings">
                   <h3>Configured Branches</h3>
                   {configuredCategoryDelayRows.length === 0 ? (
@@ -3053,6 +3107,12 @@ const WidgetSettings: React.FC<any> = (props) => {
                             <div className="status-group">
                               <span className="status-badge status-enabled">
                                 Delay: {row.delayMinutes} {row.delayMinutes === 1 ? 'min' : 'mins'}
+                              </span>
+                              <span className={row.applyToBilling !== false ? 'status-badge status-enabled' : 'status-badge status-disabled'}>
+                                Billing: {row.applyToBilling !== false ? 'Enabled' : 'Disabled'}
+                              </span>
+                              <span className={row.applyToTable !== false ? 'status-badge status-enabled' : 'status-badge status-disabled'}>
+                                Table: {row.applyToTable !== false ? 'Enabled' : 'Disabled'}
                               </span>
                             </div>
                             <button
