@@ -270,5 +270,27 @@ export const WidgetSettingsGlobal: GlobalConfig = {
         },
       ],
     },
+    {
+      name: 'skipDeliverByBranch',
+      label: 'Skip Deliver by Branch',
+      type: 'array',
+      admin: {
+        description: 'Branch-wise control for skipping deliver option/check before billing.',
+      },
+      fields: [
+        {
+          name: 'branch',
+          type: 'relationship',
+          relationTo: 'branches',
+          required: true,
+        },
+        {
+          name: 'skipDeliver',
+          label: 'Skip Deliver',
+          type: 'checkbox',
+          defaultValue: false,
+        },
+      ],
+    },
   ],
 }

@@ -320,13 +320,6 @@ export interface Branch {
     skipSupervisor?: boolean | null;
     skipDriver?: boolean | null;
   };
-  /**
-   * Customize the table order process for this branch.
-   */
-  tableOrderWorkflow?: {
-    skipSupervisor?: boolean | null;
-    skipWaiter?: boolean | null;
-  };
   updatedAt: string;
   createdAt: string;
 }
@@ -1717,12 +1710,6 @@ export interface BranchesSelect<T extends boolean = true> {
         skipSupervisor?: T;
         skipDriver?: T;
       };
-  tableOrderWorkflow?:
-    | T
-    | {
-        skipSupervisor?: T;
-        skipWaiter?: T;
-      };
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2703,7 +2690,7 @@ export interface WidgetSetting {
          * Optional label to identify this rule quickly in the widget.
          */
         ruleName?: string | null;
-        branches: (string | Branch)[];
+        branches?: (string | Branch)[] | null;
         category?: (string | Category)[] | null;
         products: (string | Product)[];
         id?: string | null;
@@ -2719,7 +2706,7 @@ export interface WidgetSetting {
          * Optional label to identify this rule quickly in the widget.
          */
         ruleName?: string | null;
-        branches: (string | Branch)[];
+        branches?: (string | Branch)[] | null;
         categories: (string | Category)[];
         id?: string | null;
       }[]

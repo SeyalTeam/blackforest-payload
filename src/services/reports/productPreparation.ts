@@ -15,6 +15,9 @@ type RawPreparationItem = {
   chefName: unknown
   confirmedByName: unknown
   deliveredByName: unknown
+  confirmedAt: unknown
+  deliveredAt: unknown
+  waiterName: unknown
   finalLineTotal: unknown
   invoiceNumber: unknown
   kotNumber: unknown
@@ -41,6 +44,9 @@ export type ProductPreparationBillDetail = {
   chefName: string
   confirmedByName: string
   deliveredByName: string
+  confirmedAt: string
+  deliveredAt: string
+  waiterName: string
   chefPreparationTime: null | number
   orderedAt: string
   preparedAt: string
@@ -497,6 +503,14 @@ export const getProductPreparationBillDetailsData = async (
       },
     },
     {
+      $lookup: {
+        from: 'users',
+        localField: 'createdBy',
+        foreignField: '_id',
+        as: 'waiterDetails',
+      },
+    },
+    {
       $unwind: {
         path: '$chefDetails',
         preserveNullAndEmptyArrays: true,
@@ -511,6 +525,12 @@ export const getProductPreparationBillDetailsData = async (
     {
       $unwind: {
         path: '$deliveredByUserDetails',
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $unwind: {
+        path: '$waiterDetails',
         preserveNullAndEmptyArrays: true,
       },
     },
@@ -574,6 +594,9 @@ export const getProductPreparationBillDetailsData = async (
             chefName: '$chefDetails.name',
             confirmedByName: '$confirmedByUserDetails.name',
             deliveredByName: '$deliveredByUserDetails.name',
+            confirmedAt: '$items.confirmedAt',
+            deliveredAt: '$items.deliveredAt',
+            waiterName: '$waiterDetails.name',
             quantity: '$items.quantity',
           },
         },
@@ -619,6 +642,9 @@ export const getProductPreparationBillDetailsData = async (
         chefName: typeof row.chefName === 'string' ? row.chefName : '--',
         confirmedByName: typeof row.confirmedByName === 'string' ? row.confirmedByName : '--',
         deliveredByName: typeof row.deliveredByName === 'string' ? row.deliveredByName : '--',
+        confirmedAt: typeof row.confirmedAt === 'string' ? row.confirmedAt : '--',
+        deliveredAt: typeof row.deliveredAt === 'string' ? row.deliveredAt : '--',
+        waiterName: typeof row.waiterName === 'string' ? row.waiterName : '--',
         chefPreparationTime: chefTime != null && Number.isFinite(chefTime) ? chefTime : null,
         createdAt: parseToDayjs(row.billCreatedAt),
         orderedAt: typeof row.orderedAt === 'string' ? row.orderedAt : '--',
@@ -655,6 +681,9 @@ export const getProductPreparationBillDetailsData = async (
       chefName: item.chefName,
       confirmedByName: item.confirmedByName,
       deliveredByName: item.deliveredByName,
+      confirmedAt: item.confirmedAt,
+      deliveredAt: item.deliveredAt,
+      waiterName: item.waiterName,
       chefPreparationTime: item.chefPreparationTime,
       orderedAt: item.orderedAt,
       preparedAt: item.preparedAt,

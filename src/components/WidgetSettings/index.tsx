@@ -111,11 +111,18 @@ type AppDownloadSettings = {
   apps?: AppRow[] | null
 }
 
+type SkipDeliverRow = {
+  id?: string
+  branch?: string | { id?: string; name?: string } | null
+  skipDeliver?: boolean | null
+}
+
 type WidgetSettingsGlobal = {
   tableOrderCustomerDetailsByBranch?: TableCustomerDetailsRow[] | null
   billingOrderCustomerDetailsByBranch?: BillingCustomerDetailsRow[] | null
   tableQRDomains?: TableQRDomainRow[] | null
   appAPIDomains?: AppAPIDomainProfileRow[] | null
+  skipDeliverByBranch?: SkipDeliverRow[] | null
 }
 
 type LiveTableRow = {
@@ -171,6 +178,7 @@ type WidgetKey =
   | 'table-qr'
   | 'api'
   | 'app-downloads'
+  | 'deliver-skip'
 
 const BILLING_APP_KEY = 'billing-app'
 
@@ -503,6 +511,14 @@ const WidgetSettings: React.FC<any> = (props) => {
   const [generatingTableQR, setGeneratingTableQR] = useState(false)
   const [generatedTableQR, setGeneratedTableQR] = useState<TableQRPreview | null>(null)
   const [appDownloadSettings, setAppDownloadSettings] = useState<AppDownloadSettings | null>(null)
+  const [skipDeliverByBranch, setSkipDeliverByBranch] = useState<SkipDeliverRow[]>([])
+  const [selectedSkipDeliverBranch, setSelectedSkipDeliverBranch] = useState<Option | null>(null)
+  const [deliverSkipVisibility, setDeliverSkipVisibility] = useState<Option>({
+    value: 'disabled',
+    label: 'Disabled',
+  })
+  const [savingDeliverSkipSetting, setSavingDeliverSkipSetting] = useState(false)
+  const [removingDeliverSkipBranchID, setRemovingDeliverSkipBranchID] = useState<string | null>(null)
 
   // Stock order modal state
   const [selectedBranch, setSelectedBranch] = useState<Option | null>(null)
@@ -742,6 +758,30 @@ const WidgetSettings: React.FC<any> = (props) => {
       .sort((a, b) => a.branchName.localeCompare(b.branchName))
   }, [billingOrderCustomerDetailsByBranch, branchNameByID])
 
+  const configuredDeliverSkipRows = useMemo(() => {
+    return skipDeliverByBranch
+      .map((row) => {
+        const branchID = getRelationshipID(row.branch)
+        if (!branchID) return null
+
+        return {
+          branchID,
+          branchName: branchNameByID.get(branchID) || branchID,
+          skipDeliver: row.skipDeliver === true,
+        }
+      })
+      .filter(
+        (
+          row,
+        ): row is {
+          branchID: string
+          branchName: string
+          skipDeliver: boolean
+        } => row !== null,
+      )
+      .sort((a, b) => a.branchName.localeCompare(b.branchName))
+  }, [skipDeliverByBranch, branchNameByID])
+
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true)
@@ -763,6 +803,7 @@ const WidgetSettings: React.FC<any> = (props) => {
           )
           setTableQRDomains(settingsJSON.tableQRDomains || [])
           setAppAPIDomains(settingsJSON.appAPIDomains || [])
+          setSkipDeliverByBranch(settingsJSON.skipDeliverByBranch || [])
         }
 
         if (appDownloadsResponse.ok) {
@@ -1665,6 +1706,87 @@ const WidgetSettings: React.FC<any> = (props) => {
     }
   }
 
+  useEffect(() => {
+    if (!selectedSkipDeliverBranch) {
+      setDeliverSkipVisibility({ value: 'disabled', label: 'Disabled' })
+      return
+    }
+
+    const branchID = selectedSkipDeliverBranch.value
+    const row = skipDeliverByBranch.find(
+      (candidate) => getRelationshipID(candidate.branch) === branchID,
+    )
+    const isSkipEnabled = row?.skipDeliver === true
+    setDeliverSkipVisibility(isSkipEnabled ? visibilityOptions[0] : visibilityOptions[1])
+  }, [selectedSkipDeliverBranch, skipDeliverByBranch, visibilityOptions])
+
+  const saveDeliverSkipSetting = async () => {
+    if (!selectedSkipDeliverBranch) {
+      alert('Please select a branch')
+      return
+    }
+
+    setSavingDeliverSkipSetting(true)
+    try {
+      const branchID = selectedSkipDeliverBranch.value
+      const isSkipEnabled = deliverSkipVisibility.value === 'enabled'
+
+      const normalizedRows = skipDeliverByBranch.map((row) => ({
+        ...row,
+        branch: getRelationshipID(row.branch) || row.branch,
+      }))
+
+      const existingRowForBranch = normalizedRows.find(
+        (row) => getRelationshipID(row.branch) === branchID,
+      )
+      const dedupedRows = normalizedRows.filter((row) => getRelationshipID(row.branch) !== branchID)
+      dedupedRows.push({
+        ...(existingRowForBranch?.id ? { id: existingRowForBranch.id } : {}),
+        branch: branchID,
+        skipDeliver: isSkipEnabled,
+      })
+
+      const persistedSettings = await persistWidgetSettings({ skipDeliverByBranch: dedupedRows })
+      setSkipDeliverByBranch(persistedSettings.skipDeliverByBranch || dedupedRows)
+      alert('Skip Deliver setting updated')
+    } catch (error) {
+      console.error('Failed to save skip deliver setting:', error)
+      alert('Failed to save skip deliver setting')
+    } finally {
+      setSavingDeliverSkipSetting(false)
+    }
+  }
+
+  const removeDeliverSkipConfiguredBranch = async (branchID: string, branchName: string) => {
+    if (!confirm(`Remove "${branchName}" from configured branches?`)) {
+      return
+    }
+
+    setRemovingDeliverSkipBranchID(branchID)
+    try {
+      const nextRows = skipDeliverByBranch
+        .map((row) => ({
+          ...row,
+          branch: getRelationshipID(row.branch) || row.branch,
+        }))
+        .filter((row) => getRelationshipID(row.branch) !== branchID)
+
+      const persistedSettings = await persistWidgetSettings({ skipDeliverByBranch: nextRows })
+      setSkipDeliverByBranch(persistedSettings.skipDeliverByBranch || nextRows)
+
+      if (selectedSkipDeliverBranch?.value === branchID) {
+        setSelectedSkipDeliverBranch(null)
+      }
+
+      alert('Branch removed from configured list')
+    } catch (error) {
+      console.error('Failed to remove branch from configured list:', error)
+      alert('Failed to remove branch')
+    } finally {
+      setRemovingDeliverSkipBranchID(null)
+    }
+  }
+
   const addTableQRDomain = async () => {
     const nextDomainURL = newTableQRDomainURL.trim()
 
@@ -2135,6 +2257,16 @@ const WidgetSettings: React.FC<any> = (props) => {
             <Globe className="tile-icon" size={48} />
             <span className="tile-label">LIVE API</span>
           </button>
+
+          <div className="tiles-group-title">Skip</div>
+          <button
+            type="button"
+            className={`tile ${activeWidget === 'deliver-skip' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('deliver-skip')}
+          >
+            <Check className="tile-icon" size={48} />
+            <span className="tile-label">Deliver</span>
+          </button>
         </div>
 
         <div className="widget-panel">
@@ -2604,6 +2736,114 @@ const WidgetSettings: React.FC<any> = (props) => {
                   disabled={savingBillingCustomerSetting || !selectedBillingCustomerDetailsBranch}
                 >
                   {savingBillingCustomerSetting ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Loader2 className="animate-spin" size={16} /> Saving...
+                    </span>
+                  ) : (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Save size={16} /> Save Setting
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeWidget === 'deliver-skip' && (
+            <div className="widget-modal">
+              <div className="modal-header">
+                <h2>Skip Deliver Setting</h2>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>
+                    <MapPin size={14} style={{ marginRight: 4 }} /> Branch
+                  </label>
+                  <Select
+                    options={branchOptions}
+                    value={selectedSkipDeliverBranch}
+                    onChange={(option) =>
+                      setSelectedSkipDeliverBranch(option as Option | null)
+                    }
+                    styles={customSelectStyles}
+                    placeholder="Select Branch..."
+                    isLoading={loading}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    <ListFilter size={14} style={{ marginRight: 4 }} /> Deliver
+                  </label>
+                  <Select
+                    options={visibilityOptions}
+                    value={deliverSkipVisibility}
+                    onChange={(option) =>
+                      setDeliverSkipVisibility((option as Option) || visibilityOptions[0])
+                    }
+                    styles={customSelectStyles}
+                    isSearchable={false}
+                  />
+                </div>
+
+                <div className="configured-settings">
+                  <h3>Configured Branches</h3>
+                  {configuredDeliverSkipRows.length === 0 ? (
+                    <p className="empty-state">No branch-specific setting saved yet.</p>
+                  ) : (
+                    <div className="configured-list">
+                      {configuredDeliverSkipRows.map((row) => (
+                        <div className="configured-row" key={row.branchID}>
+                          <span className="branch-name">{row.branchName}</span>
+                          <div className="row-controls">
+                            <div className="status-group">
+                              <span
+                                className={
+                                  row.skipDeliver
+                                    ? 'status-badge status-enabled'
+                                    : 'status-badge status-disabled'
+                                }
+                              >
+                                Deliver: {row.skipDeliver ? 'Enabled' : 'Disabled'}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              className="remove-row-btn"
+                              onClick={() =>
+                                removeDeliverSkipConfiguredBranch(row.branchID, row.branchName)
+                              }
+                              disabled={Boolean(removingDeliverSkipBranchID)}
+                            >
+                              {removingDeliverSkipBranchID === row.branchID ? (
+                                <Loader2 className="animate-spin" size={14} />
+                              ) : (
+                                <Trash2 size={14} />
+                              )}
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setActiveWidget(null)}>
+                  Close
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={saveDeliverSkipSetting}
+                  disabled={savingDeliverSkipSetting || !selectedSkipDeliverBranch}
+                >
+                  {savingDeliverSkipSetting ? (
                     <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Loader2 className="animate-spin" size={16} /> Saving...
                     </span>

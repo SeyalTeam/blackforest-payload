@@ -44,6 +44,9 @@ export type BillPreparationDetail = {
   chefName: string
   confirmedByName: string
   deliveredByName: string
+  confirmedAt: string
+  deliveredAt: string
+  waiterName: string
   quantity: number
   status: PreparationStatus
 }

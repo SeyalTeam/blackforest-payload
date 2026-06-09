@@ -52,6 +52,9 @@ type ProductPreparationBillDetailsQueryResponse = {
         chefName?: unknown
         confirmedByName?: unknown
         deliveredByName?: unknown
+        confirmedAt?: unknown
+        deliveredAt?: unknown
+        waiterName?: unknown
         chefPreparationTime?: unknown
         orderedAt?: unknown
         preparedAt?: unknown
@@ -93,6 +96,9 @@ const PRODUCT_PREPARATION_BILL_DETAILS_QUERY = `
         chefName
         confirmedByName
         deliveredByName
+        confirmedAt
+        deliveredAt
+        waiterName
         quantity
         status
       }
@@ -428,6 +434,9 @@ const ProductTimeReport: React.FC = () => {
                 preparedAt: typeof entry.preparedAt === 'string' ? entry.preparedAt : '--',
                 confirmedByName: typeof entry.confirmedByName === 'string' ? entry.confirmedByName : '--',
                 deliveredByName: typeof entry.deliveredByName === 'string' ? entry.deliveredByName : '--',
+                confirmedAt: typeof entry.confirmedAt === 'string' ? entry.confirmedAt : '--',
+                deliveredAt: typeof entry.deliveredAt === 'string' ? entry.deliveredAt : '--',
+                waiterName: typeof entry.waiterName === 'string' ? entry.waiterName : '--',
                 preparationTime:
                   typeof entry.preparationTime === 'number' && Number.isFinite(entry.preparationTime)
                     ? entry.preparationTime
@@ -609,8 +618,9 @@ const ProductTimeReport: React.FC = () => {
       'PT (ACTUAL)',
       'PREP AT',
       'CHEF',
-      'CONFIRMED BY',
-      'DELIVERED BY',
+      'CON BY',
+      'DEL BY',
+      'WAITER',
     ]
 
     const csvRows = [
@@ -627,6 +637,7 @@ const ProductTimeReport: React.FC = () => {
           `"${row.chefName.replace(/"/g, '""')}"`,
           `"${row.confirmedByName.replace(/"/g, '""')}"`,
           `"${row.deliveredByName.replace(/"/g, '""')}"`,
+          `"${row.waiterName.replace(/"/g, '""')}"`,
         ].join(','),
       ),
     ]
@@ -1065,9 +1076,9 @@ const ProductTimeReport: React.FC = () => {
                     <th>CHEF PREP</th>
                     <th>PT (ACTUAL)</th>
                     <th>PREP AT</th>
-                    <th>CHEF</th>
-                    <th>CONFIRMED BY</th>
-                    <th>DELIVERED BY</th>
+                    <th>CON BY</th>
+                    <th>DEL BY</th>
+                    <th>WAITER</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1139,10 +1150,31 @@ const ProductTimeReport: React.FC = () => {
                           <td>{formatMinutes(entry.productStandardPreparationTime).replace(' min', '')}</td>
                           <td>{formatMinutes(entry.chefPreparationTime)}</td>
                           <td>{formatMinutes(entry.preparationTime).replace(' min', '')}</td>
-                          <td>{entry.preparedAt}</td>
-                          <td>{entry.chefName}</td>
-                          <td>{entry.confirmedByName}</td>
-                          <td>{entry.deliveredByName}</td>
+                          <td>
+                            <div>{entry.preparedAt}</div>
+                            {entry.chefName && entry.chefName !== '--' && (
+                              <div className="pt-chef-subname">
+                                {entry.chefName}
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            <div>{entry.confirmedAt}</div>
+                            {entry.confirmedByName && entry.confirmedByName !== '--' && (
+                              <div className="pt-chef-subname">
+                                {entry.confirmedByName}
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            <div>{entry.deliveredAt}</div>
+                            {entry.deliveredByName && entry.deliveredByName !== '--' && (
+                              <div className="pt-chef-subname">
+                                {entry.deliveredByName}
+                              </div>
+                            )}
+                          </td>
+                          <td>{entry.waiterName}</td>
                         </tr>
                       )
                     })}

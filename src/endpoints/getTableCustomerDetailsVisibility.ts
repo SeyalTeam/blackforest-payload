@@ -56,6 +56,10 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
         showCustomerHistoryForBillingOrders?: unknown
         autoSubmitCustomerDetailsForBillingOrders?: unknown
       }>
+      skipDeliverByBranch?: Array<{
+        branch?: unknown
+        skipDeliver?: unknown
+      }>
     }
 
     const tableRows = Array.isArray(widgetSettings?.tableOrderCustomerDetailsByBranch)
@@ -106,6 +110,18 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
         ? billingRow.autoSubmitCustomerDetailsForBillingOrders
         : true
 
+    const skipDeliverRows = Array.isArray(widgetSettings?.skipDeliverByBranch)
+      ? widgetSettings.skipDeliverByBranch
+      : []
+
+    const skipDeliverRow = skipDeliverRows.find(
+      (candidate) => getRelationshipID(candidate?.branch) === branchID,
+    )
+    const skipDeliver =
+      typeof skipDeliverRow?.skipDeliver === 'boolean'
+        ? skipDeliverRow.skipDeliver
+        : false
+
     return Response.json({
       branchId: branchID,
       showCustomerDetailsForTableOrders,
@@ -116,7 +132,8 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
       allowSkipCustomerDetailsForBillingOrders,
       showCustomerHistoryForBillingOrders,
       autoSubmitCustomerDetailsForBillingOrders,
-      source: tableRow || billingRow ? 'branch-specific' : 'default',
+      skipDeliver,
+      source: tableRow || billingRow || skipDeliverRow ? 'branch-specific' : 'default',
     })
   } catch (error) {
     req.payload.logger.error(error)
