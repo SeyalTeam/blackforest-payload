@@ -37,7 +37,12 @@ const ClosingEntries: CollectionConfig = {
     },
 
     // Sales
-    { name: 'systemSales', type: 'number', required: true, min: 0 },
+    {
+      name: 'systemSales',
+      type: 'number',
+      admin: { readOnly: true },
+      min: 0,
+    },
     {
       name: 'totalBills',
       type: 'number',
@@ -310,10 +315,10 @@ const ClosingEntries: CollectionConfig = {
         }
 
         // ------------------------------------------
-        // 4.5️⃣ CALCULATE TOTAL BILLS FROM BILLINGS
+        // 4.5️⃣ FETCH BILLS AND AUTO-CALCULATE SYSTEM SALES & TOTAL BILLS
         // ------------------------------------------
         try {
-          const { totalDocs: billCount } = await req.payload.count({
+          const bills = await req.payload.find({
             collection: 'billings',
             where: {
               and: [
@@ -321,12 +326,24 @@ const ClosingEntries: CollectionConfig = {
                 { createdAt: { greater_than: lastClosingTime } },
                 { createdAt: { less_than: endOfDay } },
               ],
-            },
+            } as Where,
+            limit: 1000,
+            depth: 0,
           })
-          data.totalBills = billCount
+
+          const completedBills = bills.docs.filter(
+            (b: any) => b.status === 'completed' || b.status === 'settled',
+          )
+
+          data.totalBills = completedBills.length
+          data.systemSales = completedBills.reduce(
+            (sum, b: any) => sum + (b.totalAmount || 0),
+            0,
+          )
         } catch (err) {
-          req.payload.logger.error('Error calculating totalBills:', err)
+          req.payload.logger.error('Error calculating systemSales & totalBills:', err)
           data.totalBills = 0
+          data.systemSales = 0
         }
 
         // ------------------------------------------

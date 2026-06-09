@@ -811,7 +811,7 @@ export interface ClosingEntry {
   id: string;
   closingNumber: string;
   date: string;
-  systemSales: number;
+  systemSales?: number | null;
   /**
    * Auto-calculated from Billings (can be overridden)
    */
@@ -2739,6 +2739,16 @@ export interface WidgetSetting {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Branch-wise control for skipping deliver option/check before billing.
+   */
+  skipDeliverByBranch?:
+    | {
+        branch: string | Branch;
+        skipDeliver?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -3984,6 +3994,13 @@ export interface WidgetSettingsSelect<T extends boolean = true> {
               enabled?: T;
               id?: T;
             };
+        id?: T;
+      };
+  skipDeliverByBranch?:
+    | T
+    | {
+        branch?: T;
+        skipDeliver?: T;
         id?: T;
       };
   updatedAt?: T;
