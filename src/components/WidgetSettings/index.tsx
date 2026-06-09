@@ -117,12 +117,19 @@ type SkipDeliverRow = {
   skipDeliver?: boolean | null
 }
 
+type CategoryDelayRow = {
+  id?: string
+  branch?: string | { id?: string; name?: string } | null
+  delayMinutes?: number | null
+}
+
 type WidgetSettingsGlobal = {
   tableOrderCustomerDetailsByBranch?: TableCustomerDetailsRow[] | null
   billingOrderCustomerDetailsByBranch?: BillingCustomerDetailsRow[] | null
   tableQRDomains?: TableQRDomainRow[] | null
   appAPIDomains?: AppAPIDomainProfileRow[] | null
   skipDeliverByBranch?: SkipDeliverRow[] | null
+  categoryDelayByBranch?: CategoryDelayRow[] | null
 }
 
 type LiveTableRow = {
@@ -179,6 +186,7 @@ type WidgetKey =
   | 'api'
   | 'app-downloads'
   | 'deliver-skip'
+  | 'category-delay'
 
 const BILLING_APP_KEY = 'billing-app'
 
@@ -520,6 +528,24 @@ const WidgetSettings: React.FC<any> = (props) => {
   const [savingDeliverSkipSetting, setSavingDeliverSkipSetting] = useState(false)
   const [removingDeliverSkipBranchID, setRemovingDeliverSkipBranchID] = useState<string | null>(null)
 
+  const [categoryDelayByBranch, setCategoryDelayByBranch] = useState<CategoryDelayRow[]>([])
+  const [selectedCategoryDelayBranch, setSelectedCategoryDelayBranch] = useState<Option | null>(null)
+  const [categoryDelayMinutes, setCategoryDelayMinutes] = useState<Option>({
+    value: '1',
+    label: '1 Minute',
+  })
+  const [savingCategoryDelaySetting, setSavingCategoryDelaySetting] = useState(false)
+  const [removingCategoryDelayBranchID, setRemovingCategoryDelayBranchID] = useState<string | null>(null)
+
+  const delayMinutesOptions: Option[] = useMemo(
+    () =>
+      Array.from({ length: 60 }, (_, i) => ({
+        value: String(i + 1),
+        label: `${i + 1} ${i + 1 === 1 ? 'Minute' : 'Minutes'}`,
+      })),
+    [],
+  )
+
   // Stock order modal state
   const [selectedBranch, setSelectedBranch] = useState<Option | null>(null)
   const [deliveryDate, setDeliveryDate] = useState<Date>(new Date(Date.now() + 86400000)) // Tomorrow
@@ -782,6 +808,30 @@ const WidgetSettings: React.FC<any> = (props) => {
       .sort((a, b) => a.branchName.localeCompare(b.branchName))
   }, [skipDeliverByBranch, branchNameByID])
 
+  const configuredCategoryDelayRows = useMemo(() => {
+    return categoryDelayByBranch
+      .map((row) => {
+        const branchID = getRelationshipID(row.branch)
+        if (!branchID) return null
+
+        return {
+          branchID,
+          branchName: branchNameByID.get(branchID) || branchID,
+          delayMinutes: row.delayMinutes || 1,
+        }
+      })
+      .filter(
+        (
+          row,
+        ): row is {
+          branchID: string
+          branchName: string
+          delayMinutes: number
+        } => row !== null,
+      )
+      .sort((a, b) => a.branchName.localeCompare(b.branchName))
+  }, [categoryDelayByBranch, branchNameByID])
+
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true)
@@ -804,6 +854,7 @@ const WidgetSettings: React.FC<any> = (props) => {
           setTableQRDomains(settingsJSON.tableQRDomains || [])
           setAppAPIDomains(settingsJSON.appAPIDomains || [])
           setSkipDeliverByBranch(settingsJSON.skipDeliverByBranch || [])
+          setCategoryDelayByBranch(settingsJSON.categoryDelayByBranch || [])
         }
 
         if (appDownloadsResponse.ok) {
@@ -1787,6 +1838,88 @@ const WidgetSettings: React.FC<any> = (props) => {
     }
   }
 
+  useEffect(() => {
+    if (!selectedCategoryDelayBranch) {
+      setCategoryDelayMinutes({ value: '1', label: '1 Minute' })
+      return
+    }
+
+    const branchID = selectedCategoryDelayBranch.value
+    const row = categoryDelayByBranch.find(
+      (candidate) => getRelationshipID(candidate.branch) === branchID,
+    )
+    const delay = row?.delayMinutes || 1
+    const matchingOption = delayMinutesOptions.find((opt) => opt.value === String(delay))
+    setCategoryDelayMinutes(matchingOption || { value: String(delay), label: `${delay} Minutes` })
+  }, [selectedCategoryDelayBranch, categoryDelayByBranch, delayMinutesOptions])
+
+  const saveCategoryDelaySetting = async () => {
+    if (!selectedCategoryDelayBranch) {
+      alert('Please select a branch')
+      return
+    }
+
+    setSavingCategoryDelaySetting(true)
+    try {
+      const branchID = selectedCategoryDelayBranch.value
+      const delay = Number(categoryDelayMinutes.value) || 1
+
+      const normalizedRows = categoryDelayByBranch.map((row) => ({
+        ...row,
+        branch: getRelationshipID(row.branch) || row.branch,
+      }))
+
+      const existingRowForBranch = normalizedRows.find(
+        (row) => getRelationshipID(row.branch) === branchID,
+      )
+      const dedupedRows = normalizedRows.filter((row) => getRelationshipID(row.branch) !== branchID)
+      dedupedRows.push({
+        ...(existingRowForBranch?.id ? { id: existingRowForBranch.id } : {}),
+        branch: branchID,
+        delayMinutes: delay,
+      })
+
+      const persistedSettings = await persistWidgetSettings({ categoryDelayByBranch: dedupedRows })
+      setCategoryDelayByBranch(persistedSettings.categoryDelayByBranch || dedupedRows)
+      alert('Category Delay setting updated')
+    } catch (error) {
+      console.error('Failed to save category delay setting:', error)
+      alert('Failed to save category delay setting')
+    } finally {
+      setSavingCategoryDelaySetting(false)
+    }
+  }
+
+  const removeCategoryDelayConfiguredBranch = async (branchID: string, branchName: string) => {
+    if (!confirm(`Remove "${branchName}" from configured branches?`)) {
+      return
+    }
+
+    setRemovingCategoryDelayBranchID(branchID)
+    try {
+      const nextRows = categoryDelayByBranch
+        .map((row) => ({
+          ...row,
+          branch: getRelationshipID(row.branch) || row.branch,
+        }))
+        .filter((row) => getRelationshipID(row.branch) !== branchID)
+
+      const persistedSettings = await persistWidgetSettings({ categoryDelayByBranch: nextRows })
+      setCategoryDelayByBranch(persistedSettings.categoryDelayByBranch || nextRows)
+
+      if (selectedCategoryDelayBranch?.value === branchID) {
+        setSelectedCategoryDelayBranch(null)
+      }
+
+      alert('Branch removed from configured list')
+    } catch (error) {
+      console.error('Failed to remove branch from configured list:', error)
+      alert('Failed to remove branch')
+    } finally {
+      setRemovingCategoryDelayBranchID(null)
+    }
+  }
+
   const addTableQRDomain = async () => {
     const nextDomainURL = newTableQRDomainURL.trim()
 
@@ -2266,6 +2399,16 @@ const WidgetSettings: React.FC<any> = (props) => {
           >
             <Check className="tile-icon" size={48} />
             <span className="tile-label">Deliver</span>
+          </button>
+
+          <div className="tiles-group-title">Delay</div>
+          <button
+            type="button"
+            className={`tile ${activeWidget === 'category-delay' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('category-delay')}
+          >
+            <RefreshCw className="tile-icon" size={48} />
+            <span className="tile-label">Category Delay</span>
           </button>
         </div>
 
@@ -2844,6 +2987,107 @@ const WidgetSettings: React.FC<any> = (props) => {
                   disabled={savingDeliverSkipSetting || !selectedSkipDeliverBranch}
                 >
                   {savingDeliverSkipSetting ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Loader2 className="animate-spin" size={16} /> Saving...
+                    </span>
+                  ) : (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Save size={16} /> Save Setting
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeWidget === 'category-delay' && (
+            <div className="widget-modal">
+              <div className="modal-header">
+                <h2>Category Delay Setting</h2>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>
+                    <MapPin size={14} style={{ marginRight: 4 }} /> Branch
+                  </label>
+                  <Select
+                    options={branchOptions}
+                    value={selectedCategoryDelayBranch}
+                    onChange={(option) =>
+                      setSelectedCategoryDelayBranch(option as Option | null)
+                    }
+                    styles={customSelectStyles}
+                    placeholder="Select Branch..."
+                    isLoading={loading}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    <RefreshCw size={14} style={{ marginRight: 4 }} /> Delay Time
+                  </label>
+                  <Select
+                    options={delayMinutesOptions}
+                    value={categoryDelayMinutes}
+                    onChange={(option) =>
+                      setCategoryDelayMinutes((option as Option) || delayMinutesOptions[0])
+                    }
+                    styles={customSelectStyles}
+                  />
+                </div>
+
+                <div className="configured-settings">
+                  <h3>Configured Branches</h3>
+                  {configuredCategoryDelayRows.length === 0 ? (
+                    <p className="empty-state">No branch-specific setting saved yet.</p>
+                  ) : (
+                    <div className="configured-list">
+                      {configuredCategoryDelayRows.map((row) => (
+                        <div className="configured-row" key={row.branchID}>
+                          <span className="branch-name">{row.branchName}</span>
+                          <div className="row-controls">
+                            <div className="status-group">
+                              <span className="status-badge status-enabled">
+                                Delay: {row.delayMinutes} {row.delayMinutes === 1 ? 'min' : 'mins'}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              className="remove-row-btn"
+                              onClick={() =>
+                                removeCategoryDelayConfiguredBranch(row.branchID, row.branchName)
+                              }
+                              disabled={Boolean(removingCategoryDelayBranchID)}
+                            >
+                              {removingCategoryDelayBranchID === row.branchID ? (
+                                <Loader2 className="animate-spin" size={14} />
+                              ) : (
+                                <Trash2 size={14} />
+                              )}
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setActiveWidget(null)}>
+                  Close
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={saveCategoryDelaySetting}
+                  disabled={savingCategoryDelaySetting || !selectedCategoryDelayBranch}
+                >
+                  {savingCategoryDelaySetting ? (
                     <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Loader2 className="animate-spin" size={16} /> Saving...
                     </span>

@@ -292,5 +292,30 @@ export const WidgetSettingsGlobal: GlobalConfig = {
         },
       ],
     },
+    {
+      name: 'categoryDelayByBranch',
+      label: 'Category Delay by Branch',
+      type: 'array',
+      admin: {
+        description: 'Branch-wise control for category delay time (minutes) before showing products.',
+      },
+      fields: [
+        {
+          name: 'branch',
+          type: 'relationship',
+          relationTo: 'branches',
+          required: true,
+        },
+        {
+          name: 'delayMinutes',
+          label: 'Delay Minutes',
+          type: 'number',
+          required: true,
+          min: 1,
+          max: 60,
+          defaultValue: 1,
+        },
+      ],
+    },
   ],
 }

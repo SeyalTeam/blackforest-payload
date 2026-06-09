@@ -60,6 +60,10 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
         branch?: unknown
         skipDeliver?: unknown
       }>
+      categoryDelayByBranch?: Array<{
+        branch?: unknown
+        delayMinutes?: unknown
+      }>
     }
 
     const tableRows = Array.isArray(widgetSettings?.tableOrderCustomerDetailsByBranch)
@@ -122,6 +126,18 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
         ? skipDeliverRow.skipDeliver
         : false
 
+    const categoryDelayRows = Array.isArray(widgetSettings?.categoryDelayByBranch)
+      ? widgetSettings.categoryDelayByBranch
+      : []
+
+    const categoryDelayRow = categoryDelayRows.find(
+      (candidate) => getRelationshipID(candidate?.branch) === branchID,
+    )
+    const delayMinutes =
+      typeof categoryDelayRow?.delayMinutes === 'number'
+        ? categoryDelayRow.delayMinutes
+        : 0
+
     return Response.json({
       branchId: branchID,
       showCustomerDetailsForTableOrders,
@@ -133,7 +149,8 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
       showCustomerHistoryForBillingOrders,
       autoSubmitCustomerDetailsForBillingOrders,
       skipDeliver,
-      source: tableRow || billingRow || skipDeliverRow ? 'branch-specific' : 'default',
+      delayMinutes,
+      source: tableRow || billingRow || skipDeliverRow || categoryDelayRow ? 'branch-specific' : 'default',
     })
   } catch (error) {
     req.payload.logger.error(error)
