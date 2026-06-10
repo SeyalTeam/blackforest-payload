@@ -115,6 +115,8 @@ type SkipDeliverRow = {
   id?: string
   branch?: string | { id?: string; name?: string } | null
   skipDeliver?: boolean | null
+  waiterSelectionType?: 'all' | 'particular' | null
+  waiters?: Array<string | { id?: string }> | null
 }
 
 type CategoryDelayRow = {
@@ -123,6 +125,8 @@ type CategoryDelayRow = {
   delayMinutes?: number | null
   applyToBilling?: boolean | null
   applyToTable?: boolean | null
+  waiterSelectionType?: 'all' | 'particular' | null
+  waiters?: Array<string | { id?: string }> | null
 }
 
 type WidgetSettingsGlobal = {
@@ -529,6 +533,12 @@ const WidgetSettings: React.FC<any> = (props) => {
   })
   const [savingDeliverSkipSetting, setSavingDeliverSkipSetting] = useState(false)
   const [removingDeliverSkipBranchID, setRemovingDeliverSkipBranchID] = useState<string | null>(null)
+  const [skipDeliverWaiterSelectionType, setSkipDeliverWaiterSelectionType] = useState<Option>({
+    value: 'all',
+    label: 'All Waiters',
+  })
+  const [skipDeliverSelectedWaiters, setSkipDeliverSelectedWaiters] = useState<Option[]>([])
+  const [allWaitersMap, setAllWaitersMap] = useState<Map<string, string>>(new Map())
 
   const [categoryDelayByBranch, setCategoryDelayByBranch] = useState<CategoryDelayRow[]>([])
   const [selectedCategoryDelayBranch, setSelectedCategoryDelayBranch] = useState<Option | null>(null)
@@ -544,6 +554,14 @@ const WidgetSettings: React.FC<any> = (props) => {
     value: 'enabled',
     label: 'Enabled',
   })
+  const [categoryDelayWaiterSelectionType, setCategoryDelayWaiterSelectionType] = useState<Option>({
+    value: 'all',
+    label: 'All Waiters',
+  })
+  const [categoryDelaySelectedWaiters, setCategoryDelaySelectedWaiters] = useState<Option[]>([])
+  const [branchWaiters, setBranchWaiters] = useState<Option[]>([])
+  const [loadingBranchWaiters, setLoadingBranchWaiters] = useState(false)
+
   const [savingCategoryDelaySetting, setSavingCategoryDelaySetting] = useState(false)
   const [removingCategoryDelayBranchID, setRemovingCategoryDelayBranchID] = useState<string | null>(null)
 
@@ -804,6 +822,8 @@ const WidgetSettings: React.FC<any> = (props) => {
           branchID,
           branchName: branchNameByID.get(branchID) || branchID,
           skipDeliver: row.skipDeliver === true,
+          waiterSelectionType: row.waiterSelectionType || 'all',
+          waiters: row.waiters || [],
         }
       })
       .filter(
@@ -813,10 +833,12 @@ const WidgetSettings: React.FC<any> = (props) => {
           branchID: string
           branchName: string
           skipDeliver: boolean
+          waiterSelectionType: 'all' | 'particular'
+          waiters: Array<string | { id?: string }>
         } => row !== null,
       )
       .sort((a, b) => a.branchName.localeCompare(b.branchName))
-  }, [skipDeliverByBranch, branchNameByID])
+  }, [skipDeliverByBranch, branchNameByID, allWaitersMap])
 
   const configuredCategoryDelayRows = useMemo(() => {
     return categoryDelayByBranch
@@ -830,6 +852,8 @@ const WidgetSettings: React.FC<any> = (props) => {
           delayMinutes: row.delayMinutes || 1,
           applyToBilling: row.applyToBilling !== false,
           applyToTable: row.applyToTable !== false,
+          waiterSelectionType: row.waiterSelectionType || 'all',
+          waiters: row.waiters || [],
         }
       })
       .filter(
@@ -841,23 +865,36 @@ const WidgetSettings: React.FC<any> = (props) => {
           delayMinutes: number
           applyToBilling: boolean
           applyToTable: boolean
+          waiterSelectionType: 'all' | 'particular'
+          waiters: Array<string | { id?: string }>
         } => row !== null,
       )
       .sort((a, b) => a.branchName.localeCompare(b.branchName))
-  }, [categoryDelayByBranch, branchNameByID])
+  }, [categoryDelayByBranch, branchNameByID, allWaitersMap])
 
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true)
       try {
-        const [branchesResponse, settingsResponse, appDownloadsResponse] = await Promise.all([
+        const [branchesResponse, settingsResponse, appDownloadsResponse, waitersResponse] = await Promise.all([
           fetch('/api/branches?limit=1000&depth=0&sort=name'),
           fetch('/api/globals/widget-settings?depth=0'),
           fetch('/api/globals/app-download-settings?depth=1'),
+          fetch('/api/users?limit=1000&depth=0&where[role][equals]=waiter'),
         ])
 
         const branchesJSON = await branchesResponse.json()
         setBranches(branchesJSON.docs || [])
+
+        if (waitersResponse.ok) {
+          const waitersJSON = await waitersResponse.json()
+          const waitersDocs = waitersJSON.docs || []
+          const map = new Map<string, string>()
+          waitersDocs.forEach((u: any) => {
+            map.set(u.id, u.name || u.email || u.id)
+          })
+          setAllWaitersMap(map)
+        }
 
         if (settingsResponse.ok) {
           const settingsJSON = (await settingsResponse.json()) as WidgetSettingsGlobal
@@ -1014,6 +1051,92 @@ const WidgetSettings: React.FC<any> = (props) => {
     return options.sort((a, b) => a.name.localeCompare(b.name))
   }
 
+  const fetchBranchWaiters = async (branchId: string) => {
+    if (!branchId) {
+      setBranchWaiters([])
+      return
+    }
+    setLoadingBranchWaiters(true)
+    try {
+      const response = await fetch(
+        `/api/users?limit=1000&depth=0&where[role][equals]=waiter&where[lastLoginBranch][equals]=${branchId}`
+      )
+      const json = await response.json()
+      if (response.ok && json && Array.isArray(json.docs)) {
+        const options = json.docs.map((u: any) => ({
+          value: u.id,
+          label: u.name || u.email || `Waiter ID: ${u.id}`,
+        }))
+        options.sort((a: any, b: any) => a.label.localeCompare(b.label))
+        setBranchWaiters(options)
+      } else {
+        setBranchWaiters([])
+      }
+    } catch (err) {
+      console.error('Failed to fetch branch waiters:', err)
+      setBranchWaiters([])
+    } finally {
+      setLoadingBranchWaiters(false)
+    }
+  }
+
+  const getWaitersForBranch = (branchId: string | undefined): Option[] => {
+    if (!branchId) return []
+    const options = [...branchWaiters]
+
+    const tableAllocatedWaiters = new Map<string, string>()
+    const activeBranch = liveTableBranches.find((b) => b.branchId === branchId)
+    if (activeBranch) {
+      for (const section of activeBranch.sections) {
+        for (const table of section.tables) {
+          if (table.assignedWaiterId && table.assignedWaiterName) {
+            tableAllocatedWaiters.set(table.assignedWaiterId, table.assignedWaiterName)
+          }
+        }
+      }
+    }
+
+    tableAllocatedWaiters.forEach((name, id) => {
+      if (!options.some((o) => o.value === id)) {
+        options.push({ value: id, label: name })
+      }
+    })
+
+    return options.sort((a, b) => a.label.localeCompare(b.label))
+  }
+
+  const getWaiterNames = (waiterIds: any, branchId: string): string => {
+    if (!Array.isArray(waiterIds) || waiterIds.length === 0) return 'None'
+
+    const ids = waiterIds
+      .map((w) => (typeof w === 'object' && w !== null ? w.id : w))
+      .filter(Boolean) as string[]
+
+    const names = ids.map((id) => {
+      if (allWaitersMap.has(id)) {
+        return allWaitersMap.get(id)
+      }
+
+      const activeBranch = liveTableBranches.find((b) => b.branchId === branchId)
+      if (activeBranch) {
+        for (const section of activeBranch.sections) {
+          for (const table of section.tables) {
+            if (table.assignedWaiterId === id && table.assignedWaiterName) {
+              return table.assignedWaiterName
+            }
+          }
+        }
+      }
+
+      const liveUser = liveLoginUsers.find((u) => u.id === id)
+      if (liveUser?.name) return liveUser.name
+
+      return `ID: ${id}`
+    })
+
+    return names.join(', ')
+  }
+
   const fetchLiveLoginUsers = async (showLoader = true) => {
     if (showLoader) {
       setLiveLoginLoading(true)
@@ -1055,6 +1178,20 @@ const WidgetSettings: React.FC<any> = (props) => {
     void fetchLiveLoginUsers(true)
     void fetchLiveTableStatus(selectedLiveTableBranch.value)
   }, [activeWidget, selectedLiveTableBranch.value])
+
+  useEffect(() => {
+    if (activeWidget !== 'category-delay' || !selectedCategoryDelayBranch) return
+    void fetchLiveLoginUsers(false)
+    void fetchLiveTableStatus(selectedCategoryDelayBranch.value)
+    void fetchBranchWaiters(selectedCategoryDelayBranch.value)
+  }, [activeWidget, selectedCategoryDelayBranch])
+
+  useEffect(() => {
+    if (activeWidget !== 'deliver-skip' || !selectedSkipDeliverBranch) return
+    void fetchLiveLoginUsers(false)
+    void fetchLiveTableStatus(selectedSkipDeliverBranch.value)
+    void fetchBranchWaiters(selectedSkipDeliverBranch.value)
+  }, [activeWidget, selectedSkipDeliverBranch])
 
   useEffect(() => {
     if (activeWidget !== 'table-qr' && activeWidget !== 'live-table') return
@@ -1774,6 +1911,8 @@ const WidgetSettings: React.FC<any> = (props) => {
   useEffect(() => {
     if (!selectedSkipDeliverBranch) {
       setDeliverSkipVisibility({ value: 'disabled', label: 'Disabled' })
+      setSkipDeliverWaiterSelectionType({ value: 'all', label: 'All Waiters' })
+      setSkipDeliverSelectedWaiters([])
       return
     }
 
@@ -1783,7 +1922,32 @@ const WidgetSettings: React.FC<any> = (props) => {
     )
     const isSkipEnabled = row?.skipDeliver === true
     setDeliverSkipVisibility(isSkipEnabled ? visibilityOptions[0] : visibilityOptions[1])
-  }, [selectedSkipDeliverBranch, skipDeliverByBranch, visibilityOptions])
+
+    const waiterSelectionType = row?.waiterSelectionType || 'all'
+    setSkipDeliverWaiterSelectionType(
+      waiterSelectionType === 'particular'
+        ? { value: 'particular', label: 'Particular Waiters' }
+        : { value: 'all', label: 'All Waiters' }
+    )
+
+    const allWaitersForBranch = getWaitersForBranch(branchID)
+    const savedWaiterIds = Array.isArray(row?.waiters)
+      ? row.waiters.map((w) => (typeof w === 'object' && w !== null ? w.id : w)).filter(Boolean)
+      : []
+
+    const selectedWaitersOptions = savedWaiterIds.map((id) => {
+      const found = allWaitersForBranch.find((w) => w.value === id)
+      return found || { value: id, label: `Waiter ID: ${id}` }
+    })
+    setSkipDeliverSelectedWaiters(selectedWaitersOptions)
+  }, [
+    selectedSkipDeliverBranch,
+    skipDeliverByBranch,
+    visibilityOptions,
+    liveLoginUsers,
+    liveTableBranches,
+    branchWaiters,
+  ])
 
   const saveDeliverSkipSetting = async () => {
     if (!selectedSkipDeliverBranch) {
@@ -1795,6 +1959,10 @@ const WidgetSettings: React.FC<any> = (props) => {
     try {
       const branchID = selectedSkipDeliverBranch.value
       const isSkipEnabled = deliverSkipVisibility.value === 'enabled'
+      const waiterSelectionType = skipDeliverWaiterSelectionType.value
+      const waiters = waiterSelectionType === 'particular'
+        ? skipDeliverSelectedWaiters.map((w) => w.value)
+        : []
 
       const normalizedRows = skipDeliverByBranch.map((row) => ({
         ...row,
@@ -1809,6 +1977,8 @@ const WidgetSettings: React.FC<any> = (props) => {
         ...(existingRowForBranch?.id ? { id: existingRowForBranch.id } : {}),
         branch: branchID,
         skipDeliver: isSkipEnabled,
+        waiterSelectionType,
+        waiters,
       })
 
       const persistedSettings = await persistWidgetSettings({ skipDeliverByBranch: dedupedRows })
@@ -1857,6 +2027,8 @@ const WidgetSettings: React.FC<any> = (props) => {
       setCategoryDelayMinutes({ value: '1', label: '1 Minute' })
       setCategoryDelayApplyToBilling({ value: 'enabled', label: 'Enabled' })
       setCategoryDelayApplyToTable({ value: 'enabled', label: 'Enabled' })
+      setCategoryDelayWaiterSelectionType({ value: 'all', label: 'All Waiters' })
+      setCategoryDelaySelectedWaiters([])
       return
     }
 
@@ -1871,7 +2043,34 @@ const WidgetSettings: React.FC<any> = (props) => {
     setCategoryDelayApplyToBilling(applyToBilling ? visibilityOptions[0] : visibilityOptions[1])
     const applyToTable = row?.applyToTable !== false
     setCategoryDelayApplyToTable(applyToTable ? visibilityOptions[0] : visibilityOptions[1])
-  }, [selectedCategoryDelayBranch, categoryDelayByBranch, delayMinutesOptions, visibilityOptions])
+
+    const waiterSelectionType = row?.waiterSelectionType || 'all'
+    setCategoryDelayWaiterSelectionType(
+      waiterSelectionType === 'particular'
+        ? { value: 'particular', label: 'Particular Waiters' }
+        : { value: 'all', label: 'All Waiters' }
+    )
+
+    // Resolve waiters
+    const allWaitersForBranch = getWaitersForBranch(branchID)
+    const savedWaiterIds = Array.isArray(row?.waiters)
+      ? row.waiters.map((w) => (typeof w === 'object' && w !== null ? w.id : w)).filter(Boolean)
+      : []
+
+    const selectedWaitersOptions = savedWaiterIds.map((id) => {
+      const found = allWaitersForBranch.find((w) => w.value === id)
+      return found || { value: id, label: `Waiter ID: ${id}` }
+    })
+    setCategoryDelaySelectedWaiters(selectedWaitersOptions)
+  }, [
+    selectedCategoryDelayBranch,
+    categoryDelayByBranch,
+    delayMinutesOptions,
+    visibilityOptions,
+    liveLoginUsers,
+    liveTableBranches,
+    branchWaiters,
+  ])
 
   const saveCategoryDelaySetting = async () => {
     if (!selectedCategoryDelayBranch) {
@@ -1885,6 +2084,10 @@ const WidgetSettings: React.FC<any> = (props) => {
       const delay = Number(categoryDelayMinutes.value) || 1
       const applyToBilling = categoryDelayApplyToBilling.value === 'enabled'
       const applyToTable = categoryDelayApplyToTable.value === 'enabled'
+      const waiterSelectionType = categoryDelayWaiterSelectionType.value
+      const waiters = waiterSelectionType === 'particular'
+        ? categoryDelaySelectedWaiters.map((w) => w.value)
+        : []
 
       const normalizedRows = categoryDelayByBranch.map((row) => ({
         ...row,
@@ -1901,6 +2104,8 @@ const WidgetSettings: React.FC<any> = (props) => {
         delayMinutes: delay,
         applyToBilling,
         applyToTable,
+        waiterSelectionType,
+        waiters,
       })
 
       const persistedSettings = await persistWidgetSettings({ categoryDelayByBranch: dedupedRows })
@@ -2308,6 +2513,26 @@ const WidgetSettings: React.FC<any> = (props) => {
     }),
     singleValue: (base: any) => ({ ...base, color: '#fff' }),
     input: (base: any) => ({ ...base, color: '#fff' }),
+    multiValue: (base: any) => ({
+      ...base,
+      backgroundColor: '#27272a',
+      borderRadius: '0.375rem',
+      border: '1px solid #3f3f46',
+    }),
+    multiValueLabel: (base: any) => ({
+      ...base,
+      color: '#fff',
+      paddingLeft: '6px',
+      paddingRight: '6px',
+    }),
+    multiValueRemove: (base: any) => ({
+      ...base,
+      color: '#a1a1aa',
+      '&:hover': {
+        backgroundColor: '#ef4444',
+        color: '#fff',
+      },
+    }),
   }
 
   return (
@@ -2465,6 +2690,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                     styles={customSelectStyles}
                     placeholder="Select Branch..."
                     isLoading={loading}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                   />
                 </div>
 
@@ -2494,6 +2720,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                       onChange={(option) => setOrderType((option as Option) || orderType)}
                       styles={customSelectStyles}
                       isSearchable={false}
+                      menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                     />
                   </div>
                 </div>
@@ -2551,6 +2778,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                     styles={customSelectStyles}
                     placeholder="Select Branch..."
                     isLoading={loading}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                   />
                 </div>
 
@@ -2566,6 +2794,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                     }
                     styles={customSelectStyles}
                     isSearchable={false}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                   />
                 </div>
 
@@ -2583,6 +2812,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                     }
                     styles={customSelectStyles}
                     isSearchable={false}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                   />
                 </div>
 
@@ -2598,6 +2828,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                     }
                     styles={customSelectStyles}
                     isSearchable={false}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                   />
                 </div>
 
@@ -2615,6 +2846,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                     }
                     styles={customSelectStyles}
                     isSearchable={false}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                   />
                 </div>
 
@@ -2681,13 +2913,13 @@ const WidgetSettings: React.FC<any> = (props) => {
                                 removeTableConfiguredBranch(row.branchID, row.branchName)
                               }
                               disabled={Boolean(removingTableBranchID)}
+                              title="Remove Setting"
                             >
                               {removingTableBranchID === row.branchID ? (
                                 <Loader2 className="animate-spin" size={14} />
                               ) : (
                                 <Trash2 size={14} />
                               )}
-                              Remove
                             </button>
                           </div>
                         </div>
@@ -2743,6 +2975,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                     styles={customSelectStyles}
                     placeholder="Select Branch..."
                     isLoading={loading}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                   />
                 </div>
 
@@ -2760,6 +2993,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                     }
                     styles={customSelectStyles}
                     isSearchable={false}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                   />
                 </div>
 
@@ -2777,6 +3011,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                     }
                     styles={customSelectStyles}
                     isSearchable={false}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                   />
                 </div>
 
@@ -2794,6 +3029,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                     }
                     styles={customSelectStyles}
                     isSearchable={false}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                   />
                 </div>
 
@@ -2811,6 +3047,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                     }
                     styles={customSelectStyles}
                     isSearchable={false}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                   />
                 </div>
 
@@ -2877,13 +3114,13 @@ const WidgetSettings: React.FC<any> = (props) => {
                                 removeBillingConfiguredBranch(row.branchID, row.branchName)
                               }
                               disabled={Boolean(removingBillingBranchID)}
+                              title="Remove Setting"
                             >
                               {removingBillingBranchID === row.branchID ? (
                                 <Loader2 className="animate-spin" size={14} />
                               ) : (
                                 <Trash2 size={14} />
                               )}
-                              Remove
                             </button>
                           </div>
                         </div>
@@ -2939,6 +3176,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                     styles={customSelectStyles}
                     placeholder="Select Branch..."
                     isLoading={loading}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                   />
                 </div>
 
@@ -2954,8 +3192,48 @@ const WidgetSettings: React.FC<any> = (props) => {
                     }
                     styles={customSelectStyles}
                     isSearchable={false}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                   />
                 </div>
+
+                <div className="form-group">
+                  <label>
+                    <Users size={14} style={{ marginRight: 4 }} /> Waiter Selection
+                  </label>
+                  <Select
+                    options={[
+                      { value: 'all', label: 'All Waiters' },
+                      { value: 'particular', label: 'Particular Waiters' },
+                    ]}
+                    value={skipDeliverWaiterSelectionType}
+                    onChange={(option) =>
+                      setSkipDeliverWaiterSelectionType((option as Option) || { value: 'all', label: 'All Waiters' })
+                    }
+                    styles={customSelectStyles}
+                    isSearchable={false}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                  />
+                </div>
+
+                {skipDeliverWaiterSelectionType.value === 'particular' && (
+                  <div className="form-group">
+                    <label>
+                      <UserRound size={14} style={{ marginRight: 4 }} /> Select Waiters
+                    </label>
+                    <Select
+                      isMulti
+                      options={getWaitersForBranch(selectedSkipDeliverBranch?.value)}
+                      value={skipDeliverSelectedWaiters}
+                      onChange={(options) =>
+                        setSkipDeliverSelectedWaiters(options ? (options as Option[]) : [])
+                      }
+                      styles={customSelectStyles}
+                      placeholder="Choose Waiters..."
+                      isLoading={loadingBranchWaiters}
+                      menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                    />
+                  </div>
+                )}
 
                 <div className="configured-settings">
                   <h3>Configured Branches</h3>
@@ -2977,6 +3255,9 @@ const WidgetSettings: React.FC<any> = (props) => {
                               >
                                 Deliver: {row.skipDeliver ? 'Enabled' : 'Disabled'}
                               </span>
+                              <span className="status-badge status-enabled">
+                                Waiters: {row.waiterSelectionType === 'particular' ? getWaiterNames(row.waiters, row.branchID) : 'All'}
+                              </span>
                             </div>
                             <button
                               type="button"
@@ -2985,13 +3266,13 @@ const WidgetSettings: React.FC<any> = (props) => {
                                 removeDeliverSkipConfiguredBranch(row.branchID, row.branchName)
                               }
                               disabled={Boolean(removingDeliverSkipBranchID)}
+                              title="Remove Setting"
                             >
                               {removingDeliverSkipBranchID === row.branchID ? (
                                 <Loader2 className="animate-spin" size={14} />
                               ) : (
                                 <Trash2 size={14} />
                               )}
-                              Remove
                             </button>
                           </div>
                         </div>
@@ -3047,6 +3328,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                     styles={customSelectStyles}
                     placeholder="Select Branch..."
                     isLoading={loading}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                   />
                 </div>
 
@@ -3061,6 +3343,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                       setCategoryDelayMinutes((option as Option) || delayMinutesOptions[0])
                     }
                     styles={customSelectStyles}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                   />
                 </div>
 
@@ -3076,6 +3359,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                     }
                     styles={customSelectStyles}
                     isSearchable={false}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                   />
                 </div>
 
@@ -3091,8 +3375,48 @@ const WidgetSettings: React.FC<any> = (props) => {
                     }
                     styles={customSelectStyles}
                     isSearchable={false}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                   />
                 </div>
+
+                <div className="form-group">
+                  <label>
+                    <Users size={14} style={{ marginRight: 4 }} /> Waiter Selection
+                  </label>
+                  <Select
+                    options={[
+                      { value: 'all', label: 'All Waiters' },
+                      { value: 'particular', label: 'Particular Waiters' },
+                    ]}
+                    value={categoryDelayWaiterSelectionType}
+                    onChange={(option) =>
+                      setCategoryDelayWaiterSelectionType((option as Option) || { value: 'all', label: 'All Waiters' })
+                    }
+                    styles={customSelectStyles}
+                    isSearchable={false}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                  />
+                </div>
+
+                {categoryDelayWaiterSelectionType.value === 'particular' && (
+                  <div className="form-group">
+                    <label>
+                      <UserRound size={14} style={{ marginRight: 4 }} /> Select Waiters
+                    </label>
+                    <Select
+                      isMulti
+                      options={getWaitersForBranch(selectedCategoryDelayBranch?.value)}
+                      value={categoryDelaySelectedWaiters}
+                      onChange={(options) =>
+                        setCategoryDelaySelectedWaiters(options ? (options as Option[]) : [])
+                      }
+                      styles={customSelectStyles}
+                      placeholder="Choose Waiters..."
+                      isLoading={loadingBranchWaiters}
+                      menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                    />
+                  </div>
+                )}
 
                 <div className="configured-settings">
                   <h3>Configured Branches</h3>
@@ -3114,6 +3438,9 @@ const WidgetSettings: React.FC<any> = (props) => {
                               <span className={row.applyToTable !== false ? 'status-badge status-enabled' : 'status-badge status-disabled'}>
                                 Table: {row.applyToTable !== false ? 'Enabled' : 'Disabled'}
                               </span>
+                              <span className="status-badge status-enabled">
+                                Waiters: {row.waiterSelectionType === 'particular' ? getWaiterNames(row.waiters, row.branchID) : 'All'}
+                              </span>
                             </div>
                             <button
                               type="button"
@@ -3122,13 +3449,13 @@ const WidgetSettings: React.FC<any> = (props) => {
                                 removeCategoryDelayConfiguredBranch(row.branchID, row.branchName)
                               }
                               disabled={Boolean(removingCategoryDelayBranchID)}
+                              title="Remove Setting"
                             >
                               {removingCategoryDelayBranchID === row.branchID ? (
                                 <Loader2 className="animate-spin" size={14} />
                               ) : (
                                 <Trash2 size={14} />
                               )}
-                              Remove
                             </button>
                           </div>
                         </div>
@@ -3176,6 +3503,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                       styles={customSelectStyles}
                       isSearchable={false}
                       isDisabled={liveTableLoading}
+                      menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                     />
                   </div>
 
@@ -3762,6 +4090,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                         placeholder="Select saved domain..."
                         isDisabled={tableQRDomainOptions.length === 0}
                         isSearchable={false}
+                        menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                       />
                     </div>
 
@@ -3778,6 +4107,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                           placeholder="Select branch..."
                           isLoading={loadingTableQRConfigs}
                           isDisabled={loadingTableQRConfigs || tableQRBranchOptions.length === 0}
+                          menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                         />
                       </div>
 

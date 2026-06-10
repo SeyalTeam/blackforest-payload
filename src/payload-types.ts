@@ -2746,6 +2746,22 @@ export interface WidgetSetting {
     | {
         branch: string | Branch;
         skipDeliver?: boolean | null;
+        waiterSelectionType: 'all' | 'particular';
+        waiters?: (string | User)[] | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Branch-wise control for category delay time (minutes) before showing products.
+   */
+  categoryDelayByBranch?:
+    | {
+        branch: string | Branch;
+        delayMinutes: number;
+        applyToBilling?: boolean | null;
+        applyToTable?: boolean | null;
+        waiterSelectionType: 'all' | 'particular';
+        waiters?: (string | User)[] | null;
         id?: string | null;
       }[]
     | null;
@@ -4001,6 +4017,19 @@ export interface WidgetSettingsSelect<T extends boolean = true> {
     | {
         branch?: T;
         skipDeliver?: T;
+        waiterSelectionType?: T;
+        waiters?: T;
+        id?: T;
+      };
+  categoryDelayByBranch?:
+    | T
+    | {
+        branch?: T;
+        delayMinutes?: T;
+        applyToBilling?: T;
+        applyToTable?: T;
+        waiterSelectionType?: T;
+        waiters?: T;
         id?: T;
       };
   updatedAt?: T;

@@ -59,10 +59,16 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
       skipDeliverByBranch?: Array<{
         branch?: unknown
         skipDeliver?: unknown
+        waiterSelectionType?: unknown
+        waiters?: unknown
       }>
       categoryDelayByBranch?: Array<{
         branch?: unknown
         delayMinutes?: unknown
+        applyToBilling?: unknown
+        applyToTable?: unknown
+        waiterSelectionType?: unknown
+        waiters?: unknown
       }>
     }
 
@@ -125,6 +131,14 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
       typeof skipDeliverRow?.skipDeliver === 'boolean'
         ? skipDeliverRow.skipDeliver
         : false
+    const skipDeliverWaiterSelectionType =
+      typeof skipDeliverRow?.waiterSelectionType === 'string'
+        ? skipDeliverRow.waiterSelectionType
+        : 'all'
+    const skipDeliverWaiters =
+      Array.isArray(skipDeliverRow?.waiters)
+        ? skipDeliverRow.waiters.map((w) => getRelationshipID(w)).filter(Boolean)
+        : []
 
     const categoryDelayRows = Array.isArray(widgetSettings?.categoryDelayByBranch)
       ? widgetSettings.categoryDelayByBranch
@@ -145,6 +159,14 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
       typeof categoryDelayRow?.applyToTable === 'boolean'
         ? categoryDelayRow.applyToTable
         : true
+    const waiterSelectionType =
+      typeof categoryDelayRow?.waiterSelectionType === 'string'
+        ? categoryDelayRow.waiterSelectionType
+        : 'all'
+    const waiters =
+      Array.isArray(categoryDelayRow?.waiters)
+        ? categoryDelayRow.waiters.map((w) => getRelationshipID(w)).filter(Boolean)
+        : []
 
     return Response.json({
       branchId: branchID,
@@ -157,9 +179,13 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
       showCustomerHistoryForBillingOrders,
       autoSubmitCustomerDetailsForBillingOrders,
       skipDeliver,
+      skipDeliverWaiterSelectionType,
+      skipDeliverWaiters,
       delayMinutes,
       applyToBilling,
       applyToTable,
+      waiterSelectionType,
+      waiters,
       source: tableRow || billingRow || skipDeliverRow || categoryDelayRow ? 'branch-specific' : 'default',
     })
   } catch (error) {
