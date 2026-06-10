@@ -966,6 +966,10 @@ const assertTableExistsInBranchConfiguration = async (
   branchID: string,
   tableSelection: ResolvedTableSelection,
 ): Promise<void> => {
+  if (tableSelection.normalizedSection === 'shared tables') {
+    return
+  }
+
   const tableConfigResult = await payload.find({
     collection: 'tables',
     where: {
