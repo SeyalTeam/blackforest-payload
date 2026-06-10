@@ -434,16 +434,60 @@ export const createTableOrderBatchHandler: PayloadHandler = async (
         | null = null
 
       try {
-        created = (await req.payload.create({
-          collection: 'billings',
-          user: req.user,
-          data: billingCreateData,
-          depth: 0,
-        })) as {
-          id: string
-          invoiceNumber?: unknown
-          kotNumber?: unknown
-          status?: unknown
+        const rawData = billingCreateData as Record<string, unknown>
+        const customerDetails = rawData.customerDetails as Record<string, unknown> | undefined
+        const phoneNumber = customerDetails?.phoneNumber || rawData.customerPhoneNumber || rawData.phoneNumber
+
+        let existingBill: any = null
+        if (phoneNumber && typeof phoneNumber === 'string' && phoneNumber.trim().length > 0) {
+          const existingBills = await req.payload.find({
+            collection: 'billings',
+            where: {
+              and: [
+                { branch: { equals: branchId } },
+                { 'customerDetails.phoneNumber': { equals: phoneNumber.trim() } },
+                { status: { in: ['ordered', 'prepared', 'confirmed', 'delivered', 'pending'] } },
+              ],
+            },
+            sort: '-createdAt',
+            depth: 0,
+            limit: 1,
+          })
+          if (existingBills.docs.length > 0) {
+            existingBill = existingBills.docs[0]
+          }
+        }
+
+        if (existingBill) {
+          const existingItems = Array.isArray(existingBill.items) ? existingBill.items : []
+          const newItems = Array.isArray(billingCreateData.items) ? billingCreateData.items : []
+
+          created = (await req.payload.update({
+            collection: 'billings',
+            id: existingBill.id,
+            user: req.user,
+            data: {
+              items: [...existingItems, ...newItems],
+            },
+            depth: 0,
+          })) as {
+            id: string
+            invoiceNumber?: unknown
+            kotNumber?: unknown
+            status?: unknown
+          }
+        } else {
+          created = (await req.payload.create({
+            collection: 'billings',
+            user: req.user,
+            data: billingCreateData,
+            depth: 0,
+          })) as {
+            id: string
+            invoiceNumber?: unknown
+            kotNumber?: unknown
+            status?: unknown
+          }
         }
       } catch (error) {
         return Response.json(
