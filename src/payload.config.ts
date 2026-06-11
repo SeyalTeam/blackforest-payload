@@ -97,6 +97,7 @@ import { reportGraphQLQueries } from './graphql/reportQueries'
 import IdempotencyKeys from './collections/IdempotencyKeys'
 import { getIdempotencyMetricsHandler } from './endpoints/getIdempotencyMetrics'
 import { setupIdempotencyRetention } from './utilities/idempotencyRetention'
+import WaiterCalls from './collections/WaiterCalls'
 import { readGraphQLQueries } from './graphql/readQueries'
 import { TimeWiseReportGlobal } from './globals/TimeWiseReport'
 import { getTimeWiseReportHandler } from './endpoints/getTimeWiseReport'
@@ -628,6 +629,7 @@ export default buildConfig({
     APKFiles,
     StockAlerts,
     IdempotencyKeys,
+    WaiterCalls,
   ],
 
   editor: lexicalEditor(),

@@ -95,6 +95,7 @@ export interface Config {
     'apk-files': ApkFile;
     'stock-alerts': StockAlert;
     'idempotency-keys': IdempotencyKey;
+    'waiter-calls': WaiterCall;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -129,6 +130,7 @@ export interface Config {
     'apk-files': ApkFilesSelect<false> | ApkFilesSelect<true>;
     'stock-alerts': StockAlertsSelect<false> | StockAlertsSelect<true>;
     'idempotency-keys': IdempotencyKeysSelect<false> | IdempotencyKeysSelect<true>;
+    'waiter-calls': WaiterCallsSelect<false> | WaiterCallsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -1474,6 +1476,35 @@ export interface IdempotencyKey {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "waiter-calls".
+ */
+export interface WaiterCall {
+  id: string;
+  /**
+   * The branch where this call originated.
+   */
+  branch: string | Branch;
+  /**
+   * The table number making the call.
+   */
+  tableNumber: string;
+  /**
+   * The section the table belongs to (e.g., AC, Balcony).
+   */
+  section?: string | null;
+  /**
+   * Current status of the waiter call.
+   */
+  status: 'pending' | 'acknowledged' | 'resolved';
+  /**
+   * The waiter assigned or responding to this call.
+   */
+  assignedWaiter?: (string | null) | User;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -1590,6 +1621,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'idempotency-keys';
         value: string | IdempotencyKey;
+      } | null)
+    | ({
+        relationTo: 'waiter-calls';
+        value: string | WaiterCall;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -2391,6 +2426,19 @@ export interface IdempotencyKeysSelect<T extends boolean = true> {
   responsePayload?: T;
   completedAt?: T;
   expiresAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "waiter-calls_select".
+ */
+export interface WaiterCallsSelect<T extends boolean = true> {
+  branch?: T;
+  tableNumber?: T;
+  section?: T;
+  status?: T;
+  assignedWaiter?: T;
   updatedAt?: T;
   createdAt?: T;
 }
