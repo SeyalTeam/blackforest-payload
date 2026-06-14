@@ -24,6 +24,7 @@ import {
   Copy,
   Plus,
   Check,
+  CheckSquare,
   Gift,
   Star,
   QrCode,
@@ -119,6 +120,14 @@ type SkipDeliverRow = {
   waiters?: Array<string | { id?: string }> | null
 }
 
+type SkipConfirmRow = {
+  id?: string
+  branch?: string | { id?: string; name?: string } | null
+  skipConfirm?: boolean | null
+  waiterSelectionType?: 'all' | 'particular' | null
+  waiters?: Array<string | { id?: string }> | null
+}
+
 type CategoryDelayRow = {
   id?: string
   branch?: string | { id?: string; name?: string } | null
@@ -135,6 +144,7 @@ type WidgetSettingsGlobal = {
   tableQRDomains?: TableQRDomainRow[] | null
   appAPIDomains?: AppAPIDomainProfileRow[] | null
   skipDeliverByBranch?: SkipDeliverRow[] | null
+  skipConfirmByBranch?: SkipConfirmRow[] | null
   categoryDelayByBranch?: CategoryDelayRow[] | null
 }
 
@@ -192,6 +202,7 @@ type WidgetKey =
   | 'api'
   | 'app-downloads'
   | 'deliver-skip'
+  | 'confirm-skip'
   | 'category-delay'
 
 const BILLING_APP_KEY = 'billing-app'
@@ -538,6 +549,20 @@ const WidgetSettings: React.FC<any> = (props) => {
     label: 'All Waiters',
   })
   const [skipDeliverSelectedWaiters, setSkipDeliverSelectedWaiters] = useState<Option[]>([])
+
+  const [skipConfirmByBranch, setSkipConfirmByBranch] = useState<SkipConfirmRow[]>([])
+  const [selectedSkipConfirmBranch, setSelectedSkipConfirmBranch] = useState<Option | null>(null)
+  const [confirmSkipVisibility, setConfirmSkipVisibility] = useState<Option>({
+    value: 'disabled',
+    label: 'Disabled',
+  })
+  const [savingConfirmSkipSetting, setSavingConfirmSkipSetting] = useState(false)
+  const [removingConfirmSkipBranchID, setRemovingConfirmSkipBranchID] = useState<string | null>(null)
+  const [skipConfirmWaiterSelectionType, setSkipConfirmWaiterSelectionType] = useState<Option>({
+    value: 'all',
+    label: 'All Waiters',
+  })
+  const [skipConfirmSelectedWaiters, setSkipConfirmSelectedWaiters] = useState<Option[]>([])
   const [allWaitersMap, setAllWaitersMap] = useState<Map<string, string>>(new Map())
 
   const [categoryDelayByBranch, setCategoryDelayByBranch] = useState<CategoryDelayRow[]>([])
@@ -840,6 +865,34 @@ const WidgetSettings: React.FC<any> = (props) => {
       .sort((a, b) => a.branchName.localeCompare(b.branchName))
   }, [skipDeliverByBranch, branchNameByID, allWaitersMap])
 
+  const configuredConfirmSkipRows = useMemo(() => {
+    return skipConfirmByBranch
+      .map((row) => {
+        const branchID = getRelationshipID(row.branch)
+        if (!branchID) return null
+
+        return {
+          branchID,
+          branchName: branchNameByID.get(branchID) || branchID,
+          skipConfirm: row.skipConfirm === true,
+          waiterSelectionType: row.waiterSelectionType || 'all',
+          waiters: row.waiters || [],
+        }
+      })
+      .filter(
+        (
+          row,
+        ): row is {
+          branchID: string
+          branchName: string
+          skipConfirm: boolean
+          waiterSelectionType: 'all' | 'particular'
+          waiters: Array<string | { id?: string }>
+        } => row !== null,
+      )
+      .sort((a, b) => a.branchName.localeCompare(b.branchName))
+  }, [skipConfirmByBranch, branchNameByID, allWaitersMap])
+
   const configuredCategoryDelayRows = useMemo(() => {
     return categoryDelayByBranch
       .map((row) => {
@@ -905,6 +958,7 @@ const WidgetSettings: React.FC<any> = (props) => {
           setTableQRDomains(settingsJSON.tableQRDomains || [])
           setAppAPIDomains(settingsJSON.appAPIDomains || [])
           setSkipDeliverByBranch(settingsJSON.skipDeliverByBranch || [])
+          setSkipConfirmByBranch(settingsJSON.skipConfirmByBranch || [])
           setCategoryDelayByBranch(settingsJSON.categoryDelayByBranch || [])
         }
 
@@ -1128,7 +1182,7 @@ const WidgetSettings: React.FC<any> = (props) => {
         }
       }
 
-      const liveUser = liveLoginUsers.find((u) => u.id === id)
+      const liveUser = liveLoginUsers.find((u) => u.userId === id)
       if (liveUser?.name) return liveUser.name
 
       return `ID: ${id}`
@@ -1192,6 +1246,13 @@ const WidgetSettings: React.FC<any> = (props) => {
     void fetchLiveTableStatus(selectedSkipDeliverBranch.value)
     void fetchBranchWaiters(selectedSkipDeliverBranch.value)
   }, [activeWidget, selectedSkipDeliverBranch])
+
+  useEffect(() => {
+    if (activeWidget !== 'confirm-skip' || !selectedSkipConfirmBranch) return
+    void fetchLiveLoginUsers(false)
+    void fetchLiveTableStatus(selectedSkipConfirmBranch.value)
+    void fetchBranchWaiters(selectedSkipConfirmBranch.value)
+  }, [activeWidget, selectedSkipConfirmBranch])
 
   useEffect(() => {
     if (activeWidget !== 'table-qr' && activeWidget !== 'live-table') return
@@ -1932,7 +1993,9 @@ const WidgetSettings: React.FC<any> = (props) => {
 
     const allWaitersForBranch = getWaitersForBranch(branchID)
     const savedWaiterIds = Array.isArray(row?.waiters)
-      ? row.waiters.map((w) => (typeof w === 'object' && w !== null ? w.id : w)).filter(Boolean)
+      ? row.waiters
+          .map((w) => (typeof w === 'object' && w !== null ? w.id : w))
+          .filter((w): w is string => typeof w === 'string' && w.length > 0)
       : []
 
     const selectedWaitersOptions = savedWaiterIds.map((id) => {
@@ -1959,7 +2022,7 @@ const WidgetSettings: React.FC<any> = (props) => {
     try {
       const branchID = selectedSkipDeliverBranch.value
       const isSkipEnabled = deliverSkipVisibility.value === 'enabled'
-      const waiterSelectionType = skipDeliverWaiterSelectionType.value
+      const waiterSelectionType = skipDeliverWaiterSelectionType.value as 'all' | 'particular'
       const waiters = waiterSelectionType === 'particular'
         ? skipDeliverSelectedWaiters.map((w) => w.value)
         : []
@@ -2023,6 +2086,122 @@ const WidgetSettings: React.FC<any> = (props) => {
   }
 
   useEffect(() => {
+    if (!selectedSkipConfirmBranch) {
+      setConfirmSkipVisibility({ value: 'disabled', label: 'Disabled' })
+      setSkipConfirmWaiterSelectionType({ value: 'all', label: 'All Waiters' })
+      setSkipConfirmSelectedWaiters([])
+      return
+    }
+
+    const branchID = selectedSkipConfirmBranch.value
+    const row = skipConfirmByBranch.find(
+      (candidate) => getRelationshipID(candidate.branch) === branchID,
+    )
+    const isSkipEnabled = row?.skipConfirm === true
+    setConfirmSkipVisibility(isSkipEnabled ? visibilityOptions[0] : visibilityOptions[1])
+
+    const waiterSelectionType = row?.waiterSelectionType || 'all'
+    setSkipConfirmWaiterSelectionType(
+      waiterSelectionType === 'particular'
+        ? { value: 'particular', label: 'Particular Waiters' }
+        : { value: 'all', label: 'All Waiters' }
+    )
+
+    const allWaitersForBranch = getWaitersForBranch(branchID)
+    const savedWaiterIds = Array.isArray(row?.waiters)
+      ? row.waiters
+          .map((w) => (typeof w === 'object' && w !== null ? w.id : w))
+          .filter((w): w is string => typeof w === 'string' && w.length > 0)
+      : []
+
+    const selectedWaitersOptions = savedWaiterIds.map((id) => {
+      const found = allWaitersForBranch.find((w) => w.value === id)
+      return found || { value: id, label: `Waiter ID: ${id}` }
+    })
+    setSkipConfirmSelectedWaiters(selectedWaitersOptions)
+  }, [
+    selectedSkipConfirmBranch,
+    skipConfirmByBranch,
+    visibilityOptions,
+    liveLoginUsers,
+    liveTableBranches,
+    branchWaiters,
+  ])
+
+  const saveConfirmSkipSetting = async () => {
+    if (!selectedSkipConfirmBranch) {
+      alert('Please select a branch')
+      return
+    }
+
+    setSavingConfirmSkipSetting(true)
+    try {
+      const branchID = selectedSkipConfirmBranch.value
+      const isSkipEnabled = confirmSkipVisibility.value === 'enabled'
+      const waiterSelectionType = skipConfirmWaiterSelectionType.value as 'all' | 'particular'
+      const waiters = waiterSelectionType === 'particular'
+        ? skipConfirmSelectedWaiters.map((w) => w.value)
+        : []
+
+      const normalizedRows = skipConfirmByBranch.map((row) => ({
+        ...row,
+        branch: getRelationshipID(row.branch) || row.branch,
+      }))
+
+      const existingRowForBranch = normalizedRows.find(
+        (row) => getRelationshipID(row.branch) === branchID,
+      )
+      const dedupedRows = normalizedRows.filter((row) => getRelationshipID(row.branch) !== branchID)
+      dedupedRows.push({
+        ...(existingRowForBranch?.id ? { id: existingRowForBranch.id } : {}),
+        branch: branchID,
+        skipConfirm: isSkipEnabled,
+        waiterSelectionType,
+        waiters,
+      })
+
+      const persistedSettings = await persistWidgetSettings({ skipConfirmByBranch: dedupedRows })
+      setSkipConfirmByBranch(persistedSettings.skipConfirmByBranch || dedupedRows)
+      alert('Skip Confirm setting updated')
+    } catch (error) {
+      console.error('Failed to save skip confirm setting:', error)
+      alert('Failed to save skip confirm setting')
+    } finally {
+      setSavingConfirmSkipSetting(false)
+    }
+  }
+
+  const removeConfirmSkipConfiguredBranch = async (branchID: string, branchName: string) => {
+    if (!confirm(`Remove "${branchName}" from configured branches?`)) {
+      return
+    }
+
+    setRemovingConfirmSkipBranchID(branchID)
+    try {
+      const nextRows = skipConfirmByBranch
+        .map((row) => ({
+          ...row,
+          branch: getRelationshipID(row.branch) || row.branch,
+        }))
+        .filter((row) => getRelationshipID(row.branch) !== branchID)
+
+      const persistedSettings = await persistWidgetSettings({ skipConfirmByBranch: nextRows })
+      setSkipConfirmByBranch(persistedSettings.skipConfirmByBranch || nextRows)
+
+      if (selectedSkipConfirmBranch?.value === branchID) {
+        setSelectedSkipConfirmBranch(null)
+      }
+
+      alert('Branch removed from configured list')
+    } catch (error) {
+      console.error('Failed to remove branch from configured list:', error)
+      alert('Failed to remove branch')
+    } finally {
+      setRemovingConfirmSkipBranchID(null)
+    }
+  }
+
+  useEffect(() => {
     if (!selectedCategoryDelayBranch) {
       setCategoryDelayMinutes({ value: '1', label: '1 Minute' })
       setCategoryDelayApplyToBilling({ value: 'enabled', label: 'Enabled' })
@@ -2054,7 +2233,9 @@ const WidgetSettings: React.FC<any> = (props) => {
     // Resolve waiters
     const allWaitersForBranch = getWaitersForBranch(branchID)
     const savedWaiterIds = Array.isArray(row?.waiters)
-      ? row.waiters.map((w) => (typeof w === 'object' && w !== null ? w.id : w)).filter(Boolean)
+      ? row.waiters
+          .map((w) => (typeof w === 'object' && w !== null ? w.id : w))
+          .filter((w): w is string => typeof w === 'string' && w.length > 0)
       : []
 
     const selectedWaitersOptions = savedWaiterIds.map((id) => {
@@ -2084,7 +2265,7 @@ const WidgetSettings: React.FC<any> = (props) => {
       const delay = Number(categoryDelayMinutes.value) || 1
       const applyToBilling = categoryDelayApplyToBilling.value === 'enabled'
       const applyToTable = categoryDelayApplyToTable.value === 'enabled'
-      const waiterSelectionType = categoryDelayWaiterSelectionType.value
+      const waiterSelectionType = categoryDelayWaiterSelectionType.value as 'all' | 'particular'
       const waiters = waiterSelectionType === 'particular'
         ? categoryDelaySelectedWaiters.map((w) => w.value)
         : []
@@ -2648,6 +2829,14 @@ const WidgetSettings: React.FC<any> = (props) => {
           >
             <Check className="tile-icon" size={48} />
             <span className="tile-label">Deliver</span>
+          </button>
+          <button
+            type="button"
+            className={`tile ${activeWidget === 'confirm-skip' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('confirm-skip')}
+          >
+            <CheckSquare className="tile-icon" size={48} />
+            <span className="tile-label">Confirm</span>
           </button>
 
           <div className="tiles-group-title">Delay</div>
@@ -3292,6 +3481,158 @@ const WidgetSettings: React.FC<any> = (props) => {
                   disabled={savingDeliverSkipSetting || !selectedSkipDeliverBranch}
                 >
                   {savingDeliverSkipSetting ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Loader2 className="animate-spin" size={16} /> Saving...
+                    </span>
+                  ) : (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Save size={16} /> Save Setting
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeWidget === 'confirm-skip' && (
+            <div className="widget-modal">
+              <div className="modal-header">
+                <h2>Skip Confirm Setting</h2>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>
+                    <MapPin size={14} style={{ marginRight: 4 }} /> Branch
+                  </label>
+                  <Select
+                    options={branchOptions}
+                    value={selectedSkipConfirmBranch}
+                    onChange={(option) =>
+                      setSelectedSkipConfirmBranch(option as Option | null)
+                    }
+                    styles={customSelectStyles}
+                    placeholder="Select Branch..."
+                    isLoading={loading}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    <ListFilter size={14} style={{ marginRight: 4 }} /> Confirm
+                  </label>
+                  <Select
+                    options={visibilityOptions}
+                    value={confirmSkipVisibility}
+                    onChange={(option) =>
+                      setConfirmSkipVisibility((option as Option) || visibilityOptions[0])
+                    }
+                    styles={customSelectStyles}
+                    isSearchable={false}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    <Users size={14} style={{ marginRight: 4 }} /> Waiter Selection
+                  </label>
+                  <Select
+                    options={[
+                      { value: 'all', label: 'All Waiters' },
+                      { value: 'particular', label: 'Particular Waiters' },
+                    ]}
+                    value={skipConfirmWaiterSelectionType}
+                    onChange={(option) =>
+                      setSkipConfirmWaiterSelectionType((option as Option) || { value: 'all', label: 'All Waiters' })
+                    }
+                    styles={customSelectStyles}
+                    isSearchable={false}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                  />
+                </div>
+
+                {skipConfirmWaiterSelectionType.value === 'particular' && (
+                  <div className="form-group">
+                    <label>
+                      <UserRound size={14} style={{ marginRight: 4 }} /> Select Waiters
+                    </label>
+                    <Select
+                      isMulti
+                      options={getWaitersForBranch(selectedSkipConfirmBranch?.value)}
+                      value={skipConfirmSelectedWaiters}
+                      onChange={(options) =>
+                        setSkipConfirmSelectedWaiters(options ? (options as Option[]) : [])
+                      }
+                      styles={customSelectStyles}
+                      placeholder="Choose Waiters..."
+                      isLoading={loadingBranchWaiters}
+                      menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                    />
+                  </div>
+                )}
+
+                <div className="configured-settings">
+                  <h3>Configured Branches</h3>
+                  {configuredConfirmSkipRows.length === 0 ? (
+                    <p className="empty-state">No branch-specific setting saved yet.</p>
+                  ) : (
+                    <div className="configured-list">
+                      {configuredConfirmSkipRows.map((row) => (
+                        <div className="configured-row" key={row.branchID}>
+                          <span className="branch-name">{row.branchName}</span>
+                          <div className="row-controls">
+                            <div className="status-group">
+                              <span
+                                className={
+                                  row.skipConfirm
+                                    ? 'status-badge status-enabled'
+                                    : 'status-badge status-disabled'
+                                }
+                              >
+                                Confirm: {row.skipConfirm ? 'Enabled' : 'Disabled'}
+                              </span>
+                              <span className="status-badge status-enabled">
+                                Waiters: {row.waiterSelectionType === 'particular' ? getWaiterNames(row.waiters, row.branchID) : 'All'}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              className="remove-row-btn"
+                              onClick={() =>
+                                removeConfirmSkipConfiguredBranch(row.branchID, row.branchName)
+                              }
+                              disabled={Boolean(removingConfirmSkipBranchID)}
+                              title="Remove Setting"
+                            >
+                              {removingConfirmSkipBranchID === row.branchID ? (
+                                <Loader2 className="animate-spin" size={14} />
+                              ) : (
+                                <Trash2 size={14} />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setActiveWidget(null)}>
+                  Close
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={saveConfirmSkipSetting}
+                  disabled={savingConfirmSkipSetting || !selectedSkipConfirmBranch}
+                >
+                  {savingConfirmSkipSetting ? (
                     <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Loader2 className="animate-spin" size={16} /> Saving...
                     </span>

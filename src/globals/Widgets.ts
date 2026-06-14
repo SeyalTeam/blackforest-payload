@@ -311,6 +311,46 @@ export const WidgetSettingsGlobal: GlobalConfig = {
       ],
     },
     {
+      name: 'skipConfirmByBranch',
+      label: 'Skip Confirm by Branch',
+      type: 'array',
+      admin: {
+        description: 'Branch-wise control for skipping supervisor confirm check before billing.',
+      },
+      fields: [
+        {
+          name: 'branch',
+          type: 'relationship',
+          relationTo: 'branches',
+          required: true,
+        },
+        {
+          name: 'skipConfirm',
+          label: 'Skip Confirm',
+          type: 'checkbox',
+          defaultValue: false,
+        },
+        {
+          name: 'waiterSelectionType',
+          label: 'Waiter Selection',
+          type: 'select',
+          options: [
+            { label: 'All Waiters', value: 'all' },
+            { label: 'Particular Waiters', value: 'particular' },
+          ],
+          defaultValue: 'all',
+          required: true,
+        },
+        {
+          name: 'waiters',
+          label: 'Selected Waiters',
+          type: 'relationship',
+          relationTo: 'users',
+          hasMany: true,
+        },
+      ],
+    },
+    {
       name: 'categoryDelayByBranch',
       label: 'Category Delay by Branch',
       type: 'array',

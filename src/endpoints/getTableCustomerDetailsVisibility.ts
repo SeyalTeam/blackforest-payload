@@ -62,6 +62,12 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
         waiterSelectionType?: unknown
         waiters?: unknown
       }>
+      skipConfirmByBranch?: Array<{
+        branch?: unknown
+        skipConfirm?: unknown
+        waiterSelectionType?: unknown
+        waiters?: unknown
+      }>
       categoryDelayByBranch?: Array<{
         branch?: unknown
         delayMinutes?: unknown
@@ -140,6 +146,26 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
         ? skipDeliverRow.waiters.map((w) => getRelationshipID(w)).filter(Boolean)
         : []
 
+    const skipConfirmRows = Array.isArray(widgetSettings?.skipConfirmByBranch)
+      ? widgetSettings.skipConfirmByBranch
+      : []
+
+    const skipConfirmRow = skipConfirmRows.find(
+      (candidate) => getRelationshipID(candidate?.branch) === branchID,
+    )
+    const skipConfirm =
+      typeof skipConfirmRow?.skipConfirm === 'boolean'
+        ? skipConfirmRow.skipConfirm
+        : false
+    const skipConfirmWaiterSelectionType =
+      typeof skipConfirmRow?.waiterSelectionType === 'string'
+        ? skipConfirmRow.waiterSelectionType
+        : 'all'
+    const skipConfirmWaiters =
+      Array.isArray(skipConfirmRow?.waiters)
+        ? skipConfirmRow.waiters.map((w) => getRelationshipID(w)).filter(Boolean)
+        : []
+
     const categoryDelayRows = Array.isArray(widgetSettings?.categoryDelayByBranch)
       ? widgetSettings.categoryDelayByBranch
       : []
@@ -181,12 +207,15 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
       skipDeliver,
       skipDeliverWaiterSelectionType,
       skipDeliverWaiters,
+      skipConfirm,
+      skipConfirmWaiterSelectionType,
+      skipConfirmWaiters,
       delayMinutes,
       applyToBilling,
       applyToTable,
       waiterSelectionType,
       waiters,
-      source: tableRow || billingRow || skipDeliverRow || categoryDelayRow ? 'branch-specific' : 'default',
+      source: tableRow || billingRow || skipDeliverRow || skipConfirmRow || categoryDelayRow ? 'branch-specific' : 'default',
     })
   } catch (error) {
     req.payload.logger.error(error)

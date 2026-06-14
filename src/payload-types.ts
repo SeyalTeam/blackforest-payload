@@ -2800,6 +2800,18 @@ export interface WidgetSetting {
       }[]
     | null;
   /**
+   * Branch-wise control for skipping supervisor confirm check before billing.
+   */
+  skipConfirmByBranch?:
+    | {
+        branch: string | Branch;
+        skipConfirm?: boolean | null;
+        waiterSelectionType: 'all' | 'particular';
+        waiters?: (string | User)[] | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
    * Branch-wise control for category delay time (minutes) before showing products.
    */
   categoryDelayByBranch?:
@@ -4065,6 +4077,15 @@ export interface WidgetSettingsSelect<T extends boolean = true> {
     | {
         branch?: T;
         skipDeliver?: T;
+        waiterSelectionType?: T;
+        waiters?: T;
+        id?: T;
+      };
+  skipConfirmByBranch?:
+    | T
+    | {
+        branch?: T;
+        skipConfirm?: T;
         waiterSelectionType?: T;
         waiters?: T;
         id?: T;
