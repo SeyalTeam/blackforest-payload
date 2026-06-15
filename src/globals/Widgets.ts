@@ -405,5 +405,27 @@ export const WidgetSettingsGlobal: GlobalConfig = {
         },
       ],
     },
+    {
+      name: 'entireBillBlockingByBranch',
+      label: 'Entire Bill Blocking by Branch',
+      type: 'array',
+      admin: {
+        description: 'Branch-wise control to block billing if any table has undelivered items.',
+      },
+      fields: [
+        {
+          name: 'branch',
+          type: 'relationship',
+          relationTo: 'branches',
+          required: true,
+        },
+        {
+          name: 'enabled',
+          label: 'Block Billing if Any Undelivered',
+          type: 'checkbox',
+          defaultValue: false,
+        },
+      ],
+    },
   ],
 }

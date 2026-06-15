@@ -33,6 +33,7 @@ import {
   Crown,
   Anchor,
   PhoneCall,
+  Lock,
 } from 'lucide-react'
 import Select, { type FormatOptionLabelMeta, type GroupBase } from 'react-select'
 import DatePicker from 'react-datepicker'
@@ -138,6 +139,12 @@ type CategoryDelayRow = {
   waiters?: Array<string | { id?: string }> | null
 }
 
+type EntireBillBlockingRow = {
+  id?: string | null
+  branch?: string | { id?: string; name?: string } | null
+  enabled?: boolean | null
+}
+
 type WidgetSettingsGlobal = {
   tableOrderCustomerDetailsByBranch?: TableCustomerDetailsRow[] | null
   billingOrderCustomerDetailsByBranch?: BillingCustomerDetailsRow[] | null
@@ -146,6 +153,7 @@ type WidgetSettingsGlobal = {
   skipDeliverByBranch?: SkipDeliverRow[] | null
   skipConfirmByBranch?: SkipConfirmRow[] | null
   categoryDelayByBranch?: CategoryDelayRow[] | null
+  entireBillBlockingByBranch?: EntireBillBlockingRow[] | null
 }
 
 type LiveTableRow = {
@@ -204,6 +212,7 @@ type WidgetKey =
   | 'deliver-skip'
   | 'confirm-skip'
   | 'category-delay'
+  | 'entire-bill-blocking'
 
 const BILLING_APP_KEY = 'billing-app'
 
@@ -565,6 +574,15 @@ const WidgetSettings: React.FC<any> = (props) => {
   const [skipConfirmSelectedWaiters, setSkipConfirmSelectedWaiters] = useState<Option[]>([])
   const [allWaitersMap, setAllWaitersMap] = useState<Map<string, string>>(new Map())
 
+  const [entireBillBlockingByBranch, setEntireBillBlockingByBranch] = useState<EntireBillBlockingRow[]>([])
+  const [selectedEntireBillBlockingBranch, setSelectedEntireBillBlockingBranch] = useState<Option | null>(null)
+  const [entireBillBlockingEnabled, setEntireBillBlockingEnabled] = useState<Option>({
+    value: 'disabled',
+    label: 'Disabled',
+  })
+  const [savingEntireBillBlockingSetting, setSavingEntireBillBlockingSetting] = useState(false)
+  const [removingEntireBillBlockingBranchID, setRemovingEntireBillBlockingBranchID] = useState<string | null>(null)
+
   const [categoryDelayByBranch, setCategoryDelayByBranch] = useState<CategoryDelayRow[]>([])
   const [selectedCategoryDelayBranch, setSelectedCategoryDelayBranch] = useState<Option | null>(null)
   const [categoryDelayMinutes, setCategoryDelayMinutes] = useState<Option>({
@@ -925,6 +943,30 @@ const WidgetSettings: React.FC<any> = (props) => {
       .sort((a, b) => a.branchName.localeCompare(b.branchName))
   }, [categoryDelayByBranch, branchNameByID, allWaitersMap])
 
+  const configuredEntireBillBlockingRows = useMemo(() => {
+    return entireBillBlockingByBranch
+      .map((row) => {
+        const branchID = getRelationshipID(row.branch)
+        if (!branchID) return null
+
+        return {
+          branchID,
+          branchName: branchNameByID.get(branchID) || branchID,
+          enabled: row.enabled === true,
+        }
+      })
+      .filter(
+        (
+          row,
+        ): row is {
+          branchID: string
+          branchName: string
+          enabled: boolean
+        } => row !== null,
+      )
+      .sort((a, b) => a.branchName.localeCompare(b.branchName))
+  }, [entireBillBlockingByBranch, branchNameByID])
+
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true)
@@ -960,6 +1002,7 @@ const WidgetSettings: React.FC<any> = (props) => {
           setSkipDeliverByBranch(settingsJSON.skipDeliverByBranch || [])
           setSkipConfirmByBranch(settingsJSON.skipConfirmByBranch || [])
           setCategoryDelayByBranch(settingsJSON.categoryDelayByBranch || [])
+          setEntireBillBlockingByBranch(settingsJSON.entireBillBlockingByBranch || [])
         }
 
         if (appDownloadsResponse.ok) {
@@ -2253,6 +2296,20 @@ const WidgetSettings: React.FC<any> = (props) => {
     branchWaiters,
   ])
 
+  useEffect(() => {
+    if (!selectedEntireBillBlockingBranch) {
+      setEntireBillBlockingEnabled({ value: 'disabled', label: 'Disabled' })
+      return
+    }
+
+    const branchID = selectedEntireBillBlockingBranch.value
+    const row = entireBillBlockingByBranch.find(
+      (candidate) => getRelationshipID(candidate.branch) === branchID,
+    )
+    const isEnabled = row?.enabled === true
+    setEntireBillBlockingEnabled(isEnabled ? { value: 'enabled', label: 'Enabled' } : { value: 'disabled', label: 'Disabled' })
+  }, [selectedEntireBillBlockingBranch, entireBillBlockingByBranch])
+
   const saveCategoryDelaySetting = async () => {
     if (!selectedCategoryDelayBranch) {
       alert('Please select a branch')
@@ -2327,6 +2384,73 @@ const WidgetSettings: React.FC<any> = (props) => {
       alert('Failed to remove branch')
     } finally {
       setRemovingCategoryDelayBranchID(null)
+    }
+  }
+
+  const saveEntireBillBlockingSetting = async () => {
+    if (!selectedEntireBillBlockingBranch) {
+      alert('Please select a branch')
+      return
+    }
+
+    setSavingEntireBillBlockingSetting(true)
+    try {
+      const branchID = selectedEntireBillBlockingBranch.value
+      const isEnabled = entireBillBlockingEnabled.value === 'enabled'
+
+      const normalizedRows = entireBillBlockingByBranch.map((row) => ({
+        ...row,
+        branch: getRelationshipID(row.branch) || row.branch,
+      }))
+
+      const existingRowForBranch = normalizedRows.find(
+        (row) => getRelationshipID(row.branch) === branchID,
+      )
+      const dedupedRows = normalizedRows.filter((row) => getRelationshipID(row.branch) !== branchID)
+      dedupedRows.push({
+        ...(existingRowForBranch?.id ? { id: existingRowForBranch.id } : {}),
+        branch: branchID,
+        enabled: isEnabled,
+      })
+
+      const persistedSettings = await persistWidgetSettings({ entireBillBlockingByBranch: dedupedRows })
+      setEntireBillBlockingByBranch(persistedSettings.entireBillBlockingByBranch || dedupedRows)
+      alert('Entire Bill Blocking setting updated')
+    } catch (error) {
+      console.error('Failed to save entire bill blocking setting:', error)
+      alert('Failed to save entire bill blocking setting')
+    } finally {
+      setSavingEntireBillBlockingSetting(false)
+    }
+  }
+
+  const removeEntireBillBlockingConfiguredBranch = async (branchID: string, branchName: string) => {
+    if (!confirm(`Remove "${branchName}" from configured branches?`)) {
+      return
+    }
+
+    setRemovingEntireBillBlockingBranchID(branchID)
+    try {
+      const nextRows = entireBillBlockingByBranch
+        .map((row) => ({
+          ...row,
+          branch: getRelationshipID(row.branch) || row.branch,
+        }))
+        .filter((row) => getRelationshipID(row.branch) !== branchID)
+
+      const persistedSettings = await persistWidgetSettings({ entireBillBlockingByBranch: nextRows })
+      setEntireBillBlockingByBranch(persistedSettings.entireBillBlockingByBranch || nextRows)
+
+      if (selectedEntireBillBlockingBranch?.value === branchID) {
+        setSelectedEntireBillBlockingBranch(null)
+      }
+
+      alert('Branch removed from configured list')
+    } catch (error) {
+      console.error('Failed to remove branch from configured list:', error)
+      alert('Failed to remove branch')
+    } finally {
+      setRemovingEntireBillBlockingBranchID(null)
     }
   }
 
@@ -2847,6 +2971,16 @@ const WidgetSettings: React.FC<any> = (props) => {
           >
             <RefreshCw className="tile-icon" size={48} />
             <span className="tile-label">Category Delay</span>
+          </button>
+          
+          <div className="tiles-group-title">Blocking</div>
+          <button
+            type="button"
+            className={`tile ${activeWidget === 'entire-bill-blocking' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('entire-bill-blocking')}
+          >
+            <Lock className="tile-icon" size={48} />
+            <span className="tile-label">Entire Bill</span>
           </button>
         </div>
 
@@ -3816,6 +3950,116 @@ const WidgetSettings: React.FC<any> = (props) => {
                   disabled={savingCategoryDelaySetting || !selectedCategoryDelayBranch}
                 >
                   {savingCategoryDelaySetting ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Loader2 className="animate-spin" size={16} /> Saving...
+                    </span>
+                  ) : (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Save size={16} /> Save Setting
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeWidget === 'entire-bill-blocking' && (
+            <div className="widget-modal">
+              <div className="modal-header">
+                <h2>Entire Bill Blocking Setting</h2>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>
+                    <MapPin size={14} style={{ marginRight: 4 }} /> Branch
+                  </label>
+                  <Select
+                    options={branchOptions}
+                    value={selectedEntireBillBlockingBranch}
+                    onChange={(option) =>
+                      setSelectedEntireBillBlockingBranch(option as Option | null)
+                    }
+                    styles={customSelectStyles}
+                    placeholder="Select Branch..."
+                    isLoading={loading}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    <Lock size={14} style={{ marginRight: 4 }} /> Block Billing if Any Undelivered
+                  </label>
+                  <Select
+                    options={visibilityOptions}
+                    value={entireBillBlockingEnabled}
+                    onChange={(option) =>
+                      setEntireBillBlockingEnabled((option as Option) || visibilityOptions[0])
+                    }
+                    styles={customSelectStyles}
+                    isSearchable={false}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                  />
+                </div>
+
+                <div className="configured-settings">
+                  <h3>Configured Branches</h3>
+                  {configuredEntireBillBlockingRows.length === 0 ? (
+                    <p className="empty-state">No branch-specific setting saved yet.</p>
+                  ) : (
+                    <div className="configured-list">
+                      {configuredEntireBillBlockingRows.map((row) => (
+                        <div className="configured-row" key={row.branchID}>
+                          <span className="branch-name">{row.branchName}</span>
+                          <div className="row-controls">
+                            <div className="status-group">
+                              <span
+                                className={
+                                  row.enabled
+                                    ? 'status-badge status-enabled'
+                                    : 'status-badge status-disabled'
+                                }
+                              >
+                                Status: {row.enabled ? 'Enabled' : 'Disabled'}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              className="remove-row-btn"
+                              onClick={() =>
+                                removeEntireBillBlockingConfiguredBranch(row.branchID, row.branchName)
+                              }
+                              disabled={Boolean(removingEntireBillBlockingBranchID)}
+                              title="Remove Setting"
+                            >
+                              {removingEntireBillBlockingBranchID === row.branchID ? (
+                                <Loader2 className="animate-spin" size={14} />
+                              ) : (
+                                <Trash2 size={14} />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setActiveWidget(null)}>
+                  Close
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={saveEntireBillBlockingSetting}
+                  disabled={savingEntireBillBlockingSetting || !selectedEntireBillBlockingBranch}
+                >
+                  {savingEntireBillBlockingSetting ? (
                     <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Loader2 className="animate-spin" size={16} /> Saving...
                     </span>

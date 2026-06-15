@@ -76,6 +76,10 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
         waiterSelectionType?: unknown
         waiters?: unknown
       }>
+      entireBillBlockingByBranch?: Array<{
+        branch?: unknown
+        enabled?: unknown
+      }>
     }
 
     const tableRows = Array.isArray(widgetSettings?.tableOrderCustomerDetailsByBranch)
@@ -194,6 +198,18 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
         ? categoryDelayRow.waiters.map((w) => getRelationshipID(w)).filter(Boolean)
         : []
 
+    const entireBillBlockingRows = Array.isArray(widgetSettings?.entireBillBlockingByBranch)
+      ? widgetSettings.entireBillBlockingByBranch
+      : []
+
+    const entireBillBlockingRow = entireBillBlockingRows.find(
+      (candidate) => getRelationshipID(candidate?.branch) === branchID,
+    )
+    const entireBillBlocking =
+      typeof entireBillBlockingRow?.enabled === 'boolean'
+        ? entireBillBlockingRow.enabled
+        : false
+
     return Response.json({
       branchId: branchID,
       showCustomerDetailsForTableOrders,
@@ -215,7 +231,8 @@ export const getTableCustomerDetailsVisibilityHandler: PayloadHandler = async (
       applyToTable,
       waiterSelectionType,
       waiters,
-      source: tableRow || billingRow || skipDeliverRow || skipConfirmRow || categoryDelayRow ? 'branch-specific' : 'default',
+      entireBillBlocking,
+      source: tableRow || billingRow || skipDeliverRow || skipConfirmRow || categoryDelayRow || entireBillBlockingRow ? 'branch-specific' : 'default',
     })
   } catch (error) {
     req.payload.logger.error(error)
