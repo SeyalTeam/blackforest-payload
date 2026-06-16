@@ -520,6 +520,7 @@ const WidgetSettings: React.FC<any> = (props) => {
   const [removingTableBranchID, setRemovingTableBranchID] = useState<string | null>(null)
   const [removingBillingBranchID, setRemovingBillingBranchID] = useState<string | null>(null)
   const [branches, setBranches] = useState<Branch[]>([])
+  const [initError, setInitError] = useState<string | null>(null)
   const [tableOrderCustomerDetailsByBranch, setTableOrderCustomerDetailsByBranch] = useState<
     TableCustomerDetailsRow[]
   >([])
@@ -970,6 +971,7 @@ const WidgetSettings: React.FC<any> = (props) => {
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true)
+      setInitError(null)
       try {
         const [branchesResponse, settingsResponse, appDownloadsResponse, waitersResponse] = await Promise.all([
           fetch('/api/branches?limit=1000&depth=0&sort=name'),
@@ -978,39 +980,79 @@ const WidgetSettings: React.FC<any> = (props) => {
           fetch('/api/users?limit=1000&depth=0&where[role][equals]=waiter'),
         ])
 
-        const branchesJSON = await branchesResponse.json()
-        setBranches(branchesJSON.docs || [])
+        console.log(`[WidgetSettings] fetch responses: branches=${branchesResponse.status}, settings=${settingsResponse.status}, appDownloads=${appDownloadsResponse.status}, waiters=${waitersResponse.status}`)
+
+        const errors: string[] = []
+        if (!branchesResponse.ok) {
+          errors.push(`Branches API failed (${branchesResponse.status} ${branchesResponse.statusText})`)
+        }
+        if (!settingsResponse.ok) {
+          errors.push(`Widget Settings API failed (${settingsResponse.status} ${settingsResponse.statusText})`)
+        }
+        if (!appDownloadsResponse.ok) {
+          errors.push(`App Downloads API failed (${appDownloadsResponse.status} ${appDownloadsResponse.statusText})`)
+        }
+        if (!waitersResponse.ok) {
+          errors.push(`Waiters API failed (${waitersResponse.status} ${waitersResponse.statusText})`)
+        }
+
+        if (errors.length > 0) {
+          setInitError(errors.join(', '))
+        }
+
+        if (branchesResponse.ok) {
+          try {
+            const branchesJSON = await branchesResponse.json()
+            setBranches(branchesJSON.docs || [])
+          } catch (e: any) {
+            console.error('Failed to parse branches response JSON', e)
+            setInitError((prev) => (prev ? `${prev}; ` : '') + 'Failed to parse branches JSON')
+          }
+        }
 
         if (waitersResponse.ok) {
-          const waitersJSON = await waitersResponse.json()
-          const waitersDocs = waitersJSON.docs || []
-          const map = new Map<string, string>()
-          waitersDocs.forEach((u: any) => {
-            map.set(u.id, u.name || u.email || u.id)
-          })
-          setAllWaitersMap(map)
+          try {
+            const waitersJSON = await waitersResponse.json()
+            const waitersDocs = waitersJSON.docs || []
+            const map = new Map<string, string>()
+            waitersDocs.forEach((u: any) => {
+              map.set(u.id, u.name || u.email || u.id)
+            })
+            setAllWaitersMap(map)
+          } catch (e: any) {
+            console.error('Failed to parse waiters response JSON', e)
+          }
         }
 
         if (settingsResponse.ok) {
-          const settingsJSON = (await settingsResponse.json()) as WidgetSettingsGlobal
-          setTableOrderCustomerDetailsByBranch(settingsJSON.tableOrderCustomerDetailsByBranch || [])
-          setBillingOrderCustomerDetailsByBranch(
-            settingsJSON.billingOrderCustomerDetailsByBranch || [],
-          )
-          setTableQRDomains(settingsJSON.tableQRDomains || [])
-          setAppAPIDomains(settingsJSON.appAPIDomains || [])
-          setSkipDeliverByBranch(settingsJSON.skipDeliverByBranch || [])
-          setSkipConfirmByBranch(settingsJSON.skipConfirmByBranch || [])
-          setCategoryDelayByBranch(settingsJSON.categoryDelayByBranch || [])
-          setEntireBillBlockingByBranch(settingsJSON.entireBillBlockingByBranch || [])
+          try {
+            const settingsJSON = (await settingsResponse.json()) as WidgetSettingsGlobal
+            setTableOrderCustomerDetailsByBranch(settingsJSON.tableOrderCustomerDetailsByBranch || [])
+            setBillingOrderCustomerDetailsByBranch(
+              settingsJSON.billingOrderCustomerDetailsByBranch || [],
+            )
+            setTableQRDomains(settingsJSON.tableQRDomains || [])
+            setAppAPIDomains(settingsJSON.appAPIDomains || [])
+            setSkipDeliverByBranch(settingsJSON.skipDeliverByBranch || [])
+            setSkipConfirmByBranch(settingsJSON.skipConfirmByBranch || [])
+            setCategoryDelayByBranch(settingsJSON.categoryDelayByBranch || [])
+            setEntireBillBlockingByBranch(settingsJSON.entireBillBlockingByBranch || [])
+          } catch (e: any) {
+            console.error('Failed to parse settings response JSON', e)
+          }
         }
 
         if (appDownloadsResponse.ok) {
-          const appsJSON = (await appDownloadsResponse.json()) as AppDownloadSettings
-          setAppDownloadSettings(appsJSON)
+          try {
+            const appsJSON = (await appDownloadsResponse.json()) as AppDownloadSettings
+            setAppDownloadSettings(appsJSON)
+          } catch (e: any) {
+            console.error('Failed to parse app downloads response JSON', e)
+          }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error fetching widget settings data:', err)
+        setInitError((prev) => (prev ? `${prev}; ` : '') + `Network Error: ${err.message || err}`)
       } finally {
         setLoading(false)
       }

@@ -320,8 +320,11 @@ export const Users: CollectionConfig = {
   access: {
     create: ({ req }) => req.user?.role === 'superadmin',
     read: ({ req }) => {
+      console.log('--- USERS READ ACCESS CHECK ---', {
+        user: req.user ? { id: req.user.id, role: req.user.role, email: req.user.email } : null,
+      });
       if (!req.user) return false
-      return true // Allow all authenticated users to read
+      return true
     },
     update: ({ req, id }): boolean | Where => {
       if (!req.user) return false

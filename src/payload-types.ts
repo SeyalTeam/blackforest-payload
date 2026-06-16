@@ -2825,6 +2825,16 @@ export interface WidgetSetting {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Branch-wise control to block billing if any table has undelivered items.
+   */
+  entireBillBlockingByBranch?:
+    | {
+        branch: string | Branch;
+        enabled?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -4099,6 +4109,13 @@ export interface WidgetSettingsSelect<T extends boolean = true> {
         applyToTable?: T;
         waiterSelectionType?: T;
         waiters?: T;
+        id?: T;
+      };
+  entireBillBlockingByBranch?:
+    | T
+    | {
+        branch?: T;
+        enabled?: T;
         id?: T;
       };
   updatedAt?: T;
