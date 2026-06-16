@@ -320,6 +320,45 @@ export const ackWaiterCallHandler: PayloadHandler = async (req): Promise<Respons
       },
     })
 
+    try {
+      const matchedCalls = await req.payload.find({
+        collection: 'waiter-calls',
+        where: {
+          and: [
+            {
+              billing: {
+                equals: String(bill.id),
+              },
+            },
+            {
+              callTimestamp: {
+                equals: parsedSignal.timestamp,
+              },
+            },
+          ],
+        },
+        limit: 1,
+        overrideAccess: true,
+      })
+
+      if (matchedCalls.docs.length > 0) {
+        await req.payload.update({
+          collection: 'waiter-calls',
+          id: matchedCalls.docs[0].id,
+          data: {
+            status: 'acknowledged',
+            assignedWaiter: actor.id,
+          },
+          overrideAccess: true,
+        })
+      }
+    } catch (dbError) {
+      req.payload.logger.error({
+        msg: 'Failed to update waiter-calls collection record during ack',
+        err: dbError,
+      })
+    }
+
     return Response.json({
       ok: true,
       billId: String(bill.id),

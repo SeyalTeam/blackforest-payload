@@ -296,6 +296,19 @@ export const callWaiterHandler: PayloadHandler = async (req): Promise<Response> 
       },
     })
 
+    await req.payload.create({
+      collection: 'waiter-calls',
+      data: {
+        branch: branchId,
+        tableNumber: resolvedTableNumber,
+        section: resolvedSection,
+        status: 'pending',
+        billing: String(matchedBill.id),
+        callTimestamp: timestampIST,
+      },
+      overrideAccess: true,
+    })
+
     return Response.json({
       ok: true,
       billId: String(matchedBill.id),

@@ -7,7 +7,7 @@ const WaiterCalls: CollectionConfig = {
     defaultColumns: ['tableNumber', 'section', 'branch', 'status', 'createdAt'],
   },
   access: {
-    create: () => true, // You might want to adjust access control later based on requirements
+    create: () => false, // Disables manual creation from the admin panel
     read: () => true,
     update: () => true,
     delete: ({ req: { user } }) => user?.role === 'superadmin' || user?.role === 'admin',
@@ -60,6 +60,22 @@ const WaiterCalls: CollectionConfig = {
       },
       filterOptions: {
         role: { equals: 'waiter' },
+      },
+    },
+    {
+      name: 'billing',
+      type: 'relationship',
+      relationTo: 'billings',
+      required: false,
+      admin: {
+        description: 'The billing associated with this call.',
+      },
+    },
+    {
+      name: 'callTimestamp',
+      type: 'text',
+      admin: {
+        description: 'The unique timestamp associated with this waiter call signal.',
       },
     },
   ],

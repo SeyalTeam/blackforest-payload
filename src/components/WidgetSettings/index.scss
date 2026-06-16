@@ -162,6 +162,16 @@
     flex-direction: column;
     position: relative;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+
+    &.live-table-widget-modal {
+      max-height: none;
+      height: auto;
+
+      .modal-body {
+        max-height: none;
+        overflow-y: visible;
+      }
+    }
   }
 
   .widget-modal-embedded {
@@ -201,6 +211,37 @@
   .live-table-modal-header {
     gap: 0.75rem;
     justify-content: flex-start;
+    align-items: center;
+
+    .live-table-show-filter {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #a1a1aa;
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 0.5rem;
+      padding: 0.45rem 0.8rem;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s ease-in-out;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-family: inherit;
+
+      &:hover {
+        background: #27272a;
+        border-color: #3b82f6;
+        color: #fff;
+      }
+
+      &.active {
+        background: rgba(59, 130, 246, 0.15);
+        border-color: #3b82f6;
+        color: #60a5fa;
+        box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+      }
+    }
 
     .live-table-toolbar {
       margin-left: auto;

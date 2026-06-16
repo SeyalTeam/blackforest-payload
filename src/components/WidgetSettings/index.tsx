@@ -674,9 +674,67 @@ const WidgetSettings: React.FC<any> = (props) => {
     label: 'All Branches',
   })
   const [liveTableBranches, setLiveTableBranches] = useState<LiveTableBranch[]>([])
+  const [filterRunningOnly, setFilterRunningOnly] = useState(false)
   const [liveTableLoading, setLiveTableLoading] = useState(false)
   const [liveTableError, setLiveTableError] = useState<string | null>(null)
   const [liveTableTick, setLiveTableTick] = useState(0)
+
+  const totalRunningTablesCount = useMemo(() => {
+    let count = 0
+    liveTableBranches.forEach((branch) => {
+      branch.sections.forEach((section) => {
+        section.tables.forEach((table) => {
+          const tableVisualState =
+            table.tableState === 'active' ||
+            table.tableState === 'prepared' ||
+            table.tableState === 'delivered' ||
+            table.tableState === 'available'
+              ? table.tableState
+              : table.occupied
+                ? 'active'
+                : 'available'
+          if (tableVisualState !== 'available') {
+            count++
+          }
+        })
+      })
+    })
+    return count
+  }, [liveTableBranches])
+
+  const filteredLiveTableBranches = useMemo(() => {
+    if (!filterRunningOnly) return liveTableBranches
+
+    return liveTableBranches
+      .map((branch) => {
+        const filteredSections = branch.sections
+          .map((section) => {
+            const filteredTables = section.tables.filter((table) => {
+              const tableVisualState =
+                table.tableState === 'active' ||
+                table.tableState === 'prepared' ||
+                table.tableState === 'delivered' ||
+                table.tableState === 'available'
+                  ? table.tableState
+                  : table.occupied
+                    ? 'active'
+                    : 'available'
+              return tableVisualState !== 'available'
+            })
+            return {
+              ...section,
+              tables: filteredTables,
+            }
+          })
+          .filter((section) => section.tables.length > 0)
+
+        return {
+          ...branch,
+          sections: filteredSections,
+        }
+      })
+      .filter((branch) => branch.sections.length > 0)
+  }, [liveTableBranches, filterRunningOnly])
   const [liveLoginUsers, setLiveLoginUsers] = useState<LiveLoginUser[]>([])
   const [liveLoginLoading, setLiveLoginLoading] = useState(false)
   const [liveLoginError, setLiveLoginError] = useState<string | null>(null)
@@ -4116,9 +4174,16 @@ const WidgetSettings: React.FC<any> = (props) => {
           )}
 
           {activeWidget === 'live-table' && (
-            <div className="widget-modal">
+            <div className="widget-modal live-table-widget-modal">
               <div className="modal-header live-table-modal-header">
                 <h2>Live Table</h2>
+                <button
+                  type="button"
+                  className={`live-table-show-filter ${filterRunningOnly ? 'active' : ''}`}
+                  onClick={() => setFilterRunningOnly((prev) => !prev)}
+                >
+                  Live Table Show ({totalRunningTablesCount})
+                </button>
                 <div className="live-table-toolbar">
                   <div className="live-table-branch-filter">
                     <Select
@@ -4164,13 +4229,15 @@ const WidgetSettings: React.FC<any> = (props) => {
               <div className="modal-body">
                 {liveTableError && <p className="live-error">{liveTableError}</p>}
 
-                {!liveTableLoading && !liveTableError && liveTableBranches.length === 0 && (
+                {!liveTableLoading && !liveTableError && filteredLiveTableBranches.length === 0 && (
                   <p className="live-empty-state">
-                    No table configuration found for the selected branch.
+                    {filterRunningOnly
+                      ? 'No running live tables found.'
+                      : 'No table configuration found for the selected branch.'}
                   </p>
                 )}
 
-                {liveTableBranches.map((branch) => (
+                {filteredLiveTableBranches.map((branch) => (
                   <div className="live-branch-block" key={branch.branchId}>
                     <h3 className="live-branch-title">{branch.branchName}</h3>
 

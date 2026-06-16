@@ -1500,6 +1500,14 @@ export interface WaiterCall {
    * The waiter assigned or responding to this call.
    */
   assignedWaiter?: (string | null) | User;
+  /**
+   * The billing associated with this call.
+   */
+  billing?: (string | null) | Billing;
+  /**
+   * The unique timestamp associated with this waiter call signal.
+   */
+  callTimestamp?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2439,6 +2447,8 @@ export interface WaiterCallsSelect<T extends boolean = true> {
   section?: T;
   status?: T;
   assignedWaiter?: T;
+  billing?: T;
+  callTimestamp?: T;
   updatedAt?: T;
   createdAt?: T;
 }
