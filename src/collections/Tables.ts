@@ -191,7 +191,7 @@ const Tables: CollectionConfig = {
               relationTo: 'users',
               required: true,
               filterOptions: {
-                role: { equals: 'waiter' },
+                role: { in: ['waiter', 'supervisor', 'cashier'] },
               },
             },
           ],

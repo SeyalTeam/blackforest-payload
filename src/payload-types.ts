@@ -140,6 +140,7 @@ export interface Config {
   };
   globals: {
     'ip-settings': IpSetting;
+    jarvis: Jarvi;
     'general-dashboard': GeneralDashboard;
     'time-wise-report': TimeWiseReport;
     'branch-billing-report': BranchBillingReport;
@@ -164,6 +165,7 @@ export interface Config {
   };
   globalsSelect: {
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
+    jarvis: JarvisSelect<false> | JarvisSelect<true>;
     'general-dashboard': GeneralDashboardSelect<false> | GeneralDashboardSelect<true>;
     'time-wise-report': TimeWiseReportSelect<false> | TimeWiseReportSelect<true>;
     'branch-billing-report': BranchBillingReportSelect<false> | BranchBillingReportSelect<true>;
@@ -2512,6 +2514,15 @@ export interface IpSetting {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "jarvis".
+ */
+export interface Jarvi {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "general-dashboard".
  */
 export interface GeneralDashboard {
@@ -3841,6 +3852,15 @@ export interface IpSettingsSelect<T extends boolean = true> {
             };
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "jarvis_select".
+ */
+export interface JarvisSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

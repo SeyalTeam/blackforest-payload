@@ -1035,7 +1035,7 @@ const WidgetSettings: React.FC<any> = (props) => {
           fetch('/api/branches?limit=1000&depth=0&sort=name'),
           fetch('/api/globals/widget-settings?depth=0'),
           fetch('/api/globals/app-download-settings?depth=1'),
-          fetch('/api/users?limit=1000&depth=0&where[role][equals]=waiter'),
+          fetch('/api/users?limit=1000&depth=0&where[role][in][0]=waiter&where[role][in][1]=supervisor&where[role][in][2]=cashier'),
         ])
 
         console.log(`[WidgetSettings] fetch responses: branches=${branchesResponse.status}, settings=${settingsResponse.status}, appDownloads=${appDownloadsResponse.status}, waiters=${waitersResponse.status}`)
@@ -1205,7 +1205,7 @@ const WidgetSettings: React.FC<any> = (props) => {
 
     const options = liveLoginUsers
       .filter((u) => {
-        if (u.role !== 'waiter') return false
+        if (!['waiter', 'supervisor', 'cashier'].includes(u.role)) return false
         if (u.branchId !== branchId && u.branchId) return false
         if (!u.latestLoginAt) return false
 
@@ -1256,7 +1256,7 @@ const WidgetSettings: React.FC<any> = (props) => {
     setLoadingBranchWaiters(true)
     try {
       const response = await fetch(
-        `/api/users?limit=1000&depth=0&where[role][equals]=waiter&where[lastLoginBranch][equals]=${branchId}`
+        `/api/users?limit=1000&depth=0&where[role][in][0]=waiter&where[role][in][1]=supervisor&where[role][in][2]=cashier&where[lastLoginBranch][equals]=${branchId}`
       )
       const json = await response.json()
       if (response.ok && json && Array.isArray(json.docs)) {

@@ -1,5 +1,6 @@
 import { default as default_9c4c60e4f20d2fcb9e26d5fbef4e001d } from '../../../components/BillDetailView/index.tsx'
 import { default as default_6bdd80618eae92cdce2b8046cb4be299 } from '../../../components/CustomerBillsTable/index.tsx'
+import { default as default_d0bb94682a7c13de9bf3ed0ba2a069f3 } from '../../../components/Jarvis/index.tsx'
 import { default as default_504fe7b162195b3bfa67a928adf73866 } from '../../../components/Dashboard/index.tsx'
 import { default as default_5284cc26339bd05719b498953bd82b2a } from '../../../components/TimeWiseReport/index.tsx'
 import { default as default_03027a027fbfaef5e61d32f942503808 } from '../../../components/BranchBillingReport/index.tsx'
@@ -25,6 +26,7 @@ import { S3ClientUploadHandler as S3ClientUploadHandler_f97aa6c64367fa259c5bc056
 export const importMap = {
   "/components/BillDetailView/index.tsx#default": default_9c4c60e4f20d2fcb9e26d5fbef4e001d,
   "/components/CustomerBillsTable/index.tsx#default": default_6bdd80618eae92cdce2b8046cb4be299,
+  "/components/Jarvis/index.tsx#default": default_d0bb94682a7c13de9bf3ed0ba2a069f3,
   "/components/Dashboard/index.tsx#default": default_504fe7b162195b3bfa67a928adf73866,
   "/components/TimeWiseReport/index.tsx#default": default_5284cc26339bd05719b498953bd82b2a,
   "/components/BranchBillingReport/index.tsx#default": default_03027a027fbfaef5e61d32f942503808,

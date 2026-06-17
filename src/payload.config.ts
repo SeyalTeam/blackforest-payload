@@ -29,6 +29,7 @@ import Expenses from './collections/Expenses'
 import StockOrders from './collections/StockOrders'
 import { IPSettings } from './globals/IPSettings'
 import { DashboardGlobal } from './globals/Dashboard'
+import { JarvisGlobal } from './globals/Jarvis'
 import { BranchBillingReportGlobal } from './globals/BranchBillingReport'
 import { CategoryWiseReportGlobal } from './globals/CategoryWiseReport'
 import { ProductWiseReportGlobal } from './globals/ProductWiseReport'
@@ -81,6 +82,7 @@ import { getLiveLoggedInUsersHandler } from './endpoints/getLiveLoggedInUsers'
 import { getReportBranchesHandler } from './endpoints/getReportBranches'
 import { getWidgetProductOptionsHandler } from './endpoints/getWidgetProductOptions'
 import { getBillingMenuHandler } from './endpoints/getBillingMenu'
+import { aiAssistantHandler } from './endpoints/aiAssistant'
 import { getBillingCustomerLookupHandler } from './endpoints/getBillingCustomerLookup'
 import { getRuntimeApiDomainHandler } from './endpoints/getRuntimeApiDomain'
 import { CustomerOfferSettings } from './globals/CustomerOfferSettings'
@@ -503,6 +505,11 @@ export default buildConfig({
       handler: getBillingMenuHandler,
     },
     {
+      path: '/widgets/ai-assistant',
+      method: 'post',
+      handler: aiAssistantHandler,
+    },
+    {
       path: '/runtime/api-domain',
       method: 'get',
       handler: getRuntimeApiDomainHandler,
@@ -576,6 +583,7 @@ export default buildConfig({
 
   globals: [
     IPSettings,
+    JarvisGlobal,
     DashboardGlobal,
     TimeWiseReportGlobal,
     BranchBillingReportGlobal,
