@@ -92,7 +92,7 @@ const JarvisPage: React.FC = () => {
                   onClick={() => handleSend(item.text)}
                 >
                   <span className="card-label">{item.label}</span>
-                  <span className="card-desc">"{item.text}"</span>
+                  <span className="card-desc">&quot;{item.text}&quot;</span>
                 </button>
               ))}
             </div>
