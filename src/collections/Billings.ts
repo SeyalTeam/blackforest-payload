@@ -5,6 +5,8 @@ import type { PipelineStage } from 'mongoose'
 import { CollectionConfig, APIError, type Payload } from 'payload'
 import { getProductStock, getMultipleProductsStock } from '../utilities/inventory'
 import { updateItemStatus } from '../endpoints/updateItemStatus'
+import { sendWhatsAppBill } from '../utilities/ownchat'
+
 import { getItemPreparationTime } from '../endpoints/getItemPreparationTime'
 import {
   type AmountBasedFreeProductOfferRule,
@@ -1403,7 +1405,9 @@ const markBillingProcessingFlags = async (
             skipInventoryValidation: true,
             skipCustomerRewardProcessing: true,
             skipOfferCounterProcessing: true,
+            skipWhatsAppNotification: true,
           },
+
         }),
       )
 
@@ -3098,9 +3102,45 @@ const Billings: CollectionConfig = {
           const skipCustomerRewardProcessing = Boolean(requestContext?.skipCustomerRewardProcessing)
           const skipOfferCounterProcessing = Boolean(requestContext?.skipOfferCounterProcessing)
 
+          // 1. Send WhatsApp Notification via Ownchat if finalized
+          const skipWhatsAppNotification = Boolean(requestContext?.skipWhatsAppNotification)
+          const isFinalized = isBillingFinalizedStatus(doc.status)
+          const customerPhone = doc.customerDetails?.phoneNumber
+          const whatsappAlreadySent = Boolean(doc.whatsappSent)
+
+          if (isFinalized && customerPhone && !whatsappAlreadySent && !skipWhatsAppNotification) {
+            try {
+              const success = await sendWhatsAppBill({
+                billId: doc.id,
+                invoiceNumber: doc.invoiceNumber,
+                customerName: doc.customerDetails?.name || 'Customer',
+                phoneNumber: customerPhone,
+                totalAmount: doc.totalAmount,
+              })
+
+              if (success) {
+                await markBillingProcessingFlags(
+                  req.payload,
+                  doc.id,
+                  {
+                    whatsappSent: true,
+                  },
+                  'whatsapp notification sent',
+                )
+              }
+            } catch (whatsappNotificationError) {
+              console.error('Failed sending WhatsApp notification via Ownchat.', {
+                billID: doc.id,
+                phoneNumber: customerPhone,
+                error: whatsappNotificationError,
+              })
+            }
+          }
+
           if (skipCustomerRewardProcessing && skipOfferCounterProcessing) {
             return doc
           }
+
 
           // Sync Customer Data
           if (operation === 'create' || operation === 'update') {
@@ -4571,6 +4611,16 @@ const Billings: CollectionConfig = {
         position: 'sidebar',
       },
     },
+    {
+      name: 'whatsappSent',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        readOnly: true,
+        position: 'sidebar',
+      },
+    },
+
 
     {
       name: 'notes',

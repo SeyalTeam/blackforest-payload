@@ -772,6 +772,7 @@ export interface Billing {
   customerRewardPointsEarned?: number | null;
   customerRewardProcessed?: boolean | null;
   offerCountersProcessed?: boolean | null;
+  whatsappSent?: boolean | null;
   notes?: string | null;
   tableDetails?: {
     section?: string | null;
@@ -2091,6 +2092,7 @@ export interface BillingsSelect<T extends boolean = true> {
   customerRewardPointsEarned?: T;
   customerRewardProcessed?: T;
   offerCountersProcessed?: T;
+  whatsappSent?: T;
   notes?: T;
   tableDetails?:
     | T
