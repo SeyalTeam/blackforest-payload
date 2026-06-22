@@ -12,6 +12,8 @@ export type DealerReportItem = {
   id: string
   dealerName: string
   amount: number
+  paidAmount?: number
+  payments?: { amount: number; date: string }[]
   billCopyUrl?: string
   productsUrl?: string
   time: string
@@ -50,6 +52,8 @@ type RawDealerItem = {
   id: unknown
   dealerName: unknown
   amount: unknown
+  paidAmount?: unknown
+  payments?: unknown
   billCopyUrl?: unknown
   billCopyFilename?: unknown
   productsUrl?: unknown
@@ -271,6 +275,8 @@ export const getDealerReportData = async (
             id: { $toString: '$_id' },
             dealerName: { $ifNull: ['$dealerInfo.companyName', { $ifNull: ['$dealerInfo.name', 'Unknown Dealer'] }] },
             amount: '$total',
+            paidAmount: { $ifNull: ['$paidAmount', 0] },
+            payments: { $ifNull: ['$payments', []] },
             time: '$date',
             billCopyUrl: '$billCopyInfo.url',
             billCopyFilename: '$billCopyInfo.filename',
@@ -318,16 +324,30 @@ export const getDealerReportData = async (
           })
         }
 
-        return {
-          id: toNonEmptyString(item.id),
-          dealerName: toNonEmptyString(item.dealerName, 'Unknown Dealer'),
-          amount: toNumber(item.amount),
-          time: toDateString(item.time),
-          billCopyUrl: billCopyUrl || (billCopyFilename ? `/api/media/file/${billCopyFilename}` : undefined),
-          productsUrl: productsUrl || (productsFilename ? `/api/media/file/${productsFilename}` : undefined),
-          status: toNonEmptyString(item.status, 'pending'),
-          products,
-        }
+          const payments: { amount: number; date: string }[] = []
+          if (Array.isArray(item.payments)) {
+            item.payments.forEach((p) => {
+              if (p && typeof p === 'object') {
+                payments.push({
+                  amount: toNumber(p.amount),
+                  date: toDateString(p.date),
+                })
+              }
+            })
+          }
+
+          return {
+            id: toNonEmptyString(item.id),
+            dealerName: toNonEmptyString(item.dealerName, 'Unknown Dealer'),
+            amount: toNumber(item.amount),
+            paidAmount: toNumber(item.paidAmount),
+            payments,
+            time: toDateString(item.time),
+            billCopyUrl: billCopyUrl || (billCopyFilename ? `/api/media/file/${billCopyFilename}` : undefined),
+            productsUrl: productsUrl || (productsFilename ? `/api/media/file/${productsFilename}` : undefined),
+            status: toNonEmptyString(item.status, 'pending'),
+            products,
+          }
       })
 
     return {

@@ -943,6 +943,7 @@ export interface DealerBilling {
   productsPhoto: string | Media;
   products?: (string | Product)[] | null;
   date: string;
+  paidAmount: number;
   status: 'pending' | 'paid' | 'cancelled';
   updatedAt: string;
   createdAt: string;
@@ -2277,6 +2278,7 @@ export interface DealerBillingsSelect<T extends boolean = true> {
   productsPhoto?: T;
   products?: T;
   date?: T;
+  paidAmount?: T;
   status?: T;
   updatedAt?: T;
   createdAt?: T;

@@ -71,6 +71,34 @@ const DealerBillings: CollectionConfig = {
       required: true,
     },
     {
+      name: 'paidAmount',
+      type: 'number',
+      defaultValue: 0,
+      required: true,
+      admin: {
+        readOnly: true,
+      },
+    },
+    {
+      name: 'payments',
+      type: 'array',
+      admin: {
+        readOnly: true,
+      },
+      fields: [
+        {
+          name: 'amount',
+          type: 'number',
+          required: true,
+        },
+        {
+          name: 'date',
+          type: 'date',
+          required: true,
+        },
+      ],
+    },
+    {
       name: 'status',
       type: 'select',
       options: [
@@ -80,6 +108,9 @@ const DealerBillings: CollectionConfig = {
       ],
       defaultValue: 'pending',
       required: true,
+      admin: {
+        readOnly: true,
+      },
     },
   ],
   hooks: {
@@ -96,6 +127,26 @@ const DealerBillings: CollectionConfig = {
             0,
           )
           data.total = calculatedTotal
+        }
+        if (data.payments) {
+          const totalPaid = data.payments.reduce(
+            (sum: number, p: { amount?: number }) => sum + (p.amount || 0),
+            0,
+          )
+          data.paidAmount = totalPaid
+        }
+        if (data.status === 'paid' && (!data.payments || data.payments.length === 0)) {
+          data.paidAmount = data.total
+          data.payments = [
+            {
+              amount: data.total,
+              date: new Date().toISOString(),
+            },
+          ]
+        } else if (data.status === 'paid' && !data.paidAmount) {
+          data.paidAmount = data.total
+        } else if (data.paidAmount !== undefined && data.total !== undefined && data.paidAmount >= data.total) {
+          data.status = 'paid'
         }
         return data
       },
