@@ -95,8 +95,8 @@ const Expenses: CollectionConfig = {
     beforeChange: [
       async ({ req, operation, data }) => {
         if (operation === 'create') {
-          if (req.user?.role === 'branch') {
-            data.branch = req.user.branch // Auto-set branch if authenticated
+          if (req.user?.role === 'branch' && req.user.branch) {
+            data.branch = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
           }
           // Generate invoiceNumber
           if (data.branch) {

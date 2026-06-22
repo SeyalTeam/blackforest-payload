@@ -68,8 +68,8 @@ const DealerBillings: CollectionConfig = {
     beforeChange: [
       async ({ req, operation, data }) => {
         if (operation === 'create') {
-          if (req.user?.role === 'branch') {
-            data.branch = req.user.branch
+          if (req.user?.role === 'branch' && req.user.branch) {
+            data.branch = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
           }
         }
         if (data.bills) {
