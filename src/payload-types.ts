@@ -85,6 +85,7 @@ export interface Config {
     'closing-entries': ClosingEntry;
     expenses: Expense;
     'stock-orders': StockOrder;
+    'dealer-billings': DealerBilling;
     reviews: Review;
     customers: Customer;
     'billing-customers': BillingCustomer;
@@ -120,6 +121,7 @@ export interface Config {
     'closing-entries': ClosingEntriesSelect<false> | ClosingEntriesSelect<true>;
     expenses: ExpensesSelect<false> | ExpensesSelect<true>;
     'stock-orders': StockOrdersSelect<false> | StockOrdersSelect<true>;
+    'dealer-billings': DealerBillingsSelect<false> | DealerBillingsSelect<true>;
     reviews: ReviewsSelect<false> | ReviewsSelect<true>;
     customers: CustomersSelect<false> | CustomersSelect<true>;
     'billing-customers': BillingCustomersSelect<false> | BillingCustomersSelect<true>;
@@ -924,6 +926,25 @@ export interface StockOrder {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "dealer-billings".
+ */
+export interface DealerBilling {
+  id: string;
+  dealer: string | Dealer;
+  branch: string | Branch;
+  bills: {
+    amount: number;
+    id?: string | null;
+  }[];
+  total: number;
+  billCopyPhoto: string | Media;
+  productsPhoto: string | Media;
+  date: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "reviews".
  */
 export interface Review {
@@ -1594,6 +1615,10 @@ export interface PayloadLockedDocument {
         value: string | StockOrder;
       } | null)
     | ({
+        relationTo: 'dealer-billings';
+        value: string | DealerBilling;
+      } | null)
+    | ({
         relationTo: 'reviews';
         value: string | Review;
       } | null)
@@ -2227,6 +2252,26 @@ export interface StockOrdersSelect<T extends boolean = true> {
   company?: T;
   status?: T;
   notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "dealer-billings_select".
+ */
+export interface DealerBillingsSelect<T extends boolean = true> {
+  dealer?: T;
+  branch?: T;
+  bills?:
+    | T
+    | {
+        amount?: T;
+        id?: T;
+      };
+  total?: T;
+  billCopyPhoto?: T;
+  productsPhoto?: T;
+  date?: T;
   updatedAt?: T;
   createdAt?: T;
 }

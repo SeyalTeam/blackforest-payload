@@ -27,6 +27,7 @@ import ReturnOrder from './collections/ReturnOrder'
 import ClosingEntries from './collections/ClosingEntries'
 import Expenses from './collections/Expenses'
 import StockOrders from './collections/StockOrders'
+import DealerBillings from './collections/DealerBillings'
 import { IPSettings } from './globals/IPSettings'
 import { DashboardGlobal } from './globals/Dashboard'
 import { JarvisGlobal } from './globals/Jarvis'
@@ -629,6 +630,7 @@ export default buildConfig({
     ClosingEntries,
     Expenses,
     StockOrders,
+    DealerBillings,
     Reviews,
     Customers,
     BillingCustomers,
