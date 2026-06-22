@@ -63,6 +63,17 @@ const DealerBillings: CollectionConfig = {
       type: 'date',
       required: true,
     },
+    {
+      name: 'status',
+      type: 'select',
+      options: [
+        { label: 'Pending', value: 'pending' },
+        { label: 'Paid', value: 'paid' },
+        { label: 'Cancelled', value: 'cancelled' },
+      ],
+      defaultValue: 'pending',
+      required: true,
+    },
   ],
   hooks: {
     beforeChange: [

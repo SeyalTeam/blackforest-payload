@@ -159,6 +159,7 @@ export interface Config {
     'instock-entry-report': InstockEntryReport;
     'expense-report': ExpenseReport;
     'return-order-report': ReturnOrderReport;
+    'dealer-report': DealerReport;
     'branch-geo-settings': BranchGeoSetting;
     'network-status': NetworkStatus;
     'widget-settings': WidgetSetting;
@@ -184,6 +185,7 @@ export interface Config {
     'instock-entry-report': InstockEntryReportSelect<false> | InstockEntryReportSelect<true>;
     'expense-report': ExpenseReportSelect<false> | ExpenseReportSelect<true>;
     'return-order-report': ReturnOrderReportSelect<false> | ReturnOrderReportSelect<true>;
+    'dealer-report': DealerReportSelect<false> | DealerReportSelect<true>;
     'branch-geo-settings': BranchGeoSettingsSelect<false> | BranchGeoSettingsSelect<true>;
     'network-status': NetworkStatusSelect<false> | NetworkStatusSelect<true>;
     'widget-settings': WidgetSettingsSelect<false> | WidgetSettingsSelect<true>;
@@ -940,6 +942,7 @@ export interface DealerBilling {
   billCopyPhoto: string | Media;
   productsPhoto: string | Media;
   date: string;
+  status: 'pending' | 'paid' | 'cancelled';
   updatedAt: string;
   createdAt: string;
 }
@@ -2272,6 +2275,7 @@ export interface DealerBillingsSelect<T extends boolean = true> {
   billCopyPhoto?: T;
   productsPhoto?: T;
   date?: T;
+  status?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2708,6 +2712,15 @@ export interface ExpenseReport {
  * via the `definition` "return-order-report".
  */
 export interface ReturnOrderReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "dealer-report".
+ */
+export interface DealerReport {
   id: string;
   updatedAt?: string | null;
   createdAt?: string | null;
@@ -4052,6 +4065,15 @@ export interface ExpenseReportSelect<T extends boolean = true> {
  * via the `definition` "return-order-report_select".
  */
 export interface ReturnOrderReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "dealer-report_select".
+ */
+export interface DealerReportSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

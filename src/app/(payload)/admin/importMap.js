@@ -17,6 +17,7 @@ import { default as default_140b8e69630a9ff5b0533c7021cd6bfe } from '../../../co
 import { default as default_438fefb174500fb3c1feb8d44211cf3b } from '../../../components/InstockEntryReport/index.tsx'
 import { default as default_7b71facc026c06bd9c34422308b32867 } from '../../../components/ExpenseReport/index.tsx'
 import { default as default_e8583f3860f7314c27e4ea40590a0d91 } from '../../../components/ReturnOrderReport/index.tsx'
+import { default as default_881af3632ebc3ac86ab26c9062536ce0 } from '../../../components/DealerReport/index.tsx'
 import { GeoLocationButton as GeoLocationButton_c6abd8fffba800c90850c15956a40d8c } from '../../../components/GeoLocationButton/index.tsx'
 import { default as default_33fb18e2b81f2b37393ae18281df6f35 } from '../../../components/NetworkStatus/index.tsx'
 import { default as default_7b1ab22c3fec8de15c6e9105699e8e3c } from '../../../components/WidgetSettings/index.tsx'
@@ -43,6 +44,7 @@ export const importMap = {
   "/components/InstockEntryReport/index.tsx#default": default_438fefb174500fb3c1feb8d44211cf3b,
   "/components/ExpenseReport/index.tsx#default": default_7b71facc026c06bd9c34422308b32867,
   "/components/ReturnOrderReport/index.tsx#default": default_e8583f3860f7314c27e4ea40590a0d91,
+  "/components/DealerReport/index.tsx#default": default_881af3632ebc3ac86ab26c9062536ce0,
   "/components/GeoLocationButton/index.tsx#GeoLocationButton": GeoLocationButton_c6abd8fffba800c90850c15956a40d8c,
   "/components/NetworkStatus/index.tsx#default": default_33fb18e2b81f2b37393ae18281df6f35,
   "/components/WidgetSettings/index.tsx#default": default_7b1ab22c3fec8de15c6e9105699e8e3c,
