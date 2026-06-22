@@ -204,7 +204,7 @@ const DealerReport: React.FC = () => {
         const res = await fetch('/api/reports/branches')
         if (res.ok) {
           const list = await res.json()
-          setBranches(list)
+          setBranches(list.docs || [])
         }
       } catch (e) {
         console.error('Failed to load branches', e)
