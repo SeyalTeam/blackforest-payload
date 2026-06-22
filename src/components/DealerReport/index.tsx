@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import Select, { components, OptionProps, ValueContainerProps } from 'react-select'
@@ -28,6 +28,7 @@ export type DealerReportItem = {
   productsUrl?: string
   time: string
   status: string
+  products?: string[]
 }
 
 export type BranchGroup = {
@@ -128,8 +129,13 @@ const DealerReport: React.FC = () => {
 
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([])
   const [selectedBranch, setSelectedBranch] = useState<string[]>(['all'])
+  const [dealers, setDealers] = useState<{ id: string; name: string }[]>([])
+  const [selectedDealers, setSelectedDealers] = useState<string[]>(['all'])
   const [showScrollBottom, setShowScrollBottom] = useState(true)
   const lastScrollY = useRef(0)
+
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(50)
 
   const handleStatusChange = async (id: string, newStatus: string) => {
     try {
@@ -161,6 +167,97 @@ const DealerReport: React.FC = () => {
     }
   }
 
+  const allItems = useMemo(() => {
+    if (!data) return []
+    const items: (DealerReportItem & { branchName: string })[] = []
+    data.groups.forEach((group) => {
+      group.items.forEach((item) => {
+        items.push({
+          ...item,
+          branchName: group.branchName,
+        })
+      })
+    })
+    return items.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+  }, [data])
+
+  const totalItems = allItems.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const activePage = Math.min(currentPage, totalPages)
+
+  const itemsWithBalance = useMemo(() => {
+    const len = allItems.length
+    const result = new Array(len)
+    let runningBalance = 0
+
+    for (let i = len - 1; i >= 0; i--) {
+      const item = allItems[i]
+      let debit = 0
+      let credit = 0
+
+      if (item.status === 'paid') {
+        debit = item.amount
+        runningBalance -= debit
+      } else if (item.status === 'pending') {
+        credit = item.amount
+        runningBalance += credit
+      }
+
+      result[i] = {
+        ...item,
+        debit,
+        credit,
+        balance: runningBalance,
+      }
+    }
+
+    return result
+  }, [allItems])
+
+  const paginatedItems = useMemo(() => {
+    const start = (activePage - 1) * pageSize
+    return itemsWithBalance.slice(start, start + pageSize)
+  }, [itemsWithBalance, activePage, pageSize])
+
+  const statusTotals = useMemo(() => {
+    let pending = 0
+    let paid = 0
+    let cancelled = 0
+    let total = 0
+
+    allItems.forEach((item) => {
+      total += item.amount
+      if (item.status === 'paid') {
+        paid += item.amount
+      } else if (item.status === 'cancelled') {
+        cancelled += item.amount
+      } else {
+        pending += item.amount
+      }
+    })
+
+    return { pending, paid, cancelled, total }
+  }, [allItems])
+
+  const statusCounts = useMemo(() => {
+    let pending = 0
+    let paid = 0
+    let cancelled = 0
+    const total = allItems.length
+
+    allItems.forEach((item) => {
+      if (item.status === 'paid') {
+        paid++
+      } else if (item.status === 'cancelled') {
+        cancelled++
+      } else {
+        pending++
+      }
+    })
+
+    return { pending, paid, cancelled, total }
+  }, [allItems])
+
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY
@@ -174,16 +271,17 @@ const DealerReport: React.FC = () => {
   }, [])
 
   const fetchReport = React.useCallback(
-    async (start: Date, end: Date, branchIds: string[]) => {
+    async (start: Date, end: Date, branchIds: string[], dealerIds: string[]) => {
       setLoading(true)
       setError('')
       try {
         const startStr = toLocalDateStr(start)
         const endStr = toLocalDateStr(end)
         const branchParam = branchIds.includes('all') ? 'all' : branchIds.join(',')
+        const dealerParam = dealerIds.includes('all') ? 'all' : dealerIds.join(',')
 
         const res = await fetch(
-          `/api/reports/dealer?startDate=${startStr}&endDate=${endStr}&branch=${branchParam}`,
+          `/api/reports/dealer?startDate=${startStr}&endDate=${endStr}&branch=${branchParam}&dealer=${dealerParam}`,
         )
         if (!res.ok) throw new Error(`Failed to fetch report (HTTP ${res.status})`)
 
@@ -210,14 +308,35 @@ const DealerReport: React.FC = () => {
         console.error('Failed to load branches', e)
       }
     }
+    const loadDealers = async () => {
+      try {
+        const res = await fetch('/api/dealers?limit=1000&sort=companyName')
+        if (res.ok) {
+          const list = await res.json()
+          setDealers(
+            (list.docs || []).map((d: any) => ({
+              id: d.id,
+              name: d.companyName || d.name,
+            })),
+          )
+        }
+      } catch (e) {
+        console.error('Failed to load dealers', e)
+      }
+    }
     loadBranches()
+    loadDealers()
   }, [])
 
   useEffect(() => {
     if (startDate && endDate) {
-      fetchReport(startDate, endDate, selectedBranch)
+      fetchReport(startDate, endDate, selectedBranch, selectedDealers)
     }
-  }, [startDate, endDate, selectedBranch, fetchReport])
+  }, [startDate, endDate, selectedBranch, selectedDealers, fetchReport])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [startDate, endDate, selectedBranch, selectedDealers])
 
   const handleDatePresetChange = (preset: string) => {
     setDateRangePreset(preset)
@@ -288,6 +407,11 @@ const DealerReport: React.FC = () => {
     ...branches.map((b) => ({ value: b.id, label: b.name })),
   ]
 
+  const dealerOptions = [
+    { value: 'all', label: 'All Dealers' },
+    ...dealers.map((d) => ({ value: d.id, label: d.name })),
+  ]
+
   return (
     <div className="dealer-report-container-v2">
       <div className="report-header-v2">
@@ -350,6 +474,37 @@ const DealerReport: React.FC = () => {
                 MultiValue,
               }}
             />
+            <Select
+              options={dealerOptions}
+              isMulti
+              value={dealerOptions.filter((o) => selectedDealers.includes(o.value))}
+              onChange={(newValue) => {
+                const selected = newValue ? newValue.map((x) => x.value) : []
+                const wasAll = selectedDealers.includes('all')
+                const hasAll = selected.includes('all')
+
+                let final = selected
+                if (hasAll && !wasAll) {
+                  final = ['all']
+                } else if (hasAll && wasAll && selected.length > 1) {
+                  final = selected.filter((x) => x !== 'all')
+                } else if (final.length === 0) {
+                  final = ['all']
+                }
+                setSelectedDealers(final)
+              }}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Select Dealer..."
+              isSearchable={true}
+              closeMenuOnSelect={false}
+              hideSelectedOptions={false}
+              components={{
+                Option: CheckboxOption,
+                ValueContainer: CustomValueContainer,
+                MultiValue,
+              }}
+            />
           </div>
         </div>
       </div>
@@ -360,48 +515,185 @@ const DealerReport: React.FC = () => {
 
         {!loading && data && (
           <div className="report-main-layout">
-            <div className="branch-groups">
-              {data.groups.length > 0 && (
-                <div className="overall-report-total">
-                  <div className="total-info">
-                    <div className="total-label">OVERALL TOTAL</div>
-                    <span className="total-count">{data.meta.totalCount} entries</span>
+            <div className="report-table-container" style={{ width: '100%' }}>
+              {allItems.length > 0 && (
+                <div className="summary-cards-grid">
+                  <div className="stock-summary-card stock-summary-card--total">
+                    <div className="stock-summary-title">OVERALL TOTAL</div>
+                    <div className="stock-summary-amount">
+                      ₹{statusTotals.total.toLocaleString('en-IN')}
+                    </div>
+                    <div className="stock-summary-ref">
+                      {statusCounts.total} entries
+                    </div>
                   </div>
-                  <div className="total-amount">
-                    ₹{data.meta.grandTotal.toLocaleString('en-IN')}
+
+                  <div className="stock-summary-card stock-summary-card--existing">
+                    <div className="stock-summary-title">PAID TOTAL</div>
+                    <div className="stock-summary-amount">
+                      ₹{statusTotals.paid.toLocaleString('en-IN')}
+                    </div>
+                    <div className="stock-summary-ref">
+                      {statusCounts.paid} entries
+                    </div>
+                  </div>
+
+                  <div className="stock-summary-card stock-summary-card--new">
+                    <div className="stock-summary-title">PENDING TOTAL</div>
+                    <div className="stock-summary-amount">
+                      ₹{statusTotals.pending.toLocaleString('en-IN')}
+                    </div>
+                    <div className="stock-summary-ref">
+                      {statusCounts.pending} entries
+                    </div>
+                  </div>
+
+                  <div className="stock-summary-card stock-summary-card--billing">
+                    <div className="stock-summary-title">CANCELLED TOTAL</div>
+                    <div className="stock-summary-amount">
+                      ₹{statusTotals.cancelled.toLocaleString('en-IN')}
+                    </div>
+                    <div className="stock-summary-ref">
+                      {statusCounts.cancelled} entries
+                    </div>
                   </div>
                 </div>
               )}
-              {data.groups.map((group) => (
-                <div key={group._id} className="branch-section">
-                  <div className="branch-header">
-                    <div className="branch-info">
-                      <h2>{group.branchName}</h2>
-                      <span className="item-count">{group.count} entries</span>
-                    </div>
-                    <div className="branch-total">
-                      ₹{group.total.toLocaleString('en-IN')}
+
+              {allItems.length > 0 ? (
+                <div className="report-table-section">
+                  <div className="table-header-controls">
+                    <div className="limit-selector">
+                      <span>Show </span>
+                      <select
+                        value={pageSize}
+                        onChange={(e) => {
+                          setPageSize(Number(e.target.value))
+                          setCurrentPage(1)
+                        }}
+                        className="page-size-select"
+                      >
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                        <option value={250}>250</option>
+                        <option value={500}>500</option>
+                        <option value={1000}>1000</option>
+                      </select>
+                      <span> entries</span>
                     </div>
                   </div>
-                  <div className="branch-items-table">
+
+                  <div className="report-items-table">
                     <table>
                       <thead>
                         <tr>
-                          <th style={{ width: '5%' }}>S.NO</th>
-                          <th style={{ width: '20%' }}>Dealer</th>
-                          <th style={{ width: '15%', textAlign: 'right' }}>Amount</th>
-                          <th style={{ width: '15%', textAlign: 'center' }}>Bill Photo</th>
-                          <th style={{ width: '15%', textAlign: 'center' }}>Product Photo</th>
-                          <th style={{ width: '15%', textAlign: 'center' }}>Status</th>
+                          <th style={{ width: '3%' }}>S.NO</th>
+                          <th style={{ width: '14%' }}>Dealer</th>
+                          <th style={{ width: '8%', textAlign: 'right' }}>Amount</th>
+                          <th style={{ width: '8%', textAlign: 'right' }}>Debit</th>
+                          <th style={{ width: '8%', textAlign: 'right' }}>Credit</th>
+                          <th style={{ width: '10%', textAlign: 'right' }}>Balance</th>
+                          <th style={{ width: '8%', textAlign: 'center' }}>Branch</th>
+                          <th style={{ width: '8%', textAlign: 'center' }}>Status</th>
+                          <th style={{ width: '8%', textAlign: 'center' }}>Pay Now</th>
+                          <th style={{ width: '5%', textAlign: 'center' }}>Bill Photo</th>
+                          <th style={{ width: '5%', textAlign: 'center' }}>Product Photo</th>
                           <th style={{ width: '15%', textAlign: 'right' }}>Date & Time</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {group.items.map((item, idx) => (
-                          <tr key={idx}>
-                            <td style={{ opacity: 0.5, fontSize: '0.8rem' }}>{idx + 1}</td>
-                            <td className="dealer-cell">{item.dealerName}</td>
+                        {paginatedItems.map((item, idx) => (
+                          <tr key={item.id}>
+                            <td style={{ opacity: 0.5, fontSize: '0.8rem' }}>
+                              {(activePage - 1) * pageSize + idx + 1}
+                            </td>
+                            <td className="dealer-cell">
+                              <div style={{ fontWeight: 600 }}>{item.dealerName}</div>
+                              {item.products && item.products.length > 0 && (
+                                <div className="product-badges-list" style={{ marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                  {item.products.map((prodName, pIdx) => (
+                                    <span
+                                      key={pIdx}
+                                      style={{
+                                        fontSize: '0.7rem',
+                                        background: 'var(--theme-elevation-150)',
+                                        color: 'var(--theme-text-secondary)',
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        fontWeight: 'normal',
+                                      }}
+                                    >
+                                      {prodName}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
                             <td className="amount-cell">₹{item.amount.toLocaleString('en-IN')}</td>
+                            <td className="debit-cell">
+                              {item.debit > 0 ? `₹${item.debit.toLocaleString('en-IN')}` : '-'}
+                            </td>
+                            <td className="credit-cell">
+                              {item.credit > 0 ? `₹${item.credit.toLocaleString('en-IN')}` : '-'}
+                            </td>
+                            <td className="balance-cell">
+                              {item.balance >= 0
+                                ? `₹${item.balance.toLocaleString('en-IN')}`
+                                : `-₹${Math.abs(item.balance).toLocaleString('en-IN')}`}
+                            </td>
+                            <td className="branch-cell" style={{ textAlign: 'center' }}>
+                              {item.branchName}
+                            </td>
+                            <td className="status-cell" style={{ textAlign: 'center' }}>
+                              <select
+                                value={item.status}
+                                onChange={(e) => handleStatusChange(item.id, e.target.value)}
+                                style={{
+                                  background:
+                                    item.status === 'paid'
+                                      ? 'rgba(16, 185, 129, 0.15)'
+                                      : item.status === 'cancelled'
+                                      ? 'rgba(239, 68, 68, 0.15)'
+                                      : 'rgba(245, 158, 11, 0.15)',
+                                  color:
+                                    item.status === 'paid'
+                                      ? '#10b981'
+                                      : item.status === 'cancelled'
+                                      ? '#ef4444'
+                                      : '#f59e0b',
+                                  border: '1px solid currentColor',
+                                  borderRadius: '6px',
+                                  padding: '4px 8px',
+                                  cursor: 'pointer',
+                                  fontWeight: 'bold',
+                                  fontSize: '0.85rem',
+                                }}
+                              >
+                                <option value="pending" style={{ background: 'var(--theme-elevation-100)', color: 'var(--theme-text-primary)' }}>Pending</option>
+                                <option value="paid" style={{ background: 'var(--theme-elevation-100)', color: 'var(--theme-text-primary)' }}>Paid</option>
+                                <option value="cancelled" style={{ background: 'var(--theme-elevation-100)', color: 'var(--theme-text-primary)' }}>Cancelled</option>
+                              </select>
+                            </td>
+                            <td className="pay-now-cell" style={{ textAlign: 'center' }}>
+                              {item.status === 'pending' ? (
+                                <button
+                                  className="pay-now-btn"
+                                  onClick={async () => {
+                                    if (window.confirm(`Are you sure you want to mark this bill from ${item.dealerName} for ₹${item.amount.toLocaleString('en-IN')} as Paid?`)) {
+                                      await handleStatusChange(item.id, 'paid')
+                                    }
+                                  }}
+                                >
+                                  Pay Now
+                                </button>
+                              ) : item.status === 'paid' ? (
+                                <span className="status-paid-badge">Paid ✓</span>
+                              ) : (
+                                <span className="status-cancelled-badge">Cancelled</span>
+                              )}
+                            </td>
                             <td className="image-cell" style={{ textAlign: 'center' }}>
                               <button
                                 className={`image-view-btn ${item.billCopyUrl ? 'active' : 'inactive'}`}
@@ -446,47 +738,60 @@ const DealerReport: React.FC = () => {
                                 </svg>
                               </button>
                             </td>
-                            <td className="status-cell" style={{ textAlign: 'center' }}>
-                              <select
-                                value={item.status}
-                                onChange={(e) => handleStatusChange(item.id, e.target.value)}
-                                style={{
-                                  background:
-                                    item.status === 'paid'
-                                      ? 'rgba(16, 185, 129, 0.15)'
-                                      : item.status === 'cancelled'
-                                      ? 'rgba(239, 68, 68, 0.15)'
-                                      : 'rgba(245, 158, 11, 0.15)',
-                                  color:
-                                    item.status === 'paid'
-                                      ? '#10b981'
-                                      : item.status === 'cancelled'
-                                      ? '#ef4444'
-                                      : '#f59e0b',
-                                  border: '1px solid currentColor',
-                                  borderRadius: '6px',
-                                  padding: '4px 8px',
-                                  cursor: 'pointer',
-                                  fontWeight: 'bold',
-                                  fontSize: '0.85rem',
-                                }}
-                              >
-                                <option value="pending" style={{ background: 'var(--theme-elevation-100)', color: 'var(--theme-text-primary)' }}>Pending</option>
-                                <option value="paid" style={{ background: 'var(--theme-elevation-100)', color: 'var(--theme-text-primary)' }}>Paid</option>
-                                <option value="cancelled" style={{ background: 'var(--theme-elevation-100)', color: 'var(--theme-text-primary)' }}>Cancelled</option>
-                              </select>
-                            </td>
                             <td className="time-cell" title={item.time}>
-                              {dayjs.utc(item.time).format('DD-MM-YY hh:mm A')}
+                              {dayjs(item.time).tz('Asia/Kolkata').format('DD-MM-YY hh:mm A')}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
+
+                  {totalPages > 1 && (
+                    <div className="pagination-wrapper">
+                      <div className="pagination-info">
+                        Showing {Math.min(totalItems, (activePage - 1) * pageSize + 1)} to{' '}
+                        {Math.min(totalItems, activePage * pageSize)} of {totalItems} entries
+                      </div>
+                      <div className="pagination-buttons">
+                        <button
+                          disabled={activePage === 1}
+                          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                          className="pagination-btn prev-btn"
+                        >
+                          Previous
+                        </button>
+                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                          .filter((p) => p === 1 || p === totalPages || Math.abs(p - activePage) <= 2)
+                          .map((p, idx, arr) => {
+                            const prev = arr[idx - 1]
+                            const showEllipsis = prev && p - prev > 1
+                            return (
+                              <React.Fragment key={p}>
+                                {showEllipsis && <span className="ellipsis">...</span>}
+                                <button
+                                  onClick={() => setCurrentPage(p)}
+                                  className={`pagination-btn page-num ${activePage === p ? 'active' : ''}`}
+                                >
+                                  {p}
+                                </button>
+                              </React.Fragment>
+                            )
+                          })}
+                        <button
+                          disabled={activePage === totalPages}
+                          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                          className="pagination-btn next-btn"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))}
-              {data.groups.length === 0 && <div className="no-data">No dealer billings found.</div>}
+              ) : (
+                <div className="no-data">No dealer billings found.</div>
+              )}
             </div>
           </div>
         )}

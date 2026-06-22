@@ -9,6 +9,7 @@ export const getDealerReportHandler: PayloadHandler = async (
       startDate: typeof req.query.startDate === 'string' ? req.query.startDate : null,
       endDate: typeof req.query.endDate === 'string' ? req.query.endDate : null,
       branch: typeof req.query.branch === 'string' ? req.query.branch : null,
+      dealer: typeof req.query.dealer === 'string' ? req.query.dealer : null,
     })
 
     req.payload.logger.info(`Generated Dealer Report: ${report.groups.length} branch groups found`)

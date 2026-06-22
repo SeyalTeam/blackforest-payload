@@ -16,6 +16,7 @@ export type DealerReportItem = {
   productsUrl?: string
   time: string
   status: string
+  products?: string[]
 }
 
 export type DealerReportGroup = {
@@ -42,6 +43,7 @@ type DealerReportArgs = {
   branch?: null | string
   endDate?: null | string
   startDate?: null | string
+  dealer?: null | string
 }
 
 type RawDealerItem = {
@@ -54,6 +56,7 @@ type RawDealerItem = {
   productsFilename?: unknown
   time: unknown
   status: unknown
+  products?: unknown
 }
 
 type RawDealerGroup = {
@@ -146,6 +149,7 @@ export const getDealerReportData = async (
       : dayjs().format('YYYY-MM-DD')
 
   const branchParam = typeof args.branch === 'string' ? args.branch : ''
+  const dealerParam = typeof args.dealer === 'string' ? args.dealer : ''
 
   const startOfDay = dayjs.utc(startDateParam).startOf('day').toDate()
   const endOfDay = dayjs.utc(endDateParam).endOf('day').toDate()
@@ -158,6 +162,10 @@ export const getDealerReportData = async (
   }
 
   const selectedBranches = branchIds ?? []
+  let selectedDealers: string[] = []
+  if (dealerParam && dealerParam !== 'all') {
+    selectedDealers = dealerParam.split(',').filter((id) => id.trim().length > 0)
+  }
 
   const matchQuery: Record<string, any> = {
     date: {
@@ -166,9 +174,21 @@ export const getDealerReportData = async (
     },
   }
 
+  const exprAnd: any[] = []
   if (selectedBranches.length > 0) {
-    matchQuery.$expr = {
+    exprAnd.push({
       $in: [{ $toString: '$branch' }, selectedBranches],
+    })
+  }
+  if (selectedDealers.length > 0) {
+    exprAnd.push({
+      $in: [{ $toString: '$dealer' }, selectedDealers],
+    })
+  }
+
+  if (exprAnd.length > 0) {
+    matchQuery.$expr = {
+      $and: exprAnd,
     }
   }
 
@@ -233,6 +253,14 @@ export const getDealerReportData = async (
       },
     },
     {
+      $lookup: {
+        from: 'products',
+        localField: 'products',
+        foreignField: '_id',
+        as: 'resolvedProducts',
+      },
+    },
+    {
       $group: {
         _id: '$branch',
         branchName: { $first: { $ifNull: ['$branchInfo.name', 'Unknown Branch'] } },
@@ -249,6 +277,13 @@ export const getDealerReportData = async (
             productsUrl: '$productsInfo.url',
             productsFilename: '$productsInfo.filename',
             status: { $ifNull: ['$status', 'pending'] },
+            products: {
+              $map: {
+                input: '$resolvedProducts',
+                as: 'p',
+                in: '$$p.name',
+              },
+            },
           },
         },
       },
@@ -273,6 +308,16 @@ export const getDealerReportData = async (
         const productsFilename = toNonEmptyString(item.productsFilename)
         const productsUrl = toNonEmptyString(item.productsUrl)
 
+        const products: string[] = []
+        if (Array.isArray(item.products)) {
+          item.products.forEach((p) => {
+            const name = toNonEmptyString(p)
+            if (name.length > 0) {
+              products.push(name)
+            }
+          })
+        }
+
         return {
           id: toNonEmptyString(item.id),
           dealerName: toNonEmptyString(item.dealerName, 'Unknown Dealer'),
@@ -281,6 +326,7 @@ export const getDealerReportData = async (
           billCopyUrl: billCopyUrl || (billCopyFilename ? `/api/media/file/${billCopyFilename}` : undefined),
           productsUrl: productsUrl || (productsFilename ? `/api/media/file/${productsFilename}` : undefined),
           status: toNonEmptyString(item.status, 'pending'),
+          products,
         }
       })
 

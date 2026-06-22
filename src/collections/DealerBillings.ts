@@ -59,6 +59,13 @@ const DealerBillings: CollectionConfig = {
       required: true,
     },
     {
+      name: 'products',
+      type: 'relationship',
+      relationTo: 'products',
+      hasMany: true,
+      required: false,
+    },
+    {
       name: 'date',
       type: 'date',
       required: true,
