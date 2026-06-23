@@ -944,6 +944,13 @@ export interface DealerBilling {
   products?: (string | Product)[] | null;
   date: string;
   paidAmount: number;
+  payments?:
+    | {
+        amount: number;
+        date: string;
+        id?: string | null;
+      }[]
+    | null;
   status: 'pending' | 'paid' | 'cancelled';
   updatedAt: string;
   createdAt: string;
@@ -2279,6 +2286,13 @@ export interface DealerBillingsSelect<T extends boolean = true> {
   products?: T;
   date?: T;
   paidAmount?: T;
+  payments?:
+    | T
+    | {
+        amount?: T;
+        date?: T;
+        id?: T;
+      };
   status?: T;
   updatedAt?: T;
   createdAt?: T;

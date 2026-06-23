@@ -658,17 +658,17 @@ const DealerReport: React.FC = () => {
                       <thead>
                         <tr>
                           <th style={{ width: '3%' }}>S.NO</th>
-                          <th style={{ width: '14%' }}>Dealer</th>
+                          <th style={{ width: '17%' }}>Dealer</th>
                           <th style={{ width: '8%', textAlign: 'center' }}>Branch</th>
                           <th style={{ width: '8%', textAlign: 'right' }}>Amount</th>
                           <th style={{ width: '8%', textAlign: 'right' }}>Debit</th>
                           <th style={{ width: '8%', textAlign: 'right' }}>Credit</th>
                           <th style={{ width: '10%', textAlign: 'right' }}>Balance</th>
                           <th style={{ width: '8%', textAlign: 'center' }}>Status</th>
-                          <th style={{ width: '8%', textAlign: 'center' }}>Pay Now</th>
+                          <th style={{ width: '5%', textAlign: 'center' }}>History</th>
                           <th style={{ width: '5%', textAlign: 'center' }}>Bill Photo</th>
                           <th style={{ width: '5%', textAlign: 'center' }}>Product Photo</th>
-                          <th style={{ width: '15%', textAlign: 'right' }}>Date & Time</th>
+                          <th style={{ width: '17%', textAlign: 'right' }}>Date & Time</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -716,70 +716,29 @@ const DealerReport: React.FC = () => {
                                 ? `₹${item.balance.toLocaleString('en-IN')}`
                                 : `-₹${Math.abs(item.balance).toLocaleString('en-IN')}`}
                             </td>
-                            <td className="status-cell" style={{ textAlign: 'center' }}>
-                              <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                                <span
-                                  style={{
-                                    color:
-                                      item.status === 'paid'
-                                        ? '#10b981'
-                                        : item.status === 'cancelled'
-                                        ? '#ef4444'
-                                        : '#f59e0b',
-                                    fontWeight: 'bold',
-                                    fontSize: '0.9rem',
-                                    textTransform: 'capitalize',
-                                  }}
-                                >
-                                  {item.status || 'pending'}
-                                </span>
-                                {item.payments && item.payments.length > 0 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setHistoryModalItem(item)}
-                                    title="View Payment History"
-                                    style={{
-                                      background: 'none',
-                                      border: 'none',
-                                      padding: '2px',
-                                      cursor: 'pointer',
-                                      color: 'var(--theme-text-secondary, #888)',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                    }}
-                                  >
-                                    <svg
-                                      width="16"
-                                      height="16"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <circle cx="12" cy="12" r="10" />
-                                      <polyline points="12 6 12 12 16 14" />
-                                    </svg>
-                                  </button>
-                                )}
-                              </div>
-                            </td>
+
                             <td className="pay-now-cell" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                               {item.status === 'pending' ? (
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexWrap: 'nowrap' }}>
-                                  <button
-                                    className="pay-now-btn"
-                                    onClick={async () => {
-                                      const remaining = item.amount - (item.paidAmount || 0)
-                                      if (window.confirm(`Are you sure you want to mark the remaining ₹${remaining.toLocaleString('en-IN')} for this bill from ${item.dealerName} as Paid?`)) {
-                                        await handlePaymentUpdate(item.id, item.amount, item)
-                                      }
-                                    }}
-                                  >
-                                    Pay Now
-                                  </button>
+                                <button
+                                  className="pay-now-btn"
+                                  onClick={async () => {
+                                    const remaining = item.amount - (item.paidAmount || 0)
+                                    if (window.confirm(`Are you sure you want to mark the remaining ₹${remaining.toLocaleString('en-IN')} for this bill from ${item.dealerName} as Paid?`)) {
+                                      await handlePaymentUpdate(item.id, item.amount, item)
+                                    }
+                                  }}
+                                >
+                                  Pay Now
+                                </button>
+                              ) : item.status === 'paid' ? (
+                                <span className="status-paid-badge">Paid ✓</span>
+                              ) : (
+                                <span className="status-cancelled-badge">Cancelled</span>
+                              )}
+                            </td>
+                            <td className="history-cell" style={{ textAlign: 'center' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexWrap: 'nowrap' }}>
+                                {item.status === 'pending' && (
                                   <button
                                     className="payment-edit-btn"
                                     type="button"
@@ -814,12 +773,41 @@ const DealerReport: React.FC = () => {
                                       <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z"></path>
                                     </svg>
                                   </button>
-                                </div>
-                              ) : item.status === 'paid' ? (
-                                <span className="status-paid-badge">Paid ✓</span>
-                              ) : (
-                                <span className="status-cancelled-badge">Cancelled</span>
-                              )}
+                                )}
+                                {item.payments && item.payments.length > 0 ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setHistoryModalItem(item)}
+                                    title="View Payment History"
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      padding: '2px',
+                                      cursor: 'pointer',
+                                      color: 'var(--theme-text-secondary, #888)',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }}
+                                  >
+                                    <svg
+                                      width="18"
+                                      height="18"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <circle cx="12" cy="12" r="10" />
+                                      <polyline points="12 6 12 12 16 14" />
+                                    </svg>
+                                  </button>
+                                ) : (
+                                  item.status !== 'pending' && '-'
+                                )}
+                              </div>
                             </td>
                             <td className="image-cell" style={{ textAlign: 'center' }}>
                               <button
