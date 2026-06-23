@@ -267,7 +267,7 @@ const DealerReport: React.FC = () => {
 
       if (item.status !== 'cancelled') {
         credit = item.amount
-        debit = item.paidAmount || 0
+        debit = item.status === 'paid' ? item.amount : (item.paidAmount || 0)
         runningBalance += (credit - debit)
       }
 
@@ -298,7 +298,7 @@ const DealerReport: React.FC = () => {
       if (item.status === 'cancelled') {
         cancelled += item.amount
       } else {
-        const itemPaid = item.paidAmount || 0
+        const itemPaid = item.status === 'paid' ? item.amount : (item.paidAmount || 0)
         paid += itemPaid
         pending += (item.amount - itemPaid)
       }
@@ -1156,12 +1156,14 @@ const DealerReport: React.FC = () => {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--theme-text-secondary, #888)' }}>Paid Amount:</span>
-                <span style={{ fontWeight: 'bold', color: '#10b981' }}>₹{(historyModalItem.paidAmount || 0).toLocaleString('en-IN')}</span>
+                <span style={{ fontWeight: 'bold', color: '#10b981' }}>
+                  ₹{(historyModalItem.status === 'paid' ? historyModalItem.amount : (historyModalItem.paidAmount || 0)).toLocaleString('en-IN')}
+                </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--theme-text-secondary, #888)' }}>Remaining Outstanding:</span>
                 <span style={{ fontWeight: 'bold', color: '#f59e0b' }}>
-                  ₹{Math.max(0, historyModalItem.amount - (historyModalItem.paidAmount || 0)).toLocaleString('en-IN')}
+                  ₹{Math.max(0, historyModalItem.amount - (historyModalItem.status === 'paid' ? historyModalItem.amount : (historyModalItem.paidAmount || 0))).toLocaleString('en-IN')}
                 </span>
               </div>
             </div>
