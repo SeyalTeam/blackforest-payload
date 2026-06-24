@@ -1,4 +1,7 @@
-import axios from 'axios'
+import axiosLib from 'axios'
+
+// Use a fresh isolated instance to avoid any global axios interceptors set up by Payload CMS
+const axios = axiosLib.create()
 
 /**
  * Normalizes phone numbers to standard WhatsApp format with country code (e.g. 91XXXXXXXXXX).
@@ -84,6 +87,7 @@ export const sendWhatsAppBill = async (params: SendWhatsAppBillParams): Promise<
 
   try {
     console.log(`[Ownchat] Sending bill notification for ${params.invoiceNumber} to ${normalizedPhone} (mode: ${isWebhookMode ? 'webhook' : 'direct-api'})...`)
+
     const response = await axios.post(apiUrl, payload, {
       headers: {
         'OWNCHAT-API-KEY': apiKey,
