@@ -73,7 +73,7 @@ const Kitchens: CollectionConfig = {
             },
           }
         }
-        return false
+        return true
       },
     },
   ],
