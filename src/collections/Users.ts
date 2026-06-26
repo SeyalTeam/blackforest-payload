@@ -590,6 +590,20 @@ export const Users: CollectionConfig = {
     ],
     beforeLogin: [
       async ({ req, user }) => {
+        // Block outdated app versions from logging in.
+        // Only applies when X-App-Version header is present (Flutter app).
+        // Browser / Postman / admin panel requests (no header) are allowed through.
+        const { enforceMinAppVersion } = await import('../utilities/appVersionGuard')
+        const versionBlock = await enforceMinAppVersion(req)
+        if (versionBlock) {
+          let message = 'This version of the app is no longer supported. Please update to continue.'
+          try {
+            const body = await versionBlock.clone().json()
+            if (body?.message) message = body.message
+          } catch (_) {}
+          throw new Error(message)
+        }
+
         const isLoginBlocked = Boolean(
           (user as { loginBlocked?: boolean | null }).loginBlocked,
         )

@@ -4546,6 +4546,16 @@ const Billings: CollectionConfig = {
       },
     },
     {
+      name: 'isQrOrder',
+      type: 'checkbox',
+      label: 'QR Order',
+      defaultValue: false,
+      admin: {
+        readOnly: true,
+        position: 'sidebar',
+      },
+    },
+    {
       name: 'customerEntryPercentageOfferApplied',
       type: 'checkbox',
       defaultValue: false,

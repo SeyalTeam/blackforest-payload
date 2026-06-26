@@ -110,6 +110,8 @@ import { toggleFavoriteRuleHandler } from './endpoints/toggleFavoriteRule'
 import { updateFavoriteRuleProductsHandler } from './endpoints/updateFavoriteRuleProducts'
 import { toggleFavoriteCategoryRuleHandler } from './endpoints/toggleFavoriteCategoryRule'
 import { updateFavoriteCategoryRuleCategoriesHandler } from './endpoints/updateFavoriteCategoryRuleCategories'
+import { AppVersionSettings } from './globals/AppVersionSettings'
+import { checkAppVersionHandler } from './endpoints/checkAppVersion'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -589,6 +591,11 @@ export default buildConfig({
       method: 'post',
       handler: updateFavoriteCategoryRuleCategoriesHandler,
     },
+    {
+      path: '/check-app-version',
+      method: 'get',
+      handler: checkAppVersionHandler,
+    },
   ],
 
   globals: [
@@ -616,6 +623,7 @@ export default buildConfig({
     WidgetSettingsGlobal,
     CustomerOfferSettings,
     AppDownloadSettings,
+    AppVersionSettings,
   ],
 
   // Collections

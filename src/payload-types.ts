@@ -165,6 +165,7 @@ export interface Config {
     'widget-settings': WidgetSetting;
     'customer-offer-settings': CustomerOfferSetting;
     'app-download-settings': AppDownloadSetting;
+    'app-version-settings': AppVersionSetting;
   };
   globalsSelect: {
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
@@ -191,6 +192,7 @@ export interface Config {
     'widget-settings': WidgetSettingsSelect<false> | WidgetSettingsSelect<true>;
     'customer-offer-settings': CustomerOfferSettingsSelect<false> | CustomerOfferSettingsSelect<true>;
     'app-download-settings': AppDownloadSettingsSelect<false> | AppDownloadSettingsSelect<true>;
+    'app-version-settings': AppVersionSettingsSelect<false> | AppVersionSettingsSelect<true>;
   };
   locale: null;
   user: User & {
@@ -769,6 +771,7 @@ export interface Billing {
   realtimeSeq?: number | null;
   customerOfferApplied?: boolean | null;
   customerOfferDiscount?: number | null;
+  isQrOrder?: boolean | null;
   customerEntryPercentageOfferApplied?: boolean | null;
   customerEntryPercentageOfferDiscount?: number | null;
   totalPercentageOfferApplied?: boolean | null;
@@ -2122,6 +2125,7 @@ export interface BillingsSelect<T extends boolean = true> {
   realtimeSeq?: T;
   customerOfferApplied?: T;
   customerOfferDiscount?: T;
+  isQrOrder?: T;
   customerEntryPercentageOfferApplied?: T;
   customerEntryPercentageOfferDiscount?: T;
   totalPercentageOfferApplied?: T;
@@ -3913,6 +3917,25 @@ export interface AppDownloadSetting {
   createdAt?: string | null;
 }
 /**
+ * Set the minimum allowed app version. Old APKs below this version will be blocked.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "app-version-settings".
+ */
+export interface AppVersionSetting {
+  id: string;
+  /**
+   * e.g. "2.0.0" — Any app with a version lower than this will be blocked and shown an update screen. Requests without a version header (e.g. browser / Postman) are always allowed.
+   */
+  minAppVersion?: string | null;
+  /**
+   * This message is shown inside the app when a user is on a blocked version.
+   */
+  updateMessage?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "ip-settings_select".
  */
@@ -4436,6 +4459,17 @@ export interface AppDownloadSettingsSelect<T extends boolean = true> {
         appKey?: T;
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "app-version-settings_select".
+ */
+export interface AppVersionSettingsSelect<T extends boolean = true> {
+  minAppVersion?: T;
+  updateMessage?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
