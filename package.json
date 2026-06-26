@@ -92,6 +92,7 @@
     "node": "22.x",
     "pnpm": "^9 || ^10"
   },
+  "packageManager": "pnpm@10.34.4",
   "pnpm": {
     "overrides": {
       "@payloadcms/email-nodemailer": "3.60.0"
