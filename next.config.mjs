@@ -6,6 +6,7 @@ const nextConfig = {
     // Temporary unblock for deployment while legacy numeric/string ID types are reconciled.
     ignoreBuildErrors: true,
   },
+  output: 'standalone',
   // Your Next.js config here
   webpack: (webpackConfig) => {
     webpackConfig.resolve.extensionAlias = {
