@@ -1,20 +1,34 @@
-import React from 'react'
-import './styles.css'
+import type { Metadata } from "next";
+import { Manrope, Playfair_Display } from "next/font/google";
+import { OrderProvider } from "@/components/frontend/order-provider";
+import "./styles.css";
 
-export const metadata = {
-  description: 'A blank template using Payload in a Next.js app.',
-  title: 'Payload Blank Template',
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
-}
+const manrope = Manrope({
+  variable: "--font-manrope",
+  subsets: ["latin"],
+});
 
-export default async function RootLayout(props: { children: React.ReactNode }) {
-  const { children } = props
+const playfair = Playfair_Display({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: ["600", "700"],
+});
 
+export const metadata: Metadata = {
+  title: "Blackforest Order Web",
+  description: "Customer ordering website prototype for table QR flow.",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html lang="en">
-      <body>
-        <main>{children}</main>
+      <body className={`${manrope.variable} ${playfair.variable}`}>
+        <OrderProvider>{children}</OrderProvider>
       </body>
     </html>
-  )
+  );
 }

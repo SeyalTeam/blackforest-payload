@@ -73,6 +73,8 @@ export interface Config {
     departments: Department;
     categories: Category;
     products: Product;
+    'raw-material-categories': RawMaterialCategory;
+    'raw-materials': RawMaterial;
     media: Media;
     dealers: Dealer;
     employees: Employee;
@@ -109,6 +111,8 @@ export interface Config {
     departments: DepartmentsSelect<false> | DepartmentsSelect<true>;
     categories: CategoriesSelect<false> | CategoriesSelect<true>;
     products: ProductsSelect<false> | ProductsSelect<true>;
+    'raw-material-categories': RawMaterialCategoriesSelect<false> | RawMaterialCategoriesSelect<true>;
+    'raw-materials': RawMaterialsSelect<false> | RawMaterialsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     dealers: DealersSelect<false> | DealersSelect<true>;
     employees: EmployeesSelect<false> | EmployeesSelect<true>;
@@ -535,6 +539,33 @@ export interface Employee {
   team: 'waiter' | 'chef' | 'driver' | 'cashier' | 'manager' | 'supervisor' | 'delivery' | 'kitchen';
   aadhaarPhoto?: (string | null) | Media;
   photo?: (string | null) | Media;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "raw-material-categories".
+ */
+export interface RawMaterialCategory {
+  id: string;
+  name: string;
+  company: (string | Company)[];
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "raw-materials".
+ */
+export interface RawMaterial {
+  id: string;
+  name: string;
+  category: string | RawMaterialCategory;
+  unit: 'pcs' | 'kg' | 'g' | 'l' | 'ml';
+  /**
+   * Notify when stock falls below this level.
+   */
+  minimumStockLevel?: number | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1582,6 +1613,14 @@ export interface PayloadLockedDocument {
         value: string | Product;
       } | null)
     | ({
+        relationTo: 'raw-material-categories';
+        value: string | RawMaterialCategory;
+      } | null)
+    | ({
+        relationTo: 'raw-materials';
+        value: string | RawMaterial;
+      } | null)
+    | ({
         relationTo: 'media';
         value: string | Media;
       } | null)
@@ -1880,6 +1919,28 @@ export interface ProductsSelect<T extends boolean = true> {
         gst?: T;
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "raw-material-categories_select".
+ */
+export interface RawMaterialCategoriesSelect<T extends boolean = true> {
+  name?: T;
+  company?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "raw-materials_select".
+ */
+export interface RawMaterialsSelect<T extends boolean = true> {
+  name?: T;
+  category?: T;
+  unit?: T;
+  minimumStockLevel?: T;
   updatedAt?: T;
   createdAt?: T;
 }
