@@ -1,9 +1,6 @@
 import { NextRequest } from "next/server";
-import { COOKIE_ADMIN_TOKEN_KEY } from "@/components/frontend/branch-session";
-import { resolveApiTokenForBranch } from "@/lib/api-token";
-
-const NEXT_PUBLIC_SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000';
-const API_BASE = `${NEXT_PUBLIC_SERVER_URL}/api`;
+import { getPayload } from "payload";
+import configPromise from "@payload-config";
 
 export const runtime = "nodejs";
 
@@ -11,57 +8,67 @@ function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-async function readJsonPayload(response: Response) {
-  const raw = await response.text();
-  if (!raw) {
-    return {};
-  }
-
-  try {
-    return JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    return { message: raw };
-  }
-}
-
 export async function GET(request: NextRequest) {
   try {
-    const query = new URLSearchParams(request.nextUrl.searchParams);
-    const branchId = toTrimmedText(query.get("branchId"));
-    query.delete("branchId");
+    const searchParams = request.nextUrl.searchParams;
+    const branchId = toTrimmedText(searchParams.get("branchId"));
 
-    if (![...query.keys()].length) {
+    // Exclude branchId check for required filters
+    const queryKeys = [...searchParams.keys()].filter((k) => k !== "branchId");
+    if (!queryKeys.length) {
       return Response.json({ message: "Query filters are required" }, { status: 400 });
     }
 
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
+    const limitParam = searchParams.get("limit");
+    const depthParam = searchParams.get("depth");
+    const pageParam = searchParams.get("page");
 
-    const incomingAuthorization = toTrimmedText(request.headers.get("authorization"));
-    if (incomingAuthorization) {
-      headers.Authorization = incomingAuthorization;
-    } else {
-      const cookieToken = toTrimmedText(request.cookies.get(COOKIE_ADMIN_TOKEN_KEY)?.value);
-      const branchToken = resolveApiTokenForBranch(branchId);
-      const resolvedToken = cookieToken || branchToken;
-      if (resolvedToken) {
-        headers.Authorization = `Bearer ${resolvedToken}`;
+    const limit = limitParam ? parseInt(limitParam, 10) : 10;
+    const depth = depthParam ? parseInt(depthParam, 10) : 1;
+    const page = pageParam ? parseInt(pageParam, 10) : 1;
+
+    const where: any = {};
+    const orConditions: any[] = [];
+
+    for (const [key, value] of searchParams.entries()) {
+      // 1. Check for where[or][index][field][operator]
+      const orMatch = key.match(/^where\[or\]\[(\d+)\]\[([^\]]+)\]\[([^\]]+)\]$/);
+      if (orMatch) {
+        const index = parseInt(orMatch[1], 10);
+        const fieldName = orMatch[2];
+        const operator = orMatch[3];
+        if (!orConditions[index]) {
+          orConditions[index] = {};
+        }
+        orConditions[index][fieldName] = { [operator]: value };
+        continue;
+      }
+
+      // 2. Check for where[field][operator]
+      const simpleMatch = key.match(/^where\[([^\]]+)\]\[([^\]]+)\]$/);
+      if (simpleMatch) {
+        const fieldName = simpleMatch[1];
+        const operator = simpleMatch[2];
+        where[fieldName] = { [operator]: value };
       }
     }
 
-    const incomingCookie = toTrimmedText(request.headers.get("cookie"));
-    if (incomingCookie) {
-      headers.cookie = incomingCookie;
+    const cleanOrConditions = orConditions.filter(Boolean);
+    if (cleanOrConditions.length > 0) {
+      where.or = cleanOrConditions;
     }
 
-    const upstreamResponse = await fetch(`${API_BASE}/billing-customers?${query}`, {
-      headers,
-      cache: "no-store",
+    const payload = await getPayload({ config: configPromise });
+    const results = await payload.find({
+      collection: "billing-customers",
+      where,
+      limit,
+      depth,
+      page,
+      overrideAccess: true,
     });
 
-    const payload = await readJsonPayload(upstreamResponse);
-    return Response.json(payload, { status: upstreamResponse.status });
+    return Response.json(results);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to fetch customer details";
     return Response.json({ message }, { status: 500 });

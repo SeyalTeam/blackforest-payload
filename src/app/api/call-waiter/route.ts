@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { resolveApiTokenForBranch } from "@/lib/api-token";
-
-const NEXT_PUBLIC_SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000';
-const API_BASE = `${NEXT_PUBLIC_SERVER_URL}/api`;
+import { getPayload } from "payload";
+import configPromise from "@payload-config";
+import { callWaiterHandler } from "@/endpoints/callWaiter";
 
 function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -15,41 +15,21 @@ function toPayload(value: unknown) {
   return value as Record<string, unknown>;
 }
 
-async function readResponsePayload(response: Response) {
-  const raw = await response.text();
-  if (!raw) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
-    }
-    return { message: String(parsed) };
-  } catch {
-    return { message: raw };
-  }
-}
-
 export async function POST(request: NextRequest) {
   try {
     const rawBody = (await request.json()) as unknown;
     const body = toPayload(rawBody);
 
     const branchId = toTrimmedText(body?.branchId);
-    const billId = toTrimmedText(body?.billId);
-    const tableNumber = toTrimmedText(body?.tableNumber);
-    const section = toTrimmedText(body?.section);
-
     if (!branchId) {
-      return Response.json({ message: "Branch id is required" }, { status: 400 });
+      return Response.json({ ok: false, message: "Branch id is required" }, { status: 400 });
     }
 
     const token = resolveApiTokenForBranch(branchId);
     if (!token) {
       return Response.json(
         {
+          ok: false,
           message:
             "Waiter call is not enabled yet. Add BLACKFOREST_BRANCH_API_TOKENS or BLACKFOREST_API_TOKEN in so the website can alert billing.",
         },
@@ -57,31 +37,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const payload: Record<string, string> = { branchId };
-    if (billId) {
-      payload.billId = billId;
-    }
-    if (tableNumber) {
-      payload.tableNumber = tableNumber;
-    }
-    if (section) {
-      payload.section = section;
-    }
+    const payload = await getPayload({ config: configPromise });
 
-    const upstreamResponse = await fetch(`${API_BASE}/call-waiter`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-    });
+    // Mock PayloadRequest properties expected by callWaiterHandler
+    const payloadReq = request as any;
+    payloadReq.payload = payload;
+    payloadReq.json = async () => body;
 
-    const upstreamPayload = await readResponsePayload(upstreamResponse);
-    return Response.json(upstreamPayload, { status: upstreamResponse.status });
+    const response = await callWaiterHandler(payloadReq);
+    return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to call waiter";
-    return Response.json({ message }, { status: 500 });
+    return Response.json({ ok: false, message }, { status: 500 });
   }
 }
