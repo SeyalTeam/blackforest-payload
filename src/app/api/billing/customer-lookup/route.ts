@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
       headers.cookie = incomingCookie;
     }
 
-    const upstreamResponse = await fetch(`${API_BASE}/billing/customer-lookup?${query}`, {
+    const upstreamResponse = await fetch(`${API_BASE}/billing/customer-lookup-internal?${query}`, {
       headers,
       cache: "no-store",
     });

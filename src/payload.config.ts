@@ -548,7 +548,7 @@ export default buildConfig({
       handler: ackWaiterCallHandler,
     },
     {
-      path: '/billing/customer-lookup',
+      path: '/billing/customer-lookup-internal',
       method: 'get',
       handler: getBillingCustomerLookupHandler,
     },
