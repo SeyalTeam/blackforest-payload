@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import { COOKIE_ADMIN_TOKEN_KEY } from "@/components/frontend/branch-session";
 import { resolveApiTokenForBranch } from "@/lib/api-token";
 
-const API_BASE = "https://blackforest2.vseyal.com/api";
+const NEXT_PUBLIC_SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000';
+const API_BASE = `${NEXT_PUBLIC_SERVER_URL}/api`;
 
 export const runtime = "nodejs";
 

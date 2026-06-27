@@ -143,7 +143,6 @@ const normalizeAbsoluteURL = (value?: string | null): string => {
 }
 
 const publicServerURL = normalizeAbsoluteURL(process.env.PAYLOAD_PUBLIC_SERVER_URL)
-const vercelURL = process.env.VERCEL_URL?.trim()
 
 type SupportedDBMode = 'postgres' | 'mongo'
 
@@ -674,7 +673,7 @@ export default buildConfig({
 
   db: dbAdapter,
   sharp,
-  serverURL: publicServerURL || (vercelURL ? `https://${vercelURL}` : 'http://localhost:3000'),
+  serverURL: publicServerURL || 'http://localhost:3000',
   plugins: [
     s3Storage({
       collections: {

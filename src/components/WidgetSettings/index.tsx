@@ -242,7 +242,7 @@ const sanitizeUploadedAPKFile = (file: File): File => {
 
 const getResponseErrorMessage = async (response: Response, fallback: string): Promise<string> => {
   if (response.status === 413) {
-    return 'APK file is too large for the upload gateway (HTTP 413). If hosted on Vercel, large APK uploads may be blocked by platform request-size limits.'
+    return 'APK file is too large for the upload gateway (HTTP 413). Large APK uploads may be blocked by platform request-size limits.'
   }
 
   try {

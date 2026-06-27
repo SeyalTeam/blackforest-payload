@@ -2223,6 +2223,48 @@ const Billings: CollectionConfig = {
 
         try {
           if (!data) return
+
+          // Determine isQrOrder based on the creator's role
+          const getCreatorIdString = (val: any): string | null => {
+            if (!val) return null
+            if (typeof val === 'string') return val
+            if (typeof val === 'object') {
+              if (val.id) return String(val.id)
+              if (val._id) return String(val._id)
+              return String(val)
+            }
+            return String(val)
+          }
+          const creatorIdStr =
+            getCreatorIdString(data.createdBy) ||
+            getCreatorIdString(originalDoc?.createdBy) ||
+            (req.user?.id ? String(req.user.id) : null)
+
+          if (creatorIdStr) {
+            let creatorUser = null
+            if (req.user && String(req.user.id) === creatorIdStr) {
+              creatorUser = req.user
+            } else {
+              try {
+                creatorUser = await req.payload.findByID({
+                  collection: 'users',
+                  id: creatorIdStr,
+                  depth: 0,
+                })
+              } catch (err) {
+                // Ignore findByID errors
+              }
+            }
+
+            if (creatorUser) {
+              if (creatorUser.role === 'branch') {
+                data.isQrOrder = true
+              } else {
+                data.isQrOrder = false
+              }
+            }
+          }
+
           const requestContext = getBillingRequestContext(req)
           const skipOfferRecalculation = Boolean(requestContext.skipOfferRecalculation)
           const skipInventoryValidation = Boolean(requestContext.skipInventoryValidation)

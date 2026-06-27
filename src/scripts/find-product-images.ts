@@ -54,8 +54,7 @@ async function run() {
           console.log(`  Image ${index + 1}:`)
           console.log(`    Filename: ${mediaDoc.filename}`)
           console.log(`    URL: ${mediaDoc.url}`)
-          // Vercel Blob adapter usually sets the .url property
-        } else {
+                  } else {
           console.log(`  Image ${index + 1}: Media document not found (ID: ${mediaId})`)
         }
       })

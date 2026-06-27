@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import { BILLING_DISABLED_MESSAGE, BILLING_ENABLED } from "@/lib/billing-config";
 import { resolveApiTokenForBranch } from "@/lib/api-token";
 
-const API_BASE = "https://blackforest2.vseyal.com/api";
+const NEXT_PUBLIC_SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000';
+const API_BASE = `${NEXT_PUBLIC_SERVER_URL}/api`;
 
 function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
       return Response.json(
         {
           message:
-            "Billing is not enabled yet. Add BLACKFOREST_BRANCH_API_TOKENS or BLACKFOREST_API_TOKEN in Vercel so the website can complete bills.",
+            "Billing is not enabled yet. Add BLACKFOREST_BRANCH_API_TOKENS or BLACKFOREST_API_TOKEN in so the website can complete bills.",
         },
         { status: 503 },
       );

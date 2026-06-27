@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { resolveApiTokenForBranch } from "@/lib/api-token";
 
-const API_BASE = "https://blackforest2.vseyal.com/api";
+const NEXT_PUBLIC_SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000';
+const API_BASE = `${NEXT_PUBLIC_SERVER_URL}/api`;
 
 function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
       return Response.json(
         {
           message:
-            "Waiter call is not enabled yet. Add BLACKFOREST_BRANCH_API_TOKENS or BLACKFOREST_API_TOKEN in Vercel so the website can alert billing.",
+            "Waiter call is not enabled yet. Add BLACKFOREST_BRANCH_API_TOKENS or BLACKFOREST_API_TOKEN in so the website can alert billing.",
         },
         { status: 503 },
       );

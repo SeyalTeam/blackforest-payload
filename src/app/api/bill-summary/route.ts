@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import type { BillSummaryData, BillSummaryItem } from "@/lib/order-types";
 
-const API_BASE = "https://blackforest2.vseyal.com/api";
+const NEXT_PUBLIC_SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000';
+const API_BASE = `${NEXT_PUBLIC_SERVER_URL}/api`;
 
 function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
