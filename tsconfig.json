@@ -41,6 +41,9 @@
   ],
   "exclude": [
     "node_modules",
-    "src/scripts/**/*"
+    "src/scripts/**/*",
+    "scratch/**/*",
+    "*.ts",
+    "tests/**/*"
   ]
 }
