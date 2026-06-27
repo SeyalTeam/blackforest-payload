@@ -11,6 +11,9 @@ type ReportStats = {
   branchIds?: string[] // Updated to array
   lastBillTime?: string
   totalBills: number
+  qrAmount: number
+  nonQrTableAmount: number
+  billingAmount: number
   totalAmount: number
   cashAmount: number
   upiAmount: number
@@ -24,6 +27,9 @@ type ReportData = {
   stats: ReportStats[]
   totals: {
     totalBills: number
+    qrAmount: number
+    nonQrTableAmount: number
+    billingAmount: number
     totalAmount: number
     cashAmount: number
     upiAmount: number
@@ -94,6 +100,9 @@ const WAITER_WISE_REPORT_QUERY = `
         branchIds
         lastBillTime
         totalBills
+        qrAmount
+        nonQrTableAmount
+        billingAmount
         totalAmount
         cashAmount
         upiAmount
@@ -102,6 +111,9 @@ const WAITER_WISE_REPORT_QUERY = `
       }
       totals {
         totalBills
+        qrAmount
+        nonQrTableAmount
+        billingAmount
         totalAmount
         cashAmount
         upiAmount
@@ -195,14 +207,18 @@ const WaiterWiseBillingReport: React.FC = () => {
     const headers = [
       'S.NO',
       'WAITER NAME',
-      'BRANCH',
-      'LAST BILL TIME',
+      'TOTAL AMOUNT',
+      'QR',
+      'TABLE',
+      'BILLINGS',
+      'AVG (BILL)',
       'TOTAL BILLS',
       'AVG',
       'CASH',
       'UPI',
       'CARD',
-      'TOTAL AMOUNT',
+      'BRANCH',
+      'LAST BILL TIME',
     ]
     csvRows.push(headers.join(','))
 
@@ -212,18 +228,23 @@ const WaiterWiseBillingReport: React.FC = () => {
         ? `${row.employeeId} - ${row.waiterName?.toUpperCase() || ''}`
         : row.waiterName?.toUpperCase() || ''
       const avgComparison = getBranchPerformancePercentage(row)
+      const waiterAvg = row.totalBills > 0 ? row.totalAmount / row.totalBills : 0
 
       return [
         index + 1,
         `"${waiterLabel}"`,
-        `"${row.branchNames?.join(', ').toUpperCase() || ''}"`,
-        row.lastBillTime ? formatTime(row.lastBillTime) : '',
+        row.totalAmount.toFixed(2),
+        row.qrAmount.toFixed(2),
+        row.nonQrTableAmount.toFixed(2),
+        row.billingAmount.toFixed(2),
+        waiterAvg.toFixed(2),
         row.totalBills,
         avgComparison !== null ? `${avgComparison.toFixed(0)}%` : '--',
         row.cashAmount.toFixed(2),
         row.upiAmount.toFixed(2),
         row.cardAmount.toFixed(2),
-        row.totalAmount.toFixed(2),
+        `"${row.branchNames?.join(', ').toUpperCase() || ''}"`,
+        row.lastBillTime ? formatTime(row.lastBillTime) : '',
       ]
     })
     rows.forEach((r) => csvRows.push(r.join(',')))
@@ -233,14 +254,18 @@ const WaiterWiseBillingReport: React.FC = () => {
       [
         '',
         'TOTAL',
-        '',
-        '',
+        data.totals.totalAmount.toFixed(2),
+        data.totals.qrAmount.toFixed(2),
+        data.totals.nonQrTableAmount.toFixed(2),
+        data.totals.billingAmount.toFixed(2),
+        (data.totals.totalBills > 0 ? data.totals.totalAmount / data.totals.totalBills : 0).toFixed(2),
         data.totals.totalBills,
         getTotalAvgLabel(),
         data.totals.cashAmount.toFixed(2),
         data.totals.upiAmount.toFixed(2),
         data.totals.cardAmount.toFixed(2),
-        data.totals.totalAmount.toFixed(2),
+        '',
+        '',
       ].join(','),
     )
 
@@ -793,16 +818,19 @@ const WaiterWiseBillingReport: React.FC = () => {
       {error && <p className="error">{error}</p>}
 
       {data && (
-        <div className="table-container" style={{ width: '55%', margin: '0 0' }}>
+        <div className="table-container" style={{ width: '85%', margin: '0 0' }}>
           <table className="report-table">
             <thead>
               <tr>
                 <th style={{ width: '50px' }}>S.NO</th>
                 <th>WAITER NAME</th>
+                <th className="text-center">TOTAL AMOUNT</th>
+                <th className="text-center">QR</th>
+                <th className="text-center">TABLE</th>
+                <th className="text-center">BILLINGS</th>
                 <th className="text-center">AVG (BILL)</th>
                 <th className="text-center">TOTAL BILLS</th>
                 <th className="text-center">AVG</th>
-                <th className="text-center">TOTAL AMOUNT</th>
                 <th>BRANCH</th>
               </tr>
             </thead>
@@ -828,6 +856,10 @@ const WaiterWiseBillingReport: React.FC = () => {
                         </div>
                       </div>
                     </td>
+                    <td className="text-center amount-cell">{formatValue(row.totalAmount)}</td>
+                    <td className="text-center amount-cell">{formatValue(row.qrAmount)}</td>
+                    <td className="text-center amount-cell">{formatValue(row.nonQrTableAmount)}</td>
+                    <td className="text-center amount-cell">{formatValue(row.billingAmount)}</td>
                     <td className="text-center">
                       <div
                         style={{
@@ -845,7 +877,6 @@ const WaiterWiseBillingReport: React.FC = () => {
                         {avgComparison !== null ? `${avgComparison.toFixed(0)}%` : '--'}
                       </span>
                     </td>
-                    <td className="text-center amount-cell">{formatValue(row.totalAmount)}</td>
                     <td>
                       <div
                         style={{
@@ -866,6 +897,10 @@ const WaiterWiseBillingReport: React.FC = () => {
             <tfoot>
               <tr className="grand-total">
                 <td colSpan={2}>TOTAL</td>
+                <td className="text-center amount-cell">{formatValue(data.totals.totalAmount)}</td>
+                <td className="text-center amount-cell">{formatValue(data.totals.qrAmount)}</td>
+                <td className="text-center amount-cell">{formatValue(data.totals.nonQrTableAmount)}</td>
+                <td className="text-center amount-cell">{formatValue(data.totals.billingAmount)}</td>
                 <td className="text-center">
                   {data.totals.totalBills > 0
                     ? formatValue(data.totals.totalAmount / data.totals.totalBills)
@@ -873,7 +908,6 @@ const WaiterWiseBillingReport: React.FC = () => {
                 </td>
                 <td className="text-center">{data.totals.totalBills}</td>
                 <td className="text-center">{getTotalAvgLabel()}</td>
-                <td className="text-center amount-cell">{formatValue(data.totals.totalAmount)}</td>
                 <td></td>
               </tr>
             </tfoot>
@@ -931,6 +965,30 @@ const WaiterWiseBillingReport: React.FC = () => {
                           </span>
                           <span style={{ fontWeight: 'bold' }}>
                             {formatValue(waiterAvg)} ({avgPercentage}%)
+                          </span>
+                        </div>
+                        <div className="breakdown-item" style={{ marginBottom: '15px' }}>
+                          <span style={{ color: 'var(--theme-text-secondary)', fontSize: '0.9em' }}>
+                            QR AMOUNT
+                          </span>
+                          <span style={{ fontWeight: 'bold' }}>
+                            {formatValue(selectedWaiterStats.qrAmount)}
+                          </span>
+                        </div>
+                        <div className="breakdown-item" style={{ marginBottom: '15px' }}>
+                          <span style={{ color: 'var(--theme-text-secondary)', fontSize: '0.9em' }}>
+                            TABLE AMOUNT
+                          </span>
+                          <span style={{ fontWeight: 'bold' }}>
+                            {formatValue(selectedWaiterStats.nonQrTableAmount)}
+                          </span>
+                        </div>
+                        <div className="breakdown-item" style={{ marginBottom: '15px' }}>
+                          <span style={{ color: 'var(--theme-text-secondary)', fontSize: '0.9em' }}>
+                            BILLINGS AMOUNT
+                          </span>
+                          <span style={{ fontWeight: 'bold' }}>
+                            {formatValue(selectedWaiterStats.billingAmount)}
                           </span>
                         </div>
                         <div className="breakdown-item" style={{ marginBottom: '15px' }}>

@@ -16,6 +16,9 @@ export type WaiterWiseReportStat = {
   branchIds: string[]
   lastBillTime?: string
   totalBills: number
+  qrAmount: number
+  nonQrTableAmount: number
+  billingAmount: number
   totalAmount: number
   cashAmount: number
   upiAmount: number
@@ -25,6 +28,9 @@ export type WaiterWiseReportStat = {
 
 export type WaiterWiseReportTotals = {
   totalBills: number
+  qrAmount: number
+  nonQrTableAmount: number
+  billingAmount: number
   totalAmount: number
   cashAmount: number
   upiAmount: number
@@ -81,6 +87,9 @@ type RawWaiterStat = {
   branchIds: unknown
   lastBillTime: unknown
   totalBills: unknown
+  qrAmount: unknown
+  nonQrTableAmount: unknown
+  billingAmount: unknown
   totalAmount: unknown
   cashAmount: unknown
   upiAmount: unknown
@@ -274,6 +283,67 @@ export const getWaiterWiseBillingReportData = async (
     }))
     .filter((item) => item._id.length > 0)
 
+  const hasTableOrderReferenceExpression = {
+    $or: [
+      {
+        $gt: [
+          {
+            $strLenCP: {
+              $trim: {
+                input: {
+                  $convert: { input: '$section', to: 'string', onError: '', onNull: '' },
+                },
+              },
+            },
+          },
+          0,
+        ],
+      },
+      {
+        $gt: [
+          {
+            $strLenCP: {
+              $trim: {
+                input: {
+                  $convert: { input: '$tableNumber', to: 'string', onError: '', onNull: '' },
+                },
+              },
+            },
+          },
+          0,
+        ],
+      },
+      {
+        $gt: [
+          {
+            $strLenCP: {
+              $trim: {
+                input: {
+                  $convert: { input: '$tableDetails.section', to: 'string', onError: '', onNull: '' },
+                },
+              },
+            },
+          },
+          0,
+        ],
+      },
+      {
+        $gt: [
+          {
+            $strLenCP: {
+              $trim: {
+                input: {
+                  $convert: { input: '$tableDetails.tableNumber', to: 'string', onError: '', onNull: '' },
+                },
+              },
+            },
+          },
+          0,
+        ],
+      },
+    ],
+  }
+
   const aggregationPipeline: any[] = [
     {
       $match: matchQuery,
@@ -335,6 +405,43 @@ export const getWaiterWiseBillingReportData = async (
         billingBranchIds: { $addToSet: '$branch' },
         lastBillTime: { $max: '$createdAt' },
         totalBills: { $sum: 1 },
+        qrAmount: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ['$isQrOrder', true] },
+                  hasTableOrderReferenceExpression,
+                ],
+              },
+              '$totalAmount',
+              0,
+            ],
+          },
+        },
+        nonQrTableAmount: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $ne: ['$isQrOrder', true] },
+                  hasTableOrderReferenceExpression,
+                ],
+              },
+              '$totalAmount',
+              0,
+            ],
+          },
+        },
+        billingAmount: {
+          $sum: {
+            $cond: [
+              { $not: [hasTableOrderReferenceExpression] },
+              '$totalAmount',
+              0,
+            ],
+          },
+        },
         totalAmount: { $sum: '$totalAmount' },
         cashAmount: {
           $sum: {
@@ -403,6 +510,9 @@ export const getWaiterWiseBillingReportData = async (
         branchIds: '$billingBranchIds',
         lastBillTime: 1,
         totalBills: 1,
+        qrAmount: 1,
+        nonQrTableAmount: 1,
+        billingAmount: 1,
         totalAmount: 1,
         cashAmount: 1,
         upiAmount: 1,
@@ -439,6 +549,9 @@ export const getWaiterWiseBillingReportData = async (
       : [],
     lastBillTime: toIsoString(item.lastBillTime),
     totalBills: toInteger(item.totalBills),
+    qrAmount: toNumber(item.qrAmount),
+    nonQrTableAmount: toNumber(item.nonQrTableAmount),
+    billingAmount: toNumber(item.billingAmount),
     totalAmount: toNumber(item.totalAmount),
     cashAmount: toNumber(item.cashAmount),
     upiAmount: toNumber(item.upiAmount),
@@ -449,6 +562,9 @@ export const getWaiterWiseBillingReportData = async (
   const totals = stats.reduce<WaiterWiseReportTotals>(
     (acc, current) => ({
       totalBills: acc.totalBills + current.totalBills,
+      qrAmount: acc.qrAmount + current.qrAmount,
+      nonQrTableAmount: acc.nonQrTableAmount + current.nonQrTableAmount,
+      billingAmount: acc.billingAmount + current.billingAmount,
       totalAmount: acc.totalAmount + current.totalAmount,
       cashAmount: acc.cashAmount + current.cashAmount,
       upiAmount: acc.upiAmount + current.upiAmount,
@@ -456,6 +572,9 @@ export const getWaiterWiseBillingReportData = async (
     }),
     {
       totalBills: 0,
+      qrAmount: 0,
+      nonQrTableAmount: 0,
+      billingAmount: 0,
       totalAmount: 0,
       cashAmount: 0,
       upiAmount: 0,
