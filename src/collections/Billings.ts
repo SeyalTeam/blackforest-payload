@@ -2225,7 +2225,7 @@ const Billings: CollectionConfig = {
           if (!data) return
 
           // Determine isQrOrder based on the creator's role or request context
-          if (data.isQrOrder === true || originalDoc?.isQrOrder === true || req.user?.role === 'branch') {
+          if (data.isQrOrder === true || originalDoc?.isQrOrder === true || req?.user?.role === 'branch') {
             data.isQrOrder = true
           } else {
             const getCreatorIdString = (val: any): string | null => {
