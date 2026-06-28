@@ -14,6 +14,7 @@ type ReportStats = {
   qrAmount: number
   nonQrTableAmount: number
   billingAmount: number
+  cancelledAmount: number
   totalAmount: number
   cashAmount: number
   upiAmount: number
@@ -30,6 +31,7 @@ type ReportData = {
     qrAmount: number
     nonQrTableAmount: number
     billingAmount: number
+    cancelledAmount: number
     totalAmount: number
     cashAmount: number
     upiAmount: number
@@ -103,6 +105,7 @@ const WAITER_WISE_REPORT_QUERY = `
         qrAmount
         nonQrTableAmount
         billingAmount
+        cancelledAmount
         totalAmount
         cashAmount
         upiAmount
@@ -114,6 +117,7 @@ const WAITER_WISE_REPORT_QUERY = `
         qrAmount
         nonQrTableAmount
         billingAmount
+        cancelledAmount
         totalAmount
         cashAmount
         upiAmount
@@ -211,6 +215,7 @@ const WaiterWiseBillingReport: React.FC = () => {
       'QR',
       'TABLE',
       'BILLINGS',
+      'CANCELLED',
       'AVG (BILL)',
       'TOTAL BILLS',
       'AVG',
@@ -237,6 +242,7 @@ const WaiterWiseBillingReport: React.FC = () => {
         row.qrAmount.toFixed(2),
         row.nonQrTableAmount.toFixed(2),
         row.billingAmount.toFixed(2),
+        row.cancelledAmount.toFixed(2),
         waiterAvg.toFixed(2),
         row.totalBills,
         avgComparison !== null ? `${avgComparison.toFixed(0)}%` : '--',
@@ -258,6 +264,7 @@ const WaiterWiseBillingReport: React.FC = () => {
         data.totals.qrAmount.toFixed(2),
         data.totals.nonQrTableAmount.toFixed(2),
         data.totals.billingAmount.toFixed(2),
+        data.totals.cancelledAmount.toFixed(2),
         (data.totals.totalBills > 0 ? data.totals.totalAmount / data.totals.totalBills : 0).toFixed(2),
         data.totals.totalBills,
         getTotalAvgLabel(),
@@ -828,6 +835,7 @@ const WaiterWiseBillingReport: React.FC = () => {
                 <th className="text-center">QR</th>
                 <th className="text-center">TABLE</th>
                 <th className="text-center">BILLINGS</th>
+                <th className="text-center">CANCELLED</th>
                 <th className="text-center">AVG (BILL)</th>
                 <th className="text-center">TOTAL BILLS</th>
                 <th className="text-center">AVG</th>
@@ -860,6 +868,7 @@ const WaiterWiseBillingReport: React.FC = () => {
                     <td className="text-center amount-cell">{formatValue(row.qrAmount)}</td>
                     <td className="text-center amount-cell">{formatValue(row.nonQrTableAmount)}</td>
                     <td className="text-center amount-cell">{formatValue(row.billingAmount)}</td>
+                    <td className="text-center amount-cell">{formatValue(row.cancelledAmount)}</td>
                     <td className="text-center">
                       <div
                         style={{
@@ -901,6 +910,7 @@ const WaiterWiseBillingReport: React.FC = () => {
                 <td className="text-center amount-cell">{formatValue(data.totals.qrAmount)}</td>
                 <td className="text-center amount-cell">{formatValue(data.totals.nonQrTableAmount)}</td>
                 <td className="text-center amount-cell">{formatValue(data.totals.billingAmount)}</td>
+                <td className="text-center amount-cell">{formatValue(data.totals.cancelledAmount)}</td>
                 <td className="text-center">
                   {data.totals.totalBills > 0
                     ? formatValue(data.totals.totalAmount / data.totals.totalBills)
@@ -989,6 +999,14 @@ const WaiterWiseBillingReport: React.FC = () => {
                           </span>
                           <span style={{ fontWeight: 'bold' }}>
                             {formatValue(selectedWaiterStats.billingAmount)}
+                          </span>
+                        </div>
+                        <div className="breakdown-item" style={{ marginBottom: '15px' }}>
+                          <span style={{ color: 'var(--theme-text-secondary)', fontSize: '0.9em' }}>
+                            CANCELLED AMOUNT
+                          </span>
+                          <span style={{ fontWeight: 'bold' }}>
+                            {formatValue(selectedWaiterStats.cancelledAmount)}
                           </span>
                         </div>
                         <div className="breakdown-item" style={{ marginBottom: '15px' }}>

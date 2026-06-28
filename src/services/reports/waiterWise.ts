@@ -19,6 +19,7 @@ export type WaiterWiseReportStat = {
   qrAmount: number
   nonQrTableAmount: number
   billingAmount: number
+  cancelledAmount: number
   totalAmount: number
   cashAmount: number
   upiAmount: number
@@ -31,6 +32,7 @@ export type WaiterWiseReportTotals = {
   qrAmount: number
   nonQrTableAmount: number
   billingAmount: number
+  cancelledAmount: number
   totalAmount: number
   cashAmount: number
   upiAmount: number
@@ -90,6 +92,7 @@ type RawWaiterStat = {
   qrAmount: unknown
   nonQrTableAmount: unknown
   billingAmount: unknown
+  cancelledAmount: unknown
   totalAmount: unknown
   cashAmount: unknown
   upiAmount: unknown
@@ -442,6 +445,11 @@ export const getWaiterWiseBillingReportData = async (
             ],
           },
         },
+        cancelledAmount: {
+          $sum: {
+            $cond: [{ $eq: ['$status', 'cancelled'] }, '$totalAmount', 0],
+          },
+        },
         totalAmount: { $sum: '$totalAmount' },
         cashAmount: {
           $sum: {
@@ -513,6 +521,7 @@ export const getWaiterWiseBillingReportData = async (
         qrAmount: 1,
         nonQrTableAmount: 1,
         billingAmount: 1,
+        cancelledAmount: 1,
         totalAmount: 1,
         cashAmount: 1,
         upiAmount: 1,
@@ -552,6 +561,7 @@ export const getWaiterWiseBillingReportData = async (
     qrAmount: toNumber(item.qrAmount),
     nonQrTableAmount: toNumber(item.nonQrTableAmount),
     billingAmount: toNumber(item.billingAmount),
+    cancelledAmount: toNumber(item.cancelledAmount),
     totalAmount: toNumber(item.totalAmount),
     cashAmount: toNumber(item.cashAmount),
     upiAmount: toNumber(item.upiAmount),
@@ -565,6 +575,7 @@ export const getWaiterWiseBillingReportData = async (
       qrAmount: acc.qrAmount + current.qrAmount,
       nonQrTableAmount: acc.nonQrTableAmount + current.nonQrTableAmount,
       billingAmount: acc.billingAmount + current.billingAmount,
+      cancelledAmount: acc.cancelledAmount + current.cancelledAmount,
       totalAmount: acc.totalAmount + current.totalAmount,
       cashAmount: acc.cashAmount + current.cashAmount,
       upiAmount: acc.upiAmount + current.upiAmount,
@@ -575,6 +586,7 @@ export const getWaiterWiseBillingReportData = async (
       qrAmount: 0,
       nonQrTableAmount: 0,
       billingAmount: 0,
+      cancelledAmount: 0,
       totalAmount: 0,
       cashAmount: 0,
       upiAmount: 0,
