@@ -607,15 +607,15 @@ export default function KotPage() {
     previousBillData &&
     trimmedTableNumber &&
     previousBillData.section?.toLowerCase() === "shared tables" &&
-    previousBillData.tableNumber?.startsWith(`${trimmedTableNumber}-`)
+    previousBillData.tableNumber?.toLowerCase().startsWith(`${trimmedTableNumber.toLowerCase()}-`)
   );
 
   const matchingPreviousBill =
     previousBillData &&
     (
       (
-        (!trimmedTableNumber || previousBillData.tableNumber === trimmedTableNumber) &&
-        (!sectionChipLabel || !previousBillData.section || previousBillData.section === sectionChipLabel)
+        (!trimmedTableNumber || previousBillData.tableNumber?.toLowerCase() === trimmedTableNumber.toLowerCase()) &&
+        (!sectionChipLabel || !previousBillData.section || previousBillData.section.toLowerCase() === sectionChipLabel.toLowerCase())
       ) ||
       isSharedTableMatch
     )
