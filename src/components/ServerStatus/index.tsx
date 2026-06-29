@@ -137,6 +137,22 @@ const ServerStatus: React.FC = () => {
     return 'SYSTEM'
   }
 
+  const getHttpStatusCode = (text: string, stream: 'stdout' | 'stderr'): string => {
+    try {
+      if (text.trim().startsWith('{') && text.trim().endsWith('}')) {
+        const parsed = JSON.parse(text)
+        if (parsed.status) return String(parsed.status)
+        if (parsed.res?.statusCode) return String(parsed.res.statusCode)
+      }
+    } catch (_e) {}
+
+    const match = text.match(/(?:GET|POST|PUT|DELETE|PATCH|OPTIONS)\s+\/[^\s?]*.*\s+([1-5]\d{2})(?:\s+|$|\b)/i)
+    if (match) {
+      return match[1]
+    }
+    return stream === 'stderr' ? 'ERR' : 'INF'
+  }
+
   const getFilteredLogsByTime = () => {
     const now = metrics?.currentTime ? new Date(metrics.currentTime).getTime() : new Date().getTime()
     let rangeMs = 30 * 60 * 1000 // default 30m
@@ -470,6 +486,14 @@ const ServerStatus: React.FC = () => {
                 {filteredLogs.length > 0 ? (
                   filteredLogs.map((log, index) => {
                     const isExpanded = expandedLogIndex === index
+                    const statusCode = getHttpStatusCode(log.text, log.stream)
+                    let statusClass = 'status-inf'
+                    if (statusCode === 'ERR') statusClass = 'status-err'
+                    else if (statusCode.startsWith('2')) statusClass = 'status-2xx'
+                    else if (statusCode.startsWith('3')) statusClass = 'status-3xx'
+                    else if (statusCode.startsWith('4')) statusClass = 'status-4xx'
+                    else if (statusCode.startsWith('5')) statusClass = 'status-5xx'
+
                     return (
                       <div key={index} className="log-row-container">
                         <div
@@ -480,8 +504,8 @@ const ServerStatus: React.FC = () => {
                             {new Date(log.timestamp).toLocaleTimeString()}
                           </span>
                           <span className="col-status">
-                            <span className={`status-badge ${log.stream}`}>
-                              {log.stream === 'stderr' ? 'ERR' : 'INF'}
+                            <span className={`status-badge ${statusClass}`}>
+                              {statusCode}
                             </span>
                           </span>
                           <span className="col-host">{metrics.hostname}</span>
