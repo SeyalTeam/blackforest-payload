@@ -117,8 +117,7 @@ import { toggleFavoriteCategoryRuleHandler } from './endpoints/toggleFavoriteCat
 import { updateFavoriteCategoryRuleCategoriesHandler } from './endpoints/updateFavoriteCategoryRuleCategories'
 import { AppVersionSettings } from './globals/AppVersionSettings'
 import { checkAppVersionHandler } from './endpoints/checkAppVersion'
-import { ServerStatusGlobal } from './globals/ServerStatus'
-import { getServerStatusHandler } from './endpoints/getServerStatus'
+
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -602,11 +601,7 @@ export default buildConfig({
       method: 'get',
       handler: checkAppVersionHandler,
     },
-    {
-      path: '/server-status',
-      method: 'get',
-      handler: getServerStatusHandler,
-    },
+
   ],
 
   globals: [
@@ -635,7 +630,7 @@ export default buildConfig({
     CustomerOfferSettings,
     AppDownloadSettings,
     AppVersionSettings,
-    ServerStatusGlobal,
+
   ],
 
   // Collections
