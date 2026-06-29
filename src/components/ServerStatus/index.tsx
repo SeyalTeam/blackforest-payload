@@ -124,7 +124,7 @@ const ServerStatus: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [streamFilter, setStreamFilter] = useState<'all' | 'stdout' | 'stderr'>('all')
   const [timeFilter, setTimeFilter] = useState<'30m' | '1h' | '12h' | '1d' | '3d' | '1w' | '2w'>('30m')
-  const [liveMode, setLiveMode] = useState(true)
+  const [liveMode, setLiveMode] = useState(false)
   const [expandedLogIndex, setExpandedLogIndex] = useState<number | null>(null)
 
   const getRequestType = (text: string): string => {
