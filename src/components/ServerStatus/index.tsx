@@ -13,6 +13,8 @@ import {
   Timer,
   Server,
   Terminal,
+  Search,
+  Download,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -116,6 +118,29 @@ const ServerStatus: React.FC = () => {
   const [history, setHistory] = useState<HistoricalData[]>([])
 
   const consoleEndRef = useRef<HTMLDivElement>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [streamFilter, setStreamFilter] = useState<'all' | 'stdout' | 'stderr'>('all')
+
+  const filteredLogs = (metrics?.logs || []).filter((log) => {
+    const matchesSearch = log.text.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesStream = streamFilter === 'all' || log.stream === streamFilter
+    return matchesSearch && matchesStream
+  })
+
+  const downloadLogs = () => {
+    const textContent = filteredLogs
+      .map((l) => `[${l.timestamp}] [${l.stream.toUpperCase()}] ${l.text}`)
+      .join('\n')
+    const blob = new Blob([textContent], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `server_logs_${new Date().toISOString().replace(/:/g, '-')}.log`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
 
   useEffect(() => {
     if (consoleEndRef.current) {
@@ -329,27 +354,69 @@ const ServerStatus: React.FC = () => {
           </div>
 
           {/* Live Terminal Console Logs */}
-          <div className="terminal-panel">
+          <div className="terminal-panel vercel-theme">
             <div className="panel-header">
               <div className="title-area">
-                <Terminal size={16} color="#06b6d4" />
-                <h2>Live Console Logs</h2>
+                <Terminal size={16} color="#00ff00" />
+                <h2>Real-Time Console Logs</h2>
               </div>
-              <span>Showing last 100 entries</span>
+              <div className="terminal-actions">
+                <button className="btn-action download" onClick={downloadLogs} title="Download Logs">
+                  <Download size={14} />
+                  Export
+                </button>
+              </div>
             </div>
+
+            {/* Vercel Style Toolbar */}
+            <div className="terminal-toolbar">
+              <div className="search-box">
+                <Search size={14} className="search-icon" />
+                <input
+                  type="text"
+                  placeholder="Filter logs..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <div className="filter-pills">
+                <button
+                  className={`pill ${streamFilter === 'all' ? 'active' : ''}`}
+                  onClick={() => setStreamFilter('all')}
+                >
+                  All Logs
+                </button>
+                <button
+                  className={`pill ${streamFilter === 'stdout' ? 'active' : ''}`}
+                  onClick={() => setStreamFilter('stdout')}
+                >
+                  System Info
+                </button>
+                <button
+                  className={`pill ${streamFilter === 'stderr' ? 'active' : ''}`}
+                  onClick={() => setStreamFilter('stderr')}
+                >
+                  Errors
+                </button>
+              </div>
+            </div>
+
             <div className="terminal-body">
               <div className="terminal-scroll">
-                {metrics.logs && metrics.logs.length > 0 ? (
-                  metrics.logs.map((log, index) => (
+                {filteredLogs.length > 0 ? (
+                  filteredLogs.map((log, index) => (
                     <div key={index} className={`log-line ${log.stream}`}>
                       <span className="timestamp">
-                        [{new Date(log.timestamp).toLocaleTimeString()}]
+                        {new Date(log.timestamp).toLocaleTimeString()}
+                      </span>
+                      <span className="stream-badge">
+                        {log.stream === 'stderr' ? 'ERR' : 'INF'}
                       </span>
                       <span className="text">{log.text}</span>
                     </div>
                   ))
                 ) : (
-                  <div className="empty-logs">No log entries captured yet. Trigger actions to see output.</div>
+                  <div className="empty-logs">No matching logs found.</div>
                 )}
                 <div ref={consoleEndRef} />
               </div>
