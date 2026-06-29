@@ -1,4 +1,5 @@
 import type { PayloadHandler, Where } from 'payload'
+import { getCachedMenu } from '../utilities/menuCache'
 
 type CategoryDoc = {
   id?: string | number
@@ -190,6 +191,8 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
       )
     }
 
+    const { products: cachedProducts, categories: cachedCategories } = await getCachedMenu(req.payload)
+
     if (mode === 'categories') {
       // Resolve company from branch
       const branch = await req.payload.findByID({
@@ -205,38 +208,18 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
 
       const companyID = getRelationshipID(branch.company)
 
-      const categoriesResult = await req.payload.find({
-        collection: 'categories',
-        depth: 1,
-        pagination: false,
-        limit: 300,
-        sort: 'name',
-        where: {
-          and: [
-            {
-              isBilling: {
-                equals: true,
-              },
-            },
-            {
-              company: {
-                contains: companyID,
-              },
-            },
-          ],
-        },
-        overrideAccess: true,
-      })
-
-      const categoriesDocs = Array.isArray(categoriesResult?.docs)
-        ? (categoriesResult.docs as any[])
-        : []
-
-      const categories = categoriesDocs
+      const categories = cachedCategories
+        .filter((doc) => {
+          if (doc.isBilling !== true) return false
+          
+          const companyList = Array.isArray(doc.company) ? doc.company : [doc.company]
+          return companyList.some((c: any) => {
+            const id = typeof c === 'object' && c !== null ? c.id : c
+            return String(id) === String(companyID)
+          })
+        })
         .map((doc) => {
           const id = toText(doc.id).trim()
-          if (!id) return null
-
           const imageUrl = extractImageUrl(
             doc.imageUrl ?? doc.thumbnailURL ?? doc.thumbnail ?? doc.image,
           )
@@ -276,54 +259,33 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
       )
     }
 
-    const query = (url.searchParams.get('q') || '').trim()
-    const limit = toPositiveInt(url.searchParams.get('limit'), 250, 500)
+    const query = (url.searchParams.get('q') || '').trim().toLowerCase()
 
-    const whereClauses: Where[] = [
-      {
-        inactiveBranches: {
-          not_equals: branchID,
-        },
-      } as Where,
-      {
-        category: {
-          equals: categoryID,
-        },
-      } as Where,
-    ]
+    const products = cachedProducts
+      .filter((doc) => {
+        const inactiveBranches = Array.isArray(doc.inactiveBranches) ? doc.inactiveBranches : []
+        const isInactive = inactiveBranches.some((b: any) => {
+          const id = typeof b === 'object' && b !== null ? b.id : b
+          return String(id) === String(branchID)
+        })
+        if (isInactive) return false
 
-    if (query.length > 0) {
-      whereClauses.push({
-        or: [{ name: { like: query } }, { productId: { like: query } }, { upc: { like: query } }],
-      } as Where)
-    }
+        const categoryVal = getRelationshipID(doc.category)
+        if (categoryVal !== categoryID) return false
 
-    const where: Where =
-      whereClauses.length === 1
-        ? whereClauses[0]
-        : ({
-            and: whereClauses,
-          } as Where)
+        if (query.length > 0) {
+          const name = String(doc.name || '').toLowerCase()
+          const productId = String(doc.productId || '').toLowerCase()
+          const upc = String(doc.upc || '').toLowerCase()
+          if (!name.includes(query) && !productId.includes(query) && !upc.includes(query)) {
+            return false
+          }
+        }
 
-    const productsResult = await req.payload.find({
-      collection: 'products',
-      depth: 2,
-      pagination: false,
-      sort: 'name',
-      limit,
-      where,
-      overrideAccess: true,
-    })
-
-    const productDocs = Array.isArray(productsResult?.docs)
-      ? (productsResult.docs as ProductDoc[])
-      : []
-
-    const products = productDocs
+        return true
+      })
       .map((doc) => {
         const id = toText(doc.id).trim()
-        if (!id) return null
-
         const price =
           typeof doc.defaultPriceDetails?.price === 'number' &&
           Number.isFinite(doc.defaultPriceDetails.price)
@@ -357,9 +319,7 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
           media: doc.media,
         }
       })
-      .filter(
-        (row): row is Exclude<typeof row, null> => row !== null,
-      )
+      .filter((row) => row !== null)
 
     return Response.json(
       {
