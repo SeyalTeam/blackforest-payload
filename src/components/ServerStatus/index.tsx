@@ -15,6 +15,8 @@ import {
   Terminal,
   Search,
   Download,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -120,12 +122,40 @@ const ServerStatus: React.FC = () => {
   const consoleEndRef = useRef<HTMLDivElement>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [streamFilter, setStreamFilter] = useState<'all' | 'stdout' | 'stderr'>('all')
+  const [timeFilter, setTimeFilter] = useState<'30m' | '1h' | '12h' | '1d' | '3d' | '1w' | '2w'>('30m')
+  const [liveMode, setLiveMode] = useState(true)
+  const [expandedLogIndex, setExpandedLogIndex] = useState<number | null>(null)
 
-  const filteredLogs = (metrics?.logs || []).filter((log) => {
-    const matchesSearch = log.text.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStream = streamFilter === 'all' || log.stream === streamFilter
-    return matchesSearch && matchesStream
-  })
+  const getRequestType = (text: string): string => {
+    const match = text.match(/(GET|POST|PUT|DELETE|PATCH|OPTIONS)\s+(\/[^\s?]*)/i)
+    if (match) {
+      return `${match[1].toUpperCase()} ${match[2]}`
+    }
+    if (text.toLowerCase().includes('mongo')) return 'MONGO'
+    if (text.toLowerCase().includes('payload')) return 'PAYLOAD'
+    return 'SYSTEM'
+  }
+
+  const getFilteredLogsByTime = () => {
+    const now = new Date().getTime()
+    let rangeMs = 30 * 60 * 1000 // default 30m
+    if (timeFilter === '1h') rangeMs = 60 * 60 * 1000
+    else if (timeFilter === '12h') rangeMs = 12 * 60 * 60 * 1000
+    else if (timeFilter === '1d') rangeMs = 24 * 60 * 60 * 1000
+    else if (timeFilter === '3d') rangeMs = 3 * 24 * 60 * 60 * 1000
+    else if (timeFilter === '1w') rangeMs = 7 * 24 * 60 * 60 * 1000
+    else if (timeFilter === '2w') rangeMs = 14 * 24 * 60 * 60 * 1000
+
+    return (metrics?.logs || []).filter((log) => {
+      const logTime = new Date(log.timestamp).getTime()
+      const matchesTime = now - logTime <= rangeMs
+      const matchesSearch = log.text.toLowerCase().includes(searchQuery.toLowerCase())
+      const matchesStream = streamFilter === 'all' || log.stream === streamFilter
+      return matchesTime && matchesSearch && matchesStream
+    })
+  }
+
+  const filteredLogs = getFilteredLogsByTime()
 
   const downloadLogs = () => {
     const textContent = filteredLogs
@@ -143,9 +173,7 @@ const ServerStatus: React.FC = () => {
   }
 
   useEffect(() => {
-    if (consoleEndRef.current) {
-      consoleEndRef.current.scrollIntoView({ behavior: 'smooth' })
-    }
+    // Auto-scroll disabled per user instruction
   }, [metrics?.logs])
 
   const fetchMetrics = useCallback(async (isSilent = false) => {
@@ -183,9 +211,14 @@ const ServerStatus: React.FC = () => {
 
   useEffect(() => {
     fetchMetrics()
-    const interval = setInterval(() => fetchMetrics(true), 3000) // Poll every 3 seconds
-    return () => clearInterval(interval)
-  }, [fetchMetrics])
+    let interval: any
+    if (liveMode) {
+      interval = setInterval(() => fetchMetrics(true), 3000)
+    }
+    return () => {
+      if (interval) clearInterval(interval)
+    }
+  }, [fetchMetrics, liveMode])
 
   if (loading && !metrics) {
     return (
@@ -361,6 +394,28 @@ const ServerStatus: React.FC = () => {
                 <h2>Real-Time Console Logs</h2>
               </div>
               <div className="terminal-actions">
+                <button
+                  className={`btn-action live-toggle ${liveMode ? 'active' : ''}`}
+                  onClick={() => setLiveMode(!liveMode)}
+                >
+                  <span className={`live-dot ${liveMode ? 'heartbeat' : ''}`} />
+                  {liveMode ? 'Live (On)' : 'Live (Paused)'}
+                </button>
+                <div className="time-select-container">
+                  <select
+                    value={timeFilter}
+                    onChange={(e) => setTimeFilter(e.target.value as any)}
+                    className="time-dropdown"
+                  >
+                    <option value="30m">Last 30 minutes</option>
+                    <option value="1h">Last hour</option>
+                    <option value="12h">Last 12 hours</option>
+                    <option value="1d">Last day</option>
+                    <option value="3d">Last 3 days</option>
+                    <option value="1w">Last week</option>
+                    <option value="2w">Last 2 weeks</option>
+                  </select>
+                </div>
                 <button className="btn-action download" onClick={downloadLogs} title="Download Logs">
                   <Download size={14} />
                   Export
@@ -401,24 +456,64 @@ const ServerStatus: React.FC = () => {
               </div>
             </div>
 
-            <div className="terminal-body">
+            {/* Vercel Logs Grid Table */}
+            <div className="terminal-body scroll-manual">
+              <div className="terminal-table-header">
+                <span className="col-time">Time</span>
+                <span className="col-status">Status</span>
+                <span className="col-host">Host</span>
+                <span className="col-request">Request</span>
+                <span className="col-message">Messages</span>
+              </div>
               <div className="terminal-scroll">
                 {filteredLogs.length > 0 ? (
-                  filteredLogs.map((log, index) => (
-                    <div key={index} className={`log-line ${log.stream}`}>
-                      <span className="timestamp">
-                        {new Date(log.timestamp).toLocaleTimeString()}
-                      </span>
-                      <span className="stream-badge">
-                        {log.stream === 'stderr' ? 'ERR' : 'INF'}
-                      </span>
-                      <span className="text">{log.text}</span>
-                    </div>
-                  ))
+                  filteredLogs.map((log, index) => {
+                    const isExpanded = expandedLogIndex === index
+                    return (
+                      <div key={index} className="log-row-container">
+                        <div
+                          className={`log-row ${log.stream} ${isExpanded ? 'expanded' : ''}`}
+                          onClick={() => setExpandedLogIndex(isExpanded ? null : index)}
+                        >
+                          <span className="col-time">
+                            {new Date(log.timestamp).toLocaleTimeString()}
+                          </span>
+                          <span className="col-status">
+                            <span className={`status-badge ${log.stream}`}>
+                              {log.stream === 'stderr' ? 'ERR' : 'INF'}
+                            </span>
+                          </span>
+                          <span className="col-host">{metrics.hostname}</span>
+                          <span className="col-request">{getRequestType(log.text)}</span>
+                          <span className="col-message">{log.text}</span>
+                        </div>
+                        {isExpanded && (
+                          <div className="log-details">
+                            <div className="detail-field">
+                              <strong>Timestamp:</strong> <span>{log.timestamp} ({new Date(log.timestamp).toLocaleString()})</span>
+                            </div>
+                            <div className="detail-field">
+                              <strong>Stream:</strong> <span>{log.stream === 'stderr' ? 'stderr (Error)' : 'stdout (Info)'}</span>
+                            </div>
+                            <div className="detail-field">
+                              <strong>Host:</strong> <span>{metrics.hostname}</span>
+                            </div>
+                            <div className="detail-field">
+                              <strong>Request Type:</strong> <span>{getRequestType(log.text)}</span>
+                            </div>
+                            <div className="detail-field raw-text">
+                              <strong>Full Message:</strong>
+                              <pre>{log.text}</pre>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
                 ) : (
                   <div className="empty-logs">No matching logs found.</div>
                 )}
-                <div ref={consoleEndRef} />
+                <div ref={consoleEndRef} style={{ height: 1 }} />
               </div>
             </div>
           </div>

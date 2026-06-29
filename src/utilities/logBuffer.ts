@@ -5,7 +5,7 @@ export interface LogEntry {
 }
 
 const logBuffer: LogEntry[] = []
-const MAX_LOG_LINES = 100
+const MAX_LOG_LINES = 5000
 
 const stripAnsi = (text: string): string => {
   return text.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '')
