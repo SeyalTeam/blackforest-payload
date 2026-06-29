@@ -1,3 +1,6 @@
+import { initLogHook } from './utilities/logBuffer'
+initLogHook()
+
 import { s3Storage } from '@payloadcms/storage-s3'
 import { mongooseAdapter } from '@payloadcms/db-mongodb'
 import { postgresAdapter } from '@payloadcms/db-postgres'
