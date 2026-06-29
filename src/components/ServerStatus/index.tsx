@@ -53,6 +53,7 @@ interface MetricsPayload {
   }
   uptime: string
   hostname: string
+  currentTime?: string
   logs?: {
     timestamp: string
     text: string
@@ -137,7 +138,7 @@ const ServerStatus: React.FC = () => {
   }
 
   const getFilteredLogsByTime = () => {
-    const now = new Date().getTime()
+    const now = metrics?.currentTime ? new Date(metrics.currentTime).getTime() : new Date().getTime()
     let rangeMs = 30 * 60 * 1000 // default 30m
     if (timeFilter === '1h') rangeMs = 60 * 60 * 1000
     else if (timeFilter === '12h') rangeMs = 12 * 60 * 60 * 1000
