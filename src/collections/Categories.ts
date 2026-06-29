@@ -1,4 +1,5 @@
 import { CollectionConfig, PayloadRequest, Where } from 'payload' // Added Where import for type safety in filterOptions
+import { invalidateMenuCache } from '../utilities/menuCache'
 
 // Assuming Company is exported from Companies.ts; if not, define a simple interface
 // interface Company {
@@ -142,6 +143,16 @@ const Categories: CollectionConfig = {
           }
         }
         return data
+      },
+    ],
+    afterChange: [
+      () => {
+        invalidateMenuCache()
+      },
+    ],
+    afterDelete: [
+      () => {
+        invalidateMenuCache()
       },
     ],
   },

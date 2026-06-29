@@ -2,6 +2,7 @@ import { PayloadHandler } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
+import { getCachedMenu } from '../utilities/menuCache'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -37,20 +38,8 @@ export const createWidgetOrderHandler: PayloadHandler = async (req): Promise<Res
   }
 
   try {
-    // 1. Fetch all products and categories for matching
-    const { docs: products } = await req.payload.find({
-      collection: 'products',
-      pagination: false,
-      depth: 0,
-      limit: 5000,
-    })
-
-    const { docs: categories } = await req.payload.find({
-      collection: 'categories',
-      pagination: false,
-      depth: 0,
-      limit: 500,
-    })
+    // 1. Fetch all products and categories from cache for matching
+    const { products, categories } = await getCachedMenu(req.payload)
 
     const productMap = new Map<string, any[]>()
     products.forEach((p: any) => {

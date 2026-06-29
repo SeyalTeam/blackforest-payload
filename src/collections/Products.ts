@@ -1,5 +1,6 @@
 import { CollectionConfig } from 'payload'
 import { isIPAllowed } from '../utilities/ipCheck'
+import { invalidateMenuCache } from '../utilities/menuCache'
 
 const calculateEAN13CheckDigit = (eanWithoutCheckDigit: string): number => {
   let sum = 0
@@ -166,6 +167,16 @@ const Products: CollectionConfig = {
         }
 
         return data
+      },
+    ],
+    afterChange: [
+      () => {
+        invalidateMenuCache()
+      },
+    ],
+    afterDelete: [
+      () => {
+        invalidateMenuCache()
       },
     ],
   },
