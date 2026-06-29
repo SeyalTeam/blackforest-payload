@@ -333,6 +333,101 @@
       }
     }
   }
+
+  .terminal-panel {
+    background: rgba(24, 24, 27, 0.5);
+    border: 1px solid rgba(39, 39, 42, 0.8);
+    border-radius: 16px;
+    padding: 20px;
+    margin-top: 24px;
+    backdrop-filter: blur(12px);
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+
+      .title-area {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+
+        h2 {
+          margin: 0;
+          font-size: 16px;
+          font-weight: 600;
+          color: #f4f4f5;
+        }
+      }
+
+      span {
+        font-size: 12px;
+        color: #71717a;
+      }
+    }
+
+    .terminal-body {
+      background: #09090b;
+      border: 1px solid rgba(39, 39, 42, 0.6);
+      border-radius: 12px;
+      padding: 16px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      color: #e4e4e7;
+      line-height: 1.6;
+
+      .terminal-scroll {
+        max-height: 250px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        scroll-behavior: smooth;
+
+        &::-webkit-scrollbar {
+          width: 6px;
+        }
+        &::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        &::-webkit-scrollbar-thumb {
+          background: #27272a;
+          border-radius: 99px;
+        }
+        &::-webkit-scrollbar-thumb:hover {
+          background: #3f3f46;
+        }
+      }
+
+      .log-line {
+        display: flex;
+        gap: 8px;
+        word-break: break-all;
+
+        &.stderr {
+          color: #f87171;
+        }
+
+        .timestamp {
+          color: #71717a;
+          flex-shrink: 0;
+          user-select: none;
+        }
+
+        .text {
+          white-space: pre-wrap;
+        }
+      }
+
+      .empty-logs {
+        color: #71717a;
+        text-align: center;
+        padding: 24px 0;
+        font-style: italic;
+      }
+    }
+  }
 }
 
 @keyframes spin {

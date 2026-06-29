@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { Gutter } from '@payloadcms/ui'
 import {
   Cpu,
@@ -12,6 +12,7 @@ import {
   Zap,
   Timer,
   Server,
+  Terminal,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -48,6 +49,11 @@ interface MetricsPayload {
   }
   uptime: string
   hostname: string
+  logs?: {
+    timestamp: string
+    text: string
+    stream: 'stdout' | 'stderr'
+  }[]
 }
 
 interface HistoricalData {
@@ -108,6 +114,14 @@ const ServerStatus: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [history, setHistory] = useState<HistoricalData[]>([])
+
+  const consoleEndRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (consoleEndRef.current) {
+      consoleEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [metrics?.logs])
 
   const fetchMetrics = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true)
@@ -310,6 +324,34 @@ const ServerStatus: React.FC = () => {
                   <span>Resident Set Size (RSS)</span>
                   <strong>{metrics.process.rssMB} MB</strong>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Live Terminal Console Logs */}
+          <div className="terminal-panel">
+            <div className="panel-header">
+              <div className="title-area">
+                <Terminal size={16} color="#06b6d4" />
+                <h2>Live Console Logs</h2>
+              </div>
+              <span>Showing last 100 entries</span>
+            </div>
+            <div className="terminal-body">
+              <div className="terminal-scroll">
+                {metrics.logs && metrics.logs.length > 0 ? (
+                  metrics.logs.map((log, index) => (
+                    <div key={index} className={`log-line ${log.stream}`}>
+                      <span className="timestamp">
+                        [{new Date(log.timestamp).toLocaleTimeString()}]
+                      </span>
+                      <span className="text">{log.text}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="empty-logs">No log entries captured yet. Trigger actions to see output.</div>
+                )}
+                <div ref={consoleEndRef} />
               </div>
             </div>
           </div>

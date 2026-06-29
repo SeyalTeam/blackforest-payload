@@ -2,6 +2,7 @@ import { PayloadHandler } from 'payload'
 import os from 'os'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import { getBufferedLogs } from '../utilities/logBuffer'
 
 const execPromise = promisify(exec)
 
@@ -98,6 +99,7 @@ export const getServerStatusHandler: PayloadHandler = async (req): Promise<Respo
       },
       uptime: formatUptime(os.uptime()),
       hostname: os.hostname(),
+      logs: getBufferedLogs(),
     })
   } catch (error: any) {
     return Response.json({ error: error.message || 'Failed to resolve server metrics' }, { status: 500 })

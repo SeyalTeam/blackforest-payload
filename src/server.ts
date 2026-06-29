@@ -1,3 +1,6 @@
+import { initLogHook } from './utilities/logBuffer'
+initLogHook()
+
 import { createServer } from 'node:http'
 import { parse } from 'node:url'
 import nextEnv from '@next/env'
