@@ -2165,6 +2165,15 @@ const Billings: CollectionConfig = {
     {
       fields: ['branch', 'createdAt'],
     },
+    {
+      fields: ['branch', 'status', 'createdAt'],
+    },
+    {
+      fields: ['branch', 'status', 'updatedAt'],
+    },
+    {
+      fields: ['branch', 'tableDetails.tableNumber', 'tableDetails.section', 'status', 'createdAt'],
+    },
   ],
   endpoints: [
     {
