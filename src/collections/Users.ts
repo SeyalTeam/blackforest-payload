@@ -62,6 +62,7 @@ export const Users: CollectionConfig = {
         { label: 'Waiter', value: 'waiter' }, // New
         { label: 'Supervisor', value: 'supervisor' },
         { label: 'Driver', value: 'driver' },
+        { label: 'Store Keeper', value: 'store_keeper' },
       ],
       defaultValue: 'admin',
       required: true,
@@ -258,7 +259,7 @@ export const Users: CollectionConfig = {
       required: false,
       admin: {
         condition: ({ role }) =>
-          ['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef', 'kitchen'].includes(
+          ['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef', 'kitchen', 'store_keeper'].includes(
             role,
           ),
       },
@@ -266,7 +267,7 @@ export const Users: CollectionConfig = {
         const role = (siblingData as { role?: string }).role
         if (
           !role ||
-          !['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef', 'kitchen'].includes(
+          !['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef', 'kitchen', 'store_keeper'].includes(
             role,
           )
         ) {
@@ -1194,13 +1195,13 @@ export const Users: CollectionConfig = {
           }
           if (
             typeof nextData.role === 'string' &&
-            ['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef'].includes(
+            ['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef', 'store_keeper'].includes(
               nextData.role,
             ) &&
             !nextData.employee
           ) {
             throw new Error(
-              'Employee is required for waiter, cashier, supervisor, delivery, driver, or chef role users',
+              'Employee is required for waiter, cashier, supervisor, delivery, driver, chef, or store keeper role users',
             )
           }
         }

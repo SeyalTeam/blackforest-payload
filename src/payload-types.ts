@@ -244,7 +244,8 @@ export interface User {
     | 'cashier'
     | 'waiter'
     | 'supervisor'
-    | 'driver';
+    | 'driver'
+    | 'store_keeper';
   isKitchen?: boolean | null;
   isStock?: boolean | null;
   branch?: (string | null) | Branch;
@@ -536,7 +537,7 @@ export interface Employee {
   email?: string | null;
   address?: string | null;
   status: 'active' | 'inactive';
-  team: 'waiter' | 'chef' | 'driver' | 'cashier' | 'manager' | 'supervisor' | 'delivery' | 'kitchen';
+  team: 'waiter' | 'chef' | 'driver' | 'cashier' | 'manager' | 'supervisor' | 'delivery' | 'kitchen' | 'store_keeper';
   aadhaarPhoto?: (string | null) | Media;
   photo?: (string | null) | Media;
   updatedAt: string;
