@@ -46,7 +46,15 @@ const RawMaterialCategories: CollectionConfig = {
           if (!companyId) return false
           return { id: { equals: companyId } } as Where
         }
-        if (user?.role === 'branch' || user?.role === 'store_keeper') {
+        if (user?.role === 'store_keeper') {
+          const companiesList = user.storekeeper_companies
+          if (!companiesList || companiesList.length === 0) return false
+          const companyIds = companiesList.map((comp: any) =>
+            typeof comp === 'object' && comp !== null ? comp.id : comp
+          )
+          return { id: { in: companyIds } } as Where
+        }
+        if (user?.role === 'branch') {
           const branchId = typeof user.branch === 'string' ? user.branch : user.branch?.id
           if (!branchId) return false
 
