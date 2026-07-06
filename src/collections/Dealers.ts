@@ -25,12 +25,12 @@ const Dealers: CollectionConfig = {
   access: {
     create: ({ req: { user } }) => {
       const role = (user as { role?: string })?.role
-      return role === 'superadmin' || role === 'admin'
+      return role === 'superadmin' || role === 'admin' || role === 'store_keeper'
     },
     read: () => true,
     update: ({ req: { user } }) => {
       const u = user as { role?: string } | null
-      return u?.role === 'superadmin' || u?.role === 'admin'
+      return u?.role === 'superadmin' || u?.role === 'admin' || u?.role === 'store_keeper'
     },
     delete: ({ req: { user } }) => (user as { role?: string })?.role === 'superadmin',
   },

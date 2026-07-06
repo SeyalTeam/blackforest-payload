@@ -58,6 +58,15 @@ const RawMaterials: CollectionConfig = {
         description: 'Notify when stock falls below this level.',
       },
     },
+    {
+      name: 'dealer',
+      type: 'relationship',
+      relationTo: 'dealers',
+      required: false,
+      admin: {
+        position: 'sidebar',
+      },
+    },
   ],
   timestamps: true,
 }
