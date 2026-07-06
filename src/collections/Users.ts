@@ -253,6 +253,20 @@ export const Users: CollectionConfig = {
       },
     },
     {
+      name: 'storekeeper_companies',
+      type: 'relationship',
+      relationTo: 'companies',
+      hasMany: true,
+      required: false,
+      admin: {
+        condition: ({ role }) => role === 'store_keeper',
+      },
+      access: {
+        create: ({ req }) => req.user?.role === 'superadmin',
+        update: ({ req }) => req.user?.role === 'superadmin',
+      },
+    },
+    {
       name: 'employee',
       type: 'relationship',
       relationTo: 'employees',
@@ -1192,6 +1206,12 @@ export const Users: CollectionConfig = {
             (!nextData.factory_companies || nextData.factory_companies.length === 0)
           ) {
             throw new Error('At least one company is required for factory role users')
+          }
+          if (
+            nextData.role === 'store_keeper' &&
+            (!nextData.storekeeper_companies || nextData.storekeeper_companies.length === 0)
+          ) {
+            throw new Error('At least one company is required for store keeper role users')
           }
           if (
             typeof nextData.role === 'string' &&

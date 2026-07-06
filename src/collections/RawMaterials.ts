@@ -12,11 +12,13 @@ const RawMaterials: CollectionConfig = {
       user?.role === 'superadmin' ||
       user?.role === 'admin' ||
       user?.role === 'company' ||
-      user?.role === 'branch',
+      user?.role === 'branch' ||
+      user?.role === 'store_keeper',
     update: ({ req: { user } }) =>
       user?.role === 'superadmin' ||
       user?.role === 'admin' ||
-      user?.role === 'company',
+      user?.role === 'company' ||
+      user?.role === 'store_keeper',
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   fields: [

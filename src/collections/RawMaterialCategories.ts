@@ -12,9 +12,12 @@ const RawMaterialCategories: CollectionConfig = {
     create: ({ req }: { req: PayloadRequest }) =>
       req.user?.role === 'superadmin' ||
       req.user?.role === 'company' ||
-      req.user?.role === 'branch',
+      req.user?.role === 'branch' ||
+      req.user?.role === 'store_keeper',
     update: ({ req }: { req: PayloadRequest }) =>
-      req.user?.role === 'superadmin' || req.user?.role === 'company',
+      req.user?.role === 'superadmin' ||
+      req.user?.role === 'company' ||
+      req.user?.role === 'store_keeper',
     delete: ({ req }: { req: PayloadRequest }) => req.user?.role === 'superadmin',
   },
   fields: [
@@ -43,7 +46,7 @@ const RawMaterialCategories: CollectionConfig = {
           if (!companyId) return false
           return { id: { equals: companyId } } as Where
         }
-        if (user?.role === 'branch') {
+        if (user?.role === 'branch' || user?.role === 'store_keeper') {
           const branchId = typeof user.branch === 'string' ? user.branch : user.branch?.id
           if (!branchId) return false
 

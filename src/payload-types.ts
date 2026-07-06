@@ -258,6 +258,7 @@ export interface User {
   categories?: (string | Category)[] | null;
   company?: (string | null) | Company;
   factory_companies?: (string | Company)[] | null;
+  storekeeper_companies?: (string | Company)[] | null;
   employee?: (string | null) | Employee;
   deviceId?: string | null;
   /**
@@ -1775,6 +1776,7 @@ export interface UsersSelect<T extends boolean = true> {
   categories?: T;
   company?: T;
   factory_companies?: T;
+  storekeeper_companies?: T;
   employee?: T;
   deviceId?: T;
   forceLogoutAllDevices?: T;
