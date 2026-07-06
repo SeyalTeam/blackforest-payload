@@ -147,9 +147,13 @@ vi.mock('@payloadcms/next/routes', () => ({
   REST_PUT: () => restHandlers.put,
 }))
 
-vi.mock('payload', () => ({
-  getPayload: vi.fn(async () => mockPayload),
-}))
+vi.mock('payload', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('payload')>()
+  return {
+    ...actual,
+    getPayload: vi.fn(async () => mockPayload),
+  }
+})
 
 const resetState = (): void => {
   idempotencyByScopeAndKey.clear()
