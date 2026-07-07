@@ -20,6 +20,7 @@ import Categories from './collections/Categories'
 import Products from './collections/Products'
 import RawMaterialCategories from './collections/RawMaterialCategories'
 import RawMaterials from './collections/RawMaterials'
+import RawMaterialDealers from './collections/RawMaterialDealers'
 import { Media } from './collections/Media'
 import Dealers from './collections/Dealers'
 import Employees from './collections/Employees'
@@ -644,6 +645,7 @@ export default buildConfig({
     Products,
     RawMaterialCategories,
     RawMaterials,
+    RawMaterialDealers,
     Media,
     Dealers,
     Employees,

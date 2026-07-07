@@ -75,6 +75,7 @@ export interface Config {
     products: Product;
     'raw-material-categories': RawMaterialCategory;
     'raw-materials': RawMaterial;
+    'raw-material-dealers': RawMaterialDealer;
     media: Media;
     dealers: Dealer;
     employees: Employee;
@@ -88,6 +89,7 @@ export interface Config {
     expenses: Expense;
     'stock-orders': StockOrder;
     'dealer-billings': DealerBilling;
+    'raw-material-billings': RawMaterialBilling;
     reviews: Review;
     customers: Customer;
     'billing-customers': BillingCustomer;
@@ -113,6 +115,7 @@ export interface Config {
     products: ProductsSelect<false> | ProductsSelect<true>;
     'raw-material-categories': RawMaterialCategoriesSelect<false> | RawMaterialCategoriesSelect<true>;
     'raw-materials': RawMaterialsSelect<false> | RawMaterialsSelect<true>;
+    'raw-material-dealers': RawMaterialDealersSelect<false> | RawMaterialDealersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     dealers: DealersSelect<false> | DealersSelect<true>;
     employees: EmployeesSelect<false> | EmployeesSelect<true>;
@@ -126,6 +129,7 @@ export interface Config {
     expenses: ExpensesSelect<false> | ExpensesSelect<true>;
     'stock-orders': StockOrdersSelect<false> | StockOrdersSelect<true>;
     'dealer-billings': DealerBillingsSelect<false> | DealerBillingsSelect<true>;
+    'raw-material-billings': RawMaterialBillingsSelect<false> | RawMaterialBillingsSelect<true>;
     reviews: ReviewsSelect<false> | ReviewsSelect<true>;
     customers: CustomersSelect<false> | CustomersSelect<true>;
     'billing-customers': BillingCustomersSelect<false> | BillingCustomersSelect<true>;
@@ -568,6 +572,42 @@ export interface RawMaterial {
    * Notify when stock falls below this level.
    */
   minimumStockLevel?: number | null;
+  dealer: string | RawMaterialDealer;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "raw-material-dealers".
+ */
+export interface RawMaterialDealer {
+  id: string;
+  companyName: string;
+  address: string;
+  phoneNumber: string;
+  email: string;
+  isGSTRegistered?: boolean | null;
+  gst?: string | null;
+  pan?: string | null;
+  fssai?: string | null;
+  contactPerson: {
+    name: string;
+    designation?: string | null;
+    phone?: string | null;
+    email?: string | null;
+  };
+  allowedCompanies?: (string | Company)[] | null;
+  allowedBranches?: (string | Branch)[] | null;
+  notes?: string | null;
+  status: 'active' | 'inactive' | 'on-hold';
+  hasBankAccount?: boolean | null;
+  preferredPaymentMethod?: ('cash' | 'upi' | 'cheque' | 'credit') | null;
+  bankDetails?: {
+    bankName?: string | null;
+    accountNumber?: string | null;
+    ifscCode?: string | null;
+    branch?: string | null;
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -978,6 +1018,35 @@ export interface DealerBilling {
   billCopyPhoto: string | Media;
   productsPhoto: string | Media;
   products?: (string | Product)[] | null;
+  date: string;
+  paidAmount: number;
+  payments?:
+    | {
+        amount: number;
+        date: string;
+        id?: string | null;
+      }[]
+    | null;
+  status: 'pending' | 'paid' | 'cancelled';
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "raw-material-billings".
+ */
+export interface RawMaterialBilling {
+  id: string;
+  dealer: string | RawMaterialDealer;
+  company: string | Company;
+  bills: {
+    amount: number;
+    id?: string | null;
+  }[];
+  total: number;
+  billCopyPhoto: string | Media;
+  productsPhoto: string | Media;
+  rawMaterials?: (string | RawMaterial)[] | null;
   date: string;
   paidAmount: number;
   payments?:
@@ -1623,6 +1692,10 @@ export interface PayloadLockedDocument {
         value: string | RawMaterial;
       } | null)
     | ({
+        relationTo: 'raw-material-dealers';
+        value: string | RawMaterialDealer;
+      } | null)
+    | ({
         relationTo: 'media';
         value: string | Media;
       } | null)
@@ -1673,6 +1746,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'dealer-billings';
         value: string | DealerBilling;
+      } | null)
+    | ({
+        relationTo: 'raw-material-billings';
+        value: string | RawMaterialBilling;
       } | null)
     | ({
         relationTo: 'reviews';
@@ -1944,6 +2021,45 @@ export interface RawMaterialsSelect<T extends boolean = true> {
   category?: T;
   unit?: T;
   minimumStockLevel?: T;
+  dealer?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "raw-material-dealers_select".
+ */
+export interface RawMaterialDealersSelect<T extends boolean = true> {
+  companyName?: T;
+  address?: T;
+  phoneNumber?: T;
+  email?: T;
+  isGSTRegistered?: T;
+  gst?: T;
+  pan?: T;
+  fssai?: T;
+  contactPerson?:
+    | T
+    | {
+        name?: T;
+        designation?: T;
+        phone?: T;
+        email?: T;
+      };
+  allowedCompanies?: T;
+  allowedBranches?: T;
+  notes?: T;
+  status?: T;
+  hasBankAccount?: T;
+  preferredPaymentMethod?: T;
+  bankDetails?:
+    | T
+    | {
+        bankName?: T;
+        accountNumber?: T;
+        ifscCode?: T;
+        branch?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2352,6 +2468,36 @@ export interface DealerBillingsSelect<T extends boolean = true> {
   billCopyPhoto?: T;
   productsPhoto?: T;
   products?: T;
+  date?: T;
+  paidAmount?: T;
+  payments?:
+    | T
+    | {
+        amount?: T;
+        date?: T;
+        id?: T;
+      };
+  status?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "raw-material-billings_select".
+ */
+export interface RawMaterialBillingsSelect<T extends boolean = true> {
+  dealer?: T;
+  company?: T;
+  bills?:
+    | T
+    | {
+        amount?: T;
+        id?: T;
+      };
+  total?: T;
+  billCopyPhoto?: T;
+  productsPhoto?: T;
+  rawMaterials?: T;
   date?: T;
   paidAmount?: T;
   payments?:

@@ -4,7 +4,7 @@ const RawMaterialCategories: CollectionConfig = {
   slug: 'raw-material-categories',
   admin: {
     useAsTitle: 'name',
-    group: 'Inventory',
+    group: 'Raw Material',
     defaultColumns: ['name', 'company'],
   },
   access: {

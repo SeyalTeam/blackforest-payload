@@ -4,7 +4,7 @@ const RawMaterials: CollectionConfig = {
   slug: 'raw-materials',
   admin: {
     useAsTitle: 'name',
-    group: 'Inventory',
+    group: 'Raw Material',
   },
   access: {
     read: () => true,
@@ -61,8 +61,8 @@ const RawMaterials: CollectionConfig = {
     {
       name: 'dealer',
       type: 'relationship',
-      relationTo: 'dealers',
-      required: false,
+      relationTo: 'raw-material-dealers',
+      required: true,
       admin: {
         position: 'sidebar',
       },

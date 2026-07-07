@@ -15,7 +15,7 @@ const RawMaterialBillings: CollectionConfig = {
     {
       name: 'dealer',
       type: 'relationship',
-      relationTo: 'dealers',
+      relationTo: 'raw-material-dealers',
       required: true,
     },
     {

@@ -1,4 +1,3 @@
-// src/collections/Dealers.ts
 import { CollectionConfig } from 'payload'
 
 const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
@@ -15,10 +14,10 @@ const normalizeUpperText = (value: unknown): string | null => {
   return normalized ? normalized.toUpperCase() : null
 }
 
-const Dealers: CollectionConfig = {
-  slug: 'dealers',
+const RawMaterialDealers: CollectionConfig = {
+  slug: 'raw-material-dealers',
   admin: {
-    group: 'Others',
+    group: 'Raw Material',
     useAsTitle: 'companyName',
     defaultColumns: ['companyName', 'gst', 'status'],
   },
@@ -278,7 +277,7 @@ const Dealers: CollectionConfig = {
             }
 
             const existingDealerWithSameGST = await req.payload.find({
-              collection: 'dealers',
+              collection: 'raw-material-dealers',
               limit: 1,
               where: {
                 and: [
@@ -357,4 +356,4 @@ const Dealers: CollectionConfig = {
   },
 }
 
-export default Dealers
+export default RawMaterialDealers
