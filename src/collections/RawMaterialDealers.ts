@@ -2,6 +2,7 @@ import { CollectionConfig } from 'payload'
 
 const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
 const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
+const aadharRegex = /^\d{12}$/
 
 const normalizeText = (value: unknown): string | null => {
   if (typeof value !== 'string') return null
@@ -92,6 +93,15 @@ const RawMaterialDealers: CollectionConfig = {
       required: false,
       admin: {
         condition: (data) => data.isGSTRegistered,
+      },
+    },
+    {
+      name: 'aadhar',
+      type: 'text',
+      label: 'Aadhar Card Number',
+      required: false, // Handled in hook validation
+      admin: {
+        condition: (data) => !data.isGSTRegistered,
       },
     },
     // Contact Person Details (main/left side)
@@ -296,10 +306,20 @@ const RawMaterialDealers: CollectionConfig = {
             nextData.gst = normalizedGST
             nextData.pan = normalizedPAN
             nextData.fssai = normalizedFSSAI
+            nextData.aadhar = null
           } else {
             nextData.gst = null
             nextData.pan = null
             nextData.fssai = null
+
+            const normalizedAadhar = normalizeText(nextData.aadhar ?? currentDoc.aadhar)
+            if (!normalizedAadhar) {
+              throw new Error('Aadhar Card Number is required for unregistered dealers')
+            }
+            if (!aadharRegex.test(normalizedAadhar)) {
+              throw new Error('Invalid Aadhar Card Number format (must be 12 digits)')
+            }
+            nextData.aadhar = normalizedAadhar
           }
 
           const incomingBankDetails = nextData.bankDetails
