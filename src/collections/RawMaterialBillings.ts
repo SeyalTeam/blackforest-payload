@@ -72,6 +72,23 @@ const RawMaterialBillings: CollectionConfig = {
       required: false,
     },
     {
+      name: 'rawMaterialsList',
+      type: 'array',
+      fields: [
+        {
+          name: 'rawMaterial',
+          type: 'relationship',
+          relationTo: 'raw-materials',
+          required: true,
+        },
+        {
+          name: 'quantity',
+          type: 'number',
+          required: true,
+        },
+      ],
+    },
+    {
       name: 'date',
       type: 'date',
       required: true,
@@ -127,6 +144,12 @@ const RawMaterialBillings: CollectionConfig = {
             const comp = req.user.storekeeper_companies[0]
             data.company = typeof comp === 'string' ? comp : comp.id
           }
+        }
+        if (data.rawMaterialsList) {
+          data.rawMaterials = data.rawMaterialsList.map(
+            (item: { rawMaterial: string | { id: string } }) =>
+              typeof item.rawMaterial === 'string' ? item.rawMaterial : item.rawMaterial?.id
+          ).filter(Boolean);
         }
         if (data.bills) {
           const calculatedTotal = data.bills.reduce(
