@@ -56,6 +56,13 @@ const DealerBillings: CollectionConfig = {
       name: 'productsPhoto',
       type: 'relationship',
       relationTo: 'media',
+      hasMany: true,
+      required: true,
+    },
+    {
+      name: 'deliveryPersonPhoto',
+      type: 'relationship',
+      relationTo: 'media',
       required: true,
     },
     {
