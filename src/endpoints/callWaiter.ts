@@ -15,6 +15,8 @@ type CallWaiterBody = {
   billId?: unknown
   tableNumber?: unknown
   section?: unknown
+  waiterId?: unknown
+  callerName?: unknown
 }
 
 type BillingLike = {
@@ -108,6 +110,8 @@ const parseBody = async (req: {
     billId: url.searchParams.get('billId'),
     tableNumber: url.searchParams.get('tableNumber') || url.searchParams.get('table'),
     section: url.searchParams.get('section'),
+    waiterId: url.searchParams.get('waiterId'),
+    callerName: url.searchParams.get('callerName'),
   }
 }
 
@@ -201,6 +205,8 @@ export const callWaiterHandler: PayloadHandler = async (req): Promise<Response> 
     const billId = toText(body.billId)
     const requestedTableNumber = toText(body.tableNumber)
     const requestedSection = toText(body.section)
+    const waiterId = toText(body.waiterId)
+    const callerName = toText(body.callerName)
 
     if (!branchId) {
       return Response.json({ ok: false, message: 'branchId is required' }, { status: 400 })
@@ -275,7 +281,14 @@ export const callWaiterHandler: PayloadHandler = async (req): Promise<Response> 
     const resolvedSection = toText(matchedBill.tableDetails?.section) || requestedSection || 'UNKNOWN'
 
     const timestampIST = dayjs().tz(BILLING_TIMEZONE).format('YYYY-MM-DDTHH:mm:ss.SSSZ')
-    const signalLine = `WAITER_CALL_SOS ${timestampIST} TABLE-${resolvedTableNumber} SECTION-${resolvedSection}`
+    
+    // Format matching the Waiter App SOS regex parser:
+    // WAITER_CALL_SOS <timestamp> TABLE-<tableNumber> SECTION-<sectionName> | BY-<callerRole> FOR-<waiterId>
+    let signalLine = `WAITER_CALL_SOS ${timestampIST} TABLE-${resolvedTableNumber} SECTION-${resolvedSection}`
+    if (callerName || waiterId) {
+      signalLine += ` | BY-${callerName || 'Kitchen'} FOR-${waiterId || ''}`
+    }
+
     const existingNotes = toText(matchedBill.notes)
     const notes = existingNotes ? `${existingNotes}\n${signalLine}` : signalLine
 
@@ -305,6 +318,7 @@ export const callWaiterHandler: PayloadHandler = async (req): Promise<Response> 
         status: 'pending',
         billing: String(matchedBill.id),
         callTimestamp: timestampIST,
+        ...(waiterId ? { assignedWaiter: waiterId } : {}),
       },
       overrideAccess: true,
     })

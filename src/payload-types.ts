@@ -590,6 +590,7 @@ export interface RawMaterialDealer {
   gst?: string | null;
   pan?: string | null;
   fssai?: string | null;
+  aadhar?: string | null;
   contactPerson: {
     name: string;
     designation?: string | null;
@@ -1016,7 +1017,8 @@ export interface DealerBilling {
   }[];
   total: number;
   billCopyPhoto: string | Media;
-  productsPhoto: string | Media;
+  productsPhoto: (string | Media)[];
+  deliveryPersonPhoto: string | Media;
   products?: (string | Product)[] | null;
   date: string;
   paidAmount: number;
@@ -1045,8 +1047,16 @@ export interface RawMaterialBilling {
   }[];
   total: number;
   billCopyPhoto: string | Media;
-  productsPhoto: string | Media;
+  productsPhoto: (string | Media)[];
+  deliveryPersonPhoto: string | Media;
   rawMaterials?: (string | RawMaterial)[] | null;
+  rawMaterialsList?:
+    | {
+        rawMaterial: string | RawMaterial;
+        quantity: number;
+        id?: string | null;
+      }[]
+    | null;
   date: string;
   paidAmount: number;
   payments?:
@@ -2038,6 +2048,7 @@ export interface RawMaterialDealersSelect<T extends boolean = true> {
   gst?: T;
   pan?: T;
   fssai?: T;
+  aadhar?: T;
   contactPerson?:
     | T
     | {
@@ -2467,6 +2478,7 @@ export interface DealerBillingsSelect<T extends boolean = true> {
   total?: T;
   billCopyPhoto?: T;
   productsPhoto?: T;
+  deliveryPersonPhoto?: T;
   products?: T;
   date?: T;
   paidAmount?: T;
@@ -2497,7 +2509,15 @@ export interface RawMaterialBillingsSelect<T extends boolean = true> {
   total?: T;
   billCopyPhoto?: T;
   productsPhoto?: T;
+  deliveryPersonPhoto?: T;
   rawMaterials?: T;
+  rawMaterialsList?:
+    | T
+    | {
+        rawMaterial?: T;
+        quantity?: T;
+        id?: T;
+      };
   date?: T;
   paidAmount?: T;
   payments?:
