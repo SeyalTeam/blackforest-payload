@@ -38,6 +38,11 @@ const RawMaterialBillings: CollectionConfig = {
           type: 'number',
           required: true,
         },
+        {
+          name: 'invoiceNumber',
+          type: 'text',
+          required: true,
+        },
       ],
     },
     {

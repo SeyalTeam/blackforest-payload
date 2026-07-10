@@ -39,6 +39,11 @@ const DealerBillings: CollectionConfig = {
           type: 'number',
           required: true,
         },
+        {
+          name: 'invoiceNumber',
+          type: 'text',
+          required: true,
+        },
       ],
     },
     {
