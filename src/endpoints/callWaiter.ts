@@ -268,7 +268,7 @@ export const callWaiterHandler: PayloadHandler = async (req): Promise<Response> 
           collection: 'billings',
           data: {
             branch: branchId,
-            status: 'pending',
+            status: 'pending' as any,
             tableDetails: {
               tableNumber: requestedTableNumber || '0',
               section: requestedSection || 'General',
@@ -276,7 +276,7 @@ export const callWaiterHandler: PayloadHandler = async (req): Promise<Response> 
             items: [],
             subTotal: 0,
             grandTotal: 0,
-          },
+          } as any,
           overrideAccess: true,
         }) as BillingLike
       } catch (createError) {

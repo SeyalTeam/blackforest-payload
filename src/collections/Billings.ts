@@ -4521,6 +4521,7 @@ const Billings: CollectionConfig = {
             { label: 'Cash', value: 'cash' },
             { label: 'Card', value: 'card' },
             { label: 'UPI', value: 'upi' },
+            { label: 'Cashfree', value: 'cashfree' },
             { label: 'Other', value: 'other' },
           ],
         },

@@ -119,6 +119,9 @@ import { toggleFavoriteCategoryRuleHandler } from './endpoints/toggleFavoriteCat
 import { updateFavoriteCategoryRuleCategoriesHandler } from './endpoints/updateFavoriteCategoryRuleCategories'
 import { AppVersionSettings } from './globals/AppVersionSettings'
 import { checkAppVersionHandler } from './endpoints/checkAppVersion'
+import { cashfreeCreateOrderHandler } from './endpoints/cashfreeCreateOrder'
+import { cashfreeVerifyOrderHandler } from './endpoints/cashfreeVerifyOrder'
+
 
 
 // Path helpers
@@ -603,7 +606,16 @@ export default buildConfig({
       method: 'get',
       handler: checkAppVersionHandler,
     },
-
+    {
+      path: '/cashfree/create-order',
+      method: 'post',
+      handler: cashfreeCreateOrderHandler,
+    },
+    {
+      path: '/cashfree/verify-order',
+      method: 'post',
+      handler: cashfreeVerifyOrderHandler,
+    },
   ],
 
   globals: [
