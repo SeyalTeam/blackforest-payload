@@ -254,35 +254,20 @@ export const callWaiterHandler: PayloadHandler = async (req): Promise<Response> 
       }
     } else if (requestedTableNumber && requestedSection) {
       matchedBill = await getLatestActiveBillByTable(req, branchId, requestedSection, requestedTableNumber)
+
+      if (!matchedBill) {
+        return Response.json(
+          { ok: false, message: 'No active bill found for this table' },
+          { status: 404 },
+        )
+      }
     }
 
     if (!matchedBill || !matchedBill.id) {
-      try {
-        matchedBill = await req.payload.create({
-          collection: 'billings',
-          data: {
-            branch: branchId,
-            status: 'pending' as any,
-            tableDetails: {
-              tableNumber: requestedTableNumber || '0',
-              section: requestedSection || 'General',
-            },
-            items: [],
-            subTotal: 0,
-            grandTotal: 0,
-          } as any,
-          overrideAccess: true,
-        }) as BillingLike
-      } catch (createError) {
-        req.payload.logger.error({
-          msg: 'Failed to auto-create billing document in callWaiter endpoint',
-          err: createError,
-        })
-        return Response.json(
-          { ok: false, message: 'No active bill found and auto-creation failed' },
-          { status: 500 },
-        )
-      }
+      return Response.json(
+        { ok: false, message: 'No active bill found for this table' },
+        { status: 404 },
+      )
     }
 
     const resolvedTableNumber =
