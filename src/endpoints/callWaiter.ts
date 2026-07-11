@@ -279,13 +279,16 @@ export const callWaiterHandler: PayloadHandler = async (req): Promise<Response> 
           } as any,
           overrideAccess: true,
         }) as BillingLike
-      } catch (createError) {
+      } catch (createError: any) {
         req.payload.logger.error({
           msg: 'Failed to auto-create billing document in callWaiter endpoint',
           err: createError,
         })
         return Response.json(
-          { ok: false, message: 'No active bill found and auto-creation failed' },
+          {
+            ok: false,
+            message: `No active bill found and auto-creation failed: ${createError?.message || createError || 'Unknown Error'}`,
+          },
           { status: 500 },
         )
       }
