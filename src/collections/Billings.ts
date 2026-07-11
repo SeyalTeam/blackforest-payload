@@ -4098,7 +4098,8 @@ const Billings: CollectionConfig = {
     {
       name: 'items',
       type: 'array',
-      required: false,
+      required: true,
+      minRows: 1,
       fields: [
         {
           name: 'product',
@@ -4506,7 +4507,7 @@ const Billings: CollectionConfig = {
           name: 'createdBy',
           type: 'relationship',
           relationTo: 'users',
-          required: false,
+          required: true,
           defaultValue: ({ user }) => user?.id,
           admin: { readOnly: true },
         },
