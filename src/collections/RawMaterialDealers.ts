@@ -281,8 +281,7 @@ const RawMaterialDealers: CollectionConfig = {
               throw new Error('Invalid GST format')
             }
 
-            if (!normalizedPAN) throw new Error('PAN is required for registered dealers')
-            if (!panRegex.test(normalizedPAN)) {
+            if (normalizedPAN && !panRegex.test(normalizedPAN)) {
               throw new Error('Invalid PAN format')
             }
 
