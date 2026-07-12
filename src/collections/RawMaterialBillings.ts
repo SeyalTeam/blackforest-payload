@@ -87,9 +87,24 @@ const RawMaterialBillings: CollectionConfig = {
           required: true,
         },
         {
+          name: 'packageSize',
+          type: 'number',
+          label: 'Package Size',
+          required: false,
+        },
+        {
+          name: 'numberOfPackages',
+          type: 'number',
+          label: 'Number of Packages',
+          required: false,
+        },
+        {
           name: 'quantity',
           type: 'number',
           required: true,
+          admin: {
+            description: 'Total quantity (calculated automatically if Package Size and Number of Packages are set)',
+          },
         },
       ],
     },
@@ -151,6 +166,12 @@ const RawMaterialBillings: CollectionConfig = {
           }
         }
         if (data.rawMaterialsList) {
+          data.rawMaterialsList = data.rawMaterialsList.map((item: any) => {
+            if (item.packageSize && item.numberOfPackages) {
+              item.quantity = item.packageSize * item.numberOfPackages
+            }
+            return item
+          })
           data.rawMaterials = data.rawMaterialsList.map(
             (item: { rawMaterial: string | { id: string } }) =>
               typeof item.rawMaterial === 'string' ? item.rawMaterial : item.rawMaterial?.id

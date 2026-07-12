@@ -567,12 +567,23 @@ export interface RawMaterial {
   id: string;
   name: string;
   category: string | RawMaterialCategory;
-  unit: 'pcs' | 'kg' | 'g' | 'l' | 'ml';
+  unit: 'pcs' | 'kg' | 'g' | 'l' | 'ml' | 'bag' | 'tin';
   /**
    * Notify when stock falls below this level.
    */
   minimumStockLevel?: number | null;
   dealer: string | RawMaterialDealer;
+  /**
+   * Define the packaging options available for this raw material (e.g. 25 kg Bag, 50 kg Bag).
+   */
+  variants?:
+    | {
+        name: string;
+        weight: number;
+        unit: 'pcs' | 'kg' | 'g' | 'l' | 'ml' | 'bag' | 'tin';
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -590,6 +601,7 @@ export interface RawMaterialDealer {
   gst?: string | null;
   pan?: string | null;
   fssai?: string | null;
+  aadhar?: string | null;
   contactPerson: {
     name: string;
     designation?: string | null;
@@ -826,7 +838,7 @@ export interface Billing {
   totalGSTAmount?: number | null;
   branch: string | Branch;
   createdBy: string | User;
-  paymentMethod?: ('cash' | 'card' | 'upi' | 'other') | null;
+  paymentMethod?: ('cash' | 'card' | 'upi' | 'cashfree' | 'other') | null;
   /**
    * Apply configured offer if customer has required points. Offer can be used only once before earning again.
    */
@@ -1012,11 +1024,13 @@ export interface DealerBilling {
   branch: string | Branch;
   bills: {
     amount: number;
+    invoiceNumber: string;
     id?: string | null;
   }[];
   total: number;
   billCopyPhoto: string | Media;
-  productsPhoto: string | Media;
+  productsPhoto: (string | Media)[];
+  deliveryPersonPhoto: string | Media;
   products?: (string | Product)[] | null;
   date: string;
   paidAmount: number;
@@ -1041,12 +1055,26 @@ export interface RawMaterialBilling {
   company: string | Company;
   bills: {
     amount: number;
+    invoiceNumber: string;
     id?: string | null;
   }[];
   total: number;
   billCopyPhoto: string | Media;
-  productsPhoto: string | Media;
+  productsPhoto: (string | Media)[];
+  deliveryPersonPhoto: string | Media;
   rawMaterials?: (string | RawMaterial)[] | null;
+  rawMaterialsList?:
+    | {
+        rawMaterial: string | RawMaterial;
+        packageSize?: number | null;
+        numberOfPackages?: number | null;
+        /**
+         * Total quantity (calculated automatically if Package Size and Number of Packages are set)
+         */
+        quantity: number;
+        id?: string | null;
+      }[]
+    | null;
   date: string;
   paidAmount: number;
   payments?:
@@ -2022,6 +2050,14 @@ export interface RawMaterialsSelect<T extends boolean = true> {
   unit?: T;
   minimumStockLevel?: T;
   dealer?: T;
+  variants?:
+    | T
+    | {
+        name?: T;
+        weight?: T;
+        unit?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2038,6 +2074,7 @@ export interface RawMaterialDealersSelect<T extends boolean = true> {
   gst?: T;
   pan?: T;
   fssai?: T;
+  aadhar?: T;
   contactPerson?:
     | T
     | {
@@ -2462,11 +2499,13 @@ export interface DealerBillingsSelect<T extends boolean = true> {
     | T
     | {
         amount?: T;
+        invoiceNumber?: T;
         id?: T;
       };
   total?: T;
   billCopyPhoto?: T;
   productsPhoto?: T;
+  deliveryPersonPhoto?: T;
   products?: T;
   date?: T;
   paidAmount?: T;
@@ -2492,12 +2531,23 @@ export interface RawMaterialBillingsSelect<T extends boolean = true> {
     | T
     | {
         amount?: T;
+        invoiceNumber?: T;
         id?: T;
       };
   total?: T;
   billCopyPhoto?: T;
   productsPhoto?: T;
+  deliveryPersonPhoto?: T;
   rawMaterials?: T;
+  rawMaterialsList?:
+    | T
+    | {
+        rawMaterial?: T;
+        packageSize?: T;
+        numberOfPackages?: T;
+        quantity?: T;
+        id?: T;
+      };
   date?: T;
   paidAmount?: T;
   payments?:
