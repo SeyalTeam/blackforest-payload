@@ -567,12 +567,23 @@ export interface RawMaterial {
   id: string;
   name: string;
   category: string | RawMaterialCategory;
-  unit: 'pcs' | 'kg' | 'g' | 'l' | 'ml';
+  unit: 'pcs' | 'kg' | 'g' | 'l' | 'ml' | 'bag' | 'tin';
   /**
    * Notify when stock falls below this level.
    */
   minimumStockLevel?: number | null;
   dealer: string | RawMaterialDealer;
+  /**
+   * Define the packaging options available for this raw material (e.g. 25 kg Bag, 50 kg Bag).
+   */
+  variants?:
+    | {
+        name: string;
+        weight: number;
+        unit: 'pcs' | 'kg' | 'g' | 'l' | 'ml' | 'bag' | 'tin';
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1055,6 +1066,11 @@ export interface RawMaterialBilling {
   rawMaterialsList?:
     | {
         rawMaterial: string | RawMaterial;
+        packageSize?: number | null;
+        numberOfPackages?: number | null;
+        /**
+         * Total quantity (calculated automatically if Package Size and Number of Packages are set)
+         */
         quantity: number;
         id?: string | null;
       }[]
@@ -2034,6 +2050,14 @@ export interface RawMaterialsSelect<T extends boolean = true> {
   unit?: T;
   minimumStockLevel?: T;
   dealer?: T;
+  variants?:
+    | T
+    | {
+        name?: T;
+        weight?: T;
+        unit?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2519,6 +2543,8 @@ export interface RawMaterialBillingsSelect<T extends boolean = true> {
     | T
     | {
         rawMaterial?: T;
+        packageSize?: T;
+        numberOfPackages?: T;
         quantity?: T;
         id?: T;
       };
