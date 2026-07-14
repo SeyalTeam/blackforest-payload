@@ -39,6 +39,7 @@ import { IPSettings } from './globals/IPSettings'
 import { DashboardGlobal } from './globals/Dashboard'
 import { JarvisGlobal } from './globals/Jarvis'
 import { BranchBillingReportGlobal } from './globals/BranchBillingReport'
+import { GSTReportGlobal } from './globals/GSTReport'
 import { CategoryWiseReportGlobal } from './globals/CategoryWiseReport'
 import { ProductWiseReportGlobal } from './globals/ProductWiseReport'
 import { ProductTimeReportGlobal } from './globals/ProductTimeReport'
@@ -73,6 +74,8 @@ import { getExpenseReportHandler } from './endpoints/getExpenseReport'
 import { ExpenseReportGlobal } from './globals/ExpenseReport'
 import { getDealerReportHandler } from './endpoints/getDealerReport'
 import { DealerReportGlobal } from './globals/DealerReport'
+import { getRawMaterialBillingReportHandler } from './endpoints/getRawMaterialBillingReport'
+import { RawMaterialBillingReportGlobal } from './globals/RawMaterialBillingReport'
 import { getReturnOrderReportHandler } from './endpoints/getReturnOrderReport'
 import { ReturnOrderReportGlobal } from './globals/ReturnOrderReport'
 import { BranchGeoSettings } from './globals/BranchGeoSettings'
@@ -454,6 +457,11 @@ export default buildConfig({
       handler: getDealerReportHandler,
     },
     {
+      path: '/reports/raw-material-billing',
+      method: 'get',
+      handler: getRawMaterialBillingReportHandler,
+    },
+    {
       path: '/reports/return-order',
       method: 'get',
       handler: getReturnOrderReportHandler,
@@ -612,6 +620,7 @@ export default buildConfig({
     DashboardGlobal,
     TimeWiseReportGlobal,
     BranchBillingReportGlobal,
+    GSTReportGlobal,
     CategoryWiseReportGlobal,
     ProductWiseReportGlobal,
     ProductTimeReportGlobal,
@@ -626,6 +635,7 @@ export default buildConfig({
     ExpenseReportGlobal,
     ReturnOrderReportGlobal,
     DealerReportGlobal,
+    RawMaterialBillingReportGlobal,
     BranchGeoSettings,
     NetworkStatus,
     WidgetSettingsGlobal,

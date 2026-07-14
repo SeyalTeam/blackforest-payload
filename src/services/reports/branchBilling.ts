@@ -11,6 +11,7 @@ dayjs.tz.setDefault('Asia/Kolkata')
 export type BranchBillingReportStat = {
   sNo: number
   branchName: string
+  gstMode: string
   totalBills: number
   totalAmount: number
   cash: number
@@ -22,6 +23,8 @@ export type BranchBillingReportStat = {
   settledAmount: number
   cancelledCount: number
   cancelledAmount: number
+  gstInclusiveAmount: number
+  gstExclusiveAmount: number
 }
 
 export type BranchBillingReportTotals = {
@@ -40,6 +43,8 @@ export type BranchBillingReportTotals = {
   tableOrderAmount: number
   nonTableOrderCount: number
   nonTableOrderAmount: number
+  gstInclusiveAmount: number
+  gstExclusiveAmount: number
   totalExpenses: number
   totalReturns: number
   totalClosingSales: number
@@ -66,6 +71,15 @@ export type HeatmapPoint = {
   count: number
 }
 
+export type ProductGSTStat = {
+  productName: string
+  gstRate: number
+  count: number
+  taxableAmount: number
+  gstAmount: number
+  totalAmount: number
+}
+
 export type BranchBillingReportResult = {
   startDate: string
   endDate: string
@@ -74,6 +88,7 @@ export type BranchBillingReportResult = {
   trendData: TrendPoint[]
   heatmapData: HeatmapPoint[]
   summary: BranchBillingSummary
+  productGstStats: ProductGSTStat[]
 }
 
 type BranchBillingReportArgs = {
@@ -189,6 +204,44 @@ export const getBranchBillingReportData = async (
     ],
   }
 
+  const gstTaxableAmountExpression = {
+    $reduce: {
+      input: { $ifNull: ['$items', []] },
+      initialValue: 0,
+      in: {
+        $add: [
+          '$$value',
+          {
+            $cond: [
+              { $gt: [{ $ifNull: ['$$this.gstRate', 0] }, 0] },
+              { $ifNull: ['$$this.taxableAmount', 0] },
+              0,
+            ],
+          },
+        ],
+      },
+    },
+  }
+
+  const gstInclusiveAmountExpression = {
+    $reduce: {
+      input: { $ifNull: ['$items', []] },
+      initialValue: 0,
+      in: {
+        $add: [
+          '$$value',
+          {
+            $cond: [
+              { $gt: [{ $ifNull: ['$$this.gstRate', 0] }, 0] },
+              { $ifNull: ['$$this.finalLineTotal', 0] },
+              0,
+            ],
+          },
+        ],
+      },
+    },
+  }
+
   const BillingModel = payload.db.collections['billings']
   const stats = await BillingModel.aggregate([
     {
@@ -206,6 +259,21 @@ export const getBranchBillingReportData = async (
         totalAmount: {
           $sum: {
             $cond: [completedOrSettledExpression, '$totalAmount', 0],
+          },
+        },
+        totalGSTAmount: {
+          $sum: {
+            $cond: [completedOrSettledExpression, '$totalGSTAmount', 0],
+          },
+        },
+        totalGSTTaxableAmount: {
+          $sum: {
+            $cond: [completedOrSettledExpression, gstTaxableAmountExpression, 0],
+          },
+        },
+        totalGSTInclusiveAmount: {
+          $sum: {
+            $cond: [completedOrSettledExpression, gstInclusiveAmountExpression, 0],
           },
         },
         cash: {
@@ -302,6 +370,7 @@ export const getBranchBillingReportData = async (
       $project: {
         _id: 1, // Keep _id for stats.find logic
         branchName: { $ifNull: ['$branchDetails.name', 'Unknown Branch'] },
+        gstMode: { $ifNull: ['$branchDetails.gstMode', 'inclusive'] },
         totalBills: 1,
         totalAmount: 1,
         cash: 1,
@@ -317,6 +386,20 @@ export const getBranchBillingReportData = async (
         tableOrderAmount: 1,
         nonTableOrderCount: 1,
         nonTableOrderAmount: 1,
+        gstInclusiveAmount: {
+          $cond: [
+            { $eq: ['$branchDetails.gstMode', 'exclusive'] },
+            0,
+            { $ifNull: ['$totalGSTAmount', 0] },
+          ],
+        },
+        gstExclusiveAmount: {
+          $cond: [
+            { $eq: ['$branchDetails.gstMode', 'exclusive'] },
+            { $ifNull: ['$totalGSTAmount', 0] },
+            0,
+          ],
+        },
       },
     },
     {
@@ -341,6 +424,8 @@ export const getBranchBillingReportData = async (
       tableOrderAmount: acc.tableOrderAmount + curr.tableOrderAmount,
       nonTableOrderCount: acc.nonTableOrderCount + curr.nonTableOrderCount,
       nonTableOrderAmount: acc.nonTableOrderAmount + curr.nonTableOrderAmount,
+      gstInclusiveAmount: acc.gstInclusiveAmount + curr.gstInclusiveAmount,
+      gstExclusiveAmount: acc.gstExclusiveAmount + curr.gstExclusiveAmount,
     }),
     {
       totalBills: 0,
@@ -358,6 +443,8 @@ export const getBranchBillingReportData = async (
       tableOrderAmount: 0,
       nonTableOrderCount: 0,
       nonTableOrderAmount: 0,
+      gstInclusiveAmount: 0,
+      gstExclusiveAmount: 0,
     },
   )
 
@@ -606,6 +693,50 @@ export const getBranchBillingReportData = async (
     count: s.count,
   }))
 
+  const productGstStats = await BillingModel.aggregate([
+    {
+      $match: {
+        ...matchQuery,
+        status: { $in: ['completed', 'settled'] },
+      },
+    },
+    {
+      $unwind: '$items',
+    },
+    {
+      $match: {
+        'items.status': { $ne: 'cancelled' },
+        'items.gstRate': { $gt: 0 },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          productName: '$items.name',
+          gstRate: '$items.gstRate',
+        },
+        count: { $sum: '$items.quantity' },
+        taxableAmount: { $sum: '$items.taxableAmount' },
+        gstAmount: { $sum: '$items.gstAmount' },
+        totalAmount: { $sum: '$items.finalLineTotal' },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        productName: '$_id.productName',
+        gstRate: '$_id.gstRate',
+        count: { $ifNull: ['$count', 0] },
+        taxableAmount: { $ifNull: ['$taxableAmount', 0] },
+        gstAmount: { $ifNull: ['$gstAmount', 0] },
+        totalAmount: { $ifNull: ['$totalAmount', 0] },
+      },
+    },
+    {
+      $sort: { gstAmount: -1 },
+    },
+  ])
+
   return {
     startDate: startDateParam,
     endDate: endDateParam,
@@ -618,5 +749,6 @@ export const getBranchBillingReportData = async (
       trendPercentage,
       medianAmount,
     },
+    productGstStats,
   }
 }

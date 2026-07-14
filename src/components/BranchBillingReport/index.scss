@@ -422,6 +422,32 @@
     width: 100%;
   }
 
+  .gst-summary-boxes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+    padding: 1.1rem;
+    background: var(--bg-card);
+    [data-theme='dark'] & {
+      background: #111111;
+    }
+    border-top: 1px solid var(--border-soft);
+
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+    }
+
+    .kpi-gst-inclusive {
+      --kpi-title-bg: linear-gradient(135deg, #bae6fd 0%, #7dd3fc 100%);
+      --kpi-title-text: #0c4a6e;
+    }
+
+    .kpi-gst-exclusive {
+      --kpi-title-bg: linear-gradient(135deg, #fbcfe8 0%, #f9a8d4 100%);
+      --kpi-title-text: #831843;
+    }
+  }
+
   .table-panel-header {
     display: flex;
     align-items: center;

@@ -154,6 +154,7 @@ export interface Config {
     'general-dashboard': GeneralDashboard;
     'time-wise-report': TimeWiseReport;
     'branch-billing-report': BranchBillingReport;
+    'gst-report': GstReport;
     'category-wise-report': CategoryWiseReport;
     'product-wise-report': ProductWiseReport;
     'product-time-report': ProductTimeReport;
@@ -168,6 +169,7 @@ export interface Config {
     'expense-report': ExpenseReport;
     'return-order-report': ReturnOrderReport;
     'dealer-report': DealerReport;
+    'raw-material-billing-report': RawMaterialBillingReport;
     'branch-geo-settings': BranchGeoSetting;
     'network-status': NetworkStatus;
     'widget-settings': WidgetSetting;
@@ -181,6 +183,7 @@ export interface Config {
     'general-dashboard': GeneralDashboardSelect<false> | GeneralDashboardSelect<true>;
     'time-wise-report': TimeWiseReportSelect<false> | TimeWiseReportSelect<true>;
     'branch-billing-report': BranchBillingReportSelect<false> | BranchBillingReportSelect<true>;
+    'gst-report': GstReportSelect<false> | GstReportSelect<true>;
     'category-wise-report': CategoryWiseReportSelect<false> | CategoryWiseReportSelect<true>;
     'product-wise-report': ProductWiseReportSelect<false> | ProductWiseReportSelect<true>;
     'product-time-report': ProductTimeReportSelect<false> | ProductTimeReportSelect<true>;
@@ -195,6 +198,7 @@ export interface Config {
     'expense-report': ExpenseReportSelect<false> | ExpenseReportSelect<true>;
     'return-order-report': ReturnOrderReportSelect<false> | ReturnOrderReportSelect<true>;
     'dealer-report': DealerReportSelect<false> | DealerReportSelect<true>;
+    'raw-material-billing-report': RawMaterialBillingReportSelect<false> | RawMaterialBillingReportSelect<true>;
     'branch-geo-settings': BranchGeoSettingsSelect<false> | BranchGeoSettingsSelect<true>;
     'network-status': NetworkStatusSelect<false> | NetworkStatusSelect<true>;
     'widget-settings': WidgetSettingsSelect<false> | WidgetSettingsSelect<true>;
@@ -2883,6 +2887,15 @@ export interface BranchBillingReport {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gst-report".
+ */
+export interface GstReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "category-wise-report".
  */
 export interface CategoryWiseReport {
@@ -3003,6 +3016,15 @@ export interface ReturnOrderReport {
  * via the `definition` "dealer-report".
  */
 export interface DealerReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "raw-material-billing-report".
+ */
+export interface RawMaterialBillingReport {
   id: string;
   updatedAt?: string | null;
   createdAt?: string | null;
@@ -4255,6 +4277,15 @@ export interface BranchBillingReportSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gst-report_select".
+ */
+export interface GstReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "category-wise-report_select".
  */
 export interface CategoryWiseReportSelect<T extends boolean = true> {
@@ -4375,6 +4406,15 @@ export interface ReturnOrderReportSelect<T extends boolean = true> {
  * via the `definition` "dealer-report_select".
  */
 export interface DealerReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "raw-material-billing-report_select".
+ */
+export interface RawMaterialBillingReportSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

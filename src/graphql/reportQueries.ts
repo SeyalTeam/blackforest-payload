@@ -173,6 +173,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       tableOrderAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       nonTableOrderCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
       nonTableOrderAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      gstInclusiveAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      gstExclusiveAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       totalExpenses: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       totalReturns: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       totalClosingSales: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
@@ -184,6 +186,7 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
     fields: {
       sNo: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
       branchName: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+      gstMode: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       totalBills: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
       totalAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       cash: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
@@ -195,6 +198,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       settledAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       cancelledCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
       cancelledAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      gstInclusiveAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      gstExclusiveAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
     },
   })
 
@@ -228,6 +233,18 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
     },
   })
 
+  const ProductGSTStatType = new graphQL.GraphQLObjectType({
+    name: 'ProductGSTStat',
+    fields: {
+      productName: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+      gstRate: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+      count: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      taxableAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      gstAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      totalAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+    },
+  })
+
   const BranchBillingReportResultType = new graphQL.GraphQLObjectType({
     name: 'BranchBillingReportResult',
     fields: {
@@ -248,6 +265,11 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       heatmapData: {
         type: new graphQL.GraphQLNonNull(
           new graphQL.GraphQLList(new graphQL.GraphQLNonNull(BranchBillingHeatmapPointType)),
+        ),
+      },
+      productGstStats: {
+        type: new graphQL.GraphQLNonNull(
+          new graphQL.GraphQLList(new graphQL.GraphQLNonNull(ProductGSTStatType)),
         ),
       },
     },

@@ -4,6 +4,7 @@ import { default as default_d0bb94682a7c13de9bf3ed0ba2a069f3 } from '../../../co
 import { default as default_504fe7b162195b3bfa67a928adf73866 } from '../../../components/Dashboard/index.tsx'
 import { default as default_5284cc26339bd05719b498953bd82b2a } from '../../../components/TimeWiseReport/index.tsx'
 import { default as default_03027a027fbfaef5e61d32f942503808 } from '../../../components/BranchBillingReport/index.tsx'
+import { default as default_dfd1f5a04fb27cdec9ff1f5b2a249691 } from '../../../components/GSTReport/index.tsx'
 import { default as default_d8bafb5f412c8147720cc49221686b05 } from '../../../components/CategoryWiseReport/index.tsx'
 import { default as default_7fcb386117141f28d4e8590c34e4f6e2 } from '../../../components/ProductWiseReport/index.tsx'
 import { default as default_8a4cc2be73f160763ed425d4819cb1e7 } from '../../../components/ProductTimeReport/index.tsx'
@@ -18,6 +19,7 @@ import { default as default_438fefb174500fb3c1feb8d44211cf3b } from '../../../co
 import { default as default_7b71facc026c06bd9c34422308b32867 } from '../../../components/ExpenseReport/index.tsx'
 import { default as default_e8583f3860f7314c27e4ea40590a0d91 } from '../../../components/ReturnOrderReport/index.tsx'
 import { default as default_881af3632ebc3ac86ab26c9062536ce0 } from '../../../components/DealerReport/index.tsx'
+import { default as default_8f3c3325c08afd5f29dd36c0f8125d3b } from '../../../components/RawMaterialBillingReport/index.tsx'
 import { GeoLocationButton as GeoLocationButton_c6abd8fffba800c90850c15956a40d8c } from '../../../components/GeoLocationButton/index.tsx'
 import { default as default_33fb18e2b81f2b37393ae18281df6f35 } from '../../../components/NetworkStatus/index.tsx'
 import { default as default_7b1ab22c3fec8de15c6e9105699e8e3c } from '../../../components/WidgetSettings/index.tsx'
@@ -31,6 +33,7 @@ export const importMap = {
   "/components/Dashboard/index.tsx#default": default_504fe7b162195b3bfa67a928adf73866,
   "/components/TimeWiseReport/index.tsx#default": default_5284cc26339bd05719b498953bd82b2a,
   "/components/BranchBillingReport/index.tsx#default": default_03027a027fbfaef5e61d32f942503808,
+  "/components/GSTReport/index.tsx#default": default_dfd1f5a04fb27cdec9ff1f5b2a249691,
   "/components/CategoryWiseReport/index.tsx#default": default_d8bafb5f412c8147720cc49221686b05,
   "/components/ProductWiseReport/index.tsx#default": default_7fcb386117141f28d4e8590c34e4f6e2,
   "/components/ProductTimeReport/index.tsx#default": default_8a4cc2be73f160763ed425d4819cb1e7,
@@ -45,6 +48,7 @@ export const importMap = {
   "/components/ExpenseReport/index.tsx#default": default_7b71facc026c06bd9c34422308b32867,
   "/components/ReturnOrderReport/index.tsx#default": default_e8583f3860f7314c27e4ea40590a0d91,
   "/components/DealerReport/index.tsx#default": default_881af3632ebc3ac86ab26c9062536ce0,
+  "/components/RawMaterialBillingReport/index.tsx#default": default_8f3c3325c08afd5f29dd36c0f8125d3b,
   "/components/GeoLocationButton/index.tsx#GeoLocationButton": GeoLocationButton_c6abd8fffba800c90850c15956a40d8c,
   "/components/NetworkStatus/index.tsx#default": default_33fb18e2b81f2b37393ae18281df6f35,
   "/components/WidgetSettings/index.tsx#default": default_7b1ab22c3fec8de15c6e9105699e8e3c,

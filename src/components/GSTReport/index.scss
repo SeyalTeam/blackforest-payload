@@ -1,0 +1,25 @@
+@import "../BranchBillingReport/index.scss";
+
+.gst-kpis {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+
+  @media (max-width: 850px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  @media (max-width: 550px) {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.product-table-wrap {
+  max-height: 500px;
+  overflow-y: auto;
+  position: relative;
+
+  tfoot td {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+  }
+}

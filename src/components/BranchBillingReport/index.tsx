@@ -28,6 +28,8 @@ type ReportStats = {
   settledAmount: number
   cancelledCount: number
   cancelledAmount: number
+  gstInclusiveAmount: number
+  gstExclusiveAmount: number
 }
 
 type ReportData = {
@@ -76,6 +78,8 @@ const BRANCH_BILLING_REPORT_QUERY = `
         settledAmount
         cancelledCount
         cancelledAmount
+        gstInclusiveAmount
+        gstExclusiveAmount
       }
       totals {
         totalBills
@@ -93,6 +97,8 @@ const BRANCH_BILLING_REPORT_QUERY = `
         tableOrderAmount
         nonTableOrderCount
         nonTableOrderAmount
+        gstInclusiveAmount
+        gstExclusiveAmount
         totalExpenses
         totalReturns
         totalClosingSales
@@ -458,6 +464,8 @@ const BranchBillingReport: React.FC = () => {
   const tableOrderCount = totals?.tableOrderCount ?? 0
   const nonTableOrderAmount = totals?.nonTableOrderAmount ?? 0
   const nonTableOrderCount = totals?.nonTableOrderCount ?? 0
+  const gstInclusiveAmount = totals?.gstInclusiveAmount ?? 0
+  const gstExclusiveAmount = totals?.gstExclusiveAmount ?? 0
   const totalBranches = data?.stats.length ?? 0
   const averageBillValue = totalBills > 0 ? totalAmount / totalBills : 0
   const billPerBranch = totalBranches > 0 ? totalBills / totalBranches : 0
@@ -625,6 +633,30 @@ const BranchBillingReport: React.FC = () => {
         formatValue(data.totals.upi),
         formatValue(data.totals.card),
         formatValue(data.totals.totalAmount),
+      ].join(','),
+    )
+
+    csvRows.push(
+      [
+        '',
+        'GST INCLUSIVE TOTAL',
+        '',
+        '',
+        '',
+        '',
+        formatValue(data.totals.gstInclusiveAmount),
+      ].join(','),
+    )
+
+    csvRows.push(
+      [
+        '',
+        'GST EXCLUSIVE TOTAL',
+        '',
+        '',
+        '',
+        '',
+        formatValue(data.totals.gstExclusiveAmount),
       ].join(','),
     )
 
@@ -870,6 +902,21 @@ const BranchBillingReport: React.FC = () => {
                   </tr>
                 </tfoot>
               </table>
+            </div>
+            
+            <div className="gst-summary-boxes">
+              <article className="kpi-card kpi-gst-inclusive">
+                <div className="kpi-card-header">
+                  <p className="kpi-label">GST INCLUSIVE BILLED</p>
+                </div>
+                <h2>{formatCurrency(gstInclusiveAmount)}</h2>
+              </article>
+              <article className="kpi-card kpi-gst-exclusive">
+                <div className="kpi-card-header">
+                  <p className="kpi-label">GST EXCLUSIVE BILLED</p>
+                </div>
+                <h2>{formatCurrency(gstExclusiveAmount)}</h2>
+              </article>
             </div>
           </>
         )}

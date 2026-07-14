@@ -97,3 +97,72 @@ export const resolveReportBranchScope = async (
   // Company user without explicit branch filter: scope to all branches in their company.
   return { branchIds: allowedBranchIds }
 }
+
+type CompanyScopeResult = {
+  companyIds?: string[]
+}
+
+export const resolveReportCompanyScope = async (
+  req: PayloadRequest,
+  companyParam?: null | string,
+): Promise<CompanyScopeResult> => {
+  const requestedCompanyIds = companyParam && companyParam !== 'all'
+    ? companyParam.split(',').map((id) => id.trim()).filter((id) => id.length > 0 && id !== 'all')
+    : []
+
+  const user = req.user as any
+
+  if (!user) return { companyIds: [] }
+
+  if (user.role === 'superadmin' || user.role === 'admin') {
+    if (requestedCompanyIds.length > 0) {
+      return { companyIds: requestedCompanyIds }
+    }
+    return {}
+  }
+
+  // Company role: scope to their company
+  if (user.role === 'company') {
+    const companyId = toId(user.company)
+    if (!companyId) return { companyIds: [] }
+
+    if (requestedCompanyIds.length > 0) {
+      return { companyIds: requestedCompanyIds.filter((id) => id === companyId) }
+    }
+    return { companyIds: [companyId] }
+  }
+
+  // Store Keeper role: scope to storekeeper_companies
+  if (user.role === 'store_keeper') {
+    const storekeeperCompanies = user.storekeeper_companies || []
+    const allowedCompanyIds = storekeeperCompanies
+      .map((comp: any) => toId(comp))
+      .filter((id: any): id is string => typeof id === 'string')
+
+    if (requestedCompanyIds.length > 0) {
+      return { companyIds: requestedCompanyIds.filter((id) => allowedCompanyIds.includes(id)) }
+    }
+    return { companyIds: allowedCompanyIds }
+  }
+
+  // Branch role: check branch's company
+  if (user.role === 'branch') {
+    const branchId = toId(user.branch)
+    if (!branchId) return { companyIds: [] }
+
+    const branch = await req.payload.findByID({
+      collection: 'branches',
+      id: branchId,
+      depth: 0,
+    })
+    const companyId = toId(branch.company)
+    if (!companyId) return { companyIds: [] }
+
+    if (requestedCompanyIds.length > 0) {
+      return { companyIds: requestedCompanyIds.filter((id) => id === companyId) }
+    }
+    return { companyIds: [companyId] }
+  }
+
+  return { companyIds: [] }
+}
