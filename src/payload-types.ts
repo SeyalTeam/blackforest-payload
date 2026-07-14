@@ -571,6 +571,12 @@ export interface RawMaterial {
   id: string;
   name: string;
   category: string | RawMaterialCategory;
+  images?:
+    | {
+        image: string | Media;
+        id?: string | null;
+      }[]
+    | null;
   unit: 'pcs' | 'kg' | 'g' | 'l' | 'ml' | 'bag' | 'tin';
   /**
    * Notify when stock falls below this level.
@@ -2051,6 +2057,12 @@ export interface RawMaterialCategoriesSelect<T extends boolean = true> {
 export interface RawMaterialsSelect<T extends boolean = true> {
   name?: T;
   category?: T;
+  images?:
+    | T
+    | {
+        image?: T;
+        id?: T;
+      };
   unit?: T;
   minimumStockLevel?: T;
   dealer?: T;

@@ -38,6 +38,23 @@ const RawMaterials: CollectionConfig = {
       },
     },
     {
+      name: 'images',
+      type: 'array',
+      fields: [
+        {
+          name: 'image',
+          type: 'upload',
+          relationTo: 'media',
+          required: true,
+        },
+      ],
+      minRows: 1,
+      maxRows: 5,
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
       name: 'unit',
       type: 'select',
       options: [

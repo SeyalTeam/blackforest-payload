@@ -36,6 +36,9 @@ const setDynamicPrefix: CollectionBeforeChangeHook = async ({ req, data, operati
     if (referer?.includes('/collections/products/')) {
       return { ...data, prefix: toStoragePrefix('products') }
     }
+    if (referer?.includes('/collections/raw-materials/')) {
+      return { ...data, prefix: toStoragePrefix('raw-materials') }
+    }
     if (referer?.includes('/collections/employees/')) {
       return { ...data, prefix: toStoragePrefix('employees') }
     }
