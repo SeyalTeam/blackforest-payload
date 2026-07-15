@@ -1,0 +1,262 @@
+@import "../BranchBillingReport/index.scss";
+
+.accounts-report {
+  .report-filters {
+    margin-bottom: 1.5rem;
+    padding: 1.5rem;
+  }
+
+  .filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1.25rem;
+    align-items: flex-end;
+
+    .search-filter {
+      grid-column: span 2;
+      @media (max-width: 768px) {
+        grid-column: span 1;
+      }
+    }
+  }
+
+  .filter-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+
+    .filter-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+  }
+
+  /* Custom styling for DatePicker and Search Inputs */
+  .custom-datepicker-wrap,
+  .search-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--border-soft);
+    background: var(--bg-card);
+    border-radius: 8px;
+    height: 42px;
+    padding: 0 0.75rem;
+    transition: all 0.2s ease;
+
+    &:focus-within {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 1px var(--cyan);
+    }
+
+    .date-icon,
+    .search-icon {
+      color: var(--text-muted);
+      margin-right: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .datepicker-input,
+    .search-input {
+      border: none !important;
+      background: transparent !important;
+      outline: none !important;
+      width: 100%;
+      height: 100%;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      font-family: inherit;
+      padding: 0;
+    }
+  }
+
+  /* Table Customizations */
+  .table-card {
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .table-wrapper {
+    overflow-x: auto;
+    width: 100%;
+  }
+
+  .report-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    text-align: left;
+
+    th, td {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border-soft);
+      vertical-align: middle;
+    }
+
+    th {
+      background-color: var(--bg-secondary);
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+
+    tr:hover {
+      background-color: rgba(var(--cyan), 0.02);
+      [data-theme='dark'] & {
+        background-color: rgba(255, 255, 255, 0.02);
+      }
+    }
+
+    .bold-text {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .small-text {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .amount-cell {
+      font-size: 0.95rem;
+    }
+
+    .td-loading,
+    .td-empty {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-muted);
+    }
+  }
+
+  /* Verification Dropdown & Badges */
+  .verification-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.75rem;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.25rem 0.6rem;
+    border-radius: 9999px;
+    line-height: 1;
+
+    &--success {
+      background-color: rgba(16, 185, 129, 0.1);
+      color: var(--emerald);
+    }
+
+    &--warning {
+      background-color: rgba(245, 158, 11, 0.1);
+      color: var(--warning);
+    }
+
+    &--danger {
+      background-color: rgba(239, 68, 68, 0.1);
+      color: var(--danger);
+    }
+
+    .badge-icon {
+      flex-shrink: 0;
+    }
+  }
+
+  .verification-dropdown {
+    border: 1px solid var(--border-soft);
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.35rem 0.5rem;
+    outline: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover:not(:disabled) {
+      border-color: var(--text-muted);
+    }
+
+    &:focus {
+      border-color: var(--cyan);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  /* Payment Pill */
+  .payment-pill {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    letter-spacing: 0.02em;
+
+    &.payment--cash {
+      background-color: rgba(16, 185, 129, 0.1);
+      color: var(--emerald);
+    }
+
+    &.payment--card {
+      background-color: rgba(99, 102, 241, 0.1);
+      color: #6366f1;
+      [data-theme='dark'] & {
+        color: #818cf8;
+      }
+    }
+
+    &.payment--upi {
+      background-color: rgba(14, 165, 233, 0.1);
+      color: var(--cyan);
+    }
+
+    &.payment--other {
+      background-color: rgba(100, 116, 139, 0.1);
+      color: var(--text-muted);
+    }
+  }
+
+  /* Alert */
+  .report-alert {
+    padding: 1rem 1.25rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+
+    &.alert--error {
+      background-color: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      color: var(--danger);
+    }
+  }
+}
+
+/* Spin animation */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}

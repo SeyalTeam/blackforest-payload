@@ -4,6 +4,7 @@ import { default as default_d0bb94682a7c13de9bf3ed0ba2a069f3 } from '../../../co
 import { default as default_504fe7b162195b3bfa67a928adf73866 } from '../../../components/Dashboard/index.tsx'
 import { default as default_5284cc26339bd05719b498953bd82b2a } from '../../../components/TimeWiseReport/index.tsx'
 import { default as default_03027a027fbfaef5e61d32f942503808 } from '../../../components/BranchBillingReport/index.tsx'
+import { default as default_a36159500d849dcf35b5358b5daeec09 } from '../../../components/AccountsBillsReport/index.tsx'
 import { default as default_dfd1f5a04fb27cdec9ff1f5b2a249691 } from '../../../components/GSTReport/index.tsx'
 import { default as default_d8bafb5f412c8147720cc49221686b05 } from '../../../components/CategoryWiseReport/index.tsx'
 import { default as default_7fcb386117141f28d4e8590c34e4f6e2 } from '../../../components/ProductWiseReport/index.tsx'
@@ -33,6 +34,7 @@ export const importMap = {
   "/components/Dashboard/index.tsx#default": default_504fe7b162195b3bfa67a928adf73866,
   "/components/TimeWiseReport/index.tsx#default": default_5284cc26339bd05719b498953bd82b2a,
   "/components/BranchBillingReport/index.tsx#default": default_03027a027fbfaef5e61d32f942503808,
+  "/components/AccountsBillsReport/index.tsx#default": default_a36159500d849dcf35b5358b5daeec09,
   "/components/GSTReport/index.tsx#default": default_dfd1f5a04fb27cdec9ff1f5b2a249691,
   "/components/CategoryWiseReport/index.tsx#default": default_d8bafb5f412c8147720cc49221686b05,
   "/components/ProductWiseReport/index.tsx#default": default_7fcb386117141f28d4e8590c34e4f6e2,

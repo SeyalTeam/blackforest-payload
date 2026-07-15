@@ -154,6 +154,7 @@ export interface Config {
     'general-dashboard': GeneralDashboard;
     'time-wise-report': TimeWiseReport;
     'branch-billing-report': BranchBillingReport;
+    'accounts-bills-report': AccountsBillsReport;
     'gst-report': GstReport;
     'category-wise-report': CategoryWiseReport;
     'product-wise-report': ProductWiseReport;
@@ -176,6 +177,7 @@ export interface Config {
     'customer-offer-settings': CustomerOfferSetting;
     'app-download-settings': AppDownloadSetting;
     'app-version-settings': AppVersionSetting;
+    'menu-settings': MenuSetting;
   };
   globalsSelect: {
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
@@ -183,6 +185,7 @@ export interface Config {
     'general-dashboard': GeneralDashboardSelect<false> | GeneralDashboardSelect<true>;
     'time-wise-report': TimeWiseReportSelect<false> | TimeWiseReportSelect<true>;
     'branch-billing-report': BranchBillingReportSelect<false> | BranchBillingReportSelect<true>;
+    'accounts-bills-report': AccountsBillsReportSelect<false> | AccountsBillsReportSelect<true>;
     'gst-report': GstReportSelect<false> | GstReportSelect<true>;
     'category-wise-report': CategoryWiseReportSelect<false> | CategoryWiseReportSelect<true>;
     'product-wise-report': ProductWiseReportSelect<false> | ProductWiseReportSelect<true>;
@@ -205,6 +208,7 @@ export interface Config {
     'customer-offer-settings': CustomerOfferSettingsSelect<false> | CustomerOfferSettingsSelect<true>;
     'app-download-settings': AppDownloadSettingsSelect<false> | AppDownloadSettingsSelect<true>;
     'app-version-settings': AppVersionSettingsSelect<false> | AppVersionSettingsSelect<true>;
+    'menu-settings': MenuSettingsSelect<false> | MenuSettingsSelect<true>;
   };
   locale: null;
   user: User & {
@@ -243,6 +247,7 @@ export interface User {
   role:
     | 'superadmin'
     | 'admin'
+    | 'account'
     | 'delivery'
     | 'branch'
     | 'company'
@@ -277,6 +282,24 @@ export interface User {
    * When enabled, this user cannot login until a superadmin disables this block.
    */
   loginBlocked?: boolean | null;
+  allowedCollections?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  allowedGlobals?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -880,6 +903,7 @@ export interface Billing {
     section?: string | null;
     tableNumber?: string | null;
   };
+  verificationStatus?: ('pending' | 'verified' | 'not_verified') | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1896,6 +1920,8 @@ export interface UsersSelect<T extends boolean = true> {
   deviceId?: T;
   forceLogoutAllDevices?: T;
   loginBlocked?: T;
+  allowedCollections?: T;
+  allowedGlobals?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -2374,6 +2400,7 @@ export interface BillingsSelect<T extends boolean = true> {
         section?: T;
         tableNumber?: T;
       };
+  verificationStatus?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2893,6 +2920,15 @@ export interface TimeWiseReport {
  * via the `definition` "branch-billing-report".
  */
 export interface BranchBillingReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "accounts-bills-report".
+ */
+export interface AccountsBillsReport {
   id: string;
   updatedAt?: string | null;
   createdAt?: string | null;
@@ -4231,6 +4267,104 @@ export interface AppVersionSetting {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "menu-settings".
+ */
+export interface MenuSetting {
+  id: string;
+  roleMenus?:
+    | {
+        role:
+          | 'admin'
+          | 'account'
+          | 'delivery'
+          | 'branch'
+          | 'company'
+          | 'factory'
+          | 'kitchen'
+          | 'chef'
+          | 'cashier'
+          | 'waiter'
+          | 'supervisor'
+          | 'driver'
+          | 'store_keeper';
+        visibleCollections?:
+          | (
+              | 'users'
+              | 'companies'
+              | 'branches'
+              | 'departments'
+              | 'categories'
+              | 'products'
+              | 'raw-material-categories'
+              | 'raw-materials'
+              | 'raw-material-dealers'
+              | 'media'
+              | 'dealers'
+              | 'employees'
+              | 'message-threads'
+              | 'message-attachments'
+              | 'messages'
+              | 'message-receipts'
+              | 'billings'
+              | 'return-order'
+              | 'closing-entries'
+              | 'expenses'
+              | 'stock-orders'
+              | 'dealer-billings'
+              | 'raw-material-billings'
+              | 'reviews'
+              | 'customers'
+              | 'billing-customers'
+              | 'instock-entries'
+              | 'tables'
+              | 'kitchens'
+              | 'attendance'
+              | 'apk-files'
+              | 'stock-alerts'
+              | 'idempotency-keys'
+              | 'waiter-calls'
+            )[]
+          | null;
+        visibleGlobals?:
+          | (
+              | 'ip-settings'
+              | 'jarvis'
+              | 'general-dashboard'
+              | 'time-wise-report'
+              | 'branch-billing-report'
+              | 'gst-report'
+              | 'accounts-bills-report'
+              | 'category-wise-report'
+              | 'product-wise-report'
+              | 'product-time-report'
+              | 'chef-report'
+              | 'closing-entry-report'
+              | 'waiter-wise-billing-report'
+              | 'inventory-report'
+              | 'stock-order-report'
+              | 'afterstock-customer-report'
+              | 'review-report'
+              | 'instock-entry-report'
+              | 'expense-report'
+              | 'return-order-report'
+              | 'dealer-report'
+              | 'raw-material-billing-report'
+              | 'branch-geo-settings'
+              | 'network-status'
+              | 'widget-settings'
+              | 'customer-offer-settings'
+              | 'app-download-settings'
+              | 'app-version-settings'
+            )[]
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "ip-settings_select".
  */
 export interface IpSettingsSelect<T extends boolean = true> {
@@ -4283,6 +4417,15 @@ export interface TimeWiseReportSelect<T extends boolean = true> {
  * via the `definition` "branch-billing-report_select".
  */
 export interface BranchBillingReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "accounts-bills-report_select".
+ */
+export interface AccountsBillsReportSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
@@ -4782,6 +4925,23 @@ export interface AppDownloadSettingsSelect<T extends boolean = true> {
 export interface AppVersionSettingsSelect<T extends boolean = true> {
   minAppVersion?: T;
   updateMessage?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "menu-settings_select".
+ */
+export interface MenuSettingsSelect<T extends boolean = true> {
+  roleMenus?:
+    | T
+    | {
+        role?: T;
+        visibleCollections?: T;
+        visibleGlobals?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

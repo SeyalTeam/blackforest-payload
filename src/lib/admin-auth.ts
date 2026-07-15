@@ -24,7 +24,12 @@ function normalizeRole(value: string) {
 
 function isSuperAdminText(value: string) {
   const normalized = normalizeRole(value.trim());
-  return normalized === "superadmin" || normalized.includes("superadmin");
+  return (
+    normalized === "superadmin" ||
+    normalized.includes("superadmin") ||
+    normalized === "admin" ||
+    normalized === "account"
+  );
 }
 
 export function hasSuperAdminAccess(user: unknown): boolean {

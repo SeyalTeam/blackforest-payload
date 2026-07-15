@@ -47,7 +47,7 @@ function AdminLoginContent() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!username.trim() || !password.trim()) {
-      setErrorMessage("Enter superadmin email and password.");
+      setErrorMessage("Enter email and password.");
       return;
     }
 
@@ -87,14 +87,14 @@ function AdminLoginContent() {
       <section className={styles.card}>
         <h1 className={styles.title}>Admin Login</h1>
         <p className={styles.subtitle}>
-          Login with superadmin email/password to enable drag-and-reorder on favorites.
+          Login with admin, superadmin, or account email/password to enable drag-and-reorder on favorites.
         </p>
 
         <form onSubmit={handleSubmit}>
           <div className={styles.fields}>
             <div className={styles.field}>
               <label htmlFor="admin-username" className={styles.label}>
-                Superadmin Email
+                Email
               </label>
               <input
                 id="admin-username"
@@ -104,7 +104,7 @@ function AdminLoginContent() {
                 onChange={(event) => setUsername(event.target.value)}
                 autoComplete="off"
                 spellCheck={false}
-                placeholder="Enter superadmin email"
+                placeholder="Enter email"
               />
             </div>
 

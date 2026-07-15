@@ -82,7 +82,7 @@ const Categories: CollectionConfig = {
       filterOptions: async ({ req }: { req: PayloadRequest }): Promise<Where | boolean> => {
         // Consistent typing
         const user = req.user
-        if (user?.role === 'superadmin') return true // Allow all (true = no filter)
+        if (user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'account') return true // Allow all (true = no filter)
         if (user?.role === 'company') {
           // Type guard for company
           const company = user.company

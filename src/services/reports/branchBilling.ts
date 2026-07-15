@@ -25,6 +25,8 @@ export type BranchBillingReportStat = {
   cancelledAmount: number
   gstInclusiveAmount: number
   gstExclusiveAmount: number
+  gstInclusiveTaxableAmount: number
+  gstExclusiveTaxableAmount: number
 }
 
 export type BranchBillingReportTotals = {
@@ -45,6 +47,8 @@ export type BranchBillingReportTotals = {
   nonTableOrderAmount: number
   gstInclusiveAmount: number
   gstExclusiveAmount: number
+  gstInclusiveTaxableAmount: number
+  gstExclusiveTaxableAmount: number
   totalExpenses: number
   totalReturns: number
   totalClosingSales: number
@@ -400,6 +404,20 @@ export const getBranchBillingReportData = async (
             0,
           ],
         },
+        gstInclusiveTaxableAmount: {
+          $cond: [
+            { $eq: ['$branchDetails.gstMode', 'exclusive'] },
+            0,
+            { $ifNull: ['$totalGSTTaxableAmount', 0] },
+          ],
+        },
+        gstExclusiveTaxableAmount: {
+          $cond: [
+            { $eq: ['$branchDetails.gstMode', 'exclusive'] },
+            { $ifNull: ['$totalGSTTaxableAmount', 0] },
+            0,
+          ],
+        },
       },
     },
     {
@@ -426,6 +444,8 @@ export const getBranchBillingReportData = async (
       nonTableOrderAmount: acc.nonTableOrderAmount + curr.nonTableOrderAmount,
       gstInclusiveAmount: acc.gstInclusiveAmount + curr.gstInclusiveAmount,
       gstExclusiveAmount: acc.gstExclusiveAmount + curr.gstExclusiveAmount,
+      gstInclusiveTaxableAmount: acc.gstInclusiveTaxableAmount + (curr.gstInclusiveTaxableAmount || 0),
+      gstExclusiveTaxableAmount: acc.gstExclusiveTaxableAmount + (curr.gstExclusiveTaxableAmount || 0),
     }),
     {
       totalBills: 0,
@@ -445,6 +465,8 @@ export const getBranchBillingReportData = async (
       nonTableOrderAmount: 0,
       gstInclusiveAmount: 0,
       gstExclusiveAmount: 0,
+      gstInclusiveTaxableAmount: 0,
+      gstExclusiveTaxableAmount: 0,
     },
   )
 

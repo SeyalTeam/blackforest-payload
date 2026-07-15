@@ -175,6 +175,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       nonTableOrderAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       gstInclusiveAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       gstExclusiveAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      gstInclusiveTaxableAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      gstExclusiveTaxableAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       totalExpenses: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       totalReturns: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       totalClosingSales: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
@@ -200,6 +202,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       cancelledAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       gstInclusiveAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       gstExclusiveAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      gstInclusiveTaxableAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      gstExclusiveTaxableAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
     },
   })
 

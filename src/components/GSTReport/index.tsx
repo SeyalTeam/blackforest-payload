@@ -18,6 +18,8 @@ type ReportStats = {
   totalAmount: number
   gstInclusiveAmount: number
   gstExclusiveAmount: number
+  gstInclusiveTaxableAmount: number
+  gstExclusiveTaxableAmount: number
 }
 
 type ProductGSTStat = {
@@ -38,6 +40,8 @@ type ReportData = {
     totalAmount: number
     gstInclusiveAmount: number
     gstExclusiveAmount: number
+    gstInclusiveTaxableAmount: number
+    gstExclusiveTaxableAmount: number
   }
   productGstStats: ProductGSTStat[]
 }
@@ -60,12 +64,16 @@ const GST_REPORT_QUERY = `
         totalAmount
         gstInclusiveAmount
         gstExclusiveAmount
+        gstInclusiveTaxableAmount
+        gstExclusiveTaxableAmount
       }
       totals {
         totalBills
         totalAmount
         gstInclusiveAmount
         gstExclusiveAmount
+        gstInclusiveTaxableAmount
+        gstExclusiveTaxableAmount
       }
       productGstStats {
         productName
@@ -403,6 +411,8 @@ const GSTReport: React.FC = () => {
   const totalAmount = totals?.totalAmount ?? 0
   const gstInclusiveAmount = totals?.gstInclusiveAmount ?? 0
   const gstExclusiveAmount = totals?.gstExclusiveAmount ?? 0
+  const gstInclusiveTaxableAmount = totals?.gstInclusiveTaxableAmount ?? 0
+  const gstExclusiveTaxableAmount = totals?.gstExclusiveTaxableAmount ?? 0
 
   const handleDatePresetChange = (preset: string) => {
     setDateRangePreset(preset)
@@ -656,6 +666,9 @@ const GSTReport: React.FC = () => {
             <p className="kpi-label">GST INCLUSIVE BILLED</p>
           </div>
           <h2>{formatCurrency(gstInclusiveAmount)}</h2>
+          <p className="kpi-sub-label" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            Taxable Value: {formatCurrency(gstInclusiveTaxableAmount)}
+          </p>
         </article>
 
         <article className="kpi-card kpi-gst-exclusive">
@@ -663,6 +676,9 @@ const GSTReport: React.FC = () => {
             <p className="kpi-label">GST EXCLUSIVE BILLED</p>
           </div>
           <h2>{formatCurrency(gstExclusiveAmount)}</h2>
+          <p className="kpi-sub-label" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            Taxable Value: {formatCurrency(gstExclusiveTaxableAmount)}
+          </p>
         </article>
       </div>
 
@@ -727,8 +743,26 @@ const GSTReport: React.FC = () => {
                           {mode}
                         </span>
                       </td>
-                      <td>{formatCurrency(row.gstInclusiveAmount)}</td>
-                      <td>{formatCurrency(row.gstExclusiveAmount)}</td>
+                      <td>
+                        <div>
+                          <div>{formatCurrency(row.gstInclusiveAmount)}</div>
+                          {row.gstInclusiveAmount > 0 && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                              on {formatCurrency(row.gstInclusiveTaxableAmount)}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <div>
+                          <div>{formatCurrency(row.gstExclusiveAmount)}</div>
+                          {row.gstExclusiveAmount > 0 && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                              on {formatCurrency(row.gstExclusiveTaxableAmount)}
+                            </div>
+                          )}
+                        </div>
+                      </td>
                       <td>{formatCurrency(row.totalAmount)}</td>
                     </tr>
                   )
@@ -737,8 +771,26 @@ const GSTReport: React.FC = () => {
               <tfoot>
                 <tr>
                   <td colSpan={3}>TOTAL</td>
-                  <td>{formatCurrency(totals?.gstInclusiveAmount ?? 0)}</td>
-                  <td>{formatCurrency(totals?.gstExclusiveAmount ?? 0)}</td>
+                  <td>
+                    <div>
+                      <div>{formatCurrency(totals?.gstInclusiveAmount ?? 0)}</div>
+                      {(totals?.gstInclusiveAmount ?? 0) > 0 && (
+                        <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.85)', marginTop: '2px', fontWeight: 500 }}>
+                          on {formatCurrency(totals?.gstInclusiveTaxableAmount ?? 0)}
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                  <td>
+                    <div>
+                      <div>{formatCurrency(totals?.gstExclusiveAmount ?? 0)}</div>
+                      {(totals?.gstExclusiveAmount ?? 0) > 0 && (
+                        <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.85)', marginTop: '2px', fontWeight: 500 }}>
+                          on {formatCurrency(totals?.gstExclusiveTaxableAmount ?? 0)}
+                        </div>
+                      )}
+                    </div>
+                  </td>
                   <td>{formatCurrency(totals?.totalAmount ?? 0)}</td>
                 </tr>
               </tfoot>

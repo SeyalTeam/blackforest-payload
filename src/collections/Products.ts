@@ -23,7 +23,7 @@ const Products: CollectionConfig = {
       // Allow full access for admins/company if no specific branch query is present
       if (
         req.user &&
-        ['superadmin', 'admin', 'company'].includes(req.user.role) &&
+        ['superadmin', 'admin', 'company', 'account'].includes(req.user.role) &&
         !req.query?.branch
       ) {
         return true
@@ -43,7 +43,7 @@ const Products: CollectionConfig = {
       // Priority 3: Detect Branch by IP (for waiters/devices on branch WiFi)
       else {
         // Optimization: Skip IP check if user is already authenticated but has no branch (e.g. Superadmin)
-        if (req.user && ['superadmin', 'admin', 'company'].includes(req.user.role)) {
+        if (req.user && ['superadmin', 'admin', 'company', 'account'].includes(req.user.role)) {
           return true
         }
 

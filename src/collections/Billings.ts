@@ -28,7 +28,7 @@ const BILLINGS_REST_LIST_MAX_DEPTH = 2
 const BILLINGS_REST_LIST_MAX_DEPTH_PRIVILEGED = 3
 const BILLINGS_REST_LIST_MAX_LIMIT = 80
 const BILLINGS_REST_LIST_MAX_LIMIT_PRIVILEGED = 120
-const BILLINGS_READ_PRIVILEGED_ROLES = new Set(['superadmin', 'admin', 'company'])
+const BILLINGS_READ_PRIVILEGED_ROLES = new Set(['superadmin', 'admin', 'company', 'account'])
 const BILLINGS_ASYNC_POST_PROCESSING_ENABLED =
   process.env.BILLINGS_ASYNC_POST_PROCESSING === 'true'
 const BILLINGS_HOOK_WARN_MS = (() => {
@@ -4711,6 +4711,21 @@ const Billings: CollectionConfig = {
           },
         },
       ],
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'verificationStatus',
+      label: 'Verification Status',
+      type: 'select',
+      defaultValue: 'pending',
+      options: [
+        { label: 'Pending', value: 'pending' },
+        { label: 'Verified', value: 'verified' },
+        { label: 'Not Verified', value: 'not_verified' },
+      ],
+      index: true,
       admin: {
         position: 'sidebar',
       },

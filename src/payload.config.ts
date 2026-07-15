@@ -7,7 +7,7 @@ import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import path from 'path'
 // Force rebuild
-import { buildConfig, type CollectionConfig } from 'payload'
+import { buildConfig, type CollectionConfig, type GlobalConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
 
@@ -39,12 +39,15 @@ import { IPSettings } from './globals/IPSettings'
 import { DashboardGlobal } from './globals/Dashboard'
 import { JarvisGlobal } from './globals/Jarvis'
 import { BranchBillingReportGlobal } from './globals/BranchBillingReport'
+import { AccountsBillsReportGlobal } from './globals/AccountsBillsReport'
 import { GSTReportGlobal } from './globals/GSTReport'
 import { CategoryWiseReportGlobal } from './globals/CategoryWiseReport'
 import { ProductWiseReportGlobal } from './globals/ProductWiseReport'
 import { ProductTimeReportGlobal } from './globals/ProductTimeReport'
 import { ChefReportGlobal } from './globals/ChefReport'
 import { getBranchBillingReportHandler } from './endpoints/getBranchBillingReport'
+import { getAccountsBillsReportHandler } from './endpoints/getAccountsBillsReport'
+import { updateBillVerificationStatusHandler } from './endpoints/updateBillVerificationStatus'
 import { getCategoryWiseReportHandler } from './endpoints/getCategoryWiseReport'
 import { getCategoryWiseReportPDFHandler } from './endpoints/getCategoryWiseReportPDF'
 import { getProductWiseReportHandler } from './endpoints/getProductWiseReport'
@@ -122,11 +125,170 @@ import { toggleFavoriteCategoryRuleHandler } from './endpoints/toggleFavoriteCat
 import { updateFavoriteCategoryRuleCategoriesHandler } from './endpoints/updateFavoriteCategoryRuleCategories'
 import { AppVersionSettings } from './globals/AppVersionSettings'
 import { checkAppVersionHandler } from './endpoints/checkAppVersion'
+import { MenuSettingsGlobal } from './globals/MenuSettings'
 
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
+
+const wrapCollection = (collection: CollectionConfig): CollectionConfig => {
+  return {
+    ...collection,
+    admin: {
+      ...(collection.admin || {}),
+      hidden: (args) => {
+        const { user } = args
+        if (!user) return true
+        if (user.role === 'superadmin') return false
+
+        const originalHidden = collection.admin?.hidden
+        if (typeof originalHidden === 'function') {
+          if (originalHidden(args)) return true
+        } else if (originalHidden === true) {
+          return true
+        }
+
+        const allowedCollections = (user as any).allowedCollections || []
+        return !allowedCollections.includes(collection.slug)
+      },
+    },
+    access: {
+      ...(collection.access || {}),
+      read: (args) => {
+        const { req } = args
+        const user = req?.user
+        if (!user) return false
+        if (user.role === 'superadmin') return true
+
+        const allowedCollections = (user as any).allowedCollections || []
+        if (allowedCollections.includes(collection.slug)) {
+          const originalRead = collection.access?.read
+          if (typeof originalRead === 'function') {
+            return originalRead(args)
+          }
+          return true
+        }
+
+        const originalRead = collection.access?.read
+        if (typeof originalRead === 'function') {
+          return originalRead(args)
+        }
+        return false
+      },
+      create: (args) => {
+        const { req } = args
+        const user = req?.user
+        if (!user) return false
+        if (user.role === 'superadmin') return true
+
+        const allowedCollections = (user as any).allowedCollections || []
+        if (allowedCollections.includes(collection.slug)) {
+          return true
+        }
+
+        const originalCreate = collection.access?.create
+        if (typeof originalCreate === 'function') {
+          return originalCreate(args)
+        }
+        return false
+      },
+      update: (args) => {
+        const { req } = args
+        const user = req?.user
+        if (!user) return false
+        if (user.role === 'superadmin') return true
+
+        const allowedCollections = (user as any).allowedCollections || []
+        if (allowedCollections.includes(collection.slug)) {
+          return true
+        }
+
+        const originalUpdate = collection.access?.update
+        if (typeof originalUpdate === 'function') {
+          return originalUpdate(args)
+        }
+        return false
+      },
+      delete: (args) => {
+        const { req } = args
+        const user = req?.user
+        if (!user) return false
+        if (user.role === 'superadmin') return true
+
+        // Delete is strictly restricted to superadmin only
+        return false
+      },
+    },
+  }
+}
+
+const wrapGlobal = (global: GlobalConfig): GlobalConfig => {
+  return {
+    ...global,
+    admin: {
+      ...(global.admin || {}),
+      hidden: (args) => {
+        const { user } = args
+        if (!user) return true
+        if (user.role === 'superadmin') return false
+
+        if (global.slug === 'menu-settings') return true
+
+        const originalHidden = global.admin?.hidden
+        if (typeof originalHidden === 'function') {
+          if (originalHidden(args)) return true
+        } else if (originalHidden === true) {
+          return true
+        }
+
+        const allowedGlobals = (user as any).allowedGlobals || []
+        return !allowedGlobals.includes(global.slug)
+      },
+    },
+    access: {
+      ...(global.access || {}),
+      read: (args) => {
+        const { req } = args
+        const user = req?.user
+        if (!user) return false
+        if (user.role === 'superadmin') return true
+
+        const allowedGlobals = (user as any).allowedGlobals || []
+        if (allowedGlobals.includes(global.slug)) {
+          const originalRead = global.access?.read
+          if (typeof originalRead === 'function') {
+            return originalRead(args)
+          }
+          return true
+        }
+
+        const originalRead = global.access?.read
+        if (typeof originalRead === 'function') {
+          return originalRead(args)
+        }
+        return false
+      },
+      update: (args) => {
+        const { req } = args
+        const user = req?.user
+        if (!user) return false
+        if (user.role === 'superadmin') return true
+
+        const allowedGlobals = (user as any).allowedGlobals || []
+        if (allowedGlobals.includes(global.slug)) {
+          return true
+        }
+
+        const originalUpdate = global.access?.update
+        if (typeof originalUpdate === 'function') {
+          return originalUpdate(args)
+        }
+        return false
+      },
+    },
+  }
+}
 
 const withoutCollectionSidebarLinks = <T extends CollectionConfig>(collection: T): T => ({
   ...collection,
@@ -427,6 +589,16 @@ export default buildConfig({
       handler: getInstockEntryReportHandler,
     },
     {
+      path: '/reports/accounts-bills',
+      method: 'get',
+      handler: getAccountsBillsReportHandler,
+    },
+    {
+      path: '/reports/accounts-bills/update-verification',
+      method: 'post',
+      handler: updateBillVerificationStatusHandler,
+    },
+    {
       path: '/instock-params/update-status', // Choosing a path
       method: 'post',
       handler: updateInstockStatusHandler,
@@ -620,6 +792,7 @@ export default buildConfig({
     DashboardGlobal,
     TimeWiseReportGlobal,
     BranchBillingReportGlobal,
+    AccountsBillsReportGlobal,
     GSTReportGlobal,
     CategoryWiseReportGlobal,
     ProductWiseReportGlobal,
@@ -642,8 +815,9 @@ export default buildConfig({
     CustomerOfferSettings,
     AppDownloadSettings,
     AppVersionSettings,
+    MenuSettingsGlobal,
 
-  ],
+  ].map(wrapGlobal),
 
   // Collections
   collections: [
@@ -681,7 +855,7 @@ export default buildConfig({
     StockAlerts,
     IdempotencyKeys,
     WaiterCalls,
-  ],
+  ].map(wrapCollection),
 
   editor: lexicalEditor(),
 

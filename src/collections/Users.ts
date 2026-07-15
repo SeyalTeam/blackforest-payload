@@ -52,6 +52,7 @@ export const Users: CollectionConfig = {
       options: [
         { label: 'Superadmin', value: 'superadmin' },
         { label: 'Admin', value: 'admin' },
+        { label: 'Account', value: 'account' },
         { label: 'Delivery', value: 'delivery' },
         { label: 'Branch', value: 'branch' },
         { label: 'Company', value: 'company' },
@@ -331,6 +332,24 @@ export const Users: CollectionConfig = {
         update: ({ req }) => req.user?.role === 'superadmin',
       },
     },
+    {
+      name: 'allowedCollections',
+      type: 'json',
+      saveToJWT: true,
+      admin: {
+        disabled: true,
+        hidden: true,
+      },
+    },
+    {
+      name: 'allowedGlobals',
+      type: 'json',
+      saveToJWT: true,
+      admin: {
+        disabled: true,
+        hidden: true,
+      },
+    },
   ],
   access: {
     create: ({ req }) => req.user?.role === 'superadmin',
@@ -379,6 +398,27 @@ export const Users: CollectionConfig = {
     delete: ({ req }) => req.user?.role === 'superadmin',
   },
   hooks: {
+    afterRead: [
+      async ({ doc, req }) => {
+        if (!doc) return doc
+        if (doc.role === 'superadmin') {
+          return doc
+        }
+        try {
+          const menuSettings = await req.payload.findGlobal({
+            slug: 'menu-settings',
+            depth: 0,
+          }) as any
+          const roleConfig = menuSettings?.roleMenus?.find((r: any) => r.role === doc.role)
+          doc.allowedCollections = roleConfig?.visibleCollections || []
+          doc.allowedGlobals = roleConfig?.visibleGlobals || []
+        } catch (e) {
+          doc.allowedCollections = []
+          doc.allowedGlobals = []
+        }
+        return doc
+      },
+    ],
     afterLogin: [
       async ({ req, user }) => {
         let deviceId: string | null = null
@@ -478,8 +518,8 @@ export const Users: CollectionConfig = {
 
         // --- Session Duration Logic ---
         // Global is set to 30 days (2592000s)
-        // If Role is NOT (superadmin, admin, company, factory) -> ideally enforce 14h (50400s)
-        const longSessionRoles = ['superadmin', 'admin', 'company', 'factory']
+        // If Role is NOT (superadmin, admin, company, factory, account) -> ideally enforce 14h (50400s)
+        const longSessionRoles = ['superadmin', 'admin', 'company', 'factory', 'account']
         if (!longSessionRoles.includes(user.role)) {
           console.log(
             `[Session] User ${user.email} (${user.role}) logged in. Standard 14h intended.`,

@@ -9,7 +9,7 @@ const Attendance: CollectionConfig = {
   access: {
     read: ({ req: { user } }) => {
       if (!user) return false
-      if (['superadmin', 'admin', 'company'].includes(user.role)) return true
+      if (['superadmin', 'admin', 'company', 'account'].includes(user.role)) return true
       if (user.role === 'branch') {
         return {
           'user.branch': {
@@ -26,7 +26,7 @@ const Attendance: CollectionConfig = {
     create: ({ req: { user } }) => !!user, // Any logged in user can create an entry (punch)
     update: ({ req: { user } }) => {
       if (!user) return false
-      if (['superadmin', 'admin'].includes(user.role)) return true
+      if (['superadmin', 'admin', 'account'].includes(user.role)) return true
       return {
         user: {
           equals: user.id,
