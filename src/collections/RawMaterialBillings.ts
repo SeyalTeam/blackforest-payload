@@ -106,6 +106,15 @@ const RawMaterialBillings: CollectionConfig = {
             description: 'Total quantity (calculated automatically if Package Size and Number of Packages are set)',
           },
         },
+        {
+          name: 'totalAmount',
+          type: 'number',
+          required: false,
+          defaultValue: 0,
+          admin: {
+            description: 'Total amount (cost) for this raw material item',
+          },
+        },
       ],
     },
     {
