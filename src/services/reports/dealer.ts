@@ -56,8 +56,10 @@ type RawDealerItem = {
   payments?: unknown
   billCopyUrl?: unknown
   billCopyFilename?: unknown
+  billCopyPrefix?: unknown
   productsUrl?: unknown
   productsFilename?: unknown
+  productsPrefix?: unknown
   time: unknown
   status: unknown
   products?: unknown
@@ -251,12 +253,6 @@ export const getDealerReportData = async (
       },
     },
     {
-      $unwind: {
-        path: '$productsInfo',
-        preserveNullAndEmptyArrays: true,
-      },
-    },
-    {
       $lookup: {
         from: 'products',
         localField: 'products',
@@ -280,8 +276,10 @@ export const getDealerReportData = async (
             time: '$date',
             billCopyUrl: '$billCopyInfo.url',
             billCopyFilename: '$billCopyInfo.filename',
+            billCopyPrefix: '$billCopyInfo.prefix',
             productsUrl: '$productsInfo.url',
-            productsFilename: '$productsInfo.filename',
+            productsFilename: { $arrayElemAt: ['$productsInfo.filename', 0] },
+            productsPrefix: { $arrayElemAt: ['$productsInfo.prefix', 0] },
             status: { $ifNull: ['$status', 'pending'] },
             products: {
               $map: {
@@ -310,9 +308,9 @@ export const getDealerReportData = async (
       })
       .map((item) => {
         const billCopyFilename = toNonEmptyString(item.billCopyFilename)
-        const billCopyUrl = toNonEmptyString(item.billCopyUrl)
+        const billCopyPrefix = toNonEmptyString(item.billCopyPrefix)
         const productsFilename = toNonEmptyString(item.productsFilename)
-        const productsUrl = toNonEmptyString(item.productsUrl)
+        const productsPrefix = toNonEmptyString(item.productsPrefix)
 
         const products: string[] = []
         if (Array.isArray(item.products)) {
@@ -324,30 +322,33 @@ export const getDealerReportData = async (
           })
         }
 
-          const payments: { amount: number; date: string }[] = []
-          if (Array.isArray(item.payments)) {
-            item.payments.forEach((p) => {
-              if (p && typeof p === 'object') {
-                payments.push({
-                  amount: toNumber(p.amount),
-                  date: toDateString(p.date),
-                })
-              }
-            })
-          }
+        const payments: { amount: number; date: string }[] = []
+        if (Array.isArray(item.payments)) {
+          item.payments.forEach((p) => {
+            if (p && typeof p === 'object') {
+              payments.push({
+                amount: toNumber(p.amount),
+                date: toDateString(p.date),
+              })
+            }
+          })
+        }
 
-          return {
-            id: toNonEmptyString(item.id),
-            dealerName: toNonEmptyString(item.dealerName, 'Unknown Dealer'),
-            amount: toNumber(item.amount),
-            paidAmount: toNumber(item.paidAmount),
-            payments,
-            time: toDateString(item.time),
-            billCopyUrl: billCopyUrl || (billCopyFilename ? `/api/media/file/${billCopyFilename}` : undefined),
-            productsUrl: productsUrl || (productsFilename ? `/api/media/file/${productsFilename}` : undefined),
-            status: toNonEmptyString(item.status, 'pending'),
-            products,
-          }
+        const resolvedBillCopyUrl = resolveMediaUrl(billCopyFilename, billCopyPrefix)
+        const resolvedProductsUrl = resolveMediaUrl(productsFilename, productsPrefix)
+
+        return {
+          id: toNonEmptyString(item.id),
+          dealerName: toNonEmptyString(item.dealerName, 'Unknown Dealer'),
+          amount: toNumber(item.amount),
+          paidAmount: toNumber(item.paidAmount),
+          payments,
+          time: toDateString(item.time),
+          billCopyUrl: resolvedBillCopyUrl,
+          productsUrl: resolvedProductsUrl,
+          status: toNonEmptyString(item.status, 'pending'),
+          products,
+        }
       })
 
     return {
@@ -371,4 +372,39 @@ export const getDealerReportData = async (
       totalCount,
     },
   }
+}
+
+function resolveMediaUrl(filename?: string | null, prefix?: string | null): string | undefined {
+  if (!filename) return undefined
+  const publicURL = process.env.NEXT_PUBLIC_S3_PUBLIC_URL || process.env.S3_PUBLIC_URL
+  if (!publicURL) return `/api/media/file/${filename}`
+
+  const rootPrefix = 'blackforest/uploads'
+  const docPrefix = prefix || ''
+
+  const cleanURL = publicURL.endsWith('/') ? publicURL.slice(0, -1) : publicURL
+  const cleanRoot = rootPrefix.startsWith('/') ? rootPrefix.slice(1) : rootPrefix
+  const cleanDocPrefix = docPrefix.startsWith('/') ? docPrefix.slice(1) : docPrefix
+
+  const normalizedDocPrefix =
+    cleanDocPrefix === cleanRoot
+      ? ''
+      : cleanDocPrefix.startsWith(`${cleanRoot}/`)
+        ? cleanDocPrefix.slice(cleanRoot.length + 1)
+        : cleanDocPrefix
+
+  const finalDocPrefix = filename.startsWith(`${normalizedDocPrefix}/`)
+    ? ''
+    : normalizedDocPrefix
+
+  const filenameWithoutRoot = filename.startsWith(`${cleanRoot}/`)
+    ? filename.slice(cleanRoot.length + 1)
+    : filename
+
+  const fullPath = [cleanRoot, finalDocPrefix, filenameWithoutRoot]
+    .filter(Boolean)
+    .join('/')
+    .replace(/\/+/g, '/')
+
+  return `${cleanURL}/${fullPath}`
 }

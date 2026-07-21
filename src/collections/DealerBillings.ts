@@ -78,6 +78,29 @@ const DealerBillings: CollectionConfig = {
       required: false,
     },
     {
+      name: 'productsList',
+      type: 'array',
+      fields: [
+        {
+          name: 'product',
+          type: 'relationship',
+          relationTo: 'products',
+          required: true,
+        },
+        {
+          name: 'quantity',
+          type: 'number',
+          required: true,
+        },
+        {
+          name: 'totalAmount',
+          type: 'number',
+          required: false,
+          defaultValue: 0,
+        },
+      ],
+    },
+    {
       name: 'date',
       type: 'date',
       required: true,
@@ -132,6 +155,12 @@ const DealerBillings: CollectionConfig = {
           if (req.user?.role === 'branch' && req.user.branch) {
             data.branch = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
           }
+        }
+        if (data.productsList) {
+          data.products = data.productsList.map(
+            (item: { product: string | { id: string } }) =>
+              typeof item.product === 'string' ? item.product : item.product?.id
+          ).filter(Boolean);
         }
         if (data.bills) {
           const calculatedTotal = data.bills.reduce(
