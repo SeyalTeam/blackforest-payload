@@ -24,7 +24,6 @@ const DealerBillings: CollectionConfig = {
       relationTo: 'branches',
       required: true,
       access: {
-        create: ({ req: { user } }) => user?.role !== 'branch',
         update: () => false,
       },
     },
