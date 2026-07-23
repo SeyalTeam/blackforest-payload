@@ -27,6 +27,7 @@ export type BranchBillingReportStat = {
   gstExclusiveAmount: number
   gstInclusiveTaxableAmount: number
   gstExclusiveTaxableAmount: number
+  nonGstAmount: number
 }
 
 export type BranchBillingReportTotals = {
@@ -49,6 +50,7 @@ export type BranchBillingReportTotals = {
   gstExclusiveAmount: number
   gstInclusiveTaxableAmount: number
   gstExclusiveTaxableAmount: number
+  nonGstAmount: number
   totalExpenses: number
   totalReturns: number
   totalClosingSales: number
@@ -118,6 +120,7 @@ type BranchBillingReportArgs = {
   endDate?: null | string
   startDate?: null | string
   trendPeriod?: null | string
+  gstFilter?: null | string
 }
 
 const toDayBoundary = (dateParam: string, mode: 'start' | 'end'): Date => {
@@ -226,6 +229,11 @@ export const getBranchBillingReportData = async (
     ],
   }
 
+  const isGST = args.gstFilter !== 'nongst'
+  const gstRateCond = args.gstFilter === 'nongst'
+    ? { $lte: [{ $ifNull: ['$$this.gstRate', 0] }, 0] }
+    : { $gt: [{ $ifNull: ['$$this.gstRate', 0] }, 0] }
+
   const gstTaxableAmountExpression = {
     $reduce: {
       input: { $ifNull: ['$items', []] },
@@ -235,7 +243,7 @@ export const getBranchBillingReportData = async (
           '$$value',
           {
             $cond: [
-              { $gt: [{ $ifNull: ['$$this.gstRate', 0] }, 0] },
+              gstRateCond,
               { $ifNull: ['$$this.taxableAmount', 0] },
               0,
             ],
@@ -254,7 +262,60 @@ export const getBranchBillingReportData = async (
           '$$value',
           {
             $cond: [
-              { $gt: [{ $ifNull: ['$$this.gstRate', 0] }, 0] },
+              gstRateCond,
+              { $ifNull: ['$$this.finalLineTotal', 0] },
+              0,
+            ],
+          },
+        ],
+      },
+    },
+  }
+
+  const gstAmountExpression = {
+    $reduce: {
+      input: { $ifNull: ['$items', []] },
+      initialValue: 0,
+      in: {
+        $add: [
+          '$$value',
+          {
+            $cond: [
+              gstRateCond,
+              { $ifNull: ['$$this.gstAmount', 0] },
+              0,
+            ],
+          },
+        ],
+      },
+    },
+  }
+
+  const totalAmountExpression = args.gstFilter === 'both'
+    ? {
+        $reduce: {
+          input: { $ifNull: ['$items', []] },
+          initialValue: 0,
+          in: {
+            $add: [
+              '$$value',
+              { $ifNull: ['$$this.finalLineTotal', 0] },
+            ],
+          },
+        },
+      }
+    : gstInclusiveAmountExpression
+
+  const nonGstAmountExpression = {
+    $reduce: {
+      input: { $ifNull: ['$items', []] },
+      initialValue: 0,
+      in: {
+        $add: [
+          '$$value',
+          {
+            $cond: [
+              { $lte: [{ $ifNull: ['$$this.gstRate', 0] }, 0] },
               { $ifNull: ['$$this.finalLineTotal', 0] },
               0,
             ],
@@ -280,12 +341,12 @@ export const getBranchBillingReportData = async (
         },
         totalAmount: {
           $sum: {
-            $cond: [completedOrSettledExpression, '$totalAmount', 0],
+            $cond: [completedOrSettledExpression, totalAmountExpression, 0],
           },
         },
         totalGSTAmount: {
           $sum: {
-            $cond: [completedOrSettledExpression, '$totalGSTAmount', 0],
+            $cond: [completedOrSettledExpression, gstAmountExpression, 0],
           },
         },
         totalGSTTaxableAmount: {
@@ -296,6 +357,11 @@ export const getBranchBillingReportData = async (
         totalGSTInclusiveAmount: {
           $sum: {
             $cond: [completedOrSettledExpression, gstInclusiveAmountExpression, 0],
+          },
+        },
+        totalNonGSTAmount: {
+          $sum: {
+            $cond: [completedOrSettledExpression, nonGstAmountExpression, 0],
           },
         },
         cash: {
@@ -412,13 +478,25 @@ export const getBranchBillingReportData = async (
           $cond: [
             { $eq: ['$branchDetails.gstMode', 'exclusive'] },
             0,
-            { $ifNull: ['$totalGSTAmount', 0] },
+            {
+              $cond: [
+                { $eq: [isGST, true] },
+                { $ifNull: ['$totalGSTAmount', 0] },
+                { $ifNull: ['$totalGSTInclusiveAmount', 0] },
+              ],
+            },
           ],
         },
         gstExclusiveAmount: {
           $cond: [
             { $eq: ['$branchDetails.gstMode', 'exclusive'] },
-            { $ifNull: ['$totalGSTAmount', 0] },
+            {
+              $cond: [
+                { $eq: [isGST, true] },
+                { $ifNull: ['$totalGSTAmount', 0] },
+                { $ifNull: ['$totalGSTInclusiveAmount', 0] },
+              ],
+            },
             0,
           ],
         },
@@ -436,6 +514,7 @@ export const getBranchBillingReportData = async (
             0,
           ],
         },
+        nonGstAmount: { $ifNull: ['$totalNonGSTAmount', 0] },
       },
     },
     {
@@ -464,6 +543,7 @@ export const getBranchBillingReportData = async (
       gstExclusiveAmount: acc.gstExclusiveAmount + curr.gstExclusiveAmount,
       gstInclusiveTaxableAmount: acc.gstInclusiveTaxableAmount + (curr.gstInclusiveTaxableAmount || 0),
       gstExclusiveTaxableAmount: acc.gstExclusiveTaxableAmount + (curr.gstExclusiveTaxableAmount || 0),
+      nonGstAmount: acc.nonGstAmount + (curr.nonGstAmount || 0),
     }),
     {
       totalBills: 0,
@@ -485,6 +565,7 @@ export const getBranchBillingReportData = async (
       gstExclusiveAmount: 0,
       gstInclusiveTaxableAmount: 0,
       gstExclusiveTaxableAmount: 0,
+      nonGstAmount: 0,
     },
   )
 
@@ -733,6 +814,20 @@ export const getBranchBillingReportData = async (
     count: s.count,
   }))
 
+  const gstFilterMatch = args.gstFilter === 'both'
+    ? {}
+    : (isGST
+        ? { 'items.gstRate': { $gt: 0 } }
+        : {
+            $or: [
+              { 'items.gstRate': { $lte: 0 } },
+              { 'items.gstRate': { $exists: false } },
+              { 'items.gstRate': null },
+            ],
+          })
+
+  const subReportSort = (args.gstFilter === 'gst' ? { gstAmount: -1 } : { totalAmount: -1 }) as any
+
   const productGstStats = await BillingModel.aggregate([
     {
       $match: {
@@ -746,7 +841,7 @@ export const getBranchBillingReportData = async (
     {
       $match: {
         'items.status': { $ne: 'cancelled' },
-        'items.gstRate': { $gt: 0 },
+        ...gstFilterMatch,
       },
     },
     {
@@ -773,7 +868,7 @@ export const getBranchBillingReportData = async (
       },
     },
     {
-      $sort: { gstAmount: -1 },
+      $sort: subReportSort,
     },
   ])
 
@@ -790,7 +885,7 @@ export const getBranchBillingReportData = async (
     {
       $match: {
         'items.status': { $ne: 'cancelled' },
-        'items.gstRate': { $gt: 0 },
+        ...gstFilterMatch,
       },
     },
     {
@@ -837,7 +932,7 @@ export const getBranchBillingReportData = async (
       },
     },
     {
-      $sort: { gstAmount: -1 },
+      $sort: subReportSort,
     },
   ])
 
@@ -854,7 +949,7 @@ export const getBranchBillingReportData = async (
     {
       $match: {
         'items.status': { $ne: 'cancelled' },
-        'items.gstRate': { $gt: 0 },
+        ...gstFilterMatch,
       },
     },
     {
@@ -906,7 +1001,7 @@ export const getBranchBillingReportData = async (
       },
     },
     {
-      $sort: { gstAmount: -1 },
+      $sort: subReportSort,
     },
   ])
 

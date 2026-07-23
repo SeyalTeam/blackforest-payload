@@ -14,6 +14,7 @@ type BranchBillingFilter = {
   branch?: null | string
   endDate?: null | string
   startDate?: null | string
+  gstFilter?: null | string
 }
 
 type BranchBillingQueryArgs = {
@@ -152,6 +153,7 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       endDate: { type: graphQL.GraphQLString },
       branch: { type: graphQL.GraphQLString },
       trendPeriod: { type: graphQL.GraphQLString },
+      gstFilter: { type: graphQL.GraphQLString },
     },
   })
 
@@ -177,6 +179,7 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       gstExclusiveAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       gstInclusiveTaxableAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       gstExclusiveTaxableAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      nonGstAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       totalExpenses: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       totalReturns: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       totalClosingSales: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
@@ -204,6 +207,7 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       gstExclusiveAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       gstInclusiveTaxableAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       gstExclusiveTaxableAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      nonGstAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
     },
   })
 

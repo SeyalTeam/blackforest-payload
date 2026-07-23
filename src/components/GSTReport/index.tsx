@@ -20,6 +20,7 @@ type ReportStats = {
   gstExclusiveAmount: number
   gstInclusiveTaxableAmount: number
   gstExclusiveTaxableAmount: number
+  nonGstAmount: number
 }
 
 type ProductGSTStat = {
@@ -58,6 +59,7 @@ type ReportData = {
     gstExclusiveAmount: number
     gstInclusiveTaxableAmount: number
     gstExclusiveTaxableAmount: number
+    nonGstAmount: number
   }
   productGstStats: ProductGSTStat[]
   categoryGstStats: CategoryGSTStat[]
@@ -84,6 +86,7 @@ const GST_REPORT_QUERY = `
         gstExclusiveAmount
         gstInclusiveTaxableAmount
         gstExclusiveTaxableAmount
+        nonGstAmount
       }
       totals {
         totalBills
@@ -92,6 +95,7 @@ const GST_REPORT_QUERY = `
         gstExclusiveAmount
         gstInclusiveTaxableAmount
         gstExclusiveTaxableAmount
+        nonGstAmount
       }
       productGstStats {
         productName
@@ -196,7 +200,7 @@ const customDatePresetStyles: StylesConfig<DatePresetOption, false> = {
     borderRadius: '8px',
     height: '42px',
     minHeight: '42px',
-    minWidth: '200px',
+    minWidth: '120px',
     padding: '0',
     boxShadow: state.isFocused ? '0 0 0 1px var(--theme-info-500)' : 'none',
     color: 'var(--theme-text-primary)',
@@ -224,7 +228,7 @@ const customDatePresetStyles: StylesConfig<DatePresetOption, false> = {
     backgroundColor: 'var(--theme-input-bg, var(--theme-elevation-50))',
     border: '1px solid var(--theme-elevation-150)',
     zIndex: 9999,
-    minWidth: '200px',
+    minWidth: '120px',
   }),
   input: (base) => ({
     ...base,
@@ -240,7 +244,7 @@ const customBranchSelectStyles: StylesConfig<{ value: string, label: string }, f
     borderRadius: '8px',
     minHeight: '34px',
     height: '34px',
-    minWidth: '180px',
+    minWidth: '100px',
     boxShadow: state.isFocused ? '0 0 0 1px var(--theme-info-500, #38bdf8)' : 'none',
     cursor: 'pointer',
     '&:hover': {
@@ -279,8 +283,10 @@ const GSTReport: React.FC = () => {
   const [startDate, endDate] = dateRange
   const [dateRangePreset, setDateRangePreset] = useState<string>('today')
   const [firstBillDate, setFirstBillDate] = useState<Date | null>(null)
-  const [branches, setBranches] = useState<{ id: string, name: string }[]>([])
+  const [branches, setBranches] = useState<{ id: string, name: string, gstMode?: string }[]>([])
   const [selectedBranch, setSelectedBranch] = useState<string>('all')
+  const [gstFilter, setGstFilter] = useState<'gst' | 'nongst' | 'both'>('gst')
+  const [branchMode, setBranchMode] = useState<'all' | 'inclusive' | 'exclusive'>('all')
 
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -314,7 +320,7 @@ const GSTReport: React.FC = () => {
     })
   }
 
-  const fetchReport = useCallback(async (start: Date, end: Date, branch: string) => {
+  const fetchReport = useCallback(async (start: Date, end: Date, branch: string, mode: 'gst' | 'nongst' | 'both') => {
     const requestId = ++requestIdRef.current
     setLoading(true)
     setError('')
@@ -328,7 +334,7 @@ const GSTReport: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: GST_REPORT_QUERY,
-          variables: { filter: { startDate: startStr, endDate: endStr, branch } },
+          variables: { filter: { startDate: startStr, endDate: endStr, branch, gstFilter: mode } },
         }),
       })
 
@@ -367,11 +373,32 @@ const GSTReport: React.FC = () => {
     }
   }, [])
 
+  const filteredBranches = useMemo(() => {
+    if (branchMode === 'all') return branches
+    if (branchMode === 'inclusive') {
+      return branches.filter((b) => b.gstMode === 'inclusive' || !b.gstMode)
+    }
+    return branches.filter((b) => b.gstMode === 'exclusive')
+  }, [branches, branchMode])
+
+  const queryBranchParam = useMemo(() => {
+    if (selectedBranch !== 'all') {
+      return selectedBranch
+    }
+    if (branchMode === 'all') {
+      return 'all'
+    }
+    if (filteredBranches.length === 0) {
+      return 'none'
+    }
+    return filteredBranches.map((b) => b.id).join(',')
+  }, [selectedBranch, branchMode, filteredBranches])
+
   useEffect(() => {
     if (startDate && endDate) {
-      fetchReport(startDate, endDate, selectedBranch)
+      fetchReport(startDate, endDate, queryBranchParam, gstFilter)
     }
-  }, [startDate, endDate, selectedBranch, fetchReport])
+  }, [startDate, endDate, queryBranchParam, gstFilter, fetchReport])
 
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -554,39 +581,61 @@ const GSTReport: React.FC = () => {
 
     const csvRows = []
     csvRows.push('BRANCH PERFORMANCE BREAKDOWN')
-    const headers = ['S.No', 'Branch Name', 'GST Mode', 'GST Inclusive Amount', 'GST Exclusive Amount', 'Total Amount']
+    const headers = [
+      'S.No',
+      'Branch Name',
+      gstFilter === 'gst' ? 'GST Mode' : gstFilter === 'nongst' ? 'NON GST Mode' : 'GST Mode',
+      gstFilter === 'gst' ? 'GST Inclusive Amount' : gstFilter === 'nongst' ? 'NON GST Inclusive Amount' : 'GST Inclusive Amount',
+      gstFilter === 'gst' ? 'GST Exclusive Amount' : gstFilter === 'nongst' ? 'NON GST Exclusive Amount' : 'GST Exclusive Amount',
+    ]
+    if (gstFilter === 'both') {
+      headers.push('NON GST AMOUNT')
+    }
+    headers.push('Total Amount')
     csvRows.push(headers.join(','))
 
     data.stats.forEach((row, index) => {
       const mode = row.gstMode === 'exclusive' ? 'Exclusive' : 'Inclusive'
-      csvRows.push(
-        [
-          index + 1,
-          `"${row.branchName}"`,
-          mode,
-          formatValue(row.gstInclusiveAmount),
-          formatValue(row.gstExclusiveAmount),
-          formatValue(row.totalAmount),
-        ].join(','),
-      )
+      const rowData = [
+        index + 1,
+        `"${row.branchName}"`,
+        mode,
+        formatValue(row.gstInclusiveAmount),
+        formatValue(row.gstExclusiveAmount),
+      ]
+      if (gstFilter === 'both') {
+        rowData.push(formatValue(row.nonGstAmount))
+      }
+      rowData.push(formatValue(row.totalAmount))
+      csvRows.push(rowData.join(','))
     })
 
-    csvRows.push(
-      [
-        '',
-        'TOTAL',
-        '',
-        formatValue(data.totals.gstInclusiveAmount),
-        formatValue(data.totals.gstExclusiveAmount),
-        formatValue(data.totals.totalAmount),
-      ].join(','),
-    )
+    const totalRow = [
+      '',
+      'TOTAL',
+      '',
+      formatValue(data.totals.gstInclusiveAmount),
+      formatValue(data.totals.gstExclusiveAmount),
+    ]
+    if (gstFilter === 'both') {
+      totalRow.push(formatValue(data.totals.nonGstAmount))
+    }
+    totalRow.push(formatValue(data.totals.totalAmount))
+    csvRows.push(totalRow.join(','))
 
     csvRows.push('')
     csvRows.push('')
 
-    csvRows.push('PRODUCT-WISE GST BREAKDOWN')
-    const productHeaders = ['S.No', 'Product Name', 'Selling Count', 'Taxable Amount', 'GST Tax Amount', 'Total Amount']
+    csvRows.push(`PRODUCT-WISE ${gstFilter === 'gst' ? 'GST' : 'NON-GST'} BREAKDOWN`)
+    const productHeaders = [
+      'S.No',
+      'Product Name',
+      'GST %',
+      'Selling Count',
+      'Taxable Amount',
+      gstFilter === 'gst' ? 'GST Tax Amount' : 'Tax Amount',
+      'Total Amount',
+    ]
     csvRows.push(productHeaders.join(','))
 
     let totalProdCount = 0
@@ -604,6 +653,7 @@ const GSTReport: React.FC = () => {
         [
           index + 1,
           `"${row.productName}"`,
+          `"${row.gstRate ?? 0}%"`,
           row.count,
           formatValue(row.taxableAmount),
           formatValue(row.gstAmount),
@@ -616,6 +666,7 @@ const GSTReport: React.FC = () => {
       [
         '',
         'TOTAL',
+        '',
         totalProdCount,
         formatValue(totalProdTaxable),
         formatValue(totalProdGST),
@@ -626,8 +677,15 @@ const GSTReport: React.FC = () => {
     csvRows.push('')
     csvRows.push('')
 
-    csvRows.push('CATEGORY-WISE GST BREAKDOWN')
-    const categoryHeaders = ['S.No', 'Category Name', 'Selling Count', 'Taxable Amount', 'GST Tax Amount', 'Total Amount']
+    csvRows.push(`CATEGORY-WISE ${gstFilter === 'gst' ? 'GST' : 'NON-GST'} BREAKDOWN`)
+    const categoryHeaders = [
+      'S.No',
+      'Category Name',
+      'Selling Count',
+      'Taxable Amount',
+      gstFilter === 'gst' ? 'GST Tax Amount' : 'Tax Amount',
+      'Total Amount',
+    ]
     csvRows.push(categoryHeaders.join(','))
 
     let totalCatCount = 0
@@ -667,8 +725,15 @@ const GSTReport: React.FC = () => {
     csvRows.push('')
     csvRows.push('')
 
-    csvRows.push('DEALER-WISE GST BREAKDOWN')
-    const dealerHeaders = ['S.No', 'Dealer Name', 'Selling Count', 'Taxable Amount', 'GST Tax Amount', 'Total Amount']
+    csvRows.push(`DEALER-WISE ${gstFilter === 'gst' ? 'GST' : 'NON-GST'} BREAKDOWN`)
+    const dealerHeaders = [
+      'S.No',
+      'Dealer Name',
+      'Selling Count',
+      'Taxable Amount',
+      gstFilter === 'gst' ? 'GST Tax Amount' : 'Tax Amount',
+      'Total Amount',
+    ]
     csvRows.push(dealerHeaders.join(','))
 
     let totalDealerCount = 0
@@ -711,7 +776,7 @@ const GSTReport: React.FC = () => {
     link.setAttribute('href', encodedUri)
     link.setAttribute(
       'download',
-      `gst_report_${startDate ? toLocalDateStr(startDate) : ''}_to_${endDate ? toLocalDateStr(endDate) : ''}.csv`,
+      `${gstFilter === 'gst' ? 'gst' : 'nongst'}_report_${startDate ? toLocalDateStr(startDate) : ''}_to_${endDate ? toLocalDateStr(endDate) : ''}.csv`,
     )
 
     document.body.appendChild(link)
@@ -738,8 +803,20 @@ const GSTReport: React.FC = () => {
     <div className="branch-report-container">
       <div className="report-topbar">
         <div>
-          <p className="crumbs">REPORTS • GST REPORT</p>
-          <h1>GST Report</h1>
+          <p className="crumbs">
+            {gstFilter === 'gst'
+              ? 'REPORTS • GST REPORT'
+              : gstFilter === 'nongst'
+              ? 'REPORTS • NON GST REPORT'
+              : 'REPORTS • GST AND NON GST REPORT'}
+          </p>
+          <h1>
+            {gstFilter === 'gst'
+              ? 'GST Report'
+              : gstFilter === 'nongst'
+              ? 'NON GST Report'
+              : 'GST and NON GST Report'}
+          </h1>
           <p className="subtitle">
             Consolidated financial overview for{' '}
             {startDate && endDate
@@ -749,14 +826,79 @@ const GSTReport: React.FC = () => {
         </div>
 
         <div className="actions">
-          <div className="branch-filter-dropdown" style={{ minWidth: '200px' }}>
+          <div className="branch-filter-dropdown" style={{ minWidth: '110px' }}>
+            <Select
+              instanceId="topbar-gst-filter-select"
+              options={[
+                { value: 'gst', label: 'GST' },
+                { value: 'nongst', label: 'NON GST' },
+                { value: 'both', label: 'BOTH' },
+              ]}
+              value={
+                [
+                  { value: 'gst', label: 'GST' },
+                  { value: 'nongst', label: 'NON GST' },
+                  { value: 'both', label: 'BOTH' },
+                ].find((opt) => opt.value === gstFilter) || { value: 'gst', label: 'GST' }
+              }
+              onChange={(option) => {
+                if (option) setGstFilter(option.value as 'gst' | 'nongst' | 'both')
+              }}
+              styles={customBranchSelectStyles}
+              classNamePrefix="react-select"
+              isSearchable={false}
+            />
+          </div>
+
+          <div className="branch-filter-dropdown" style={{ minWidth: '125px' }}>
+            <Select
+              instanceId="topbar-branch-mode-select"
+              options={[
+                { value: 'all', label: 'All Modes' },
+                { value: 'inclusive', label: 'INCLUSIVE' },
+                { value: 'exclusive', label: 'EXCLUSIVE' },
+              ]}
+              value={
+                [
+                  { value: 'all', label: 'All Modes' },
+                  { value: 'inclusive', label: 'INCLUSIVE' },
+                  { value: 'exclusive', label: 'EXCLUSIVE' },
+                ].find((opt) => opt.value === branchMode) || { value: 'all', label: 'All Modes' }
+              }
+              onChange={(option) => {
+                if (option) {
+                  const mode = option.value as 'all' | 'inclusive' | 'exclusive'
+                  setBranchMode(mode)
+                  // Reset selected branch if it doesn't match the new mode
+                  const newFiltered = mode === 'all'
+                    ? branches
+                    : mode === 'inclusive'
+                    ? branches.filter((b) => b.gstMode === 'inclusive' || !b.gstMode)
+                    : branches.filter((b) => b.gstMode === 'exclusive')
+
+                  if (selectedBranch !== 'all' && !newFiltered.some((b) => b.id === selectedBranch)) {
+                    setSelectedBranch('all')
+                  }
+                }
+              }}
+              styles={customBranchSelectStyles}
+              classNamePrefix="react-select"
+              isSearchable={false}
+            />
+          </div>
+
+          <div className="branch-filter-dropdown" style={{ minWidth: '155px' }}>
             <Select
               instanceId="topbar-branch-filter-select"
-              options={[{ value: 'all', label: 'All Branches' }, ...branches.map((b) => ({ value: b.id, label: b.name }))]}
+              options={[
+                { value: 'all', label: 'All Branches' },
+                ...filteredBranches.map((b) => ({ value: b.id, label: b.name })),
+              ]}
               value={
-                [{ value: 'all', label: 'All Branches' }, ...branches.map((b) => ({ value: b.id, label: b.name }))].find(
-                  (opt) => opt.value === selectedBranch,
-                ) || { value: 'all', label: 'All Branches' }
+                [
+                  { value: 'all', label: 'All Branches' },
+                  ...filteredBranches.map((b) => ({ value: b.id, label: b.name })),
+                ].find((opt) => opt.value === selectedBranch) || { value: 'all', label: 'All Branches' }
               }
               onChange={(option) => {
                 if (option) setSelectedBranch(option.value)
@@ -819,30 +961,48 @@ const GSTReport: React.FC = () => {
 
         <article className="kpi-card kpi-gst-inclusive">
           <div className="kpi-card-header">
-            <p className="kpi-label">GST INCLUSIVE BILLED</p>
+            <p className="kpi-label">{gstFilter === 'nongst' ? 'NON GST INCLUSIVE BILLED' : 'GST INCLUSIVE BILLED'}</p>
           </div>
           <h2>{formatCurrency(gstInclusiveAmount)}</h2>
-          <p className="kpi-sub-label" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Taxable Value: {formatCurrency(gstInclusiveTaxableAmount)}
-          </p>
+          {(gstFilter === 'gst' || gstFilter === 'both') && (
+            <p className="kpi-sub-label" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+              Taxable Value: {formatCurrency(gstInclusiveTaxableAmount)}
+            </p>
+          )}
         </article>
 
         <article className="kpi-card kpi-gst-exclusive">
           <div className="kpi-card-header">
-            <p className="kpi-label">GST EXCLUSIVE BILLED</p>
+            <p className="kpi-label">{gstFilter === 'nongst' ? 'NON GST EXCLUSIVE BILLED' : 'GST EXCLUSIVE BILLED'}</p>
           </div>
           <h2>{formatCurrency(gstExclusiveAmount)}</h2>
-          <p className="kpi-sub-label" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Taxable Value: {formatCurrency(gstExclusiveTaxableAmount)}
-          </p>
+          {(gstFilter === 'gst' || gstFilter === 'both') && (
+            <p className="kpi-sub-label" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+              Taxable Value: {formatCurrency(gstExclusiveTaxableAmount)}
+            </p>
+          )}
         </article>
       </div>
 
       <section className="table-panel">
         <div className="table-panel-header">
           <div>
-            <h3>GST Performance Details</h3>
-            <p>Live transaction breakdown by GST Mode</p>
+            <h3>
+              {gstFilter === 'gst'
+                ? 'GST Performance Details'
+                : gstFilter === 'nongst'
+                ? 'NON GST Performance Details'
+                : 'GST and NON GST Performance Details'}
+            </h3>
+            <p>
+              Live transaction breakdown by{' '}
+              {gstFilter === 'gst'
+                ? 'GST'
+                : gstFilter === 'nongst'
+                ? 'NON GST'
+                : 'GST and NON GST'}{' '}
+              Mode
+            </p>
           </div>
 
           <div className="panel-actions">
@@ -869,16 +1029,35 @@ const GSTReport: React.FC = () => {
                 <tr>
                   <th>S.NO</th>
                   <th>BRANCH NAME</th>
-                  <th>GST MODE</th>
-                  <th>GST INCLUSIVE AMOUNT</th>
-                  <th>GST EXCLUSIVE AMOUNT</th>
+                  <th>
+                    {gstFilter === 'gst'
+                      ? 'GST MODE'
+                      : gstFilter === 'nongst'
+                      ? 'NON GST MODE'
+                      : 'GST MODE'}
+                  </th>
+                  <th>
+                    {gstFilter === 'gst'
+                      ? 'GST INCLUSIVE AMOUNT'
+                      : gstFilter === 'nongst'
+                      ? 'NON GST INCLUSIVE AMOUNT'
+                      : 'GST INCLUSIVE AMOUNT'}
+                  </th>
+                  <th>
+                    {gstFilter === 'gst'
+                      ? 'GST EXCLUSIVE AMOUNT'
+                      : gstFilter === 'nongst'
+                      ? 'NON GST EXCLUSIVE AMOUNT'
+                      : 'GST EXCLUSIVE AMOUNT'}
+                  </th>
+                  {gstFilter === 'both' && <th>NON GST AMOUNT</th>}
                   <th>TOTAL AMOUNT</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedRows.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="empty-row">
+                    <td colSpan={gstFilter === 'both' ? 7 : 6} className="empty-row">
                       No branches match your search.
                     </td>
                   </tr>
@@ -902,7 +1081,7 @@ const GSTReport: React.FC = () => {
                       <td>
                         <div>
                           <div>{formatCurrency(row.gstInclusiveAmount)}</div>
-                          {row.gstInclusiveAmount > 0 && (
+                          {row.gstInclusiveAmount > 0 && (gstFilter === 'gst' || gstFilter === 'both') && (
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                               on {formatCurrency(row.gstInclusiveTaxableAmount)}
                             </div>
@@ -912,13 +1091,14 @@ const GSTReport: React.FC = () => {
                       <td>
                         <div>
                           <div>{formatCurrency(row.gstExclusiveAmount)}</div>
-                          {row.gstExclusiveAmount > 0 && (
+                          {row.gstExclusiveAmount > 0 && (gstFilter === 'gst' || gstFilter === 'both') && (
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                               on {formatCurrency(row.gstExclusiveTaxableAmount)}
                             </div>
                           )}
                         </div>
                       </td>
+                      {gstFilter === 'both' && <td>{formatCurrency(row.nonGstAmount)}</td>}
                       <td>{formatCurrency(row.totalAmount)}</td>
                     </tr>
                   )
@@ -930,7 +1110,7 @@ const GSTReport: React.FC = () => {
                   <td>
                     <div>
                       <div>{formatCurrency(totals?.gstInclusiveAmount ?? 0)}</div>
-                      {(totals?.gstInclusiveAmount ?? 0) > 0 && (
+                      {(totals?.gstInclusiveAmount ?? 0) > 0 && (gstFilter === 'gst' || gstFilter === 'both') && (
                         <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.85)', marginTop: '2px', fontWeight: 500 }}>
                           on {formatCurrency(totals?.gstInclusiveTaxableAmount ?? 0)}
                         </div>
@@ -940,13 +1120,14 @@ const GSTReport: React.FC = () => {
                   <td>
                     <div>
                       <div>{formatCurrency(totals?.gstExclusiveAmount ?? 0)}</div>
-                      {(totals?.gstExclusiveAmount ?? 0) > 0 && (
+                      {(totals?.gstExclusiveAmount ?? 0) > 0 && (gstFilter === 'gst' || gstFilter === 'both') && (
                         <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.85)', marginTop: '2px', fontWeight: 500 }}>
                           on {formatCurrency(totals?.gstExclusiveTaxableAmount ?? 0)}
                         </div>
                       )}
                     </div>
                   </td>
+                  {gstFilter === 'both' && <td>{formatCurrency(totals?.nonGstAmount ?? 0)}</td>}
                   <td>{formatCurrency(totals?.totalAmount ?? 0)}</td>
                 </tr>
               </tfoot>
@@ -958,8 +1139,8 @@ const GSTReport: React.FC = () => {
       <section className="table-panel" style={{ marginTop: '24px' }}>
         <div className="table-panel-header">
           <div>
-            <h3>Product Wise GST Breakdown</h3>
-            <p>Product-level sales taxable value and GST collection</p>
+            <h3>Product Wise {gstFilter === 'gst' ? 'GST' : 'NON GST'} Breakdown</h3>
+            <p>Product-level sales taxable value {gstFilter === 'gst' ? 'and GST collection' : 'breakdown'}</p>
           </div>
 
           <div className="panel-actions">
@@ -986,16 +1167,17 @@ const GSTReport: React.FC = () => {
                 <tr>
                   <th>S.NO</th>
                   <th>PRODUCT NAME</th>
+                  <th>GST %</th>
                   <th>SELLING COUNT</th>
                   <th>TAXABLE AMOUNT</th>
-                  <th>GST TAX AMOUNT</th>
+                  <th>{gstFilter === 'gst' ? 'GST TAX AMOUNT' : 'TAX AMOUNT'}</th>
                   <th>TOTAL AMOUNT</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredProducts.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="empty-row">
+                    <td colSpan={7} className="empty-row">
                       No products match your search.
                     </td>
                   </tr>
@@ -1010,6 +1192,7 @@ const GSTReport: React.FC = () => {
                           <p className="branch-name">{row.productName}</p>
                         </div>
                       </td>
+                      <td>{row.gstRate ?? 0}%</td>
                       <td>{formatInt(row.count)}</td>
                       <td>{formatCurrency(row.taxableAmount)}</td>
                       <td>{formatCurrency(row.gstAmount)}</td>
@@ -1020,7 +1203,7 @@ const GSTReport: React.FC = () => {
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={2}>TOTAL ({filteredProducts.length})</td>
+                  <td colSpan={3}>TOTAL ({filteredProducts.length})</td>
                   <td>{formatInt(productTotals.count)}</td>
                   <td>{formatCurrency(productTotals.taxableAmount)}</td>
                   <td>{formatCurrency(productTotals.gstAmount)}</td>
@@ -1035,8 +1218,8 @@ const GSTReport: React.FC = () => {
       <section className="table-panel" style={{ marginTop: '24px' }}>
         <div className="table-panel-header">
           <div>
-            <h3>Category Wise GST Breakdown</h3>
-            <p>Category-level sales taxable value and GST collection</p>
+            <h3>Category Wise {gstFilter === 'gst' ? 'GST' : 'NON GST'} Breakdown</h3>
+            <p>Category-level sales taxable value {gstFilter === 'gst' ? 'and GST collection' : 'breakdown'}</p>
           </div>
 
           <div className="panel-actions">
@@ -1065,7 +1248,7 @@ const GSTReport: React.FC = () => {
                   <th>CATEGORY NAME</th>
                   <th>SELLING COUNT</th>
                   <th>TAXABLE AMOUNT</th>
-                  <th>GST TAX AMOUNT</th>
+                  <th>{gstFilter === 'gst' ? 'GST TAX AMOUNT' : 'TAX AMOUNT'}</th>
                   <th>TOTAL AMOUNT</th>
                 </tr>
               </thead>
@@ -1112,8 +1295,8 @@ const GSTReport: React.FC = () => {
       <section className="table-panel" style={{ marginTop: '24px' }}>
         <div className="table-panel-header">
           <div>
-            <h3>Dealer Wise GST Breakdown</h3>
-            <p>Dealer-level sales taxable value and GST collection</p>
+            <h3>Dealer Wise {gstFilter === 'gst' ? 'GST' : 'NON GST'} Breakdown</h3>
+            <p>Dealer-level sales taxable value {gstFilter === 'gst' ? 'and GST collection' : 'breakdown'}</p>
           </div>
 
           <div className="panel-actions">
@@ -1142,7 +1325,7 @@ const GSTReport: React.FC = () => {
                   <th>DEALER NAME</th>
                   <th>SELLING COUNT</th>
                   <th>TAXABLE AMOUNT</th>
-                  <th>GST TAX AMOUNT</th>
+                  <th>{gstFilter === 'gst' ? 'GST TAX AMOUNT' : 'TAX AMOUNT'}</th>
                   <th>TOTAL AMOUNT</th>
                 </tr>
               </thead>
