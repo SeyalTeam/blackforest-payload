@@ -171,6 +171,8 @@ export interface Config {
     'return-order-report': ReturnOrderReport;
     'dealer-report': DealerReport;
     'raw-material-billing-report': RawMaterialBillingReport;
+    'other-products-inventory-report': OtherProductsInventoryReport;
+    'raw-material-inventory-report': RawMaterialInventoryReport;
     'branch-geo-settings': BranchGeoSetting;
     'network-status': NetworkStatus;
     'widget-settings': WidgetSetting;
@@ -202,6 +204,8 @@ export interface Config {
     'return-order-report': ReturnOrderReportSelect<false> | ReturnOrderReportSelect<true>;
     'dealer-report': DealerReportSelect<false> | DealerReportSelect<true>;
     'raw-material-billing-report': RawMaterialBillingReportSelect<false> | RawMaterialBillingReportSelect<true>;
+    'other-products-inventory-report': OtherProductsInventoryReportSelect<false> | OtherProductsInventoryReportSelect<true>;
+    'raw-material-inventory-report': RawMaterialInventoryReportSelect<false> | RawMaterialInventoryReportSelect<true>;
     'branch-geo-settings': BranchGeoSettingsSelect<false> | BranchGeoSettingsSelect<true>;
     'network-status': NetworkStatusSelect<false> | NetworkStatusSelect<true>;
     'widget-settings': WidgetSettingsSelect<false> | WidgetSettingsSelect<true>;
@@ -1066,6 +1070,14 @@ export interface DealerBilling {
   productsPhoto: (string | Media)[];
   deliveryPersonPhoto: string | Media;
   products?: (string | Product)[] | null;
+  productsList?:
+    | {
+        product: string | Product;
+        quantity: number;
+        totalAmount?: number | null;
+        id?: string | null;
+      }[]
+    | null;
   date: string;
   paidAmount: number;
   payments?:
@@ -1106,6 +1118,10 @@ export interface RawMaterialBilling {
          * Total quantity (calculated automatically if Package Size and Number of Packages are set)
          */
         quantity: number;
+        /**
+         * Total amount (cost) for this raw material item
+         */
+        totalAmount?: number | null;
         id?: string | null;
       }[]
     | null;
@@ -2550,6 +2566,14 @@ export interface DealerBillingsSelect<T extends boolean = true> {
   productsPhoto?: T;
   deliveryPersonPhoto?: T;
   products?: T;
+  productsList?:
+    | T
+    | {
+        product?: T;
+        quantity?: T;
+        totalAmount?: T;
+        id?: T;
+      };
   date?: T;
   paidAmount?: T;
   payments?:
@@ -2589,6 +2613,7 @@ export interface RawMaterialBillingsSelect<T extends boolean = true> {
         packageSize?: T;
         numberOfPackages?: T;
         quantity?: T;
+        totalAmount?: T;
         id?: T;
       };
   date?: T;
@@ -3073,6 +3098,24 @@ export interface DealerReport {
  * via the `definition` "raw-material-billing-report".
  */
 export interface RawMaterialBillingReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "other-products-inventory-report".
+ */
+export interface OtherProductsInventoryReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "raw-material-inventory-report".
+ */
+export interface RawMaterialInventoryReport {
   id: string;
   updatedAt?: string | null;
   createdAt?: string | null;
@@ -4570,6 +4613,24 @@ export interface DealerReportSelect<T extends boolean = true> {
  * via the `definition` "raw-material-billing-report_select".
  */
 export interface RawMaterialBillingReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "other-products-inventory-report_select".
+ */
+export interface OtherProductsInventoryReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "raw-material-inventory-report_select".
+ */
+export interface RawMaterialInventoryReportSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

@@ -19,7 +19,14 @@ export type RawMaterialBillingReportItem = {
   deliveryPersonPhotoUrl?: string
   time: string
   status: string
-  rawMaterials?: { name: string; quantity: number; unit: string; packageSize?: number; numberOfPackages?: number }[]
+  rawMaterials?: {
+    name: string
+    quantity: number
+    unit: string
+    packageSize?: number
+    numberOfPackages?: number
+    totalAmount?: number
+  }[]
 }
 
 export type CompanyGroup = {
@@ -67,6 +74,7 @@ type RawItem = {
     packageSize?: number
     numberOfPackages?: number
     quantity?: number
+    totalAmount?: number
     unit?: string
   }[]
 }
@@ -307,6 +315,7 @@ export const getRawMaterialBillingReportData = async (
                 packageSize: '$rawMaterialsList.packageSize',
                 numberOfPackages: '$rawMaterialsList.numberOfPackages',
                 quantity: '$rawMaterialsList.quantity',
+                totalAmount: '$rawMaterialsList.totalAmount',
                 unit: '$materialInfo.unit',
               },
               else: '$$REMOVE',
@@ -382,16 +391,24 @@ export const getRawMaterialBillingReportData = async (
           })
         }
 
-        const rawMaterials: { name: string; quantity: number; unit: string; packageSize?: number; numberOfPackages?: number }[] = []
+        const rawMaterials: {
+          name: string
+          quantity: number
+          unit: string
+          packageSize?: number
+          numberOfPackages?: number
+          totalAmount?: number
+        }[] = []
         if (Array.isArray(item.rawMaterialsList)) {
           item.rawMaterialsList.forEach((m) => {
             if (m && typeof m === 'object') {
               rawMaterials.push({
-                name: toNonEmptyString(m.rawMaterialName, 'Unknown Material'),
+                name: toNonEmptyString(m.rawMaterialName, 'Unknown Material').trim(),
                 quantity: toNumber(m.quantity),
                 unit: toNonEmptyString(m.unit, 'kg'),
                 packageSize: m.packageSize !== undefined ? toNumber(m.packageSize) : undefined,
                 numberOfPackages: m.numberOfPackages !== undefined ? toNumber(m.numberOfPackages) : undefined,
+                totalAmount: m.totalAmount !== undefined ? toNumber(m.totalAmount) : undefined,
               })
             }
           })

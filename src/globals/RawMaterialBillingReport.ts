@@ -2,12 +2,12 @@ import { GlobalConfig } from 'payload'
 
 export const RawMaterialBillingReportGlobal: GlobalConfig = {
   slug: 'raw-material-billing-report',
-  label: 'Raw Material Billing Reports',
+  label: 'Raw Material',
   access: {
     read: () => true,
   },
   admin: {
-    group: 'Report',
+    group: 'Account',
     components: {
       views: {
         edit: {

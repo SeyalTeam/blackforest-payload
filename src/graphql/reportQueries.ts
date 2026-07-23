@@ -249,6 +249,28 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
     },
   })
 
+  const CategoryGSTStatType = new graphQL.GraphQLObjectType({
+    name: 'CategoryGSTStat',
+    fields: {
+      categoryName: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+      count: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      taxableAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      gstAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      totalAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+    },
+  })
+
+  const DealerGSTStatType = new graphQL.GraphQLObjectType({
+    name: 'DealerGSTStat',
+    fields: {
+      dealerName: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+      count: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      taxableAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      gstAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      totalAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+    },
+  })
+
   const BranchBillingReportResultType = new graphQL.GraphQLObjectType({
     name: 'BranchBillingReportResult',
     fields: {
@@ -274,6 +296,16 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       productGstStats: {
         type: new graphQL.GraphQLNonNull(
           new graphQL.GraphQLList(new graphQL.GraphQLNonNull(ProductGSTStatType)),
+        ),
+      },
+      categoryGstStats: {
+        type: new graphQL.GraphQLNonNull(
+          new graphQL.GraphQLList(new graphQL.GraphQLNonNull(CategoryGSTStatType)),
+        ),
+      },
+      dealerGstStats: {
+        type: new graphQL.GraphQLNonNull(
+          new graphQL.GraphQLList(new graphQL.GraphQLNonNull(DealerGSTStatType)),
         ),
       },
     },

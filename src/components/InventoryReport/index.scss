@@ -237,6 +237,53 @@
       }
     }
   }
+
+  .pagination-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 0.5rem 0.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+
+    .pagination-info {
+      font-size: 0.85rem;
+      color: var(--theme-text-secondary);
+    }
+
+    .pagination-buttons {
+      display: flex;
+      gap: 0.4rem;
+
+      .pagination-btn {
+        padding: 6px 12px;
+        border-radius: 6px;
+        border: 1px solid var(--theme-elevation-200);
+        background: var(--theme-elevation-100);
+        color: var(--theme-text-primary);
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+
+        &:hover:not(:disabled) {
+          background: var(--theme-elevation-200);
+          border-color: var(--theme-elevation-300);
+        }
+
+        &:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+
+        &.active {
+          background: #3b82f6;
+          color: #ffffff;
+          border-color: #3b82f6;
+        }
+      }
+    }
+  }
 }
 
 // Custom Date Input Style

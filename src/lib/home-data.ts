@@ -10,6 +10,8 @@ import type {
   RuleSection,
 } from "@/lib/order-types";
 
+import { resolveApiTokenForBranch } from "@/lib/api-token";
+
 const NEXT_PUBLIC_SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000';
 const API_BASE = `${NEXT_PUBLIC_SERVER_URL}/api`;
 const DEFAULT_BRANCH_ID =
@@ -941,7 +943,20 @@ function normalizeProduct(productNode: unknown, branchId?: string): Product | nu
 }
 
 async function fetchJson(path: string) {
+  const headers: Record<string, string> = {};
+  let branchId: string | undefined = undefined;
+  const branchMatch = path.match(/\/branches\/([a-f0-9]{24})/i);
+  if (branchMatch) {
+    branchId = branchMatch[1];
+  }
+
+  const token = resolveApiTokenForBranch(branchId || DEFAULT_BRANCH_ID);
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const response = await fetch(`${API_BASE}${path}`, {
+    headers,
     next: { revalidate: 5 },
   });
 

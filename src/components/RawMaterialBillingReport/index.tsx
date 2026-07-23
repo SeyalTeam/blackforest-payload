@@ -30,7 +30,14 @@ export type RawMaterialBillingReportItem = {
   deliveryPersonPhotoUrl?: string
   time: string
   status: string
-  rawMaterials?: { name: string; quantity: number; unit: string; packageSize?: number; numberOfPackages?: number }[]
+  rawMaterials?: {
+    name: string
+    quantity: number
+    unit: string
+    packageSize?: number
+    numberOfPackages?: number
+    totalAmount?: number
+  }[]
 }
 
 export type CompanyGroup = {
@@ -779,16 +786,19 @@ const RawMaterialBillingReport: React.FC = () => {
               <table>
                 <thead>
                   <tr>
+                    <th style={{ width: '5%' }}>#</th>
                     <th>Material Name</th>
                     <th>Weight Size</th>
                     <th>No. of Packs</th>
                     <th style={{ textAlign: 'right' }}>Total Quantity</th>
                     <th>Unit</th>
+                    <th style={{ textAlign: 'right', width: '20%' }}>Total Price (₹)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {previewMaterials.map((mat, idx) => (
                     <tr key={idx}>
+                      <td>{idx + 1}</td>
                       <td style={{ fontWeight: 600 }}>{mat.name}</td>
                       <td>{mat.packageSize !== undefined ? mat.packageSize : '-'}</td>
                       <td>{mat.numberOfPackages !== undefined ? mat.numberOfPackages : '-'}</td>
@@ -796,9 +806,26 @@ const RawMaterialBillingReport: React.FC = () => {
                         {mat.quantity.toLocaleString('en-IN')}
                       </td>
                       <td style={{ textTransform: 'lowercase' }}>{mat.unit}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#10b981' }}>
+                        {mat.totalAmount ? `₹${mat.totalAmount.toLocaleString('en-IN')}` : '-'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
+                {previewMaterials.some((m) => m.totalAmount || m.quantity) && (
+                  <tfoot>
+                    <tr style={{ borderTop: '2px solid var(--theme-elevation-200)', fontWeight: 700 }}>
+                      <td colSpan={4} style={{ textAlign: 'right' }}>Total:</td>
+                      <td style={{ textAlign: 'right' }}>
+                        {previewMaterials.reduce((sum, m) => sum + (m.quantity || 0), 0).toLocaleString('en-IN')}
+                      </td>
+                      <td></td>
+                      <td style={{ textAlign: 'right', color: '#10b981' }}>
+                        ₹{previewMaterials.reduce((sum, m) => sum + (m.totalAmount || 0), 0).toLocaleString('en-IN')}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
             <button type="button" className="close-modal-btn" onClick={() => setPreviewMaterials(null)}>

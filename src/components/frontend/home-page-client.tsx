@@ -1357,8 +1357,14 @@ export default function HomePageClient({
               </div>
             ) : null}
             <div className={styles.sectionGrid}>
-              {favoriteProducts.map(({ key, product: rawProduct }) => {
-                const product = applySectionPrice(rawProduct, requestedTableSection);
+              {[...favoriteProducts]
+                .sort((a, b) => {
+                  const aStock = a.product.isOutOfStock ? 1 : 0;
+                  const bStock = b.product.isOutOfStock ? 1 : 0;
+                  return aStock - bStock;
+                })
+                .map(({ key, product: rawProduct }) => {
+                  const product = applySectionPrice(rawProduct, requestedTableSection);
                 const quantity = cartItems.find((item) => item.id === product.id)?.quantity ?? 0;
                 const isOutOfStock = product.isOutOfStock;
                 const preparationLabel = formatPreparationLabel(product.preparationTime);

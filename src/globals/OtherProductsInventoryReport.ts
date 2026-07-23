@@ -1,8 +1,8 @@
 import { GlobalConfig } from 'payload'
 
-export const DealerReportGlobal: GlobalConfig = {
-  slug: 'dealer-report',
-  label: 'Other Products',
+export const OtherProductsInventoryReportGlobal: GlobalConfig = {
+  slug: 'other-products-inventory-report',
+  label: 'Other Products Inventory',
   access: {
     read: () => true,
   },
@@ -12,7 +12,7 @@ export const DealerReportGlobal: GlobalConfig = {
       views: {
         edit: {
           root: {
-            Component: '/components/DealerReport/index.tsx#default',
+            Component: '/components/OtherProductsInventoryReport/index.tsx#default',
           },
         },
       },

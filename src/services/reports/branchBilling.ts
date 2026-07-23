@@ -84,6 +84,22 @@ export type ProductGSTStat = {
   totalAmount: number
 }
 
+export type CategoryGSTStat = {
+  categoryName: string
+  count: number
+  taxableAmount: number
+  gstAmount: number
+  totalAmount: number
+}
+
+export type DealerGSTStat = {
+  dealerName: string
+  count: number
+  taxableAmount: number
+  gstAmount: number
+  totalAmount: number
+}
+
 export type BranchBillingReportResult = {
   startDate: string
   endDate: string
@@ -93,6 +109,8 @@ export type BranchBillingReportResult = {
   heatmapData: HeatmapPoint[]
   summary: BranchBillingSummary
   productGstStats: ProductGSTStat[]
+  categoryGstStats: CategoryGSTStat[]
+  dealerGstStats: DealerGSTStat[]
 }
 
 type BranchBillingReportArgs = {
@@ -759,6 +777,139 @@ export const getBranchBillingReportData = async (
     },
   ])
 
+  const categoryGstStats = await BillingModel.aggregate([
+    {
+      $match: {
+        ...matchQuery,
+        status: { $in: ['completed', 'settled'] },
+      },
+    },
+    {
+      $unwind: '$items',
+    },
+    {
+      $match: {
+        'items.status': { $ne: 'cancelled' },
+        'items.gstRate': { $gt: 0 },
+      },
+    },
+    {
+      $lookup: {
+        from: 'products',
+        localField: 'items.product',
+        foreignField: '_id',
+        as: 'productDetails',
+      },
+    },
+    {
+      $unwind: '$productDetails',
+    },
+    {
+      $lookup: {
+        from: 'categories',
+        localField: 'productDetails.category',
+        foreignField: '_id',
+        as: 'categoryDetails',
+      },
+    },
+    {
+      $unwind: '$categoryDetails',
+    },
+    {
+      $group: {
+        _id: {
+          categoryName: '$categoryDetails.name',
+        },
+        count: { $sum: '$items.quantity' },
+        taxableAmount: { $sum: '$items.taxableAmount' },
+        gstAmount: { $sum: '$items.gstAmount' },
+        totalAmount: { $sum: '$items.finalLineTotal' },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        categoryName: '$_id.categoryName',
+        count: { $ifNull: ['$count', 0] },
+        taxableAmount: { $ifNull: ['$taxableAmount', 0] },
+        gstAmount: { $ifNull: ['$gstAmount', 0] },
+        totalAmount: { $ifNull: ['$totalAmount', 0] },
+      },
+    },
+    {
+      $sort: { gstAmount: -1 },
+    },
+  ])
+
+  const dealerGstStats = await BillingModel.aggregate([
+    {
+      $match: {
+        ...matchQuery,
+        status: { $in: ['completed', 'settled'] },
+      },
+    },
+    {
+      $unwind: '$items',
+    },
+    {
+      $match: {
+        'items.status': { $ne: 'cancelled' },
+        'items.gstRate': { $gt: 0 },
+      },
+    },
+    {
+      $lookup: {
+        from: 'products',
+        localField: 'items.product',
+        foreignField: '_id',
+        as: 'productDetails',
+      },
+    },
+    {
+      $unwind: '$productDetails',
+    },
+    {
+      $match: {
+        'productDetails.dealer': { $ne: null },
+      },
+    },
+    {
+      $lookup: {
+        from: 'dealers',
+        localField: 'productDetails.dealer',
+        foreignField: '_id',
+        as: 'dealerDetails',
+      },
+    },
+    {
+      $unwind: '$dealerDetails',
+    },
+    {
+      $group: {
+        _id: {
+          dealerName: '$dealerDetails.companyName',
+        },
+        count: { $sum: '$items.quantity' },
+        taxableAmount: { $sum: '$items.taxableAmount' },
+        gstAmount: { $sum: '$items.gstAmount' },
+        totalAmount: { $sum: '$items.finalLineTotal' },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        dealerName: '$_id.dealerName',
+        count: { $ifNull: ['$count', 0] },
+        taxableAmount: { $ifNull: ['$taxableAmount', 0] },
+        gstAmount: { $ifNull: ['$gstAmount', 0] },
+        totalAmount: { $ifNull: ['$totalAmount', 0] },
+      },
+    },
+    {
+      $sort: { gstAmount: -1 },
+    },
+  ])
+
   return {
     startDate: startDateParam,
     endDate: endDateParam,
@@ -772,5 +923,7 @@ export const getBranchBillingReportData = async (
       medianAmount,
     },
     productGstStats,
+    categoryGstStats,
+    dealerGstStats,
   }
 }

@@ -8,9 +8,16 @@ dayjs.extend(utc)
 dayjs.extend(timezone)
 dayjs.tz.setDefault('Asia/Kolkata')
 
+export type DealerReportProductItem = {
+  name: string
+  quantity?: number
+  totalAmount?: number
+}
+
 export type DealerReportItem = {
   id: string
   dealerName: string
+  branchName?: string
   amount: number
   paidAmount?: number
   payments?: { amount: number; date: string }[]
@@ -18,7 +25,7 @@ export type DealerReportItem = {
   productsUrl?: string
   time: string
   status: string
-  products?: string[]
+  products?: DealerReportProductItem[]
 }
 
 export type DealerReportGroup = {
@@ -51,6 +58,7 @@ type DealerReportArgs = {
 type RawDealerItem = {
   id: unknown
   dealerName: unknown
+  branchName?: unknown
   amount: unknown
   paidAmount?: unknown
   payments?: unknown
@@ -60,9 +68,11 @@ type RawDealerItem = {
   productsUrl?: unknown
   productsFilename?: unknown
   productsPrefix?: unknown
-  time: unknown
+  time?: unknown
   status: unknown
   products?: unknown
+  productsList?: unknown
+  productsListResolvedProducts?: unknown
 }
 
 type RawDealerGroup = {
@@ -255,8 +265,50 @@ export const getDealerReportData = async (
     {
       $lookup: {
         from: 'products',
-        localField: 'products',
-        foreignField: '_id',
+        let: { prodIds: '$productsList.product' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $in: [
+                  '$_id',
+                  {
+                    $map: {
+                      input: { $ifNull: ['$$prodIds', []] },
+                      as: 'pid',
+                      in: { $convert: { input: '$$pid', to: 'objectId', onError: '$$pid', onNull: '$$pid' } },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        ],
+        as: 'productsListResolvedProducts',
+      },
+    },
+    {
+      $lookup: {
+        from: 'products',
+        let: { prodIds: '$products' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $in: [
+                  '$_id',
+                  {
+                    $map: {
+                      input: { $ifNull: ['$$prodIds', []] },
+                      as: 'pid',
+                      in: { $convert: { input: '$$pid', to: 'objectId', onError: '$$pid', onNull: '$$pid' } },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        ],
         as: 'resolvedProducts',
       },
     },
@@ -277,10 +329,21 @@ export const getDealerReportData = async (
             billCopyUrl: '$billCopyInfo.url',
             billCopyFilename: '$billCopyInfo.filename',
             billCopyPrefix: '$billCopyInfo.prefix',
-            productsUrl: '$productsInfo.url',
+            productsUrl: { $arrayElemAt: ['$productsInfo.url', 0] },
             productsFilename: { $arrayElemAt: ['$productsInfo.filename', 0] },
             productsPrefix: { $arrayElemAt: ['$productsInfo.prefix', 0] },
             status: { $ifNull: ['$status', 'pending'] },
+            productsList: '$productsList',
+            productsListResolvedProducts: {
+              $map: {
+                input: '$productsListResolvedProducts',
+                as: 'p',
+                in: {
+                  id: { $toString: '$$p._id' },
+                  name: '$$p.name',
+                },
+              },
+            },
             products: {
               $map: {
                 input: '$resolvedProducts',
@@ -309,15 +372,60 @@ export const getDealerReportData = async (
       .map((item) => {
         const billCopyFilename = toNonEmptyString(item.billCopyFilename)
         const billCopyPrefix = toNonEmptyString(item.billCopyPrefix)
+        const billCopyUrl = toNonEmptyString(item.billCopyUrl)
         const productsFilename = toNonEmptyString(item.productsFilename)
         const productsPrefix = toNonEmptyString(item.productsPrefix)
+        const productsUrl = toNonEmptyString(item.productsUrl)
 
-        const products: string[] = []
-        if (Array.isArray(item.products)) {
+        const products: DealerReportProductItem[] = []
+
+        if (Array.isArray(item.productsList) && item.productsList.length > 0) {
+          const resolvedMap = new Map<string, string>()
+          if (Array.isArray(item.productsListResolvedProducts)) {
+            item.productsListResolvedProducts.forEach((p: any) => {
+              if (p && typeof p === 'object') {
+                const id = toNonEmptyString(p.id)
+                const name = toNonEmptyString(p.name).trim()
+                if (id && name) {
+                  resolvedMap.set(id, name)
+                }
+              }
+            })
+          }
+
+          item.productsList.forEach((p: any) => {
+            if (p && typeof p === 'object') {
+              let prodId = ''
+              let name = ''
+              if (typeof p.product === 'string') {
+                prodId = p.product
+              } else if (p.product && typeof p.product === 'object') {
+                prodId = toNonEmptyString(p.product.id || p.product._id)
+                name = toNonEmptyString(p.product.name)
+              }
+              if (!name && prodId) {
+                name = resolvedMap.get(prodId) || ''
+              }
+              name = name.trim()
+              if (!name) {
+                name = 'Unknown Product'
+              }
+
+              const quantity = toNumber(p.quantity)
+              const totalAmount = toNumber(p.totalAmount)
+
+              products.push({
+                name,
+                quantity,
+                totalAmount,
+              })
+            }
+          })
+        } else if (Array.isArray(item.products)) {
           item.products.forEach((p) => {
-            const name = toNonEmptyString(p)
+            const name = toNonEmptyString(p).trim()
             if (name.length > 0) {
-              products.push(name)
+              products.push({ name, quantity: 0, totalAmount: 0 })
             }
           })
         }
@@ -334,8 +442,8 @@ export const getDealerReportData = async (
           })
         }
 
-        const resolvedBillCopyUrl = resolveMediaUrl(billCopyFilename, billCopyPrefix)
-        const resolvedProductsUrl = resolveMediaUrl(productsFilename, productsPrefix)
+        const resolvedBillCopyUrl = billCopyUrl || resolveMediaUrl(billCopyFilename, billCopyPrefix)
+        const resolvedProductsUrl = productsUrl || resolveMediaUrl(productsFilename, productsPrefix)
 
         return {
           id: toNonEmptyString(item.id),
@@ -377,7 +485,7 @@ export const getDealerReportData = async (
 function resolveMediaUrl(filename?: string | null, prefix?: string | null): string | undefined {
   if (!filename) return undefined
   const publicURL = process.env.NEXT_PUBLIC_S3_PUBLIC_URL || process.env.S3_PUBLIC_URL
-  if (!publicURL) return `/api/media/file/${filename}`
+  if (!publicURL) return undefined
 
   const rootPrefix = 'blackforest/uploads'
   const docPrefix = prefix || ''
@@ -393,13 +501,14 @@ function resolveMediaUrl(filename?: string | null, prefix?: string | null): stri
         ? cleanDocPrefix.slice(cleanRoot.length + 1)
         : cleanDocPrefix
 
-  const finalDocPrefix = filename.startsWith(`${normalizedDocPrefix}/`)
-    ? ''
-    : normalizedDocPrefix
-
   const filenameWithoutRoot = filename.startsWith(`${cleanRoot}/`)
     ? filename.slice(cleanRoot.length + 1)
     : filename
+
+  const finalDocPrefix =
+    normalizedDocPrefix && filenameWithoutRoot.startsWith(`${normalizedDocPrefix}/`)
+      ? ''
+      : normalizedDocPrefix
 
   const fullPath = [cleanRoot, finalDocPrefix, filenameWithoutRoot]
     .filter(Boolean)

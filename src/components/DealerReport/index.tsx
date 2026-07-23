@@ -20,9 +20,16 @@ type SelectOption = {
   label: string
 }
 
+export type DealerReportProductItem = {
+  name: string
+  quantity?: number
+  totalAmount?: number
+}
+
 export type DealerReportItem = {
   id: string
   dealerName: string
+  branchName?: string
   amount: number
   paidAmount?: number
   payments?: { amount: number; date: string }[]
@@ -30,7 +37,7 @@ export type DealerReportItem = {
   productsUrl?: string
   time: string
   status: string
-  products?: string[]
+  products?: DealerReportProductItem[]
 }
 
 export type BranchGroup = {
@@ -127,7 +134,7 @@ const DealerReport: React.FC = () => {
   const [error, setError] = useState('')
 
   const [previewImage, setPreviewImage] = useState<string | null>(null)
-  const [previewProducts, setPreviewProducts] = useState<string[] | null>(null)
+  const [previewProducts, setPreviewProducts] = useState<DealerReportProductItem[] | null>(null)
   const [dateRangePreset, setDateRangePreset] = useState<string>('today')
 
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([])
@@ -658,206 +665,140 @@ const DealerReport: React.FC = () => {
                       <thead>
                         <tr>
                           <th style={{ width: '3%' }}>S.NO</th>
-                          <th style={{ width: '17%' }}>Dealer</th>
-                          <th style={{ width: '8%', textAlign: 'center' }}>Branch</th>
-                          <th style={{ width: '8%', textAlign: 'right' }}>Amount</th>
-                          <th style={{ width: '8%', textAlign: 'right' }}>Debit</th>
-                          <th style={{ width: '8%', textAlign: 'right' }}>Credit</th>
+                          <th style={{ width: '22%' }}>Dealer</th>
+                          <th style={{ width: '15%' }}>Branch</th>
+                          <th style={{ width: '10%', textAlign: 'right' }}>Amount</th>
+                          <th style={{ width: '10%', textAlign: 'right' }}>Paid</th>
                           <th style={{ width: '10%', textAlign: 'right' }}>Balance</th>
                           <th style={{ width: '8%', textAlign: 'center' }}>Status</th>
                           <th style={{ width: '5%', textAlign: 'center' }}>History</th>
-                          <th style={{ width: '5%', textAlign: 'center' }}>Bill Photo</th>
-                          <th style={{ width: '5%', textAlign: 'center' }}>Product Photo</th>
-                          <th style={{ width: '17%', textAlign: 'right' }}>Date & Time</th>
+                          <th style={{ width: '5%', textAlign: 'center' }}>Bill Copy</th>
+                          <th style={{ width: '5%', textAlign: 'center' }}>Photos</th>
+                          <th style={{ width: '12%', textAlign: 'right' }}>Date & Time</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {paginatedItems.map((item, idx) => (
-                          <tr key={item.id}>
-                            <td style={{ opacity: 0.5, fontSize: '0.8rem' }}>
-                              {(activePage - 1) * pageSize + idx + 1}
-                            </td>
-                            <td className="dealer-cell">
-                              {item.products && item.products.length > 0 ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setPreviewProducts(item.products || [])}
-                                  style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    padding: 0,
-                                    margin: 0,
-                                    font: 'inherit',
-                                    color: 'inherit',
-                                    cursor: 'pointer',
-                                    textAlign: 'left',
-                                    fontWeight: 600,
-                                  }}
-                                  title="Click to view products"
-                                >
-                                  {item.dealerName}
-                                </button>
-                              ) : (
-                                <span style={{ fontWeight: 600 }}>{item.dealerName}</span>
-                              )}
-                            </td>
-                            <td className="branch-cell" style={{ textAlign: 'center' }}>
-                              {item.branchName}
-                            </td>
-                            <td className="amount-cell">₹{item.amount.toLocaleString('en-IN')}</td>
-                            <td className="debit-cell">
-                              {item.debit > 0 ? `₹${item.debit.toLocaleString('en-IN')}` : '-'}
-                            </td>
-                            <td className="credit-cell">
-                              {item.credit > 0 ? `₹${item.credit.toLocaleString('en-IN')}` : '-'}
-                            </td>
-                            <td className="balance-cell">
-                              {item.balance >= 0
-                                ? `₹${item.balance.toLocaleString('en-IN')}`
-                                : `-₹${Math.abs(item.balance).toLocaleString('en-IN')}`}
-                            </td>
-
-                            <td className="pay-now-cell" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                              {item.status === 'pending' ? (
-                                <button
-                                  className="pay-now-btn"
-                                  onClick={async () => {
-                                    const remaining = item.amount - (item.paidAmount || 0)
-                                    if (window.confirm(`Are you sure you want to mark the remaining ₹${remaining.toLocaleString('en-IN')} for this bill from ${item.dealerName} as Paid?`)) {
-                                      await handlePaymentUpdate(item.id, item.amount, item)
-                                    }
-                                  }}
-                                >
-                                  Pay Now
-                                </button>
-                              ) : item.status === 'paid' ? (
-                                <span className="status-paid-badge">Paid ✓</span>
-                              ) : (
-                                <span className="status-cancelled-badge">Cancelled</span>
-                              )}
-                            </td>
-                            <td className="history-cell" style={{ textAlign: 'center' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexWrap: 'nowrap' }}>
-                                {item.status === 'pending' && (
+                        {paginatedItems.map((item, idx) => {
+                          const remaining = item.amount - (item.paidAmount || 0)
+                          return (
+                            <tr key={item.id}>
+                              <td style={{ opacity: 0.5, fontSize: '0.8rem' }}>
+                                {(activePage - 1) * pageSize + idx + 1}
+                              </td>
+                              <td className="dealer-cell">
+                                {item.products && item.products.length > 0 ? (
                                   <button
-                                    className="payment-edit-btn"
                                     type="button"
-                                    onClick={() => {
-                                      setPaymentModalItem(item)
-                                      setPaymentAmountInput('')
-                                      setShowPaymentModal(true)
-                                    }}
-                                    title="Record partial payment"
+                                    onClick={() => setPreviewProducts(item.products || [])}
                                     style={{
                                       background: 'none',
                                       border: 'none',
-                                      padding: '4px',
+                                      padding: 0,
+                                      margin: 0,
+                                      font: 'inherit',
+                                      color: 'inherit',
                                       cursor: 'pointer',
-                                      color: 'var(--theme-text-primary)',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
+                                      textAlign: 'left',
+                                      fontWeight: 600,
+                                      textDecoration: 'underline',
                                     }}
+                                    title="Click to view products list"
                                   >
-                                    <svg
-                                      width="18"
-                                      height="18"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                                      <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z"></path>
-                                    </svg>
-                                  </button>
-                                )}
-                                {item.payments && item.payments.length > 0 ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => setHistoryModalItem(item)}
-                                    title="View Payment History"
-                                    style={{
-                                      background: 'none',
-                                      border: 'none',
-                                      padding: '2px',
-                                      cursor: 'pointer',
-                                      color: 'var(--theme-text-secondary, #888)',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                    }}
-                                  >
-                                    <svg
-                                      width="18"
-                                      height="18"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <circle cx="12" cy="12" r="10" />
-                                      <polyline points="12 6 12 12 16 14" />
-                                    </svg>
+                                    {item.dealerName}
                                   </button>
                                 ) : (
-                                  item.status !== 'pending' && '-'
+                                  <span style={{ fontWeight: 600 }}>{item.dealerName}</span>
                                 )}
-                              </div>
-                            </td>
-                            <td className="image-cell" style={{ textAlign: 'center' }}>
-                              <button
-                                className={`image-view-btn ${item.billCopyUrl ? 'active' : 'inactive'}`}
-                                disabled={!item.billCopyUrl}
-                                onClick={() => item.billCopyUrl && setPreviewImage(item.billCopyUrl)}
-                                title={item.billCopyUrl ? 'View Bill Photo' : 'No Photo'}
-                              >
-                                <svg
-                                  width="20"
-                                  height="20"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
+                              </td>
+                              <td className="company-cell">
+                                {item.branchName}
+                              </td>
+                              <td className="amount-cell">₹{item.amount.toLocaleString('en-IN')}</td>
+                              <td className="paid-cell" style={{ textAlign: 'right', color: '#10b981', fontWeight: 600 }}>
+                                ₹{(item.paidAmount || 0).toLocaleString('en-IN')}
+                              </td>
+                              <td className="balance-cell" style={{ textAlign: 'right', color: remaining > 0 ? '#f59e0b' : 'inherit', fontWeight: 700 }}>
+                                ₹{remaining.toLocaleString('en-IN')}
+                              </td>
+                              <td className="status-cell" style={{ textAlign: 'center' }}>
+                                {item.status === 'pending' ? (
+                                  <button
+                                    className="pay-now-btn"
+                                    onClick={async () => {
+                                      if (window.confirm(`Are you sure you want to mark the remaining ₹${remaining.toLocaleString('en-IN')} for this bill from ${item.dealerName} as Paid?`)) {
+                                        await handlePaymentUpdate(item.id, item.amount, item)
+                                      }
+                                    }}
+                                  >
+                                    Pay Now
+                                  </button>
+                                ) : item.status === 'paid' ? (
+                                  <span className="status-paid-badge">Paid ✓</span>
+                                ) : (
+                                  <span className="status-cancelled-badge">Cancelled</span>
+                                )}
+                              </td>
+                              <td className="history-cell" style={{ textAlign: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                  {item.status === 'pending' && (
+                                    <button
+                                      className="payment-edit-btn"
+                                      type="button"
+                                      onClick={() => {
+                                        setPaymentModalItem(item)
+                                        setPaymentAmountInput('')
+                                        setShowPaymentModal(true)
+                                      }}
+                                      title="Record partial payment"
+                                    >
+                                      📝
+                                    </button>
+                                  )}
+                                  {item.payments && item.payments.length > 0 ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setHistoryModalItem(item)}
+                                      title="View Payment History"
+                                      className="history-view-btn"
+                                    >
+                                      ⏱️
+                                    </button>
+                                  ) : (
+                                    item.status !== 'pending' && '-'
+                                  )}
+                                </div>
+                              </td>
+                              <td className="image-cell" style={{ textAlign: 'center' }}>
+                                <button
+                                  className={`image-view-btn ${item.billCopyUrl ? 'active' : 'inactive'}`}
+                                  disabled={!item.billCopyUrl}
+                                  onClick={() => item.billCopyUrl && setPreviewImage(item.billCopyUrl)}
+                                  title={item.billCopyUrl ? 'View Bill Photo' : 'No Photo'}
                                 >
-                                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                                  <circle cx="12" cy="13" r="4"></circle>
-                                </svg>
-                              </button>
-                            </td>
-                            <td className="image-cell" style={{ textAlign: 'center' }}>
-                              <button
-                                className={`image-view-btn ${item.productsUrl ? 'active' : 'inactive'}`}
-                                disabled={!item.productsUrl}
-                                onClick={() => item.productsUrl && setPreviewImage(item.productsUrl)}
-                                title={item.productsUrl ? 'View Product Photo' : 'No Photo'}
-                              >
-                                <svg
-                                  width="20"
-                                  height="20"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                                  <circle cx="12" cy="13" r="4"></circle>
-                                </svg>
-                              </button>
-                            </td>
-                            <td className="time-cell" title={item.time}>
-                              {dayjs(item.time).tz('Asia/Kolkata').format('DD-MM-YY hh:mm A')}
-                            </td>
-                          </tr>
-                        ))}
+                                  📄
+                                </button>
+                              </td>
+                              <td className="image-cell" style={{ textAlign: 'center' }}>
+                                <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                  {item.productsUrl ? (
+                                    <button
+                                      className="image-view-btn active"
+                                      onClick={() => item.productsUrl && setPreviewImage(item.productsUrl)}
+                                      title="View Product Photo"
+                                    >
+                                      📦
+                                    </button>
+                                  ) : (
+                                    <span style={{ opacity: 0.3 }}>-</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="time-cell" title={item.time} style={{ textAlign: 'right', fontSize: '0.85rem', color: 'var(--theme-text-secondary)' }}>
+                                {dayjs(item.time).tz('Asia/Kolkata').format('DD-MM-YY hh:mm A')}
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -872,7 +813,7 @@ const DealerReport: React.FC = () => {
                         <button
                           disabled={activePage === 1}
                           onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                          className="pagination-btn prev-btn"
+                          className="pagination-btn"
                         >
                           Previous
                         </button>
@@ -886,7 +827,7 @@ const DealerReport: React.FC = () => {
                                 {showEllipsis && <span className="ellipsis">...</span>}
                                 <button
                                   onClick={() => setCurrentPage(p)}
-                                  className={`pagination-btn page-num ${activePage === p ? 'active' : ''}`}
+                                  className={`pagination-btn ${activePage === p ? 'active' : ''}`}
                                 >
                                   {p}
                                 </button>
@@ -896,7 +837,7 @@ const DealerReport: React.FC = () => {
                         <button
                           disabled={activePage === totalPages}
                           onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                          className="pagination-btn next-btn"
+                          className="pagination-btn"
                         >
                           Next
                         </button>
@@ -921,6 +862,7 @@ const DealerReport: React.FC = () => {
               width={1200}
               height={1200}
               style={{ objectFit: 'contain', width: '100%', height: 'auto' }}
+              unoptimized
             />
             <button className="close-btn" onClick={() => setPreviewImage(null)}>
               &times;
@@ -930,62 +872,50 @@ const DealerReport: React.FC = () => {
       )}
 
       {previewProducts && (
-        <div className="image-preview-modal" onClick={() => setPreviewProducts(null)}>
-          <div
-            className="modal-content"
-            style={{
-              padding: '2.5rem',
-              background: 'var(--theme-elevation-100)',
-              minWidth: '320px',
-              maxWidth: '500px',
-              borderRadius: '12px',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-              border: '1px solid var(--theme-elevation-200)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3
-              style={{
-                marginTop: 0,
-                marginBottom: '1.5rem',
-                fontSize: '1.25rem',
-                borderBottom: '1px solid var(--theme-elevation-200)',
-                paddingBottom: '0.75rem',
-                color: 'var(--theme-text-primary)',
-              }}
-            >
-              Selected Products
-            </h3>
-            <ul
-              style={{
-                listStyle: 'none',
-                padding: 0,
-                margin: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-                maxHeight: '300px',
-                overflowY: 'auto',
-              }}
-            >
-              {previewProducts.map((prodName, pIdx) => (
-                <li
-                  key={pIdx}
-                  style={{
-                    padding: '10px 14px',
-                    background: 'var(--theme-elevation-150)',
-                    borderRadius: '6px',
-                    fontSize: '0.95rem',
-                    color: 'var(--theme-text-primary)',
-                    border: '1px solid var(--theme-elevation-200)',
-                  }}
-                >
-                  {prodName}
-                </li>
-              ))}
-            </ul>
-            <button className="close-btn" onClick={() => setPreviewProducts(null)}>
-              &times;
+        <div className="materials-modal-overlay" onClick={() => setPreviewProducts(null)}>
+          <div className="materials-modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>Products List</h3>
+            <div className="materials-table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{ width: '5%' }}>#</th>
+                    <th>Product Name</th>
+                    <th style={{ textAlign: 'right', width: '25%' }}>Quantity / Count</th>
+                    <th style={{ textAlign: 'right', width: '25%' }}>Total Price (₹)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewProducts.map((prod, i) => (
+                    <tr key={i}>
+                      <td>{i + 1}</td>
+                      <td style={{ fontWeight: 600 }}>{prod.name}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                        {prod.quantity ? prod.quantity.toLocaleString('en-IN') : '-'}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#10b981' }}>
+                        {prod.totalAmount ? `₹${prod.totalAmount.toLocaleString('en-IN')}` : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                {previewProducts.some((p) => p.totalAmount || p.quantity) && (
+                  <tfoot>
+                    <tr style={{ borderTop: '2px solid var(--theme-elevation-200)', fontWeight: 700 }}>
+                      <td colSpan={2} style={{ textAlign: 'right' }}>Total:</td>
+                      <td style={{ textAlign: 'right' }}>
+                        {previewProducts.reduce((sum, p) => sum + (p.quantity || 0), 0).toLocaleString('en-IN')}
+                      </td>
+                      <td style={{ textAlign: 'right', color: '#10b981' }}>
+                        ₹{previewProducts.reduce((sum, p) => sum + (p.totalAmount || 0), 0).toLocaleString('en-IN')}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+            <button type="button" className="close-modal-btn" onClick={() => setPreviewProducts(null)}>
+              Close
             </button>
           </div>
         </div>

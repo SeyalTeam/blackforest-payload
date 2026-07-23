@@ -77,6 +77,10 @@ import { getExpenseReportHandler } from './endpoints/getExpenseReport'
 import { ExpenseReportGlobal } from './globals/ExpenseReport'
 import { getDealerReportHandler } from './endpoints/getDealerReport'
 import { DealerReportGlobal } from './globals/DealerReport'
+import { getOtherProductsInventoryReportHandler } from './endpoints/getOtherProductsInventoryReport'
+import { OtherProductsInventoryReportGlobal } from './globals/OtherProductsInventoryReport'
+import { getRawMaterialInventoryReportHandler } from './endpoints/getRawMaterialInventoryReport'
+import { RawMaterialInventoryReportGlobal } from './globals/RawMaterialInventoryReport'
 import { getRawMaterialBillingReportHandler } from './endpoints/getRawMaterialBillingReport'
 import { RawMaterialBillingReportGlobal } from './globals/RawMaterialBillingReport'
 import { getReturnOrderReportHandler } from './endpoints/getReturnOrderReport'
@@ -158,7 +162,16 @@ const wrapCollection = (collection: CollectionConfig): CollectionConfig => {
       read: (args) => {
         const { req } = args
         const user = req?.user
-        if (!user) return false
+        if (!user) {
+          if (process.env.NODE_ENV === 'development') {
+            const originalRead = collection.access?.read
+            if (typeof originalRead === 'function') {
+              return originalRead(args)
+            }
+            return true
+          }
+          return false
+        }
         if (user.role === 'superadmin') return true
 
         const allowedCollections = (user as any).allowedCollections || []
@@ -251,7 +264,16 @@ const wrapGlobal = (global: GlobalConfig): GlobalConfig => {
       read: (args) => {
         const { req } = args
         const user = req?.user
-        if (!user) return false
+        if (!user) {
+          if (process.env.NODE_ENV === 'development') {
+            const originalRead = global.access?.read
+            if (typeof originalRead === 'function') {
+              return originalRead(args)
+            }
+            return true
+          }
+          return false
+        }
         if (user.role === 'superadmin') return true
 
         const allowedGlobals = (user as any).allowedGlobals || []
@@ -599,6 +621,16 @@ export default buildConfig({
       handler: updateBillVerificationStatusHandler,
     },
     {
+      path: '/reports/other-products-inventory',
+      method: 'get',
+      handler: getOtherProductsInventoryReportHandler,
+    },
+    {
+      path: '/reports/raw-material-inventory',
+      method: 'get',
+      handler: getRawMaterialInventoryReportHandler,
+    },
+    {
       path: '/instock-params/update-status', // Choosing a path
       method: 'post',
       handler: updateInstockStatusHandler,
@@ -809,6 +841,8 @@ export default buildConfig({
     ReturnOrderReportGlobal,
     DealerReportGlobal,
     RawMaterialBillingReportGlobal,
+    OtherProductsInventoryReportGlobal,
+    RawMaterialInventoryReportGlobal,
     BranchGeoSettings,
     NetworkStatus,
     WidgetSettingsGlobal,

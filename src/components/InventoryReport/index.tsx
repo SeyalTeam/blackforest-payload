@@ -94,6 +94,9 @@ const InventoryReport: React.FC = () => {
   )
   const [toDate, setToDate] = useState<Date | null>(new Date())
 
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState<number>(100)
+
   const CustomDateInput = forwardRef(({ value, onClick }: any, ref: any) => (
     <div className="custom-date-input" onClick={onClick} ref={ref}>
       {value}
@@ -184,6 +187,20 @@ const InventoryReport: React.FC = () => {
   useEffect(() => {
     fetchReport()
   }, [fetchReport])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [selectedDepartment, selectedCategory, selectedProduct, selectedBranch, viewMode])
+
+  const totalItems = data?.products.length || 0
+  const totalPages = Math.ceil(totalItems / pageSize) || 1
+  const activePage = Math.min(currentPage, totalPages)
+
+  const paginatedProducts = React.useMemo(() => {
+    if (!data?.products) return []
+    const start = (activePage - 1) * pageSize
+    return data.products.slice(start, start + pageSize)
+  }, [data, activePage, pageSize])
 
   const formatValue = (val: number) => {
     const fixed = val.toFixed(2)
@@ -533,109 +550,168 @@ const InventoryReport: React.FC = () => {
       {loading && <p>Loading...</p>}
       {error && <p className="error">{error}</p>}
       {data && data.products.length > 0 && (
-        <div className="table-container">
-          <table className="report-table">
-            <thead>
-              <tr>
-                <th style={{ width: '50px' }}>S.NO</th>
-                <th>PRODUCT NAME</th>
-                {/* Dynamically render branch headers with shortened names */}
-                {data.products[0].branches.map((branch: BranchInventory) => (
-                  <th key={branch.id} className="text-right">
-                    {branch.name.substring(0, 3).toUpperCase()}
-                  </th>
-                ))}
-                <th className="text-right">TOTAL</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.products.map((product: ProductInventory, index: number) => {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const p = product as any
-                let totalVal = 0
-                if (viewMode === 'stock') totalVal = p.totalInventory
-                else if (viewMode === 'billing') totalVal = p.totalSold
-                else if (viewMode === 'return') totalVal = p.totalReturned
-                else if (viewMode === 'received') totalVal = p.totalReceived
-                else if (viewMode === 'instock') totalVal = p.totalInstock
-                return (
-                  <tr key={product.id}>
-                    <td>{index + 1}</td>
-                    <td style={{ fontWeight: '600' }}>{product.name}</td>
-                    {/* Render branch-wise inventory */}
-                    {product.branches.map((branch: BranchInventory) => {
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      const b = branch as any
-                      let val = 0
-                      if (viewMode === 'stock') val = b.inventory
-                      else if (viewMode === 'billing') val = b.sold
-                      else if (viewMode === 'return') val = b.returned
-                      else if (viewMode === 'received') val = b.received
-                      else if (viewMode === 'instock') val = b.instock
+        <>
+          <div className="table-header-controls" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+            <div className="limit-selector" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
+              <span>Show </span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value))
+                  setCurrentPage(1)
+                }}
+                className="page-size-select"
+                style={{
+                  background: 'var(--theme-elevation-100)',
+                  border: '1px solid var(--theme-elevation-200)',
+                  color: 'var(--theme-text-primary)',
+                  borderRadius: '6px',
+                  padding: '4px 8px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+                <option value={500}>500</option>
+              </select>
+              <span> entries</span>
+            </div>
+          </div>
 
-                      return (
-                        <td
-                          key={branch.id}
-                          className="text-right"
-                          style={{
-                            fontWeight: '700',
-                            fontSize: '18px',
-                            color:
-                              val > 0
-                                ? '#22c55e'
-                                : val < 0 && viewMode === 'stock'
-                                  ? '#ef4444'
-                                  : val === 0 && viewMode === 'stock'
+          <div className="table-container">
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '50px' }}>S.NO</th>
+                  <th>PRODUCT NAME</th>
+                  {/* Dynamically render branch headers with shortened names */}
+                  {data.products[0].branches.map((branch: BranchInventory) => (
+                    <th key={branch.id} className="text-right">
+                      {branch.name.substring(0, 3).toUpperCase()}
+                    </th>
+                  ))}
+                  <th className="text-right">TOTAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedProducts.map((product: ProductInventory, index: number) => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const p = product as any
+                  let totalVal = 0
+                  if (viewMode === 'stock') totalVal = p.totalInventory
+                  else if (viewMode === 'billing') totalVal = p.totalSold
+                  else if (viewMode === 'return') totalVal = p.totalReturned
+                  else if (viewMode === 'received') totalVal = p.totalReceived
+                  else if (viewMode === 'instock') totalVal = p.totalInstock
+                  return (
+                    <tr key={product.id}>
+                      <td>{(activePage - 1) * pageSize + index + 1}</td>
+                      <td style={{ fontWeight: '600' }}>{product.name}</td>
+                      {/* Render branch-wise inventory */}
+                      {product.branches.map((branch: BranchInventory) => {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const b = branch as any
+                        let val = 0
+                        if (viewMode === 'stock') val = b.inventory
+                        else if (viewMode === 'billing') val = b.sold
+                        else if (viewMode === 'return') val = b.returned
+                        else if (viewMode === 'received') val = b.received
+                        else if (viewMode === 'instock') val = b.instock
+
+                        return (
+                          <td
+                            key={branch.id}
+                            className="text-right"
+                            style={{
+                              fontWeight: '700',
+                              fontSize: '18px',
+                              color:
+                                val > 0
+                                  ? '#22c55e'
+                                  : val < 0 && viewMode === 'stock'
                                     ? '#ef4444'
-                                    : 'inherit',
+                                    : val === 0 && viewMode === 'stock'
+                                      ? '#ef4444'
+                                      : 'inherit',
+                            }}
+                          >
+                            {formatValue(val)}
+                          </td>
+                        )
+                      })}
+                      <td
+                        className="text-right"
+                        style={{
+                          fontWeight: '700',
+                          fontSize: '18px',
+                          color:
+                            totalVal > 0
+                              ? '#22c55e'
+                              : totalVal < 0 && viewMode === 'stock'
+                                ? '#ef4444'
+                                : totalVal === 0 && viewMode === 'stock'
+                                  ? '#ef4444'
+                                  : 'inherit',
+                        }}
+                      >
+                        {formatValue(totalVal)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="grand-total-row">
+                  <td colSpan={2} style={{ fontWeight: 'bold', textAlign: 'right' }}>
+                    GRAND TOTAL
+                  </td>
+                  {data.products[0].branches.map((branch: BranchInventory) => (
+                    <td key={branch.id} className="text-right" style={{ fontWeight: 'bold' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-end',
+                        }}
+                      >
+                        {viewMode === 'stock' && (
+                          <span
+                            style={{
+                              color: columnTotals.branchValues[branch.id] < 0 ? 'red' : 'inherit',
+                            }}
+                          >
+                            {formatCurrency(columnTotals.branchValues[branch.id])}
+                          </span>
+                        )}
+                        <span
+                          style={{
+                            fontSize: '1rem',
+                            color: viewMode === 'stock' ? 'var(--theme-elevation-400)' : 'inherit',
                           }}
                         >
-                          {formatValue(val)}
-                        </td>
-                      )
-                    })}
-                    <td
-                      className="text-right"
-                      style={{
-                        fontWeight: '700',
-                        fontSize: '18px',
-                        color:
-                          totalVal > 0
-                            ? '#22c55e'
-                            : totalVal < 0 && viewMode === 'stock'
-                              ? '#ef4444'
-                              : totalVal === 0 && viewMode === 'stock'
-                                ? '#ef4444'
-                                : 'inherit',
-                      }}
-                    >
-                      {formatValue(totalVal)}
+                          {formatValue(columnTotals.branchTotals[branch.id])}
+                        </span>
+                      </div>
                     </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="grand-total-row">
-                <td colSpan={2} style={{ fontWeight: 'bold', textAlign: 'right' }}>
-                  GRAND TOTAL
-                </td>
-                {data.products[0].branches.map((branch: BranchInventory) => (
-                  <td key={branch.id} className="text-right" style={{ fontWeight: 'bold' }}>
+                  ))}
+                  <td className="text-right">
                     <div
                       style={{
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'flex-end',
+                        fontWeight: 'bold',
                       }}
                     >
                       {viewMode === 'stock' && (
                         <span
                           style={{
-                            color: columnTotals.branchValues[branch.id] < 0 ? 'red' : 'inherit',
+                            color: columnTotals.grandTotalValue < 0 ? 'red' : 'inherit',
                           }}
                         >
-                          {formatCurrency(columnTotals.branchValues[branch.id])}
+                          {formatCurrency(columnTotals.grandTotalValue)}
                         </span>
                       )}
                       <span
@@ -644,43 +720,53 @@ const InventoryReport: React.FC = () => {
                           color: viewMode === 'stock' ? 'var(--theme-elevation-400)' : 'inherit',
                         }}
                       >
-                        {formatValue(columnTotals.branchTotals[branch.id])}
+                        {formatValue(columnTotals.grandTotal)}
                       </span>
                     </div>
                   </td>
-                ))}
-                <td className="text-right">
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'flex-end',
-                      fontWeight: 'bold',
-                    }}
-                  >
-                    {viewMode === 'stock' && (
-                      <span
-                        style={{
-                          color: columnTotals.grandTotalValue < 0 ? 'red' : 'inherit',
-                        }}
-                      >
-                        {formatCurrency(columnTotals.grandTotalValue)}
-                      </span>
-                    )}
-                    <span
-                      style={{
-                        fontSize: '1rem',
-                        color: viewMode === 'stock' ? 'var(--theme-elevation-400)' : 'inherit',
-                      }}
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="pagination-wrapper">
+              <div className="pagination-info">
+                Showing {(activePage - 1) * pageSize + 1} to{' '}
+                {Math.min(totalItems, activePage * pageSize)} of {totalItems} entries
+              </div>
+              <div className="pagination-buttons">
+                <button
+                  disabled={activePage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="pagination-btn"
+                >
+                  Previous
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((p) => p === 1 || p === totalPages || Math.abs(p - activePage) <= 2)
+                  .map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setCurrentPage(p)}
+                      className={`pagination-btn ${activePage === p ? 'active' : ''}`}
                     >
-                      {formatValue(columnTotals.grandTotal)}
-                    </span>
-                  </div>
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+                      {p}
+                    </button>
+                  ))}
+
+                <button
+                  disabled={activePage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="pagination-btn"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

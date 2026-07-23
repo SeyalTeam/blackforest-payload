@@ -1434,7 +1434,7 @@ export default function KotPage() {
             aria-labelledby="customer-details-title"
           >
             <div className={styles.customerModalHeader}>
-              {customerConfig.showHistory ? (
+              {false ? (
                 <button
                   type="button"
                   className={`${styles.historyButton} ${

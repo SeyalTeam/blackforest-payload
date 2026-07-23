@@ -48,6 +48,12 @@ const setDynamicPrefix: CollectionBeforeChangeHook = async ({ req, data, operati
     if (referer?.includes('/collections/expenses/')) {
       return { ...data, prefix: toStoragePrefix('expense') }
     }
+    if (referer?.includes('/collections/dealer-billings/')) {
+      return { ...data, prefix: toStoragePrefix('dealer-billings') }
+    }
+    if (referer?.includes('/collections/raw-material-billings/')) {
+      return { ...data, prefix: toStoragePrefix('raw-material-billings') }
+    }
 
     return { ...data, prefix: toStoragePrefix('') }
   }
@@ -139,17 +145,18 @@ const addPublicURL: CollectionAfterReadHook = ({ doc }) => {
     const hasLegacyAbsolutePrefix =
       cleanDocPrefix === cleanRoot || cleanDocPrefix.startsWith(`${cleanRoot}/`)
 
-    // Prevent double prefixes (e.g. 'category/category/image.jpg')
-    // This happens because some DB syncing scripts baked the prefix into the filename directly
-    const finalDocPrefix = doc.filename.startsWith(`${normalizedDocPrefix}/`)
-      ? ''
-      : normalizedDocPrefix
-
     // Some migrated rows have root prefix baked into filename:
     // e.g. "blackforest/uploads/products/example.jpg"
     const filenameWithoutRoot = doc.filename.startsWith(`${cleanRoot}/`)
       ? doc.filename.slice(cleanRoot.length + 1)
       : doc.filename
+
+    // Prevent double prefixes (e.g. 'category/category/image.jpg')
+    // This happens because some DB syncing scripts baked the prefix into the filename directly
+    const finalDocPrefix =
+      normalizedDocPrefix && filenameWithoutRoot.startsWith(`${normalizedDocPrefix}/`)
+        ? ''
+        : normalizedDocPrefix
 
     const fullPath = [cleanRoot, finalDocPrefix, filenameWithoutRoot]
       .filter(Boolean)

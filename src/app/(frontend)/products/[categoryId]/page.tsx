@@ -229,13 +229,20 @@ export default function ProductsPage() {
 
   const visibleProducts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) {
-      return pageData?.products ?? [];
-    }
+    const baseProducts = (() => {
+      if (!query) {
+        return pageData?.products ?? [];
+      }
+      return (pageData?.products ?? []).filter((product) =>
+        product.name.toLowerCase().includes(query),
+      );
+    })();
 
-    return (pageData?.products ?? []).filter((product) =>
-      product.name.toLowerCase().includes(query),
-    );
+    return [...baseProducts].sort((a, b) => {
+      const aStock = a.isOutOfStock ? 1 : 0;
+      const bStock = b.isOutOfStock ? 1 : 0;
+      return aStock - bStock;
+    });
   }, [pageData?.products, searchQuery]);
 
   const previewItems = useMemo(

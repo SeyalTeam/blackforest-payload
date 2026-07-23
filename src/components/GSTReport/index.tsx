@@ -31,6 +31,22 @@ type ProductGSTStat = {
   totalAmount: number
 }
 
+type CategoryGSTStat = {
+  categoryName: string
+  count: number
+  taxableAmount: number
+  gstAmount: number
+  totalAmount: number
+}
+
+type DealerGSTStat = {
+  dealerName: string
+  count: number
+  taxableAmount: number
+  gstAmount: number
+  totalAmount: number
+}
+
 type ReportData = {
   startDate: string
   endDate: string
@@ -44,6 +60,8 @@ type ReportData = {
     gstExclusiveTaxableAmount: number
   }
   productGstStats: ProductGSTStat[]
+  categoryGstStats: CategoryGSTStat[]
+  dealerGstStats: DealerGSTStat[]
 }
 
 type DatePresetOption = {
@@ -78,6 +96,20 @@ const GST_REPORT_QUERY = `
       productGstStats {
         productName
         gstRate
+        count
+        taxableAmount
+        gstAmount
+        totalAmount
+      }
+      categoryGstStats {
+        categoryName
+        count
+        taxableAmount
+        gstAmount
+        totalAmount
+      }
+      dealerGstStats {
+        dealerName
         count
         taxableAmount
         gstAmount
@@ -255,6 +287,8 @@ const GSTReport: React.FC = () => {
   const [error, setError] = useState('')
   const [searchValue, setSearchValue] = useState('')
   const [productSearchValue, setProductSearchValue] = useState('')
+  const [categorySearchValue, setCategorySearchValue] = useState('')
+  const [dealerSearchValue, setDealerSearchValue] = useState('')
   const [page, setPage] = useState(1)
   const requestIdRef = useRef(0)
 
@@ -407,6 +441,46 @@ const GSTReport: React.FC = () => {
     )
   }, [filteredProducts])
 
+  const filteredCategories = useMemo(() => {
+    if (!data?.categoryGstStats) return []
+    const term = categorySearchValue.trim().toLowerCase()
+    if (!term) return data.categoryGstStats
+    return data.categoryGstStats.filter((c) => c.categoryName.toLowerCase().includes(term))
+  }, [data, categorySearchValue])
+
+  const categoryTotals = useMemo(() => {
+    if (!filteredCategories) return { count: 0, taxableAmount: 0, gstAmount: 0, totalAmount: 0 }
+    return filteredCategories.reduce(
+      (acc, curr) => ({
+        count: acc.count + curr.count,
+        taxableAmount: acc.taxableAmount + curr.taxableAmount,
+        gstAmount: acc.gstAmount + curr.gstAmount,
+        totalAmount: acc.totalAmount + curr.totalAmount,
+      }),
+      { count: 0, taxableAmount: 0, gstAmount: 0, totalAmount: 0 },
+    )
+  }, [filteredCategories])
+
+  const filteredDealers = useMemo(() => {
+    if (!data?.dealerGstStats) return []
+    const term = dealerSearchValue.trim().toLowerCase()
+    if (!term) return data.dealerGstStats
+    return data.dealerGstStats.filter((d) => d.dealerName.toLowerCase().includes(term))
+  }, [data, dealerSearchValue])
+
+  const dealerTotals = useMemo(() => {
+    if (!filteredDealers) return { count: 0, taxableAmount: 0, gstAmount: 0, totalAmount: 0 }
+    return filteredDealers.reduce(
+      (acc, curr) => ({
+        count: acc.count + curr.count,
+        taxableAmount: acc.taxableAmount + curr.taxableAmount,
+        gstAmount: acc.gstAmount + curr.gstAmount,
+        totalAmount: acc.totalAmount + curr.totalAmount,
+      }),
+      { count: 0, taxableAmount: 0, gstAmount: 0, totalAmount: 0 },
+    )
+  }, [filteredDealers])
+
   const totals = data?.totals
   const totalAmount = totals?.totalAmount ?? 0
   const gstInclusiveAmount = totals?.gstInclusiveAmount ?? 0
@@ -546,6 +620,88 @@ const GSTReport: React.FC = () => {
         formatValue(totalProdTaxable),
         formatValue(totalProdGST),
         formatValue(totalProdTotal),
+      ].join(','),
+    )
+
+    csvRows.push('')
+    csvRows.push('')
+
+    csvRows.push('CATEGORY-WISE GST BREAKDOWN')
+    const categoryHeaders = ['S.No', 'Category Name', 'Selling Count', 'Taxable Amount', 'GST Tax Amount', 'Total Amount']
+    csvRows.push(categoryHeaders.join(','))
+
+    let totalCatCount = 0
+    let totalCatTaxable = 0
+    let totalCatGST = 0
+    let totalCatTotal = 0
+
+    data.categoryGstStats.forEach((row, index) => {
+      totalCatCount += row.count
+      totalCatTaxable += row.taxableAmount
+      totalCatGST += row.gstAmount
+      totalCatTotal += row.totalAmount
+
+      csvRows.push(
+        [
+          index + 1,
+          `"${row.categoryName}"`,
+          row.count,
+          formatValue(row.taxableAmount),
+          formatValue(row.gstAmount),
+          formatValue(row.totalAmount),
+        ].join(','),
+      )
+    })
+
+    csvRows.push(
+      [
+        '',
+        'TOTAL',
+        totalCatCount,
+        formatValue(totalCatTaxable),
+        formatValue(totalCatGST),
+        formatValue(totalCatTotal),
+      ].join(','),
+    )
+
+    csvRows.push('')
+    csvRows.push('')
+
+    csvRows.push('DEALER-WISE GST BREAKDOWN')
+    const dealerHeaders = ['S.No', 'Dealer Name', 'Selling Count', 'Taxable Amount', 'GST Tax Amount', 'Total Amount']
+    csvRows.push(dealerHeaders.join(','))
+
+    let totalDealerCount = 0
+    let totalDealerTaxable = 0
+    let totalDealerGST = 0
+    let totalDealerTotal = 0
+
+    data.dealerGstStats.forEach((row, index) => {
+      totalDealerCount += row.count
+      totalDealerTaxable += row.taxableAmount
+      totalDealerGST += row.gstAmount
+      totalDealerTotal += row.totalAmount
+
+      csvRows.push(
+        [
+          index + 1,
+          `"${row.dealerName}"`,
+          row.count,
+          formatValue(row.taxableAmount),
+          formatValue(row.gstAmount),
+          formatValue(row.totalAmount),
+        ].join(','),
+      )
+    })
+
+    csvRows.push(
+      [
+        '',
+        'TOTAL',
+        totalDealerCount,
+        formatValue(totalDealerTaxable),
+        formatValue(totalDealerGST),
+        formatValue(totalDealerTotal),
       ].join(','),
     )
 
@@ -869,6 +1025,160 @@ const GSTReport: React.FC = () => {
                   <td>{formatCurrency(productTotals.taxableAmount)}</td>
                   <td>{formatCurrency(productTotals.gstAmount)}</td>
                   <td>{formatCurrency(productTotals.totalAmount)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="table-panel" style={{ marginTop: '24px' }}>
+        <div className="table-panel-header">
+          <div>
+            <h3>Category Wise GST Breakdown</h3>
+            <p>Category-level sales taxable value and GST collection</p>
+          </div>
+
+          <div className="panel-actions">
+            <label className="search-box" htmlFor="category-search">
+              <Search size={14} />
+              <input
+                id="category-search"
+                type="text"
+                placeholder="Filter categories..."
+                value={categorySearchValue}
+                onChange={(event) => setCategorySearchValue(event.target.value)}
+              />
+            </label>
+          </div>
+        </div>
+
+        {loading && <p className="state-text">Loading report...</p>}
+        {error && <p className="state-text error">{error}</p>}
+
+        {data && !loading && (
+          <div className="table-wrap product-table-wrap">
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th>S.NO</th>
+                  <th>CATEGORY NAME</th>
+                  <th>SELLING COUNT</th>
+                  <th>TAXABLE AMOUNT</th>
+                  <th>GST TAX AMOUNT</th>
+                  <th>TOTAL AMOUNT</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredCategories.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="empty-row">
+                      No categories match your search.
+                    </td>
+                  </tr>
+                )}
+
+                {filteredCategories.map((row, index) => {
+                  return (
+                    <tr key={row.categoryName}>
+                      <td>{String(index + 1).padStart(2, '0')}</td>
+                      <td>
+                        <div className="branch-cell">
+                          <p className="branch-name">{row.categoryName}</p>
+                        </div>
+                      </td>
+                      <td>{formatInt(row.count)}</td>
+                      <td>{formatCurrency(row.taxableAmount)}</td>
+                      <td>{formatCurrency(row.gstAmount)}</td>
+                      <td>{formatCurrency(row.totalAmount)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={2}>TOTAL ({filteredCategories.length})</td>
+                  <td>{formatInt(categoryTotals.count)}</td>
+                  <td>{formatCurrency(categoryTotals.taxableAmount)}</td>
+                  <td>{formatCurrency(categoryTotals.gstAmount)}</td>
+                  <td>{formatCurrency(categoryTotals.totalAmount)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="table-panel" style={{ marginTop: '24px' }}>
+        <div className="table-panel-header">
+          <div>
+            <h3>Dealer Wise GST Breakdown</h3>
+            <p>Dealer-level sales taxable value and GST collection</p>
+          </div>
+
+          <div className="panel-actions">
+            <label className="search-box" htmlFor="dealer-search">
+              <Search size={14} />
+              <input
+                id="dealer-search"
+                type="text"
+                placeholder="Filter dealers..."
+                value={dealerSearchValue}
+                onChange={(event) => setDealerSearchValue(event.target.value)}
+              />
+            </label>
+          </div>
+        </div>
+
+        {loading && <p className="state-text">Loading report...</p>}
+        {error && <p className="state-text error">{error}</p>}
+
+        {data && !loading && (
+          <div className="table-wrap product-table-wrap">
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th>S.NO</th>
+                  <th>DEALER NAME</th>
+                  <th>SELLING COUNT</th>
+                  <th>TAXABLE AMOUNT</th>
+                  <th>GST TAX AMOUNT</th>
+                  <th>TOTAL AMOUNT</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDealers.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="empty-row">
+                      No dealers match your search.
+                    </td>
+                  </tr>
+                )}
+
+                {filteredDealers.map((row, index) => {
+                  return (
+                    <tr key={row.dealerName}>
+                      <td>{String(index + 1).padStart(2, '0')}</td>
+                      <td>
+                        <div className="branch-cell">
+                          <p className="branch-name">{row.dealerName}</p>
+                        </div>
+                      </td>
+                      <td>{formatInt(row.count)}</td>
+                      <td>{formatCurrency(row.taxableAmount)}</td>
+                      <td>{formatCurrency(row.gstAmount)}</td>
+                      <td>{formatCurrency(row.totalAmount)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={2}>TOTAL ({filteredDealers.length})</td>
+                  <td>{formatInt(dealerTotals.count)}</td>
+                  <td>{formatCurrency(dealerTotals.taxableAmount)}</td>
+                  <td>{formatCurrency(dealerTotals.gstAmount)}</td>
+                  <td>{formatCurrency(dealerTotals.totalAmount)}</td>
                 </tr>
               </tfoot>
             </table>

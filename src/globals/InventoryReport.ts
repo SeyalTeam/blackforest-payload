@@ -7,7 +7,7 @@ export const InventoryReportGlobal: GlobalConfig = {
     read: () => true,
   },
   admin: {
-    group: 'Report',
+    group: 'Account',
     components: {
       views: {
         edit: {
