@@ -411,6 +411,7 @@ export default function KotPage() {
     useState<CustomerDetailsConfig>(defaultCustomerConfig);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [hasSubmittedCustomerDetails, setHasSubmittedCustomerDetails] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [customerPhoneDraft, setCustomerPhoneDraft] = useState("");
   const [customerNameDraft, setCustomerNameDraft] = useState("");
@@ -679,8 +680,10 @@ export default function KotPage() {
     customerName.trim().toLowerCase() === "customer" ||
     customerName.trim().toLowerCase() === "cm";
   const hasExistingCustomerDetails =
+    hasSubmittedCustomerDetails ||
     normalizedCustomerPhone.length >= 10 ||
-    (!isGenericCustomerName && customerName.trim().length > 0);
+    (!isGenericCustomerName && customerName.trim().length > 0) ||
+    Boolean(matchingPreviousBill?.billId);
   const headerDisplayName =
     customerName.trim() && customerName.trim().toLowerCase() !== "cm"
       ? customerName.trim()
@@ -976,6 +979,7 @@ export default function KotPage() {
   };
 
   const submitCustomerDetails = async ({ skip }: { skip: boolean }) => {
+    setHasSubmittedCustomerDetails(true);
     if (skip) {
       setCustomerName("");
       setCustomerPhone("");
@@ -1142,7 +1146,7 @@ export default function KotPage() {
       return;
     }
 
-    if (customerConfig.showCustomerDetails) {
+    if (customerConfig.showCustomerDetails && !hasExistingCustomerDetails) {
       openCustomerModal();
       return;
     }
