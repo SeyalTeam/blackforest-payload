@@ -9,7 +9,7 @@ export const RawMaterialInventoryReportGlobal: GlobalConfig = {
       views: {
         edit: {
           root: {
-            Component: '/components/RawMaterialInventoryReport#default',
+            Component: '/components/RawMaterialInventoryReport/index.tsx#default',
           },
         },
       },
