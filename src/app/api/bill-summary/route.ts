@@ -126,7 +126,11 @@ function normalizePaymentMethod(value: unknown) {
   return "cash";
 }
 
-function parseItems(value: unknown, billCreatedAt: string): BillSummaryItem[] {
+function parseItems(
+  value: unknown,
+  billCreatedAt: string,
+  productPrepMap?: Map<string, number>,
+): BillSummaryItem[] {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -143,6 +147,7 @@ function parseItems(value: unknown, billCreatedAt: string): BillSummaryItem[] {
         item.product && typeof item.product === "object" && !Array.isArray(item.product)
           ? (item.product as Record<string, unknown>)
           : null;
+      const productId = toTrimmedText(item.product) || toTrimmedText(product?.id) || toTrimmedText(product?._id);
       const status = normalizeStatus(item.status);
       const orderedAt = readText(
         item.orderedAt,
@@ -156,8 +161,16 @@ function parseItems(value: unknown, billCreatedAt: string): BillSummaryItem[] {
         item.updatedAt,
       );
       const preparationTimeInfo = resolvePreparationMinutes(item, product);
+      const fallbackProductPrep = productId && productPrepMap ? productPrepMap.get(productId) ?? null : null;
+      const resolvedMinutes = preparationTimeInfo.minutes ?? fallbackProductPrep;
+      const preparationTimeSource = preparationTimeInfo.minutes !== null
+        ? preparationTimeInfo.source
+        : fallbackProductPrep !== null
+          ? "product-default"
+          : "none";
+
       const preparationTimeUpdatedAt =
-        preparationTimeInfo.source === "billing-item"
+        preparationTimeSource === "billing-item"
           ? readText(
               item.preparingTimeUpdatedAt,
               item.preparationTimeUpdatedAt,
@@ -168,15 +181,15 @@ function parseItems(value: unknown, billCreatedAt: string): BillSummaryItem[] {
       const gst = toTrimmedText(item.gst) || toTrimmedText((product?.defaultPriceDetails as any)?.gst) || "";
 
       return {
-        id: toTrimmedText(item.id) || toTrimmedText(product?.id) || crypto.randomUUID(),
+        id: toTrimmedText(item.id) || productId || crypto.randomUUID(),
         name: toTrimmedText(item.name) || toTrimmedText(product?.name) || "Unknown item",
         quantity: Math.max(1, toFiniteNumber(item.quantity) || 1),
         subtotal: toFiniteNumber(item.subtotal),
         status,
         isVeg: toBoolean(product?.isVeg),
         gst,
-        preparationTime: preparationTimeInfo.minutes,
-        preparationTimeSource: preparationTimeInfo.source,
+        preparationTime: resolvedMinutes,
+        preparationTimeSource,
         preparationTimeUpdatedAt,
         orderedAt,
         preparedAt,
@@ -191,10 +204,10 @@ export async function GET(request: NextRequest) {
     const branchId = request.nextUrl.searchParams.get("branchId")?.trim() || "";
     const tableNumber = request.nextUrl.searchParams.get("tableNumber")?.trim() || "";
     const customerPhone = request.nextUrl.searchParams.get("customerPhone")?.trim() || "";
-    const branchToken = branchId ? resolveApiTokenForBranch(branchId) : "";
 
     if (!billId && branchId && (tableNumber || customerPhone)) {
-      if (branchToken) {
+      const token = resolveApiTokenForBranch(branchId);
+      if (token) {
         const lookupParams = new URLSearchParams({
           "where[branch][equals]": branchId,
           "where[status][in]": ACTIVE_BILL_STATUSES,
@@ -205,7 +218,7 @@ export async function GET(request: NextRequest) {
         });
 
         const activeResponse = await fetch(`${API_BASE}/billings?${lookupParams.toString()}`, {
-          headers: { Authorization: `Bearer ${branchToken}` },
+          headers: { Authorization: `Bearer ${token}` },
           cache: "no-store",
         });
 
@@ -247,13 +260,7 @@ export async function GET(request: NextRequest) {
       return Response.json({ message: "Bill not found" }, { status: 404 });
     }
 
-    const headers: HeadersInit = {};
-    if (branchToken) {
-      headers.Authorization = `Bearer ${branchToken}`;
-    }
-
     const response = await fetch(`${API_BASE}/billings/${billId}?depth=1`, {
-      headers,
       cache: "no-store",
     });
     if (!response.ok) {
@@ -265,12 +272,70 @@ export async function GET(request: NextRequest) {
       payload.branch && typeof payload.branch === "object" && !Array.isArray(payload.branch)
         ? (payload.branch as Record<string, unknown>)
         : null;
+    const resolvedBranchId = branchId || toTrimmedText(branch?.id) || toTrimmedText(branch?._id) || "";
     const tableDetails =
       payload.tableDetails &&
       typeof payload.tableDetails === "object" &&
       !Array.isArray(payload.tableDetails)
         ? (payload.tableDetails as Record<string, unknown>)
         : null;
+
+    const rawItems = Array.isArray(payload.items) ? payload.items : [];
+    const missingProductIds = Array.from(
+      new Set(
+        rawItems
+          .map((entry) => {
+            const item = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : null;
+            if (!item) return null;
+            const hasItemPrep =
+              toPreparationMinutes(item.preparingTime) !== null ||
+              toPreparationMinutes(item.preparationTime) !== null;
+            if (hasItemPrep) return null;
+            const prod = item.product;
+            if (typeof prod === "string" && prod.trim()) return prod.trim();
+            if (prod && typeof prod === "object") {
+              const pObj = prod as Record<string, unknown>;
+              if (
+                toPreparationMinutes(pObj.preparationTime) !== null ||
+                toPreparationMinutes(pObj.preparingTime) !== null
+              ) {
+                return null;
+              }
+              return toTrimmedText(pObj.id) || toTrimmedText(pObj._id);
+            }
+            return null;
+          })
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+
+    const productPrepMap = new Map<string, number>();
+    if (missingProductIds.length > 0 && resolvedBranchId) {
+      const token = resolveApiTokenForBranch(resolvedBranchId);
+      if (token) {
+        const prodParams = new URLSearchParams({
+          "where[id][in]": missingProductIds.join(","),
+          limit: String(missingProductIds.length),
+          depth: "0",
+        });
+        const prodResp = await fetch(`${API_BASE}/products?${prodParams.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        if (prodResp.ok) {
+          const prodData = (await prodResp.json()) as { docs?: Array<Record<string, unknown>> };
+          for (const doc of prodData.docs ?? []) {
+            const pid = toTrimmedText(doc.id) || toTrimmedText(doc._id);
+            const prepTime =
+              toPreparationMinutes(doc.preparationTime) ??
+              toPreparationMinutes(doc.preparingTime);
+            if (pid && prepTime !== null) {
+              productPrepMap.set(pid, prepTime);
+            }
+          }
+        }
+      }
+    }
 
     const summary: BillSummaryData = {
       billId: toTrimmedText(payload.id) || billId,
@@ -282,7 +347,7 @@ export async function GET(request: NextRequest) {
       status: normalizeStatus(payload.status),
       totalAmount: toFiniteNumber(payload.totalAmount),
       paymentMethod: normalizePaymentMethod(payload.paymentMethod),
-      items: parseItems(payload.items, toTrimmedText(payload.createdAt)),
+      items: parseItems(payload.items, toTrimmedText(payload.createdAt), productPrepMap),
     };
 
     return Response.json(summary);

@@ -338,7 +338,7 @@ function computePreparationRemainingSeconds(
   billCreatedAt: string,
   nowMs: number,
 ) {
-  if (item.preparationTime === null || item.preparationTime < 0) {
+  if (item.preparationTime === null || item.preparationTime === undefined || item.preparationTime < 0) {
     return null;
   }
 
@@ -355,15 +355,7 @@ function computePreparationRemainingSeconds(
     0,
     Math.floor((nowMs - preparationStartTimestamp) / 1000),
   );
-  const startDelaySeconds =
-    item.preparationTimeSource === "billing-item"
-      ? 0
-      : PREPARATION_TIMER_START_DELAY_SECONDS;
-  const elapsedAfterDelay = Math.max(
-    0,
-    elapsedSeconds - startDelaySeconds,
-  );
-  return Math.max(0, preparationSeconds - elapsedAfterDelay);
+  return Math.max(0, preparationSeconds - elapsedSeconds);
 }
 
 function formatBillBlockingItems(items: BillSummaryData["items"]) {
@@ -672,9 +664,18 @@ export default function KotPage() {
           )}.`
         : "";
   const normalizedCustomerPhoneDraft = normalizePhone(customerPhoneDraft);
+  const normalizedCustomerPhone = normalizePhone(customerPhone);
+  const isGenericCustomerName =
+    !customerName.trim() ||
+    customerName.trim().toLowerCase() === "customer" ||
+    customerName.trim().toLowerCase() === "cm";
   const hasExistingCustomerDetails =
-    customerName.trim().length > 0 || customerPhone.trim().length > 0;
-  const headerDisplayName = customerName.trim() || "Customer";
+    normalizedCustomerPhone.length >= 10 ||
+    (!isGenericCustomerName && customerName.trim().length > 0);
+  const headerDisplayName =
+    customerName.trim() && customerName.trim().toLowerCase() !== "cm"
+      ? customerName.trim()
+      : "Customer";
   const canOpenCustomerHistory =
     customerConfig.showHistory &&
     normalizedCustomerPhoneDraft.length >= 10 &&
