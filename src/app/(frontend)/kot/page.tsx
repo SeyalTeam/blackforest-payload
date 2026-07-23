@@ -258,50 +258,61 @@ function formatDurationClock(totalSeconds: number) {
 
 function parseDateOrClockTime(value: unknown, referenceDateText: string) {
   const input = typeof value === "string" ? value.trim() : "";
-  if (!input) {
-    return null;
+  if (input) {
+    const directDate = new Date(input);
+    if (!Number.isNaN(directDate.getTime())) {
+      return directDate.getTime();
+    }
   }
 
-  const directDate = new Date(input);
-  if (!Number.isNaN(directDate.getTime())) {
-    return directDate.getTime();
+  const refText = typeof referenceDateText === "string" ? referenceDateText.trim() : "";
+  const refDate = refText ? new Date(refText) : new Date();
+  const baseTimeMs = !Number.isNaN(refDate.getTime()) ? refDate.getTime() : Date.now();
+
+  if (!input) {
+    return baseTimeMs;
   }
 
   const timeMatch = input.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if (!timeMatch) {
-    return null;
-  }
-
-  const referenceDate = referenceDateText ? new Date(referenceDateText) : new Date();
-  if (Number.isNaN(referenceDate.getTime())) {
-    return null;
+    return baseTimeMs;
   }
 
   const hours = Number.parseInt(timeMatch[1], 10);
   const minutes = Number.parseInt(timeMatch[2], 10);
   const seconds = Number.parseInt(timeMatch[3] ?? "0", 10);
-  if (
-    !Number.isFinite(hours) ||
-    !Number.isFinite(minutes) ||
-    !Number.isFinite(seconds) ||
-    hours < 0 ||
-    hours > 23 ||
-    minutes < 0 ||
-    minutes > 59 ||
-    seconds < 0 ||
-    seconds > 59
-  ) {
-    return null;
+
+  const baseInIst = new Date(baseTimeMs);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(baseInIst);
+
+  const month = parts.find((p) => p.type === "month")?.value ?? "01";
+  const day = parts.find((p) => p.type === "day")?.value ?? "01";
+  const year = parts.find((p) => p.type === "year")?.value ?? "1970";
+
+  const hh = String(hours).padStart(2, "0");
+  const mm = String(minutes).padStart(2, "0");
+  const ss = String(seconds).padStart(2, "0");
+
+  const targetIso = `${year}-${month}-${day}T${hh}:${mm}:${ss}+05:30`;
+  const targetDate = new Date(targetIso);
+  if (Number.isNaN(targetDate.getTime())) {
+    return baseTimeMs;
   }
 
-  const timestamp = new Date(referenceDate);
-  timestamp.setHours(hours, minutes, seconds, 0);
-
-  if (timestamp.getTime() - referenceDate.getTime() > 12 * 60 * 60 * 1000) {
-    timestamp.setDate(timestamp.getDate() - 1);
+  let targetTimeMs = targetDate.getTime();
+  const diff = targetTimeMs - baseTimeMs;
+  if (diff > 12 * 3600 * 1000) {
+    targetTimeMs -= 24 * 3600 * 1000;
+  } else if (diff < -12 * 3600 * 1000) {
+    targetTimeMs += 24 * 3600 * 1000;
   }
 
-  return timestamp.getTime();
+  return targetTimeMs;
 }
 
 function resolveOrderedTimestampMs(item: BillSummaryItem, billCreatedAt: string) {
@@ -338,24 +349,22 @@ function computePreparationRemainingSeconds(
   billCreatedAt: string,
   nowMs: number,
 ) {
-  if (item.preparationTime === null || item.preparationTime === undefined || item.preparationTime < 0) {
-    return null;
-  }
+  const prepMinutes =
+    typeof item.preparationTime === "number" && item.preparationTime > 0
+      ? item.preparationTime
+      : 15;
 
-  const preparationSeconds = Math.max(0, Math.round(item.preparationTime * 60));
-  const preparationStartTimestamp = resolvePreparationStartTimestampMs(
-    item,
-    billCreatedAt,
-  );
-  if (preparationStartTimestamp === null) {
-    return preparationSeconds;
-  }
+  const totalPreparationSeconds = Math.round(prepMinutes * 60);
+  const preparationStartTimestamp =
+    resolvePreparationStartTimestampMs(item, billCreatedAt) ??
+    parseDateOrClockTime(billCreatedAt, billCreatedAt) ??
+    nowMs;
 
   const elapsedSeconds = Math.max(
     0,
     Math.floor((nowMs - preparationStartTimestamp) / 1000),
   );
-  return Math.max(0, preparationSeconds - elapsedSeconds);
+  return Math.max(0, totalPreparationSeconds - elapsedSeconds);
 }
 
 function formatBillBlockingItems(items: BillSummaryData["items"]) {
