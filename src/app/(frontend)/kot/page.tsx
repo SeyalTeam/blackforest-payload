@@ -506,37 +506,54 @@ export default function KotPage() {
     }
 
     const activeBill = readActiveBillSession(branchId);
-    if (!activeBill?.billId) {
-      setPreviousBillData(null);
-      return;
-    }
-
-    if (activeBill.tableNumber) {
+    if (activeBill?.tableNumber) {
       setSharedTableNumber((current) => current.trim() || activeBill.tableNumber);
     }
-    if (activeBill.section) {
+    if (activeBill?.section) {
       setPreferredSection((current) => current.trim() || activeBill.section);
     }
-    if (activeBill.customerName) {
+    if (activeBill?.customerName) {
       setCustomerName((current) => current.trim() || activeBill.customerName);
     }
-    if (activeBill.customerPhone) {
+    if (activeBill?.customerPhone) {
       setCustomerPhone((current) => current.trim() || activeBill.customerPhone);
     }
 
     let isDisposed = false;
-    const cacheKey = `${BILL_CACHE_KEY_PREFIX}${activeBill.billId}`;
-    const cached = readSessionCache<BillSummaryData>(cacheKey);
+    const targetBillId = activeBill?.billId || "";
+    const cacheKey = targetBillId ? `${BILL_CACHE_KEY_PREFIX}${targetBillId}` : null;
+    const cached = cacheKey ? readSessionCache<BillSummaryData>(cacheKey) : null;
     if (cached) {
       setPreviousBillData(cached);
     }
 
     const loadPreviousBill = async () => {
       try {
-        const response = await fetch(
-          `/api/bill-summary?billId=${encodeURIComponent(activeBill.billId)}`,
-          { cache: "no-store" },
-        );
+        const queryParams = new URLSearchParams();
+        const currentActiveBill = readActiveBillSession(branchId);
+        const billIdToUse = targetBillId || currentActiveBill?.billId || "";
+
+        if (billIdToUse) {
+          queryParams.set("billId", billIdToUse);
+        } else {
+          queryParams.set("branchId", branchId);
+          const currentTable = sharedTableNumber.trim() || currentActiveBill?.tableNumber || "";
+          if (currentTable) {
+            queryParams.set("tableNumber", currentTable);
+          }
+          if (customerPhone.trim() || currentActiveBill?.customerPhone) {
+            queryParams.set("customerPhone", customerPhone.trim() || currentActiveBill?.customerPhone || "");
+          }
+        }
+
+        if (!queryParams.has("billId") && !queryParams.has("tableNumber") && !queryParams.has("customerPhone")) {
+          if (!cached && !isDisposed) {
+            setPreviousBillData(null);
+          }
+          return;
+        }
+
+        const response = await fetch(`/api/bill-summary?${queryParams.toString()}`, { cache: "no-store" });
         if (!response.ok) {
           if (!cached && !isDisposed) {
             setPreviousBillData(null);
@@ -550,7 +567,18 @@ export default function KotPage() {
         }
 
         setPreviousBillData(payload);
-        writeSessionCache(cacheKey, payload);
+        if (payload.billId) {
+          writeSessionCache(`${BILL_CACHE_KEY_PREFIX}${payload.billId}`, payload);
+          writeActiveBillSession({
+            branchId,
+            billId: payload.billId,
+            tableNumber: payload.tableNumber || sharedTableNumber,
+            section: payload.section || preferredSection,
+            customerName: customerName.trim(),
+            customerPhone: customerPhone.trim(),
+          });
+        }
+
         if (payload.tableNumber) {
           setSharedTableNumber((current) => current.trim() || payload.tableNumber);
         }
@@ -580,7 +608,7 @@ export default function KotPage() {
       window.clearInterval(refreshTimerId);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [branchId]);
+  }, [branchId, sharedTableNumber, customerPhone]);
 
   useEffect(() => {
     return () => {
@@ -602,25 +630,25 @@ export default function KotPage() {
       : "Shared Tables";
   const sectionChipLabel = preferredSection.trim() || previousBillData?.section || "";
   const showDetailedTableChips = Boolean(trimmedTableNumber || sectionChipLabel);
-  
-  const isSharedTableMatch = Boolean(
+
+  const prevTableBase = previousBillData?.tableNumber
+    ? previousBillData.tableNumber.split("-")[0].trim().toLowerCase()
+    : "";
+  const currentTableBase = trimmedTableNumber
+    ? trimmedTableNumber.split("-")[0].trim().toLowerCase()
+    : "";
+
+  const isTableMatch = Boolean(
     previousBillData &&
-    trimmedTableNumber &&
-    previousBillData.section?.toLowerCase() === "shared tables" &&
-    previousBillData.tableNumber?.toLowerCase().startsWith(`${trimmedTableNumber.toLowerCase()}-`)
+    (!trimmedTableNumber ||
+      !previousBillData.tableNumber ||
+      prevTableBase === currentTableBase ||
+      previousBillData.tableNumber.toLowerCase() === trimmedTableNumber.toLowerCase() ||
+      previousBillData.tableNumber.toLowerCase().startsWith(`${trimmedTableNumber.toLowerCase()}-`))
   );
 
   const matchingPreviousBill =
-    previousBillData &&
-    (
-      (
-        (!trimmedTableNumber || previousBillData.tableNumber?.toLowerCase() === trimmedTableNumber.toLowerCase()) &&
-        (!sectionChipLabel || !previousBillData.section || previousBillData.section.toLowerCase() === sectionChipLabel.toLowerCase())
-      ) ||
-      isSharedTableMatch
-    )
-      ? previousBillData
-      : null;
+    previousBillData && isTableMatch ? previousBillData : null;
   const hasCurrentItems = cartItems.length > 0;
   const hasPreviousItems = Boolean(matchingPreviousBill?.items.length);
   const showBillFooter = !hasCurrentItems && hasPreviousItems;

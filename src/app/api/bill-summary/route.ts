@@ -1,8 +1,23 @@
 import { NextRequest } from "next/server";
 import type { BillSummaryData, BillSummaryItem } from "@/lib/order-types";
+import { resolveApiTokenForBranch } from "@/lib/api-token";
 
 const NEXT_PUBLIC_SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000';
 const API_BASE = `${NEXT_PUBLIC_SERVER_URL}/api`;
+const ACTIVE_BILL_STATUSES = "pending,ordered,confirmed,prepared,delivered";
+
+function getIndiaDayStartIso() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value ?? "1970";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+  return new Date(`${year}-${month}-${day}T00:00:00+05:30`).toISOString();
+}
 
 function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -172,9 +187,64 @@ function parseItems(value: unknown, billCreatedAt: string): BillSummaryItem[] {
 
 export async function GET(request: NextRequest) {
   try {
-    const billId = request.nextUrl.searchParams.get("billId")?.trim() || "";
+    let billId = request.nextUrl.searchParams.get("billId")?.trim() || "";
+    const branchId = request.nextUrl.searchParams.get("branchId")?.trim() || "";
+    const tableNumber = request.nextUrl.searchParams.get("tableNumber")?.trim() || "";
+    const customerPhone = request.nextUrl.searchParams.get("customerPhone")?.trim() || "";
+
+    if (!billId && branchId && (tableNumber || customerPhone)) {
+      const token = resolveApiTokenForBranch(branchId);
+      if (token) {
+        const lookupParams = new URLSearchParams({
+          "where[branch][equals]": branchId,
+          "where[status][in]": ACTIVE_BILL_STATUSES,
+          "where[createdAt][greater_than_equal]": getIndiaDayStartIso(),
+          sort: "-updatedAt",
+          limit: "50",
+          depth: "1",
+        });
+
+        const activeResponse = await fetch(`${API_BASE}/billings?${lookupParams.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+
+        if (activeResponse.ok) {
+          const payload = (await activeResponse.json()) as { docs?: Array<Record<string, unknown>> };
+          const docs = payload.docs ?? [];
+          const cleanTable = tableNumber.toLowerCase();
+          const cleanPhone = customerPhone.replace(/\D/g, "");
+
+          const matchedDoc = docs.find((doc) => {
+            const tableDetails = doc.tableDetails && typeof doc.tableDetails === "object" ? (doc.tableDetails as Record<string, unknown>) : null;
+            const docTable = toTrimmedText(tableDetails?.tableNumber).toLowerCase();
+            const customerDetails = (doc.customerDetails ?? doc.customer) && typeof (doc.customerDetails ?? doc.customer) === "object" ? ((doc.customerDetails ?? doc.customer) as Record<string, unknown>) : null;
+            const docPhone = toTrimmedText(customerDetails?.phoneNumber).replace(/\D/g, "");
+
+            if (cleanTable) {
+              const baseDocTable = docTable.split("-")[0];
+              const baseCleanTable = cleanTable.split("-")[0];
+              if (docTable === cleanTable || baseDocTable === baseCleanTable) {
+                return true;
+              }
+            }
+
+            if (cleanPhone && docPhone && (docPhone.endsWith(cleanPhone) || cleanPhone.endsWith(docPhone))) {
+              return true;
+            }
+
+            return false;
+          });
+
+          if (matchedDoc) {
+            billId = toTrimmedText(matchedDoc.id);
+          }
+        }
+      }
+    }
+
     if (!billId) {
-      return Response.json({ message: "Bill id is required" }, { status: 400 });
+      return Response.json({ message: "Bill not found" }, { status: 404 });
     }
 
     const response = await fetch(`${API_BASE}/billings/${billId}?depth=1`, {

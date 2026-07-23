@@ -576,6 +576,22 @@ const GSTReport: React.FC = () => {
     setDateRangePreset('custom')
   }
 
+  const handleExportTally = () => {
+    if (!startDate || !endDate) return
+
+    const startStr = startDate.toISOString().split('T')[0]
+    const endStr = endDate.toISOString().split('T')[0]
+
+    const query = new URLSearchParams({
+      startDate: startStr,
+      endDate: endStr,
+      branch: queryBranchParam,
+      gstFilter: gstFilter,
+    })
+
+    window.open(`/api/reports/tally-export?${query.toString()}`, '_blank')
+  }
+
   const handleExportCSV = () => {
     if (!data) return
 
@@ -936,6 +952,11 @@ const GSTReport: React.FC = () => {
           <button className="action-btn" onClick={handleExportCSV}>
             <Download size={16} />
             Export CSV
+          </button>
+
+          <button className="action-btn" onClick={handleExportTally}>
+            <Download size={16} />
+            Export to Tally
           </button>
 
           <button
