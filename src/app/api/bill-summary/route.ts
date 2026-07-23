@@ -191,10 +191,10 @@ export async function GET(request: NextRequest) {
     const branchId = request.nextUrl.searchParams.get("branchId")?.trim() || "";
     const tableNumber = request.nextUrl.searchParams.get("tableNumber")?.trim() || "";
     const customerPhone = request.nextUrl.searchParams.get("customerPhone")?.trim() || "";
+    const branchToken = branchId ? resolveApiTokenForBranch(branchId) : "";
 
     if (!billId && branchId && (tableNumber || customerPhone)) {
-      const token = resolveApiTokenForBranch(branchId);
-      if (token) {
+      if (branchToken) {
         const lookupParams = new URLSearchParams({
           "where[branch][equals]": branchId,
           "where[status][in]": ACTIVE_BILL_STATUSES,
@@ -205,7 +205,7 @@ export async function GET(request: NextRequest) {
         });
 
         const activeResponse = await fetch(`${API_BASE}/billings?${lookupParams.toString()}`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${branchToken}` },
           cache: "no-store",
         });
 
@@ -247,7 +247,13 @@ export async function GET(request: NextRequest) {
       return Response.json({ message: "Bill not found" }, { status: 404 });
     }
 
+    const headers: HeadersInit = {};
+    if (branchToken) {
+      headers.Authorization = `Bearer ${branchToken}`;
+    }
+
     const response = await fetch(`${API_BASE}/billings/${billId}?depth=1`, {
+      headers,
       cache: "no-store",
     });
     if (!response.ok) {

@@ -535,6 +535,7 @@ export default function KotPage() {
 
         if (billIdToUse) {
           queryParams.set("billId", billIdToUse);
+          queryParams.set("branchId", branchId);
         } else {
           queryParams.set("branchId", branchId);
           const currentTable = sharedTableNumber.trim() || currentActiveBill?.tableNumber || "";
