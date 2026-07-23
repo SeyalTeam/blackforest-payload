@@ -385,12 +385,15 @@ function buildBillingItem(item: IncomingOrderItem) {
     return null;
   }
 
+  const nowIso = new Date().toISOString();
   const payload: Record<string, unknown> = {
     product: productId,
     name,
     quantity,
     unitPrice,
     subtotal: unitPrice * quantity,
+    orderedAt: nowIso,
+    orderedTime: nowIso,
   };
 
   if (department) {

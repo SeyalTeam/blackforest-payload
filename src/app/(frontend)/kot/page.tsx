@@ -1142,7 +1142,7 @@ export default function KotPage() {
       return;
     }
 
-    if (customerConfig.showCustomerDetails && !hasExistingCustomerDetails) {
+    if (customerConfig.showCustomerDetails) {
       openCustomerModal();
       return;
     }
