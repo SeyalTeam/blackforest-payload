@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 import { resolveApiTokenForBranch } from "@/lib/api-token";
+import { getPayload } from "payload";
+import configPromise from "@payload-config";
 
 const NEXT_PUBLIC_SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000';
 const API_BASE = `${NEXT_PUBLIC_SERVER_URL}/api`;
@@ -204,80 +206,307 @@ async function findOccupiedSectionsForTable({
   branchId: string;
   token: string;
 }) {
-  const lookupParams = new URLSearchParams({
-    "where[status][in]": ACTIVE_BILL_STATUSES,
-    "where[createdAt][greater_than_equal]": getIndiaDayStartIso(),
-    "where[branch][equals]": branchId,
-    limit: "500",
-    depth: "0",
+  const occupiedSections = new Set<string>();
+  try {
+    const payload = await getPayload({ config: configPromise });
+    const activeBills = await payload.find({
+      collection: "billings",
+      where: {
+        status: { in: ACTIVE_BILL_STATUSES.split(",") },
+        createdAt: { greater_than_equal: getIndiaDayStartIso() },
+        branch: { equals: branchId },
+      },
+      limit: 500,
+      depth: 0,
+      overrideAccess: true,
+    });
+
+    for (const doc of activeBills.docs ?? []) {
+      const tableDetails = readRecord((doc as any).tableDetails);
+      if (toTrimmedText(tableDetails?.tableNumber) === tableNumber) {
+        const sectionName = toTrimmedText(tableDetails?.section);
+        if (sectionName) {
+          occupiedSections.add(normalizeSectionKey(sectionName));
+        }
+      }
+    }
+    return occupiedSections;
+  } catch {
+    if (!token) return occupiedSections;
+    const lookupParams = new URLSearchParams({
+      "where[status][in]": ACTIVE_BILL_STATUSES,
+      "where[createdAt][greater_than_equal]": getIndiaDayStartIso(),
+      "where[branch][equals]": branchId,
+      limit: "500",
+      depth: "0",
+    });
+
+    const response = await fetch(`${API_BASE}/billings?${lookupParams.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (!response.ok) return occupiedSections;
+
+    const resPayload = (await response.json()) as BillingLookupResponse;
+    for (const doc of resPayload.docs ?? []) {
+      const tableDetails = readRecord(doc.tableDetails);
+      if (toTrimmedText(tableDetails?.tableNumber) === tableNumber) {
+        const sectionName = toTrimmedText(tableDetails?.section);
+        if (sectionName) {
+          occupiedSections.add(normalizeSectionKey(sectionName));
+        }
+      }
+    }
+    return occupiedSections;
+  }
+}
+
+function getIndiaDayStartIso() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value ?? "1970";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+  return new Date(`${year}-${month}-${day}T00:00:00+05:30`).toISOString();
+}
+
+function readRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function parseProductMetadata(rawProduct: Record<string, unknown>): ProductMetadata {
+  const categoryMap = readRecord(rawProduct.category);
+  const categoryName =
+    toTrimmedText(rawProduct.categoryName) ||
+    toTrimmedText(categoryMap?.name) ||
+    toTrimmedText(rawProduct.category);
+  const categoryId =
+    toTrimmedText(rawProduct.categoryId) ||
+    toTrimmedText(categoryMap?.id) ||
+    toTrimmedText(categoryMap?._id);
+
+  const departmentMap = readRecord(rawProduct.department);
+  const department =
+    toTrimmedText(rawProduct.department) ||
+    toTrimmedText(departmentMap?.name) ||
+    categoryName;
+
+  return {
+    categoryName,
+    categoryId,
+    department,
+  };
+}
+
+async function fetchProductMetadataMap({
+  items,
+  token,
+}: {
+  items: IncomingOrderItem[];
+  token: string;
+}): Promise<Map<string, ProductMetadata>> {
+  const ids = Array.from(
+    new Set(
+      items
+        .map((item) => toTrimmedText(item.id))
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+
+  if (ids.length === 0) {
+    return new Map<string, ProductMetadata>();
+  }
+
+  const params = new URLSearchParams({
+    "where[id][in]": ids.join(","),
+    limit: String(ids.length),
+    depth: "1",
   });
 
-  const response = await fetch(`${API_BASE}/billings?${lookupParams.toString()}`, {
+  const response = await fetch(`${API_BASE}/products?${params.toString()}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
     cache: "no-store",
   });
+
   if (!response.ok) {
-    return new Set<string>();
+    return new Map<string, ProductMetadata>();
   }
 
-  const payload = (await response.json()) as BillingLookupResponse;
-  const occupiedSections = new Set<string>();
+  const payload = (await response.json()) as {
+    docs?: Array<Record<string, unknown>>;
+  };
+  const metadataById = new Map<string, ProductMetadata>();
 
-  for (const doc of payload.docs ?? []) {
-    const tableDetails = readRecord(doc.tableDetails);
-    if (toTrimmedText(tableDetails?.tableNumber) === tableNumber) {
-      const sectionName = toTrimmedText(tableDetails?.section);
-      if (sectionName) {
-        occupiedSections.add(normalizeSectionKey(sectionName));
-      }
-    }
+  for (const product of payload.docs ?? []) {
+    const productId = extractRefId(product.id ?? product._id ?? product.value);
+    if (!productId) continue;
+    metadataById.set(productId, parseProductMetadata(product));
   }
 
-  return occupiedSections;
+  return metadataById;
 }
 
-async function findExistingOpenBill({
-  tableNumber,
-  sectionName,
-  branchId,
-  token,
-}: {
-  tableNumber: string;
-  sectionName: string;
-  branchId: string;
-  token: string;
-}) {
-  if (!tableNumber.trim() || !sectionName.trim() || !branchId.trim()) {
+function mergeIncomingItemMetadata(
+  item: IncomingOrderItem,
+  metadata?: ProductMetadata,
+): IncomingOrderItem {
+  const category = toTrimmedText(item.category) || metadata?.categoryName || "";
+  const categoryId =
+    toTrimmedText(item.categoryId) || metadata?.categoryId || "";
+  const department =
+    toTrimmedText(item.department) || metadata?.department || category;
+
+  return {
+    ...item,
+    category,
+    categoryId,
+    department,
+  };
+}
+
+function billDocId(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+
+  const map = readRecord(value);
+  if (!map) return "";
+
+  return (
+    toTrimmedText(map.id) ||
+    toTrimmedText(map._id) ||
+    toTrimmedText(map.$oid)
+  );
+}
+
+async function readResponseMessage(response: Response) {
+  const raw = await response.text();
+  try {
+    const parsed = JSON.parse(raw) as {
+      message?: string;
+      errors?: Array<{ message?: string }>;
+    };
+    return parsed.message || parsed.errors?.[0]?.message || raw || "Request failed";
+  } catch {
+    return raw || "Request failed";
+  }
+}
+
+function buildBillingItem(item: IncomingOrderItem) {
+  const productId = toTrimmedText(item.id);
+  const name = toTrimmedText(item.name);
+  const quantity = Math.max(1, toFiniteNumber(item.quantity) || 1);
+  const unitPrice = Math.max(0, toFiniteNumber(item.price));
+  const categoryName = toTrimmedText(item.category);
+  const categoryId = toTrimmedText(item.categoryId);
+  const department = toTrimmedText(item.department) || categoryName;
+  const note = toTrimmedText(item.note);
+
+  if (!productId || !name) {
     return null;
   }
 
-  const lookupParams = new URLSearchParams({
-    "where[status][in]": ACTIVE_BILL_STATUSES,
-    "where[tableDetails.tableNumber][equals]": tableNumber.trim(),
-    "where[tableDetails.section][equals]": sectionName.trim(),
-    "where[branch][equals]": branchId.trim(),
-    "where[createdAt][greater_than_equal]": getIndiaDayStartIso(),
-    limit: "1",
-    sort: "-updatedAt",
-    depth: "0",
-  });
+  const nowIso = new Date().toISOString();
+  const payload: Record<string, unknown> = {
+    product: productId,
+    name,
+    quantity,
+    unitPrice,
+    subtotal: unitPrice * quantity,
+    orderedAt: nowIso,
+    orderedTime: nowIso,
+  };
 
-  const lookupResponse = await fetch(`${API_BASE}/billings?${lookupParams.toString()}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    cache: "no-store",
-  });
-
-  if (!lookupResponse.ok) {
-    const message = await readResponseMessage(lookupResponse);
-    throw new Error(message);
+  if (department) {
+    payload.department = department;
   }
 
-  const lookupPayload = (await lookupResponse.json()) as BillingLookupResponse;
-  return lookupPayload.docs?.[0] ?? null;
+  if (categoryName) {
+    payload.categoryName = categoryName;
+  }
+
+  if (categoryId) {
+    payload.categoryId = categoryId;
+  }
+
+  if (note) {
+    payload.specialNote = note;
+    payload.notes = note;
+    payload.note = note;
+    payload.instructions = note;
+  }
+
+  return payload;
+}
+
+function normalizeCustomerDetails(value: unknown) {
+  const map =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+  if (!map) {
+    return null;
+  }
+
+  const name = toTrimmedText(map.name);
+  const phoneNumber = toTrimmedText(map.phoneNumber);
+
+  if (!name && !phoneNumber) {
+    return null;
+  }
+
+  return {
+    name,
+    phoneNumber,
+  };
+}
+
+function mergeCustomerDetails(
+  existingValue: unknown,
+  incomingDetails: { name?: string; phoneNumber?: string } | null,
+) {
+  const existingMap =
+    existingValue && typeof existingValue === "object" && !Array.isArray(existingValue)
+      ? (existingValue as Record<string, unknown>)
+      : null;
+
+  const existingName = toTrimmedText(existingMap?.name);
+  const existingPhone = toTrimmedText(existingMap?.phoneNumber);
+
+  const finalName = incomingDetails?.name?.trim() || existingName;
+  const finalPhone = incomingDetails?.phoneNumber?.trim() || existingPhone;
+
+  if (!finalName && !finalPhone) {
+    return existingMap;
+  }
+
+  return {
+    ...existingMap,
+    name: finalName,
+    phoneNumber: finalPhone,
+  };
+}
+
+function mergeNotes(existingNotes: unknown, newNotes: string) {
+  const currentNotes = toTrimmedText(existingNotes);
+  const addition = toTrimmedText(newNotes);
+
+  if (!currentNotes) return addition;
+  if (!addition) return currentNotes;
+
+  if (currentNotes.includes(addition)) {
+    return currentNotes;
+  }
+
+  return `${currentNotes}, ${addition}`;
 }
 
 async function resolveTableTarget({
@@ -358,217 +587,6 @@ async function resolveTableTarget({
   };
 }
 
-function getIndiaDayStartIso() {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Kolkata",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const year = parts.find((part) => part.type === "year")?.value ?? "1970";
-  const month = parts.find((part) => part.type === "month")?.value ?? "01";
-  const day = parts.find((part) => part.type === "day")?.value ?? "01";
-  return new Date(`${year}-${month}-${day}T00:00:00+05:30`).toISOString();
-}
-
-function buildBillingItem(item: IncomingOrderItem) {
-  const productId = toTrimmedText(item.id);
-  const name = toTrimmedText(item.name);
-  const quantity = Math.max(1, toFiniteNumber(item.quantity) || 1);
-  const unitPrice = Math.max(0, toFiniteNumber(item.price));
-  const categoryName = toTrimmedText(item.category);
-  const categoryId = toTrimmedText(item.categoryId);
-  const department = toTrimmedText(item.department) || categoryName;
-  const note = toTrimmedText(item.note);
-
-  if (!productId || !name) {
-    return null;
-  }
-
-  const nowIso = new Date().toISOString();
-  const payload: Record<string, unknown> = {
-    product: productId,
-    name,
-    quantity,
-    unitPrice,
-    subtotal: unitPrice * quantity,
-    orderedAt: nowIso,
-    orderedTime: nowIso,
-  };
-
-  if (department) {
-    payload.department = department;
-  }
-
-  if (categoryName) {
-    payload.categoryName = categoryName;
-  }
-
-  if (categoryId) {
-    payload.categoryId = categoryId;
-  }
-
-  if (note) {
-    payload.specialNote = note;
-    payload.notes = note;
-    payload.note = note;
-    payload.instructions = note;
-  }
-
-  return payload;
-}
-
-function normalizeCustomerDetails(value: unknown) {
-  const map =
-    value && typeof value === "object" && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : null;
-
-  return {
-    name: toTrimmedText(map?.name),
-    phoneNumber: toTrimmedText(map?.phoneNumber),
-    address: toTrimmedText(map?.address),
-  };
-}
-
-function mergeCustomerDetails(existingValue: unknown, incomingValue: unknown) {
-  const existing = normalizeCustomerDetails(existingValue);
-  const incoming = normalizeCustomerDetails(incomingValue);
-  return {
-    name: incoming.name || existing.name,
-    phoneNumber: incoming.phoneNumber || existing.phoneNumber,
-    address: incoming.address || existing.address,
-  };
-}
-
-function mergeNotes(existingNotes: unknown, newNotes: string) {
-  const existing = toTrimmedText(existingNotes);
-  if (!existing) return newNotes;
-  if (!newNotes) return existing;
-  return `${existing} | ${newNotes}`;
-}
-
-function readRecord(value: unknown) {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function parseProductMetadata(product: Record<string, unknown>): ProductMetadata {
-  const categoryNode =
-    product.category ??
-    product.categories ??
-    product.defaultCategory ??
-    product.categoryId;
-  const categoryMap = readRecord(categoryNode);
-  const categoryName =
-    toTrimmedText(categoryMap?.name) ||
-    toTrimmedText(product.categoryName) ||
-    toTrimmedText(product.departmentName) ||
-    toTrimmedText(product.department);
-  const categoryId = extractRefId(categoryNode);
-  const department =
-    toTrimmedText(product.departmentName) ||
-    toTrimmedText(product.department) ||
-    categoryName;
-
-  return {
-    categoryName,
-    categoryId,
-    department,
-  };
-}
-
-async function fetchProductMetadataMap({
-  items,
-  token,
-}: {
-  items: IncomingOrderItem[];
-  token: string;
-}) {
-  const productIds = Array.from(
-    new Set(items.map((item) => toTrimmedText(item.id)).filter(Boolean)),
-  );
-  if (productIds.length === 0) {
-    return new Map<string, ProductMetadata>();
-  }
-
-  const params = new URLSearchParams({
-    "where[id][in]": productIds.join(","),
-    limit: String(productIds.length),
-    depth: "1",
-  });
-
-  const response = await fetch(`${API_BASE}/products?${params.toString()}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    return new Map<string, ProductMetadata>();
-  }
-
-  const payload = (await response.json()) as {
-    docs?: Array<Record<string, unknown>>;
-  };
-  const metadataById = new Map<string, ProductMetadata>();
-
-  for (const product of payload.docs ?? []) {
-    const productId = extractRefId(product.id ?? product._id ?? product.value);
-    if (!productId) continue;
-    metadataById.set(productId, parseProductMetadata(product));
-  }
-
-  return metadataById;
-}
-
-function mergeIncomingItemMetadata(
-  item: IncomingOrderItem,
-  metadata?: ProductMetadata,
-): IncomingOrderItem {
-  const category = toTrimmedText(item.category) || metadata?.categoryName || "";
-  const categoryId =
-    toTrimmedText(item.categoryId) || metadata?.categoryId || "";
-  const department =
-    toTrimmedText(item.department) || metadata?.department || category;
-
-  return {
-    ...item,
-    category,
-    categoryId,
-    department,
-  };
-}
-
-function billDocId(value: unknown): string {
-  if (typeof value === "string") return value.trim();
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-
-  const map = readRecord(value);
-  if (!map) return "";
-
-  return (
-    toTrimmedText(map.id) ||
-    toTrimmedText(map._id) ||
-    toTrimmedText(map.$oid)
-  );
-}
-
-async function readResponseMessage(response: Response) {
-  const raw = await response.text();
-  try {
-    const parsed = JSON.parse(raw) as {
-      message?: string;
-      errors?: Array<{ message?: string }>;
-    };
-    return parsed.message || parsed.errors?.[0]?.message || raw || "Request failed";
-  } catch {
-    return raw || "Request failed";
-  }
-}
-
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as {
@@ -588,7 +606,6 @@ export async function POST(request: NextRequest) {
     const branchId = toTrimmedText(body.branchId);
     const tableNumberInput = toTrimmedText(body.tableNumber);
     const preferredSection = toTrimmedText(body.preferredSection);
-    const isTableLocked = body.tableLocked === true;
     const incomingCustomerDetails = normalizeCustomerDetails(body.customerDetails);
     const incomingItems = Array.isArray(body.items) ? body.items : [];
 
@@ -596,33 +613,53 @@ export async function POST(request: NextRequest) {
       return Response.json({ message: "Branch id is required" }, { status: 400 });
     }
 
-    const token = resolveApiTokenForBranch(branchId);
-    if (!token) {
-      return Response.json(
-        {
-          message:
-            "Ordering is not enabled yet. Add BLACKFOREST_BRANCH_API_TOKENS or BLACKFOREST_API_TOKEN in so the website can create billing orders.",
-        },
-        { status: 503 },
-      );
-    }
-
     if (!tableNumberInput) {
       return Response.json({ message: "Table number is required" }, { status: 400 });
     }
 
+    const payload = await getPayload({ config: configPromise });
+    const token = resolveApiTokenForBranch(branchId) || "";
+
+    const productMetadataById = new Map<string, ProductMetadata>();
     const requiresMetadataLookup = incomingItems.some((item) => {
       const category = toTrimmedText(item.category);
       const categoryId = toTrimmedText(item.categoryId);
       const department = toTrimmedText(item.department);
       return !category || !categoryId || !department;
     });
-    const productMetadataById = requiresMetadataLookup
-      ? await fetchProductMetadataMap({
-        items: incomingItems,
-        token,
-      })
-      : new Map<string, ProductMetadata>();
+
+    if (requiresMetadataLookup) {
+      const productIds = Array.from(
+        new Set(incomingItems.map((item) => toTrimmedText(item.id)).filter((id): id is string => Boolean(id))),
+      );
+      if (productIds.length > 0) {
+        try {
+          const productsRes = await payload.find({
+            collection: "products",
+            where: {
+              id: { in: productIds },
+            },
+            limit: productIds.length,
+            depth: 1,
+            overrideAccess: true,
+          });
+          for (const prod of productsRes.docs ?? []) {
+            const p = prod as unknown as Record<string, unknown>;
+            const pid = extractRefId(p.id ?? p._id);
+            if (pid) {
+              productMetadataById.set(pid, parseProductMetadata(p));
+            }
+          }
+        } catch {
+          if (token) {
+            const map = await fetchProductMetadataMap({ items: incomingItems, token });
+            for (const [k, v] of map.entries()) {
+              productMetadataById.set(k, v);
+            }
+          }
+        }
+      }
+    }
 
     const billingItems = incomingItems
       .map((item) =>
@@ -638,51 +675,71 @@ export async function POST(request: NextRequest) {
       return Response.json({ message: "At least one valid item is required" }, { status: 400 });
     }
 
-    let resolvedTarget:
-      | {
-        tableNumber: string;
-        section: string;
-        useShared: boolean;
-      }
-      | undefined;
     let existingBill: Record<string, unknown> | null = null;
-    const existingBillLookupTarget: { tableNumber: string; section: string } | null = null;
 
     if (billIdInput) {
-      const billResp = await fetch(`${API_BASE}/billings/${billIdInput}?depth=0`, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
-      if (billResp.ok) {
-        existingBill = (await billResp.json()) as Record<string, unknown>;
+      try {
+        const doc = await payload.findByID({
+          collection: "billings",
+          id: billIdInput,
+          depth: 0,
+          overrideAccess: true,
+        });
+        if (doc) {
+          existingBill = doc as unknown as Record<string, unknown>;
+        }
+      } catch (err) {
+        console.warn("[place-order] Could not find bill by ID", billIdInput, err);
       }
     }
 
     if (!existingBill && incomingCustomerDetails?.phoneNumber) {
-      const lookupParams = new URLSearchParams({
-        "where[status][in]": ACTIVE_BILL_STATUSES,
-        "where[customerDetails.phoneNumber][equals]": incomingCustomerDetails.phoneNumber.trim(),
-        "where[branch][equals]": branchId.trim(),
-        "where[createdAt][greater_than_equal]": getIndiaDayStartIso(),
-        limit: "1",
-        sort: "-updatedAt",
-        depth: "0",
-      });
-
-      const lookupResponse = await fetch(`${API_BASE}/billings?${lookupParams.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
-
-      if (lookupResponse.ok) {
-        const lookupPayload = (await lookupResponse.json()) as BillingLookupResponse;
-        if (lookupPayload.docs && lookupPayload.docs.length > 0) {
-          existingBill = lookupPayload.docs[0];
+      try {
+        const lookup = await payload.find({
+          collection: "billings",
+          where: {
+            status: { in: ACTIVE_BILL_STATUSES.split(",") },
+            "customerDetails.phoneNumber": { equals: incomingCustomerDetails.phoneNumber.trim() },
+            branch: { equals: branchId.trim() },
+            createdAt: { greater_than_equal: getIndiaDayStartIso() },
+          },
+          limit: 1,
+          sort: "-updatedAt",
+          depth: 0,
+          overrideAccess: true,
+        });
+        if (lookup.docs && lookup.docs.length > 0) {
+          existingBill = lookup.docs[0] as unknown as Record<string, unknown>;
         }
+      } catch (err) {
+        console.warn("[place-order] Could not lookup bill by phone", err);
       }
     }
 
     let tablesDocs: Array<Record<string, unknown>> = [];
+    try {
+      const tablesRes = await payload.find({
+        collection: "tables",
+        where: {
+          branch: { equals: branchId.trim() },
+        },
+        limit: 100,
+        depth: 1,
+        overrideAccess: true,
+      });
+      tablesDocs = (tablesRes.docs ?? []) as unknown as Array<Record<string, unknown>>;
+    } catch (err) {
+      console.warn("[place-order] Could not fetch tables via payload", err);
+    }
+
+    let resolvedTarget:
+      | {
+          tableNumber: string;
+          section: string;
+          useShared: boolean;
+        }
+      | undefined;
+
     if (existingBill) {
       const tableDetails = readRecord(existingBill.tableDetails);
       resolvedTarget = {
@@ -691,18 +748,6 @@ export async function POST(request: NextRequest) {
         useShared: false,
       };
     } else {
-      const tablesUrl = `${API_BASE}/tables?where[branch][equals]=${encodeURIComponent(branchId)}&limit=100&depth=1`;
-      const tablesResponse = await fetch(tablesUrl, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-      });
-      if (tablesResponse.ok) {
-        const payload = (await tablesResponse.json()) as { docs?: Array<Record<string, unknown>> };
-        tablesDocs = payload.docs ?? [];
-      }
-
       resolvedTarget = await resolveTableTarget({
         tableNumberInput,
         branchId,
@@ -720,7 +765,6 @@ export async function POST(request: NextRequest) {
         tableNumber: resolvedTarget.tableNumber,
       });
     }
-
 
     let tableNumber = resolvedTarget.tableNumber;
     const sectionName = resolvedTarget.section;
@@ -743,15 +787,12 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
       .join(", ");
 
-    // We intentionally disable auto-merging based on table number/section
-    // If there is an existingBill, it was explicitly fetched via billIdInput
-
     const existingId = toTrimmedText(existingBill?.id);
     const existingItems = Array.isArray(existingBill?.items)
       ? (existingBill.items as Record<string, unknown>[])
       : [];
 
-    const payload: Record<string, unknown> = {
+    const payloadData: Record<string, unknown> = {
       branch: branchId,
       items: existingItems.concat(billingItems),
       totalAmount: toFiniteNumber(existingBill?.totalAmount) + newTotalAmount,
@@ -770,50 +811,73 @@ export async function POST(request: NextRequest) {
     };
 
     if (!existingId && waiterId) {
-      payload.createdBy = waiterId;
+      payloadData.createdBy = waiterId;
     }
 
     const mergedNotes = mergeNotes(existingBill?.notes, newNotes);
     if (mergedNotes) {
-      payload.notes = mergedNotes;
+      payloadData.notes = mergedNotes;
     }
 
     const companyId = toTrimmedText(existingBill?.company);
     if (companyId) {
-      payload.company = companyId;
+      payloadData.company = companyId;
     }
 
-    const writeUrl = existingId
-      ? `${API_BASE}/billings/${existingId}?depth=0`
-      : `${API_BASE}/billings?depth=0`;
-    const writeResponse = await fetch(writeUrl, {
-      method: existingId ? "PATCH" : "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-    });
+    let writeDoc: Record<string, unknown>;
+    try {
+      if (existingId) {
+        const updated = await payload.update({
+          collection: "billings",
+          id: existingId,
+          data: payloadData as any,
+          overrideAccess: true,
+        });
+        writeDoc = updated as unknown as Record<string, unknown>;
+      } else {
+        const created = await payload.create({
+          collection: "billings",
+          data: payloadData as any,
+          overrideAccess: true,
+        });
+        writeDoc = created as unknown as Record<string, unknown>;
+      }
+    } catch (err) {
+      console.error("[place-order] Payload create/update error", err);
+      if (token) {
+        const writeUrl = existingId
+          ? `${API_BASE}/billings/${existingId}?depth=0`
+          : `${API_BASE}/billings?depth=0`;
+        const writeResponse = await fetch(writeUrl, {
+          method: existingId ? "PATCH" : "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payloadData),
+          cache: "no-store",
+        });
 
-    if (!writeResponse.ok) {
-      const message = await readResponseMessage(writeResponse);
-      return Response.json({ message }, { status: writeResponse.status });
+        if (!writeResponse.ok) {
+          const message = await readResponseMessage(writeResponse);
+          return Response.json({ message }, { status: writeResponse.status });
+        }
+
+        const writePayload = (await writeResponse.json()) as Record<string, unknown>;
+        writeDoc = readRecord(writePayload.doc) ?? writePayload;
+      } else {
+        throw err;
+      }
     }
 
-    const writePayload = (await writeResponse.json()) as Record<string, unknown>;
-    const writeDoc = readRecord(writePayload.doc) ?? writePayload;
     return Response.json({
       ok: true,
       billId:
-        billDocId(writeDoc) ||
-        billDocId(writePayload.id) ||
-        billDocId(writePayload._id) ||
-        billDocId(writePayload.doc) ||
+        billDocId(writeDoc.id) ||
+        billDocId(writeDoc._id) ||
+        billDocId(writeDoc.doc) ||
         existingId,
-      invoiceNumber:
-        toTrimmedText(writeDoc.invoiceNumber) ||
-        toTrimmedText(writePayload.invoiceNumber),
+      invoiceNumber: toTrimmedText(writeDoc.invoiceNumber),
       merged: Boolean(existingId),
       tableNumber,
       section: sectionName,

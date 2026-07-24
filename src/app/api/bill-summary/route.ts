@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import type { BillSummaryData, BillSummaryItem } from "@/lib/order-types";
 import { resolveApiTokenForBranch } from "@/lib/api-token";
+import { getPayload } from "payload";
+import configPromise from "@payload-config";
 
 const NEXT_PUBLIC_SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000';
 const API_BASE = `${NEXT_PUBLIC_SERVER_URL}/api`;
@@ -205,54 +207,53 @@ export async function GET(request: NextRequest) {
     const tableNumber = request.nextUrl.searchParams.get("tableNumber")?.trim() || "";
     const customerPhone = request.nextUrl.searchParams.get("customerPhone")?.trim() || "";
 
+    const payload = await getPayload({ config: configPromise });
+
     if (!billId && branchId && (tableNumber || customerPhone)) {
-      const token = resolveApiTokenForBranch(branchId);
-      if (token) {
-        const lookupParams = new URLSearchParams({
-          "where[branch][equals]": branchId,
-          "where[status][in]": ACTIVE_BILL_STATUSES,
-          "where[createdAt][greater_than_equal]": getIndiaDayStartIso(),
+      try {
+        const activeRes = await payload.find({
+          collection: "billings",
+          where: {
+            branch: { equals: branchId },
+            status: { in: ACTIVE_BILL_STATUSES.split(",") },
+            createdAt: { greater_than_equal: getIndiaDayStartIso() },
+          },
           sort: "-updatedAt",
-          limit: "50",
-          depth: "1",
+          limit: 50,
+          depth: 1,
+          overrideAccess: true,
         });
 
-        const activeResponse = await fetch(`${API_BASE}/billings?${lookupParams.toString()}`, {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: "no-store",
-        });
+        const docs = activeRes.docs ?? [];
+        const cleanTable = tableNumber.toLowerCase();
+        const cleanPhone = customerPhone.replace(/\D/g, "");
 
-        if (activeResponse.ok) {
-          const payload = (await activeResponse.json()) as { docs?: Array<Record<string, unknown>> };
-          const docs = payload.docs ?? [];
-          const cleanTable = tableNumber.toLowerCase();
-          const cleanPhone = customerPhone.replace(/\D/g, "");
+        const matchedDoc = docs.find((doc: any) => {
+          const tableDetails = doc.tableDetails && typeof doc.tableDetails === "object" ? doc.tableDetails : null;
+          const docTable = toTrimmedText(tableDetails?.tableNumber).toLowerCase();
+          const customerDetails = (doc.customerDetails ?? doc.customer) && typeof (doc.customerDetails ?? doc.customer) === "object" ? (doc.customerDetails ?? doc.customer) : null;
+          const docPhone = toTrimmedText(customerDetails?.phoneNumber).replace(/\D/g, "");
 
-          const matchedDoc = docs.find((doc) => {
-            const tableDetails = doc.tableDetails && typeof doc.tableDetails === "object" ? (doc.tableDetails as Record<string, unknown>) : null;
-            const docTable = toTrimmedText(tableDetails?.tableNumber).toLowerCase();
-            const customerDetails = (doc.customerDetails ?? doc.customer) && typeof (doc.customerDetails ?? doc.customer) === "object" ? ((doc.customerDetails ?? doc.customer) as Record<string, unknown>) : null;
-            const docPhone = toTrimmedText(customerDetails?.phoneNumber).replace(/\D/g, "");
-
-            if (cleanTable) {
-              const baseDocTable = docTable.split("-")[0];
-              const baseCleanTable = cleanTable.split("-")[0];
-              if (docTable === cleanTable || baseDocTable === baseCleanTable) {
-                return true;
-              }
-            }
-
-            if (cleanPhone && docPhone && (docPhone.endsWith(cleanPhone) || cleanPhone.endsWith(docPhone))) {
+          if (cleanTable) {
+            const baseDocTable = docTable.split("-")[0];
+            const baseCleanTable = cleanTable.split("-")[0];
+            if (docTable === cleanTable || baseDocTable === baseCleanTable) {
               return true;
             }
-
-            return false;
-          });
-
-          if (matchedDoc) {
-            billId = toTrimmedText(matchedDoc.id);
           }
+
+          if (cleanPhone && docPhone && (docPhone.endsWith(cleanPhone) || cleanPhone.endsWith(docPhone))) {
+            return true;
+          }
+
+          return false;
+        });
+
+        if (matchedDoc) {
+          billId = toTrimmedText(matchedDoc.id);
         }
+      } catch (err) {
+        console.warn("[bill-summary] Active bill lookup error", err);
       }
     }
 
@@ -260,27 +261,46 @@ export async function GET(request: NextRequest) {
       return Response.json({ message: "Bill not found" }, { status: 404 });
     }
 
-    const response = await fetch(`${API_BASE}/billings/${billId}?depth=1`, {
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      return Response.json({ message: "Unable to load bill" }, { status: response.status });
+    let payloadDoc: Record<string, unknown> | null = null;
+    try {
+      const doc = await payload.findByID({
+        collection: "billings",
+        id: billId,
+        depth: 1,
+        overrideAccess: true,
+      });
+      if (doc) {
+        payloadDoc = doc as unknown as Record<string, unknown>;
+      }
+    } catch (err) {
+      console.warn("[bill-summary] Find by ID error", err);
     }
 
-    const payload = (await response.json()) as Record<string, unknown>;
+    if (!payloadDoc) {
+      const token = resolveApiTokenForBranch(branchId);
+      const response = await fetch(`${API_BASE}/billings/${billId}?depth=1`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        return Response.json({ message: "Unable to load bill" }, { status: response.status });
+      }
+      payloadDoc = (await response.json()) as Record<string, unknown>;
+    }
+
     const branch =
-      payload.branch && typeof payload.branch === "object" && !Array.isArray(payload.branch)
-        ? (payload.branch as Record<string, unknown>)
+      payloadDoc.branch && typeof payloadDoc.branch === "object" && !Array.isArray(payloadDoc.branch)
+        ? (payloadDoc.branch as Record<string, unknown>)
         : null;
     const resolvedBranchId = branchId || toTrimmedText(branch?.id) || toTrimmedText(branch?._id) || "";
     const tableDetails =
-      payload.tableDetails &&
-      typeof payload.tableDetails === "object" &&
-      !Array.isArray(payload.tableDetails)
-        ? (payload.tableDetails as Record<string, unknown>)
+      payloadDoc.tableDetails &&
+      typeof payloadDoc.tableDetails === "object" &&
+      !Array.isArray(payloadDoc.tableDetails)
+        ? (payloadDoc.tableDetails as Record<string, unknown>)
         : null;
 
-    const rawItems = Array.isArray(payload.items) ? payload.items : [];
+    const rawItems = Array.isArray(payloadDoc.items) ? payloadDoc.items : [];
     const missingProductIds = Array.from(
       new Set(
         rawItems
@@ -311,43 +331,42 @@ export async function GET(request: NextRequest) {
 
     const productPrepMap = new Map<string, number>();
     if (missingProductIds.length > 0 && resolvedBranchId) {
-      const token = resolveApiTokenForBranch(resolvedBranchId);
-      if (token) {
-        const prodParams = new URLSearchParams({
-          "where[id][in]": missingProductIds.join(","),
-          limit: String(missingProductIds.length),
-          depth: "0",
+      try {
+        const prodRes = await payload.find({
+          collection: "products",
+          where: {
+            id: { in: missingProductIds },
+          },
+          limit: missingProductIds.length,
+          depth: 0,
+          overrideAccess: true,
         });
-        const prodResp = await fetch(`${API_BASE}/products?${prodParams.toString()}`, {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: "no-store",
-        });
-        if (prodResp.ok) {
-          const prodData = (await prodResp.json()) as { docs?: Array<Record<string, unknown>> };
-          for (const doc of prodData.docs ?? []) {
-            const pid = toTrimmedText(doc.id) || toTrimmedText(doc._id);
-            const prepTime =
-              toPreparationMinutes(doc.preparationTime) ??
-              toPreparationMinutes(doc.preparingTime);
-            if (pid && prepTime !== null) {
-              productPrepMap.set(pid, prepTime);
-            }
+        for (const doc of prodRes.docs ?? []) {
+          const pObj = doc as unknown as Record<string, unknown>;
+          const pid = toTrimmedText(pObj.id) || toTrimmedText(pObj._id);
+          const prepTime =
+            toPreparationMinutes(pObj.preparationTime) ??
+            toPreparationMinutes(pObj.preparingTime);
+          if (pid && prepTime !== null) {
+            productPrepMap.set(pid, prepTime);
           }
         }
+      } catch (err) {
+        console.warn("[bill-summary] Product prep map lookup error", err);
       }
     }
 
     const summary: BillSummaryData = {
-      billId: toTrimmedText(payload.id) || billId,
-      invoiceNumber: toTrimmedText(payload.invoiceNumber),
-      createdAt: toTrimmedText(payload.createdAt),
+      billId: toTrimmedText(payloadDoc.id) || billId,
+      invoiceNumber: toTrimmedText(payloadDoc.invoiceNumber),
+      createdAt: toTrimmedText(payloadDoc.createdAt),
       branchName: toTrimmedText(branch?.name) || "VSeyal",
       tableNumber: toTrimmedText(tableDetails?.tableNumber),
       section: toTrimmedText(tableDetails?.section),
-      status: normalizeStatus(payload.status),
-      totalAmount: toFiniteNumber(payload.totalAmount),
-      paymentMethod: normalizePaymentMethod(payload.paymentMethod),
-      items: parseItems(payload.items, toTrimmedText(payload.createdAt), productPrepMap),
+      status: normalizeStatus(payloadDoc.status),
+      totalAmount: toFiniteNumber(payloadDoc.totalAmount),
+      paymentMethod: normalizePaymentMethod(payloadDoc.paymentMethod),
+      items: parseItems(payloadDoc.items, toTrimmedText(payloadDoc.createdAt), productPrepMap),
     };
 
     return Response.json(summary);
