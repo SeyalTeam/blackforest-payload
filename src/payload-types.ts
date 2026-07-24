@@ -875,7 +875,7 @@ export interface Billing {
   totalGSTAmount?: number | null;
   branch: string | Branch;
   createdBy: string | User;
-  paymentMethod?: ('cash' | 'card' | 'upi' | 'other') | null;
+  paymentMethod?: ('cash' | 'card' | 'upi' | 'cashfree' | 'other') | null;
   /**
    * Apply configured offer if customer has required points. Offer can be used only once before earning again.
    */
