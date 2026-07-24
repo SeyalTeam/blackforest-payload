@@ -215,13 +215,17 @@ export const Media: CollectionConfig = {
       user?.role === 'admin' ||
       user?.role === 'company' ||
       user?.role === 'branch' ||
-      user?.role === 'store_keeper',
+      user?.role === 'store_keeper' ||
+      user?.role === 'waiter' ||
+      user?.role === 'cashier',
     update: ({ req: { user } }) =>
       user?.role === 'superadmin' ||
       user?.role === 'admin' ||
       user?.role === 'company' ||
       user?.role === 'branch' ||
-      user?.role === 'store_keeper',
+      user?.role === 'store_keeper' ||
+      user?.role === 'waiter' ||
+      user?.role === 'cashier',
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   fields: [
