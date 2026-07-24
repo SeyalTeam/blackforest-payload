@@ -164,6 +164,31 @@ const RawMaterialBillings: CollectionConfig = {
         readOnly: true,
       },
     },
+    {
+      name: 'createdBy',
+      type: 'relationship',
+      relationTo: 'users',
+      required: false,
+      admin: {
+        readOnly: true,
+      },
+    },
+    {
+      name: 'createdByName',
+      type: 'text',
+      required: false,
+      admin: {
+        readOnly: true,
+      },
+    },
+    {
+      name: 'createdByRole',
+      type: 'text',
+      required: false,
+      admin: {
+        readOnly: true,
+      },
+    },
   ],
   hooks: {
     beforeChange: [
@@ -172,6 +197,18 @@ const RawMaterialBillings: CollectionConfig = {
           if (req.user?.role === 'store_keeper' && req.user.storekeeper_companies && req.user.storekeeper_companies.length === 1) {
             const comp = req.user.storekeeper_companies[0]
             data.company = typeof comp === 'string' ? comp : comp.id
+          }
+          if (req.user) {
+            if (!data.createdBy) {
+              data.createdBy = req.user.id
+            }
+            if (!data.createdByName) {
+              const u = req.user as any
+              data.createdByName = u.name || u.username || u.email || 'Unknown'
+            }
+            if (!data.createdByRole) {
+              data.createdByRole = req.user.role || 'Unknown'
+            }
           }
         }
         if (data.rawMaterialsList) {

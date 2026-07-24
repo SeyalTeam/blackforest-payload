@@ -1135,6 +1135,9 @@ export interface RawMaterialBilling {
       }[]
     | null;
   status: 'pending' | 'paid' | 'cancelled';
+  createdBy?: (string | null) | User;
+  createdByName?: string | null;
+  createdByRole?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2626,6 +2629,9 @@ export interface RawMaterialBillingsSelect<T extends boolean = true> {
         id?: T;
       };
   status?: T;
+  createdBy?: T;
+  createdByName?: T;
+  createdByRole?: T;
   updatedAt?: T;
   createdAt?: T;
 }
