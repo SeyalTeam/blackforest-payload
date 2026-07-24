@@ -281,8 +281,13 @@ const RawMaterialDealers: CollectionConfig = {
               throw new Error('Invalid GST format')
             }
 
-            if (normalizedPAN && !panRegex.test(normalizedPAN)) {
-              throw new Error('Invalid PAN format')
+            if (normalizedPAN) {
+              if (!panRegex.test(normalizedPAN)) {
+                throw new Error('Invalid PAN format')
+              }
+              nextData.pan = normalizedPAN
+            } else {
+              nextData.pan = null
             }
 
             const existingDealerWithSameGST = await req.payload.find({
@@ -303,7 +308,6 @@ const RawMaterialDealers: CollectionConfig = {
             }
 
             nextData.gst = normalizedGST
-            nextData.pan = normalizedPAN
             nextData.fssai = normalizedFSSAI
             nextData.aadhar = null
           } else {
