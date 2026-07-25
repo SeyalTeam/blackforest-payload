@@ -1073,18 +1073,40 @@ async function fetchBranchPrinterInfo(branchId: string) {
 async function fetchProductsByIds(productIds: string[], branchId?: string) {
   if (productIds.length === 0) return new Map<string, Product>();
 
-  const params = new URLSearchParams();
-  params.set("where[id][in]", productIds.join(","));
-  params.set("depth", "2");
-  params.set("limit", String(Math.max(productIds.length, 1)));
-
-  const decoded = await fetchJson(`/products?${params.toString()}`);
+  const uniqueIds = Array.from(new Set(productIds.map((id) => id.trim()).filter(Boolean)));
+  const BATCH_SIZE = 40;
   const products = new Map<string, Product>();
-  for (const rawProduct of toArray(decoded)) {
-    const normalized = normalizeProduct(rawProduct, branchId);
-    if (!normalized) continue;
-    products.set(normalized.id, normalized);
+
+  const batches: string[][] = [];
+  for (let i = 0; i < uniqueIds.length; i += BATCH_SIZE) {
+    batches.push(uniqueIds.slice(i, i + BATCH_SIZE));
   }
+
+  const batchResults = await Promise.all(
+    batches.map(async (batch) => {
+      const params = new URLSearchParams();
+      params.set("where[id][in]", batch.join(","));
+      params.set("depth", "2");
+      params.set("limit", String(batch.length));
+
+      try {
+        const decoded = await fetchJson(`/products?${params.toString()}`);
+        return toArray(decoded);
+      } catch (err) {
+        console.warn("[fetchProductsByIds] Failed to fetch product batch", err);
+        return [];
+      }
+    }),
+  );
+
+  for (const rawProducts of batchResults) {
+    for (const rawProduct of rawProducts) {
+      const normalized = normalizeProduct(rawProduct, branchId);
+      if (!normalized) continue;
+      products.set(normalized.id, normalized);
+    }
+  }
+
   return products;
 }
 
