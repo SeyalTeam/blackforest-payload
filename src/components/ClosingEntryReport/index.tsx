@@ -459,73 +459,7 @@ const ClosingEntryReport: React.FC = () => {
   }, [data, filteredStats, selectedBranch])
 
   const displayStats = React.useMemo<ReportStats[]>(() => {
-    if (filteredStats.length === 0) return []
-
-    const combined = filteredStats.reduce<ReportStats>(
-      (acc, row) => {
-        acc.totalEntries += row.totalEntries || 0
-        acc.systemSales += row.systemSales || 0
-        acc.totalBills += row.totalBills || 0
-        acc.manualSales += row.manualSales || 0
-        acc.onlineSales += row.onlineSales || 0
-        acc.totalSales += row.totalSales || 0
-        acc.expenses += row.expenses || 0
-        acc.cash += row.cash || 0
-        acc.upi += row.upi || 0
-        acc.card += row.card || 0
-        acc.count2000 = (acc.count2000 || 0) + (row.count2000 || 0)
-        acc.count500 = (acc.count500 || 0) + (row.count500 || 0)
-        acc.count200 = (acc.count200 || 0) + (row.count200 || 0)
-        acc.count100 = (acc.count100 || 0) + (row.count100 || 0)
-        acc.count50 = (acc.count50 || 0) + (row.count50 || 0)
-        acc.count10 = (acc.count10 || 0) + (row.count10 || 0)
-        acc.count5 = (acc.count5 || 0) + (row.count5 || 0)
-        acc.closingNumbers.push(...(row.closingNumbers || []))
-        acc.entries.push(...(row.entries || []))
-        acc.expenseDetails = [...(acc.expenseDetails || []), ...(row.expenseDetails || [])]
-
-        const currentUpdated = row.lastUpdated ? new Date(row.lastUpdated).getTime() : 0
-        const latestUpdated = acc.lastUpdated ? new Date(acc.lastUpdated).getTime() : 0
-        if (currentUpdated > latestUpdated) {
-          acc.lastUpdated = row.lastUpdated
-        }
-        return acc
-      },
-      {
-        branchName: 'All Branch',
-        totalEntries: 0,
-        systemSales: 0,
-        totalBills: 0,
-        manualSales: 0,
-        onlineSales: 0,
-        totalSales: 0,
-        expenses: 0,
-        cash: 0,
-        upi: 0,
-        card: 0,
-        closingNumbers: [],
-        lastUpdated: '',
-        entries: [],
-        expenseDetails: [],
-        count2000: 0,
-        count500: 0,
-        count200: 0,
-        count100: 0,
-        count50: 0,
-        count10: 0,
-        count5: 0,
-      },
-    )
-
-    combined.closingNumbers = Array.from(new Set(combined.closingNumbers))
-    combined.entries = combined.entries.sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-    )
-    combined.expenseDetails = [...(combined.expenseDetails || [])].sort(
-      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
-    )
-
-    return [combined, ...filteredStats]
+    return filteredStats || []
   }, [filteredStats])
 
   const handleExportExcel = () => {
@@ -764,24 +698,23 @@ const ClosingEntryReport: React.FC = () => {
           <button
             className="view-mode-toggle"
             onClick={() => setViewMode(viewMode === 'combined' ? 'detailed' : 'combined')}
-            title={viewMode === 'combined' ? 'Switch to Detailed View' : 'Switch to Combined View'}
+            title={viewMode === 'combined' ? 'Switch to Detailed Table View' : 'Switch to Combined Table View'}
             style={{
               background: 'none',
               border: '1px solid var(--theme-elevation-300)',
               borderRadius: '4px',
-              padding: '8px',
+              padding: '8px 12px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              gap: '6px',
               color: 'var(--theme-text-primary, var(--theme-text))',
               marginRight: '1rem',
-              width: '42px',
               height: '42px',
             }}
           >
             {viewMode === 'combined' ? (
-              // Grid/List Icon for "Go to Detailed"
               <svg
                 width="20"
                 height="20"
@@ -798,7 +731,6 @@ const ClosingEntryReport: React.FC = () => {
                 <rect x="3" y="14" width="7" height="7"></rect>
               </svg>
             ) : (
-              // Table/List Icon for "Go to Combined"
               <svg
                 width="20"
                 height="20"
@@ -817,6 +749,9 @@ const ClosingEntryReport: React.FC = () => {
                 <line x1="3" y1="18" x2="3.01" y2="18"></line>
               </svg>
             )}
+            <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>
+              {viewMode === 'combined' ? 'Combined Table' : 'Detailed Table'}
+            </span>
           </button>
 
           <div className="filter-group">
@@ -934,360 +869,350 @@ const ClosingEntryReport: React.FC = () => {
       {data && (
         <>
           {viewMode === 'combined' ? (
-            <div className="cards-grid">
-              {displayStats.map((row) => {
-                const calculatedTotal = row.expenses + row.cash + row.upi + row.card
-                const salesDiff = calculatedTotal - row.totalSales
-                const isAllBranchCard = row.branchName === 'All Branch'
-                const hasAnyNegativeEntry = (row.entries || []).some((entry) => {
-                  const entryCollectionTotal =
-                    (entry.expenses || 0) +
-                    (entry.cash || 0) +
-                    (entry.upi || 0) +
-                    (entry.card || 0)
-                  return entryCollectionTotal - (entry.totalSales || 0) < 0
-                })
-                const isNegativeDiffBranchCard =
-                  !isAllBranchCard && (salesDiff < 0 || hasAnyNegativeEntry)
-                const isPositiveDiffBranchCard =
-                  !isAllBranchCard && !isNegativeDiffBranchCard && salesDiff > 0
+            <div className="table-container">
+              <table className="report-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '50px' }} className="center-cell">S.NO</th>
+                    <th>BRANCH NAME</th>
+                    <th className="text-right">SYSTEM BILLS</th>
+                    <th className="text-right">MANUAL BILLS</th>
+                    <th className="text-right">ONLINE BILLS</th>
+                    <th className="text-right">TOTAL SALES</th>
+                    <th className="text-right">SALES DIF</th>
+                    <th className="text-right">EXPENSES</th>
+                    <th className="text-right">CASH</th>
+                    <th className="text-right">UPI</th>
+                    <th className="text-right">CARD</th>
+                    <th className="text-right">TOTAL COLLECTION</th>
+                    <th className="text-right">NET AMOUNT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayStats.length === 0 ? (
+                    <tr>
+                      <td colSpan={13} className="center-cell" style={{ padding: '24px', opacity: 0.6 }}>
+                        No closing entries found for the selected filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    displayStats.map((row, index) => {
+                      const calculatedTotal = row.expenses + row.cash + row.upi + row.card
+                      const salesDiff = calculatedTotal - row.totalSales
+                      const hasAnyNegativeEntry = (row.entries || []).some((entry) => {
+                        const entryCollectionTotal =
+                          (entry.expenses || 0) +
+                          (entry.cash || 0) +
+                          (entry.upi || 0) +
+                          (entry.card || 0)
+                        return entryCollectionTotal - (entry.totalSales || 0) < 0
+                      })
+                      const isNegativeDiffRow = salesDiff < 0 || hasAnyNegativeEntry
+                      const isPositiveDiffRow = !isNegativeDiffRow && salesDiff > 0
 
-                // Branch Code and Time Logic
-                const showClosingIds = ['today', 'yesterday'].includes(dateRangePreset)
+                      const showClosingIds = ['today', 'yesterday'].includes(dateRangePreset)
 
-                const closingIds = showClosingIds && !isAllBranchCard
-                  ? row.closingNumbers?.map((num) => {
-                      const parts = num.split('-')
-                      if (parts.length >= 4) {
-                        return `${parts[0]}-${parts[parts.length - 1]}`
-                      }
-                      return num
-                    }) || []
-                  : []
-                const uniqueClosingIds = Array.from(new Set(closingIds))
-                const closingIdStr = uniqueClosingIds.join(', ')
+                      const closingIds = showClosingIds
+                        ? row.closingNumbers?.map((num) => {
+                            const parts = num.split('-')
+                            if (parts.length >= 4) {
+                              return `${parts[0]}-${parts[parts.length - 1]}`
+                            }
+                            return num
+                          }) || []
+                        : []
+                      const uniqueClosingIds = Array.from(new Set(closingIds))
+                      const closingIdStr = uniqueClosingIds.join(', ')
 
-                const timeStr = row.lastUpdated
-                  ? new Date(row.lastUpdated).toLocaleTimeString([], {
-                      hour: 'numeric',
-                      minute: '2-digit',
-                      hour12: true,
-                    })
-                  : ''
-
-                // Placeholders (matching detailed view for visual consistency)
-                const stockOrders = 0
-                const returnTotal = 0
-                const productTotal = 0
-                const productDiff = 0
-                const netAmount = salesDiff // Using salesDiff as netAmount for combined view mainly
-
-                return (
-                  <div
-                    key={row.branchName}
-                    className={`detail-card ${isAllBranchCard ? 'all-branch-card' : ''} ${isNegativeDiffBranchCard ? 'negative-diff-card' : ''} ${isPositiveDiffBranchCard ? 'positive-diff-card' : ''}`}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => {
-                      if (isAllBranchCard) {
-                        setSelectedBranch(['all'])
-                      } else {
-                        setSelectedBranch([row.branchName])
-                      }
-                      setViewMode('detailed')
-                    }}
-                  >
-                    {/* Card Header */}
-                    <div className="card-header">
-                      <span className="card-title">{row.branchName.toUpperCase()}</span>
-                      <span
-                        className="card-time"
-                        style={{ fontSize: '0.75rem', textAlign: 'right' }}
-                      >
-                        {!isAllBranchCard && <div>{closingIdStr}</div>}
-                        <div>{timeStr}</div>
-                      </span>
-                    </div>
-
-                    {/* Section 1: Bills */}
-                    <div className="card-section">
-                      <div className="row-flex">
-                        <span>System Bills</span>
-                        <span>₹{formatValue(row.systemSales)}</span>
-                      </div>
-                      <div className="row-flex">
-                        <span>Manual Bills</span>
-                        <span>₹{formatValue(row.manualSales)}</span>
-                      </div>
-                      <div className="row-flex">
-                        <span>Online Bills</span>
-                        <span>₹{formatValue(row.onlineSales)}</span>
-                      </div>
-                      <div className="section-total total-bills-row">
-                        <span>Total Bills: ({row.totalBills})</span>
-                        <span>{formatValue(row.totalSales)}</span>
-                      </div>
-                    </div>
-
-                    {/* Section 2: Collections */}
-                    <div className="card-section">
-                      <div
-                        className="row-flex clickable"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setExpensePopupData({
-                            title: `Expenses - ${row.branchName}`,
-                            details: row.expenseDetails || [],
-                          })
-                        }}
-                      >
-                        <span>Expenses</span>
-                        <span>₹{formatValue(row.expenses)}</span>
-                      </div>
-                      <div
-                        className="row-flex clickable"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setCashPopupData({
-                            title: `Cash Denominations - ${row.branchName}`,
-                            denominations: {
-                              count2000: row.count2000 || 0,
-                              count500: row.count500 || 0,
-                              count200: row.count200 || 0,
-                              count100: row.count100 || 0,
-                              count50: row.count50 || 0,
-                              count10: row.count10 || 0,
-                              count5: row.count5 || 0,
-                            },
-                          })
-                        }}
-                      >
-                        <span>Cash</span>
-                        <span>₹{formatValue(row.cash)}</span>
-                      </div>
-                      <div className="row-flex">
-                        <span>UPI</span>
-                        <span>₹{formatValue(row.upi)}</span>
-                      </div>
-                      <div className="row-flex">
-                        <span>Card</span>
-                        <span>₹{formatValue(row.card)}</span>
-                      </div>
-                      <div className="collection-summary">
-                        <div className="section-total collection-total">
-                          <span>Total Collection:</span>
-                          <span>{formatValue(calculatedTotal)}</span>
-                        </div>
-                        <div className="section-total sales-diff-row">
-                          <span className="sales-diff-label">Sales Dif</span>
-                          <span
-                            className={`sales-diff-value ${salesDiff >= 0 ? 'positive' : 'negative'}`}
-                          >
-                            {salesDiff > 0 ? '↑' : salesDiff < 0 ? '↓' : ''}{' '}
-                            {formatValue(salesDiff)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Section 3: Reconciliation and Extras */}
-                    <div className="card-section">
-                      <div className="row-flex">
-                        <span>Stock Orders</span>
-                        <span>₹{stockOrders}</span>
-                      </div>
-                      <div className="row-flex">
-                        <span>Return Total</span>
-                        <span>₹{returnTotal}</span>
-                      </div>
-                      <div className="row-flex">
-                        <span>Product Total</span>
-                        <span>₹{productTotal}</span>
-                      </div>
-                      <div className="row-flex">
-                        <span>Product Dif</span>
-                        <span>{formatValue(productDiff)}</span>
-                      </div>
-                    </div>
-
-                    {/* Footer: Final Stats */}
-                    <div className="card-footer-stats">
-                      <div className="stat-row net-amount">
-                        <span>Net Amount:</span>
-                        <span>₹{formatValue(netAmount)}</span>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="cards-grid">
-              {filteredStats?.map((row) => {
-                // Check if entries exist
-                if (!row.entries || row.entries.length === 0) return null
-
-                return row.entries.map((entry, i) => {
-                  const entryCollectionTotal =
-                    (entry.expenses || 0) + (entry.cash || 0) + (entry.upi || 0) + (entry.card || 0)
-                  const salesDiff = entryCollectionTotal - entry.totalSales
-                  const isNegativeDiffEntryCard = salesDiff < 0
-                  const isPositiveDiffEntryCard = salesDiff > 0
-
-                  const parts = entry.closingNumber.split('-')
-                  const displayNo =
-                    parts.length >= 4
-                      ? `${parts[0]}-${parts[parts.length - 1]}`
-                      : entry.closingNumber
-
-                  // Placeholders
-                  const stockOrders = 0
-                  const returnTotal = 0
-                  const productTotal = 0
-                  const productDiff = 0
-                  const netAmount = productDiff
-
-                  const showShortId = ['today', 'yesterday'].includes(dateRangePreset)
-                  const entryDate = new Date(entry.createdAt)
-
-                  return (
-                    <div
-                      key={`${row.branchName}-entry-${i}`}
-                      className={`detail-card ${isNegativeDiffEntryCard ? 'negative-diff-card' : ''} ${isPositiveDiffEntryCard ? 'positive-diff-card' : ''}`}
-                    >
-                      {/* Card Header */}
-                      <div className="card-header">
-                        <span className="card-title">
-                          {row.branchName.toUpperCase()} {showShortId ? `#${displayNo}` : ''}
-                        </span>
-                        <span className="card-time">
-                          {!showShortId && (
-                            <>
-                              {entryDate.toLocaleDateString([], {
-                                day: 'numeric',
-                                month: 'short',
-                              })}{' '}
-                            </>
-                          )}
-                          {entryDate.toLocaleTimeString([], {
+                      const timeStr = row.lastUpdated
+                        ? new Date(row.lastUpdated).toLocaleTimeString([], {
                             hour: 'numeric',
                             minute: '2-digit',
                             hour12: true,
-                          })}
-                        </span>
-                      </div>
+                          })
+                        : ''
 
-                      {/* Section 1: Bills */}
-                      <div className="card-section">
-                        <div className="row-flex">
-                          <span>System Bills</span>
-                          <span>₹{formatValue(entry.systemSales)}</span>
-                        </div>
-                        <div className="row-flex">
-                          <span>Manual Bills</span>
-                          <span>₹{formatValue(entry.manualSales)}</span>
-                        </div>
-                        <div className="row-flex">
-                          <span>Online Bills</span>
-                          <span>₹{formatValue(entry.onlineSales)}</span>
-                        </div>
-                        <div className="section-total total-bills-row">
-                          <span>Total Bills:</span>
-                          <span>{formatValue(entry.totalSales)}</span>
-                        </div>
-                      </div>
+                      const netAmount = salesDiff
 
-                      {/* Section 2: Collections */}
-                      <div className="card-section">
-                        <div
-                          className="row-flex clickable"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setExpensePopupData({
-                              title: `Expenses - ${displayNo}`,
-                              details: entry.expenseDetails || [],
-                            })
-                          }}
+                      return (
+                        <tr
+                          key={row.branchName}
+                          className={`${isNegativeDiffRow ? 'negative-diff-row' : ''} ${isPositiveDiffRow ? 'positive-diff-row' : ''}`}
                         >
-                          <span>Expenses</span>
-                          <span>₹{formatValue(entry.expenses)}</span>
-                        </div>
-                        <div
-                          className="row-flex clickable"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setCashPopupData({
-                              title: `Cash Denominations - ${displayNo}`,
-                              denominations: entry.denominations || {
-                                count2000: 0,
-                                count500: 0,
-                                count200: 0,
-                                count100: 0,
-                                count50: 0,
-                                count10: 0,
-                                count5: 0,
-                              },
-                            })
-                          }}
-                        >
-                          <span>Cash</span>
-                          <span>₹{formatValue(entry.cash)}</span>
-                        </div>
-                        <div className="row-flex">
-                          <span>UPI</span>
-                          <span>₹{formatValue(entry.upi)}</span>
-                        </div>
-                        <div className="row-flex">
-                          <span>Card</span>
-                          <span>₹{formatValue(entry.card)}</span>
-                        </div>
-                        <div className="collection-summary">
-                          <div className="section-total collection-total">
-                            <span>Total Collection:</span>
-                            <span>{formatValue(entryCollectionTotal)}</span>
-                          </div>
-                          <div className="section-total sales-diff-row">
-                            <span className="sales-diff-label">Sales Dif</span>
-                            <span
-                              className={`sales-diff-value ${salesDiff >= 0 ? 'positive' : 'negative'}`}
-                            >
-                              {salesDiff > 0 ? '↑' : salesDiff < 0 ? '↓' : ''}{' '}
-                              {formatValue(salesDiff)}
+                          <td className="center-cell">{index + 1}</td>
+                          <td
+                            className="clickable-branch"
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => {
+                              setSelectedBranch([row.branchName])
+                              setViewMode('detailed')
+                            }}
+                            title="Click to view detailed entries"
+                          >
+                            <div className="branch-title">{row.branchName.toUpperCase()}</div>
+                            {(closingIdStr || timeStr) && (
+                              <div className="branch-subtext">
+                                {closingIdStr && <span>#{closingIdStr} </span>}
+                                {timeStr && <span>• {timeStr}</span>}
+                              </div>
+                            )}
+                          </td>
+                          <td className="text-right">
+                            <div className="bill-amount">₹{formatValue(row.systemSales)}</div>
+                            <div className="bill-count">({row.totalBills} Bills)</div>
+                          </td>
+                          <td className="text-right">₹{formatValue(row.manualSales)}</td>
+                          <td className="text-right">₹{formatValue(row.onlineSales)}</td>
+                          <td className="text-right bill-amount">₹{formatValue(row.totalSales)}</td>
+                          <td className="text-right">
+                            <span className={`sales-diff-value ${salesDiff >= 0 ? 'positive' : 'negative'}`}>
+                              {salesDiff > 0 ? '↑' : salesDiff < 0 ? '↓' : ''} ₹{formatValue(salesDiff)}
                             </span>
-                          </div>
-                        </div>
-                      </div>
+                          </td>
+                          <td
+                            className="text-right clickable"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setExpensePopupData({
+                                title: `Expenses - ${row.branchName}`,
+                                details: row.expenseDetails || [],
+                              })
+                            }}
+                            title="Click to view expenses breakdown"
+                          >
+                            ₹{formatValue(row.expenses)}
+                          </td>
+                          <td
+                            className="text-right clickable"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setCashPopupData({
+                                title: `Cash Denominations - ${row.branchName}`,
+                                denominations: {
+                                  count2000: row.count2000 || 0,
+                                  count500: row.count500 || 0,
+                                  count200: row.count200 || 0,
+                                  count100: row.count100 || 0,
+                                  count50: row.count50 || 0,
+                                  count10: row.count10 || 0,
+                                  count5: row.count5 || 0,
+                                },
+                              })
+                            }}
+                            title="Click to view cash denominations"
+                          >
+                            ₹{formatValue(row.cash)}
+                          </td>
+                          <td className="text-right">₹{formatValue(row.upi)}</td>
+                          <td className="text-right">₹{formatValue(row.card)}</td>
+                          <td className="text-right bill-amount">₹{formatValue(calculatedTotal)}</td>
+                          <td className="text-right bill-amount">₹{formatValue(netAmount)}</td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr className="grand-total">
+                    <td colSpan={2} className="text-left" style={{ fontWeight: 'bold' }}>
+                      TOTAL
+                    </td>
+                    <td className="text-right">
+                      <div className="bill-amount">₹{formatValue(filteredTotals.systemSales)}</div>
+                      <div className="bill-count">({filteredTotals.totalBills} Bills)</div>
+                    </td>
+                    <td className="text-right">₹{formatValue(filteredTotals.manualSales)}</td>
+                    <td className="text-right">₹{formatValue(filteredTotals.onlineSales)}</td>
+                    <td className="text-right bill-amount">₹{formatValue(filteredTotals.totalSales)}</td>
+                    <td className="text-right">
+                      {(() => {
+                        const diff = filteredTotals.expenses + filteredTotals.cash + filteredTotals.upi + filteredTotals.card - filteredTotals.totalSales
+                        return (
+                          <span className={`sales-diff-value ${diff >= 0 ? 'positive' : 'negative'}`}>
+                            {diff > 0 ? '↑' : diff < 0 ? '↓' : ''} ₹{formatValue(diff)}
+                          </span>
+                        )
+                      })()}
+                    </td>
+                    <td className="text-right">₹{formatValue(filteredTotals.expenses)}</td>
+                    <td className="text-right">₹{formatValue(filteredTotals.cash)}</td>
+                    <td className="text-right">₹{formatValue(filteredTotals.upi)}</td>
+                    <td className="text-right">₹{formatValue(filteredTotals.card)}</td>
+                    <td className="text-right bill-amount">
+                      ₹{formatValue(filteredTotals.expenses + filteredTotals.cash + filteredTotals.upi + filteredTotals.card)}
+                    </td>
+                    <td className="text-right bill-amount">
+                      ₹{formatValue(filteredTotals.expenses + filteredTotals.cash + filteredTotals.upi + filteredTotals.card - filteredTotals.totalSales)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          ) : (
+            <div className="table-container">
+              <table className="report-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '50px' }} className="center-cell">S.NO</th>
+                    <th>BRANCH</th>
+                    <th className="center-cell">CLOSING NO</th>
+                    <th>DATE & TIME</th>
+                    <th className="text-right">SYSTEM BILLS</th>
+                    <th className="text-right">MANUAL BILLS</th>
+                    <th className="text-right">ONLINE BILLS</th>
+                    <th className="text-right">TOTAL SALES</th>
+                    <th className="text-right">SALES DIF</th>
+                    <th className="text-right">EXPENSES</th>
+                    <th className="text-right">CASH</th>
+                    <th className="text-right">UPI</th>
+                    <th className="text-right">CARD</th>
+                    <th className="text-right">TOTAL COLLECTION</th>
+                    <th className="text-right">NET AMOUNT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    let entryIndex = 0
+                    const rows: React.ReactNode[] = []
 
-                      {/* Section 3: Reconciliation and Extras */}
-                      <div className="card-section">
-                        <div className="row-flex">
-                          <span>Stock Orders</span>
-                          <span>₹{stockOrders}</span>
-                        </div>
-                        <div className="row-flex">
-                          <span>Return Total</span>
-                          <span>₹{returnTotal}</span>
-                        </div>
-                        <div className="row-flex">
-                          <span>Product Total</span>
-                          <span>₹{productTotal}</span>
-                        </div>
-                        <div className="row-flex">
-                          <span>Product Dif</span>
-                          <span>{formatValue(productDiff)}</span>
-                        </div>
-                      </div>
+                    filteredStats?.forEach((row) => {
+                      if (!row.entries || row.entries.length === 0) return
 
-                      {/* Footer: Final Stats */}
-                      <div className="card-footer-stats">
-                        <div className="stat-row net-amount">
-                          <span>Net Amount:</span>
-                          <span>₹{formatValue(netAmount)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })
-              })}
+                      row.entries.forEach((entry, i) => {
+                        entryIndex++
+                        const entryCollectionTotal =
+                          (entry.expenses || 0) + (entry.cash || 0) + (entry.upi || 0) + (entry.card || 0)
+                        const salesDiff = entryCollectionTotal - entry.totalSales
+                        const isNegativeDiffEntryRow = salesDiff < 0
+                        const isPositiveDiffEntryRow = salesDiff > 0
+
+                        const parts = entry.closingNumber.split('-')
+                        const displayNo =
+                          parts.length >= 4
+                            ? `${parts[0]}-${parts[parts.length - 1]}`
+                            : entry.closingNumber
+
+                        const entryDate = new Date(entry.createdAt)
+
+                        rows.push(
+                          <tr
+                            key={`${row.branchName}-entry-${i}`}
+                            className={`${isNegativeDiffEntryRow ? 'negative-diff-row' : ''} ${isPositiveDiffEntryRow ? 'positive-diff-row' : ''}`}
+                          >
+                            <td className="center-cell">{entryIndex}</td>
+                            <td>
+                              <div className="branch-title">{row.branchName.toUpperCase()}</div>
+                            </td>
+                            <td className="center-cell">
+                              <span className="closing-tag">#{displayNo}</span>
+                            </td>
+                            <td>
+                              <div>{entryDate.toLocaleDateString()}</div>
+                              <div className="bill-count">
+                                {entryDate.toLocaleTimeString([], {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                  hour12: true,
+                                })}
+                              </div>
+                            </td>
+                            <td className="text-right">₹{formatValue(entry.systemSales)}</td>
+                            <td className="text-right">₹{formatValue(entry.manualSales)}</td>
+                            <td className="text-right">₹{formatValue(entry.onlineSales)}</td>
+                            <td className="text-right bill-amount">₹{formatValue(entry.totalSales)}</td>
+                            <td className="text-right">
+                              <span className={`sales-diff-value ${salesDiff >= 0 ? 'positive' : 'negative'}`}>
+                                {salesDiff > 0 ? '↑' : salesDiff < 0 ? '↓' : ''} ₹{formatValue(salesDiff)}
+                              </span>
+                            </td>
+                            <td
+                              className="text-right clickable"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setExpensePopupData({
+                                  title: `Expenses - ${displayNo}`,
+                                  details: entry.expenseDetails || [],
+                                })
+                              }}
+                              title="Click to view expenses breakdown"
+                            >
+                              ₹{formatValue(entry.expenses)}
+                            </td>
+                            <td
+                              className="text-right clickable"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setCashPopupData({
+                                  title: `Cash Denominations - ${displayNo}`,
+                                  denominations: entry.denominations || {
+                                    count2000: 0,
+                                    count500: 0,
+                                    count200: 0,
+                                    count100: 0,
+                                    count50: 0,
+                                    count10: 0,
+                                    count5: 0,
+                                  },
+                                })
+                              }}
+                              title="Click to view cash denominations"
+                            >
+                              ₹{formatValue(entry.cash)}
+                            </td>
+                            <td className="text-right">₹{formatValue(entry.upi)}</td>
+                            <td className="text-right">₹{formatValue(entry.card)}</td>
+                            <td className="text-right bill-amount">₹{formatValue(entryCollectionTotal)}</td>
+                            <td className="text-right bill-amount">₹{formatValue(salesDiff)}</td>
+                          </tr>
+                        )
+                      })
+                    })
+
+                    if (rows.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={15} className="center-cell" style={{ padding: '24px', opacity: 0.6 }}>
+                            No detailed closing entries found for the selected filters.
+                          </td>
+                        </tr>
+                      )
+                    }
+
+                    return rows
+                  })()}
+                </tbody>
+                <tfoot>
+                  <tr className="grand-total">
+                    <td colSpan={4} className="text-left" style={{ fontWeight: 'bold' }}>
+                      TOTAL
+                    </td>
+                    <td className="text-right">₹{formatValue(filteredTotals.systemSales)}</td>
+                    <td className="text-right">₹{formatValue(filteredTotals.manualSales)}</td>
+                    <td className="text-right">₹{formatValue(filteredTotals.onlineSales)}</td>
+                    <td className="text-right bill-amount">₹{formatValue(filteredTotals.totalSales)}</td>
+                    <td className="text-right">
+                      {(() => {
+                        const diff = filteredTotals.expenses + filteredTotals.cash + filteredTotals.upi + filteredTotals.card - filteredTotals.totalSales
+                        return (
+                          <span className={`sales-diff-value ${diff >= 0 ? 'positive' : 'negative'}`}>
+                            {diff > 0 ? '↑' : diff < 0 ? '↓' : ''} ₹{formatValue(diff)}
+                          </span>
+                        )
+                      })()}
+                    </td>
+                    <td className="text-right">₹{formatValue(filteredTotals.expenses)}</td>
+                    <td className="text-right">₹{formatValue(filteredTotals.cash)}</td>
+                    <td className="text-right">₹{formatValue(filteredTotals.upi)}</td>
+                    <td className="text-right">₹{formatValue(filteredTotals.card)}</td>
+                    <td className="text-right bill-amount">
+                      ₹{formatValue(filteredTotals.expenses + filteredTotals.cash + filteredTotals.upi + filteredTotals.card)}
+                    </td>
+                    <td className="text-right bill-amount">
+                      ₹{formatValue(filteredTotals.expenses + filteredTotals.cash + filteredTotals.upi + filteredTotals.card - filteredTotals.totalSales)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           )}
         </>

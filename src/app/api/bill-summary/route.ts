@@ -205,6 +205,7 @@ export async function GET(request: NextRequest) {
     let billId = request.nextUrl.searchParams.get("billId")?.trim() || "";
     const branchId = request.nextUrl.searchParams.get("branchId")?.trim() || "";
     const tableNumber = request.nextUrl.searchParams.get("tableNumber")?.trim() || "";
+    const section = request.nextUrl.searchParams.get("section")?.trim() || "";
     const customerPhone = request.nextUrl.searchParams.get("customerPhone")?.trim() || "";
 
     const payload = await getPayload({ config: configPromise });
@@ -226,23 +227,32 @@ export async function GET(request: NextRequest) {
 
         const docs = activeRes.docs ?? [];
         const cleanTable = tableNumber.toLowerCase();
+        const cleanSection = section.toLowerCase();
         const cleanPhone = customerPhone.replace(/\D/g, "");
 
         const matchedDoc = docs.find((doc: any) => {
           const tableDetails = doc.tableDetails && typeof doc.tableDetails === "object" ? doc.tableDetails : null;
           const docTable = toTrimmedText(tableDetails?.tableNumber).toLowerCase();
+          const docSection = toTrimmedText(tableDetails?.section || doc.section).toLowerCase();
           const customerDetails = (doc.customerDetails ?? doc.customer) && typeof (doc.customerDetails ?? doc.customer) === "object" ? (doc.customerDetails ?? doc.customer) : null;
           const docPhone = toTrimmedText(customerDetails?.phoneNumber).replace(/\D/g, "");
 
           if (cleanTable) {
             const baseDocTable = docTable.split("-")[0];
             const baseCleanTable = cleanTable.split("-")[0];
-            if (docTable === cleanTable || baseDocTable === baseCleanTable) {
+            const isTableEqual = docTable === cleanTable || baseDocTable === baseCleanTable;
+            if (isTableEqual) {
+              if (cleanSection && docSection && cleanSection !== docSection) {
+                return false;
+              }
               return true;
             }
           }
 
           if (cleanPhone && docPhone && (docPhone.endsWith(cleanPhone) || cleanPhone.endsWith(docPhone))) {
+            if (cleanSection && docSection && cleanSection !== docSection) {
+              return false;
+            }
             return true;
           }
 

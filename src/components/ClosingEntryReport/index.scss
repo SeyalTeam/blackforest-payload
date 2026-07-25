@@ -504,6 +504,73 @@
             }
           }
 
+          .text-left {
+            text-align: left !important;
+          }
+
+          .text-right {
+            text-align: right !important;
+          }
+
+          .center-cell {
+            text-align: center !important;
+          }
+
+          .closing-tag {
+            background: var(--theme-elevation-200);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            font-family: monospace;
+            color: var(--theme-text-primary, var(--theme-text));
+            border: 1px solid var(--theme-elevation-300);
+          }
+
+          .sales-diff-value {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-weight: 700;
+
+            &.positive {
+              color: #81c784;
+            }
+
+            &.negative {
+              color: #e57373;
+            }
+          }
+
+          &.all-branch-row {
+            background-color: rgba(23, 58, 102, 0.45) !important;
+            font-weight: 600;
+
+            td {
+              border-bottom: 2px solid #2f74c4 !important;
+            }
+
+            &:hover {
+              background-color: rgba(23, 58, 102, 0.65) !important;
+            }
+          }
+
+          &.negative-diff-row {
+            background-color: rgba(128, 0, 0, 0.15) !important;
+
+            &:hover {
+              background-color: rgba(128, 0, 0, 0.25) !important;
+            }
+          }
+
+          &.positive-diff-row {
+            background-color: rgba(0, 120, 72, 0.15) !important;
+
+            &:hover {
+              background-color: rgba(0, 120, 72, 0.25) !important;
+            }
+          }
+
           .center-cell {
             text-align: center;
           }
@@ -543,6 +610,21 @@
             &.total-sales-cell {
               background-color: #3f0e12;
               border-right: 1px solid #5c1b1f;
+            }
+
+            .sales-diff-value {
+              display: inline-flex;
+              align-items: center;
+              gap: 4px;
+              font-weight: 700;
+
+              &.positive {
+                color: #81c784;
+              }
+
+              &.negative {
+                color: #e57373;
+              }
             }
           }
         }

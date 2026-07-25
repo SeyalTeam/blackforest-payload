@@ -533,16 +533,30 @@ export default function KotPage() {
       try {
         const queryParams = new URLSearchParams();
         const currentActiveBill = readActiveBillSession(branchId);
-        const billIdToUse = targetBillId || currentActiveBill?.billId || "";
+        const activeBillTableMatches =
+          !currentActiveBill?.tableNumber ||
+          !sharedTableNumber.trim() ||
+          currentActiveBill.tableNumber.trim().toLowerCase() === sharedTableNumber.trim().toLowerCase();
+        const activeBillSectionMatches =
+          !currentActiveBill?.section ||
+          !preferredSection.trim() ||
+          currentActiveBill.section.trim().toLowerCase() === preferredSection.trim().toLowerCase();
+
+        const billIdToUse =
+          targetBillId || (activeBillTableMatches && activeBillSectionMatches ? currentActiveBill?.billId : "") || "";
 
         if (billIdToUse) {
           queryParams.set("billId", billIdToUse);
           queryParams.set("branchId", branchId);
         } else {
           queryParams.set("branchId", branchId);
-          const currentTable = sharedTableNumber.trim() || currentActiveBill?.tableNumber || "";
+          const currentTable = sharedTableNumber.trim() || (activeBillTableMatches ? currentActiveBill?.tableNumber : "") || "";
           if (currentTable) {
             queryParams.set("tableNumber", currentTable);
+          }
+          const currentSection = preferredSection.trim() || (activeBillSectionMatches ? currentActiveBill?.section : "") || "";
+          if (currentSection) {
+            queryParams.set("section", currentSection);
           }
           if (customerPhone.trim() || currentActiveBill?.customerPhone) {
             queryParams.set("customerPhone", customerPhone.trim() || currentActiveBill?.customerPhone || "");
@@ -611,7 +625,7 @@ export default function KotPage() {
       window.clearInterval(refreshTimerId);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [branchId, sharedTableNumber, customerPhone]);
+  }, [branchId, sharedTableNumber, preferredSection, customerPhone]);
 
   useEffect(() => {
     return () => {
@@ -641,8 +655,15 @@ export default function KotPage() {
     ? trimmedTableNumber.split("-")[0].trim().toLowerCase()
     : "";
 
+  const prevSection = previousBillData?.section
+    ? previousBillData.section.trim().toLowerCase()
+    : "";
+  const currentSection = preferredSection.trim().toLowerCase();
+  const isSectionMatch = !prevSection || !currentSection || prevSection === currentSection;
+
   const isTableMatch = Boolean(
     previousBillData &&
+    isSectionMatch &&
     (!trimmedTableNumber ||
       !previousBillData.tableNumber ||
       prevTableBase === currentTableBase ||
@@ -1224,10 +1245,20 @@ export default function KotPage() {
 
         <div className={styles.chipRow}>
           {showDetailedTableChips ? (
-            <div className={styles.chip}>
-              <TableIcon className={styles.chipIconSvg} />
-              {tableChipLabel}
-            </div>
+            <>
+              {tableChipLabel ? (
+                <div className={styles.chip}>
+                  <TableIcon className={styles.chipIconSvg} />
+                  {tableChipLabel}
+                </div>
+              ) : null}
+              {sectionChipLabel ? (
+                <div className={styles.chip}>
+                  <PinIcon className={styles.chipIconSvg} />
+                  {sectionChipLabel}
+                </div>
+              ) : null}
+            </>
           ) : (
             <div className={styles.chip}>
               <PinIcon className={styles.chipIconSvg} />

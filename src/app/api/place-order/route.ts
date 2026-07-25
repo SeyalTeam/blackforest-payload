@@ -709,7 +709,24 @@ export async function POST(request: NextRequest) {
           overrideAccess: true,
         });
         if (lookup.docs && lookup.docs.length > 0) {
-          existingBill = lookup.docs[0] as unknown as Record<string, unknown>;
+          for (const candidateDoc of lookup.docs) {
+            const doc = candidateDoc as unknown as Record<string, unknown>;
+            const tableDetails = readRecord(doc.tableDetails);
+            const docTable = toTrimmedText(tableDetails?.tableNumber).toLowerCase();
+            const docSection = toTrimmedText(tableDetails?.section || doc.section).toLowerCase();
+
+            const reqTable = tableNumberInput.toLowerCase();
+            const reqSection = preferredSection.toLowerCase();
+
+            const isTableMatch =
+              !reqTable || !docTable || docTable === reqTable || docTable.split("-")[0] === reqTable.split("-")[0];
+            const isSectionMatch = !reqSection || !docSection || docSection === reqSection;
+
+            if (isTableMatch && isSectionMatch) {
+              existingBill = doc;
+              break;
+            }
+          }
         }
       } catch (err) {
         console.warn("[place-order] Could not lookup bill by phone", err);
