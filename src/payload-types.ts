@@ -609,6 +609,10 @@ export interface RawMaterial {
    * Notify when stock falls below this level.
    */
   minimumStockLevel?: number | null;
+  /**
+   * Notify when stock exceeds this level.
+   */
+  maximumStockLevel?: number | null;
   dealer: string | RawMaterialDealer;
   /**
    * Define the packaging options available for this raw material (e.g. 25 kg Bag, 50 kg Bag).
@@ -2110,6 +2114,7 @@ export interface RawMaterialsSelect<T extends boolean = true> {
       };
   unit?: T;
   minimumStockLevel?: T;
+  maximumStockLevel?: T;
   dealer?: T;
   variants?:
     | T

@@ -10,172 +10,104 @@ async function run() {
   await client.connect()
   const db = client.db('blackforest-payload')
 
-  const branchId = '69724ad6f91273ae0b1e121f'
+  const branchId = '68fcf95338714903fbd03e27'
 
-  const startOfDay = new Date('2026-07-23T00:00:00.000Z')
-  const endOfDay = new Date('2026-07-23T23:59:59.999Z')
+  const branch = await db.collection('branches').findOne({ _id: new ObjectId(branchId) })
+  console.log(`\n🏪 Branch: ${branch?.name || 'UNKNOWN'} (${branchId})`)
+  console.log(`📅 Today: July 25, 2026\n`)
 
-  // Get closing entries
-  const closingEntries = await db.collection('closing-entries').find({
-    closingNumber: { $regex: /^ETP-CLO-230726/ }
-  }).sort({ createdAt: 1 }).toArray()
+  const startOfDay = new Date('2026-07-25T00:00:00.000Z')
+  const endOfDay = new Date('2026-07-25T23:59:59.999Z')
 
-  // Get all completed/settled bills
+  // All bills today
   const allBills = await db.collection('billings').find({
     branch: new ObjectId(branchId),
-    createdAt: { $gte: startOfDay, $lte: endOfDay },
-    status: { $in: ['completed', 'settled'] }
+    createdAt: { $gte: startOfDay, $lte: endOfDay }
   }).sort({ createdAt: 1 }).toArray()
 
-  // ── WINDOW 1: Start of day → Closing #1 (3:26:53 PM) ──
-  // Closing says 43 bills / ₹12,423, actual window has 44 bills / ₹12,467
-  // → 1 extra bill worth ₹44
-
-  const closing1Time = new Date(closingEntries[0].createdAt)
-  const window1Bills = allBills.filter((b: any) => {
-    const t = new Date(b.createdAt)
-    return t > startOfDay && t <= closing1Time
+  // Status breakdown
+  const statusMap: Record<string, { count: number, total: number }> = {}
+  allBills.forEach((b: any) => {
+    const status = b.status || 'unknown'
+    if (!statusMap[status]) statusMap[status] = { count: 0, total: 0 }
+    statusMap[status].count++
+    statusMap[status].total += b.totalAmount || 0
   })
 
-  console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
-  console.log(`🔍 WINDOW 1: Start of day → ${closing1Time.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}`)
-  console.log(`   Closing recorded: 43 bills, ₹12,423`)
-  console.log(`   Actual in window: ${window1Bills.length} bills, ₹${window1Bills.reduce((s: number, b: any) => s + (b.totalAmount || 0), 0).toLocaleString('en-IN')}`)
+  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+  console.log(`📋 TODAY'S BILLING (July 25)`)
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
 
-  // The closing hook uses: createdAt > lastClosingTime AND createdAt < endOfDay
-  // At hook runtime, it would only see bills that existed at that moment
-  // The 1 missing bill is likely the one created closest to the closing time
-  // Let's find it by removing bills until we get to ₹12,423 (43 bills)
-
-  // Sort by createdAt descending to find the ones closest to closing time
-  const w1Sorted = [...window1Bills].sort((a: any, b: any) => 
-    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  )
-
-  // Find subset that sums to ₹12,423 with 43 bills — the extra bill(s) are the difference
-  const closingAmount1 = closingEntries[0].systemSales || 0
-  const closingCount1 = closingEntries[0].totalBills || 0
-  const actualAmount1 = window1Bills.reduce((s: number, b: any) => s + (b.totalAmount || 0), 0)
-
-  const diffAmount1 = actualAmount1 - closingAmount1
-  const diffCount1 = window1Bills.length - closingCount1
-
-  console.log(`\n   Looking for ${diffCount1} bill(s) totalling ₹${diffAmount1}...\n`)
-
-  // Find bills whose amounts sum to the difference
-  // Since it's 1 bill = ₹44, find the bill with amount ₹44
-  const candidates1 = window1Bills.filter((b: any) => (b.totalAmount || 0) === diffAmount1)
-  
-  if (candidates1.length > 0) {
-    candidates1.forEach((b: any) => {
-      printBill(b, 'MISSED IN CLOSING #1')
-    })
+  if (allBills.length === 0) {
+    console.log(`\n  ❌ No bills found for today.`)
   } else {
-    // Try bills created in the last few seconds before closing
-    console.log(`   No single bill with exact amount ₹${diffAmount1}. Checking bills near closing time...`)
-    const nearClosingBills = w1Sorted.slice(0, diffCount1 + 2)
-    nearClosingBills.forEach((b: any) => {
-      printBill(b, 'NEAR CLOSING #1 TIME')
+    console.log(`\n  ── Status Breakdown ──`)
+    let grandTotal = 0, grandCount = 0
+    Object.entries(statusMap).sort((a, b) => b[1].total - a[1].total).forEach(([status, data]) => {
+      console.log(`     ${status.padEnd(15)}: ${data.count.toString().padStart(4)} bills  |  ₹${data.total.toLocaleString('en-IN')}`)
+      grandTotal += data.total
+      grandCount += data.count
     })
-  }
+    console.log(`     ${'─'.repeat(50)}`)
+    console.log(`     ${'ALL'.padEnd(15)}: ${grandCount.toString().padStart(4)} bills  |  ₹${grandTotal.toLocaleString('en-IN')}`)
 
-  // ── WINDOW 2: Closing #1 → Closing #2 (6:27:08 PM) ──
-  // Closing says 57 bills / ₹19,851, actual window has 59 bills / ₹20,265
-  // → 2 extra bills worth ₹414
+    // Completed + Settled
+    const completedBills = allBills.filter((b: any) => b.status === 'completed' || b.status === 'settled')
+    const completedTotal = completedBills.reduce((s: number, b: any) => s + (b.totalAmount || 0), 0)
 
-  const closing2Time = new Date(closingEntries[1].createdAt)
-  const window2Bills = allBills.filter((b: any) => {
-    const t = new Date(b.createdAt)
-    return t > closing1Time && t <= closing2Time
-  })
+    console.log(`\n  ── Completed/Settled ──`)
+    console.log(`     Bills  : ${completedBills.length}`)
+    console.log(`     Amount : ₹${completedTotal.toLocaleString('en-IN')}`)
 
-  const closingAmount2 = closingEntries[1].systemSales || 0
-  const closingCount2 = closingEntries[1].totalBills || 0
-  const actualAmount2 = window2Bills.reduce((s: number, b: any) => s + (b.totalAmount || 0), 0)
-  const diffAmount2 = actualAmount2 - closingAmount2
-  const diffCount2 = window2Bills.length - closingCount2
+    // Payment mode breakdown
+    const paymentMap: Record<string, { count: number, total: number }> = {}
+    completedBills.forEach((b: any) => {
+      const mode = b.paymentMode || b.paymentMethod || 'unknown'
+      if (!paymentMap[mode]) paymentMap[mode] = { count: 0, total: 0 }
+      paymentMap[mode].count++
+      paymentMap[mode].total += b.totalAmount || 0
+    })
 
-  console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
-  console.log(`🔍 WINDOW 2: ${closing1Time.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })} → ${closing2Time.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}`)
-  console.log(`   Closing recorded: ${closingCount2} bills, ₹${closingAmount2.toLocaleString('en-IN')}`)
-  console.log(`   Actual in window: ${window2Bills.length} bills, ₹${actualAmount2.toLocaleString('en-IN')}`)
-  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
-  console.log(`\n   Looking for ${diffCount2} bill(s) totalling ₹${diffAmount2}...\n`)
+    console.log(`\n  ── Payment Mode Breakdown ──`)
+    Object.entries(paymentMap).sort((a, b) => b[1].total - a[1].total).forEach(([mode, data]) => {
+      console.log(`     ${mode.padEnd(15)}: ${data.count.toString().padStart(4)} bills  |  ₹${data.total.toLocaleString('en-IN')}`)
+    })
 
-  // The closing hook uses createdAt > lastClosingTime (which is the PREVIOUS closing's createdAt)
-  // But the hook finds lastClosingTime by querying closing-entries for the same branch+date, sorted by -createdAt, limit 1
-  // The "previous" closing for #2 should be #1's createdAt
-  // The extra 2 bills could be:
-  //   a) Bills created in the same second as closing #1 (race condition)
-  //   b) Bills that the hook's query missed due to timing
-
-  // Let's find bills created very close to closing #1's time (could be before/after by milliseconds)
-  const w2Sorted = [...window2Bills].sort((a: any, b: any) => 
-    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  )
-
-  // Show bills closest to the window boundaries
-  console.log(`   Bills at start of window (closest to closing #1 time):`)
-  w2Sorted.slice(0, 5).forEach((b: any) => {
-    const t = new Date(b.createdAt)
-    const diffMs = t.getTime() - closing1Time.getTime()
-    console.log(`     ${b.invoiceNumber || 'N/A'} | ${t.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })} | ₹${(b.totalAmount || 0)} | +${diffMs}ms after closing`)
-  })
-
-  // Try to find 2 bills that sum to ₹414
-  console.log(`\n   Searching for 2-bill combination summing to ₹${diffAmount2}...`)
-  let found = false
-  for (let i = 0; i < window2Bills.length && !found; i++) {
-    for (let j = i + 1; j < window2Bills.length && !found; j++) {
-      const sum = (window2Bills[i] as any).totalAmount + (window2Bills[j] as any).totalAmount
-      if (sum === diffAmount2) {
-        console.log(`\n   ✅ Found matching pair:\n`)
-        printBill(window2Bills[i], 'MISSED IN CLOSING #2 (bill A)')
-        printBill(window2Bills[j], 'MISSED IN CLOSING #2 (bill B)')
-        found = true
-      }
+    // First and last bill times
+    if (completedBills.length > 0) {
+      const firstBill = completedBills[0] as any
+      const lastBill = completedBills[completedBills.length - 1] as any
+      console.log(`\n  ── Timeline ──`)
+      console.log(`     First bill : ${new Date(firstBill.createdAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })} (${firstBill.invoiceNumber || 'N/A'})`)
+      console.log(`     Last bill  : ${new Date(lastBill.createdAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })} (${lastBill.invoiceNumber || 'N/A'})`)
     }
   }
 
-  if (!found) {
-    // Show all bills in window sorted by time, highlight ones near boundaries
-    console.log(`\n   Could not find exact 2-bill match. Showing all ${diffCount2 + 2} bills near window start:`)
-    w2Sorted.slice(0, diffCount2 + 3).forEach((b: any) => {
-      printBill(b, 'NEAR START OF WINDOW 2')
-    })
-  }
+  // Check closing entries for today - get branch prefix first
+  const branchPrefix = branch?.name ? branch.name.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3) : 'BRN'
+  const closingPattern = `${branchPrefix}-CLO-250726`
+  
+  // Also try generic search
+  const closingEntries = await db.collection('closing-entries').find({
+    $or: [{ branch: branchId }, { branch: new ObjectId(branchId) }],
+    createdAt: { $gte: startOfDay, $lte: endOfDay }
+  }).sort({ createdAt: 1 }).toArray()
 
-  // ── SUMMARY ──
-  console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
-  console.log(`📊 SUMMARY OF ALL 5 MISSED BILLS (₹981)`)
-  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
-  console.log(`  Window #1 gap: ${diffCount1} bill(s), ₹${diffAmount1}`)
-  console.log(`  Window #2 gap: ${diffCount2} bill(s), ₹${diffAmount2}`)
-  console.log(`  After last closing: 2 bills, ₹523`)
-  console.log(`  TOTAL: ${diffCount1 + diffCount2 + 2} bills, ₹${diffAmount1 + diffAmount2 + 523}`)
+  if (closingEntries.length > 0) {
+    const closingSystemSales = closingEntries.reduce((s: number, e: any) => s + (e.systemSales || 0), 0)
+    const closingBills = closingEntries.reduce((s: number, e: any) => s + (e.totalBills || 0), 0)
+
+    console.log(`\n  ── Closing Entries Today ──`)
+    closingEntries.forEach((e: any) => {
+      const t = new Date(e.createdAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })
+      console.log(`     ${e.closingNumber} (${t}): ${e.totalBills} bills, ₹${(e.systemSales || 0).toLocaleString('en-IN')}`)
+    })
+    console.log(`     Total in closings: ${closingBills} bills, ₹${closingSystemSales.toLocaleString('en-IN')}`)
+  } else {
+    console.log(`\n  ── No closing entries yet today ──`)
+  }
 
   await client.close()
-}
-
-function printBill(b: any, label: string) {
-  const t = new Date(b.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
-  console.log(`   🔸 [${label}]`)
-  console.log(`      Invoice   : ${b.invoiceNumber || b.billNumber || 'N/A'}`)
-  console.log(`      ID        : ${b._id}`)
-  console.log(`      Created   : ${t}`)
-  console.log(`      Amount    : ₹${(b.totalAmount || 0).toLocaleString('en-IN')}`)
-  console.log(`      Status    : ${b.status}`)
-  console.log(`      Payment   : ${b.paymentMode || b.paymentMethod || 'N/A'}`)
-  if (b.items && Array.isArray(b.items)) {
-    b.items.forEach((item: any) => {
-      const name = item.productName || item.name || (item.product && typeof item.product === 'object' ? item.product.name : item.product) || 'Unknown'
-      const qty = item.quantity || item.qty || 1
-      const price = item.price || item.rate || item.amount || 0
-      console.log(`      Item      : ${name} x${qty} @ ₹${price}`)
-    })
-  }
-  console.log(``)
 }
 
 run().catch(console.error)

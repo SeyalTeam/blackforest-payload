@@ -291,20 +291,13 @@ export const getBranchBillingReportData = async (
     },
   }
 
-  const totalAmountExpression = args.gstFilter === 'both'
-    ? {
-        $reduce: {
-          input: { $ifNull: ['$items', []] },
-          initialValue: 0,
-          in: {
-            $add: [
-              '$$value',
-              { $ifNull: ['$$this.finalLineTotal', 0] },
-            ],
-          },
-        },
-      }
-    : gstInclusiveAmountExpression
+  // When no gstFilter is set (default), or 'both', use doc-level $totalAmount
+  // to include ALL items (GST and non-GST). Only use the GST-filtered
+  // item-level sum when explicitly filtering by 'gst' or 'nongst'.
+  const totalAmountExpression =
+    args.gstFilter === 'gst' || args.gstFilter === 'nongst'
+      ? gstInclusiveAmountExpression
+      : '$totalAmount'
 
   const nonGstAmountExpression = {
     $reduce: {

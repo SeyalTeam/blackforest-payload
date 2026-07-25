@@ -16,6 +16,7 @@ import Select, { StylesConfig } from 'react-select'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
+import { createPortal } from 'react-dom'
 import './index.scss'
 
 dayjs.extend(utc)
@@ -33,6 +34,9 @@ type BillRow = {
   branchName: string
   createdAt: string
   verificationStatus: 'pending' | 'verified' | 'not_verified'
+  closingNumber?: string
+  originalClosingNumber?: string
+  closingStatus?: 'closed' | 'missed' | 'pending' | 'n_a'
 }
 
 type DatePresetOption = {
@@ -99,6 +103,7 @@ const verificationStatusOptions: StatusOption[] = [
   { value: 'pending', label: 'Pending Verification' },
   { value: 'verified', label: 'Verified Only' },
   { value: 'not_verified', label: 'Not Verified Only' },
+  { value: 'missed', label: 'Missed in Closing' },
 ]
 
 const customSelectStyles: StylesConfig<any, false> = {
@@ -156,6 +161,8 @@ const AccountsBillsReport: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [updatingIds, setUpdatingIds] = useState<Record<string, boolean>>({})
   const [error, setError] = useState('')
+  const [previewBillId, setPreviewBillId] = useState<string | null>(null)
+  const [isMounted, setIsMounted] = useState(false)
 
   const requestIdRef = useRef(0)
 
@@ -270,6 +277,31 @@ const AccountsBillsReport: React.FC = () => {
     fetchMetadata()
   }, [])
 
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!previewBillId) {
+      return undefined
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setPreviewBillId(null)
+      }
+    }
+
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', handleEscape)
+
+    return () => {
+      document.body.style.overflow = originalOverflow
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [previewBillId])
+
   const handleDatePresetChange = (preset: string) => {
     setDateRangePreset(preset)
     const now = new Date()
@@ -370,6 +402,7 @@ const AccountsBillsReport: React.FC = () => {
       'S.No',
       'Bill Number',
       'Amount',
+      'Closing Entry',
       'Payment Method',
       'Items Count',
       'Waiter Name',
@@ -385,6 +418,7 @@ const AccountsBillsReport: React.FC = () => {
           index + 1,
           `"${row.invoiceNumber}"`,
           row.totalAmount,
+          `"${row.closingNumber || '-'}"`,
           `"${row.paymentMethod.toUpperCase()}"`,
           row.itemsCount,
           `"${row.waiterName}"`,
@@ -538,20 +572,21 @@ const AccountsBillsReport: React.FC = () => {
                 <th>Payment Method</th>
                 <th>Items</th>
                 <th>Amount</th>
+                <th>Closing Entry</th>
                 <th style={{ width: '220px', textAlign: 'center' }}>Verification Status</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="td-loading">
+                  <td colSpan={10} className="td-loading">
                     <RefreshCw size={24} className="animate-spin text-muted" />
                     <p style={{ marginTop: '10px' }}>Fetching bills...</p>
                   </td>
                 </tr>
               ) : bills.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="td-empty">
+                  <td colSpan={10} className="td-empty">
                     No billing documents found for the selected filters.
                   </td>
                 </tr>
@@ -561,7 +596,16 @@ const AccountsBillsReport: React.FC = () => {
                   return (
                     <tr key={bill.id}>
                       <td>{index + 1}</td>
-                      <td className="bold-text">{bill.invoiceNumber}</td>
+                      <td className="bold-text">
+                        <button
+                          type="button"
+                          className="invoice-link-btn"
+                          onClick={() => setPreviewBillId(bill.id)}
+                          title="Click to view bill details"
+                        >
+                          {bill.invoiceNumber}
+                        </button>
+                      </td>
                       <td>{bill.branchName}</td>
                       <td>{bill.waiterName}</td>
                       <td className="small-text">{formatDateTime(bill.createdAt)}</td>
@@ -572,6 +616,29 @@ const AccountsBillsReport: React.FC = () => {
                       </td>
                       <td>{bill.itemsCount}</td>
                       <td className="bold-text amount-cell">{formatCurrency(bill.totalAmount)}</td>
+                      <td>
+                        {bill.closingStatus === 'closed' && (
+                          <span className="badge badge--success" title={`Original: ${bill.originalClosingNumber || bill.closingNumber}`}>
+                            {bill.closingNumber?.split(' ')[0]}
+                            <span className="badge-time">
+                              {bill.closingNumber?.split(' ')[1]}
+                            </span>
+                          </span>
+                        )}
+                        {bill.closingStatus === 'missed' && (
+                          <span className="badge badge--danger" title="This bill was not included in any closing report">
+                            Missed
+                          </span>
+                        )}
+                        {bill.closingStatus === 'pending' && (
+                          <span className="badge badge--warning" title="No closing entry has been created yet for this day">
+                            Pending
+                          </span>
+                        )}
+                        {bill.closingStatus === 'n_a' && (
+                          <span className="text-muted">-</span>
+                        )}
+                      </td>
                       <td>
                         <div className="verification-actions">
                           {getVerificationBadge(bill.verificationStatus)}
@@ -597,6 +664,34 @@ const AccountsBillsReport: React.FC = () => {
           </table>
         </div>
       </div>
+      {isMounted &&
+        previewBillId &&
+        createPortal(
+          <div className="bill-detail-modal-overlay" onClick={() => setPreviewBillId(null)} role="presentation">
+            <div
+              className="bill-detail-modal-content"
+              onClick={(event) => event.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Bill sheet details"
+            >
+              <button
+                type="button"
+                className="bill-detail-modal-close"
+                onClick={() => setPreviewBillId(null)}
+                aria-label="Close bill details"
+              >
+                &times;
+              </button>
+              <iframe
+                src={`/billings/${previewBillId}`}
+                title="Bill details preview"
+                className="bill-detail-receipt-frame"
+              />
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

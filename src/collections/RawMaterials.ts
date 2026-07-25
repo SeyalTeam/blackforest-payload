@@ -78,6 +78,14 @@ const RawMaterials: CollectionConfig = {
       },
     },
     {
+      name: 'maximumStockLevel',
+      type: 'number',
+      label: 'Maximum Stock Level',
+      admin: {
+        description: 'Notify when stock exceeds this level.',
+      },
+    },
+    {
       name: 'dealer',
       type: 'relationship',
       relationTo: 'raw-material-dealers',
