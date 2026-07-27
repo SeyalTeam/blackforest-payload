@@ -76,6 +76,14 @@ const RawMaterials: CollectionConfig = {
       defaultValue: 'kg',
     },
     {
+      name: 'packSize',
+      type: 'number',
+      label: 'Weight / Pack Size per Unit',
+      admin: {
+        description: 'Weight or size per unit (e.g. 15 for 15 L oil tin, 25 for 25 kg bag, 1 for 1 kg/piece).',
+      },
+    },
+    {
       name: 'standardStockLevel',
       type: 'number',
       label: 'Standard Stock Level',

@@ -415,6 +415,10 @@ export interface Product {
    * Notify when stock exceeds this level.
    */
   maximumStockLevel?: number | null;
+  /**
+   * Weight or size per unit (e.g. 15 for 15 L tin, 25 for 25 kg bag, 1 for 1 kg/piece).
+   */
+  packSize?: number | null;
   images?:
     | {
         image: string | Media;
@@ -459,7 +463,9 @@ export interface Product {
         rate?: number | null;
         offer?: number | null;
         quantity?: number | null;
-        unit?: ('pcs' | 'kg' | 'g') | null;
+        unit?:
+          | ('pcs' | 'kg' | 'g' | 'l' | 'ml' | 'bag' | 'tin' | 'box' | 'can' | 'drum' | 'bottle' | 'carton' | 'pack')
+          | null;
         gst?: ('0' | '5' | '12' | '18' | '22') | null;
         id?: string | null;
       }[]
@@ -618,6 +624,10 @@ export interface RawMaterial {
     | null;
   unit: 'pcs' | 'kg' | 'g' | 'l' | 'ml' | 'bag' | 'tin' | 'box' | 'can' | 'drum' | 'bottle' | 'carton' | 'pack';
   /**
+   * Weight or size per unit (e.g. 15 for 15 L oil tin, 25 for 25 kg bag, 1 for 1 kg/piece).
+   */
+  packSize?: number | null;
+  /**
    * Target or standard stock level to maintain.
    */
   standardStockLevel?: number | null;
@@ -631,15 +641,24 @@ export interface RawMaterial {
   maximumStockLevel?: number | null;
   dealer: string | RawMaterialDealer;
   /**
-   * Define the packaging options available for this raw material (e.g. 25 kg Bag, 50 kg Bag).
+   * Define the packaging options available for this raw material (e.g. 25 kg Bag, 15 L Tin, 50 Pcs Box).
    */
   variants?:
     | {
         name: string;
         weight: number;
         unit: 'pcs' | 'kg' | 'g' | 'l' | 'ml' | 'bag' | 'tin' | 'box' | 'can' | 'drum' | 'bottle' | 'carton' | 'pack';
+        /**
+         * Target or standard stock level to maintain for this variant.
+         */
         standardStockLevel?: number | null;
+        /**
+         * Notify when stock falls below this level for this variant.
+         */
         minimumStockLevel?: number | null;
+        /**
+         * Notify when stock exceeds this level for this variant.
+         */
         maximumStockLevel?: number | null;
         id?: string | null;
       }[]
@@ -2145,6 +2164,9 @@ export interface RawMaterialsSelect<T extends boolean = true> {
         name?: T;
         weight?: T;
         unit?: T;
+        standardStockLevel?: T;
+        minimumStockLevel?: T;
+        maximumStockLevel?: T;
         id?: T;
       };
   updatedAt?: T;

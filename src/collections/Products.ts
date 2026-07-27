@@ -251,6 +251,15 @@ const Products: CollectionConfig = {
       },
     },
     {
+      name: 'packSize',
+      type: 'number',
+      label: 'Weight / Pack Size per Unit',
+      admin: {
+        position: 'sidebar',
+        description: 'Weight or size per unit (e.g. 15 for 15 L tin, 25 for 25 kg bag, 1 for 1 kg/piece).',
+      },
+    },
+    {
       name: 'images',
       type: 'array',
       fields: [
