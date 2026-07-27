@@ -317,6 +317,8 @@ export const getRawMaterialBillingReportData = async (
                 quantity: '$rawMaterialsList.quantity',
                 totalAmount: '$rawMaterialsList.totalAmount',
                 unit: '$materialInfo.unit',
+                variants: '$materialInfo.variants',
+                packSize: '$materialInfo.packSize',
               },
               else: '$$REMOVE',
             },

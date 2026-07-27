@@ -15,6 +15,15 @@ export type OtherProductsInventoryItem = {
   standardStockLevel?: number
   minimumStockLevel?: number
   maximumStockLevel?: number
+  packSize?: number
+  variants?: {
+    name: string
+    weight?: number
+    unit?: string
+    standardStockLevel?: number
+    minimumStockLevel?: number
+    maximumStockLevel?: number
+  }[]
   totalValue: number
   lastBillingDate: string
   dealerName?: string
@@ -204,6 +213,8 @@ export const getOtherProductsInventoryReportData = async (
         standardStockLevel: { $first: '$productInfo.standardStockLevel' },
         minimumStockLevel: { $first: '$productInfo.minimumStockLevel' },
         maximumStockLevel: { $first: '$productInfo.maximumStockLevel' },
+        packSize: { $first: '$productInfo.packSize' },
+        variants: { $first: '$productInfo.variants' },
         totalValue: { $sum: { $ifNull: ['$productsList.totalAmount', 0] } },
         lastBillingDate: { $max: '$date' },
       },
@@ -222,6 +233,8 @@ export const getOtherProductsInventoryReportData = async (
             standardStockLevel: '$standardStockLevel',
             minimumStockLevel: '$minimumStockLevel',
             maximumStockLevel: '$maximumStockLevel',
+            packSize: '$packSize',
+            variants: '$variants',
             totalValue: '$totalValue',
             lastBillingDate: '$lastBillingDate',
             dealerName: '$dealerName',
@@ -258,6 +271,8 @@ export const getOtherProductsInventoryReportData = async (
           standardStockLevel: item.standardStockLevel !== undefined && item.standardStockLevel !== null ? toNumber(item.standardStockLevel) : undefined,
           minimumStockLevel: item.minimumStockLevel !== undefined && item.minimumStockLevel !== null ? toNumber(item.minimumStockLevel) : undefined,
           maximumStockLevel: item.maximumStockLevel !== undefined && item.maximumStockLevel !== null ? toNumber(item.maximumStockLevel) : undefined,
+          packSize: item.packSize !== undefined && item.packSize !== null ? toNumber(item.packSize) : undefined,
+          variants: Array.isArray(item.variants) ? item.variants : [],
           totalValue: toNumber(item.totalValue),
           lastBillingDate: toDateString(item.lastBillingDate),
           dealerName: toNonEmptyString(item.dealerName),

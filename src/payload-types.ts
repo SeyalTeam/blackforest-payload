@@ -2082,6 +2082,7 @@ export interface ProductsSelect<T extends boolean = true> {
   standardStockLevel?: T;
   minimumStockLevel?: T;
   maximumStockLevel?: T;
+  packSize?: T;
   images?:
     | T
     | {
@@ -2154,6 +2155,7 @@ export interface RawMaterialsSelect<T extends boolean = true> {
         id?: T;
       };
   unit?: T;
+  packSize?: T;
   standardStockLevel?: T;
   minimumStockLevel?: T;
   maximumStockLevel?: T;

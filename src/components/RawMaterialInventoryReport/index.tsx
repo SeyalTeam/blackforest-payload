@@ -24,6 +24,15 @@ export type RawMaterialInventoryItem = {
   standardStockLevel?: number
   minimumStockLevel?: number
   maximumStockLevel?: number
+  packSize?: number
+  variants?: {
+    name: string
+    weight?: number
+    unit?: string
+    standardStockLevel?: number
+    minimumStockLevel?: number
+    maximumStockLevel?: number
+  }[]
   totalValue: number
   lastBillingDate: string
   dealerName?: string
@@ -167,7 +176,9 @@ const RawMaterialInventoryReport: React.FC = () => {
   const [selectedBranch, setSelectedBranch] = useState<string[]>(['all'])
   const [dealers, setDealers] = useState<{ id: string; name: string }[]>([])
   const [selectedDealers, setSelectedDealers] = useState<string[]>(['all'])
-  const [rawMaterials, setRawMaterials] = useState<{ id: string; name: string; dealerId?: string }[]>([])
+  const [rawMaterials, setRawMaterials] = useState<
+    { id: string; name: string; dealerId?: string; packSize?: number; variants?: any[] }[]
+  >([])
   const [selectedRawMaterials, setSelectedRawMaterials] = useState<string[]>(['all'])
 
   const [currentPage, setCurrentPage] = useState(1)
@@ -209,6 +220,8 @@ const RawMaterialInventoryReport: React.FC = () => {
                 id: r.id,
                 name: (r.name || 'Unknown Raw Material').trim(),
                 dealerId,
+                packSize: r.packSize,
+                variants: Array.isArray(r.variants) ? r.variants : [],
               }
             }),
           )
@@ -265,10 +278,23 @@ const RawMaterialInventoryReport: React.FC = () => {
       )
     }
 
-    return [
-      { value: 'all', label: 'All Raw Materials' },
-      ...filteredRms.map((r) => ({ value: r.id, label: r.name })),
-    ]
+    const options: SelectOption[] = [{ value: 'all', label: 'All Raw Materials' }]
+
+    filteredRms.forEach((r) => {
+      options.push({ value: r.id, label: r.name })
+      if (Array.isArray(r.variants) && r.variants.length > 0) {
+        r.variants.forEach((v: any) => {
+          if (v.name) {
+            options.push({
+              value: r.id,
+              label: `  ↳ ${r.name} (${v.name})`,
+            })
+          }
+        })
+      }
+    })
+
+    return options
   }, [rawMaterials, selectedDealers])
 
   const handleBranchChange = (selected: readonly SelectOption[]) => {
@@ -461,7 +487,31 @@ const RawMaterialInventoryReport: React.FC = () => {
                           <td style={{ opacity: 0.5, fontSize: '0.8rem' }}>
                             {(activePage - 1) * pageSize + idx + 1}
                           </td>
-                          <td className="raw-material-cell">{item.rawMaterialName}</td>
+                          <td className="raw-material-cell">
+                            <div style={{ fontWeight: 600 }}>{item.rawMaterialName}</div>
+                            {item.packSize && (
+                              <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                                Pack Size: {item.packSize} {item.unit}
+                              </div>
+                            )}
+                            {Array.isArray(item.variants) && item.variants.length > 0 && (
+                              <div style={{ fontSize: '0.75rem', marginTop: '2px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                {item.variants.map((v: any, vIdx: number) => (
+                                  <span
+                                    key={vIdx}
+                                    style={{
+                                      backgroundColor: 'var(--theme-elevation-150)',
+                                      padding: '1px 6px',
+                                      borderRadius: '4px',
+                                      fontSize: '0.72rem',
+                                    }}
+                                  >
+                                    Variant: {v.name} {v.weight ? `(${v.weight} ${v.unit || item.unit})` : ''}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </td>
                           <td className="quantity-cell">
                             {item.stockCount.toLocaleString('en-IN')}
                             {item.unit && <span className="unit-label"> {item.unit}</span>}

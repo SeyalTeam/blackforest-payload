@@ -23,6 +23,15 @@ export type OtherProductsInventoryItem = {
   standardStockLevel?: number
   minimumStockLevel?: number
   maximumStockLevel?: number
+  packSize?: number
+  variants?: {
+    name: string
+    weight?: number
+    unit?: string
+    standardStockLevel?: number
+    minimumStockLevel?: number
+    maximumStockLevel?: number
+  }[]
   totalValue: number
   lastBillingDate: string
   dealerName?: string
@@ -166,7 +175,9 @@ const OtherProductsInventoryReport: React.FC = () => {
   const [selectedBranch, setSelectedBranch] = useState<string[]>(['all'])
   const [dealers, setDealers] = useState<{ id: string; name: string }[]>([])
   const [selectedDealers, setSelectedDealers] = useState<string[]>(['all'])
-  const [products, setProducts] = useState<{ id: string; name: string; dealerId?: string }[]>([])
+  const [products, setProducts] = useState<
+    { id: string; name: string; dealerId?: string; packSize?: number; variants?: any[] }[]
+  >([])
   const [selectedProducts, setSelectedProducts] = useState<string[]>(['all'])
 
   const [currentPage, setCurrentPage] = useState(1)
@@ -208,6 +219,8 @@ const OtherProductsInventoryReport: React.FC = () => {
                 id: p.id,
                 name: (p.name || 'Unknown Product').trim(),
                 dealerId,
+                packSize: p.packSize,
+                variants: Array.isArray(p.variants) ? p.variants : [],
               }
             }),
           )
@@ -264,10 +277,23 @@ const OtherProductsInventoryReport: React.FC = () => {
       )
     }
 
-    return [
-      { value: 'all', label: 'All Products' },
-      ...filteredProducts.map((p) => ({ value: p.id, label: p.name })),
-    ]
+    const options: SelectOption[] = [{ value: 'all', label: 'All Products' }]
+
+    filteredProducts.forEach((p) => {
+      options.push({ value: p.id, label: p.name })
+      if (Array.isArray(p.variants) && p.variants.length > 0) {
+        p.variants.forEach((v: any) => {
+          if (v.name) {
+            options.push({
+              value: p.id,
+              label: `  ↳ ${p.name} (${v.name})`,
+            })
+          }
+        })
+      }
+    })
+
+    return options
   }, [products, selectedDealers])
 
   const handleBranchChange = (selected: readonly SelectOption[]) => {
@@ -460,7 +486,31 @@ const OtherProductsInventoryReport: React.FC = () => {
                           <td style={{ opacity: 0.5, fontSize: '0.8rem' }}>
                             {(activePage - 1) * pageSize + idx + 1}
                           </td>
-                          <td className="product-cell">{item.productName}</td>
+                          <td className="product-cell">
+                            <div style={{ fontWeight: 600 }}>{item.productName}</div>
+                            {item.packSize && (
+                              <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                                Pack Size: {item.packSize}
+                              </div>
+                            )}
+                            {Array.isArray(item.variants) && item.variants.length > 0 && (
+                              <div style={{ fontSize: '0.75rem', marginTop: '2px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                {item.variants.map((v: any, vIdx: number) => (
+                                  <span
+                                    key={vIdx}
+                                    style={{
+                                      backgroundColor: 'var(--theme-elevation-150)',
+                                      padding: '1px 6px',
+                                      borderRadius: '4px',
+                                      fontSize: '0.72rem',
+                                    }}
+                                  >
+                                    Variant: {v.name}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </td>
                           <td className="quantity-cell">{item.stockCount.toLocaleString('en-IN')}</td>
                           <td className="quantity-cell" style={{ textAlign: 'right' }}>
                             {item.standardStockLevel !== undefined && item.standardStockLevel !== null
