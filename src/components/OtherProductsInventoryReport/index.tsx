@@ -20,6 +20,9 @@ export type OtherProductsInventoryItem = {
   productId: string
   productName: string
   stockCount: number
+  standardStockLevel?: number
+  minimumStockLevel?: number
+  maximumStockLevel?: number
   totalValue: number
   lastBillingDate: string
   dealerName?: string
@@ -442,10 +445,13 @@ const OtherProductsInventoryReport: React.FC = () => {
                   <table>
                     <thead>
                       <tr>
-                        <th style={{ width: '8%' }}>S.NO</th>
-                        <th style={{ width: '46%' }}>Product Name</th>
-                        <th style={{ width: '20%', textAlign: 'right' }}>Stock Count</th>
-                        <th style={{ width: '26%', textAlign: 'right' }}>Total Value (₹)</th>
+                        <th style={{ width: '5%' }}>S.NO</th>
+                        <th style={{ width: '32%' }}>Product Name</th>
+                        <th style={{ width: '13%', textAlign: 'right' }}>Stock Count</th>
+                        <th style={{ width: '10%', textAlign: 'right' }}>STD</th>
+                        <th style={{ width: '10%', textAlign: 'right' }}>MIN</th>
+                        <th style={{ width: '10%', textAlign: 'right' }}>MAX</th>
+                        <th style={{ width: '20%', textAlign: 'right' }}>Total Value (₹)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -456,6 +462,21 @@ const OtherProductsInventoryReport: React.FC = () => {
                           </td>
                           <td className="product-cell">{item.productName}</td>
                           <td className="quantity-cell">{item.stockCount.toLocaleString('en-IN')}</td>
+                          <td className="quantity-cell" style={{ textAlign: 'right' }}>
+                            {item.standardStockLevel !== undefined && item.standardStockLevel !== null
+                              ? item.standardStockLevel.toLocaleString('en-IN')
+                              : '-'}
+                          </td>
+                          <td className="quantity-cell" style={{ textAlign: 'right' }}>
+                            {item.minimumStockLevel !== undefined && item.minimumStockLevel !== null
+                              ? item.minimumStockLevel.toLocaleString('en-IN')
+                              : '-'}
+                          </td>
+                          <td className="quantity-cell" style={{ textAlign: 'right' }}>
+                            {item.maximumStockLevel !== undefined && item.maximumStockLevel !== null
+                              ? item.maximumStockLevel.toLocaleString('en-IN')
+                              : '-'}
+                          </td>
                           <td className="value-cell">₹{item.totalValue.toLocaleString('en-IN')}</td>
                         </tr>
                       ))}
@@ -466,6 +487,9 @@ const OtherProductsInventoryReport: React.FC = () => {
                         <td style={{ textAlign: 'right', fontWeight: 700 }}>
                           {data.meta.grandTotalStockCount.toLocaleString('en-IN')}
                         </td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
                         <td style={{ textAlign: 'right', fontWeight: 700, color: '#10b981' }}>
                           ₹{data.meta.grandTotalValue.toLocaleString('en-IN')}
                         </td>

@@ -21,6 +21,7 @@ export type RawMaterialInventoryItem = {
   rawMaterialName: string
   unit: string
   stockCount: number
+  standardStockLevel?: number
   minimumStockLevel?: number
   maximumStockLevel?: number
   totalValue: number
@@ -446,11 +447,12 @@ const RawMaterialInventoryReport: React.FC = () => {
                     <thead>
                       <tr>
                         <th style={{ width: '5%' }}>S.NO</th>
-                        <th style={{ width: '35%' }}>Raw Material Name</th>
-                        <th style={{ width: '15%', textAlign: 'right' }}>Stock Count</th>
-                        <th style={{ width: '12%', textAlign: 'right' }}>MIN</th>
-                        <th style={{ width: '12%', textAlign: 'right' }}>MAX</th>
-                        <th style={{ width: '21%', textAlign: 'right' }}>Total Value (₹)</th>
+                        <th style={{ width: '32%' }}>Raw Material Name</th>
+                        <th style={{ width: '13%', textAlign: 'right' }}>Stock Count</th>
+                        <th style={{ width: '10%', textAlign: 'right' }}>STD</th>
+                        <th style={{ width: '10%', textAlign: 'right' }}>MIN</th>
+                        <th style={{ width: '10%', textAlign: 'right' }}>MAX</th>
+                        <th style={{ width: '20%', textAlign: 'right' }}>Total Value (₹)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -463,6 +465,16 @@ const RawMaterialInventoryReport: React.FC = () => {
                           <td className="quantity-cell">
                             {item.stockCount.toLocaleString('en-IN')}
                             {item.unit && <span className="unit-label"> {item.unit}</span>}
+                          </td>
+                          <td className="quantity-cell" style={{ textAlign: 'right' }}>
+                            {item.standardStockLevel !== undefined && item.standardStockLevel !== null ? (
+                              <>
+                                {item.standardStockLevel.toLocaleString('en-IN')}
+                                {item.unit && <span className="unit-label"> {item.unit}</span>}
+                              </>
+                            ) : (
+                              '-'
+                            )}
                           </td>
                           <td className="quantity-cell" style={{ textAlign: 'right' }}>
                             {item.minimumStockLevel !== undefined && item.minimumStockLevel !== null ? (
@@ -494,6 +506,7 @@ const RawMaterialInventoryReport: React.FC = () => {
                         <td style={{ textAlign: 'right', fontWeight: 700 }}>
                           {data.meta.grandTotalStockCount.toLocaleString('en-IN')}
                         </td>
+                        <td></td>
                         <td></td>
                         <td></td>
                         <td style={{ textAlign: 'right', fontWeight: 700, color: '#10b981' }}>

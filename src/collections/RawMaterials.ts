@@ -70,6 +70,14 @@ const RawMaterials: CollectionConfig = {
       defaultValue: 'kg',
     },
     {
+      name: 'standardStockLevel',
+      type: 'number',
+      label: 'Standard Stock Level',
+      admin: {
+        description: 'Target or standard stock level to maintain.',
+      },
+    },
+    {
       name: 'minimumStockLevel',
       type: 'number',
       label: 'Minimum Stock Level',

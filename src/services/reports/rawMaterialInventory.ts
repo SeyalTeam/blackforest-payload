@@ -6,6 +6,7 @@ export type RawMaterialInventoryItem = {
   rawMaterialName: string
   unit: string
   stockCount: number
+  standardStockLevel?: number
   minimumStockLevel?: number
   maximumStockLevel?: number
   totalValue: number
@@ -184,6 +185,7 @@ export const getRawMaterialInventoryReportData = async (
         rawMaterialName: { $first: { $ifNull: ['$rawMaterialInfo.name', 'Unknown Raw Material'] } },
         unit: { $first: { $ifNull: ['$rawMaterialInfo.unit', '-'] } },
         stockCount: { $sum: { $ifNull: ['$rawMaterialsList.quantity', 0] } },
+        standardStockLevel: { $first: '$rawMaterialInfo.standardStockLevel' },
         minimumStockLevel: { $first: '$rawMaterialInfo.minimumStockLevel' },
         maximumStockLevel: { $first: '$rawMaterialInfo.maximumStockLevel' },
         totalValue: { $sum: { $ifNull: ['$rawMaterialsList.totalAmount', 0] } },
@@ -202,6 +204,7 @@ export const getRawMaterialInventoryReportData = async (
             rawMaterialName: '$rawMaterialName',
             unit: '$unit',
             stockCount: '$stockCount',
+            standardStockLevel: '$standardStockLevel',
             minimumStockLevel: '$minimumStockLevel',
             maximumStockLevel: '$maximumStockLevel',
             totalValue: '$totalValue',
@@ -238,6 +241,7 @@ export const getRawMaterialInventoryReportData = async (
           rawMaterialName: toNonEmptyString(item.rawMaterialName, 'Unknown Raw Material'),
           unit: toNonEmptyString(item.unit, '-'),
           stockCount: toNumber(item.stockCount),
+          standardStockLevel: item.standardStockLevel !== undefined && item.standardStockLevel !== null ? toNumber(item.standardStockLevel) : undefined,
           minimumStockLevel: item.minimumStockLevel !== undefined && item.minimumStockLevel !== null ? toNumber(item.minimumStockLevel) : undefined,
           maximumStockLevel: item.maximumStockLevel !== undefined && item.maximumStockLevel !== null ? toNumber(item.maximumStockLevel) : undefined,
           totalValue: toNumber(item.totalValue),

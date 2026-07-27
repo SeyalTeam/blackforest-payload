@@ -403,6 +403,18 @@ export interface Product {
    * Preparation time in minutes.
    */
   preparationTime?: number | null;
+  /**
+   * Target or standard stock level to maintain.
+   */
+  standardStockLevel?: number | null;
+  /**
+   * Notify when stock falls below this level.
+   */
+  minimumStockLevel?: number | null;
+  /**
+   * Notify when stock exceeds this level.
+   */
+  maximumStockLevel?: number | null;
   images?:
     | {
         image: string | Media;
@@ -605,6 +617,10 @@ export interface RawMaterial {
       }[]
     | null;
   unit: 'pcs' | 'kg' | 'g' | 'l' | 'ml' | 'bag' | 'tin';
+  /**
+   * Target or standard stock level to maintain.
+   */
+  standardStockLevel?: number | null;
   /**
    * Notify when stock falls below this level.
    */

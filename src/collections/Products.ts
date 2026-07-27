@@ -224,6 +224,33 @@ const Products: CollectionConfig = {
       },
     },
     {
+      name: 'standardStockLevel',
+      type: 'number',
+      label: 'Standard Stock Level',
+      admin: {
+        position: 'sidebar',
+        description: 'Target or standard stock level to maintain.',
+      },
+    },
+    {
+      name: 'minimumStockLevel',
+      type: 'number',
+      label: 'Minimum Stock Level',
+      admin: {
+        position: 'sidebar',
+        description: 'Notify when stock falls below this level.',
+      },
+    },
+    {
+      name: 'maximumStockLevel',
+      type: 'number',
+      label: 'Maximum Stock Level',
+      admin: {
+        position: 'sidebar',
+        description: 'Notify when stock exceeds this level.',
+      },
+    },
+    {
       name: 'images',
       type: 'array',
       fields: [
