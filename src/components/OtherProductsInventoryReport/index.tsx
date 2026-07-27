@@ -19,6 +19,7 @@ type SelectOption = {
 export type OtherProductsInventoryItem = {
   productId: string
   productName: string
+  variantName?: string
   stockCount: number
   standardStockLevel?: number
   minimumStockLevel?: number

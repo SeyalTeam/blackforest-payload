@@ -11,6 +11,7 @@ dayjs.tz.setDefault('Asia/Kolkata')
 export type OtherProductsInventoryItem = {
   productId: string
   productName: string
+  variantName?: string
   stockCount: number
   standardStockLevel?: number
   minimumStockLevel?: number
@@ -261,25 +262,84 @@ export const getOtherProductsInventoryReportData = async (
     grandTotalStockCount += branchStockCount
     grandTotalValue += branchStockValue
 
-    const items: OtherProductsInventoryItem[] = (Array.isArray(group.items) ? group.items : [])
-      .map((item: any) => {
+    const items: OtherProductsInventoryItem[] = []
+
+    ;(Array.isArray(group.items) ? group.items : []).forEach((item: any) => {
+      const baseName = toNonEmptyString(item.productName, 'Unknown Product').trim()
+      const variants = Array.isArray(item.variants) ? item.variants : []
+      const baseStock = toNumber(item.stockCount)
+      const baseValue = toNumber(item.totalValue)
+
+      if (variants.length > 0) {
+        variants.forEach((v: any, vIdx: number) => {
+          totalProductsCount += 1
+          items.push({
+            productId: `${toNonEmptyString(item.productId)}-v${vIdx}`,
+            productName: `${baseName} (${v.name})`,
+            variantName: v.name,
+            stockCount: baseStock,
+            standardStockLevel:
+              v.standardStockLevel !== undefined && v.standardStockLevel !== null
+                ? toNumber(v.standardStockLevel)
+                : item.standardStockLevel !== undefined && item.standardStockLevel !== null
+                  ? toNumber(item.standardStockLevel)
+                  : undefined,
+            minimumStockLevel:
+              v.minimumStockLevel !== undefined && v.minimumStockLevel !== null
+                ? toNumber(v.minimumStockLevel)
+                : item.minimumStockLevel !== undefined && item.minimumStockLevel !== null
+                  ? toNumber(item.minimumStockLevel)
+                  : undefined,
+            maximumStockLevel:
+              v.maximumStockLevel !== undefined && v.maximumStockLevel !== null
+                ? toNumber(v.maximumStockLevel)
+                : item.maximumStockLevel !== undefined && item.maximumStockLevel !== null
+                  ? toNumber(item.maximumStockLevel)
+                  : undefined,
+            packSize:
+              v.weight !== undefined && v.weight !== null
+                ? toNumber(v.weight)
+                : item.packSize !== undefined && item.packSize !== null
+                  ? toNumber(item.packSize)
+                  : undefined,
+            variants: [v],
+            totalValue: baseValue,
+            lastBillingDate: toDateString(item.lastBillingDate),
+            dealerName: toNonEmptyString(item.dealerName),
+            branchName: toNonEmptyString(item.branchName),
+          })
+        })
+      } else {
         totalProductsCount += 1
-        return {
+        items.push({
           productId: toNonEmptyString(item.productId),
-          productName: toNonEmptyString(item.productName, 'Unknown Product').trim(),
-          stockCount: toNumber(item.stockCount),
-          standardStockLevel: item.standardStockLevel !== undefined && item.standardStockLevel !== null ? toNumber(item.standardStockLevel) : undefined,
-          minimumStockLevel: item.minimumStockLevel !== undefined && item.minimumStockLevel !== null ? toNumber(item.minimumStockLevel) : undefined,
-          maximumStockLevel: item.maximumStockLevel !== undefined && item.maximumStockLevel !== null ? toNumber(item.maximumStockLevel) : undefined,
-          packSize: item.packSize !== undefined && item.packSize !== null ? toNumber(item.packSize) : undefined,
-          variants: Array.isArray(item.variants) ? item.variants : [],
-          totalValue: toNumber(item.totalValue),
+          productName: baseName,
+          stockCount: baseStock,
+          standardStockLevel:
+            item.standardStockLevel !== undefined && item.standardStockLevel !== null
+              ? toNumber(item.standardStockLevel)
+              : undefined,
+          minimumStockLevel:
+            item.minimumStockLevel !== undefined && item.minimumStockLevel !== null
+              ? toNumber(item.minimumStockLevel)
+              : undefined,
+          maximumStockLevel:
+            item.maximumStockLevel !== undefined && item.maximumStockLevel !== null
+              ? toNumber(item.maximumStockLevel)
+              : undefined,
+          packSize:
+            item.packSize !== undefined && item.packSize !== null
+              ? toNumber(item.packSize)
+              : undefined,
+          totalValue: baseValue,
           lastBillingDate: toDateString(item.lastBillingDate),
           dealerName: toNonEmptyString(item.dealerName),
           branchName: toNonEmptyString(item.branchName),
-        }
-      })
-      .sort((a: OtherProductsInventoryItem, b: OtherProductsInventoryItem) => b.totalValue - a.totalValue)
+        })
+      }
+    })
+
+    items.sort((a, b) => b.totalValue - a.totalValue)
 
     return {
       branchId: toNonEmptyString(group._id),

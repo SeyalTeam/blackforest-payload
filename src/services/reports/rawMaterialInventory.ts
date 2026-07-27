@@ -4,6 +4,7 @@ import { resolveReportBranchScope } from '../../endpoints/reportScope'
 export type RawMaterialInventoryItem = {
   rawMaterialId: string
   rawMaterialName: string
+  variantName?: string
   unit: string
   stockCount: number
   standardStockLevel?: number
@@ -246,26 +247,87 @@ export const getRawMaterialInventoryReportData = async (
     grandTotalStockCount += branchStockCount
     grandTotalValue += branchStockValue
 
-    const items: RawMaterialInventoryItem[] = (group.items || [])
-      .map((item: any) => {
+    const items: RawMaterialInventoryItem[] = []
+
+    ;(group.items || []).forEach((item: any) => {
+      const baseName = toNonEmptyString(item.rawMaterialName, 'Unknown Raw Material')
+      const baseUnit = toNonEmptyString(item.unit, '-')
+      const variants = Array.isArray(item.variants) ? item.variants : []
+      const baseStock = toNumber(item.stockCount)
+      const baseValue = toNumber(item.totalValue)
+
+      if (variants.length > 0) {
+        variants.forEach((v: any, vIdx: number) => {
+          totalRawMaterialsCount++
+          items.push({
+            rawMaterialId: `${toNonEmptyString(item.rawMaterialId)}-v${vIdx}`,
+            rawMaterialName: `${baseName} (${v.name})`,
+            variantName: v.name,
+            unit: toNonEmptyString(v.unit || baseUnit, '-'),
+            stockCount: baseStock,
+            standardStockLevel:
+              v.standardStockLevel !== undefined && v.standardStockLevel !== null
+                ? toNumber(v.standardStockLevel)
+                : item.standardStockLevel !== undefined && item.standardStockLevel !== null
+                  ? toNumber(item.standardStockLevel)
+                  : undefined,
+            minimumStockLevel:
+              v.minimumStockLevel !== undefined && v.minimumStockLevel !== null
+                ? toNumber(v.minimumStockLevel)
+                : item.minimumStockLevel !== undefined && item.minimumStockLevel !== null
+                  ? toNumber(item.minimumStockLevel)
+                  : undefined,
+            maximumStockLevel:
+              v.maximumStockLevel !== undefined && v.maximumStockLevel !== null
+                ? toNumber(v.maximumStockLevel)
+                : item.maximumStockLevel !== undefined && item.maximumStockLevel !== null
+                  ? toNumber(item.maximumStockLevel)
+                  : undefined,
+            packSize:
+              v.weight !== undefined && v.weight !== null
+                ? toNumber(v.weight)
+                : item.packSize !== undefined && item.packSize !== null
+                  ? toNumber(item.packSize)
+                  : undefined,
+            variants: [v],
+            totalValue: baseValue,
+            lastBillingDate: item.lastBillingDate ? String(item.lastBillingDate) : '',
+            dealerName: toNonEmptyString(item.dealerName),
+            companyName: toNonEmptyString(item.companyName),
+          })
+        })
+      } else {
         totalRawMaterialsCount++
-        return {
+        items.push({
           rawMaterialId: toNonEmptyString(item.rawMaterialId),
-          rawMaterialName: toNonEmptyString(item.rawMaterialName, 'Unknown Raw Material'),
-          unit: toNonEmptyString(item.unit, '-'),
-          stockCount: toNumber(item.stockCount),
-          standardStockLevel: item.standardStockLevel !== undefined && item.standardStockLevel !== null ? toNumber(item.standardStockLevel) : undefined,
-          minimumStockLevel: item.minimumStockLevel !== undefined && item.minimumStockLevel !== null ? toNumber(item.minimumStockLevel) : undefined,
-          maximumStockLevel: item.maximumStockLevel !== undefined && item.maximumStockLevel !== null ? toNumber(item.maximumStockLevel) : undefined,
-          packSize: item.packSize !== undefined && item.packSize !== null ? toNumber(item.packSize) : undefined,
-          variants: Array.isArray(item.variants) ? item.variants : [],
-          totalValue: toNumber(item.totalValue),
+          rawMaterialName: baseName,
+          unit: baseUnit,
+          stockCount: baseStock,
+          standardStockLevel:
+            item.standardStockLevel !== undefined && item.standardStockLevel !== null
+              ? toNumber(item.standardStockLevel)
+              : undefined,
+          minimumStockLevel:
+            item.minimumStockLevel !== undefined && item.minimumStockLevel !== null
+              ? toNumber(item.minimumStockLevel)
+              : undefined,
+          maximumStockLevel:
+            item.maximumStockLevel !== undefined && item.maximumStockLevel !== null
+              ? toNumber(item.maximumStockLevel)
+              : undefined,
+          packSize:
+            item.packSize !== undefined && item.packSize !== null
+              ? toNumber(item.packSize)
+              : undefined,
+          totalValue: baseValue,
           lastBillingDate: item.lastBillingDate ? String(item.lastBillingDate) : '',
           dealerName: toNonEmptyString(item.dealerName),
           companyName: toNonEmptyString(item.companyName),
-        }
-      })
-      .sort((a: RawMaterialInventoryItem, b: RawMaterialInventoryItem) => b.totalValue - a.totalValue)
+        })
+      }
+    })
+
+    items.sort((a, b) => b.totalValue - a.totalValue)
 
     return {
       companyId: toNonEmptyString(group._id),
