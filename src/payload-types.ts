@@ -437,7 +437,7 @@ export interface Product {
     rate: number;
     offer?: number | null;
     quantity: number;
-    unit: 'pcs' | 'kg' | 'g';
+    unit: 'pcs' | 'kg' | 'g' | 'l' | 'ml' | 'bag' | 'tin' | 'box' | 'can' | 'drum' | 'bottle' | 'carton' | 'pack';
     gst: '0' | '5' | '12' | '18' | '22';
   };
   /**
@@ -616,7 +616,7 @@ export interface RawMaterial {
         id?: string | null;
       }[]
     | null;
-  unit: 'pcs' | 'kg' | 'g' | 'l' | 'ml' | 'bag' | 'tin';
+  unit: 'pcs' | 'kg' | 'g' | 'l' | 'ml' | 'bag' | 'tin' | 'box' | 'can' | 'drum' | 'bottle' | 'carton' | 'pack';
   /**
    * Target or standard stock level to maintain.
    */
@@ -637,7 +637,10 @@ export interface RawMaterial {
     | {
         name: string;
         weight: number;
-        unit: 'pcs' | 'kg' | 'g' | 'l' | 'ml' | 'bag' | 'tin';
+        unit: 'pcs' | 'kg' | 'g' | 'l' | 'ml' | 'bag' | 'tin' | 'box' | 'can' | 'drum' | 'bottle' | 'carton' | 'pack';
+        standardStockLevel?: number | null;
+        minimumStockLevel?: number | null;
+        maximumStockLevel?: number | null;
         id?: string | null;
       }[]
     | null;
@@ -2057,6 +2060,9 @@ export interface ProductsSelect<T extends boolean = true> {
   dealer?: T;
   expiryDays?: T;
   preparationTime?: T;
+  standardStockLevel?: T;
+  minimumStockLevel?: T;
+  maximumStockLevel?: T;
   images?:
     | T
     | {
@@ -2129,6 +2135,7 @@ export interface RawMaterialsSelect<T extends boolean = true> {
         id?: T;
       };
   unit?: T;
+  standardStockLevel?: T;
   minimumStockLevel?: T;
   maximumStockLevel?: T;
   dealer?: T;
