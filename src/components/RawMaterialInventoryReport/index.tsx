@@ -472,13 +472,14 @@ const RawMaterialInventoryReport: React.FC = () => {
                   <table>
                     <thead>
                       <tr>
-                        <th style={{ width: '5%' }}>S.NO</th>
-                        <th style={{ width: '32%' }}>Raw Material Name</th>
-                        <th style={{ width: '13%', textAlign: 'right' }}>Stock Count</th>
+                        <th style={{ width: '4%' }}>S.NO</th>
+                        <th style={{ width: '26%' }}>Raw Material Name</th>
+                        <th style={{ width: '12%', textAlign: 'center' }}>Pack Size</th>
+                        <th style={{ width: '12%', textAlign: 'right' }}>Stock Count</th>
                         <th style={{ width: '10%', textAlign: 'right' }}>STD</th>
                         <th style={{ width: '10%', textAlign: 'right' }}>MIN</th>
                         <th style={{ width: '10%', textAlign: 'right' }}>MAX</th>
-                        <th style={{ width: '20%', textAlign: 'right' }}>Total Value (₹)</th>
+                        <th style={{ width: '16%', textAlign: 'right' }}>Total Value (₹)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -489,11 +490,6 @@ const RawMaterialInventoryReport: React.FC = () => {
                           </td>
                           <td className="raw-material-cell">
                             <div style={{ fontWeight: 600 }}>{item.rawMaterialName}</div>
-                            {item.packSize && (
-                              <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                                Pack Size: {item.packSize} {item.unit}
-                              </div>
-                            )}
                             {Array.isArray(item.variants) && item.variants.length > 0 && (
                               <div style={{ fontSize: '0.75rem', marginTop: '2px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                                 {item.variants.map((v: any, vIdx: number) => (
@@ -510,6 +506,20 @@ const RawMaterialInventoryReport: React.FC = () => {
                                   </span>
                                 ))}
                               </div>
+                            )}
+                          </td>
+                          <td className="quantity-cell" style={{ textAlign: 'center' }}>
+                            {item.packSize ? (
+                              <>
+                                {item.packSize}
+                                {item.unit && <span className="unit-label"> {item.unit}</span>}
+                              </>
+                            ) : Array.isArray(item.variants) && item.variants.length > 0 ? (
+                              <span style={{ fontSize: '0.78rem' }}>
+                                {item.variants.map((v: any) => `${v.weight || ''} ${v.unit || item.unit}`).join(', ')}
+                              </span>
+                            ) : (
+                              '-'
                             )}
                           </td>
                           <td className="quantity-cell">
@@ -553,6 +563,7 @@ const RawMaterialInventoryReport: React.FC = () => {
                     <tfoot>
                       <tr style={{ fontWeight: 700 }}>
                         <td colSpan={2} style={{ textAlign: 'right' }}>Total:</td>
+                        <td></td>
                         <td style={{ textAlign: 'right', fontWeight: 700 }}>
                           {data.meta.grandTotalStockCount.toLocaleString('en-IN')}
                         </td>
