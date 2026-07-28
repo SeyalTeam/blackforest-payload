@@ -166,14 +166,11 @@ const wrapCollection = (collection: CollectionConfig): CollectionConfig => {
         const { req } = args
         const user = req?.user
         if (!user) {
-          if (process.env.NODE_ENV === 'development') {
-            const originalRead = collection.access?.read
-            if (typeof originalRead === 'function') {
-              return originalRead(args)
-            }
-            return true
+          const originalRead = collection.access?.read
+          if (typeof originalRead === 'function') {
+            return originalRead(args)
           }
-          return false
+          return process.env.NODE_ENV === 'development'
         }
         if (user.role === 'superadmin') return true
 
@@ -268,14 +265,11 @@ const wrapGlobal = (global: GlobalConfig): GlobalConfig => {
         const { req } = args
         const user = req?.user
         if (!user) {
-          if (process.env.NODE_ENV === 'development') {
-            const originalRead = global.access?.read
-            if (typeof originalRead === 'function') {
-              return originalRead(args)
-            }
-            return true
+          const originalRead = global.access?.read
+          if (typeof originalRead === 'function') {
+            return originalRead(args)
           }
-          return false
+          return process.env.NODE_ENV === 'development'
         }
         if (user.role === 'superadmin') return true
 
