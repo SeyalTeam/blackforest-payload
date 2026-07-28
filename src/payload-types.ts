@@ -394,6 +394,9 @@ export interface Product {
   id: string;
   name: string;
   category: string | Category;
+  /**
+   * Select one or more dealers for this product.
+   */
   dealer?: (string | Dealer)[] | null;
   /**
    * Number of days the product is valid for after production/purchase.
@@ -431,9 +434,21 @@ export interface Product {
         name: string;
         weight: number;
         unit: 'pcs' | 'kg' | 'g' | 'l' | 'ml' | 'bag' | 'tin' | 'box' | 'can' | 'drum' | 'bottle' | 'carton' | 'pack';
+        /**
+         * Target or standard stock level to maintain for this variant.
+         */
         standardStockLevel?: number | null;
+        /**
+         * Notify when stock falls below this level for this variant.
+         */
         minimumStockLevel?: number | null;
+        /**
+         * Notify when stock exceeds this level for this variant.
+         */
         maximumStockLevel?: number | null;
+        /**
+         * Frequency of purchase for this variant (Daily, Weekly, Monthly, 3 Months, 6 Months, Yearly).
+         */
         purchaseFrequency?: ('daily' | 'weekly' | 'monthly' | '3month' | '6month' | 'yearly') | null;
         id?: string | null;
       }[]
@@ -662,6 +677,9 @@ export interface RawMaterial {
    * Notify when stock exceeds this level.
    */
   maximumStockLevel?: number | null;
+  /**
+   * Select one or more dealers for this raw material.
+   */
   dealer: (string | RawMaterialDealer)[];
   /**
    * Define the packaging options available for this raw material (e.g. 25 kg Bag, 15 L Tin, 50 Pcs Box).
@@ -2111,6 +2129,18 @@ export interface ProductsSelect<T extends boolean = true> {
   maximumStockLevel?: T;
   packSize?: T;
   purchaseFrequency?: T;
+  variants?:
+    | T
+    | {
+        name?: T;
+        weight?: T;
+        unit?: T;
+        standardStockLevel?: T;
+        minimumStockLevel?: T;
+        maximumStockLevel?: T;
+        purchaseFrequency?: T;
+        id?: T;
+      };
   images?:
     | T
     | {
@@ -2198,6 +2228,7 @@ export interface RawMaterialsSelect<T extends boolean = true> {
         standardStockLevel?: T;
         minimumStockLevel?: T;
         maximumStockLevel?: T;
+        purchaseFrequency?: T;
         id?: T;
       };
   updatedAt?: T;
