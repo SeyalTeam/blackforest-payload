@@ -618,8 +618,12 @@ const TimeWiseReport: React.FC = () => {
             <div className="banner-section expenses-banner">
               <div className="banner-title">Expenses ({formatTimeFromSeconds(startTimeInSeconds)} - {formatTimeFromSeconds(endTimeInSeconds)})</div>
               <h2 className="banner-amount">{formatCurrency(timelineData.closingStats.expenses)}</h2>
+            </div>
+            <div className="banner-section closing-banner">
+              <div className="banner-title">Closing Report ({formatTimeFromSeconds(startTimeInSeconds)} - {formatTimeFromSeconds(endTimeInSeconds)})</div>
+              <h2 className="banner-amount">{formatCurrency(timelineData.closingStats.totalSales)}</h2>
 
-              <div className="banner-breakdown channels-breakdown">
+              <div className="banner-breakdown channels-breakdown" style={{ marginBottom: '8px' }}>
                 <div className="breakdown-item">
                   <span className="breakdown-label">SYSTEM</span>
                   <span className="breakdown-value">{formatCurrency(timelineData.closingStats.systemSales)}</span>
@@ -633,11 +637,7 @@ const TimeWiseReport: React.FC = () => {
                   <span className="breakdown-value">{formatCurrency(timelineData.closingStats.onlineSales)}</span>
                 </div>
               </div>
-            </div>
-            <div className="banner-section closing-banner">
-              <div className="banner-title">Closing Report ({formatTimeFromSeconds(startTimeInSeconds)} - {formatTimeFromSeconds(endTimeInSeconds)})</div>
-              <h2 className="banner-amount">{formatCurrency(timelineData.closingStats.totalSales)}</h2>
-              
+
               <div className="banner-breakdown">
                 <div className="breakdown-item">
                   <span className="breakdown-label">CASH</span>

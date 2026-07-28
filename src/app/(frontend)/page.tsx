@@ -60,7 +60,15 @@ export default async function HomePage({ searchParams }: PageProps) {
   const cookieBranchId = readCookieValue(cookieStore.get(COOKIE_BRANCH_ID_KEY)?.value);
   const cookieBranchName = readCookieValue(cookieStore.get(COOKIE_BRANCH_NAME_KEY)?.value);
   const initialBranchId = requestedBranchId || cookieBranchId || "";
-  const initialHomeData = initialBranchId ? await getHomePageData(initialBranchId) : null;
+  let initialHomeData = null;
+  if (initialBranchId) {
+    try {
+      initialHomeData = await getHomePageData(initialBranchId);
+    } catch (error) {
+      console.warn("[HomePage] Failed to fetch initialHomeData during SSR:", error);
+      initialHomeData = null;
+    }
+  }
 
   return (
     <HomePageClient

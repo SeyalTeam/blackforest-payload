@@ -942,12 +942,14 @@ function normalizeProduct(productNode: unknown, branchId?: string): Product | nu
   };
 }
 
-async function fetchJson(path: string) {
+async function fetchJson(path: string, overrideBranchId?: string) {
   const headers: Record<string, string> = {};
-  let branchId: string | undefined = undefined;
-  const branchMatch = path.match(/\/branches\/([a-f0-9]{24})/i);
-  if (branchMatch) {
-    branchId = branchMatch[1];
+  let branchId: string | undefined = overrideBranchId ? readText(overrideBranchId) : undefined;
+  if (!branchId) {
+    const branchMatch = path.match(/(?:branches\/|branch[=:][%25]*|where\[branch\]\[equals\]=)([a-f0-9]{24})/i);
+    if (branchMatch) {
+      branchId = branchMatch[1];
+    }
   }
 
   const token = resolveApiTokenForBranch(branchId || DEFAULT_BRANCH_ID);
@@ -955,16 +957,22 @@ async function fetchJson(path: string) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers,
-    next: { revalidate: 5 },
-  });
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      headers,
+      next: { revalidate: 5 },
+    });
 
-  if (!response.ok) {
-    throw new Error(`Request failed for ${path} with ${response.status}`);
+    if (!response.ok) {
+      console.warn(`[home-data] fetchJson HTTP ${response.status} for ${path}`);
+      return null;
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.warn(`[home-data] fetchJson failed for ${path}:`, error);
+    return null;
   }
-
-  return response.json();
 }
 
 function distanceInMeters(
@@ -1291,61 +1299,66 @@ async function fetchProductsForCategory(branchId: string, categoryId: string) {
 }
 
 async function fetchBillingCategories(branchId: string) {
-  const collectCategories = (rawBills: unknown[]) => {
-    const totalsById = new Map<string, number>();
-    const categoriesById = new Map<string, CategoryCard>();
+  try {
+    const collectCategories = (rawBills: unknown[]) => {
+      const totalsById = new Map<string, number>();
+      const categoriesById = new Map<string, CategoryCard>();
 
-    for (const rawBill of rawBills) {
-      const bill = toMap(rawBill);
-      if (!bill || !toMap(bill.tableDetails)) continue;
-      for (const rawItem of toArray(bill.items)) {
-        const item = toMap(rawItem);
-        if (!item) continue;
-        const status = readText(item.status).toLowerCase();
-        if (status === "cancelled") continue;
-        const category = readProductCategoryEntry(item.product ?? item);
-        if (!category) continue;
+      for (const rawBill of rawBills) {
+        const bill = toMap(rawBill);
+        if (!bill || !toMap(bill.tableDetails)) continue;
+        for (const rawItem of toArray(bill.items)) {
+          const item = toMap(rawItem);
+          if (!item) continue;
+          const status = readText(item.status).toLowerCase();
+          if (status === "cancelled") continue;
+          const category = readProductCategoryEntry(item.product ?? item);
+          if (!category) continue;
 
-        const contribution = Math.max(1, toNumber(item.quantity));
-        totalsById.set(category.id, (totalsById.get(category.id) ?? 0) + contribution);
-        categoriesById.set(category.id, {
-          ...category,
-          count: Math.round(totalsById.get(category.id) ?? 0),
-        });
+          const contribution = Math.max(1, toNumber(item.quantity));
+          totalsById.set(category.id, (totalsById.get(category.id) ?? 0) + contribution);
+          categoriesById.set(category.id, {
+            ...category,
+            count: Math.round(totalsById.get(category.id) ?? 0),
+          });
+        }
       }
+
+      return [...categoriesById.values()].sort((left, right) => right.count - left.count);
+    };
+
+    const now = new Date();
+    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const recentStart = new Date(dayStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const todayParams = new URLSearchParams();
+    todayParams.set("where[status][in]", "pending,ordered,confirmed,prepared,delivered");
+    todayParams.set("where[branch][equals]", branchId);
+    todayParams.set("where[createdAt][greater_than_equal]", dayStart.toISOString());
+    todayParams.set("limit", "100");
+    todayParams.set("sort", "-createdAt");
+    todayParams.set("depth", "3");
+
+    const todayBills = toArray(await fetchJson(`/billings?${todayParams.toString()}`, branchId));
+    let categories = collectCategories(todayBills);
+    if (categories.length > 0) {
+      return await hydrateCategories(categories);
     }
 
-    return [...categoriesById.values()].sort((left, right) => right.count - left.count);
-  };
+    const recentParams = new URLSearchParams();
+    recentParams.set("where[branch][equals]", branchId);
+    recentParams.set("where[createdAt][greater_than_equal]", recentStart.toISOString());
+    recentParams.set("limit", "300");
+    recentParams.set("sort", "-createdAt");
+    recentParams.set("depth", "3");
 
-  const now = new Date();
-  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const recentStart = new Date(dayStart.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-  const todayParams = new URLSearchParams();
-  todayParams.set("where[status][in]", "pending,ordered,confirmed,prepared,delivered");
-  todayParams.set("where[branch][equals]", branchId);
-  todayParams.set("where[createdAt][greater_than_equal]", dayStart.toISOString());
-  todayParams.set("limit", "100");
-  todayParams.set("sort", "-createdAt");
-  todayParams.set("depth", "3");
-
-  const todayBills = toArray(await fetchJson(`/billings?${todayParams.toString()}`));
-  let categories = collectCategories(todayBills);
-  if (categories.length > 0) {
-    return hydrateCategories(categories);
+    const recentBills = toArray(await fetchJson(`/billings?${recentParams.toString()}`, branchId));
+    categories = collectCategories(recentBills);
+    return await hydrateCategories(categories);
+  } catch (error) {
+    console.warn("[home-data] fetchBillingCategories failed:", error);
+    return [];
   }
-
-  const recentParams = new URLSearchParams();
-  recentParams.set("where[branch][equals]", branchId);
-  recentParams.set("where[createdAt][greater_than_equal]", recentStart.toISOString());
-  recentParams.set("limit", "300");
-  recentParams.set("sort", "-createdAt");
-  recentParams.set("depth", "3");
-
-  const recentBills = toArray(await fetchJson(`/billings?${recentParams.toString()}`));
-  categories = collectCategories(recentBills);
-  return hydrateCategories(categories);
 }
 
 function readRuleTitle(rule: DynamicMap) {

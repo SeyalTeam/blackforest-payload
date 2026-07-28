@@ -36,7 +36,15 @@ export default async function CategoriesPage({ searchParams }: PageProps) {
   const requestedBranchId = readSearchParam(resolvedSearchParams, "branchId");
   const cookieBranchId = readCookieValue(cookieStore.get(COOKIE_BRANCH_ID_KEY)?.value);
   const initialBranchId = requestedBranchId || cookieBranchId || "";
-  const initialPageData = initialBranchId ? await getCategoriesPageData(initialBranchId) : null;
+  let initialPageData = null;
+  if (initialBranchId) {
+    try {
+      initialPageData = await getCategoriesPageData(initialBranchId);
+    } catch (error) {
+      console.warn("[CategoriesPage] Failed to fetch initialPageData during SSR:", error);
+      initialPageData = null;
+    }
+  }
 
   return (
     <CategoriesPageClient
