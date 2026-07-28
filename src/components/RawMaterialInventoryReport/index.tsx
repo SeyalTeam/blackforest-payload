@@ -179,7 +179,7 @@ const RawMaterialInventoryReport: React.FC = () => {
   const [dealers, setDealers] = useState<{ id: string; name: string }[]>([])
   const [selectedDealers, setSelectedDealers] = useState<string[]>(['all'])
   const [rawMaterials, setRawMaterials] = useState<
-    { id: string; name: string; dealerId?: string; packSize?: number; variants?: any[] }[]
+    { id: string; name: string; dealerIds: string[]; packSize?: number; variants?: any[] }[]
   >([])
   const [selectedRawMaterials, setSelectedRawMaterials] = useState<string[]>(['all'])
   const [selectedFrequency, setSelectedFrequency] = useState<string>('all')
@@ -213,16 +213,20 @@ const RawMaterialInventoryReport: React.FC = () => {
         if (rmData.docs) {
           setRawMaterials(
             rmData.docs.map((r: any) => {
-              let dealerId = ''
-              if (typeof r.dealer === 'string') {
-                dealerId = r.dealer
+              let dealerIds: string[] = []
+              if (Array.isArray(r.dealer)) {
+                dealerIds = r.dealer
+                  .map((d: any) => (typeof d === 'string' ? d : d?.id || d?._id || ''))
+                  .filter(Boolean)
+              } else if (typeof r.dealer === 'string') {
+                dealerIds = [r.dealer]
               } else if (r.dealer && typeof r.dealer === 'object') {
-                dealerId = r.dealer.id || r.dealer._id || ''
+                dealerIds = [r.dealer.id || r.dealer._id || ''].filter(Boolean)
               }
               return {
                 id: r.id,
                 name: (r.name || 'Unknown Raw Material').trim(),
-                dealerId,
+                dealerIds,
                 packSize: r.packSize,
                 variants: Array.isArray(r.variants) ? r.variants : [],
               }
@@ -277,7 +281,7 @@ const RawMaterialInventoryReport: React.FC = () => {
 
     if (!selectedDealers.includes('all') && selectedDealers.length > 0) {
       filteredRms = rawMaterials.filter(
-        (r) => r.dealerId && selectedDealers.includes(r.dealerId),
+        (r) => r.dealerIds && r.dealerIds.some((dId) => selectedDealers.includes(dId)),
       )
     }
 
@@ -328,10 +332,10 @@ const RawMaterialInventoryReport: React.FC = () => {
     if (!nextDealers.includes('all')) {
       setSelectedRawMaterials((prev) => {
         if (prev.includes('all')) return ['all']
-        const validForDealer = rawMaterials
-          .filter((r) => r.dealerId && nextDealers.includes(r.dealerId))
+        const validIds = rawMaterials
+          .filter((r) => r.dealerIds && r.dealerIds.some((dId) => nextDealers.includes(dId)))
           .map((r) => r.id)
-        const filtered = prev.filter((id) => validForDealer.includes(id))
+        const filtered = prev.filter((id) => validIds.includes(id))
         return filtered.length === 0 ? ['all'] : filtered
       })
     }

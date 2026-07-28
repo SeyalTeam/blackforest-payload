@@ -200,9 +200,11 @@ const Products: CollectionConfig = {
       name: 'dealer',
       type: 'relationship',
       relationTo: 'dealers', // Link to Dealers collection
+      hasMany: true,
       required: false, // Optional, as not all products may have dealers
       admin: {
         position: 'sidebar', // After category in sidebar
+        description: 'Select one or more dealers for this product.',
       },
     },
     {

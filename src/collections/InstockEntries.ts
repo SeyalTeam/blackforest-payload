@@ -110,8 +110,15 @@ const InstockEntries: CollectionConfig = {
 
             // Auto-populate dealer from product if not provided
             if (product && !item.dealer && product.dealer) {
-              const productDealerId =
-                typeof product.dealer === 'string' ? product.dealer : product.dealer.id
+              let productDealerId = ''
+              if (Array.isArray(product.dealer) && product.dealer.length > 0) {
+                const firstDealer = product.dealer[0]
+                productDealerId = typeof firstDealer === 'string' ? firstDealer : (firstDealer as any).id
+              } else if (typeof product.dealer === 'string') {
+                productDealerId = product.dealer
+              } else if (typeof product.dealer === 'object' && (product.dealer as any).id) {
+                productDealerId = (product.dealer as any).id
+              }
               if (productDealerId) {
                 item.dealer = productDealerId
               }

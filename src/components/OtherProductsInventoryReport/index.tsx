@@ -178,7 +178,7 @@ const OtherProductsInventoryReport: React.FC = () => {
   const [dealers, setDealers] = useState<{ id: string; name: string }[]>([])
   const [selectedDealers, setSelectedDealers] = useState<string[]>(['all'])
   const [products, setProducts] = useState<
-    { id: string; name: string; dealerId?: string; packSize?: number; variants?: any[] }[]
+    { id: string; name: string; dealerIds: string[]; packSize?: number; variants?: any[] }[]
   >([])
   const [selectedProducts, setSelectedProducts] = useState<string[]>(['all'])
   const [selectedFrequency, setSelectedFrequency] = useState<string>('all')
@@ -212,16 +212,20 @@ const OtherProductsInventoryReport: React.FC = () => {
         if (productData.docs) {
           setProducts(
             productData.docs.map((p: any) => {
-              let dealerId = ''
-              if (typeof p.dealer === 'string') {
-                dealerId = p.dealer
+              let dealerIds: string[] = []
+              if (Array.isArray(p.dealer)) {
+                dealerIds = p.dealer
+                  .map((d: any) => (typeof d === 'string' ? d : d?.id || d?._id || ''))
+                  .filter(Boolean)
+              } else if (typeof p.dealer === 'string') {
+                dealerIds = [p.dealer]
               } else if (p.dealer && typeof p.dealer === 'object') {
-                dealerId = p.dealer.id || p.dealer._id || ''
+                dealerIds = [p.dealer.id || p.dealer._id || ''].filter(Boolean)
               }
               return {
                 id: p.id,
                 name: (p.name || 'Unknown Product').trim(),
-                dealerId,
+                dealerIds,
                 packSize: p.packSize,
                 variants: Array.isArray(p.variants) ? p.variants : [],
               }
@@ -276,7 +280,7 @@ const OtherProductsInventoryReport: React.FC = () => {
 
     if (!selectedDealers.includes('all') && selectedDealers.length > 0) {
       filteredProducts = products.filter(
-        (p) => p.dealerId && selectedDealers.includes(p.dealerId),
+        (p) => p.dealerIds && p.dealerIds.some((dId) => selectedDealers.includes(dId)),
       )
     }
 
@@ -327,10 +331,10 @@ const OtherProductsInventoryReport: React.FC = () => {
     if (!nextDealers.includes('all')) {
       setSelectedProducts((prev) => {
         if (prev.includes('all')) return ['all']
-        const validForDealer = products
-          .filter((p) => p.dealerId && nextDealers.includes(p.dealerId))
+        const validIds = products
+          .filter((p) => p.dealerIds && p.dealerIds.some((dId) => nextDealers.includes(dId)))
           .map((p) => p.id)
-        const filtered = prev.filter((id) => validForDealer.includes(id))
+        const filtered = prev.filter((id) => validIds.includes(id))
         return filtered.length === 0 ? ['all'] : filtered
       })
     }

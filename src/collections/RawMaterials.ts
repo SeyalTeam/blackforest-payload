@@ -127,9 +127,11 @@ const RawMaterials: CollectionConfig = {
       name: 'dealer',
       type: 'relationship',
       relationTo: 'raw-material-dealers',
+      hasMany: true,
       required: true,
       admin: {
         position: 'sidebar',
+        description: 'Select one or more dealers for this raw material.',
       },
     },
     {

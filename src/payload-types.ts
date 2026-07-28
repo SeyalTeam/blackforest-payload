@@ -394,7 +394,7 @@ export interface Product {
   id: string;
   name: string;
   category: string | Category;
-  dealer?: (string | null) | Dealer;
+  dealer?: (string | Dealer)[] | null;
   /**
    * Number of days the product is valid for after production/purchase.
    */
@@ -647,7 +647,7 @@ export interface RawMaterial {
    * Notify when stock exceeds this level.
    */
   maximumStockLevel?: number | null;
-  dealer: string | RawMaterialDealer;
+  dealer: (string | RawMaterialDealer)[];
   /**
    * Define the packaging options available for this raw material (e.g. 25 kg Bag, 15 L Tin, 50 Pcs Box).
    */
