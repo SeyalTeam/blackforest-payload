@@ -24,6 +24,7 @@ export type OtherProductsInventoryItem = {
     standardStockLevel?: number
     minimumStockLevel?: number
     maximumStockLevel?: number
+    purchaseFrequency?: string
   }[]
   totalValue: number
   lastBillingDate: string
@@ -208,7 +209,10 @@ export const getOtherProductsInventoryReportData = async (
       ? [
           {
             $match: {
-              'productInfo.purchaseFrequency': purchaseFrequencyParam,
+              $or: [
+                { 'productInfo.purchaseFrequency': purchaseFrequencyParam },
+                { 'productInfo.variants.purchaseFrequency': purchaseFrequencyParam },
+              ],
             },
           },
         ]
@@ -286,6 +290,10 @@ export const getOtherProductsInventoryReportData = async (
 
       if (variants.length > 0) {
         variants.forEach((v: any, vIdx: number) => {
+          const variantFrequency = toNonEmptyString(v.purchaseFrequency, toNonEmptyString(item.purchaseFrequency))
+          if (purchaseFrequencyParam && purchaseFrequencyParam !== 'all' && variantFrequency !== purchaseFrequencyParam) {
+            return
+          }
           totalProductsCount += 1
           items.push({
             productId: `${toNonEmptyString(item.productId)}-v${vIdx}`,
@@ -321,7 +329,7 @@ export const getOtherProductsInventoryReportData = async (
             lastBillingDate: toDateString(item.lastBillingDate),
             dealerName: toNonEmptyString(item.dealerName),
             branchName: toNonEmptyString(item.branchName),
-            purchaseFrequency: toNonEmptyString(item.purchaseFrequency),
+            purchaseFrequency: variantFrequency,
           })
         })
       } else {

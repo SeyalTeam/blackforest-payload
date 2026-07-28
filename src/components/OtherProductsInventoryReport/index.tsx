@@ -32,6 +32,7 @@ export type OtherProductsInventoryItem = {
     standardStockLevel?: number
     minimumStockLevel?: number
     maximumStockLevel?: number
+    purchaseFrequency?: string
   }[]
   totalValue: number
   lastBillingDate: string

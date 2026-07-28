@@ -423,6 +423,21 @@ export interface Product {
    * Frequency of purchase (Daily, Weekly, Monthly, 3 Months, 6 Months, Yearly).
    */
   purchaseFrequency?: ('daily' | 'weekly' | 'monthly' | '3month' | '6month' | 'yearly') | null;
+  /**
+   * Define the packaging options available for this product (e.g. 25 kg Bag, 15 L Tin, 50 Pcs Box).
+   */
+  variants?:
+    | {
+        name: string;
+        weight: number;
+        unit: 'pcs' | 'kg' | 'g' | 'l' | 'ml' | 'bag' | 'tin' | 'box' | 'can' | 'drum' | 'bottle' | 'carton' | 'pack';
+        standardStockLevel?: number | null;
+        minimumStockLevel?: number | null;
+        maximumStockLevel?: number | null;
+        purchaseFrequency?: ('daily' | 'weekly' | 'monthly' | '3month' | '6month' | 'yearly') | null;
+        id?: string | null;
+      }[]
+    | null;
   images?:
     | {
         image: string | Media;
