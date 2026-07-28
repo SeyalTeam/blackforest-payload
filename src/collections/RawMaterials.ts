@@ -135,6 +135,17 @@ const RawMaterials: CollectionConfig = {
       },
     },
     {
+      name: 'company',
+      type: 'relationship',
+      relationTo: 'companies',
+      hasMany: true,
+      label: 'Companies / Branches',
+      admin: {
+        position: 'sidebar',
+        description: 'Select one or more companies/branches for this raw material.',
+      },
+    },
+    {
       name: 'variants',
       type: 'array',
       label: 'Packaging Variants',
@@ -214,6 +225,16 @@ const RawMaterials: CollectionConfig = {
           ],
           admin: {
             description: 'Frequency of purchase for this variant (Daily, Weekly, Monthly, 3 Months, 6 Months, Yearly).',
+          },
+        },
+        {
+          name: 'company',
+          type: 'relationship',
+          relationTo: 'companies',
+          hasMany: true,
+          label: 'Companies / Branches',
+          admin: {
+            description: 'Select one or more companies/branches for this variant.',
           },
         },
       ],

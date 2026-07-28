@@ -208,6 +208,17 @@ const Products: CollectionConfig = {
       },
     },
     {
+      name: 'company',
+      type: 'relationship',
+      relationTo: 'companies',
+      hasMany: true,
+      label: 'Companies / Branches',
+      admin: {
+        position: 'sidebar',
+        description: 'Select one or more companies/branches for this product.',
+      },
+    },
+    {
       name: 'expiryDays',
       type: 'number',
       label: 'Expiry Days',
@@ -358,6 +369,16 @@ const Products: CollectionConfig = {
           ],
           admin: {
             description: 'Frequency of purchase for this variant (Daily, Weekly, Monthly, 3 Months, 6 Months, Yearly).',
+          },
+        },
+        {
+          name: 'company',
+          type: 'relationship',
+          relationTo: 'companies',
+          hasMany: true,
+          label: 'Companies / Branches',
+          admin: {
+            description: 'Select one or more companies/branches for this variant.',
           },
         },
       ],

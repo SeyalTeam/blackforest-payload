@@ -290,6 +290,17 @@ export const getOtherProductsInventoryReportData = async (
 
       if (variants.length > 0) {
         variants.forEach((v: any, vIdx: number) => {
+          const variantCompanyIds = Array.isArray(v.company)
+            ? v.company.map((c: any) => (typeof c === 'string' ? c : c?.id || c?._id || '')).filter(Boolean)
+            : []
+          if (
+            selectedBranches.length > 0 &&
+            variantCompanyIds.length > 0 &&
+            !variantCompanyIds.some((cId: string) => selectedBranches.includes(cId))
+          ) {
+            return
+          }
+
           const variantFrequency = toNonEmptyString(v.purchaseFrequency, toNonEmptyString(item.purchaseFrequency))
           if (purchaseFrequencyParam && purchaseFrequencyParam !== 'all' && variantFrequency !== purchaseFrequencyParam) {
             return

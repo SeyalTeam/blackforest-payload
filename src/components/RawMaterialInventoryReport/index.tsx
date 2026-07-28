@@ -179,7 +179,7 @@ const RawMaterialInventoryReport: React.FC = () => {
   const [dealers, setDealers] = useState<{ id: string; name: string }[]>([])
   const [selectedDealers, setSelectedDealers] = useState<string[]>(['all'])
   const [rawMaterials, setRawMaterials] = useState<
-    { id: string; name: string; dealerIds: string[]; packSize?: number; variants?: any[] }[]
+    { id: string; name: string; dealerIds: string[]; companyIds: string[]; packSize?: number; variants?: any[] }[]
   >([])
   const [selectedRawMaterials, setSelectedRawMaterials] = useState<string[]>(['all'])
   const [selectedFrequency, setSelectedFrequency] = useState<string>('all')
@@ -223,10 +223,22 @@ const RawMaterialInventoryReport: React.FC = () => {
               } else if (r.dealer && typeof r.dealer === 'object') {
                 dealerIds = [r.dealer.id || r.dealer._id || ''].filter(Boolean)
               }
+              let companyIds: string[] = []
+              if (Array.isArray(r.company)) {
+                companyIds = r.company
+                  .map((c: any) => (typeof c === 'string' ? c : c?.id || c?._id || ''))
+                  .filter(Boolean)
+              } else if (typeof r.company === 'string') {
+                companyIds = [r.company]
+              } else if (r.company && typeof r.company === 'object') {
+                companyIds = [r.company.id || r.company._id || ''].filter(Boolean)
+              }
+
               return {
                 id: r.id,
                 name: (r.name || 'Unknown Raw Material').trim(),
                 dealerIds,
+                companyIds,
                 packSize: r.packSize,
                 variants: Array.isArray(r.variants) ? r.variants : [],
               }
@@ -280,8 +292,14 @@ const RawMaterialInventoryReport: React.FC = () => {
     let filteredRms = rawMaterials
 
     if (!selectedDealers.includes('all') && selectedDealers.length > 0) {
-      filteredRms = rawMaterials.filter(
+      filteredRms = filteredRms.filter(
         (r) => r.dealerIds && r.dealerIds.some((dId) => selectedDealers.includes(dId)),
+      )
+    }
+
+    if (!selectedBranch.includes('all') && selectedBranch.length > 0) {
+      filteredRms = filteredRms.filter(
+        (r) => !r.companyIds || r.companyIds.length === 0 || r.companyIds.some((cId) => selectedBranch.includes(cId)),
       )
     }
 

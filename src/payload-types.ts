@@ -399,6 +399,10 @@ export interface Product {
    */
   dealer?: (string | Dealer)[] | null;
   /**
+   * Select one or more companies/branches for this product.
+   */
+  company?: (string | Company)[] | null;
+  /**
    * Number of days the product is valid for after production/purchase.
    */
   expiryDays?: number | null;
@@ -450,6 +454,10 @@ export interface Product {
          * Frequency of purchase for this variant (Daily, Weekly, Monthly, 3 Months, 6 Months, Yearly).
          */
         purchaseFrequency?: ('daily' | 'weekly' | 'monthly' | '3month' | '6month' | 'yearly') | null;
+        /**
+         * Select one or more companies/branches for this variant.
+         */
+        company?: (string | Company)[] | null;
         id?: string | null;
       }[]
     | null;
@@ -682,6 +690,10 @@ export interface RawMaterial {
    */
   dealer: (string | RawMaterialDealer)[];
   /**
+   * Select one or more companies/branches for this raw material.
+   */
+  company?: (string | Company)[] | null;
+  /**
    * Define the packaging options available for this raw material (e.g. 25 kg Bag, 15 L Tin, 50 Pcs Box).
    */
   variants?:
@@ -705,6 +717,10 @@ export interface RawMaterial {
          * Frequency of purchase for this variant (Daily, Weekly, Monthly, 3 Months, 6 Months, Yearly).
          */
         purchaseFrequency?: ('daily' | 'weekly' | 'monthly' | '3month' | '6month' | 'yearly') | null;
+        /**
+         * Select one or more companies/branches for this variant.
+         */
+        company?: (string | Company)[] | null;
         id?: string | null;
       }[]
     | null;

@@ -179,7 +179,7 @@ const OtherProductsInventoryReport: React.FC = () => {
   const [dealers, setDealers] = useState<{ id: string; name: string }[]>([])
   const [selectedDealers, setSelectedDealers] = useState<string[]>(['all'])
   const [products, setProducts] = useState<
-    { id: string; name: string; dealerIds: string[]; packSize?: number; variants?: any[] }[]
+    { id: string; name: string; dealerIds: string[]; companyIds: string[]; packSize?: number; variants?: any[] }[]
   >([])
   const [selectedProducts, setSelectedProducts] = useState<string[]>(['all'])
   const [selectedFrequency, setSelectedFrequency] = useState<string>('all')
@@ -223,10 +223,22 @@ const OtherProductsInventoryReport: React.FC = () => {
               } else if (p.dealer && typeof p.dealer === 'object') {
                 dealerIds = [p.dealer.id || p.dealer._id || ''].filter(Boolean)
               }
+              let companyIds: string[] = []
+              if (Array.isArray(p.company)) {
+                companyIds = p.company
+                  .map((c: any) => (typeof c === 'string' ? c : c?.id || c?._id || ''))
+                  .filter(Boolean)
+              } else if (typeof p.company === 'string') {
+                companyIds = [p.company]
+              } else if (p.company && typeof p.company === 'object') {
+                companyIds = [p.company.id || p.company._id || ''].filter(Boolean)
+              }
+
               return {
                 id: p.id,
                 name: (p.name || 'Unknown Product').trim(),
                 dealerIds,
+                companyIds,
                 packSize: p.packSize,
                 variants: Array.isArray(p.variants) ? p.variants : [],
               }
@@ -280,8 +292,14 @@ const OtherProductsInventoryReport: React.FC = () => {
     let filteredProducts = products
 
     if (!selectedDealers.includes('all') && selectedDealers.length > 0) {
-      filteredProducts = products.filter(
+      filteredProducts = filteredProducts.filter(
         (p) => p.dealerIds && p.dealerIds.some((dId) => selectedDealers.includes(dId)),
+      )
+    }
+
+    if (!selectedBranch.includes('all') && selectedBranch.length > 0) {
+      filteredProducts = filteredProducts.filter(
+        (p) => !p.companyIds || p.companyIds.length === 0 || p.companyIds.some((cId) => selectedBranch.includes(cId)),
       )
     }
 
