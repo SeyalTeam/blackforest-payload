@@ -198,6 +198,22 @@ const RawMaterials: CollectionConfig = {
             description: 'Notify when stock exceeds this level for this variant.',
           },
         },
+        {
+          name: 'purchaseFrequency',
+          type: 'select',
+          label: 'Purchase Frequency',
+          options: [
+            { label: 'Daily', value: 'daily' },
+            { label: 'Weekly', value: 'weekly' },
+            { label: 'Monthly', value: 'monthly' },
+            { label: '3 Months', value: '3month' },
+            { label: '6 Months', value: '6month' },
+            { label: 'Yearly', value: 'yearly' },
+          ],
+          admin: {
+            description: 'Frequency of purchase for this variant (Daily, Weekly, Monthly, 3 Months, 6 Months, Yearly).',
+          },
+        },
       ],
     },
   ],

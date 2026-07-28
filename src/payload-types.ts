@@ -668,6 +668,10 @@ export interface RawMaterial {
          * Notify when stock exceeds this level for this variant.
          */
         maximumStockLevel?: number | null;
+        /**
+         * Frequency of purchase for this variant (Daily, Weekly, Monthly, 3 Months, 6 Months, Yearly).
+         */
+        purchaseFrequency?: ('daily' | 'weekly' | 'monthly' | '3month' | '6month' | 'yearly') | null;
         id?: string | null;
       }[]
     | null;
@@ -2091,6 +2095,7 @@ export interface ProductsSelect<T extends boolean = true> {
   minimumStockLevel?: T;
   maximumStockLevel?: T;
   packSize?: T;
+  purchaseFrequency?: T;
   images?:
     | T
     | {
@@ -2164,6 +2169,7 @@ export interface RawMaterialsSelect<T extends boolean = true> {
       };
   unit?: T;
   packSize?: T;
+  purchaseFrequency?: T;
   standardStockLevel?: T;
   minimumStockLevel?: T;
   maximumStockLevel?: T;

@@ -18,6 +18,7 @@ export type RawMaterialInventoryItem = {
     standardStockLevel?: number
     minimumStockLevel?: number
     maximumStockLevel?: number
+    purchaseFrequency?: string
   }[]
   totalValue: number
   lastBillingDate: string
@@ -191,7 +192,10 @@ export const getRawMaterialInventoryReportData = async (
       ? [
           {
             $match: {
-              'rawMaterialInfo.purchaseFrequency': purchaseFrequencyParam,
+              $or: [
+                { 'rawMaterialInfo.purchaseFrequency': purchaseFrequencyParam },
+                { 'rawMaterialInfo.variants.purchaseFrequency': purchaseFrequencyParam },
+              ],
             },
           },
         ]
@@ -272,6 +276,10 @@ export const getRawMaterialInventoryReportData = async (
 
       if (variants.length > 0) {
         variants.forEach((v: any, vIdx: number) => {
+          const variantFrequency = toNonEmptyString(v.purchaseFrequency, toNonEmptyString(item.purchaseFrequency))
+          if (purchaseFrequencyParam && purchaseFrequencyParam !== 'all' && variantFrequency !== purchaseFrequencyParam) {
+            return
+          }
           totalRawMaterialsCount++
           items.push({
             rawMaterialId: `${toNonEmptyString(item.rawMaterialId)}-v${vIdx}`,
@@ -308,7 +316,7 @@ export const getRawMaterialInventoryReportData = async (
             lastBillingDate: item.lastBillingDate ? String(item.lastBillingDate) : '',
             dealerName: toNonEmptyString(item.dealerName),
             companyName: toNonEmptyString(item.companyName),
-            purchaseFrequency: toNonEmptyString(item.purchaseFrequency),
+            purchaseFrequency: variantFrequency,
           })
         })
       } else {
