@@ -84,6 +84,22 @@ const RawMaterials: CollectionConfig = {
       },
     },
     {
+      name: 'purchaseFrequency',
+      type: 'select',
+      label: 'Purchase Frequency',
+      options: [
+        { label: 'Daily', value: 'daily' },
+        { label: 'Weekly', value: 'weekly' },
+        { label: 'Monthly', value: 'monthly' },
+        { label: '3 Months', value: '3month' },
+        { label: '6 Months', value: '6month' },
+        { label: 'Yearly', value: 'yearly' },
+      ],
+      admin: {
+        description: 'Frequency of purchase (Daily, Weekly, Monthly, 3 Months, 6 Months, Yearly).',
+      },
+    },
+    {
       name: 'standardStockLevel',
       type: 'number',
       label: 'Standard Stock Level',

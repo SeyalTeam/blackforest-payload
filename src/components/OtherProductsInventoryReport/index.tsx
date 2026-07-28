@@ -37,6 +37,7 @@ export type OtherProductsInventoryItem = {
   lastBillingDate: string
   dealerName?: string
   branchName?: string
+  purchaseFrequency?: string
 }
 
 export type OtherProductsInventoryGroup = {
@@ -180,6 +181,7 @@ const OtherProductsInventoryReport: React.FC = () => {
     { id: string; name: string; dealerId?: string; packSize?: number; variants?: any[] }[]
   >([])
   const [selectedProducts, setSelectedProducts] = useState<string[]>(['all'])
+  const [selectedFrequency, setSelectedFrequency] = useState<string>('all')
 
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState<number>(100)
@@ -243,7 +245,7 @@ const OtherProductsInventoryReport: React.FC = () => {
       const pStr = selectedProducts.includes('all') ? 'all' : selectedProducts.join(',')
 
       const res = await fetch(
-        `/api/reports/other-products-inventory?branch=${bStr}&dealer=${dStr}&product=${pStr}`,
+        `/api/reports/other-products-inventory?branch=${bStr}&dealer=${dStr}&product=${pStr}&purchaseFrequency=${selectedFrequency}`,
       )
       if (!res.ok) throw new Error('Failed to fetch inventory report')
       const result: ReportData = await res.json()
@@ -257,7 +259,7 @@ const OtherProductsInventoryReport: React.FC = () => {
 
   useEffect(() => {
     fetchReport()
-  }, [selectedBranch, selectedDealers, selectedProducts])
+  }, [selectedBranch, selectedDealers, selectedProducts, selectedFrequency])
 
   const branchOptions: SelectOption[] = useMemo(
     () => [{ value: 'all', label: 'All Branches' }, ...branches.map((b) => ({ value: b.id, label: b.name }))],
@@ -420,6 +422,35 @@ const OtherProductsInventoryReport: React.FC = () => {
                 placeholder="Select Product"
               />
             </div>
+
+            <div className="filter-item">
+              <label className="filter-label">Purchase Frequency:</label>
+              <select
+                value={selectedFrequency}
+                onChange={(e) => {
+                  setSelectedFrequency(e.target.value)
+                  setCurrentPage(1)
+                }}
+                style={{
+                  height: '38px',
+                  padding: '0 12px',
+                  borderRadius: '4px',
+                  border: '1px solid var(--theme-elevation-200)',
+                  backgroundColor: 'var(--theme-elevation-0)',
+                  color: 'var(--theme-elevation-800)',
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                }}
+              >
+                <option value="all">All Frequencies</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="3month">3 Months</option>
+                <option value="6month">6 Months</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -489,7 +520,28 @@ const OtherProductsInventoryReport: React.FC = () => {
                             {(activePage - 1) * pageSize + idx + 1}
                           </td>
                           <td className="product-cell">
-                            <div style={{ fontWeight: 600 }}>{item.productName}</div>
+                            <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <span>{item.productName}</span>
+                              {item.purchaseFrequency && (
+                                <span
+                                  style={{
+                                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                    color: '#2563eb',
+                                    padding: '1px 6px',
+                                    borderRadius: '4px',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 500,
+                                    textTransform: 'capitalize',
+                                  }}
+                                >
+                                  {item.purchaseFrequency === '3month'
+                                    ? '3 Months'
+                                    : item.purchaseFrequency === '6month'
+                                      ? '6 Months'
+                                      : item.purchaseFrequency}
+                                </span>
+                              )}
+                            </div>
                             {Array.isArray(item.variants) && item.variants.length > 0 && (
                               <div style={{ fontSize: '0.75rem', marginTop: '2px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                                 {item.variants.map((v: any, vIdx: number) => (

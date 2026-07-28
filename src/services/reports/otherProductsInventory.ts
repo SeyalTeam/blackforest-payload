@@ -29,6 +29,7 @@ export type OtherProductsInventoryItem = {
   lastBillingDate: string
   dealerName?: string
   branchName?: string
+  purchaseFrequency?: string
 }
 
 export type OtherProductsInventoryGroup = {
@@ -52,6 +53,7 @@ type OtherProductsInventoryArgs = {
   branch?: null | string
   dealer?: null | string
   product?: null | string
+  purchaseFrequency?: null | string
 }
 
 const toNumber = (value: unknown): number => {
@@ -89,6 +91,7 @@ export const getOtherProductsInventoryReportData = async (
   const branchParam = typeof args.branch === 'string' ? args.branch : ''
   const dealerParam = typeof args.dealer === 'string' ? args.dealer : ''
   const productParam = typeof args.product === 'string' ? args.product : ''
+  const purchaseFrequencyParam = typeof args.purchaseFrequency === 'string' ? args.purchaseFrequency : ''
 
   const { branchIds } = await resolveReportBranchScope(req, branchParam)
 
@@ -201,6 +204,15 @@ export const getOtherProductsInventoryReportData = async (
         preserveNullAndEmptyArrays: true,
       },
     },
+    ...(purchaseFrequencyParam && purchaseFrequencyParam !== 'all'
+      ? [
+          {
+            $match: {
+              'productInfo.purchaseFrequency': purchaseFrequencyParam,
+            },
+          },
+        ]
+      : []),
     {
       $group: {
         _id: {
@@ -215,6 +227,7 @@ export const getOtherProductsInventoryReportData = async (
         minimumStockLevel: { $first: '$productInfo.minimumStockLevel' },
         maximumStockLevel: { $first: '$productInfo.maximumStockLevel' },
         packSize: { $first: '$productInfo.packSize' },
+        purchaseFrequency: { $first: '$productInfo.purchaseFrequency' },
         variants: { $first: '$productInfo.variants' },
         totalValue: { $sum: { $ifNull: ['$productsList.totalAmount', 0] } },
         lastBillingDate: { $max: '$date' },
@@ -235,6 +248,7 @@ export const getOtherProductsInventoryReportData = async (
             minimumStockLevel: '$minimumStockLevel',
             maximumStockLevel: '$maximumStockLevel',
             packSize: '$packSize',
+            purchaseFrequency: '$purchaseFrequency',
             variants: '$variants',
             totalValue: '$totalValue',
             lastBillingDate: '$lastBillingDate',
@@ -307,6 +321,7 @@ export const getOtherProductsInventoryReportData = async (
             lastBillingDate: toDateString(item.lastBillingDate),
             dealerName: toNonEmptyString(item.dealerName),
             branchName: toNonEmptyString(item.branchName),
+            purchaseFrequency: toNonEmptyString(item.purchaseFrequency),
           })
         })
       } else {
@@ -335,6 +350,7 @@ export const getOtherProductsInventoryReportData = async (
           lastBillingDate: toDateString(item.lastBillingDate),
           dealerName: toNonEmptyString(item.dealerName),
           branchName: toNonEmptyString(item.branchName),
+          purchaseFrequency: toNonEmptyString(item.purchaseFrequency),
         })
       }
     })

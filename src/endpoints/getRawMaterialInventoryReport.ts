@@ -7,11 +7,13 @@ export const getRawMaterialInventoryReportHandler: PayloadHandler = async (req) 
     const branch = url.searchParams.get('branch')
     const dealer = url.searchParams.get('dealer')
     const rawMaterial = url.searchParams.get('rawMaterial')
+    const purchaseFrequency = url.searchParams.get('purchaseFrequency')
 
     const report = await getRawMaterialInventoryReportData(req, {
       branch,
       dealer,
       rawMaterial,
+      purchaseFrequency,
     })
 
     return Response.json(report)

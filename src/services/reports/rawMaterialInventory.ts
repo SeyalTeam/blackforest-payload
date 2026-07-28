@@ -23,6 +23,7 @@ export type RawMaterialInventoryItem = {
   lastBillingDate: string
   dealerName?: string
   companyName?: string
+  purchaseFrequency?: string
 }
 
 export type RawMaterialInventoryGroup = {
@@ -46,6 +47,7 @@ type RawMaterialInventoryArgs = {
   branch?: null | string
   dealer?: null | string
   rawMaterial?: null | string
+  purchaseFrequency?: null | string
 }
 
 const toNumber = (value: unknown): number => {
@@ -72,6 +74,7 @@ export const getRawMaterialInventoryReportData = async (
   const branchParam = typeof args.branch === 'string' ? args.branch : ''
   const dealerParam = typeof args.dealer === 'string' ? args.dealer : ''
   const rawMaterialParam = typeof args.rawMaterial === 'string' ? args.rawMaterial : ''
+  const purchaseFrequencyParam = typeof args.purchaseFrequency === 'string' ? args.purchaseFrequency : ''
 
   const { branchIds } = await resolveReportBranchScope(req, branchParam)
 
@@ -184,6 +187,15 @@ export const getRawMaterialInventoryReportData = async (
         preserveNullAndEmptyArrays: true,
       },
     },
+    ...(purchaseFrequencyParam && purchaseFrequencyParam !== 'all'
+      ? [
+          {
+            $match: {
+              'rawMaterialInfo.purchaseFrequency': purchaseFrequencyParam,
+            },
+          },
+        ]
+      : []),
     {
       $group: {
         _id: {
@@ -199,6 +211,7 @@ export const getRawMaterialInventoryReportData = async (
         minimumStockLevel: { $first: '$rawMaterialInfo.minimumStockLevel' },
         maximumStockLevel: { $first: '$rawMaterialInfo.maximumStockLevel' },
         packSize: { $first: '$rawMaterialInfo.packSize' },
+        purchaseFrequency: { $first: '$rawMaterialInfo.purchaseFrequency' },
         variants: { $first: '$rawMaterialInfo.variants' },
         totalValue: { $sum: { $ifNull: ['$rawMaterialsList.totalAmount', 0] } },
         lastBillingDate: { $max: '$date' },
@@ -220,6 +233,7 @@ export const getRawMaterialInventoryReportData = async (
             minimumStockLevel: '$minimumStockLevel',
             maximumStockLevel: '$maximumStockLevel',
             packSize: '$packSize',
+            purchaseFrequency: '$purchaseFrequency',
             variants: '$variants',
             totalValue: '$totalValue',
             lastBillingDate: '$lastBillingDate',
@@ -294,6 +308,7 @@ export const getRawMaterialInventoryReportData = async (
             lastBillingDate: item.lastBillingDate ? String(item.lastBillingDate) : '',
             dealerName: toNonEmptyString(item.dealerName),
             companyName: toNonEmptyString(item.companyName),
+            purchaseFrequency: toNonEmptyString(item.purchaseFrequency),
           })
         })
       } else {
@@ -323,6 +338,7 @@ export const getRawMaterialInventoryReportData = async (
           lastBillingDate: item.lastBillingDate ? String(item.lastBillingDate) : '',
           dealerName: toNonEmptyString(item.dealerName),
           companyName: toNonEmptyString(item.companyName),
+          purchaseFrequency: toNonEmptyString(item.purchaseFrequency),
         })
       }
     })

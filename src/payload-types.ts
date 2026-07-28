@@ -419,6 +419,10 @@ export interface Product {
    * Weight or size per unit (e.g. 15 for 15 L tin, 25 for 25 kg bag, 1 for 1 kg/piece).
    */
   packSize?: number | null;
+  /**
+   * Frequency of purchase (Daily, Weekly, Monthly, 3 Months, 6 Months, Yearly).
+   */
+  purchaseFrequency?: ('daily' | 'weekly' | 'monthly' | '3month' | '6month' | 'yearly') | null;
   images?:
     | {
         image: string | Media;
@@ -627,6 +631,10 @@ export interface RawMaterial {
    * Weight or size per unit (e.g. 15 for 15 L oil tin, 25 for 25 kg bag, 1 for 1 kg/piece).
    */
   packSize?: number | null;
+  /**
+   * Frequency of purchase (Daily, Weekly, Monthly, 3 Months, 6 Months, Yearly).
+   */
+  purchaseFrequency?: ('daily' | 'weekly' | 'monthly' | '3month' | '6month' | 'yearly') | null;
   /**
    * Target or standard stock level to maintain.
    */
