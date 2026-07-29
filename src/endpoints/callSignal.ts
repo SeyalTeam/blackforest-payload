@@ -33,19 +33,31 @@ export const callSignalHandler: PayloadHandler = async (req) => {
     const { action, callId, threadId, calleeId, callType, offer, answer, iceCandidate } = body
     const now = new Date().toISOString()
 
+    const userId = String(req.user.id)
+    const userRole = (req.user.role || '').toLowerCase()
+    const isAdmin = userRole === 'admin' || userRole === 'superadmin'
+
     // 1. INITIATE CALL
     if (action === 'initiate') {
       if (!threadId || !calleeId) {
         return Response.json({ error: 'threadId and calleeId are required' }, { status: 400 })
       }
 
+      // Clean up previous ringing sessions for this thread
+      for (const [id, s] of activeCallSessions.entries()) {
+        if (s.threadId === threadId && s.status === 'ringing') {
+          s.status = 'ended'
+          activeCallSessions.set(id, s)
+        }
+      }
+
       const newCallId = 'call-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7)
       const newSession: CallSession = {
         callId: newCallId,
         threadId,
-        callerId: req.user.id,
-        callerRole: req.user.role || 'user',
-        calleeId,
+        callerId: userId,
+        callerRole: userRole,
+        calleeId: String(calleeId),
         callType: callType === 'video' ? 'video' : 'audio',
         status: 'ringing',
         offer: offer || null,
@@ -64,20 +76,47 @@ export const callSignalHandler: PayloadHandler = async (req) => {
       })
     }
 
-    // Require valid callId for subsequent actions
+    // 2. CHECK INCOMING / POLL CALL STATUS
+    if (action === 'check_incoming' || action === 'poll') {
+      // If a specific callId is provided and exists
+      if (callId && activeCallSessions.has(callId)) {
+        return Response.json({
+          success: true,
+          callId,
+          session: activeCallSessions.get(callId),
+        })
+      }
+
+      // Search for any active call matching callee or thread
+      for (const s of activeCallSessions.values()) {
+        if (s.status === 'ringing' || s.status === 'accepted') {
+          const isTargetCallee =
+            s.calleeId === userId ||
+            (s.calleeId === 'admin' && isAdmin) ||
+            (s.calleeId === 'staff' && !isAdmin) ||
+            (threadId && s.threadId === threadId)
+
+          const isCaller = s.callerId === userId
+
+          if (isTargetCallee || isCaller) {
+            return Response.json({
+              success: true,
+              callId: s.callId,
+              session: s,
+            })
+          }
+        }
+      }
+
+      return Response.json({ success: true, session: null })
+    }
+
+    // Require valid callId for mutation actions
     if (!callId || !activeCallSessions.has(callId)) {
       return Response.json({ error: 'Call session not found or expired' }, { status: 404 })
     }
 
     const session = activeCallSessions.get(callId)!
-
-    // 2. POLL CALL STATUS & SIGNALS
-    if (action === 'poll') {
-      return Response.json({
-        success: true,
-        session,
-      })
-    }
 
     // 3. ACCEPT CALL
     if (action === 'accept') {
@@ -104,7 +143,6 @@ export const callSignalHandler: PayloadHandler = async (req) => {
       session.updatedAt = now
       activeCallSessions.set(callId, session)
 
-      // Clean up after 10 seconds
       setTimeout(() => {
         activeCallSessions.delete(callId)
       }, 10000)
@@ -114,7 +152,7 @@ export const callSignalHandler: PayloadHandler = async (req) => {
 
     // 6. RELAY ICE CANDIDATES
     if (action === 'ice' && iceCandidate) {
-      if (req.user.id === session.callerId) {
+      if (userId === session.callerId) {
         session.callerIce.push(iceCandidate)
       } else {
         session.calleeIce.push(iceCandidate)

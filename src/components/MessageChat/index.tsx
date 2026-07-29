@@ -422,52 +422,73 @@ export default function MessageChat() {
     }
   }
 
-  // Poll call status & relay signals
+  // Poll call status & check for incoming calls from staff app
   useEffect(() => {
-    if (!activeCall?.callId || activeCall.status === 'ended') return
-
     const interval = setInterval(async () => {
       try {
-        const res = await fetch('/api/call-signal', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'poll',
-            callId: activeCall.callId,
-          }),
-        })
+        if (activeCall?.callId) {
+          const res = await fetch('/api/call-signal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'poll',
+              callId: activeCall.callId,
+            }),
+          })
 
-        if (!res.ok) return
-        const data = await res.json()
-        const session = data.session
+          if (!res.ok) return
+          const data = await res.json()
+          const session = data.session
 
-        if (session) {
-          setActiveCall((prev) => (prev ? { ...prev, status: session.status } : null))
+          if (session) {
+            setActiveCall((prev) => (prev ? { ...prev, status: session.status } : null))
 
-          if (session.status === 'accepted' && session.answer && peerConnectionRef.current) {
-            if (!peerConnectionRef.current.currentRemoteDescription) {
-              const remoteDesc = new RTCSessionDescription(session.answer)
-              await peerConnectionRef.current.setRemoteDescription(remoteDesc)
+            if (session.status === 'accepted' && session.answer && peerConnectionRef.current) {
+              if (!peerConnectionRef.current.currentRemoteDescription) {
+                const remoteDesc = new RTCSessionDescription(session.answer)
+                await peerConnectionRef.current.setRemoteDescription(remoteDesc)
+              }
+            }
+
+            if (session.calleeIce && session.calleeIce.length > 0 && peerConnectionRef.current) {
+              for (const cand of session.calleeIce) {
+                try {
+                  await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(cand))
+                } catch (_e) {}
+              }
+            }
+
+            if (session.status === 'rejected' || session.status === 'ended') {
+              endWebRTCCall()
             }
           }
+        } else {
+          const res = await fetch('/api/call-signal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'check_incoming',
+              threadId: selectedThread?.id,
+            }),
+          })
 
-          if (session.calleeIce && session.calleeIce.length > 0 && peerConnectionRef.current) {
-            for (const cand of session.calleeIce) {
-              try {
-                await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(cand))
-              } catch (_e) {}
-            }
-          }
+          if (!res.ok) return
+          const data = await res.json()
+          const session = data.session
 
-          if (session.status === 'rejected' || session.status === 'ended') {
-            endWebRTCCall()
+          if (session && session.status === 'ringing') {
+            setActiveCall({
+              callId: session.callId,
+              callType: session.callType,
+              status: 'ringing',
+            })
           }
         }
       } catch (_e) {}
-    }, 1500)
+    }, 2000)
 
     return () => clearInterval(interval)
-  }, [activeCall?.callId, activeCall?.status, endWebRTCCall])
+  }, [activeCall?.callId, activeCall?.status, selectedThread?.id, endWebRTCCall])
 
   // Call timer interval
   useEffect(() => {
