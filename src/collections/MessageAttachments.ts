@@ -28,7 +28,21 @@ const prepareAttachmentForCreate = async ({ data, operation, req }: any) => {
     throw new Error('Unauthorized')
   }
 
-  const threadID = normalizeRelationshipID(data?.thread)
+  let threadID = normalizeRelationshipID(data?.thread)
+
+  if (!threadID && req?.body) {
+    let parsedBody = req.body
+    if (typeof req.body._payload === 'string') {
+      try {
+        parsedBody = JSON.parse(req.body._payload)
+      } catch (_e) {}
+    } else if (typeof req.body.data === 'string') {
+      try {
+        parsedBody = JSON.parse(req.body.data)
+      } catch (_e) {}
+    }
+    threadID = normalizeRelationshipID(parsedBody?.thread || req.body?.thread)
+  }
 
   if (!threadID) {
     throw new Error('A message thread is required for attachments.')
@@ -60,7 +74,24 @@ const prepareAttachmentForCreate = async ({ data, operation, req }: any) => {
     throw new Error('You can only upload attachments in your own conversation.')
   }
 
-  const attachmentType = resolveAttachmentTypeFromMimeType(req?.file?.mimetype)
+  const rawMimeType =
+    req?.file?.mimetype ||
+    req?.file?.type ||
+    data?.mimeType ||
+    data?.mimetype ||
+    req?.files?.file?.mimetype ||
+    req?.files?.file?.type
+
+  let attachmentType = resolveAttachmentTypeFromMimeType(rawMimeType)
+
+  if (!attachmentType && (req?.file?.name || data?.filename)) {
+    const filename = (req?.file?.name || data?.filename || '').toLowerCase()
+    if (/\.(jpg|jpeg|png|webp|gif|svg|avif|heic|bmp)$/i.test(filename)) {
+      attachmentType = 'image'
+    } else if (/\.(mp4|webm|mov|mkv|avi|m4v)$/i.test(filename)) {
+      attachmentType = 'video'
+    }
+  }
 
   if (!attachmentType) {
     throw new Error('Only image and video attachments are allowed.')

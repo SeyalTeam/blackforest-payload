@@ -86,6 +86,7 @@ import { getRawMaterialBillingReportHandler } from './endpoints/getRawMaterialBi
 import { RawMaterialBillingReportGlobal } from './globals/RawMaterialBillingReport'
 import { getReturnOrderReportHandler } from './endpoints/getReturnOrderReport'
 import { ReturnOrderReportGlobal } from './globals/ReturnOrderReport'
+import { MessagesChatGlobal } from './globals/MessagesChat'
 import { BranchGeoSettings } from './globals/BranchGeoSettings'
 import { NetworkStatus } from './globals/NetworkStatus'
 import { getNetworkStatusHandler } from './endpoints/getNetworkStatus'
@@ -133,6 +134,7 @@ import { checkAppVersionHandler } from './endpoints/checkAppVersion'
 import { MenuSettingsGlobal } from './globals/MenuSettings'
 import { cashfreeCreateOrderHandler } from './endpoints/cashfreeCreateOrder'
 import { cashfreeVerifyOrderHandler } from './endpoints/cashfreeVerifyOrder'
+import { callSignalHandler } from './endpoints/callSignal'
 
 
 // Path helpers
@@ -827,6 +829,11 @@ export default buildConfig({
       method: 'post',
       handler: cashfreeVerifyOrderHandler,
     },
+    {
+      path: '/call-signal',
+      method: 'post',
+      handler: callSignalHandler,
+    },
   ],
 
   globals: [
@@ -861,7 +868,7 @@ export default buildConfig({
     AppDownloadSettings,
     AppVersionSettings,
     MenuSettingsGlobal,
-
+    MessagesChatGlobal,
   ].map(wrapGlobal),
 
   // Collections

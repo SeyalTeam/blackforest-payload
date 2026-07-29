@@ -180,6 +180,7 @@ export interface Config {
     'app-download-settings': AppDownloadSetting;
     'app-version-settings': AppVersionSetting;
     'menu-settings': MenuSetting;
+    'messages-chat': MessagesChat;
   };
   globalsSelect: {
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
@@ -213,6 +214,7 @@ export interface Config {
     'app-download-settings': AppDownloadSettingsSelect<false> | AppDownloadSettingsSelect<true>;
     'app-version-settings': AppVersionSettingsSelect<false> | AppVersionSettingsSelect<true>;
     'menu-settings': MenuSettingsSelect<false> | MenuSettingsSelect<true>;
+    'messages-chat': MessagesChatSelect<false> | MessagesChatSelect<true>;
   };
   locale: null;
   user: User & {
@@ -2138,6 +2140,7 @@ export interface ProductsSelect<T extends boolean = true> {
   name?: T;
   category?: T;
   dealer?: T;
+  company?: T;
   expiryDays?: T;
   preparationTime?: T;
   standardStockLevel?: T;
@@ -2155,6 +2158,7 @@ export interface ProductsSelect<T extends boolean = true> {
         minimumStockLevel?: T;
         maximumStockLevel?: T;
         purchaseFrequency?: T;
+        company?: T;
         id?: T;
       };
   images?:
@@ -2235,6 +2239,7 @@ export interface RawMaterialsSelect<T extends boolean = true> {
   minimumStockLevel?: T;
   maximumStockLevel?: T;
   dealer?: T;
+  company?: T;
   variants?:
     | T
     | {
@@ -2245,6 +2250,7 @@ export interface RawMaterialsSelect<T extends boolean = true> {
         minimumStockLevel?: T;
         maximumStockLevel?: T;
         purchaseFrequency?: T;
+        company?: T;
         id?: T;
       };
   updatedAt?: T;
@@ -4542,6 +4548,15 @@ export interface MenuSetting {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "messages-chat".
+ */
+export interface MessagesChat {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "ip-settings_select".
  */
 export interface IpSettingsSelect<T extends boolean = true> {
@@ -5137,6 +5152,15 @@ export interface MenuSettingsSelect<T extends boolean = true> {
         visibleGlobals?: T;
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "messages-chat_select".
+ */
+export interface MessagesChatSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
