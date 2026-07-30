@@ -526,7 +526,18 @@ export default function KotPage() {
     const cacheKey = targetBillId ? `${BILL_CACHE_KEY_PREFIX}${targetBillId}` : null;
     const cached = cacheKey ? readSessionCache<BillSummaryData>(cacheKey) : null;
     if (cached) {
-      setPreviousBillData(cached);
+      const isCachedInactive = ["completed", "settled", "cancelled"].includes(
+        cached.status?.toLowerCase(),
+      );
+      if (isCachedInactive) {
+        clearActiveBillSession();
+        if (cached.billId) {
+          window.sessionStorage.removeItem(`${BILL_CACHE_KEY_PREFIX}${cached.billId}`);
+        }
+        setPreviousBillData(null);
+      } else {
+        setPreviousBillData(cached);
+      }
     }
 
     const loadPreviousBill = async () => {
@@ -543,7 +554,7 @@ export default function KotPage() {
           currentActiveBill.section.trim().toLowerCase() === preferredSection.trim().toLowerCase();
 
         const billIdToUse =
-          targetBillId || (activeBillTableMatches && activeBillSectionMatches ? currentActiveBill?.billId : "") || "";
+          activeBillTableMatches && activeBillSectionMatches ? currentActiveBill?.billId || "" : "";
 
         if (billIdToUse) {
           queryParams.set("billId", billIdToUse);
@@ -572,7 +583,13 @@ export default function KotPage() {
 
         const response = await fetch(`/api/bill-summary?${queryParams.toString()}`, { cache: "no-store" });
         if (!response.ok) {
-          if (!cached && !isDisposed) {
+          if (!isDisposed) {
+            if (billIdToUse) {
+              clearActiveBillSession();
+              if (targetBillId) {
+                window.sessionStorage.removeItem(`${BILL_CACHE_KEY_PREFIX}${targetBillId}`);
+              }
+            }
             setPreviousBillData(null);
           }
           return;
@@ -580,6 +597,53 @@ export default function KotPage() {
 
         const payload = (await response.json()) as BillSummaryData;
         if (isDisposed) {
+          return;
+        }
+
+        const isInactive = ["completed", "settled", "cancelled"].includes(
+          payload.status?.toLowerCase(),
+        );
+
+        if (isInactive) {
+          clearActiveBillSession();
+          if (payload.billId) {
+            window.sessionStorage.removeItem(`${BILL_CACHE_KEY_PREFIX}${payload.billId}`);
+          }
+          setPreviousBillData(null);
+
+          if (billIdToUse) {
+            const tableQueryParams = new URLSearchParams();
+            tableQueryParams.set("branchId", branchId);
+            const currentTable = sharedTableNumber.trim();
+            if (currentTable) tableQueryParams.set("tableNumber", currentTable);
+            const currentSection = preferredSection.trim();
+            if (currentSection) tableQueryParams.set("section", currentSection);
+            if (customerPhone.trim()) tableQueryParams.set("customerPhone", customerPhone.trim());
+
+            if (tableQueryParams.has("tableNumber") || tableQueryParams.has("customerPhone")) {
+              const retryRes = await fetch(`/api/bill-summary?${tableQueryParams.toString()}`, {
+                cache: "no-store",
+              });
+              if (retryRes.ok && !isDisposed) {
+                const retryPayload = (await retryRes.json()) as BillSummaryData;
+                const isRetryInactive = ["completed", "settled", "cancelled"].includes(
+                  retryPayload.status?.toLowerCase(),
+                );
+                if (!isRetryInactive && retryPayload.billId) {
+                  setPreviousBillData(retryPayload);
+                  writeSessionCache(`${BILL_CACHE_KEY_PREFIX}${retryPayload.billId}`, retryPayload);
+                  writeActiveBillSession({
+                    branchId,
+                    billId: retryPayload.billId,
+                    tableNumber: retryPayload.tableNumber || sharedTableNumber,
+                    section: retryPayload.section || preferredSection,
+                    customerName: customerName.trim(),
+                    customerPhone: customerPhone.trim(),
+                  });
+                }
+              }
+            }
+          }
           return;
         }
 

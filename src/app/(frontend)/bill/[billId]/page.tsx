@@ -97,7 +97,10 @@ export default function BillSummaryPage() {
     const cacheKey = `${BILL_CACHE_KEY_PREFIX}${billId}`;
     const cached = readSessionCache<BillSummaryData>(cacheKey);
     if (cached) {
-      if (cached.status === "completed") {
+      const isCachedInactive = ["completed", "settled", "cancelled"].includes(
+        cached.status?.toLowerCase(),
+      );
+      if (isCachedInactive) {
         goHomeAfterBillCompletion(cached.billId || billId);
         return;
       }
@@ -125,7 +128,10 @@ export default function BillSummaryPage() {
 
         const payload = (await response.json()) as BillSummaryData;
         if (isDisposed) return;
-        if (payload.status === "completed") {
+        const isPayloadInactive = ["completed", "settled", "cancelled"].includes(
+          payload.status?.toLowerCase(),
+        );
+        if (isPayloadInactive) {
           goHomeAfterBillCompletion(payload.billId || billId);
           return;
         }
@@ -169,7 +175,10 @@ export default function BillSummaryPage() {
         if (isDisposed) {
           return;
         }
-        if (payload.status === "completed") {
+        const isPayloadInactive = ["completed", "settled", "cancelled"].includes(
+          payload.status?.toLowerCase(),
+        );
+        if (isPayloadInactive) {
           goHomeAfterBillCompletion(payload.billId || billId);
           return;
         }
