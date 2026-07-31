@@ -4725,6 +4725,8 @@ const Billings: CollectionConfig = {
         { label: 'Pending', value: 'pending' },
         { label: 'Verified', value: 'verified' },
         { label: 'Not Verified', value: 'not_verified' },
+        { label: 'Not Match', value: 'not_match' },
+        { label: 'Cancelled', value: 'cancelled' },
       ],
       index: true,
       admin: {

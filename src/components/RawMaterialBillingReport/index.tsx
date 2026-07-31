@@ -787,6 +787,7 @@ const RawMaterialBillingReport: React.FC = () => {
                 <thead>
                   <tr>
                     <th style={{ width: '5%' }}>#</th>
+                    <th style={{ width: '8%', textAlign: 'center' }}>Photo</th>
                     <th>Material Name</th>
                     <th>Weight Size</th>
                     <th>No. of Packs</th>
@@ -796,26 +797,59 @@ const RawMaterialBillingReport: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {previewMaterials.map((mat, idx) => (
-                    <tr key={idx}>
-                      <td>{idx + 1}</td>
-                      <td style={{ fontWeight: 600 }}>{mat.name}</td>
-                      <td>{mat.packageSize !== undefined ? mat.packageSize : '-'}</td>
-                      <td>{mat.numberOfPackages !== undefined ? mat.numberOfPackages : '-'}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 700 }}>
-                        {mat.quantity.toLocaleString('en-IN')}
-                      </td>
-                      <td style={{ textTransform: 'lowercase' }}>{mat.unit}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#10b981' }}>
-                        {mat.totalAmount ? `₹${mat.totalAmount.toLocaleString('en-IN')}` : '-'}
-                      </td>
-                    </tr>
-                  ))}
+                  {previewMaterials.map((mat, idx) => {
+                    const materialName = mat.name || mat.rawMaterialName || 'Unknown Material'
+                    const pUrl = mat.photoUrl || (typeof mat.photo === 'object' ? mat.photo?.url : null)
+                    return (
+                      <tr key={idx}>
+                        <td>{idx + 1}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          {pUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewImage(pUrl)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: 0,
+                              }}
+                              title="Click to view image"
+                            >
+                              <img
+                                src={pUrl}
+                                alt={materialName}
+                                style={{
+                                  width: '36px',
+                                  height: '36px',
+                                  objectFit: 'cover',
+                                  borderRadius: '6px',
+                                  border: '1px solid var(--theme-elevation-200)',
+                                }}
+                              />
+                            </button>
+                          ) : (
+                            <span style={{ opacity: 0.3 }}>-</span>
+                          )}
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{materialName}</td>
+                        <td>{mat.packageSize !== undefined ? mat.packageSize : '-'}</td>
+                        <td>{mat.numberOfPackages !== undefined ? mat.numberOfPackages : '-'}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700 }}>
+                          {(mat.quantity || 0).toLocaleString('en-IN')}
+                        </td>
+                        <td style={{ textTransform: 'lowercase' }}>{mat.unit || ''}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: '#10b981' }}>
+                          {mat.totalAmount ? `₹${mat.totalAmount.toLocaleString('en-IN')}` : '-'}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
                 {previewMaterials.some((m) => m.totalAmount || m.quantity) && (
                   <tfoot>
                     <tr style={{ borderTop: '2px solid var(--theme-elevation-200)', fontWeight: 700 }}>
-                      <td colSpan={4} style={{ textAlign: 'right' }}>Total:</td>
+                      <td colSpan={5} style={{ textAlign: 'right' }}>Total:</td>
                       <td style={{ textAlign: 'right' }}>
                         {previewMaterials.reduce((sum, m) => sum + (m.quantity || 0), 0).toLocaleString('en-IN')}
                       </td>

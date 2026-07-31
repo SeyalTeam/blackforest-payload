@@ -4,6 +4,7 @@ const RawMaterialBillings: CollectionConfig = {
   slug: 'raw-material-billings',
   admin: {
     useAsTitle: 'id',
+    defaultColumns: ['id', 'dealer', 'company', 'total', 'date', 'status'],
   },
   access: {
     read: () => true,
@@ -85,6 +86,17 @@ const RawMaterialBillings: CollectionConfig = {
           type: 'relationship',
           relationTo: 'raw-materials',
           required: true,
+          filterOptions: ({ data }) => {
+            const dealerId = typeof data?.dealer === 'string' ? data?.dealer : data?.dealer?.id
+            if (dealerId) {
+              return {
+                dealer: {
+                  contains: dealerId,
+                },
+              }
+            }
+            return true
+          },
         },
         {
           name: 'packageSize',
@@ -113,6 +125,15 @@ const RawMaterialBillings: CollectionConfig = {
           defaultValue: 0,
           admin: {
             description: 'Total amount (cost) for this raw material item',
+          },
+        },
+        {
+          name: 'photo',
+          type: 'relationship',
+          relationTo: 'media',
+          required: false,
+          admin: {
+            description: 'Photo of the product taken during raw material billing',
           },
         },
       ],

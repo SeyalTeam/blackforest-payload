@@ -33,7 +33,7 @@ type BillRow = {
   waiterName: string
   branchName: string
   createdAt: string
-  verificationStatus: 'pending' | 'verified' | 'not_verified'
+  verificationStatus: 'pending' | 'verified' | 'not_verified' | 'not_match' | 'cancelled'
   closingNumber?: string
   originalClosingNumber?: string
   closingStatus?: 'closed' | 'missed' | 'pending' | 'n_a'
@@ -50,6 +50,11 @@ type BranchOption = {
 }
 
 type StatusOption = {
+  value: string
+  label: string
+}
+
+type PaymentMethodOption = {
   value: string
   label: string
 }
@@ -103,7 +108,18 @@ const verificationStatusOptions: StatusOption[] = [
   { value: 'pending', label: 'Pending Verification' },
   { value: 'verified', label: 'Verified Only' },
   { value: 'not_verified', label: 'Not Verified Only' },
+  { value: 'not_match', label: 'Not Match Only' },
+  { value: 'cancelled', label: 'Cancelled Only' },
   { value: 'missed', label: 'Missed in Closing' },
+]
+
+const paymentMethodOptions: PaymentMethodOption[] = [
+  { value: 'all', label: 'All Payment Methods' },
+  { value: 'upi', label: 'UPI' },
+  { value: 'cash', label: 'Cash' },
+  { value: 'card', label: 'Card' },
+  { value: 'cashfree', label: 'Cashfree' },
+  { value: 'other', label: 'Other' },
 ]
 
 const customSelectStyles: StylesConfig<any, false> = {
@@ -156,6 +172,7 @@ const AccountsBillsReport: React.FC = () => {
   const [branches, setBranches] = useState<BranchOption[]>([])
   const [selectedBranch, setSelectedBranch] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('all')
   const [searchInvoice, setSearchInvoice] = useState<string>('')
   const [bills, setBills] = useState<BillRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -165,6 +182,17 @@ const AccountsBillsReport: React.FC = () => {
   const [isMounted, setIsMounted] = useState(false)
 
   const requestIdRef = useRef(0)
+
+  const { totalItems, totalAmount } = useMemo(() => {
+    return bills.reduce(
+      (acc, bill) => {
+        acc.totalItems += bill.itemsCount || 0
+        acc.totalAmount += bill.totalAmount || 0
+        return acc
+      },
+      { totalItems: 0, totalAmount: 0 }
+    )
+  }, [bills])
 
   const formatCurrency = (val: number) => {
     return `₹${new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val)}`
@@ -202,6 +230,7 @@ const AccountsBillsReport: React.FC = () => {
     end: Date,
     branch: string,
     status: string,
+    paymentMethod: string,
     search: string
   ) => {
     const requestId = ++requestIdRef.current
@@ -212,7 +241,7 @@ const AccountsBillsReport: React.FC = () => {
       const startStr = toLocalDateStr(start)
       const endStr = toLocalDateStr(end)
 
-      let url = `/api/reports/accounts-bills?startDate=${startStr}&endDate=${endStr}&branch=${branch}&verificationStatus=${status}`
+      let url = `/api/reports/accounts-bills?startDate=${startStr}&endDate=${endStr}&branch=${branch}&verificationStatus=${status}&paymentMethod=${paymentMethod}`
       if (search.trim().length > 0) {
         url += `&search=${encodeURIComponent(search.trim())}`
       }
@@ -244,9 +273,9 @@ const AccountsBillsReport: React.FC = () => {
   // Initial loads and filter changes
   useEffect(() => {
     if (startDate && endDate) {
-      fetchReport(startDate, endDate, selectedBranch, selectedStatus, searchInvoice)
+      fetchReport(startDate, endDate, selectedBranch, selectedStatus, selectedPaymentMethod, searchInvoice)
     }
-  }, [startDate, endDate, selectedBranch, selectedStatus, searchInvoice, fetchReport])
+  }, [startDate, endDate, selectedBranch, selectedStatus, selectedPaymentMethod, searchInvoice, fetchReport])
 
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -443,7 +472,7 @@ const AccountsBillsReport: React.FC = () => {
 
   const handleRefresh = () => {
     if (startDate && endDate) {
-      fetchReport(startDate, endDate, selectedBranch, selectedStatus, searchInvoice)
+      fetchReport(startDate, endDate, selectedBranch, selectedStatus, selectedPaymentMethod, searchInvoice)
     }
   }
 
@@ -460,6 +489,11 @@ const AccountsBillsReport: React.FC = () => {
   const currentStatusOption = verificationStatusOptions.find((s) => s.value === selectedStatus) || {
     value: 'all',
     label: 'All Verification Statuses',
+  }
+
+  const currentPaymentMethodOption = paymentMethodOptions.find((p) => p.value === selectedPaymentMethod) || {
+    value: 'all',
+    label: 'All Payment Methods',
   }
 
   return (
@@ -542,6 +576,18 @@ const AccountsBillsReport: React.FC = () => {
             />
           </div>
 
+          {/* Payment Method Filter */}
+          <div className="filter-item">
+            <label className="filter-label">Payment Method</label>
+            <Select
+              options={paymentMethodOptions}
+              value={currentPaymentMethodOption}
+              onChange={(opt) => opt && setSelectedPaymentMethod(opt.value)}
+              styles={customSelectStyles}
+              isSearchable={false}
+            />
+          </div>
+
           {/* Search bar */}
           <div className="filter-item search-filter">
             <label className="filter-label">Search Bill Number</label>
@@ -566,27 +612,25 @@ const AccountsBillsReport: React.FC = () => {
               <tr>
                 <th style={{ width: '60px' }}>S.No</th>
                 <th>Bill Number</th>
-                <th>Branch</th>
                 <th>Waiter</th>
-                <th>Date & Time</th>
-                <th>Payment Method</th>
-                <th>Items</th>
-                <th>Amount</th>
-                <th>Closing Entry</th>
-                <th style={{ width: '220px', textAlign: 'center' }}>Verification Status</th>
+                <th style={{ width: '90px', textAlign: 'center' }}>Payment</th>
+                <th style={{ width: '70px' }}>Items</th>
+                <th style={{ width: '95px' }}>Amount</th>
+                <th style={{ width: '100px' }}>CLO-Entry</th>
+                <th style={{ width: '110px', textAlign: 'center' }}>Status</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="td-loading">
+                  <td colSpan={8} className="td-loading">
                     <RefreshCw size={24} className="animate-spin text-muted" />
                     <p style={{ marginTop: '10px' }}>Fetching bills...</p>
                   </td>
                 </tr>
               ) : bills.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="td-empty">
+                  <td colSpan={8} className="td-empty">
                     No billing documents found for the selected filters.
                   </td>
                 </tr>
@@ -605,11 +649,10 @@ const AccountsBillsReport: React.FC = () => {
                         >
                           {bill.invoiceNumber}
                         </button>
+                        <div className="small-text">{formatDateTime(bill.createdAt)}</div>
                       </td>
-                      <td>{bill.branchName}</td>
                       <td>{bill.waiterName}</td>
-                      <td className="small-text">{formatDateTime(bill.createdAt)}</td>
-                      <td>
+                      <td style={{ textAlign: 'center' }}>
                         <span className={`payment-pill payment--${bill.paymentMethod}`}>
                           {bill.paymentMethod.toUpperCase()}
                         </span>
@@ -639,28 +682,40 @@ const AccountsBillsReport: React.FC = () => {
                           <span className="text-muted">-</span>
                         )}
                       </td>
-                      <td>
-                        <div className="verification-actions">
-                          {getVerificationBadge(bill.verificationStatus)}
-                          <select
-                            className={`verification-dropdown status--${bill.verificationStatus}`}
-                            value={bill.verificationStatus}
-                            onChange={(e) =>
-                              handleStatusUpdate(bill.id, e.target.value as any)
-                            }
-                            disabled={isUpdating}
-                          >
-                            <option value="pending">Pending</option>
-                            <option value="verified">Verified</option>
-                            <option value="not_verified">Not Verified</option>
-                          </select>
-                        </div>
+                      <td style={{ textAlign: 'center' }}>
+                        <select
+                          className={`verification-dropdown status--${bill.verificationStatus}`}
+                          value={bill.verificationStatus}
+                          onChange={(e) =>
+                            handleStatusUpdate(bill.id, e.target.value as any)
+                          }
+                          disabled={isUpdating}
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="verified">Verified</option>
+                          <option value="not_verified">Not Verified</option>
+                          <option value="not_match">Not Match</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
                       </td>
                     </tr>
                   )
                 })
               )}
             </tbody>
+            {!loading && bills.length > 0 && (
+              <tfoot>
+                <tr className="total-row">
+                  <td colSpan={3} style={{ textAlign: 'right', fontWeight: 700 }}>
+                    Total ({bills.length} {bills.length === 1 ? 'Bill' : 'Bills'}):
+                  </td>
+                  <td></td>
+                  <td className="bold-text" style={{ fontWeight: 700 }}>{totalItems}</td>
+                  <td className="bold-text amount-cell" style={{ fontWeight: 700 }}>{formatCurrency(totalAmount)}</td>
+                  <td colSpan={2}></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>

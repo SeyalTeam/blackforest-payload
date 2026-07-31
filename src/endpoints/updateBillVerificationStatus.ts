@@ -15,7 +15,7 @@ export const updateBillVerificationStatusHandler: PayloadHandler = async (req): 
       return Response.json({ message: 'Missing required fields' }, { status: 400 })
     }
 
-    if (!['pending', 'verified', 'not_verified'].includes(status)) {
+    if (!['pending', 'verified', 'not_verified', 'not_match', 'cancelled'].includes(status)) {
       return Response.json({ message: 'Invalid verification status value' }, { status: 400 })
     }
 

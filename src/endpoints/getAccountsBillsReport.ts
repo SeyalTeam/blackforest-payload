@@ -29,6 +29,7 @@ export const getAccountsBillsReportHandler: PayloadHandler = async (
     const endDateParam = typeof req.query.endDate === 'string' ? req.query.endDate : null
     const branchParam = typeof req.query.branch === 'string' ? req.query.branch : null
     const verificationStatusParam = typeof req.query.verificationStatus === 'string' ? req.query.verificationStatus : null
+    const paymentMethodParam = typeof req.query.paymentMethod === 'string' ? req.query.paymentMethod : null
     const searchParam = typeof req.query.search === 'string' ? req.query.search : null
 
     const todayStr = dayjs().tz(BILLING_TIMEZONE).format('YYYY-MM-DD')
@@ -67,6 +68,14 @@ export const getAccountsBillsReportHandler: PayloadHandler = async (
       whereClause.and.push({
         verificationStatus: {
           equals: verificationStatusParam,
+        },
+      })
+    }
+
+    if (paymentMethodParam && paymentMethodParam !== 'all') {
+      whereClause.and.push({
+        paymentMethod: {
+          equals: paymentMethodParam,
         },
       })
     }

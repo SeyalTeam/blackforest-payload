@@ -152,8 +152,19 @@ export const getRawMaterialInventoryReportData = async (
     {
       $lookup: {
         from: 'raw-material-dealers',
-        localField: 'dealer',
-        foreignField: '_id',
+        let: { dealerId: '$dealer' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $eq: [
+                  '$_id',
+                  { $convert: { input: '$$dealerId', to: 'objectId', onError: '$$dealerId', onNull: '$$dealerId' } },
+                ],
+              },
+            },
+          },
+        ],
         as: 'dealerInfo',
       },
     },

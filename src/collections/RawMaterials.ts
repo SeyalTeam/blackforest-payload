@@ -5,6 +5,7 @@ const RawMaterials: CollectionConfig = {
   admin: {
     useAsTitle: 'name',
     group: 'Raw Material',
+    defaultColumns: ['name', 'category', 'dealer', 'unit', 'purchaseFrequency'],
   },
   access: {
     read: () => true,

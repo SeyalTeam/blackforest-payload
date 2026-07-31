@@ -1012,7 +1012,7 @@ export interface Billing {
     section?: string | null;
     tableNumber?: string | null;
   };
-  verificationStatus?: ('pending' | 'verified' | 'not_verified') | null;
+  verificationStatus?: ('pending' | 'verified' | 'not_verified' | 'not_match' | 'cancelled') | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1227,6 +1227,10 @@ export interface RawMaterialBilling {
          * Total amount (cost) for this raw material item
          */
         totalAmount?: number | null;
+        /**
+         * Photo of the product taken during raw material billing
+         */
+        photo?: (string | null) | Media;
         id?: string | null;
       }[]
     | null;
@@ -2751,6 +2755,7 @@ export interface RawMaterialBillingsSelect<T extends boolean = true> {
         numberOfPackages?: T;
         quantity?: T;
         totalAmount?: T;
+        photo?: T;
         id?: T;
       };
   date?: T;

@@ -545,6 +545,20 @@ const RawMaterialInventoryReport: React.FC = () => {
                           <td className="raw-material-cell">
                             <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                               <span>{item.rawMaterialName}</span>
+                              {item.dealerName && item.dealerName !== 'Unknown Dealer' && (
+                                <span
+                                  style={{
+                                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                    color: '#059669',
+                                    padding: '1px 6px',
+                                    borderRadius: '4px',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 500,
+                                  }}
+                                >
+                                  {item.dealerName}
+                                </span>
+                              )}
                               {item.purchaseFrequency && (
                                 <span
                                   style={{

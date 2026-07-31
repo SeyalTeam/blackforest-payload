@@ -291,6 +291,20 @@ export const getRawMaterialBillingReportData = async (
         preserveNullAndEmptyArrays: true,
       },
     },
+    {
+      $lookup: {
+        from: 'media',
+        localField: 'rawMaterialsList.photo',
+        foreignField: '_id',
+        as: 'itemPhotoInfo',
+      },
+    },
+    {
+      $unwind: {
+        path: '$itemPhotoInfo',
+        preserveNullAndEmptyArrays: true,
+      },
+    },
     // Group back by billing id to reconstruct the rawMaterialsList
     {
       $group: {
@@ -312,6 +326,7 @@ export const getRawMaterialBillingReportData = async (
               if: { $gt: ['$rawMaterialsList', null] },
               then: {
                 rawMaterialName: '$materialInfo.name',
+                name: '$materialInfo.name',
                 packageSize: '$rawMaterialsList.packageSize',
                 numberOfPackages: '$rawMaterialsList.numberOfPackages',
                 quantity: '$rawMaterialsList.quantity',
@@ -319,6 +334,8 @@ export const getRawMaterialBillingReportData = async (
                 unit: '$materialInfo.unit',
                 variants: '$materialInfo.variants',
                 packSize: '$materialInfo.packSize',
+                photoUrl: '$itemPhotoInfo.url',
+                photoFilename: '$itemPhotoInfo.filename',
               },
               else: '$$REMOVE',
             },
