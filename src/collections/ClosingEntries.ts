@@ -125,8 +125,9 @@ const ClosingEntries: CollectionConfig = {
 
   hooks: {
     beforeChange: [
-      async ({ req, operation, data }) => {
+      async ({ req, operation, data, originalDoc }) => {
         const { user } = req
+        const doc = operation === 'update' ? { ...originalDoc, ...data } : data
 
         // AUTO ASSIGN BRANCH FOR BRANCH USERS
         if (operation === 'create' && user?.role === 'branch' && user?.branch) {
@@ -141,9 +142,10 @@ const ClosingEntries: CollectionConfig = {
           data.date = new Date(
             Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0),
           ).toISOString()
+          doc.date = data.date
         }
 
-        const entryDate = new Date(data.date)
+        const entryDate = new Date(doc.date)
         const startOfDay = new Date(
           Date.UTC(
             entryDate.getUTCFullYear(),
@@ -372,7 +374,7 @@ const ClosingEntries: CollectionConfig = {
         // ------------------------------------------
         // 5️⃣ CASH FROM DENOMINATIONS
         // ------------------------------------------
-        const d = data.denominations || {}
+        const d = doc.denominations || {}
         data.cash =
           (d.count2000 || 0) * 2000 +
           (d.count500 || 0) * 500 +
@@ -386,16 +388,16 @@ const ClosingEntries: CollectionConfig = {
         // 6️⃣ TOTALS
         // ------------------------------------------
         data.totalSales =
-          (data.systemSales || 0) + (data.manualSales || 0) + (data.onlineSales || 0)
+          (doc.systemSales || 0) + (doc.manualSales || 0) + (doc.onlineSales || 0)
 
-        data.totalPayments = (data.creditCard || 0) + (data.upi || 0) + (data.cash || 0)
+        data.totalPayments = (doc.creditCard || 0) + (doc.upi || 0) + (data.cash !== undefined ? data.cash : doc.cash || 0)
 
         // Net = Sales – Expenses – Returns – StockOrders
         data.net =
           (data.totalSales || 0) -
-          (data.expenses || 0) -
-          (data.returnTotal || 0) -
-          (data.stockOrders || 0)
+          (doc.expenses || 0) -
+          (doc.returnTotal || 0) -
+          (doc.stockOrders || 0)
 
         return data
       },
