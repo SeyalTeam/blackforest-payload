@@ -93,6 +93,34 @@ const Cakes: CollectionConfig = {
       relationTo: 'branches',
       required: true,
     },
+    {
+      name: 'paymentHistory',
+      type: 'array',
+      fields: [
+        {
+          name: 'amount',
+          type: 'number',
+          required: true,
+        },
+        {
+          name: 'method',
+          type: 'select',
+          options: [
+            { label: 'Cash', value: 'cash' },
+            { label: 'Card', value: 'card' },
+            { label: 'UPI', value: 'upi' },
+            { label: 'Cashfree', value: 'cashfree' },
+            { label: 'Other', value: 'other' },
+          ],
+          required: true,
+        },
+        {
+          name: 'date',
+          type: 'date',
+          required: true,
+        },
+      ],
+    },
   ],
   hooks: {
     beforeChange: [
@@ -101,6 +129,14 @@ const Cakes: CollectionConfig = {
           if (req.user?.role === 'branch' && req.user.branch) {
             data.branch = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
           }
+        }
+
+        // Calculate paymentAmount if paymentHistory exists
+        if (data.paymentHistory && data.paymentHistory.length > 0) {
+          data.paymentAmount = data.paymentHistory.reduce(
+            (sum: number, p: { amount?: number }) => sum + (p.amount || 0),
+            0
+          )
         }
 
         // Calculate pendingAmount

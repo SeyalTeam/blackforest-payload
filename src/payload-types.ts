@@ -1136,6 +1136,14 @@ export interface Cake {
   cakePhoto: string | Media;
   status: 'paid' | 'pending';
   branch: string | Branch;
+  paymentHistory?:
+    | {
+        amount: number;
+        method: 'cash' | 'card' | 'upi' | 'cashfree' | 'other';
+        date: string;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2690,6 +2698,14 @@ export interface CakesSelect<T extends boolean = true> {
   cakePhoto?: T;
   status?: T;
   branch?: T;
+  paymentHistory?:
+    | T
+    | {
+        amount?: T;
+        method?: T;
+        date?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }
