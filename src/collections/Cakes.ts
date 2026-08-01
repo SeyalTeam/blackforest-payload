@@ -124,7 +124,7 @@ const Cakes: CollectionConfig = {
   ],
   hooks: {
     beforeChange: [
-      async ({ req, operation, data }) => {
+      async ({ req, operation, data, originalDoc }) => {
         if (operation === 'create') {
           if (req.user?.role === 'branch' && req.user.branch) {
             data.branch = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
@@ -132,16 +132,18 @@ const Cakes: CollectionConfig = {
         }
 
         // Calculate paymentAmount if paymentHistory exists
+        let paid = 0
         if (data.paymentHistory && data.paymentHistory.length > 0) {
           data.paymentAmount = data.paymentHistory.reduce(
             (sum: number, p: { amount?: number }) => sum + (p.amount || 0),
             0
           )
+          paid = data.paymentAmount
+        } else {
+          paid = typeof data.paymentAmount !== 'undefined' ? data.paymentAmount : (originalDoc?.paymentAmount || 0)
         }
 
-        // Calculate pendingAmount
-        const price = data.cakePrice || 0
-        const paid = data.paymentAmount || 0
+        const price = typeof data.cakePrice !== 'undefined' ? data.cakePrice : (originalDoc?.cakePrice || 0)
         const pending = price - paid
         data.pendingAmount = pending < 0 ? 0 : pending
 

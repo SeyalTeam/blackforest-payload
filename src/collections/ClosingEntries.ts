@@ -238,15 +238,22 @@ const ClosingEntries: CollectionConfig = {
         // ------------------------------------------
         let lastClosingTime = startOfDay
         try {
+          const lastClosingWhere: any = {
+            and: [
+              { branch: { equals: doc.branch } },
+              { date: { greater_than_equal: startOfDay } },
+              { date: { less_than: endOfDay } },
+            ],
+          }
+          if (operation === 'update' && originalDoc?.createdAt) {
+            lastClosingWhere.and.push({
+              createdAt: { less_than: new Date(originalDoc.createdAt).toISOString() }
+            })
+          }
+
           const lastClosing = await req.payload.find({
             collection: 'closing-entries',
-            where: {
-              and: [
-                { branch: { equals: data.branch } },
-                { date: { greater_than_equal: startOfDay } },
-                { date: { less_than: endOfDay } },
-              ],
-            },
+            where: lastClosingWhere,
             sort: '-createdAt',
             limit: 1,
           })
@@ -278,9 +285,11 @@ const ClosingEntries: CollectionConfig = {
             (sum, order) => sum + (order.totalAmount || 0),
             0,
           )
+          doc.returnTotal = data.returnTotal
         } catch (err) {
           req.payload.logger.error('Error calculating returnTotal:', err)
           data.returnTotal = 0
+          doc.returnTotal = 0
         }
 
         // ------------------------------------------
@@ -318,22 +327,25 @@ const ClosingEntries: CollectionConfig = {
           }
 
           data.stockOrders = sendingTotal
+          doc.stockOrders = data.stockOrders
         } catch (err) {
           req.payload.logger.error('Error calculating stockOrders:', err)
           data.stockOrders = 0
+          doc.stockOrders = 0
         }
 
         // ------------------------------------------
         // 4.5️⃣ FETCH BILLS AND AUTO-CALCULATE SYSTEM SALES & TOTAL BILLS
         // ------------------------------------------
         try {
+          const windowEnd = operation === 'update' ? new Date(originalDoc.createdAt).toISOString() : new Date().toISOString()
           const bills = await req.payload.find({
             collection: 'billings',
             where: {
               and: [
-                { branch: { equals: data.branch } },
+                { branch: { equals: doc.branch } },
                 { createdAt: { greater_than_equal: startOfDay } },
-                { createdAt: { less_than: endOfDay } },
+                { createdAt: { less_than_equal: windowEnd } },
                 { status: { in: ['completed', 'settled'] } },
                 {
                   or: [
@@ -365,10 +377,14 @@ const ClosingEntries: CollectionConfig = {
             (sum, b: any) => sum + (b.totalAmount || 0),
             0,
           )
+          doc.totalBills = data.totalBills
+          doc.systemSales = data.systemSales
         } catch (err) {
           req.payload.logger.error('Error calculating systemSales & totalBills:', err)
           data.totalBills = 0
           data.systemSales = 0
+          doc.totalBills = 0
+          doc.systemSales = 0
         }
 
         // ------------------------------------------
@@ -383,6 +399,7 @@ const ClosingEntries: CollectionConfig = {
           (d.count50 || 0) * 50 +
           (d.count10 || 0) * 10 +
           (d.count5 || 0) * 5
+        doc.cash = data.cash
 
         // ------------------------------------------
         // 6️⃣ TOTALS
