@@ -18,6 +18,9 @@ type ReportStats = {
   cash: number
   upi: number
   card: number
+  systemCash: number
+  systemUpi: number
+  systemCard: number
   closingNumbers: string[]
   lastUpdated: string
   entries: ClosingEntryDetail[]
@@ -41,6 +44,7 @@ type ExpenseDetail = {
 }
 
 type ClosingEntryDetail = {
+  id: string
   closingNumber: string
   createdAt: string
   systemSales: number
@@ -52,6 +56,10 @@ type ClosingEntryDetail = {
   cash: number
   upi: number
   card: number
+  systemCash: number
+  systemUpi: number
+  systemCard: number
+  notes: string
   expenseDetails?: ExpenseDetail[]
   denominations?: Denominations
 }
@@ -116,6 +124,9 @@ const CLOSING_ENTRY_REPORT_QUERY = `
         cash
         upi
         card
+        systemCash
+        systemUpi
+        systemCard
         count2000
         count500
         count200
@@ -131,6 +142,7 @@ const CLOSING_ENTRY_REPORT_QUERY = `
           date
         }
         entries {
+          id
           closingNumber
           createdAt
           systemSales
@@ -142,6 +154,10 @@ const CLOSING_ENTRY_REPORT_QUERY = `
           cash
           upi
           card
+          systemCash
+          systemUpi
+          systemCard
+          notes
           denominations {
             count2000
             count500
@@ -174,6 +190,9 @@ const CLOSING_ENTRY_REPORT_QUERY = `
         cash
         upi
         card
+        systemCash
+        systemUpi
+        systemCard
       }
     }
   }
@@ -201,6 +220,12 @@ const ClosingEntryReport: React.FC = () => {
     title: string
     denominations: Denominations
   } | null>(null)
+
+  const [notesPopupData, setNotesPopupData] = useState<{
+    title: string
+    entries: { id: string; closingNumber: string; notes: string; createdAt: string }[]
+  } | null>(null)
+  const [savingNotesId, setSavingNotesId] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -358,6 +383,57 @@ const ClosingEntryReport: React.FC = () => {
     }
   }
 
+  const handleSaveNote = async (entryId: string, notesText: string) => {
+    setSavingNotesId(entryId)
+    try {
+      const res = await fetch(`/api/closing-entries/${entryId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          notes: notesText,
+        }),
+      })
+
+      if (!res.ok) {
+        throw new Error(`Failed to save note (HTTP ${res.status})`)
+      }
+
+      // Update local state reactively
+      setData((prevData) => {
+        if (!prevData) return null
+        const updatedStats = prevData.stats.map((stat) => {
+          const updatedEntries = stat.entries.map((entry) => {
+            if (entry.id === entryId) {
+              return { ...entry, notes: notesText }
+            }
+            return entry
+          })
+          return { ...stat, entries: updatedEntries }
+        })
+        return { ...prevData, stats: updatedStats }
+      })
+
+      // Update the notesPopupData state so the popup text updates
+      setNotesPopupData((prevPopup) => {
+        if (!prevPopup) return null
+        const updatedEntries = prevPopup.entries.map((entry) => {
+          if (entry.id === entryId) {
+            return { ...entry, notes: notesText }
+          }
+          return entry
+        })
+        return { ...prevPopup, entries: updatedEntries }
+      })
+    } catch (err) {
+      console.error(err)
+      alert(err instanceof Error ? err.message : 'Error saving note')
+    } finally {
+      setSavingNotesId(null)
+    }
+  }
+
   useEffect(() => {
     if (startDate && endDate) {
       fetchReport(startDate, endDate)
@@ -428,9 +504,19 @@ const ClosingEntryReport: React.FC = () => {
         cash: 0,
         upi: 0,
         card: 0,
+        systemCash: 0,
+        systemUpi: 0,
+        systemCard: 0,
       }
 
-    if (selectedBranch.includes('all')) return data.totals
+    if (selectedBranch.includes('all')) {
+      return {
+        ...data.totals,
+        systemCash: data.totals.systemCash || 0,
+        systemUpi: data.totals.systemUpi || 0,
+        systemCard: data.totals.systemCard || 0,
+      }
+    }
 
     return (filteredStats || []).reduce(
       (acc, row) => ({
@@ -443,6 +529,9 @@ const ClosingEntryReport: React.FC = () => {
         cash: acc.cash + row.cash,
         upi: acc.upi + row.upi,
         card: acc.card + row.card,
+        systemCash: acc.systemCash + (row.systemCash || 0),
+        systemUpi: acc.systemUpi + (row.systemUpi || 0),
+        systemCard: acc.systemCard + (row.systemCard || 0),
       }),
       {
         systemSales: 0,
@@ -454,6 +543,9 @@ const ClosingEntryReport: React.FC = () => {
         cash: 0,
         upi: 0,
         card: 0,
+        systemCash: 0,
+        systemUpi: 0,
+        systemCard: 0,
       },
     )
   }, [data, filteredStats, selectedBranch])
@@ -875,6 +967,7 @@ const ClosingEntryReport: React.FC = () => {
                   <tr>
                     <th style={{ width: '50px' }} className="center-cell">S.NO</th>
                     <th>BRANCH NAME</th>
+                    <th className="center-cell" style={{ textAlign: 'center', width: '60px' }}>NOTES</th>
                     <th className="text-right">SYSTEM BILLS</th>
                     <th className="text-right">MANUAL BILLS</th>
                     <th className="text-right">ONLINE BILLS</th>
@@ -891,7 +984,7 @@ const ClosingEntryReport: React.FC = () => {
                 <tbody>
                   {displayStats.length === 0 ? (
                     <tr>
-                      <td colSpan={13} className="center-cell" style={{ padding: '24px', opacity: 0.6 }}>
+                      <td colSpan={14} className="center-cell" style={{ padding: '24px', opacity: 0.6 }}>
                         No closing entries found for the selected filters.
                       </td>
                     </tr>
@@ -957,6 +1050,48 @@ const ClosingEntryReport: React.FC = () => {
                               </div>
                             )}
                           </td>
+                          <td className="center-cell">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                const entriesWithNotes = (row.entries || []).map((entry) => ({
+                                  id: entry.id,
+                                  closingNumber: entry.closingNumber,
+                                  notes: entry.notes || '',
+                                  createdAt: entry.createdAt,
+                                }))
+                                setNotesPopupData({
+                                  title: `Notes - ${row.branchName}`,
+                                  entries: entriesWithNotes,
+                                })
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '4px',
+                                color: (row.entries || []).some(entry => entry.notes) ? '#4caf50' : 'var(--theme-text-secondary)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                margin: '0 auto',
+                              }}
+                              title="Click to view/add notes"
+                            >
+                              <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill={(row.entries || []).some(entry => entry.notes) ? 'currentColor' : 'none'}
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                              </svg>
+                            </button>
+                          </td>
                           <td className="text-right">
                             <div className="bill-amount">₹{formatValue(row.systemSales)}</div>
                             <div className="bill-count">({row.totalBills} Bills)</div>
@@ -1017,6 +1152,7 @@ const ClosingEntryReport: React.FC = () => {
                     <td colSpan={2} className="text-left" style={{ fontWeight: 'bold' }}>
                       TOTAL
                     </td>
+                    <td></td>
                     <td className="text-right">
                       <div className="bill-amount">₹{formatValue(filteredTotals.systemSales)}</div>
                       <div className="bill-count">({filteredTotals.totalBills} Bills)</div>
@@ -1055,6 +1191,7 @@ const ClosingEntryReport: React.FC = () => {
                   <tr>
                     <th style={{ width: '50px' }} className="center-cell">S.NO</th>
                     <th>BRANCH</th>
+                    <th className="center-cell" style={{ textAlign: 'center', width: '60px' }}>NOTES</th>
                     <th className="center-cell">CLOSING NO</th>
                     <th>DATE & TIME</th>
                     <th className="text-right">SYSTEM BILLS</th>
@@ -1102,6 +1239,47 @@ const ClosingEntryReport: React.FC = () => {
                             <td className="center-cell">{entryIndex}</td>
                             <td>
                               <div className="branch-title">{row.branchName.toUpperCase()}</div>
+                            </td>
+                            <td className="center-cell">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setNotesPopupData({
+                                    title: `Notes - ${row.branchName} (#${displayNo})`,
+                                    entries: [{
+                                      id: entry.id,
+                                      closingNumber: entry.closingNumber,
+                                      notes: entry.notes || '',
+                                      createdAt: entry.createdAt,
+                                    }],
+                                  })
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  padding: '4px',
+                                  color: entry.notes ? '#4caf50' : 'var(--theme-text-secondary)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  margin: '0 auto',
+                                }}
+                                title="Click to view/add notes"
+                              >
+                                <svg
+                                  width="20"
+                                  height="20"
+                                  viewBox="0 0 24 24"
+                                  fill={entry.notes ? 'currentColor' : 'none'}
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                </svg>
+                              </button>
                             </td>
                             <td className="center-cell">
                               <span className="closing-tag">#{displayNo}</span>
@@ -1171,7 +1349,7 @@ const ClosingEntryReport: React.FC = () => {
                     if (rows.length === 0) {
                       return (
                         <tr>
-                          <td colSpan={15} className="center-cell" style={{ padding: '24px', opacity: 0.6 }}>
+                          <td colSpan={16} className="center-cell" style={{ padding: '24px', opacity: 0.6 }}>
                             No detailed closing entries found for the selected filters.
                           </td>
                         </tr>
@@ -1183,7 +1361,7 @@ const ClosingEntryReport: React.FC = () => {
                 </tbody>
                 <tfoot>
                   <tr className="grand-total">
-                    <td colSpan={4} className="text-left" style={{ fontWeight: 'bold' }}>
+                    <td colSpan={5} className="text-left" style={{ fontWeight: 'bold' }}>
                       TOTAL
                     </td>
                     <td className="text-right">₹{formatValue(filteredTotals.systemSales)}</td>
@@ -1215,6 +1393,290 @@ const ClosingEntryReport: React.FC = () => {
               </table>
             </div>
           )}
+
+          {/* Comparison Table Section */}
+          <div className="comparison-section" style={{ marginTop: '3rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <div>
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 600, margin: 0, color: 'var(--theme-text-primary)' }}>
+                  Payment Method Comparison (System vs Manual)
+                </h2>
+                <p style={{ fontSize: '0.85rem', color: 'var(--theme-text-secondary)', margin: '4px 0 0 0' }}>
+                  Compare system-tracked payments from customer bills against the manual entry provided by the branch staff.
+                </p>
+              </div>
+            </div>
+
+            <div className="table-container">
+              <table className="report-table">
+                <thead>
+                  <tr>
+                    <th rowSpan={2} style={{ width: '50px' }} className="center-cell">S.NO</th>
+                    <th rowSpan={2}>BRANCH / CLOSING</th>
+                    <th rowSpan={2} className="center-cell" style={{ textAlign: 'center', width: '60px' }}>NOTES</th>
+                    <th colSpan={3} className="center-cell text-center" style={{ textAlign: 'center', background: 'rgba(22, 163, 74, 0.05)', color: '#4caf50', borderBottom: '2px solid rgba(22, 163, 74, 0.2)' }}>CASH</th>
+                    <th colSpan={3} className="center-cell text-center" style={{ textAlign: 'center', background: 'rgba(59, 130, 246, 0.05)', color: '#2196f3', borderBottom: '2px solid rgba(59, 130, 246, 0.2)' }}>UPI</th>
+                    <th colSpan={3} className="center-cell text-center" style={{ textAlign: 'center', background: 'rgba(139, 92, 246, 0.05)', color: '#9c27b0', borderBottom: '2px solid rgba(139, 92, 246, 0.2)' }}>CARD</th>
+                  </tr>
+                  <tr>
+                    <th className="text-right" style={{ fontSize: '0.75rem', opacity: 0.8 }}>SYSTEM</th>
+                    <th className="text-right" style={{ fontSize: '0.75rem', opacity: 0.8 }}>MANUAL</th>
+                    <th className="text-right" style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>DIFF</th>
+                    
+                    <th className="text-right" style={{ fontSize: '0.75rem', opacity: 0.8 }}>SYSTEM</th>
+                    <th className="text-right" style={{ fontSize: '0.75rem', opacity: 0.8 }}>MANUAL</th>
+                    <th className="text-right" style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>DIFF</th>
+                    
+                    <th className="text-right" style={{ fontSize: '0.75rem', opacity: 0.8 }}>SYSTEM</th>
+                    <th className="text-right" style={{ fontSize: '0.75rem', opacity: 0.8 }}>MANUAL</th>
+                    <th className="text-right" style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>DIFF</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {viewMode === 'combined' ? (
+                    displayStats.length === 0 ? (
+                      <tr>
+                        <td colSpan={12} className="center-cell" style={{ padding: '24px', opacity: 0.6, textAlign: 'center' }}>
+                          No branch comparison data available.
+                        </td>
+                      </tr>
+                    ) : (
+                      displayStats.map((row, index) => {
+                        const cashDiff = row.cash - row.systemCash
+                        const upiDiff = row.upi - row.systemUpi
+                        const cardDiff = row.card - row.systemCard
+
+                        return (
+                          <tr key={row.branchName}>
+                            <td className="center-cell">{index + 1}</td>
+                            <td>
+                              <div className="branch-title">{row.branchName.toUpperCase()}</div>
+                            </td>
+                            <td className="center-cell">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  const entriesWithNotes = (row.entries || []).map((entry) => ({
+                                    id: entry.id,
+                                    closingNumber: entry.closingNumber,
+                                    notes: entry.notes || '',
+                                    createdAt: entry.createdAt,
+                                  }))
+                                  setNotesPopupData({
+                                    title: `Notes - ${row.branchName}`,
+                                    entries: entriesWithNotes,
+                                  })
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  padding: '4px',
+                                  color: (row.entries || []).some(entry => entry.notes) ? '#4caf50' : 'var(--theme-text-secondary)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  margin: '0 auto',
+                                }}
+                                title="Click to view/add notes"
+                              >
+                                <svg
+                                  width="20"
+                                  height="20"
+                                  viewBox="0 0 24 24"
+                                  fill={(row.entries || []).some(entry => entry.notes) ? 'currentColor' : 'none'}
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                </svg>
+                              </button>
+                            </td>
+                            {/* Cash column block */}
+                            <td className="text-right" style={{ color: 'var(--theme-text-secondary)' }}>₹{formatValue(row.systemCash)}</td>
+                            <td className="text-right">₹{formatValue(row.cash)}</td>
+                            <td className="text-right" style={{ fontWeight: 'bold' }}>
+                              <span className={cashDiff === 0 ? 'text-muted' : cashDiff > 0 ? 'sales-diff-value positive' : 'sales-diff-value negative'}>
+                                {cashDiff > 0 ? '↑' : cashDiff < 0 ? '↓' : ''} ₹{formatValue(Math.abs(cashDiff))}
+                              </span>
+                            </td>
+                            {/* UPI column block */}
+                            <td className="text-right" style={{ color: 'var(--theme-text-secondary)' }}>₹{formatValue(row.systemUpi)}</td>
+                            <td className="text-right">₹{formatValue(row.upi)}</td>
+                            <td className="text-right" style={{ fontWeight: 'bold' }}>
+                              <span className={upiDiff === 0 ? 'text-muted' : upiDiff > 0 ? 'sales-diff-value positive' : 'sales-diff-value negative'}>
+                                {upiDiff > 0 ? '↑' : upiDiff < 0 ? '↓' : ''} ₹{formatValue(Math.abs(upiDiff))}
+                              </span>
+                            </td>
+                            {/* Card column block */}
+                            <td className="text-right" style={{ color: 'var(--theme-text-secondary)' }}>₹{formatValue(row.systemCard)}</td>
+                            <td className="text-right">₹{formatValue(row.card)}</td>
+                            <td className="text-right" style={{ fontWeight: 'bold' }}>
+                              <span className={cardDiff === 0 ? 'text-muted' : cardDiff > 0 ? 'sales-diff-value positive' : 'sales-diff-value negative'}>
+                                {cardDiff > 0 ? '↑' : cardDiff < 0 ? '↓' : ''} ₹{formatValue(Math.abs(cardDiff))}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )
+                  ) : (
+                    (() => {
+                      let entryIndex = 0
+                      const rows: React.ReactNode[] = []
+
+                      filteredStats?.forEach((row) => {
+                        if (!row.entries || row.entries.length === 0) return
+
+                        row.entries.forEach((entry, i) => {
+                          entryIndex++
+                          const cashDiff = entry.cash - entry.systemCash
+                          const upiDiff = entry.upi - entry.systemUpi
+                          const cardDiff = entry.card - entry.systemCard
+
+                          const parts = entry.closingNumber.split('-')
+                          const displayNo = parts.length >= 4 ? `${parts[0]}-${parts[parts.length - 1]}` : entry.closingNumber
+
+                          rows.push(
+                            <tr key={`${row.branchName}-comp-entry-${i}`}>
+                              <td className="center-cell">{entryIndex}</td>
+                              <td>
+                                <div className="branch-title">{row.branchName.toUpperCase()}</div>
+                                <div className="branch-subtext">#{displayNo}</div>
+                              </td>
+                              <td className="center-cell">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setNotesPopupData({
+                                      title: `Notes - ${row.branchName} (#${displayNo})`,
+                                      entries: [{
+                                        id: entry.id,
+                                        closingNumber: entry.closingNumber,
+                                        notes: entry.notes || '',
+                                        createdAt: entry.createdAt,
+                                      }],
+                                    })
+                                  }}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: '4px',
+                                    color: entry.notes ? '#4caf50' : 'var(--theme-text-secondary)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    margin: '0 auto',
+                                  }}
+                                  title="Click to view/add notes"
+                                >
+                                  <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill={entry.notes ? 'currentColor' : 'none'}
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                  </svg>
+                                </button>
+                              </td>
+                              {/* Cash column block */}
+                              <td className="text-right" style={{ color: 'var(--theme-text-secondary)' }}>₹{formatValue(entry.systemCash)}</td>
+                              <td className="text-right">₹{formatValue(entry.cash)}</td>
+                              <td className="text-right" style={{ fontWeight: 'bold' }}>
+                                <span className={cashDiff === 0 ? 'text-muted' : cashDiff > 0 ? 'sales-diff-value positive' : 'sales-diff-value negative'}>
+                                  {cashDiff > 0 ? '↑' : cashDiff < 0 ? '↓' : ''} ₹{formatValue(Math.abs(cashDiff))}
+                                </span>
+                              </td>
+                              {/* UPI column block */}
+                              <td className="text-right" style={{ color: 'var(--theme-text-secondary)' }}>₹{formatValue(entry.systemUpi)}</td>
+                              <td className="text-right">₹{formatValue(entry.upi)}</td>
+                              <td className="text-right" style={{ fontWeight: 'bold' }}>
+                                <span className={upiDiff === 0 ? 'text-muted' : upiDiff > 0 ? 'sales-diff-value positive' : 'sales-diff-value negative'}>
+                                  {upiDiff > 0 ? '↑' : upiDiff < 0 ? '↓' : ''} ₹{formatValue(Math.abs(upiDiff))}
+                                </span>
+                              </td>
+                              {/* Card column block */}
+                              <td className="text-right" style={{ color: 'var(--theme-text-secondary)' }}>₹{formatValue(entry.systemCard)}</td>
+                              <td className="text-right">₹{formatValue(entry.card)}</td>
+                              <td className="text-right" style={{ fontWeight: 'bold' }}>
+                                <span className={cardDiff === 0 ? 'text-muted' : cardDiff > 0 ? 'sales-diff-value positive' : 'sales-diff-value negative'}>
+                                  {cardDiff > 0 ? '↑' : cardDiff < 0 ? '↓' : ''} ₹{formatValue(Math.abs(cardDiff))}
+                                </span>
+                              </td>
+                            </tr>
+                          )
+                        })
+                      })
+
+                      if (rows.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={12} className="center-cell" style={{ padding: '24px', opacity: 0.6, textAlign: 'center' }}>
+                              No detailed comparison data available.
+                            </td>
+                          </tr>
+                        )
+                      }
+                      return rows
+                    })()
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr className="grand-total">
+                    <td colSpan={2} className="text-left" style={{ fontWeight: 'bold' }}>TOTAL</td>
+                    <td></td>
+                    {/* Cash totals */}
+                    <td className="text-right">₹{formatValue(filteredTotals.systemCash)}</td>
+                    <td className="text-right">₹{formatValue(filteredTotals.cash)}</td>
+                    <td className="text-right" style={{ fontWeight: 'bold' }}>
+                      {(() => {
+                        const diff = filteredTotals.cash - filteredTotals.systemCash
+                        return (
+                          <span className={diff === 0 ? '' : diff > 0 ? 'sales-diff-value positive' : 'sales-diff-value negative'}>
+                            {diff > 0 ? '↑' : diff < 0 ? '↓' : ''} ₹{formatValue(Math.abs(diff))}
+                          </span>
+                        )
+                      })()}
+                    </td>
+                    {/* UPI totals */}
+                    <td className="text-right">₹{formatValue(filteredTotals.systemUpi)}</td>
+                    <td className="text-right">₹{formatValue(filteredTotals.upi)}</td>
+                    <td className="text-right" style={{ fontWeight: 'bold' }}>
+                      {(() => {
+                        const diff = filteredTotals.upi - filteredTotals.systemUpi
+                        return (
+                          <span className={diff === 0 ? '' : diff > 0 ? 'sales-diff-value positive' : 'sales-diff-value negative'}>
+                            {diff > 0 ? '↑' : diff < 0 ? '↓' : ''} ₹{formatValue(Math.abs(diff))}
+                          </span>
+                        )
+                      })()}
+                    </td>
+                    {/* Card totals */}
+                    <td className="text-right">₹{formatValue(filteredTotals.systemCard)}</td>
+                    <td className="text-right">₹{formatValue(filteredTotals.card)}</td>
+                    <td className="text-right" style={{ fontWeight: 'bold' }}>
+                      {(() => {
+                        const diff = filteredTotals.card - filteredTotals.systemCard
+                        return (
+                          <span className={diff === 0 ? '' : diff > 0 ? 'sales-diff-value positive' : 'sales-diff-value negative'}>
+                            {diff > 0 ? '↑' : diff < 0 ? '↓' : ''} ₹{formatValue(Math.abs(diff))}
+                          </span>
+                        )
+                      })()}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
         </>
       )}
       {expensePopupData && (
@@ -1718,6 +2180,157 @@ const ClosingEntryReport: React.FC = () => {
                   </tr>
                 </tfoot>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {notesPopupData && (
+        <div
+          className="modal-overlay"
+          onClick={() => setNotesPopupData(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 2000,
+          }}
+        >
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'var(--theme-elevation-100)',
+              padding: '24px',
+              borderRadius: '12px',
+              width: '90%',
+              maxWidth: '500px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+              color: 'var(--theme-text-primary, #fff)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '16px',
+                borderBottom: '1px solid var(--theme-elevation-200)',
+                paddingBottom: '12px',
+              }}
+            >
+              <h3 style={{ margin: 0 }}>{notesPopupData.title}</h3>
+              <button
+                onClick={() => setNotesPopupData(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'inherit',
+                  cursor: 'pointer',
+                  fontSize: '1.5rem',
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div
+              style={{
+                maxHeight: '60vh',
+                overflowY: 'auto',
+                paddingRight: '4px',
+              }}
+            >
+              {notesPopupData.entries.map((entry) => {
+                const parts = entry.closingNumber.split('-')
+                const displayNo = parts.length >= 4 ? `${parts[0]}-${parts[parts.length - 1]}` : entry.closingNumber
+                const dateStr = new Date(entry.createdAt).toLocaleDateString([], {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+
+                return (
+                  <div
+                    key={entry.id}
+                    style={{
+                      marginBottom: '20px',
+                      padding: '12px',
+                      background: 'var(--theme-elevation-50)',
+                      borderRadius: '8px',
+                      border: '1px solid var(--theme-elevation-200)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--theme-text-secondary)' }}>
+                      <span style={{ fontWeight: 600 }}>#{displayNo}</span>
+                      <span>{dateStr}</span>
+                    </div>
+                    <textarea
+                      defaultValue={entry.notes}
+                      placeholder="Write notes about this closing entry here..."
+                      style={{
+                        width: '100%',
+                        minHeight: '80px',
+                        padding: '10px',
+                        borderRadius: '6px',
+                        backgroundColor: 'var(--theme-elevation-0)',
+                        border: '1px solid var(--theme-elevation-250)',
+                        color: 'var(--theme-text-primary, #fff)',
+                        fontSize: '0.9rem',
+                        resize: 'vertical',
+                        outline: 'none',
+                      }}
+                      onBlur={(e) => {
+                        // Optimistically store updated text locally on blur so we can read it on save
+                        entry.notes = e.target.value
+                      }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                      <button
+                        onClick={() => handleSaveNote(entry.id, entry.notes)}
+                        disabled={savingNotesId === entry.id}
+                        style={{
+                          backgroundColor: '#2e7d32',
+                          color: '#fff',
+                          border: 'none',
+                          padding: '6px 12px',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '0.85rem',
+                          fontWeight: 500,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        {savingNotesId === entry.id ? 'Saving...' : 'Save Note'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px', borderTop: '1px solid var(--theme-elevation-200)', paddingTop: '12px' }}>
+              <button
+                onClick={() => setNotesPopupData(null)}
+                style={{
+                  backgroundColor: 'transparent',
+                  border: '1px solid var(--theme-elevation-300)',
+                  color: 'var(--theme-text-secondary)',
+                  padding: '8px 16px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                }}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

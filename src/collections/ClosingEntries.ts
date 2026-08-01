@@ -114,6 +114,13 @@ const ClosingEntries: CollectionConfig = {
       relationTo: 'branches',
       required: true,
     },
+    {
+      name: 'notes',
+      type: 'textarea',
+      admin: {
+        description: 'Notes from the accounts team about this closing',
+      },
+    },
   ],
 
   hooks: {

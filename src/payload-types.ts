@@ -87,6 +87,7 @@ export interface Config {
     'return-orders': ReturnOrder;
     'closing-entries': ClosingEntry;
     expenses: Expense;
+    cakes: Cake;
     'stock-orders': StockOrder;
     'dealer-billings': DealerBilling;
     'raw-material-billings': RawMaterialBilling;
@@ -127,6 +128,7 @@ export interface Config {
     'return-orders': ReturnOrdersSelect<false> | ReturnOrdersSelect<true>;
     'closing-entries': ClosingEntriesSelect<false> | ClosingEntriesSelect<true>;
     expenses: ExpensesSelect<false> | ExpensesSelect<true>;
+    cakes: CakesSelect<false> | CakesSelect<true>;
     'stock-orders': StockOrdersSelect<false> | StockOrdersSelect<true>;
     'dealer-billings': DealerBillingsSelect<false> | DealerBillingsSelect<true>;
     'raw-material-billings': RawMaterialBillingsSelect<false> | RawMaterialBillingsSelect<true>;
@@ -1077,6 +1079,10 @@ export interface ClosingEntry {
   totalPayments?: number | null;
   net?: number | null;
   branch: string | Branch;
+  /**
+   * Notes from the accounts team about this closing
+   */
+  notes?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1110,6 +1116,26 @@ export interface Expense {
   }[];
   total: number;
   date: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cakes".
+ */
+export interface Cake {
+  id: string;
+  kotNumber: string;
+  cakePrice: number;
+  paymentMethod: 'cash' | 'card' | 'upi' | 'cashfree' | 'other';
+  paymentType: 'advance' | 'full';
+  paymentAmount: number;
+  pendingAmount?: number | null;
+  deliveryDate: string;
+  kotPhoto: string | Media;
+  cakePhoto: string | Media;
+  status: 'paid' | 'pending';
+  branch: string | Branch;
   updatedAt: string;
   createdAt: string;
 }
@@ -1930,6 +1956,10 @@ export interface PayloadLockedDocument {
         value: string | Expense;
       } | null)
     | ({
+        relationTo: 'cakes';
+        value: string | Cake;
+      } | null)
+    | ({
         relationTo: 'stock-orders';
         value: string | StockOrder;
       } | null)
@@ -2619,6 +2649,7 @@ export interface ClosingEntriesSelect<T extends boolean = true> {
   totalPayments?: T;
   net?: T;
   branch?: T;
+  notes?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2640,6 +2671,25 @@ export interface ExpensesSelect<T extends boolean = true> {
       };
   total?: T;
   date?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cakes_select".
+ */
+export interface CakesSelect<T extends boolean = true> {
+  kotNumber?: T;
+  cakePrice?: T;
+  paymentMethod?: T;
+  paymentType?: T;
+  paymentAmount?: T;
+  pendingAmount?: T;
+  deliveryDate?: T;
+  kotPhoto?: T;
+  cakePhoto?: T;
+  status?: T;
+  branch?: T;
   updatedAt?: T;
   createdAt?: T;
 }

@@ -20,6 +20,8 @@ export type ClosingEntryDenominations = {
 }
 
 export type ClosingEntryDetail = {
+  id: string
+  notes: string
   card: number
   cash: number
   closingNumber: string
@@ -33,6 +35,9 @@ export type ClosingEntryDetail = {
   totalBills: number
   totalSales: number
   upi: number
+  systemCash: number
+  systemUpi: number
+  systemCard: number
 }
 
 export type ClosingEntryStat = {
@@ -63,6 +68,9 @@ export type ClosingEntryStat = {
   totalEntries: number
   totalSales: number
   upi: number
+  systemCash: number
+  systemUpi: number
+  systemCard: number
 }
 
 export type ClosingEntryTotals = {
@@ -79,6 +87,9 @@ export type ClosingEntryTotals = {
   totalEntries: number
   totalSales: number
   upi: number
+  systemCash: number
+  systemUpi: number
+  systemCard: number
 }
 
 export type ClosingEntryReportResult = {
@@ -108,6 +119,8 @@ type RawExpenseDoc = {
 }
 
 type RawClosingEntryItem = {
+  id?: unknown
+  notes?: unknown
   card?: unknown
   cash?: unknown
   closingNumber?: unknown
@@ -272,6 +285,7 @@ const toExpenseDetailsFromExpenseDoc = (expense: RawExpenseDoc): ClosingEntryExp
 
 const normalizeEntry = (entry: RawClosingEntryItem): ClosingEntryDetail => {
   return {
+    id: toNonEmptyString(entry.id),
     closingNumber: toNonEmptyString(entry.closingNumber, 'Unknown'),
     createdAt: toDateString(entry.createdAt),
     systemSales: toNumber(entry.systemSales),
@@ -285,6 +299,10 @@ const normalizeEntry = (entry: RawClosingEntryItem): ClosingEntryDetail => {
     card: toNumber(entry.card),
     denominations: toDenominations(entry.denominations),
     expenseDetails: [],
+    systemCash: 0,
+    systemUpi: 0,
+    systemCard: 0,
+    notes: toNonEmptyString(entry.notes),
   }
 }
 
@@ -345,6 +363,7 @@ export const getClosingEntryReportData = async (
         lastUpdated: { $max: '$createdAt' },
         entries: {
           $push: {
+            id: '$_id',
             closingNumber: '$closingNumber',
             createdAt: '$createdAt',
             systemSales: '$systemSales',
@@ -357,6 +376,7 @@ export const getClosingEntryReportData = async (
             upi: '$upi',
             card: '$creditCard',
             denominations: '$denominations',
+            notes: '$notes',
           },
         },
         systemSales: { $sum: '$systemSales' },
@@ -461,39 +481,6 @@ export const getClosingEntryReportData = async (
     }
   })
 
-  const totals: ClosingEntryTotals = normalizedStatsBase.reduce(
-    (acc, curr) => ({
-      totalEntries: acc.totalEntries + curr.totalEntries,
-      systemSales: acc.systemSales + curr.systemSales,
-      totalBills: acc.totalBills + curr.totalBills,
-      manualSales: acc.manualSales + curr.manualSales,
-      onlineSales: acc.onlineSales + curr.onlineSales,
-      totalSales: acc.totalSales + curr.totalSales,
-      expenses: acc.expenses + curr.expenses,
-      returnTotal: acc.returnTotal + curr.returnTotal,
-      stockOrders: acc.stockOrders + curr.stockOrders,
-      net: acc.net + curr.net,
-      cash: acc.cash + curr.cash,
-      upi: acc.upi + curr.upi,
-      card: acc.card + curr.card,
-    }),
-    {
-      totalEntries: 0,
-      systemSales: 0,
-      totalBills: 0,
-      manualSales: 0,
-      onlineSales: 0,
-      totalSales: 0,
-      expenses: 0,
-      returnTotal: 0,
-      stockOrders: 0,
-      net: 0,
-      cash: 0,
-      upi: 0,
-      card: 0,
-    },
-  )
-
   const expensesRes = await payload.find({
     collection: 'expenses',
     where: {
@@ -518,6 +505,31 @@ export const getClosingEntryReportData = async (
 
   const allExpenses = (Array.isArray(expensesRes.docs) ? expensesRes.docs : []) as RawExpenseDoc[]
 
+  const billingsRes = await payload.find({
+    collection: 'billings',
+    where: {
+      and: [
+        { createdAt: { greater_than_equal: startOfDay.toISOString() } },
+        { createdAt: { less_than_equal: endOfDay.toISOString() } },
+        { status: { in: ['completed', 'settled'] } },
+        ...(branchIds
+          ? [
+              {
+                branch: {
+                  in: branchIds,
+                },
+              },
+            ]
+          : []),
+      ],
+    },
+    limit: 10000,
+    pagination: false,
+    depth: 0,
+  })
+
+  const allBillings = billingsRes.docs || []
+
   const stats: ClosingEntryStat[] = normalizedStatsBase.map((item, index) => {
     const branchId = item._id
     if (!branchId) {
@@ -526,6 +538,9 @@ export const getClosingEntryReportData = async (
         _id: '',
         sNo: index + 1,
         expenseDetails: [],
+        systemCash: 0,
+        systemUpi: 0,
+        systemCard: 0,
       }
     }
 
@@ -538,7 +553,12 @@ export const getClosingEntryReportData = async (
       return expenseBranchId === branchId
     })
 
-    const entriesWithExpenses = sortedEntries.map((entry, entryIndex) => {
+    const branchBillings = allBillings.filter((billing) => {
+      const billingBranchId = toExpenseBranchId(billing.branch)
+      return billingBranchId === branchId
+    })
+
+    const entriesWithMetrics = sortedEntries.map((entry, entryIndex) => {
       const entryTime = new Date(entry.createdAt).getTime()
       const prevTime =
         entryIndex === 0
@@ -550,22 +570,92 @@ export const getClosingEntryReportData = async (
         return expenseTime > prevTime && expenseTime <= entryTime
       })
 
+      const prevIso = new Date(prevTime).toISOString()
+      const entryIso = new Date(entry.createdAt).toISOString()
+
+      const relevantBillings = branchBillings.filter((billing) => {
+        const billCreatedIso = new Date(billing.createdAt).toISOString()
+        const billUpdatedIso = billing.updatedAt ? new Date(billing.updatedAt).toISOString() : billCreatedIso
+        return (billCreatedIso > prevIso || billUpdatedIso > prevIso) && (billCreatedIso <= entryIso)
+      })
+
+      let systemCash = 0
+      let systemUpi = 0
+      let systemCard = 0
+
+      relevantBillings.forEach((bill) => {
+        const amount = toNumber(bill.totalAmount)
+        const pm = toNonEmptyString(bill.paymentMethod).toLowerCase()
+        if (pm === 'cash') systemCash += amount
+        else if (pm === 'upi') systemUpi += amount
+        else if (pm === 'card') systemCard += amount
+      })
+
       return {
         ...entry,
+        systemCash,
+        systemUpi,
+        systemCard,
         expenseDetails: relevantExpenses.flatMap(toExpenseDetailsFromExpenseDoc),
       }
     })
 
     const branchExpenseDetails = branchExpenses.flatMap(toExpenseDetailsFromExpenseDoc)
 
+    const totalSystemCash = entriesWithMetrics.reduce((sum, entry) => sum + entry.systemCash, 0)
+    const totalSystemUpi = entriesWithMetrics.reduce((sum, entry) => sum + entry.systemUpi, 0)
+    const totalSystemCard = entriesWithMetrics.reduce((sum, entry) => sum + entry.systemCard, 0)
+
     return {
       ...item,
       _id: branchId === EMPTY_OBJECT_ID ? '' : branchId,
       sNo: index + 1,
-      entries: entriesWithExpenses,
+      entries: entriesWithMetrics,
       expenseDetails: branchExpenseDetails,
+      systemCash: totalSystemCash,
+      systemUpi: totalSystemUpi,
+      systemCard: totalSystemCard,
     }
   })
+
+  const totals: ClosingEntryTotals = stats.reduce(
+    (acc, curr) => ({
+      totalEntries: acc.totalEntries + curr.totalEntries,
+      systemSales: acc.systemSales + curr.systemSales,
+      totalBills: acc.totalBills + curr.totalBills,
+      manualSales: acc.manualSales + curr.manualSales,
+      onlineSales: acc.onlineSales + curr.onlineSales,
+      totalSales: acc.totalSales + curr.totalSales,
+      expenses: acc.expenses + curr.expenses,
+      returnTotal: acc.returnTotal + curr.returnTotal,
+      stockOrders: acc.stockOrders + curr.stockOrders,
+      net: acc.net + curr.net,
+      cash: acc.cash + curr.cash,
+      upi: acc.upi + curr.upi,
+      card: acc.card + curr.card,
+      systemCash: acc.systemCash + curr.systemCash,
+      systemUpi: acc.systemUpi + curr.systemUpi,
+      systemCard: acc.systemCard + curr.systemCard,
+    }),
+    {
+      totalEntries: 0,
+      systemSales: 0,
+      totalBills: 0,
+      manualSales: 0,
+      onlineSales: 0,
+      totalSales: 0,
+      expenses: 0,
+      returnTotal: 0,
+      stockOrders: 0,
+      net: 0,
+      cash: 0,
+      upi: 0,
+      card: 0,
+      systemCash: 0,
+      systemUpi: 0,
+      systemCard: 0,
+    },
+  )
 
   return {
     startDate: startDateParam,

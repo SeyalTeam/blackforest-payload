@@ -67,6 +67,7 @@ import { getReviewReportHandler } from './endpoints/getReviewReport'
 import { ReviewReportGlobal } from './globals/ReviewReport'
 import { resetInventoryHandler } from './endpoints/resetInventory'
 import Reviews from './collections/Reviews'
+import Cakes from './collections/Cakes'
 import Customers from './collections/Customers'
 import BillingCustomers from './collections/BillingCustomers'
 import InstockEntries from './collections/InstockEntries'
@@ -893,6 +894,7 @@ export default buildConfig({
     ReturnOrder,
     ClosingEntries,
     Expenses,
+    Cakes,
     StockOrders,
     DealerBillings,
     RawMaterialBillings,

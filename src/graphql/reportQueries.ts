@@ -351,6 +351,7 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
   const ClosingEntryReportEntryType = new graphQL.GraphQLObjectType({
     name: 'ClosingEntryReportEntry',
     fields: {
+      id: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       closingNumber: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       createdAt: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       systemSales: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
@@ -362,6 +363,10 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       cash: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       upi: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       card: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      systemCash: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      systemUpi: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      systemCard: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      notes: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       denominations: { type: new graphQL.GraphQLNonNull(ClosingEntryReportDenominationsType) },
       expenseDetails: {
         type: new graphQL.GraphQLNonNull(
@@ -406,6 +411,9 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       cash: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       upi: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       card: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      systemCash: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      systemUpi: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      systemCard: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       count2000: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
       count500: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
       count200: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
@@ -432,6 +440,9 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       cash: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       upi: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       card: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      systemCash: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      systemUpi: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      systemCard: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
     },
   })
 
