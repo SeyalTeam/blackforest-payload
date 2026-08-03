@@ -9,6 +9,7 @@ import {
   XCircle,
   HelpCircle,
   Calendar,
+  Check,
 } from 'lucide-react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -178,6 +179,7 @@ const AccountsBillsReport: React.FC = () => {
   const [bills, setBills] = useState<BillRow[]>([])
   const [loading, setLoading] = useState(false)
   const [updatingIds, setUpdatingIds] = useState<Record<string, boolean>>({})
+  const [editedTxnIds, setEditedTxnIds] = useState<Record<string, string>>({})
   const [error, setError] = useState('')
   const [previewBillId, setPreviewBillId] = useState<string | null>(null)
   const [isMounted, setIsMounted] = useState(false)
@@ -423,6 +425,36 @@ const AccountsBillsReport: React.FC = () => {
     }
   }
 
+  const handleTxnIdUpdate = async (billId: string, newTxnId: string) => {
+    setUpdatingIds((prev) => ({ ...prev, [billId]: true }))
+    setError('')
+
+    try {
+      const response = await fetch('/api/reports/accounts-bills/update-transaction-id', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ billId, upiBankTransactionId: newTxnId }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.message || 'Failed to update transaction ID')
+      }
+
+      // Update state locally
+      setBills((prevBills) =>
+        prevBills.map((bill) =>
+          bill.id === billId ? { ...bill, upiBankTransactionId: newTxnId } : bill
+        )
+      )
+    } catch (err) {
+      console.error(err)
+      setError(err instanceof Error ? err.message : 'Error updating transaction ID')
+    } finally {
+      setUpdatingIds((prev) => ({ ...prev, [billId]: false }))
+    }
+  }
+
   const handleExportCSV = () => {
     if (bills.length === 0) return
 
@@ -614,10 +646,10 @@ const AccountsBillsReport: React.FC = () => {
             <thead>
               <tr>
                 <th style={{ width: '60px' }}>S.No</th>
-                <th>Bill Number</th>
-                <th>Waiter</th>
+                <th style={{ width: '130px' }}>Bill Number</th>
+                <th style={{ width: '110px' }}>Waiter</th>
                 <th style={{ width: '90px', textAlign: 'center' }}>Payment</th>
-                <th>UPI Bank Txn ID</th>
+                <th style={{ width: '160px', textAlign: 'center' }}>UPI Bank Txn ID</th>
                 <th style={{ width: '70px' }}>Items</th>
                 <th style={{ width: '95px' }}>Amount</th>
                 <th style={{ width: '100px' }}>CLO-Entry</th>
@@ -661,7 +693,40 @@ const AccountsBillsReport: React.FC = () => {
                           {bill.paymentMethod.toUpperCase()}
                         </span>
                       </td>
-                      <td>{bill.paymentMethod === 'upi' ? bill.upiBankTransactionId || '-' : '-'}</td>
+                      <td>
+                        {bill.paymentMethod === 'upi' ? (
+                          bill.upiBankTransactionId ? (
+                            <span className="bold-text">{bill.upiBankTransactionId}</span>
+                          ) : (
+                            <div className="txn-id-container">
+                              <input
+                                type="text"
+                                className="txn-id-input"
+                                value={editedTxnIds[bill.id] !== undefined ? editedTxnIds[bill.id] : (bill.upiBankTransactionId || '')}
+                                onChange={(e) => {
+                                  const val = e.target.value
+                                  setEditedTxnIds((prev) => ({ ...prev, [bill.id]: val }))
+                                }}
+                                placeholder="Enter Txn ID"
+                                disabled={isUpdating}
+                              />
+                              {(editedTxnIds[bill.id] !== undefined && editedTxnIds[bill.id] !== (bill.upiBankTransactionId || '')) && (
+                                <button
+                                  type="button"
+                                  className="txn-id-save-btn"
+                                  onClick={() => handleTxnIdUpdate(bill.id, editedTxnIds[bill.id])}
+                                  disabled={isUpdating}
+                                  title="Save Transaction ID"
+                                >
+                                  <Check size={16} />
+                                </button>
+                              )}
+                            </div>
+                          )
+                        ) : (
+                          <span className="text-muted">-</span>
+                        )}
+                      </td>
                       <td>{bill.itemsCount}</td>
                       <td className="bold-text amount-cell">{formatCurrency(bill.totalAmount)}</td>
                       <td>

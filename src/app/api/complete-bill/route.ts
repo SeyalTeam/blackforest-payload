@@ -40,11 +40,13 @@ export async function POST(request: NextRequest) {
       billId?: string;
       paymentMethod?: string;
       branchId?: string;
+      upiBankTransactionId?: string;
     };
 
     const billId = toTrimmedText(body.billId);
     const paymentMethod = normalizePaymentMethod(body.paymentMethod);
     const branchId = toTrimmedText(body.branchId);
+    const upiBankTransactionId = toTrimmedText(body.upiBankTransactionId);
 
     if (!billId) {
       return Response.json({ message: "Bill id is required" }, { status: 400 });
@@ -73,6 +75,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         status: "completed",
         paymentMethod,
+        upiBankTransactionId: paymentMethod === "upi" ? upiBankTransactionId : undefined,
       }),
       cache: "no-store",
     });

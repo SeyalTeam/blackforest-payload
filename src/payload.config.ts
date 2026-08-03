@@ -49,6 +49,7 @@ import { getBranchBillingReportHandler } from './endpoints/getBranchBillingRepor
 import { getTallyExportHandler } from './endpoints/getTallyExport'
 import { getAccountsBillsReportHandler } from './endpoints/getAccountsBillsReport'
 import { updateBillVerificationStatusHandler } from './endpoints/updateBillVerificationStatus'
+import { updateBillTransactionIdHandler } from './endpoints/updateBillTransactionId'
 import { getCategoryWiseReportHandler } from './endpoints/getCategoryWiseReport'
 import { getCategoryWiseReportPDFHandler } from './endpoints/getCategoryWiseReportPDF'
 import { getProductWiseReportHandler } from './endpoints/getProductWiseReport'
@@ -645,6 +646,11 @@ export default buildConfig({
       path: '/reports/accounts-bills/update-verification',
       method: 'post',
       handler: updateBillVerificationStatusHandler,
+    },
+    {
+      path: '/reports/accounts-bills/update-transaction-id',
+      method: 'post',
+      handler: updateBillTransactionIdHandler,
     },
     {
       path: '/reports/other-products-inventory',

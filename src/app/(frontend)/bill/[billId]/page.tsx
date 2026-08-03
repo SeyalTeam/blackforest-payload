@@ -42,6 +42,7 @@ export default function BillSummaryPage() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("cash");
   const [billError, setBillError] = useState("");
   const [isSubmittingBill, setIsSubmittingBill] = useState(false);
+  const [upiBankTransactionId, setUpiBankTransactionId] = useState("");
 
   const applyBillSummary = useCallback((summary: BillSummaryData, cacheKey: string) => {
     setPageData(summary);
@@ -233,6 +234,11 @@ export default function BillSummaryPage() {
       return;
     }
 
+    if (selectedPaymentMethod === "upi" && !upiBankTransactionId.trim()) {
+      setBillError("Please enter the UPI Transaction ID / UTR.");
+      return;
+    }
+
     setIsSubmittingBill(true);
     setBillError("");
 
@@ -246,6 +252,7 @@ export default function BillSummaryPage() {
           billId: pageData.billId,
           paymentMethod: selectedPaymentMethod,
           branchId,
+          upiBankTransactionId,
         }),
       });
 
@@ -397,6 +404,22 @@ export default function BillSummaryPage() {
               );
             })}
           </div>
+
+          {selectedPaymentMethod === "upi" && (
+            <div className={styles.transactionInputRow}>
+              <input
+                type="text"
+                placeholder="Enter UPI Transaction ID / UTR"
+                value={upiBankTransactionId}
+                onChange={(e) => {
+                  setUpiBankTransactionId(e.target.value);
+                  setBillError("");
+                }}
+                className={styles.transactionInput}
+                disabled={isSubmittingBill}
+              />
+            </div>
+          )}
 
           <button
             type="button"
