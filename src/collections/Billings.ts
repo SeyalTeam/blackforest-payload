@@ -4539,6 +4539,14 @@ const Billings: CollectionConfig = {
       ],
     },
     {
+      name: 'upiBankTransactionId',
+      label: 'UPI Bank Transaction ID',
+      type: 'text',
+      admin: {
+        description: 'UPI Bank Transaction ID or UTR',
+      },
+    },
+    {
       name: 'company',
       type: 'relationship',
       relationTo: 'companies',

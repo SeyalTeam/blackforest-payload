@@ -234,6 +234,7 @@ export const getAccountsBillsReportHandler: PayloadHandler = async (
         invoiceNumber: bill.invoiceNumber,
         totalAmount: bill.totalAmount,
         paymentMethod: bill.paymentMethod || 'other',
+        upiBankTransactionId: bill.upiBankTransactionId || '',
         itemsCount,
         waiterName,
         branchName,

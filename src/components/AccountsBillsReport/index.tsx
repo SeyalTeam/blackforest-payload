@@ -29,6 +29,7 @@ type BillRow = {
   invoiceNumber: string
   totalAmount: number
   paymentMethod: string
+  upiBankTransactionId?: string
   itemsCount: number
   waiterName: string
   branchName: string
@@ -433,6 +434,7 @@ const AccountsBillsReport: React.FC = () => {
       'Amount',
       'Closing Entry',
       'Payment Method',
+      'UPI Bank Transaction ID',
       'Items Count',
       'Waiter Name',
       'Branch Name',
@@ -449,6 +451,7 @@ const AccountsBillsReport: React.FC = () => {
           row.totalAmount,
           `"${row.closingNumber || '-'}"`,
           `"${row.paymentMethod.toUpperCase()}"`,
+          `"${row.paymentMethod === 'upi' ? row.upiBankTransactionId || '-' : '-'}"`,
           row.itemsCount,
           `"${row.waiterName}"`,
           `"${row.branchName}"`,
@@ -614,6 +617,7 @@ const AccountsBillsReport: React.FC = () => {
                 <th>Bill Number</th>
                 <th>Waiter</th>
                 <th style={{ width: '90px', textAlign: 'center' }}>Payment</th>
+                <th>UPI Bank Txn ID</th>
                 <th style={{ width: '70px' }}>Items</th>
                 <th style={{ width: '95px' }}>Amount</th>
                 <th style={{ width: '100px' }}>CLO-Entry</th>
@@ -623,14 +627,14 @@ const AccountsBillsReport: React.FC = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="td-loading">
+                  <td colSpan={9} className="td-loading">
                     <RefreshCw size={24} className="animate-spin text-muted" />
                     <p style={{ marginTop: '10px' }}>Fetching bills...</p>
                   </td>
                 </tr>
               ) : bills.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="td-empty">
+                  <td colSpan={9} className="td-empty">
                     No billing documents found for the selected filters.
                   </td>
                 </tr>
@@ -642,7 +646,7 @@ const AccountsBillsReport: React.FC = () => {
                       <td>{index + 1}</td>
                       <td className="bold-text">
                         <button
-                          type="button"
+                           type="button"
                           className="invoice-link-btn"
                           onClick={() => setPreviewBillId(bill.id)}
                           title="Click to view bill details"
@@ -657,6 +661,7 @@ const AccountsBillsReport: React.FC = () => {
                           {bill.paymentMethod.toUpperCase()}
                         </span>
                       </td>
+                      <td>{bill.paymentMethod === 'upi' ? bill.upiBankTransactionId || '-' : '-'}</td>
                       <td>{bill.itemsCount}</td>
                       <td className="bold-text amount-cell">{formatCurrency(bill.totalAmount)}</td>
                       <td>
@@ -709,6 +714,7 @@ const AccountsBillsReport: React.FC = () => {
                   <td colSpan={3} style={{ textAlign: 'right', fontWeight: 700 }}>
                     Total ({bills.length} {bills.length === 1 ? 'Bill' : 'Bills'}):
                   </td>
+                  <td></td>
                   <td></td>
                   <td className="bold-text" style={{ fontWeight: 700 }}>{totalItems}</td>
                   <td className="bold-text amount-cell" style={{ fontWeight: 700 }}>{formatCurrency(totalAmount)}</td>

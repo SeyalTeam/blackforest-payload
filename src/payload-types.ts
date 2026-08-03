@@ -987,6 +987,10 @@ export interface Billing {
    * Apply configured offer if customer has required points. Offer can be used only once before earning again.
    */
   applyCustomerOffer?: boolean | null;
+  /**
+   * UPI Bank Transaction ID or UTR
+   */
+  upiBankTransactionId?: string | null;
   company: string | Company;
   customerDetails?: {
     name?: string | null;
@@ -2567,6 +2571,7 @@ export interface BillingsSelect<T extends boolean = true> {
   createdBy?: T;
   paymentMethod?: T;
   applyCustomerOffer?: T;
+  upiBankTransactionId?: T;
   company?: T;
   customerDetails?:
     | T
