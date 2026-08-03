@@ -10,6 +10,8 @@ dayjs.extend(timezone)
 dayjs.tz.setDefault('Asia/Kolkata')
 
 export type ReturnOrderReportItem = {
+  id: string
+  itemId?: string
   returnNumber: string
   status: string
   product: string
@@ -59,6 +61,8 @@ type ReturnOrderReportArgs = {
 }
 
 type RawReturnOrderItem = {
+  id: unknown
+  itemId: unknown
   returnNumber: unknown
   status: unknown
   product: unknown
@@ -246,13 +250,15 @@ export const getReturnOrderReportData = async (
         orders: { $addToSet: '$returnNumber' },
         items: {
           $push: {
+            id: { $toString: '$_id' },
+            itemId: { $toString: '$items._id' },
             returnNumber: '$returnNumber',
             status: '$status',
             product: '$items.name',
             quantity: { $ifNull: ['$items.quantity', 0] },
             unitPrice: { $ifNull: ['$items.unitPrice', 0] },
             subtotal: { $ifNull: ['$items.subtotal', 0] },
-            notes: '$notes',
+            notes: { $ifNull: ['$items.notes', '$notes'] },
             time: '$createdAt',
             imageUrl: '$mediaInfo.url',
             filename: '$mediaInfo.filename',
@@ -285,6 +291,8 @@ export const getReturnOrderReportData = async (
         const imageUrl = toNonEmptyString(item.imageUrl)
 
         return {
+          id: toNonEmptyString(item.id),
+          itemId: toNonEmptyString(item.itemId),
           returnNumber: toNonEmptyString(item.returnNumber),
           status: toNonEmptyString(item.status, 'pending'),
           product: toNonEmptyString(item.product),

@@ -940,6 +940,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
   const ReturnOrderReportItemType = new graphQL.GraphQLObjectType({
     name: 'ReturnOrderReportItem',
     fields: {
+      id: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+      itemId: { type: graphQL.GraphQLString },
       returnNumber: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       status: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       product: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },

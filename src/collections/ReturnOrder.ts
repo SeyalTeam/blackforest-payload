@@ -238,6 +238,10 @@ const ReturnOrders: CollectionConfig = {
           relationTo: 'media',
           // required: true, // Uncomment if mandatory for all; else use hook for conditional
         },
+        {
+          name: 'notes',
+          type: 'textarea',
+        },
       ],
     },
     {
