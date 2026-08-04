@@ -104,6 +104,27 @@ function toNumber(value: unknown) {
   return 0;
 }
 
+async function safeJsonFetch<T = Record<string, unknown>>(
+  url: string,
+  options?: RequestInit,
+): Promise<{ ok: boolean; status: number; payload: T | null }> {
+  try {
+    const response = await fetch(url, options);
+    const text = await response.text();
+    let payload: T | null = null;
+    if (text) {
+      try {
+        payload = JSON.parse(text) as T;
+      } catch {
+        payload = null;
+      }
+    }
+    return { ok: response.ok, status: response.status, payload };
+  } catch {
+    return { ok: false, status: 0, payload: null };
+  }
+}
+
 function normalizeLookupBill(raw: unknown) {
   const bill = toMap(raw);
   if (!bill) {
@@ -874,19 +895,22 @@ export default function KotPage() {
         return null;
       }
 
-      const response = await fetch(
-        `/api/billing/customer-lookup?branchId=${encodeURIComponent(
-          branchId,
-        )}&phoneNumber=${encodeURIComponent(normalizedPhone)}&limit=${limit}`,
-        { cache: "no-store" },
-      );
+      const url = `/api/billing/customer-lookup?branchId=${encodeURIComponent(
+        branchId,
+      )}&phoneNumber=${encodeURIComponent(normalizedPhone)}&limit=${limit}`;
 
-      const payload = (await response.json()) as Record<string, unknown> & { message?: string };
-      if (!response.ok) {
-        throw new Error(payload.message || "Unable to fetch customer details");
+      let res = await safeJsonFetch<Record<string, unknown> & { message?: string }>(url, { cache: "no-store" });
+      if (!res.ok) {
+        await new Promise((r) => setTimeout(r, 400));
+        res = await safeJsonFetch<Record<string, unknown> & { message?: string }>(url, { cache: "no-store" });
       }
 
-      return normalizeCustomerLookupPayload(payload, normalizedPhone, limit);
+      if (!res.ok || !res.payload) {
+        const errMsg = res.payload && typeof res.payload.message === "string" ? res.payload.message : "";
+        throw new Error(errMsg || "Unable to fetch customer details");
+      }
+
+      return normalizeCustomerLookupPayload(res.payload, normalizedPhone, limit);
     },
     [branchId],
   );
@@ -907,17 +931,19 @@ export default function KotPage() {
     query.set("where[or][0][phoneNumber][equals]", phone10);
     query.set("where[or][1][phoneNumber][equals]", phoneWithPrefix);
 
-    const response = await fetch(
-      `/api/billing-customers?${query.toString()}`,
-      { cache: "no-store" },
-    );
-
-    const payload = (await response.json()) as Record<string, unknown> & { message?: string };
-    if (!response.ok) {
-      throw new Error(payload.message || "Unable to fetch customer details");
+    const url = `/api/billing-customers?${query.toString()}`;
+    let res = await safeJsonFetch<Record<string, unknown> & { message?: string }>(url, { cache: "no-store" });
+    if (!res.ok) {
+      await new Promise((r) => setTimeout(r, 400));
+      res = await safeJsonFetch<Record<string, unknown> & { message?: string }>(url, { cache: "no-store" });
     }
 
-    return normalizeCustomerLookupLitePayload(payload, phone10);
+    if (!res.ok || !res.payload) {
+      const errMsg = res.payload && typeof res.payload.message === "string" ? res.payload.message : "";
+      throw new Error(errMsg || "Unable to fetch customer details");
+    }
+
+    return normalizeCustomerLookupLitePayload(res.payload, phone10);
   }, [branchId]);
 
   const openCustomerModal = () => {
@@ -1188,8 +1214,15 @@ export default function KotPage() {
           if (isDisposed || normalizePhone(customerPhoneDraft) !== normalizedPhone) {
             return;
           }
+          const rawMsg = error instanceof Error ? error.message : "";
+          const isRawSyntaxError =
+            rawMsg.includes("Unexpected token") ||
+            rawMsg.includes("is not valid JSON") ||
+            rawMsg.includes("<!DOCTYPE");
           setCustomerLookupError(
-            error instanceof Error ? error.message : "Unable to fetch customer details",
+            isRawSyntaxError
+              ? "Unable to fetch customer details. Please try again."
+              : rawMsg || "Unable to fetch customer details",
           );
         } finally {
           if (!isDisposed && normalizePhone(customerPhoneDraft) === normalizedPhone) {
