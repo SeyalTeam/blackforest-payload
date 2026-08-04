@@ -83,46 +83,6 @@
   gap: 14px;
 }
 
-.sharedTableBannerRow {
-  width: 100%;
-}
-
-.sharedTableNoticeCard {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 16px;
-  border-radius: 18px;
-  background: #fdf6ec;
-  border: 1px solid #f5d6b3;
-  color: #8a4b08;
-  font-size: 0.88rem;
-  box-shadow: 0 4px 10px rgba(138, 75, 8, 0.05);
-}
-
-.sharedTableNoticeText {
-  flex: 1 1 auto;
-  line-height: 1.35;
-}
-
-.sharedTableNoticeButton {
-  flex-shrink: 0;
-  padding: 8px 14px;
-  border-radius: 14px;
-  border: none;
-  background: #e07a10;
-  color: #ffffff;
-  font-weight: 700;
-  font-size: 0.82rem;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.sharedTableNoticeButton:hover {
-  background: #c96a0b;
-}
-
 .chip {
   min-width: 0;
   flex: 1 1 0;

@@ -407,7 +407,6 @@ export default function KotPage() {
   const [isQrTableLocked, setIsQrTableLocked] = useState(false);
   const [preferredSection, setPreferredSection] = useState("");
   const [previousBillData, setPreviousBillData] = useState<BillSummaryData | null>(null);
-  const [isSeparateSharedOrder, setIsSeparateSharedOrder] = useState(false);
   const [customerConfig, setCustomerConfig] =
     useState<CustomerDetailsConfig>(defaultCustomerConfig);
   const [customerName, setCustomerName] = useState("");
@@ -560,19 +559,14 @@ export default function KotPage() {
         if (billIdToUse) {
           queryParams.set("billId", billIdToUse);
           queryParams.set("branchId", branchId);
-        } else {
+        } else if (customerPhone.trim() || currentActiveBill?.customerPhone) {
           queryParams.set("branchId", branchId);
-          const currentTable = sharedTableNumber.trim() || (activeBillTableMatches ? currentActiveBill?.tableNumber : "") || "";
-          if (currentTable) {
-            queryParams.set("tableNumber", currentTable);
+          queryParams.set("customerPhone", customerPhone.trim() || currentActiveBill?.customerPhone || "");
+        } else {
+          if (!cached && !isDisposed) {
+            setPreviousBillData(null);
           }
-          const currentSection = preferredSection.trim() || (activeBillSectionMatches ? currentActiveBill?.section : "") || "";
-          if (currentSection) {
-            queryParams.set("section", currentSection);
-          }
-          if (customerPhone.trim() || currentActiveBill?.customerPhone) {
-            queryParams.set("customerPhone", customerPhone.trim() || currentActiveBill?.customerPhone || "");
-          }
+          return;
         }
 
         if (!queryParams.has("billId") && !queryParams.has("tableNumber") && !queryParams.has("customerPhone")) {
@@ -737,7 +731,7 @@ export default function KotPage() {
   );
 
   const matchingPreviousBill =
-    previousBillData && isTableMatch && !isSeparateSharedOrder ? previousBillData : null;
+    previousBillData && isTableMatch ? previousBillData : null;
   const hasCurrentItems = cartItems.length > 0;
   const hasPreviousItems = Boolean(matchingPreviousBill?.items.length);
   const showBillFooter = !hasCurrentItems && hasPreviousItems;
@@ -1037,7 +1031,6 @@ export default function KotPage() {
       }
 
       clearCart();
-      setIsSeparateSharedOrder(false);
       if (payload.billId) {
         writeActiveBillSession({
           branchId,
@@ -1315,13 +1308,13 @@ export default function KotPage() {
               {tableChipLabel ? (
                 <div className={styles.chip}>
                   <TableIcon className={styles.chipIconSvg} />
-                  {isSeparateSharedOrder ? `${tableChipLabel} (Shared)` : tableChipLabel}
+                  {tableChipLabel}
                 </div>
               ) : null}
               {sectionChipLabel ? (
                 <div className={styles.chip}>
                   <PinIcon className={styles.chipIconSvg} />
-                  {isSeparateSharedOrder ? "Shared Tables" : sectionChipLabel}
+                  {sectionChipLabel}
                 </div>
               ) : null}
             </>
@@ -1332,38 +1325,6 @@ export default function KotPage() {
             </div>
           )}
         </div>
-
-        {previousBillData && isTableMatch ? (
-          <div className={styles.sharedTableBannerRow}>
-            {isSeparateSharedOrder ? (
-              <div className={styles.sharedTableNoticeCard}>
-                <span className={styles.sharedTableNoticeText}>
-                  ⚡ Creating a <strong>separate order</strong> on Table {trimmedTableNumber || previousBillData.tableNumber} (New Shared KOT)
-                </span>
-                <button
-                  type="button"
-                  className={styles.sharedTableNoticeButton}
-                  onClick={() => setIsSeparateSharedOrder(false)}
-                >
-                  Join Existing Bill
-                </button>
-              </div>
-            ) : (
-              <div className={styles.sharedTableNoticeCard}>
-                <span className={styles.sharedTableNoticeText}>
-                  Table {trimmedTableNumber || previousBillData.tableNumber} has a running order.
-                </span>
-                <button
-                  type="button"
-                  className={styles.sharedTableNoticeButton}
-                  onClick={() => setIsSeparateSharedOrder(true)}
-                >
-                  + Separate Order (Shared Table)
-                </button>
-              </div>
-            )}
-          </div>
-        ) : null}
 
         <section className={styles.orderCard}>
           {hasCurrentItems || !hasPreviousItems ? (
