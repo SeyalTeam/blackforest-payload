@@ -2476,6 +2476,28 @@ const Billings: CollectionConfig = {
             }
           }
 
+          if (!data.createdBy && branchId) {
+            try {
+              const userRes = await req.payload.find({
+                collection: 'users',
+                where: {
+                  branch: { equals: branchId },
+                },
+                limit: 1,
+                depth: 0,
+                overrideAccess: true,
+              })
+              if (userRes.docs && userRes.docs.length > 0) {
+                const fallbackUser = userRes.docs[0] as { id?: string | number }
+                if (fallbackUser?.id) {
+                  data.createdBy = fallbackUser.id
+                }
+              }
+            } catch {
+              // ignore lookup error
+            }
+          }
+
           // 🧾 Placeholder for invoice number to pass validation
           if (!data.invoiceNumber) {
             data.invoiceNumber = 'TEMP-' + Date.now()

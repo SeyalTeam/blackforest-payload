@@ -155,13 +155,48 @@ function findAllocatedWaiter({
   tablesDocs,
   sectionName,
   tableNumber,
+  preferredSection,
 }: {
   tablesDocs: Array<Record<string, unknown>>;
   sectionName: string;
   tableNumber: string;
+  preferredSection?: string;
 }): string | null {
-  const normalizedSection = sectionName.trim().toLowerCase();
-  const normalizedTable = tableNumber.trim();
+  const baseTable = tableNumber.split("-")[0].trim();
+  const sectionsToSearch = [
+    sectionName.trim().toLowerCase(),
+    ...(preferredSection ? [preferredSection.trim().toLowerCase()] : []),
+  ];
+
+  for (const searchSec of sectionsToSearch) {
+    for (const doc of tablesDocs) {
+      const sections = Array.isArray(doc.sections) ? doc.sections : [];
+      for (const section of sections) {
+        const secMap = section && typeof section === "object" ? (section as Record<string, unknown>) : null;
+        if (!secMap) continue;
+
+        const currentSecName = typeof secMap.name === "string" ? secMap.name.trim().toLowerCase() : "";
+        if (currentSecName === searchSec) {
+          const waiterAllocations = Array.isArray(secMap.waiterAllocations) ? secMap.waiterAllocations : [];
+          for (const alloc of waiterAllocations) {
+            const allocMap = alloc && typeof alloc === "object" ? (alloc as Record<string, unknown>) : null;
+            if (!allocMap) continue;
+
+            const tNum = typeof allocMap.tableNumber === "string"
+              ? allocMap.tableNumber.trim()
+              : typeof allocMap.tableNumber === "number"
+                ? String(allocMap.tableNumber)
+                : "";
+
+            if (tNum === tableNumber || tNum === baseTable) {
+              const waiterId = extractRefId(allocMap.waiter);
+              if (waiterId) return waiterId;
+            }
+          }
+        }
+      }
+    }
+  }
 
   for (const doc of tablesDocs) {
     const sections = Array.isArray(doc.sections) ? doc.sections : [];
@@ -169,27 +204,25 @@ function findAllocatedWaiter({
       const secMap = section && typeof section === "object" ? (section as Record<string, unknown>) : null;
       if (!secMap) continue;
 
-      const currentSecName = typeof secMap.name === "string" ? secMap.name.trim().toLowerCase() : "";
-      if (currentSecName === normalizedSection) {
-        const waiterAllocations = Array.isArray(secMap.waiterAllocations) ? secMap.waiterAllocations : [];
-        for (const alloc of waiterAllocations) {
-          const allocMap = alloc && typeof alloc === "object" ? (alloc as Record<string, unknown>) : null;
-          if (!allocMap) continue;
+      const waiterAllocations = Array.isArray(secMap.waiterAllocations) ? secMap.waiterAllocations : [];
+      for (const alloc of waiterAllocations) {
+        const allocMap = alloc && typeof alloc === "object" ? (alloc as Record<string, unknown>) : null;
+        if (!allocMap) continue;
 
-          const tNum = typeof allocMap.tableNumber === "string"
-            ? allocMap.tableNumber.trim()
-            : typeof allocMap.tableNumber === "number"
-              ? String(allocMap.tableNumber)
-              : "";
+        const tNum = typeof allocMap.tableNumber === "string"
+          ? allocMap.tableNumber.trim()
+          : typeof allocMap.tableNumber === "number"
+            ? String(allocMap.tableNumber)
+            : "";
 
-          if (tNum === normalizedTable) {
-            const waiterId = extractRefId(allocMap.waiter);
-            if (waiterId) return waiterId;
-          }
+        if (tNum === tableNumber || tNum === baseTable) {
+          const waiterId = extractRefId(allocMap.waiter);
+          if (waiterId) return waiterId;
         }
       }
     }
   }
+
   return null;
 }
 
@@ -775,12 +808,35 @@ export async function POST(request: NextRequest) {
     }
 
     let waiterId: string | null = null;
-    if (!existingBill && tablesDocs.length > 0 && resolvedTarget) {
-      waiterId = findAllocatedWaiter({
-        tablesDocs,
-        sectionName: resolvedTarget.section,
-        tableNumber: resolvedTarget.tableNumber,
-      });
+    if (!existingBill && resolvedTarget) {
+      if (tablesDocs.length > 0) {
+        waiterId = findAllocatedWaiter({
+          tablesDocs,
+          sectionName: resolvedTarget.section,
+          tableNumber: resolvedTarget.tableNumber,
+          preferredSection,
+        });
+      }
+
+      if (!waiterId && branchId) {
+        try {
+          const userRes = await payload.find({
+            collection: "users",
+            where: {
+              branch: { equals: branchId },
+            },
+            limit: 1,
+            depth: 0,
+            overrideAccess: true,
+          });
+          if (userRes.docs && userRes.docs.length > 0) {
+            const fallbackUser = userRes.docs[0] as unknown as Record<string, unknown>;
+            waiterId = extractRefId(fallbackUser.id ?? fallbackUser._id);
+          }
+        } catch {
+          // ignore lookup error
+        }
+      }
     }
 
     let tableNumber = resolvedTarget.tableNumber;
