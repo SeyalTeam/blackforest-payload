@@ -1,20 +1,21 @@
 import type { PayloadHandler } from 'payload'
 
 export const tableRedirectHandler: PayloadHandler = async (req): Promise<Response> => {
-  if (!req.url) {
-    return new Response('Request URL is required', { status: 400 })
-  }
-
-  const { searchParams } = new URL(req.url)
-  const branchId = searchParams.get('branchId')
-  const section = searchParams.get('section')
-  const table = searchParams.get('table')
-
-  if (!branchId || !section || !table) {
-    return new Response('Missing required parameters: branchId, section, table', { status: 400 })
-  }
-
   try {
+    if (!req.url) {
+      return new Response('Request URL is required', { status: 400 })
+    }
+
+    const requestURL = new URL(req.url, 'http://localhost')
+    const { searchParams } = requestURL
+    const branchId = searchParams.get('branchId')
+    const section = searchParams.get('section')
+    const table = searchParams.get('table')
+
+    if (!branchId || !section || !table) {
+      return new Response('Missing required parameters: branchId, section, table', { status: 400 })
+    }
+
     const settings = await req.payload.findGlobal({
       slug: 'widget-settings',
       depth: 0,
@@ -41,7 +42,11 @@ export const tableRedirectHandler: PayloadHandler = async (req): Promise<Respons
       return new Response('No domains configured in Widget Settings', { status: 404 })
     }
 
-    const targetBase = activeDomain.domainURL.trim()
+    let targetBase = activeDomain.domainURL.trim()
+    if (!/^https?:\/\//i.test(targetBase)) {
+      targetBase = `https://${targetBase}`
+    }
+
     const targetURL = new URL(targetBase)
     targetURL.searchParams.set('branchId', branchId)
     targetURL.searchParams.set('section', section)
@@ -56,3 +61,4 @@ export const tableRedirectHandler: PayloadHandler = async (req): Promise<Respons
     return new Response('Internal Server Error', { status: 500 })
   }
 }
+
