@@ -568,11 +568,15 @@ export default function KotPage() {
         const activeBillTableMatches =
           !currentActiveBill?.tableNumber ||
           !sharedTableNumber.trim() ||
-          currentActiveBill.tableNumber.trim().toLowerCase() === sharedTableNumber.trim().toLowerCase();
+          currentActiveBill.tableNumber.trim().toLowerCase() === sharedTableNumber.trim().toLowerCase() ||
+          currentActiveBill.tableNumber.trim().toLowerCase().startsWith(`${sharedTableNumber.trim().toLowerCase()}-`) ||
+          sharedTableNumber.trim().toLowerCase().startsWith(`${currentActiveBill.tableNumber.trim().toLowerCase()}-`);
         const activeBillSectionMatches =
           !currentActiveBill?.section ||
           !preferredSection.trim() ||
-          currentActiveBill.section.trim().toLowerCase() === preferredSection.trim().toLowerCase();
+          currentActiveBill.section.trim().toLowerCase() === preferredSection.trim().toLowerCase() ||
+          currentActiveBill.section.trim().toLowerCase() === "shared tables" ||
+          preferredSection.trim().toLowerCase() === "shared tables";
 
         const billIdToUse =
           activeBillTableMatches && activeBillSectionMatches ? currentActiveBill?.billId || "" : "";
@@ -739,7 +743,12 @@ export default function KotPage() {
     ? previousBillData.section.trim().toLowerCase()
     : "";
   const currentSection = preferredSection.trim().toLowerCase();
-  const isSectionMatch = !prevSection || !currentSection || prevSection === currentSection;
+  const isSectionMatch =
+    !prevSection ||
+    !currentSection ||
+    prevSection === currentSection ||
+    prevSection === "shared tables" ||
+    currentSection === "shared tables";
 
   const isTableMatch = Boolean(
     previousBillData &&
@@ -748,7 +757,8 @@ export default function KotPage() {
       !previousBillData.tableNumber ||
       prevTableBase === currentTableBase ||
       previousBillData.tableNumber.toLowerCase() === trimmedTableNumber.toLowerCase() ||
-      previousBillData.tableNumber.toLowerCase().startsWith(`${trimmedTableNumber.toLowerCase()}-`))
+      previousBillData.tableNumber.toLowerCase().startsWith(`${trimmedTableNumber.toLowerCase()}-`) ||
+      trimmedTableNumber.toLowerCase().startsWith(`${previousBillData.tableNumber.toLowerCase()}-`))
   );
 
   const matchingPreviousBill =
