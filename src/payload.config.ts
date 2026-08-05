@@ -480,8 +480,8 @@ const dbAdapter =
         url: mongoConnectionString,
         autoIndex: process.env.NODE_ENV !== 'production',
         connectOptions: {
-          maxPoolSize: 100,
-          minPoolSize: 0,
+          maxPoolSize: process.env.MONGODB_MAX_POOL_SIZE ? parseInt(process.env.MONGODB_MAX_POOL_SIZE) : 10,
+          minPoolSize: process.env.MONGODB_MIN_POOL_SIZE ? parseInt(process.env.MONGODB_MIN_POOL_SIZE) : 0,
           maxIdleTimeMS: 20000,
           waitQueueTimeoutMS: 8000,
           serverSelectionTimeoutMS: 5000,
