@@ -458,9 +458,10 @@ const dbAdapter =
   dbMode === 'mongo'
     ? mongooseAdapter({
         url: mongoConnectionString,
+        autoIndex: process.env.NODE_ENV !== 'production',
         connectOptions: {
           maxPoolSize: 100,
-          minPoolSize: 10,
+          minPoolSize: 0,
           maxIdleTimeMS: 20000,
           waitQueueTimeoutMS: 8000,
           serverSelectionTimeoutMS: 5000,
