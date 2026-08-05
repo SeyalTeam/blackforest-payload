@@ -255,6 +255,7 @@ export interface User {
   role:
     | 'superadmin'
     | 'admin'
+    | 'manager'
     | 'account'
     | 'delivery'
     | 'branch'
@@ -637,7 +638,17 @@ export interface Employee {
   email?: string | null;
   address?: string | null;
   status: 'active' | 'inactive';
-  team: 'waiter' | 'chef' | 'driver' | 'cashier' | 'manager' | 'supervisor' | 'delivery' | 'kitchen' | 'store_keeper';
+  team:
+    | 'waiter'
+    | 'chef'
+    | 'driver'
+    | 'cashier'
+    | 'manager'
+    | 'supervisor'
+    | 'delivery'
+    | 'kitchen'
+    | 'store_keeper'
+    | 'accountant';
   aadhaarPhoto?: (string | null) | Media;
   photo?: (string | null) | Media;
   updatedAt: string;
@@ -1036,6 +1047,7 @@ export interface ReturnOrder {
     unitPrice: number;
     subtotal: number;
     proofPhoto?: (string | null) | Media;
+    notes?: string | null;
     id?: string | null;
   }[];
   totalAmount: number;
@@ -1057,6 +1069,11 @@ export interface ClosingEntry {
   id: string;
   closingNumber: string;
   date: string;
+  /**
+   * Name of the user who created this closing entry
+   */
+  createdByName?: string | null;
+  createdBy?: (string | null) | User;
   systemSales?: number | null;
   /**
    * Auto-calculated from Billings (can be overridden)
@@ -2619,6 +2636,7 @@ export interface ReturnOrdersSelect<T extends boolean = true> {
         unitPrice?: T;
         subtotal?: T;
         proofPhoto?: T;
+        notes?: T;
         id?: T;
       };
   totalAmount?: T;
@@ -2637,6 +2655,8 @@ export interface ReturnOrdersSelect<T extends boolean = true> {
 export interface ClosingEntriesSelect<T extends boolean = true> {
   closingNumber?: T;
   date?: T;
+  createdByName?: T;
+  createdBy?: T;
   systemSales?: T;
   totalBills?: T;
   manualSales?: T;
@@ -4534,6 +4554,7 @@ export interface MenuSetting {
     | {
         role:
           | 'admin'
+          | 'manager'
           | 'account'
           | 'delivery'
           | 'branch'

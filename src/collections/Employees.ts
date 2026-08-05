@@ -88,6 +88,7 @@ const Employees: CollectionConfig = {
         { label: 'Delivery', value: 'delivery' },
         { label: 'Kitchen', value: 'kitchen' },
         { label: 'Store Keeper', value: 'store_keeper' },
+        { label: 'Accountant', value: 'accountant' },
       ],
       required: true,
       admin: {
