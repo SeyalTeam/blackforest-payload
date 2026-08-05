@@ -648,7 +648,7 @@ export interface Employee {
     | 'delivery'
     | 'kitchen'
     | 'store_keeper'
-    | 'accountant';
+    | 'account';
   aadhaarPhoto?: (string | null) | Media;
   photo?: (string | null) | Media;
   updatedAt: string;
