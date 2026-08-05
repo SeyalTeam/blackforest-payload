@@ -26,6 +26,7 @@ export const MenuSettingsGlobal: GlobalConfig = {
           required: true,
           options: [
             { label: 'Admin', value: 'admin' },
+            { label: 'Manager', value: 'manager' },
             { label: 'Account', value: 'account' },
             { label: 'Delivery', value: 'delivery' },
             { label: 'Branch', value: 'branch' },

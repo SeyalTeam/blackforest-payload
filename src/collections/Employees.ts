@@ -12,17 +12,21 @@ const Employees: CollectionConfig = {
     },
     create: ({ req: { user } }) => {
       if (!user) return false
-      return user.role === 'superadmin' || user.role === 'company' || user.role === 'branch'
+      return (
+        user.role === 'superadmin' ||
+        user.role === 'admin' ||
+        user.role === 'company' ||
+        user.role === 'branch'
+      )
     },
     update: ({ req: { user }, id: _id }) => {
       if (!user) return false
-      if (user.role === 'superadmin') return true
-      // For company/branch, check ownership via async if needed, but simplify for now
+      if (user.role === 'superadmin' || user.role === 'admin') return true
       return user.role === 'company' || user.role === 'branch'
     },
     delete: ({ req: { user } }) => {
       if (!user) return false
-      return user.role === 'superadmin' || user.role === 'company'
+      return user.role === 'superadmin' || user.role === 'admin' || user.role === 'company'
     },
   },
   fields: [

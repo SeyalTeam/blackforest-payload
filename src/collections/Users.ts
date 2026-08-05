@@ -29,7 +29,7 @@ const getRelationshipIDs = (value: unknown): string[] => {
 }
 
 const canManageChefDetails = (role?: string | null): boolean =>
-  role === 'superadmin' || role === 'branch'
+  role === 'superadmin' || role === 'admin' || role === 'branch'
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -52,6 +52,7 @@ export const Users: CollectionConfig = {
       options: [
         { label: 'Superadmin', value: 'superadmin' },
         { label: 'Admin', value: 'admin' },
+        { label: 'Manager', value: 'manager' },
         { label: 'Account', value: 'account' },
         { label: 'Delivery', value: 'delivery' },
         { label: 'Branch', value: 'branch' },
@@ -401,20 +402,25 @@ export const Users: CollectionConfig = {
     afterRead: [
       async ({ doc, req }) => {
         if (!doc) return doc
-        if (doc.role === 'superadmin') {
+        if (doc.role === 'superadmin' || doc.role === 'admin') {
           return doc
         }
         try {
-          const menuSettings = await req.payload.findGlobal({
+          const menuSettings = (await req.payload.findGlobal({
             slug: 'menu-settings',
             depth: 0,
-          }) as any
+          })) as any
           const roleConfig = menuSettings?.roleMenus?.find((r: any) => r.role === doc.role)
-          doc.allowedCollections = roleConfig?.visibleCollections || []
-          doc.allowedGlobals = roleConfig?.visibleGlobals || []
+          if (roleConfig) {
+            doc.allowedCollections = roleConfig.visibleCollections || []
+            doc.allowedGlobals = roleConfig.visibleGlobals || []
+          } else {
+            doc.allowedCollections = undefined
+            doc.allowedGlobals = undefined
+          }
         } catch (e) {
-          doc.allowedCollections = []
-          doc.allowedGlobals = []
+          doc.allowedCollections = undefined
+          doc.allowedGlobals = undefined
         }
         return doc
       },

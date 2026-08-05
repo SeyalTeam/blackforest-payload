@@ -4,6 +4,7 @@ const ClosingEntries: CollectionConfig = {
   slug: 'closing-entries',
   admin: {
     useAsTitle: 'closingNumber',
+    defaultColumns: ['closingNumber', 'branch', 'date', 'createdByName', 'totalSales', 'net'],
     description:
       'Daily closing entries for branches. Auto-calculates totals, returns, stock receipts, and net.',
   },
@@ -34,6 +35,34 @@ const ClosingEntries: CollectionConfig = {
         date: { pickerAppearance: 'dayOnly', displayFormat: 'yyyy-MM-dd' },
       },
       defaultValue: () => new Date().toISOString(),
+    },
+
+    // Creator tracking
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'createdByName',
+          label: 'Created By (Name)',
+          type: 'text',
+          required: false,
+          admin: {
+            width: '50%',
+            description: 'Name of the user who created this closing entry',
+          },
+        },
+        {
+          name: 'createdBy',
+          label: 'Created By User',
+          type: 'relationship',
+          relationTo: 'users',
+          required: false,
+          admin: {
+            width: '50%',
+            readOnly: true,
+          },
+        },
+      ],
     },
 
     // Sales
@@ -124,10 +153,28 @@ const ClosingEntries: CollectionConfig = {
   ],
 
   hooks: {
+    afterRead: [
+      async ({ doc }) => {
+        if (doc && !doc.createdByName && doc.createdBy && typeof doc.createdBy === 'object') {
+          doc.createdByName = doc.createdBy.name || doc.createdBy.email || 'Unknown'
+        }
+        return doc
+      },
+    ],
     beforeChange: [
       async ({ req, operation, data, originalDoc }) => {
         const { user } = req
         const doc = operation === 'update' ? { ...originalDoc, ...data } : data
+
+        // AUTO ASSIGN CREATED BY USER & NAME
+        if (operation === 'create' && user) {
+          if (!data.createdBy) {
+            data.createdBy = user.id
+          }
+          if (!data.createdByName) {
+            data.createdByName = user.name || user.email || (user as any).username || 'Unknown'
+          }
+        }
 
         // AUTO ASSIGN BRANCH FOR BRANCH USERS
         if (operation === 'create' && user?.role === 'branch' && user?.branch) {

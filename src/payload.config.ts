@@ -151,7 +151,7 @@ const wrapCollection = (collection: CollectionConfig): CollectionConfig => {
       hidden: (args) => {
         const { user } = args
         if (!user) return true
-        if (user.role === 'superadmin') return false
+        if (user.role === 'superadmin' || user.role === 'admin') return false
 
         const originalHidden = collection.admin?.hidden
         if (typeof originalHidden === 'function') {
@@ -160,8 +160,12 @@ const wrapCollection = (collection: CollectionConfig): CollectionConfig => {
           return true
         }
 
-        const allowedCollections = (user as any).allowedCollections || []
-        return !allowedCollections.includes(collection.slug)
+        const allowedCollections = (user as any).allowedCollections
+        if (Array.isArray(allowedCollections)) {
+          return !allowedCollections.includes(collection.slug)
+        }
+
+        return false
       },
     },
     access: {
@@ -176,15 +180,18 @@ const wrapCollection = (collection: CollectionConfig): CollectionConfig => {
           }
           return process.env.NODE_ENV === 'development'
         }
-        if (user.role === 'superadmin') return true
+        if (user.role === 'superadmin' || user.role === 'admin') return true
 
-        const allowedCollections = (user as any).allowedCollections || []
-        if (allowedCollections.includes(collection.slug)) {
-          const originalRead = collection.access?.read
-          if (typeof originalRead === 'function') {
-            return originalRead(args)
+        const allowedCollections = (user as any).allowedCollections
+        if (Array.isArray(allowedCollections)) {
+          if (allowedCollections.includes(collection.slug)) {
+            const originalRead = collection.access?.read
+            if (typeof originalRead === 'function') {
+              return originalRead(args)
+            }
+            return true
           }
-          return true
+          return false
         }
 
         const originalRead = collection.access?.read
@@ -197,11 +204,11 @@ const wrapCollection = (collection: CollectionConfig): CollectionConfig => {
         const { req } = args
         const user = req?.user
         if (!user) return false
-        if (user.role === 'superadmin') return true
+        if (user.role === 'superadmin' || user.role === 'admin') return true
 
-        const allowedCollections = (user as any).allowedCollections || []
-        if (allowedCollections.includes(collection.slug)) {
-          return true
+        const allowedCollections = (user as any).allowedCollections
+        if (Array.isArray(allowedCollections)) {
+          return allowedCollections.includes(collection.slug)
         }
 
         const originalCreate = collection.access?.create
@@ -214,11 +221,11 @@ const wrapCollection = (collection: CollectionConfig): CollectionConfig => {
         const { req } = args
         const user = req?.user
         if (!user) return false
-        if (user.role === 'superadmin') return true
+        if (user.role === 'superadmin' || user.role === 'admin') return true
 
-        const allowedCollections = (user as any).allowedCollections || []
-        if (allowedCollections.includes(collection.slug)) {
-          return true
+        const allowedCollections = (user as any).allowedCollections
+        if (Array.isArray(allowedCollections)) {
+          return allowedCollections.includes(collection.slug)
         }
 
         const originalUpdate = collection.access?.update
@@ -231,9 +238,12 @@ const wrapCollection = (collection: CollectionConfig): CollectionConfig => {
         const { req } = args
         const user = req?.user
         if (!user) return false
-        if (user.role === 'superadmin') return true
+        if (user.role === 'superadmin' || user.role === 'admin') return true
 
-        // Delete is strictly restricted to superadmin only
+        const originalDelete = collection.access?.delete
+        if (typeof originalDelete === 'function') {
+          return originalDelete(args)
+        }
         return false
       },
     },
@@ -248,7 +258,10 @@ const wrapGlobal = (global: GlobalConfig): GlobalConfig => {
       hidden: (args) => {
         const { user } = args
         if (!user) return true
-        if (user.role === 'superadmin') return false
+        if (user.role === 'superadmin' || user.role === 'admin') {
+          if (global.slug === 'menu-settings' && user.role !== 'superadmin') return true
+          return false
+        }
 
         if (global.slug === 'menu-settings') return true
 
@@ -259,8 +272,12 @@ const wrapGlobal = (global: GlobalConfig): GlobalConfig => {
           return true
         }
 
-        const allowedGlobals = (user as any).allowedGlobals || []
-        return !allowedGlobals.includes(global.slug)
+        const allowedGlobals = (user as any).allowedGlobals
+        if (Array.isArray(allowedGlobals)) {
+          return !allowedGlobals.includes(global.slug)
+        }
+
+        return false
       },
     },
     access: {
@@ -275,15 +292,18 @@ const wrapGlobal = (global: GlobalConfig): GlobalConfig => {
           }
           return process.env.NODE_ENV === 'development'
         }
-        if (user.role === 'superadmin') return true
+        if (user.role === 'superadmin' || user.role === 'admin') return true
 
-        const allowedGlobals = (user as any).allowedGlobals || []
-        if (allowedGlobals.includes(global.slug)) {
-          const originalRead = global.access?.read
-          if (typeof originalRead === 'function') {
-            return originalRead(args)
+        const allowedGlobals = (user as any).allowedGlobals
+        if (Array.isArray(allowedGlobals)) {
+          if (allowedGlobals.includes(global.slug)) {
+            const originalRead = global.access?.read
+            if (typeof originalRead === 'function') {
+              return originalRead(args)
+            }
+            return true
           }
-          return true
+          return false
         }
 
         const originalRead = global.access?.read
@@ -296,11 +316,11 @@ const wrapGlobal = (global: GlobalConfig): GlobalConfig => {
         const { req } = args
         const user = req?.user
         if (!user) return false
-        if (user.role === 'superadmin') return true
+        if (user.role === 'superadmin' || user.role === 'admin') return true
 
-        const allowedGlobals = (user as any).allowedGlobals || []
-        if (allowedGlobals.includes(global.slug)) {
-          return true
+        const allowedGlobals = (user as any).allowedGlobals
+        if (Array.isArray(allowedGlobals)) {
+          return allowedGlobals.includes(global.slug)
         }
 
         const originalUpdate = global.access?.update
