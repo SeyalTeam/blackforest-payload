@@ -593,6 +593,8 @@ export default buildConfig({
     'https://blackforest1.vseyal.com',
     'https://blackforest2.vseyal.com',
     'https://blackforest3.vseyal.com',
+    'https://dev-blacforest.vseyal.com',
+    'https://dev1-blacforest.vseyal.com',
     'https://superadmin.theblackforestcakes.com',
     'http://192.168.29.173:3000', // Local Network IP
   ].filter(Boolean) as string[],
@@ -610,6 +612,8 @@ export default buildConfig({
     'https://blackforest1.vseyal.com',
     'https://blackforest2.vseyal.com',
     'https://blackforest3.vseyal.com',
+    'https://dev-blacforest.vseyal.com',
+    'https://dev1-blacforest.vseyal.com',
     'https://superadmin.theblackforestcakes.com',
     'http://192.168.29.173:3000', // Local Network IP
   ].filter(Boolean) as string[],
