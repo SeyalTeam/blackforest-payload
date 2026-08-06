@@ -509,8 +509,8 @@ export const getClosingEntryReportData = async (
     collection: 'billings',
     where: {
       and: [
-        { createdAt: { greater_than_equal: startOfDay.toISOString() } },
-        { createdAt: { less_than_equal: endOfDay.toISOString() } },
+        { updatedAt: { greater_than_equal: startOfDay.toISOString() } },
+        { updatedAt: { less_than_equal: endOfDay.toISOString() } },
         { status: { in: ['completed', 'settled'] } },
         ...(branchIds
           ? [
@@ -574,9 +574,8 @@ export const getClosingEntryReportData = async (
       const entryIso = new Date(entry.createdAt).toISOString()
 
       const relevantBillings = branchBillings.filter((billing) => {
-        const billCreatedIso = new Date(billing.createdAt).toISOString()
-        const billUpdatedIso = billing.updatedAt ? new Date(billing.updatedAt).toISOString() : billCreatedIso
-        return (billCreatedIso > prevIso || billUpdatedIso > prevIso) && (billCreatedIso <= entryIso)
+        const billUpdatedIso = billing.updatedAt ? new Date(billing.updatedAt).toISOString() : new Date(billing.createdAt).toISOString()
+        return (billUpdatedIso > prevIso) && (billUpdatedIso <= entryIso)
       })
 
       let systemCash = 0

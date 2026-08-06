@@ -374,10 +374,10 @@ const ClosingEntries: CollectionConfig = {
             where: {
               and: [
                 { branch: { equals: doc.branch } },
-                { createdAt: { greater_than_equal: startOfDay } },
-                { createdAt: { less_than_equal: windowEnd } },
+                { updatedAt: { greater_than_equal: startOfDay } },
+                { updatedAt: { less_than_equal: windowEnd } },
                 { status: { in: ['completed', 'settled'] } },
-                { createdAt: { greater_than: lastClosingTime } },
+                { updatedAt: { greater_than: lastClosingTime } },
               ],
             } as Where,
             limit: 1000,
