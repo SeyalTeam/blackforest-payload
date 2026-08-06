@@ -30,6 +30,7 @@ export type RawMaterialBillingReportItem = {
   deliveryPersonPhotoUrl?: string
   time: string
   status: string
+  plannedPaymentDate?: string
   rawMaterials?: {
     name: string
     quantity: number
@@ -37,6 +38,7 @@ export type RawMaterialBillingReportItem = {
     packageSize?: number
     numberOfPackages?: number
     totalAmount?: number
+    category?: string | { id: string }
   }[]
 }
 
@@ -121,6 +123,22 @@ const customStyles = {
   }),
 }
 
+const customCategoryStyles = {
+  ...customStyles,
+  control: (base: any) => ({
+    ...base,
+    background: 'var(--theme-elevation-50)',
+    borderColor: 'var(--theme-elevation-200)',
+    borderRadius: '8px',
+    padding: '2px 6px',
+    minWidth: '300px',
+    boxShadow: 'none',
+    '&:hover': {
+      borderColor: 'var(--theme-elevation-400)',
+    },
+  }),
+}
+
 const toLocalDateStr = (date: Date | null): string => {
   if (!date) return ''
   return dayjs(date).format('YYYY-MM-DD')
@@ -137,10 +155,14 @@ const RawMaterialBillingReport: React.FC = () => {
   const [previewMaterials, setPreviewMaterials] = useState<RawMaterialBillingReportItem['rawMaterials'] | null>(null)
   const [dateRangePreset, setDateRangePreset] = useState<string>('today')
 
+  const [plannedDateFilter, setPlannedDateFilter] = useState<Date | null>(null)
+
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
   const [selectedCompany, setSelectedCompany] = useState<string[]>(['all'])
   const [dealers, setDealers] = useState<{ id: string; name: string }[]>([])
   const [selectedDealers, setSelectedDealers] = useState<string[]>(['all'])
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(['all'])
   const [showScrollBottom, setShowScrollBottom] = useState(true)
   const lastScrollY = useRef(0)
 
@@ -151,6 +173,7 @@ const RawMaterialBillingReport: React.FC = () => {
   const [paymentModalItem, setPaymentModalItem] = useState<RawMaterialBillingReportItem | null>(null)
   const [paymentAmountInput, setPaymentAmountInput] = useState('')
   const [historyModalItem, setHistoryModalItem] = useState<RawMaterialBillingReportItem | null>(null)
+  const [tempPlannedDates, setTempPlannedDates] = useState<Record<string, string>>({})
 
   const handlePaymentUpdate = async (id: string, newPaidAmount: number, targetItem?: RawMaterialBillingReportItem) => {
     try {
@@ -189,7 +212,11 @@ const RawMaterialBillingReport: React.FC = () => {
           status: newStatus,
         }),
       })
-      if (!res.ok) throw new Error(`Failed to update payment (HTTP ${res.status})`)
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        const errMsg = errData.errors?.[0]?.message || errData.message || `HTTP ${res.status}`
+        throw new Error(`Failed to update payment: ${errMsg}`)
+      }
 
       if (data) {
         const updatedGroups = data.groups.map((group) => {
@@ -213,6 +240,43 @@ const RawMaterialBillingReport: React.FC = () => {
     }
   }
 
+  const handlePlannedDateUpdate = async (id: string, dateStr: string) => {
+    try {
+      const res = await fetch(`/api/raw-material-billings/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          plannedPaymentDate: dateStr || null,
+        }),
+      })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        const errMsg = errData.errors?.[0]?.message || errData.message || `HTTP ${res.status}`
+        throw new Error(`Failed to update planned date: ${errMsg}`)
+      }
+
+      if (data) {
+        const updatedGroups = data.groups.map((group) => {
+          const updatedItems = group.items.map((i) => {
+            if (i.id === id) {
+              return {
+                ...i,
+                plannedPaymentDate: dateStr || undefined,
+              }
+            }
+            return i
+          })
+          return { ...group, items: updatedItems }
+        })
+        setData({ ...data, groups: updatedGroups })
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to update planned date')
+    }
+  }
+
   const handleDatePresetChange = (preset: string) => {
     setDateRangePreset(preset)
     const today = dayjs()
@@ -228,6 +292,31 @@ const RawMaterialBillingReport: React.FC = () => {
         break
       case 'thisMonth':
         setDateRange([today.startOf('month').toDate(), today.endOf('month').toDate()])
+        break
+      case 'lastMonth':
+        setDateRange([
+          today.subtract(1, 'month').startOf('month').toDate(),
+          today.subtract(1, 'month').endOf('month').toDate(),
+        ])
+        break
+      case 'lastQuarter': {
+        const currentMonth = today.month()
+        const currentYear = today.year()
+        const quarterIndex = Math.floor(currentMonth / 3)
+        let targetQuarter = quarterIndex - 1
+        let targetYear = currentYear
+        if (targetQuarter < 0) {
+          targetQuarter = 3
+          targetYear -= 1
+        }
+        const startMonth = targetQuarter * 3
+        const startOfLastQuarter = dayjs().year(targetYear).month(startMonth).startOf('month')
+        const endOfLastQuarter = dayjs().year(targetYear).month(startMonth + 2).endOf('month')
+        setDateRange([startOfLastQuarter.toDate(), endOfLastQuarter.toDate()])
+        break
+      }
+      case 'tillNow':
+        setDateRange([dayjs('2020-01-01').toDate(), today.toDate()])
         break
       default:
         break
@@ -288,8 +377,25 @@ const RawMaterialBillingReport: React.FC = () => {
         console.error('Failed to load dealers', e)
       }
     }
+    const loadCategories = async () => {
+      try {
+        const res = await fetch('/api/raw-material-categories?limit=1000&sort=name')
+        if (res.ok) {
+          const list = await res.json()
+          setCategories(
+            (list.docs || []).map((c: any) => ({
+              id: c.id,
+              name: c.name,
+            })),
+          )
+        }
+      } catch (e) {
+        console.error('Failed to load categories', e)
+      }
+    }
     loadCompanies()
     loadDealers()
+    loadCategories()
     handleDatePresetChange('today')
   }, [])
 
@@ -304,6 +410,23 @@ const RawMaterialBillingReport: React.FC = () => {
     const itemsList: (RawMaterialBillingReportItem & { companyName: string })[] = []
     data.groups.forEach((group) => {
       group.items.forEach((item) => {
+        if (plannedDateFilter) {
+          if (!item.plannedPaymentDate) return
+          const itemPlanned = dayjs(item.plannedPaymentDate).tz('Asia/Kolkata').startOf('day')
+          const filterPlanned = dayjs(plannedDateFilter).tz('Asia/Kolkata').startOf('day')
+          if (!itemPlanned.isSame(filterPlanned)) return
+        }
+
+        if (!selectedCategories.includes('all')) {
+          if (!item.rawMaterials || item.rawMaterials.length === 0) return
+          const hasMatchingMaterial = item.rawMaterials.some((m) => {
+            if (!m.category) return false
+            const catId = typeof m.category === 'object' ? (m.category as any).id : m.category
+            return selectedCategories.includes(catId)
+          })
+          if (!hasMatchingMaterial) return
+        }
+
         itemsList.push({
           ...item,
           companyName: group.companyName,
@@ -311,7 +434,7 @@ const RawMaterialBillingReport: React.FC = () => {
       })
     })
     return itemsList.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
-  }, [data])
+  }, [data, plannedDateFilter, selectedCategories])
 
   const statusTotals = useMemo(() => {
     let total = 0
@@ -362,7 +485,7 @@ const RawMaterialBillingReport: React.FC = () => {
 
   const CustomInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
     ({ value, onClick }, ref) => (
-      <button ref={ref} onClick={onClick} className="custom-date-input" type="button">
+      <button ref={ref} onClick={onClick} className={`custom-date-input ${value ? 'has-value' : ''}`} type="button">
         {value ? value.replace(' - ', ' to ') : 'Select Date Range'}
         <span className="icon">📅</span>
       </button>
@@ -370,11 +493,24 @@ const RawMaterialBillingReport: React.FC = () => {
   )
   CustomInput.displayName = 'CustomInput'
 
+  const CustomPlannedInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
+    ({ value, onClick }, ref) => (
+      <button ref={ref} onClick={onClick} className={`custom-date-input planned-filter-input ${value ? 'has-value' : ''}`} type="button" style={{ borderColor: plannedDateFilter ? '#d97706' : undefined }}>
+        {value ? `Planned: ${value}` : 'All Planned Dates'}
+        <span className="icon" style={{ color: plannedDateFilter ? '#d97706' : undefined }}>📅</span>
+      </button>
+    ),
+  )
+  CustomPlannedInput.displayName = 'CustomPlannedInput'
+
   const dateRangeOptions = [
     { value: 'today', label: 'Today' },
     { value: 'yesterday', label: 'Yesterday' },
     { value: 'thisWeek', label: 'This Week' },
     { value: 'thisMonth', label: 'This Month' },
+    { value: 'lastMonth', label: 'Last Month' },
+    { value: 'lastQuarter', label: 'Last Quarter' },
+    { value: 'tillNow', label: 'Till Now' },
     { value: 'custom', label: 'Custom Range' },
   ]
 
@@ -388,11 +524,19 @@ const RawMaterialBillingReport: React.FC = () => {
     ...dealers.map((d) => ({ value: d.id, label: d.name })),
   ]
 
+  const categoryOptions = [
+    { value: 'all', label: 'All Categories' },
+    ...categories.map((c) => ({ value: c.id, label: c.name })),
+  ]
+
   return (
     <div className="raw-material-report-container">
+      <h1 className="report-page-title">RAW MATERIAL BILLING REPORT</h1>
+
       <div className="report-header-v2">
         <div className="header-controls">
-          <div className="date-controls">
+          {/* Row 1: Date & Calendars Filters */}
+          <div className="filter-row date-filters">
             <Select
               options={dateRangeOptions}
               value={dateRangeOptions.find((o) => o.value === dateRangePreset)}
@@ -419,6 +563,41 @@ const RawMaterialBillingReport: React.FC = () => {
                 popperPlacement="bottom-start"
               />
             </div>
+            <div className="date-picker-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <DatePicker
+                selected={plannedDateFilter}
+                onChange={(date: Date | null) => setPlannedDateFilter(date)}
+                dateFormat="yyyy-MM-dd"
+                customInput={<CustomPlannedInput />}
+                calendarClassName="custom-calendar"
+                popperPlacement="bottom-start"
+                isClearable={false}
+              />
+              {plannedDateFilter && (
+                <button
+                  type="button"
+                  onClick={() => setPlannedDateFilter(null)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--theme-text-secondary)',
+                    cursor: 'pointer',
+                    fontSize: '1.1rem',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  title="Clear planned date filter"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Row 2: Remaining Filters */}
+          <div className="filter-row remaining-filters">
             <Select
               options={companyOptions}
               isMulti
@@ -481,6 +660,54 @@ const RawMaterialBillingReport: React.FC = () => {
                 MultiValue,
               }}
             />
+            <Select
+              options={categoryOptions}
+              isMulti
+              value={categoryOptions.filter((o) => selectedCategories.includes(o.value))}
+              onChange={(newValue) => {
+                const selected = newValue ? newValue.map((x) => x.value) : []
+                const wasAll = selectedCategories.includes('all')
+                const hasAll = selected.includes('all')
+
+                let final = selected
+                if (hasAll && !wasAll) {
+                  final = ['all']
+                } else if (hasAll && wasAll && selected.length > 1) {
+                  final = selected.filter((x) => x !== 'all')
+                } else if (final.length === 0) {
+                  final = ['all']
+                }
+                setSelectedCategories(final)
+              }}
+              styles={customCategoryStyles}
+              classNamePrefix="react-select"
+              placeholder="Select Category..."
+              isSearchable={true}
+              closeMenuOnSelect={false}
+              hideSelectedOptions={false}
+              components={{
+                Option: CheckboxOption,
+                ValueContainer: CustomValueContainer,
+                MultiValue,
+              }}
+            />
+            {(dateRangePreset !== 'today' || plannedDateFilter !== null || !selectedCompany.includes('all') || !selectedDealers.includes('all') || !selectedCategories.includes('all')) && (
+              <button
+                type="button"
+                className="clear-all-filters-btn"
+                title="Clear all filters"
+                onClick={() => {
+                  handleDatePresetChange('today')
+                  setPlannedDateFilter(null)
+                  setSelectedCompany(['all'])
+                  setSelectedDealers(['all'])
+                  setSelectedCategories(['all'])
+                  setCurrentPage(1)
+                }}
+              >
+                ✕
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -491,13 +718,13 @@ const RawMaterialBillingReport: React.FC = () => {
 
         {!loading && data && (
           <div className="report-main-layout">
-            <div className="report-table-container" style={{ width: '100%' }}>
+            <div className="report-table-container" style={{ width: '85%' }}>
               {allItems.length > 0 && (
                 <div className="summary-cards-grid">
                   <div className="stock-summary-card stock-summary-card--total">
                     <div className="stock-summary-title">OVERALL TOTAL</div>
                     <div className="stock-summary-amount">
-                      ₹{statusTotals.total.toLocaleString('en-IN')}
+                      {statusTotals.total.toLocaleString('en-IN')}
                     </div>
                     <div className="stock-summary-ref">
                       {statusCounts.total} entries
@@ -507,7 +734,7 @@ const RawMaterialBillingReport: React.FC = () => {
                   <div className="stock-summary-card stock-summary-card--existing">
                     <div className="stock-summary-title">PAID TOTAL</div>
                     <div className="stock-summary-amount">
-                      ₹{statusTotals.paid.toLocaleString('en-IN')}
+                      {statusTotals.paid.toLocaleString('en-IN')}
                     </div>
                     <div className="stock-summary-ref">
                       {statusCounts.paid} entries
@@ -517,7 +744,7 @@ const RawMaterialBillingReport: React.FC = () => {
                   <div className="stock-summary-card stock-summary-card--new">
                     <div className="stock-summary-title">PENDING TOTAL</div>
                     <div className="stock-summary-amount">
-                      ₹{statusTotals.pending.toLocaleString('en-IN')}
+                      {statusTotals.pending.toLocaleString('en-IN')}
                     </div>
                     <div className="stock-summary-ref">
                       {statusCounts.pending} entries
@@ -527,7 +754,7 @@ const RawMaterialBillingReport: React.FC = () => {
                   <div className="stock-summary-card stock-summary-card--billing">
                     <div className="stock-summary-title">CANCELLED TOTAL</div>
                     <div className="stock-summary-amount">
-                      ₹{statusTotals.cancelled.toLocaleString('en-IN')}
+                      {statusTotals.cancelled.toLocaleString('en-IN')}
                     </div>
                     <div className="stock-summary-ref">
                       {statusCounts.cancelled} entries
@@ -565,17 +792,18 @@ const RawMaterialBillingReport: React.FC = () => {
                     <table>
                       <thead>
                         <tr>
-                          <th style={{ width: '3%' }}>S.NO</th>
-                          <th style={{ width: '22%' }}>Dealer</th>
-                          <th style={{ width: '15%' }}>Company</th>
-                          <th style={{ width: '10%', textAlign: 'right' }}>Amount</th>
-                          <th style={{ width: '10%', textAlign: 'right' }}>Paid</th>
-                          <th style={{ width: '10%', textAlign: 'right' }}>Balance</th>
-                          <th style={{ width: '8%', textAlign: 'center' }}>Status</th>
-                          <th style={{ width: '5%', textAlign: 'center' }}>History</th>
-                          <th style={{ width: '5%', textAlign: 'center' }}>Bill Copy</th>
-                          <th style={{ width: '5%', textAlign: 'center' }}>Photos</th>
-                          <th style={{ width: '12%', textAlign: 'right' }}>Date & Time</th>
+                          <th style={{ width: '2%' }}>S.NO</th>
+                          <th style={{ width: '16%' }}>Dealer</th>
+                          <th style={{ width: '10%' }}>Company</th>
+                          <th style={{ width: '5%', textAlign: 'right' }}>Amount</th>
+                          <th style={{ width: '5%', textAlign: 'right' }}>Paid</th>
+                          <th style={{ width: '5%', textAlign: 'right' }}>Balance</th>
+                          <th style={{ width: '6%', textAlign: 'center' }}>Status</th>
+                          <th style={{ width: '9%', textAlign: 'center' }}>Planned Pay Date</th>
+                          <th style={{ width: '4%', textAlign: 'center' }}>History</th>
+                          <th style={{ width: '4%', textAlign: 'center' }}>Bill Copy</th>
+                          <th style={{ width: '4%', textAlign: 'center' }}>Photos</th>
+
                         </tr>
                       </thead>
                       <tbody>
@@ -600,26 +828,31 @@ const RawMaterialBillingReport: React.FC = () => {
                                       color: 'inherit',
                                       cursor: 'pointer',
                                       textAlign: 'left',
-                                      fontWeight: 600,
-                                      textDecoration: 'underline',
+                                      fontWeight: 700,
+                                      fontSize: '1.05rem',
+                                      textTransform: 'uppercase' as const,
+                                      textDecoration: 'none',
                                     }}
                                     title="Click to view materials list"
                                   >
                                     {item.dealerName}
                                   </button>
                                 ) : (
-                                  <span style={{ fontWeight: 600 }}>{item.dealerName}</span>
+                                  <span style={{ fontWeight: 700, fontSize: '1.05rem', textTransform: 'uppercase' as const }}>{item.dealerName}</span>
                                 )}
+                                <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-secondary)', marginTop: '2px' }}>
+                                  {dayjs(item.time).tz('Asia/Kolkata').format('DD-MM-YY hh:mm A')}
+                                </div>
                               </td>
                               <td className="company-cell">
                                 {item.companyName}
                               </td>
-                              <td className="amount-cell">₹{item.amount.toLocaleString('en-IN')}</td>
+                              <td className="amount-cell">{item.amount.toLocaleString('en-IN')}</td>
                               <td className="paid-cell" style={{ textAlign: 'right', color: '#10b981', fontWeight: 600 }}>
-                                ₹{(item.paidAmount || 0).toLocaleString('en-IN')}
+                                {(item.paidAmount || 0).toLocaleString('en-IN')}
                               </td>
                               <td className="balance-cell" style={{ textAlign: 'right', color: remaining > 0 ? '#f59e0b' : 'inherit', fontWeight: 700 }}>
-                                ₹{remaining.toLocaleString('en-IN')}
+                                {remaining.toLocaleString('en-IN')}
                               </td>
                               <td className="status-cell" style={{ textAlign: 'center' }}>
                                 {item.status === 'pending' ? (
@@ -637,6 +870,66 @@ const RawMaterialBillingReport: React.FC = () => {
                                   <span className="status-paid-badge">Paid ✓</span>
                                 ) : (
                                   <span className="status-cancelled-badge">Cancelled</span>
+                                )}
+                              </td>
+                              <td className="planned-date-cell" style={{ textAlign: 'center' }}>
+                                {item.status === 'pending' ? (
+                                  (() => {
+                                    const currentValue = tempPlannedDates[item.id] !== undefined
+                                      ? tempPlannedDates[item.id]
+                                      : (item.plannedPaymentDate ? dayjs(item.plannedPaymentDate).format('YYYY-MM-DD') : '')
+                                    const isModified = tempPlannedDates[item.id] !== undefined && tempPlannedDates[item.id] !== (item.plannedPaymentDate ? dayjs(item.plannedPaymentDate).format('YYYY-MM-DD') : '')
+                                    
+                                    return (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
+                                        <input
+                                          type="date"
+                                          className={`planned-date-picker ${currentValue ? 'has-date' : ''}`}
+                                          value={currentValue}
+                                          onChange={(e) => {
+                                            setTempPlannedDates({
+                                              ...tempPlannedDates,
+                                              [item.id]: e.target.value,
+                                            })
+                                          }}
+                                        />
+                                        {isModified && (
+                                          <button
+                                            type="button"
+                                            className="planned-date-save-btn"
+                                            onClick={async () => {
+                                              await handlePlannedDateUpdate(item.id, currentValue)
+                                              const updated = { ...tempPlannedDates }
+                                              delete updated[item.id]
+                                              setTempPlannedDates(updated)
+                                            }}
+                                            title="Save planned payment date"
+                                            style={{
+                                              background: '#10b981',
+                                              color: '#fff',
+                                              border: 'none',
+                                              borderRadius: '4px',
+                                              padding: '4px 8px',
+                                              cursor: 'pointer',
+                                              fontSize: '0.85rem',
+                                              fontWeight: 'bold',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                            }}
+                                          >
+                                            ✓
+                                          </button>
+                                        )}
+                                      </div>
+                                    )
+                                  })()
+                                ) : (
+                                   item.plannedPaymentDate ? (
+                                     <span className="planned-date-text has-date">
+                                       {dayjs(item.plannedPaymentDate).format('DD-MM-YYYY')}
+                                     </span>
+                                   ) : '-'
                                 )}
                               </td>
                               <td className="history-cell" style={{ textAlign: 'center' }}>
@@ -707,9 +1000,7 @@ const RawMaterialBillingReport: React.FC = () => {
                                   )}
                                 </div>
                               </td>
-                              <td className="time-cell" title={item.time} style={{ textAlign: 'right', fontSize: '0.85rem', color: 'var(--theme-text-secondary)' }}>
-                                {dayjs(item.time).tz('Asia/Kolkata').format('DD-MM-YY hh:mm A')}
-                              </td>
+
                             </tr>
                           )
                         })}

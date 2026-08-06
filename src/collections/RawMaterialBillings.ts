@@ -186,6 +186,11 @@ const RawMaterialBillings: CollectionConfig = {
       },
     },
     {
+      name: 'plannedPaymentDate',
+      type: 'date',
+      required: false,
+    },
+    {
       name: 'createdBy',
       type: 'relationship',
       relationTo: 'users',

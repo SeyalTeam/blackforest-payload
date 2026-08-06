@@ -5,6 +5,15 @@
   min-height: 100vh;
   color: var(--theme-text-primary);
 
+  .report-page-title {
+    font-size: 1.6rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 1.5rem;
+    color: var(--theme-text-primary);
+  }
+
   .report-header-v2 {
     position: sticky;
     top: 0;
@@ -17,13 +26,35 @@
     .header-controls {
       display: flex;
       flex-direction: column;
-      gap: 1.5rem;
+      gap: 1.2rem;
 
-      .date-controls {
+      .filter-row {
         display: flex;
         gap: 1rem;
         align-items: center;
         flex-wrap: wrap; // Allow wrapping on small screens
+
+        .clear-all-filters-btn {
+          background: var(--theme-elevation-100);
+          border: 1px solid var(--theme-elevation-300);
+          color: var(--theme-text-secondary);
+          border-radius: 8px;
+          width: 38px;
+          height: 38px;
+          font-weight: 600;
+          font-size: 1.1rem;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+
+          &:hover {
+            background: var(--theme-elevation-150);
+            border-color: var(--theme-elevation-400);
+            color: var(--theme-text-primary);
+          }
+        }
       }
 
       .date-picker-wrapper {
@@ -39,6 +70,11 @@
           cursor: pointer;
           font-family: inherit;
           font-size: 0.95rem;
+
+          &.has-value {
+            color: #ffffff;
+            font-weight: 600;
+          }
 
           .separator {
             opacity: 0.5;
@@ -135,7 +171,7 @@
       justify-content: center;
       padding: 1rem 0.8rem;
       color: var(--theme-text-primary);
-      font-size: 2.2rem;
+      font-size: 2.5rem;
       font-weight: 700;
       line-height: 1;
       text-align: center;
@@ -210,7 +246,7 @@
             text-align: left;
             color: var(--theme-text-secondary);
             font-weight: 600;
-            padding: 0.75rem 1rem;
+            padding: 0.5rem 0.6rem;
             border-bottom: 1px solid var(--theme-elevation-150);
             border-right: 1px solid var(--theme-elevation-150);
             font-size: 0.8rem;
@@ -234,7 +270,7 @@
           }
 
           td {
-            padding: 0.75rem 1rem;
+            padding: 0.5rem 0.6rem;
             border-bottom: 1px solid var(--theme-elevation-100);
             border-right: 1px solid var(--theme-elevation-100);
             color: var(--theme-text-primary);
@@ -248,18 +284,64 @@
               font-size: 0.95rem;
             }
 
+            &.company-cell {
+              font-weight: 700;
+              text-transform: uppercase;
+            }
+
             &.amount-cell {
               font-weight: 700;
               text-align: right;
-              font-size: 1.15rem;
+              font-size: 1.35rem;
+            }
+
+            &.paid-cell {
+              font-size: 1.35rem;
             }
 
             &.balance-cell {
               font-weight: 700;
+              font-size: 1.35rem;
             }
 
             &.status-cell {
               text-align: center;
+            }
+
+            &.planned-date-cell {
+              text-align: center;
+
+              .planned-date-picker {
+                background: var(--theme-elevation-100);
+                border: 1px solid var(--theme-elevation-200);
+                color: var(--theme-text-primary);
+                border-radius: 6px;
+                padding: 4px 6px;
+                font-family: inherit;
+                font-size: 0.85rem;
+                outline: none;
+                cursor: pointer;
+                transition: all 0.2s;
+
+                &:hover, &:focus {
+                  border-color: #10b981;
+                  background: var(--theme-elevation-150);
+                }
+
+                &.has-date {
+                  color: #d97706;
+                  border-color: rgba(217, 119, 6, 0.5);
+                  font-weight: 600;
+                  background: rgba(217, 119, 6, 0.05);
+                }
+              }
+
+              .planned-date-text {
+                &.has-date {
+                  color: #d97706;
+                  font-weight: 600;
+                }
+              }
             }
 
             &.pay-now-btn {

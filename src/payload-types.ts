@@ -99,6 +99,7 @@ export interface Config {
     kitchens: Kitchen;
     attendance: Attendance;
     'apk-files': ApkFile;
+    'bank-statements': BankStatement;
     'stock-alerts': StockAlert;
     'idempotency-keys': IdempotencyKey;
     'waiter-calls': WaiterCall;
@@ -140,6 +141,7 @@ export interface Config {
     kitchens: KitchensSelect<false> | KitchensSelect<true>;
     attendance: AttendanceSelect<false> | AttendanceSelect<true>;
     'apk-files': ApkFilesSelect<false> | ApkFilesSelect<true>;
+    'bank-statements': BankStatementsSelect<false> | BankStatementsSelect<true>;
     'stock-alerts': StockAlertsSelect<false> | StockAlertsSelect<true>;
     'idempotency-keys': IdempotencyKeysSelect<false> | IdempotencyKeysSelect<true>;
     'waiter-calls': WaiterCallsSelect<false> | WaiterCallsSelect<true>;
@@ -157,6 +159,7 @@ export interface Config {
     'time-wise-report': TimeWiseReport;
     'branch-billing-report': BranchBillingReport;
     'accounts-bills-report': AccountsBillsReport;
+    'bank-statement-upload': BankStatementUpload;
     'bill-summary': BillSummary;
     'gst-report': GstReport;
     'category-wise-report': CategoryWiseReport;
@@ -192,6 +195,7 @@ export interface Config {
     'time-wise-report': TimeWiseReportSelect<false> | TimeWiseReportSelect<true>;
     'branch-billing-report': BranchBillingReportSelect<false> | BranchBillingReportSelect<true>;
     'accounts-bills-report': AccountsBillsReportSelect<false> | AccountsBillsReportSelect<true>;
+    'bank-statement-upload': BankStatementUploadSelect<false> | BankStatementUploadSelect<true>;
     'bill-summary': BillSummarySelect<false> | BillSummarySelect<true>;
     'gst-report': GstReportSelect<false> | GstReportSelect<true>;
     'category-wise-report': CategoryWiseReportSelect<false> | CategoryWiseReportSelect<true>;
@@ -1301,6 +1305,7 @@ export interface RawMaterialBilling {
       }[]
     | null;
   status: 'pending' | 'paid' | 'cancelled';
+  plannedPaymentDate?: string | null;
   createdBy?: (string | null) | User;
   createdByName?: string | null;
   createdByRole?: string | null;
@@ -1816,6 +1821,31 @@ export interface ApkFile {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "bank-statements".
+ */
+export interface BankStatement {
+  id: string;
+  branch: string | Branch;
+  dateType: 'single' | 'double';
+  statementDate?: string | null;
+  fromDate?: string | null;
+  toDate?: string | null;
+  status: 'pending' | 'verified' | 'not-verified';
+  prefix?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "stock-alerts".
  */
 export interface StockAlert {
@@ -2033,6 +2063,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'apk-files';
         value: string | ApkFile;
+      } | null)
+    | ({
+        relationTo: 'bank-statements';
+        value: string | BankStatement;
       } | null)
     | ({
         relationTo: 'stock-alerts';
@@ -2861,6 +2895,7 @@ export interface RawMaterialBillingsSelect<T extends boolean = true> {
         id?: T;
       };
   status?: T;
+  plannedPaymentDate?: T;
   createdBy?: T;
   createdByName?: T;
   createdByRole?: T;
@@ -3042,6 +3077,30 @@ export interface ApkFilesSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "bank-statements_select".
+ */
+export interface BankStatementsSelect<T extends boolean = true> {
+  branch?: T;
+  dateType?: T;
+  statementDate?: T;
+  fromDate?: T;
+  toDate?: T;
+  status?: T;
+  prefix?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "stock-alerts_select".
  */
 export interface StockAlertsSelect<T extends boolean = true> {
@@ -3192,6 +3251,15 @@ export interface BranchBillingReport {
  * via the `definition` "accounts-bills-report".
  */
 export interface AccountsBillsReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "bank-statement-upload".
+ */
+export interface BankStatementUpload {
   id: string;
   updatedAt?: string | null;
   createdAt?: string | null;
@@ -4727,6 +4795,15 @@ export interface BranchBillingReportSelect<T extends boolean = true> {
  * via the `definition` "accounts-bills-report_select".
  */
 export interface AccountsBillsReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "bank-statement-upload_select".
+ */
+export interface BankStatementUploadSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

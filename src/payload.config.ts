@@ -138,6 +138,8 @@ import { MenuSettingsGlobal } from './globals/MenuSettings'
 import { cashfreeCreateOrderHandler } from './endpoints/cashfreeCreateOrder'
 import { cashfreeVerifyOrderHandler } from './endpoints/cashfreeVerifyOrder'
 import { callSignalHandler } from './endpoints/callSignal'
+import BankStatements from './collections/BankStatements'
+import { BankStatementUploadGlobal } from './globals/BankStatementUpload'
 
 
 // Path helpers
@@ -192,6 +194,12 @@ const wrapCollection = (collection: CollectionConfig): CollectionConfig => {
             }
             return true
           }
+          // Not in allowedCollections — still check if the original collection
+          // itself permits reads (e.g. `read: () => true` on Companies).
+          const originalRead = collection.access?.read
+          if (typeof originalRead === 'function') {
+            return originalRead(args)
+          }
           return false
         }
 
@@ -209,7 +217,14 @@ const wrapCollection = (collection: CollectionConfig): CollectionConfig => {
 
         const allowedCollections = (user as any).allowedCollections
         if (Array.isArray(allowedCollections)) {
-          return allowedCollections.includes(collection.slug)
+          if (allowedCollections.includes(collection.slug)) {
+            return true
+          }
+          const originalCreate = collection.access?.create
+          if (typeof originalCreate === 'function') {
+            return originalCreate(args)
+          }
+          return false
         }
 
         const originalCreate = collection.access?.create
@@ -221,18 +236,37 @@ const wrapCollection = (collection: CollectionConfig): CollectionConfig => {
       update: (args) => {
         const { req } = args
         const user = req?.user
+        console.log('--- WRAP UPDATE ACCESS CHECK ---', {
+          collection: collection.slug,
+          user: user ? { id: user.id, role: user.role } : null,
+          allowedCollections: user ? (user as any).allowedCollections : null,
+        })
         if (!user) return false
         if (user.role === 'superadmin' || user.role === 'admin') return true
 
         const allowedCollections = (user as any).allowedCollections
         if (Array.isArray(allowedCollections)) {
-          return allowedCollections.includes(collection.slug)
+          if (allowedCollections.includes(collection.slug)) {
+            console.log('Allowed by allowedCollections whitelist')
+            return true
+          }
+          const originalUpdate = collection.access?.update
+          if (typeof originalUpdate === 'function') {
+            const res = originalUpdate(args)
+            console.log('Allowed by fallback function result:', res)
+            return res
+          }
+          console.log('Blocked by allowedCollections whitelist & no originalUpdate fn')
+          return false
         }
 
         const originalUpdate = collection.access?.update
         if (typeof originalUpdate === 'function') {
-          return originalUpdate(args)
+          const res = originalUpdate(args)
+          console.log('Allowed by fallback function result (no whitelist):', res)
+          return res
         }
+        console.log('Blocked: no fallback function (no whitelist)')
         return false
       },
       delete: (args) => {
@@ -893,6 +927,7 @@ export default buildConfig({
     TimeWiseReportGlobal,
     BranchBillingReportGlobal,
     AccountsBillsReportGlobal,
+    BankStatementUploadGlobal,
     BillSummaryGlobal,
     GSTReportGlobal,
     CategoryWiseReportGlobal,
@@ -956,6 +991,7 @@ export default buildConfig({
     Kitchens,
     Attendance,
     APKFiles,
+    BankStatements,
     StockAlerts,
     IdempotencyKeys,
     WaiterCalls,
@@ -983,6 +1019,9 @@ export default buildConfig({
         },
         'apk-files': {
           prefix: 'blackforest/uploads/apk',
+        },
+        'bank-statements': {
+          prefix: 'blackforest/uploads/bank-statements',
         },
       },
       bucket: r2Env.S3_BUCKET || '',

@@ -19,6 +19,7 @@ export type RawMaterialBillingReportItem = {
   deliveryPersonPhotoUrl?: string
   time: string
   status: string
+  plannedPaymentDate?: string
   rawMaterials?: {
     name: string
     quantity: number
@@ -26,6 +27,7 @@ export type RawMaterialBillingReportItem = {
     packageSize?: number
     numberOfPackages?: number
     totalAmount?: number
+    category?: string
   }[]
 }
 
@@ -69,6 +71,7 @@ type RawItem = {
   deliveryPersonPhotoFilename?: unknown
   time: unknown
   status: unknown
+  plannedPaymentDate?: unknown
   rawMaterialsList?: {
     rawMaterialName?: string
     packageSize?: number
@@ -76,6 +79,7 @@ type RawItem = {
     quantity?: number
     totalAmount?: number
     unit?: string
+    category?: unknown
   }[]
 }
 
@@ -122,6 +126,10 @@ const toNonEmptyString = (value: unknown, fallback = ''): string => {
   if (typeof value === 'number' && Number.isFinite(value)) return String(value)
 
   if (typeof value === 'object' && value !== null) {
+    if (typeof (value as any).toHexString === 'function') {
+      return (value as any).toHexString()
+    }
+
     const record = value as {
       _id?: unknown
       id?: unknown
@@ -320,6 +328,7 @@ export const getRawMaterialBillingReportData = async (
         productsPhotoInfo: { $first: '$productsPhotoInfo' },
         deliveryPersonInfo: { $first: '$deliveryPersonInfo' },
         status: { $first: '$status' },
+        plannedPaymentDate: { $first: '$plannedPaymentDate' },
         rawMaterialsList: {
           $push: {
             $cond: {
@@ -334,6 +343,7 @@ export const getRawMaterialBillingReportData = async (
                 unit: '$materialInfo.unit',
                 variants: '$materialInfo.variants',
                 packSize: '$materialInfo.packSize',
+                category: '$materialInfo.category',
                 photoUrl: '$itemPhotoInfo.url',
                 photoFilename: '$itemPhotoInfo.filename',
               },
@@ -373,6 +383,7 @@ export const getRawMaterialBillingReportData = async (
             deliveryPersonPhotoUrl: '$deliveryPersonInfo.url',
             deliveryPersonPhotoFilename: '$deliveryPersonInfo.filename',
             status: { $ifNull: ['$status', 'pending'] },
+            plannedPaymentDate: '$plannedPaymentDate',
             rawMaterialsList: '$rawMaterialsList',
           },
         },
@@ -428,6 +439,7 @@ export const getRawMaterialBillingReportData = async (
                 packageSize: m.packageSize !== undefined ? toNumber(m.packageSize) : undefined,
                 numberOfPackages: m.numberOfPackages !== undefined ? toNumber(m.numberOfPackages) : undefined,
                 totalAmount: m.totalAmount !== undefined ? toNumber(m.totalAmount) : undefined,
+                category: m.category ? toNonEmptyString(m.category) : undefined,
               })
             }
           })
@@ -456,6 +468,7 @@ export const getRawMaterialBillingReportData = async (
           productsPhotoUrls,
           deliveryPersonPhotoUrl: deliveryPersonPhotoUrl || (deliveryPersonPhotoFilename ? `/api/media/file/${deliveryPersonPhotoFilename}` : undefined),
           status: toNonEmptyString(item.status, 'pending'),
+          plannedPaymentDate: item.plannedPaymentDate ? toDateString(item.plannedPaymentDate) : undefined,
           rawMaterials,
         }
       })

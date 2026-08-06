@@ -114,7 +114,7 @@ export const resolveReportCompanyScope = async (
 
   if (!user) return { companyIds: [] }
 
-  if (user.role === 'superadmin' || user.role === 'admin' || user.role === 'account') {
+  if (user.role === 'superadmin' || user.role === 'admin' || user.role === 'account' || user.role === 'store_keeper') {
     if (requestedCompanyIds.length > 0) {
       return { companyIds: requestedCompanyIds }
     }
