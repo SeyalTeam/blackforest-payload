@@ -147,13 +147,11 @@ export const getAccountsBillsReportHandler: PayloadHandler = async (
     const closingGroups: Record<string, any[]> = {}
     closingEntriesResult.docs.forEach((entry: any) => {
       const bId = entry.branch
-      if (!bId || !entry.date) return
-      const dateStr = new Date(entry.date).toISOString().slice(0, 10)
-      const key = `${bId}_${dateStr}`
-      if (!closingGroups[key]) {
-        closingGroups[key] = []
+      if (!bId) return
+      if (!closingGroups[bId]) {
+        closingGroups[bId] = []
       }
-      closingGroups[key].push(entry)
+      closingGroups[bId].push(entry)
     })
 
     // Sort each group by createdAt ascending just to be 100% sure
@@ -174,9 +172,6 @@ export const getAccountsBillsReportHandler: PayloadHandler = async (
         ? bill.branch.id
         : bill.branch
 
-      const billDateStr = new Date(bill.updatedAt || bill.createdAt).toISOString().slice(0, 10)
-      const key = `${billBranchId}_${billDateStr}`
-
       let closingNumber = '-'
       let originalClosingNumber = '-'
       let closingStatus = 'n_a'
@@ -184,7 +179,7 @@ export const getAccountsBillsReportHandler: PayloadHandler = async (
       const isBillClosedStatus = bill.status === 'completed' || bill.status === 'settled'
 
       if (isBillClosedStatus) {
-        const groupEntries = closingGroups[key] || []
+        const groupEntries = closingGroups[billBranchId] || []
         if (groupEntries.length > 0) {
           let matchedEntry = null
           const billTime = new Date(bill.updatedAt || bill.createdAt).getTime()
@@ -197,13 +192,9 @@ export const getAccountsBillsReportHandler: PayloadHandler = async (
             if (i > 0) {
               lastClosingTime = new Date(groupEntries[i - 1].createdAt).getTime()
             } else {
-              const startOfDay = new Date(Date.UTC(
-                new Date(currentEntry.date).getUTCFullYear(),
-                new Date(currentEntry.date).getUTCMonth(),
-                new Date(currentEntry.date).getUTCDate(),
-                0, 0, 0, 0
-              )).getTime()
-              lastClosingTime = startOfDay
+              const entryDate = new Date(currentEntry.date)
+              const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000
+              lastClosingTime = entryDate.getTime() - IST_OFFSET_MS
             }
 
             if (billTime > lastClosingTime && billTime <= currentEntryTime) {
