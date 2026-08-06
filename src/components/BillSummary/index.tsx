@@ -36,6 +36,7 @@ type BillRow = {
   paymentMethod: string
   verificationStatus: 'pending' | 'verified' | 'not_verified' | 'not_match' | 'cancelled'
   branchName?: string
+  waiterName?: string
   createdAt: string
 }
 
@@ -449,6 +450,56 @@ const BillSummary: React.FC = () => {
     return totalsMap
   }, [bills])
 
+  const uniqueWaiters = useMemo(() => {
+    const waiters = new Set<string>()
+    bills.forEach((bill) => {
+      if (bill.waiterName) {
+        waiters.add(bill.waiterName)
+      }
+    })
+    const waiterList = Array.from(waiters)
+    return waiterList.sort((a, b) => a.localeCompare(b))
+  }, [bills])
+
+  const waiterSummaryTotals = useMemo(() => {
+    const totalsMap: Record<string, {
+      total: number
+      verified: number
+      not_verified: number
+      not_match: number
+      pending: number
+      cancelled: number
+    }> = {}
+
+    uniqueWaiters.forEach((waiterName) => {
+      totalsMap[waiterName] = {
+        total: 0,
+        verified: 0,
+        not_verified: 0,
+        not_match: 0,
+        pending: 0,
+        cancelled: 0,
+      }
+    })
+
+    bills.forEach((bill) => {
+      if (bill.waiterName && totalsMap[bill.waiterName]) {
+        const waiterRow = totalsMap[bill.waiterName]
+        const amount = bill.totalAmount || 0
+        waiterRow.total += amount
+
+        const status = bill.verificationStatus
+        if (status === 'verified') waiterRow.verified += amount
+        else if (status === 'not_verified') waiterRow.not_verified += amount
+        else if (status === 'not_match') waiterRow.not_match += amount
+        else if (status === 'pending') waiterRow.pending += amount
+        else if (status === 'cancelled') waiterRow.cancelled += amount
+      }
+    })
+
+    return totalsMap
+  }, [bills, uniqueWaiters])
+
   const grandTotalAmount = useMemo(() => {
     return grandTotalTotals.total
   }, [grandTotalTotals])
@@ -681,41 +732,41 @@ const BillSummary: React.FC = () => {
         </div>
       </div>
 
-      <div className="report-card summary-card">
-        <div className="summary-header">
-          <h3 className="summary-title">Summary Totals by Branch</h3>
-        </div>
-        <div className="table-wrapper">
-          <table className="report-table summary-table">
-            <thead>
-              <tr>
-                <th style={{ width: '60px', textAlign: 'center' }}>S.No.</th>
-                <th style={{ width: '150px' }}>Branch Name</th>
-                <th style={{ textAlign: 'right' }}>Total Amount</th>
-                <th style={{ textAlign: 'right' }}>Verified</th>
-                <th style={{ textAlign: 'right' }}>Not Verified</th>
-                <th style={{ textAlign: 'right' }}>Not Match</th>
-                <th style={{ textAlign: 'right' }}>Pending</th>
-                <th style={{ textAlign: 'right' }}>Cancelled</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
+      <div className="summary-section-row">
+        <div className="report-card summary-card">
+          <div className="summary-header">
+            <h3 className="summary-title">Summary Totals by Branch</h3>
+          </div>
+          <div className="table-wrapper">
+            <table className="report-table summary-table">
+              <thead>
                 <tr>
-                  <td colSpan={8} className="td-loading" style={{ padding: '2rem' }}>
-                    <RefreshCw size={20} className="animate-spin text-muted" style={{ margin: '0 auto 8px' }} />
-                    <p>Calculating totals...</p>
-                  </td>
+                  <th style={{ width: '60px', textAlign: 'center' }}>S.No.</th>
+                  <th style={{ width: '150px' }}>Branch Name</th>
+                  <th style={{ textAlign: 'right' }}>Total Amount</th>
+                  <th style={{ textAlign: 'right' }}>Verified</th>
+                  <th style={{ textAlign: 'right' }}>Not Verified</th>
+                  <th style={{ textAlign: 'right' }}>Not Match</th>
+                  <th style={{ textAlign: 'right' }}>Pending</th>
+                  <th style={{ textAlign: 'right' }}>Cancelled</th>
                 </tr>
-              ) : bills.length === 0 ? (
-                <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--theme-text-muted, #64748b)' }}>
-                    No bills found for the selected filters.
-                  </td>
-                </tr>
-              ) : (
-                <>
-                  {uniqueBranches.map((branchName, index) => {
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={8} className="td-loading" style={{ padding: '2rem' }}>
+                      <RefreshCw size={20} className="animate-spin text-muted" style={{ margin: '0 auto 8px' }} />
+                      <p>Calculating totals...</p>
+                    </td>
+                  </tr>
+                ) : bills.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--theme-text-muted, #64748b)' }}>
+                      No bills found for the selected filters.
+                    </td>
+                  </tr>
+                ) : (
+                  uniqueBranches.map((branchName, index) => {
                     const rowData = branchSummaryTotals[branchName] || {
                       total: 0,
                       verified: 0,
@@ -752,7 +803,11 @@ const BillSummary: React.FC = () => {
                         </td>
                       </tr>
                     )
-                  })}
+                  })
+                )}
+              </tbody>
+              {!loading && bills.length > 0 && (
+                <tfoot>
                   <tr className="summary-grand-total-row" style={{ fontWeight: 700 }}>
                     <td className="bold-text" colSpan={2} style={{ fontSize: '1.1rem' }}>GRAND TOTAL</td>
                     <td className="bold-text amount-cell" style={{ textAlign: 'right', borderTop: '2px solid var(--border-soft)', fontSize: '1.15rem' }}>
@@ -795,10 +850,25 @@ const BillSummary: React.FC = () => {
                       {getPercentageStr(grandTotalTotals.cancelled)}
                     </td>
                   </tr>
-                </>
+                </tfoot>
               )}
-            </tbody>
-          </table>
+            </table>
+          </div>
+        </div>
+
+        <div className="summary-metrics-sidebar">
+          <div className="metric-card" style={{ borderLeft: '4px solid #10b981' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--theme-text-muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Verified Amount</span>
+            <span style={{ fontSize: '1.75rem', fontWeight: 800, color: '#10b981', marginTop: '0.25rem' }}>{formatCurrency(grandTotalTotals.verified)}</span>
+          </div>
+          <div className="metric-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--theme-text-muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pending & Unverified</span>
+            <span style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f59e0b', marginTop: '0.25rem' }}>{formatCurrency(grandTotalTotals.pending + grandTotalTotals.not_verified + grandTotalTotals.not_match)}</span>
+          </div>
+          <div className="metric-card" style={{ borderLeft: '4px solid #ef4444' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--theme-text-muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cancelled Amount</span>
+            <span style={{ fontSize: '1.75rem', fontWeight: 800, color: '#ef4444', marginTop: '0.25rem' }}>{formatCurrency(grandTotalTotals.cancelled)}</span>
+          </div>
         </div>
       </div>
 
@@ -835,92 +905,223 @@ const BillSummary: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                <>
-                  {['CASH', 'UPI', 'CARD'].map((pm, index) => {
-                    const rowData = paymentSummaryTotals[pm.toLowerCase()] || {
-                      total: 0,
-                      verified: 0,
-                      not_verified: 0,
-                      not_match: 0,
-                      pending: 0,
-                      cancelled: 0,
-                    }
-                    return (
-                      <tr key={pm}>
-                        <td style={{ width: '60px', textAlign: 'center', fontWeight: 600 }}>
-                          {index + 1}
-                        </td>
-                        <td className="bold-text">
-                          <span className={`payment-pill payment--${pm.toLowerCase()}`}>
-                            {pm}
-                          </span>
-                        </td>
-                        <td className="bold-text amount-cell" style={{ textAlign: 'right' }}>
-                          {formatCurrency(rowData.total)}
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          {formatCurrency(rowData.verified)}
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          {formatCurrency(rowData.not_verified)}
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          {formatCurrency(rowData.not_match)}
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          {formatCurrency(rowData.pending)}
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          {formatCurrency(rowData.cancelled)}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                  <tr className="summary-grand-total-row" style={{ fontWeight: 700 }}>
-                    <td className="bold-text" colSpan={2} style={{ fontSize: '1.1rem' }}>GRAND TOTAL</td>
-                    <td className="bold-text amount-cell" style={{ textAlign: 'right', borderTop: '2px solid var(--border-soft)', fontSize: '1.15rem' }}>
-                      {formatCurrency(grandTotalTotals.total)}
-                    </td>
-                    <td className="bold-text" style={{ textAlign: 'right', borderTop: '2px solid var(--border-soft)', fontSize: '1.15rem' }}>
-                      {formatCurrency(grandTotalTotals.verified)}
-                    </td>
-                    <td className="bold-text" style={{ textAlign: 'right', borderTop: '2px solid var(--border-soft)', fontSize: '1.15rem' }}>
-                      {formatCurrency(grandTotalTotals.not_verified)}
-                    </td>
-                    <td className="bold-text" style={{ textAlign: 'right', borderTop: '2px solid var(--border-soft)', fontSize: '1.15rem' }}>
-                      {formatCurrency(grandTotalTotals.not_match)}
-                    </td>
-                    <td className="bold-text" style={{ textAlign: 'right', borderTop: '2px solid var(--border-soft)', fontSize: '1.15rem' }}>
-                      {formatCurrency(grandTotalTotals.pending)}
-                    </td>
-                    <td className="bold-text" style={{ textAlign: 'right', borderTop: '2px solid var(--border-soft)', fontSize: '1.15rem' }}>
-                      {formatCurrency(grandTotalTotals.cancelled)}
-                    </td>
-                  </tr>
-                  <tr className="summary-percentage-row" style={{ fontWeight: 600, backgroundColor: 'var(--theme-elevation-50, #f8fafc)' }}>
-                    <td className="bold-text" colSpan={2} style={{ color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>PERCENTAGE</td>
-                    <td className="bold-text amount-cell" style={{ textAlign: 'right', color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
-                      100%
-                    </td>
-                    <td className="bold-text" style={{ textAlign: 'right', color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
-                      {getPercentageStr(grandTotalTotals.verified)}
-                    </td>
-                    <td className="bold-text" style={{ textAlign: 'right', color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
-                      {getPercentageStr(grandTotalTotals.not_verified)}
-                    </td>
-                    <td className="bold-text" style={{ textAlign: 'right', color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
-                      {getPercentageStr(grandTotalTotals.not_match)}
-                    </td>
-                    <td className="bold-text" style={{ textAlign: 'right', color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
-                      {getPercentageStr(grandTotalTotals.pending)}
-                    </td>
-                    <td className="bold-text" style={{ textAlign: 'right', color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
-                      {getPercentageStr(grandTotalTotals.cancelled)}
-                    </td>
-                  </tr>
-                </>
+                ['CASH', 'UPI', 'CARD'].map((pm, index) => {
+                  const rowData = paymentSummaryTotals[pm.toLowerCase()] || {
+                    total: 0,
+                    verified: 0,
+                    not_verified: 0,
+                    not_match: 0,
+                    pending: 0,
+                    cancelled: 0,
+                  }
+                  return (
+                    <tr key={pm}>
+                      <td style={{ width: '60px', textAlign: 'center', fontWeight: 600 }}>
+                        {index + 1}
+                      </td>
+                      <td className="bold-text">
+                        <span className={`payment-pill payment--${pm.toLowerCase()}`}>
+                          {pm}
+                        </span>
+                      </td>
+                      <td className="bold-text amount-cell" style={{ textAlign: 'right' }}>
+                        {formatCurrency(rowData.total)}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {formatCurrency(rowData.verified)}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {formatCurrency(rowData.not_verified)}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {formatCurrency(rowData.not_match)}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {formatCurrency(rowData.pending)}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {formatCurrency(rowData.cancelled)}
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
+            {!loading && bills.length > 0 && (
+              <tfoot>
+                <tr className="summary-grand-total-row" style={{ fontWeight: 700 }}>
+                  <td className="bold-text" colSpan={2} style={{ fontSize: '1.1rem' }}>GRAND TOTAL</td>
+                  <td className="bold-text amount-cell" style={{ textAlign: 'right', borderTop: '2px solid var(--border-soft)', fontSize: '1.15rem' }}>
+                    {formatCurrency(grandTotalTotals.total)}
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', borderTop: '2px solid var(--border-soft)', fontSize: '1.15rem' }}>
+                    {formatCurrency(grandTotalTotals.verified)}
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', borderTop: '2px solid var(--border-soft)', fontSize: '1.15rem' }}>
+                    {formatCurrency(grandTotalTotals.not_verified)}
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', borderTop: '2px solid var(--border-soft)', fontSize: '1.15rem' }}>
+                    {formatCurrency(grandTotalTotals.not_match)}
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', borderTop: '2px solid var(--border-soft)', fontSize: '1.15rem' }}>
+                    {formatCurrency(grandTotalTotals.pending)}
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', borderTop: '2px solid var(--border-soft)', fontSize: '1.15rem' }}>
+                    {formatCurrency(grandTotalTotals.cancelled)}
+                  </td>
+                </tr>
+                <tr className="summary-percentage-row" style={{ fontWeight: 600, backgroundColor: 'var(--theme-elevation-50, #f8fafc)' }}>
+                  <td className="bold-text" colSpan={2} style={{ color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>PERCENTAGE</td>
+                  <td className="bold-text amount-cell" style={{ textAlign: 'right', color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
+                    100%
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
+                    {getPercentageStr(grandTotalTotals.verified)}
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
+                    {getPercentageStr(grandTotalTotals.not_verified)}
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
+                    {getPercentageStr(grandTotalTotals.not_match)}
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
+                    {getPercentageStr(grandTotalTotals.pending)}
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
+                    {getPercentageStr(grandTotalTotals.cancelled)}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+
+      <div className="report-card summary-card" style={{ marginTop: '2rem' }}>
+        <div className="summary-header">
+          <h3 className="summary-title">Summary Totals by Waiter</h3>
+        </div>
+        <div className="table-wrapper scrollable-table-wrapper">
+          <table className="report-table summary-table">
+            <thead>
+              <tr>
+                <th style={{ width: '60px', textAlign: 'center' }}>S.No.</th>
+                <th style={{ width: '150px' }}>Waiter Name</th>
+                <th style={{ textAlign: 'right' }}>Total Amount</th>
+                <th style={{ textAlign: 'right' }}>Verified</th>
+                <th style={{ textAlign: 'right' }}>Not Verified</th>
+                <th style={{ textAlign: 'right' }}>Not Match</th>
+                <th style={{ textAlign: 'right' }}>Pending</th>
+                <th style={{ textAlign: 'right' }}>Cancelled</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="td-loading" style={{ padding: '2rem' }}>
+                    <RefreshCw size={20} className="animate-spin text-muted" style={{ margin: '0 auto 8px' }} />
+                    <p>Calculating totals...</p>
+                  </td>
+                </tr>
+              ) : bills.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--theme-text-muted, #64748b)' }}>
+                    No bills found for the selected filters.
+                  </td>
+                </tr>
+              ) : uniqueWaiters.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--theme-text-muted, #64748b)' }}>
+                    No waiters with billing data found.
+                  </td>
+                </tr>
+              ) : (
+                uniqueWaiters.map((waiterName, index) => {
+                  const rowData = waiterSummaryTotals[waiterName] || {
+                    total: 0,
+                    verified: 0,
+                    not_verified: 0,
+                    not_match: 0,
+                    pending: 0,
+                    cancelled: 0,
+                  }
+                  return (
+                    <tr key={waiterName}>
+                      <td style={{ width: '60px', textAlign: 'center', fontWeight: 600 }}>
+                        {index + 1}
+                      </td>
+                      <td className="bold-text">
+                        {waiterName}
+                      </td>
+                      <td className="bold-text amount-cell" style={{ textAlign: 'right' }}>
+                        {formatCurrency(rowData.total)}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {formatCurrency(rowData.verified)}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {formatCurrency(rowData.not_verified)}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {formatCurrency(rowData.not_match)}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {formatCurrency(rowData.pending)}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {formatCurrency(rowData.cancelled)}
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+            {!loading && bills.length > 0 && uniqueWaiters.length > 0 && (
+              <tfoot>
+                <tr className="summary-grand-total-row" style={{ fontWeight: 700 }}>
+                  <td className="bold-text" colSpan={2} style={{ fontSize: '1.1rem' }}>GRAND TOTAL</td>
+                  <td className="bold-text amount-cell" style={{ textAlign: 'right', borderTop: '2px solid var(--border-soft)', fontSize: '1.15rem' }}>
+                    {formatCurrency(grandTotalTotals.total)}
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', borderTop: '2px solid var(--border-soft)', fontSize: '1.15rem' }}>
+                    {formatCurrency(grandTotalTotals.verified)}
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', borderTop: '2px solid var(--border-soft)', fontSize: '1.15rem' }}>
+                    {formatCurrency(grandTotalTotals.not_verified)}
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', borderTop: '2px solid var(--border-soft)', fontSize: '1.15rem' }}>
+                    {formatCurrency(grandTotalTotals.not_match)}
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', borderTop: '2px solid var(--border-soft)', fontSize: '1.15rem' }}>
+                    {formatCurrency(grandTotalTotals.pending)}
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', borderTop: '2px solid var(--border-soft)', fontSize: '1.15rem' }}>
+                    {formatCurrency(grandTotalTotals.cancelled)}
+                  </td>
+                </tr>
+                <tr className="summary-percentage-row" style={{ fontWeight: 600, backgroundColor: 'var(--theme-elevation-50, #f8fafc)' }}>
+                  <td className="bold-text" colSpan={2} style={{ color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>PERCENTAGE</td>
+                  <td className="bold-text amount-cell" style={{ textAlign: 'right', color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
+                    100%
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
+                    {getPercentageStr(grandTotalTotals.verified)}
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
+                    {getPercentageStr(grandTotalTotals.not_verified)}
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
+                    {getPercentageStr(grandTotalTotals.not_match)}
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
+                    {getPercentageStr(grandTotalTotals.pending)}
+                  </td>
+                  <td className="bold-text" style={{ textAlign: 'right', color: 'var(--theme-text-muted, #64748b)', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
+                    {getPercentageStr(grandTotalTotals.cancelled)}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>
