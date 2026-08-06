@@ -526,6 +526,7 @@ export const Users: CollectionConfig = {
               collection: 'users',
               id: user.id,
               data: updateData as any, // Cast to any to bypass type check until types are regenerated
+              overrideAccess: true,
             })
           }
         }
@@ -565,6 +566,7 @@ export const Users: CollectionConfig = {
                 dateString: { equals: istDateStr },
               },
               depth: 0,
+              overrideAccess: true,
             })
 
             let attendanceDoc
@@ -585,6 +587,7 @@ export const Users: CollectionConfig = {
                     longitude: lng,
                   },
                 } as any,
+                overrideAccess: true,
               })
             }
 
@@ -644,6 +647,7 @@ export const Users: CollectionConfig = {
                   longitude: lng,
                 },
               },
+              overrideAccess: true,
             })
 
             console.log(`[Attendance] Managed IST Daily Log (${istDateStr}) for ${user.email}`)
