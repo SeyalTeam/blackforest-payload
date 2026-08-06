@@ -174,7 +174,7 @@ export const getAccountsBillsReportHandler: PayloadHandler = async (
         ? bill.branch.id
         : bill.branch
 
-      const billDateStr = new Date(bill.createdAt).toISOString().slice(0, 10)
+      const billDateStr = new Date(bill.updatedAt || bill.createdAt).toISOString().slice(0, 10)
       const key = `${billBranchId}_${billDateStr}`
 
       let closingNumber = '-'
@@ -187,7 +187,7 @@ export const getAccountsBillsReportHandler: PayloadHandler = async (
         const groupEntries = closingGroups[key] || []
         if (groupEntries.length > 0) {
           let matchedEntry = null
-          const billTime = new Date(bill.createdAt).getTime()
+          const billTime = new Date(bill.updatedAt || bill.createdAt).getTime()
 
           for (let i = 0; i < groupEntries.length; i++) {
             const currentEntry = groupEntries[i]
