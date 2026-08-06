@@ -11,8 +11,9 @@ import type {
 } from "@/lib/order-types";
 
 import { resolveApiTokenForBranch } from "@/lib/api-token";
+import { getPublicServerURL } from "@/utilities/serverUrl";
 
-const NEXT_PUBLIC_SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000';
+const NEXT_PUBLIC_SERVER_URL = getPublicServerURL();
 const API_BASE = `${NEXT_PUBLIC_SERVER_URL}/api`;
 const DEFAULT_BRANCH_ID =
   process.env.DEFAULT_BRANCH_ID?.trim() ||

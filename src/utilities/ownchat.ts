@@ -1,4 +1,5 @@
 import axiosLib from 'axios'
+import { getPublicServerURL } from './serverUrl'
 
 // Use a fresh isolated instance to avoid any global axios interceptors set up by Payload CMS
 const axios = axiosLib.create()
@@ -31,7 +32,7 @@ export const sendWhatsAppBill = async (params: SendWhatsAppBillParams): Promise<
   const apiKey = process.env.OWNCHAT_API_KEY
   const apiSecret = process.env.OWNCHAT_API_SECRET
   const apiUrl = process.env.OWNCHAT_API_URL || 'https://api.ownchat.app/apis/v1/chat/send-message'
-  const serverUrl = process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000'
+  const serverUrl = getPublicServerURL()
 
   if (!apiKey || !apiSecret) {
     console.error('[Ownchat] Missing API credentials in environment variables.')

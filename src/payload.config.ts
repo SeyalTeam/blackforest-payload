@@ -140,6 +140,7 @@ import { cashfreeVerifyOrderHandler } from './endpoints/cashfreeVerifyOrder'
 import { callSignalHandler } from './endpoints/callSignal'
 import BankStatements from './collections/BankStatements'
 import { BankStatementUploadGlobal } from './globals/BankStatementUpload'
+import { getPublicServerURL } from './utilities/serverUrl'
 
 
 // Path helpers
@@ -412,7 +413,7 @@ const normalizeAbsoluteURL = (value?: string | null): string => {
   }
 }
 
-const publicServerURL = normalizeAbsoluteURL(process.env.PAYLOAD_PUBLIC_SERVER_URL)
+const publicServerURL = getPublicServerURL()
 
 type SupportedDBMode = 'postgres' | 'mongo'
 
@@ -1011,7 +1012,7 @@ export default buildConfig({
 
   db: dbAdapter,
   sharp,
-  serverURL: publicServerURL || 'http://localhost:3000',
+  serverURL: publicServerURL,
   plugins: [
     s3Storage({
       collections: {

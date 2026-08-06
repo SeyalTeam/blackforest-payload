@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { resolveApiTokenForBranch } from "@/lib/api-token";
+import { getPublicServerURL } from "@/utilities/serverUrl";
 
-const NEXT_PUBLIC_SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000';
+const NEXT_PUBLIC_SERVER_URL = getPublicServerURL();
 const API_BASE = `${NEXT_PUBLIC_SERVER_URL}/api`;
 
 type CustomerDetailsConfig = {

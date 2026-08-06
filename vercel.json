@@ -5,7 +5,7 @@
     }
   },
   "env": {
-    "PAYLOAD_CONFIG_PATH": "dist/payload.config.js"
+    "PAYLOAD_CONFIG_PATH": "src/payload.config.ts"
   },
   "regions": ["bom1"]
 }
