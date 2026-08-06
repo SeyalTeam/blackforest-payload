@@ -399,6 +399,14 @@ export const Users: CollectionConfig = {
     delete: ({ req }) => req.user?.role === 'superadmin',
   },
   hooks: {
+    beforeValidate: [
+      async ({ data }) => {
+        if (data && typeof data.email === 'string') {
+          data.email = data.email.trim().toLowerCase()
+        }
+        return data
+      },
+    ],
     afterRead: [
       async ({ doc, req }) => {
         if (!doc) return doc
