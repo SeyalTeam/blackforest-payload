@@ -96,6 +96,7 @@ export const MenuSettingsGlobal: GlobalConfig = {
             { label: 'Branch Billing Report', value: 'branch-billing-report' },
             { label: 'GST Report', value: 'gst-report' },
             { label: 'All Bills Report', value: 'accounts-bills-report' },
+            { label: 'Bill Summary', value: 'bill-summary' },
             { label: 'Category Wise Report', value: 'category-wise-report' },
             { label: 'Product Wise Report', value: 'product-wise-report' },
             { label: 'Product Time Report', value: 'product-time-report' },

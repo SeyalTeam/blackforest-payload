@@ -197,8 +197,10 @@ const AccountsBillsReport: React.FC = () => {
     )
   }, [bills])
 
+
+
   const formatCurrency = (val: number) => {
-    return `₹${new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val)}`
+    return `₹${new Intl.NumberFormat('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val)}`
   }
 
   const formatDateTime = (dateStr: string) => {
@@ -534,10 +536,22 @@ const AccountsBillsReport: React.FC = () => {
   return (
     <div className="branch-report-container accounts-report">
       <div className="report-topbar">
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
           <p className="crumbs">ACCOUNT / REPORTS</p>
-          <h1>All Bills Report</h1>
-          <p className="subtitle">Verify and track sales invoices across waitstaff and branches</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+            <h1 style={{ margin: 0 }}>All Bills Report</h1>
+            <div className="search-input-wrap" style={{ width: '260px', height: '36px' }}>
+              <Search size={14} className="search-icon" />
+              <input
+                type="text"
+                placeholder="Search Bill Number"
+                value={searchInvoice}
+                onChange={(e) => setSearchInvoice(e.target.value)}
+                className="search-input"
+                style={{ fontSize: '0.85rem' }}
+              />
+            </div>
+          </div>
         </div>
         <div className="actions">
           <button className="icon-btn" onClick={handleRefresh} disabled={loading} title="Refresh report">
@@ -623,20 +637,6 @@ const AccountsBillsReport: React.FC = () => {
             />
           </div>
 
-          {/* Search bar */}
-          <div className="filter-item search-filter">
-            <label className="filter-label">Search Bill Number</label>
-            <div className="search-input-wrap">
-              <Search size={16} className="search-icon" />
-              <input
-                type="text"
-                placeholder="e.g. INV-20260715"
-                value={searchInvoice}
-                onChange={(e) => setSearchInvoice(e.target.value)}
-                className="search-input"
-              />
-            </div>
-          </div>
         </div>
       </div>
 

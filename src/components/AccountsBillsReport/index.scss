@@ -480,3 +480,71 @@
     cursor: not-allowed;
   }
 }
+
+.accounts-report {
+  .summary-card {
+    margin-bottom: 1.5rem;
+    padding: 1.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+
+    [data-theme='dark'] & {
+      background: #111111;
+      border-color: var(--border-soft);
+      box-shadow: none;
+    }
+
+    .summary-header {
+      background: linear-gradient(135deg, #1b365d 0%, #0ea5e9 100%);
+      padding: 0.85rem 1.5rem;
+      margin: -1.5rem -1.5rem 1.25rem -1.5rem;
+      border-radius: 11px 11px 0 0;
+
+      .summary-title {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #ffffff !important;
+        letter-spacing: 0.02em;
+      }
+    }
+
+    .summary-table {
+      min-width: auto;
+      
+      th {
+        font-size: 0.8rem;
+        letter-spacing: 0.06em;
+      }
+      
+      td {
+        padding: 0.75rem 0.85rem;
+        
+        &:not(:first-child) {
+          font-size: 1.25rem;
+          font-weight: 700;
+        }
+      }
+
+      .summary-grand-total-row {
+        background-color: rgba(14, 165, 233, 0.08);
+        
+        [data-theme='dark'] & {
+          background-color: rgba(56, 189, 248, 0.15);
+        }
+        
+        td {
+          font-weight: 800 !important;
+          border-top: 2px solid var(--border-soft);
+          border-bottom: 2px solid var(--border-soft);
+          
+          &:not(:first-child) {
+            font-size: 1.35rem;
+          }
+        }
+      }
+    }
+  }
+}

@@ -40,6 +40,7 @@ import { DashboardGlobal } from './globals/Dashboard'
 import { JarvisGlobal } from './globals/Jarvis'
 import { BranchBillingReportGlobal } from './globals/BranchBillingReport'
 import { AccountsBillsReportGlobal } from './globals/AccountsBillsReport'
+import { BillSummaryGlobal } from './globals/BillSummary'
 import { GSTReportGlobal } from './globals/GSTReport'
 import { CategoryWiseReportGlobal } from './globals/CategoryWiseReport'
 import { ProductWiseReportGlobal } from './globals/ProductWiseReport'
@@ -892,6 +893,7 @@ export default buildConfig({
     TimeWiseReportGlobal,
     BranchBillingReportGlobal,
     AccountsBillsReportGlobal,
+    BillSummaryGlobal,
     GSTReportGlobal,
     CategoryWiseReportGlobal,
     ProductWiseReportGlobal,

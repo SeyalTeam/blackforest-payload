@@ -394,12 +394,7 @@ const ClosingEntries: CollectionConfig = {
                 { createdAt: { greater_than_equal: startOfDay } },
                 { createdAt: { less_than_equal: windowEnd } },
                 { status: { in: ['completed', 'settled'] } },
-                {
-                  or: [
-                    { createdAt: { greater_than: lastClosingTime } },
-                    { updatedAt: { greater_than: lastClosingTime } },
-                  ],
-                },
+                { createdAt: { greater_than: lastClosingTime } },
               ],
             } as Where,
             limit: 1000,
@@ -407,16 +402,7 @@ const ClosingEntries: CollectionConfig = {
           })
 
           const completedBills = bills.docs.filter((b: any) => {
-            const isCompleted = b.status === 'completed' || b.status === 'settled'
-            if (!isCompleted) return false
-
-            const createdTime = new Date(b.createdAt).toISOString()
-            const updatedTime = b.updatedAt ? new Date(b.updatedAt).toISOString() : createdTime
-
-            if (createdTime > lastClosingTime) {
-              return true
-            }
-            return updatedTime > lastClosingTime
+            return b.status === 'completed' || b.status === 'settled'
           })
 
           data.totalBills = completedBills.length

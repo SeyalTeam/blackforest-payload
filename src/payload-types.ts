@@ -157,6 +157,7 @@ export interface Config {
     'time-wise-report': TimeWiseReport;
     'branch-billing-report': BranchBillingReport;
     'accounts-bills-report': AccountsBillsReport;
+    'bill-summary': BillSummary;
     'gst-report': GstReport;
     'category-wise-report': CategoryWiseReport;
     'product-wise-report': ProductWiseReport;
@@ -191,6 +192,7 @@ export interface Config {
     'time-wise-report': TimeWiseReportSelect<false> | TimeWiseReportSelect<true>;
     'branch-billing-report': BranchBillingReportSelect<false> | BranchBillingReportSelect<true>;
     'accounts-bills-report': AccountsBillsReportSelect<false> | AccountsBillsReportSelect<true>;
+    'bill-summary': BillSummarySelect<false> | BillSummarySelect<true>;
     'gst-report': GstReportSelect<false> | GstReportSelect<true>;
     'category-wise-report': CategoryWiseReportSelect<false> | CategoryWiseReportSelect<true>;
     'product-wise-report': ProductWiseReportSelect<false> | ProductWiseReportSelect<true>;
@@ -3196,6 +3198,15 @@ export interface AccountsBillsReport {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "bill-summary".
+ */
+export interface BillSummary {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "gst-report".
  */
 export interface GstReport {
@@ -4614,6 +4625,7 @@ export interface MenuSetting {
               | 'branch-billing-report'
               | 'gst-report'
               | 'accounts-bills-report'
+              | 'bill-summary'
               | 'category-wise-report'
               | 'product-wise-report'
               | 'product-time-report'
@@ -4715,6 +4727,15 @@ export interface BranchBillingReportSelect<T extends boolean = true> {
  * via the `definition` "accounts-bills-report_select".
  */
 export interface AccountsBillsReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "bill-summary_select".
+ */
+export interface BillSummarySelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
