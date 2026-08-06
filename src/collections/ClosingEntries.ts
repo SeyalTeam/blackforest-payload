@@ -182,7 +182,7 @@ const ClosingEntries: CollectionConfig = {
         }
 
         // ------------------------------------------
-        // 1️⃣ NORMALIZE DATE TO START OF DAY UTC
+        // 1️⃣ NORMALIZE DATE TO START OF DAY (IST)
         // ------------------------------------------
         if (data.date) {
           const d = new Date(data.date)
@@ -193,28 +193,11 @@ const ClosingEntries: CollectionConfig = {
         }
 
         const entryDate = new Date(doc.date)
-        const startOfDay = new Date(
-          Date.UTC(
-            entryDate.getUTCFullYear(),
-            entryDate.getUTCMonth(),
-            entryDate.getUTCDate(),
-            0,
-            0,
-            0,
-            0,
-          ),
-        ).toISOString()
-        const endOfDay = new Date(
-          Date.UTC(
-            entryDate.getUTCFullYear(),
-            entryDate.getUTCMonth(),
-            entryDate.getUTCDate(),
-            23,
-            59,
-            59,
-            999,
-          ),
-        ).toISOString()
+        
+        // Adjust to IST (UTC+5:30) for logical day boundaries
+        const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000
+        const startOfDay = new Date(entryDate.getTime() - IST_OFFSET_MS).toISOString()
+        const endOfDay = new Date(entryDate.getTime() - IST_OFFSET_MS + 24 * 60 * 60 * 1000 - 1).toISOString()
 
         // ------------------------------------------
         // 2️⃣ GENERATE CLOSING NUMBER PER BRANCH
