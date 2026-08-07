@@ -44,15 +44,23 @@ export const getAccountsBillsReportHandler: PayloadHandler = async (
     const whereClause: any = {
       and: [
         {
-          createdAt: {
-            greater_than_equal: startOfDay.toISOString(),
-          },
-        },
-        {
-          createdAt: {
-            less_than_equal: endOfDay.toISOString(),
-          },
-        },
+          or: [
+            {
+              and: [
+                { status: { in: ['completed', 'settled'] } },
+                { settledAt: { greater_than_equal: startOfDay.toISOString() } },
+                { settledAt: { less_than_equal: endOfDay.toISOString() } },
+              ]
+            },
+            {
+              and: [
+                { status: { not_in: ['completed', 'settled'] } },
+                { createdAt: { greater_than_equal: startOfDay.toISOString() } },
+                { createdAt: { less_than_equal: endOfDay.toISOString() } },
+              ]
+            }
+          ]
+        }
       ],
     }
 
@@ -182,7 +190,7 @@ export const getAccountsBillsReportHandler: PayloadHandler = async (
         const groupEntries = closingGroups[billBranchId] || []
         if (groupEntries.length > 0) {
           let matchedEntry = null
-          const billTime = new Date(bill.updatedAt || bill.createdAt).getTime()
+          const billTime = new Date(bill.settledAt || bill.updatedAt || bill.createdAt).getTime()
 
           for (let i = 0; i < groupEntries.length; i++) {
             const currentEntry = groupEntries[i]

@@ -2711,6 +2711,12 @@ const Billings: CollectionConfig = {
           })
         }
 
+        if (isBillingFinalizedStatus(data.status) || (operation === 'update' && !data.status && isBillingFinalizedStatus(originalDoc?.status))) {
+          if (!data.settledAt && !originalDoc?.settledAt) {
+            data.settledAt = new Date().toISOString()
+          }
+        }
+
         if (
           operation === 'create' ||
           (operation === 'update' &&
@@ -4762,6 +4768,16 @@ const Billings: CollectionConfig = {
       admin: {
         position: 'sidebar',
       },
+    },
+    {
+      name: 'settledAt',
+      label: 'Settled At',
+      type: 'date',
+      admin: {
+        position: 'sidebar',
+        description: 'The exact time this bill was completed/settled. This value powers shift boundaries and does not change on subsequent updates.',
+      },
+      index: true,
     },
   ],
   timestamps: true,
