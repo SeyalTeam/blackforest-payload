@@ -2711,9 +2711,15 @@ const Billings: CollectionConfig = {
           })
         }
 
-        if (isBillingFinalizedStatus(data.status) || (operation === 'update' && !data.status && isBillingFinalizedStatus(originalDoc?.status))) {
-          if (!data.settledAt && !originalDoc?.settledAt) {
-            data.settledAt = new Date().toISOString()
+        const isFinal = isBillingFinalizedStatus(data.status) || (operation === 'update' && !data.status && isBillingFinalizedStatus(originalDoc?.status))
+        if (isFinal) {
+          const wasFinal = isBillingFinalizedStatus(originalDoc?.status)
+          if (!data.settledAt) {
+            if (!wasFinal || !originalDoc?.settledAt) {
+              data.settledAt = new Date().toISOString()
+            } else {
+              data.settledAt = originalDoc.settledAt
+            }
           }
         }
 
