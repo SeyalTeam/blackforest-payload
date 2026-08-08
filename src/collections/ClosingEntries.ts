@@ -178,24 +178,45 @@ const ClosingEntries: CollectionConfig = {
           }
         }
 
-        // FALLBACK TO BRANCH USER IF CREATOR INFO STILL MISSING
-        if ((!data.createdBy && !doc.createdBy) || (!data.createdByName && !doc.createdByName)) {
+        // FALLBACK TO BRANCH USER / BRANCH NAME IF CREATOR INFO STILL MISSING
+        if (!data.createdBy || !data.createdByName || data.createdByName === 'Unknown') {
           const branchId = data.branch || doc.branch
           if (branchId) {
             try {
               const targetBranchId = typeof branchId === 'object' ? branchId.id : branchId
+              
               const branchUserResult = await req.payload.find({
                 collection: 'users',
-                where: { branch: { equals: targetBranchId } },
-                limit: 1,
+                where: {
+                  and: [
+                    { branch: { equals: targetBranchId } },
+                    { role: { in: ['branch', 'cashier', 'manager', 'admin'] } },
+                  ],
+                },
+                limit: 10,
               })
-              if (branchUserResult.docs.length > 0) {
-                const bUser = branchUserResult.docs[0]
+
+              const validUser = branchUserResult.docs.find((u) => u.name) || branchUserResult.docs[0]
+
+              let branchName = ''
+              if (!validUser?.name) {
+                const branchDoc = await req.payload.findByID({
+                  collection: 'branches',
+                  id: targetBranchId,
+                })
+                if (branchDoc?.name) branchName = branchDoc.name
+              }
+
+              if (validUser) {
                 if (!data.createdBy && !doc.createdBy) {
-                  data.createdBy = bUser.id
+                  data.createdBy = validUser.id
                 }
-                if (!data.createdByName && !doc.createdByName) {
-                  data.createdByName = bUser.name || bUser.email || 'Unknown'
+                if (!data.createdByName || data.createdByName === 'Unknown') {
+                  data.createdByName = validUser.name || validUser.email || branchName || 'Unknown'
+                }
+              } else if (branchName) {
+                if (!data.createdByName || data.createdByName === 'Unknown') {
+                  data.createdByName = branchName
                 }
               }
             } catch (err) {

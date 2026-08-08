@@ -1245,7 +1245,10 @@ export interface DealerBilling {
         product: string | Product;
         quantity: number;
         totalAmount?: number | null;
-        photo?: string | Media | null;
+        /**
+         * Photo of the product taken during dealer billing
+         */
+        photo?: (string | null) | Media;
         id?: string | null;
       }[]
     | null;
@@ -2846,6 +2849,7 @@ export interface DealerBillingsSelect<T extends boolean = true> {
         product?: T;
         quantity?: T;
         totalAmount?: T;
+        photo?: T;
         id?: T;
       };
   date?: T;
