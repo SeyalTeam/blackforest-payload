@@ -164,46 +164,60 @@ const DealerBillings: CollectionConfig = {
             data.branch = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
           }
         }
+        // Get productsPhoto from data or fallback to originalDoc
+        const rawPhotos = data.productsPhoto !== undefined ? data.productsPhoto : originalDoc?.productsPhoto
+
         // Normalize productsPhoto into an array of ID strings
         let photosArray: string[] = []
-        if (Array.isArray(data.productsPhoto)) {
-          photosArray = data.productsPhoto
+        if (Array.isArray(rawPhotos)) {
+          photosArray = rawPhotos
             .map((p: any) => (typeof p === 'string' ? p : p?.id || p?._id))
             .filter(Boolean)
-        } else if (data.productsPhoto) {
-          const pId = typeof data.productsPhoto === 'string' ? data.productsPhoto : data.productsPhoto.id || data.productsPhoto._id
+        } else if (rawPhotos) {
+          const pId = typeof rawPhotos === 'string' ? rawPhotos : rawPhotos.id || rawPhotos._id
           if (pId) photosArray = [pId]
         }
 
-        // Fallback: If creating a new billing and productsPhoto is empty, search for recently uploaded media
-        if (operation === 'create' && photosArray.length === 0) {
+        // Fallback: If photosArray is empty, check billCopyPhoto / deliveryPersonPhoto
+        if (photosArray.length === 0) {
+          const billPhoto = data.billCopyPhoto || originalDoc?.billCopyPhoto
+          const delPhoto = data.deliveryPersonPhoto || originalDoc?.deliveryPersonPhoto
+          const candidate = billPhoto || delPhoto
+          const cId = typeof candidate === 'string' ? candidate : candidate?.id || candidate?._id
+          if (cId) photosArray = [cId]
+        }
+
+        // Fallback: If still empty, search recently created media
+        if (photosArray.length === 0) {
           try {
-            const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000)
+            const timeLimit = new Date(Date.now() - 10 * 60 * 1000)
             const recentMedia = await req.payload.find({
               collection: 'media',
               where: {
-                createdAt: { greater_than: twoMinutesAgo },
+                createdAt: { greater_than: timeLimit },
               },
               sort: '-createdAt',
               limit: 5,
             })
             if (recentMedia.docs.length > 0) {
-              const recentPhotoIds = recentMedia.docs.map((m: any) => m.id)
-              photosArray = recentPhotoIds
+              photosArray = recentMedia.docs.map((m: any) => m.id)
             }
           } catch (e) {
             // Ignore fallback lookup error
           }
         }
 
-        if (data.productsList && Array.isArray(data.productsList)) {
-          data.productsList = data.productsList.map((item: any, index: number) => {
+        const productsList = data.productsList || originalDoc?.productsList
+        if (productsList && Array.isArray(productsList)) {
+          data.productsList = productsList.map((item: any, index: number) => {
             let itemPhotoId = typeof item.photo === 'string' ? item.photo : item.photo?.id || item.photo?._id
             if (!itemPhotoId && photosArray.length > 0) {
               itemPhotoId = photosArray[index] || photosArray[0]
-              item.photo = itemPhotoId
             }
-            return item
+            return {
+              ...item,
+              photo: itemPhotoId || item.photo || null,
+            }
           })
 
           data.products = data.productsList
@@ -220,7 +234,7 @@ const DealerBillings: CollectionConfig = {
           if (combinedPhotos.length > 0) {
             data.productsPhoto = combinedPhotos
           }
-        } else if (photosArray.length > 0) {
+        } else if (photosArray.length > 0 && !data.productsPhoto) {
           data.productsPhoto = photosArray
         }
         if (data.bills) {
