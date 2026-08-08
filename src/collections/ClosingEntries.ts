@@ -376,7 +376,7 @@ const ClosingEntries: CollectionConfig = {
                 { branch: { equals: doc.branch } },
                 { createdAt: { greater_than_equal: startOfDay } },
                 { createdAt: { less_than_equal: windowEnd } },
-                { status: { in: ['completed', 'settled'] } },
+                { status: { equals: 'settled' } },
               ],
             } as Where,
             limit: 2000,
@@ -384,7 +384,7 @@ const ClosingEntries: CollectionConfig = {
           })
 
           const completedBills = bills.docs.filter((b: any) => {
-            if (b.status !== 'completed' && b.status !== 'settled') return false
+            if (b.status !== 'settled') return false
             const billTimeRaw = b.settledAt || b.createdAt
             if (!billTimeRaw) return false
             const billTime = new Date(billTimeRaw).toISOString()
