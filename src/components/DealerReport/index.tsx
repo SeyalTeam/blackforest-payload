@@ -24,6 +24,7 @@ export type DealerReportProductItem = {
   name: string
   quantity?: number
   totalAmount?: number
+  photoUrl?: string
 }
 
 export type DealerReportItem = {
@@ -35,6 +36,7 @@ export type DealerReportItem = {
   payments?: { amount: number; date: string }[]
   billCopyUrl?: string
   productsUrl?: string
+  productsPhotoUrls?: string[]
   time: string
   status: string
   products?: DealerReportProductItem[]
@@ -780,7 +782,17 @@ const DealerReport: React.FC = () => {
                               </td>
                               <td className="image-cell" style={{ textAlign: 'center' }}>
                                 <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                                  {item.productsUrl ? (
+                                  {item.productsPhotoUrls && item.productsPhotoUrls.length > 0 ? (
+                                    <button
+                                      className="image-view-btn active"
+                                      onClick={() => {
+                                        if (item.productsPhotoUrls?.[0]) setPreviewImage(item.productsPhotoUrls[0])
+                                      }}
+                                      title={`View Product Photos (${item.productsPhotoUrls.length})`}
+                                    >
+                                      📦
+                                    </button>
+                                  ) : item.productsUrl ? (
                                     <button
                                       className="image-view-btn active"
                                       onClick={() => item.productsUrl && setPreviewImage(item.productsUrl)}
@@ -880,6 +892,7 @@ const DealerReport: React.FC = () => {
                 <thead>
                   <tr>
                     <th style={{ width: '5%' }}>#</th>
+                    <th style={{ width: '12%', textAlign: 'center' }}>Photo</th>
                     <th>Product Name</th>
                     <th style={{ textAlign: 'right', width: '25%' }}>Quantity / Count</th>
                     <th style={{ textAlign: 'right', width: '25%' }}>Total Price (₹)</th>
@@ -889,6 +902,26 @@ const DealerReport: React.FC = () => {
                   {previewProducts.map((prod, i) => (
                     <tr key={i}>
                       <td>{i + 1}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        {prod.photoUrl ? (
+                          <img
+                            src={prod.photoUrl}
+                            alt={prod.name}
+                            style={{
+                              width: '36px',
+                              height: '36px',
+                              objectFit: 'cover',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              border: '1px solid var(--theme-elevation-200)',
+                            }}
+                            onClick={() => setPreviewImage(prod.photoUrl!)}
+                            title="Click to view full photo"
+                          />
+                        ) : (
+                          <span style={{ opacity: 0.3 }}>-</span>
+                        )}
+                      </td>
                       <td style={{ fontWeight: 600 }}>{prod.name}</td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>
                         {prod.quantity ? prod.quantity.toLocaleString('en-IN') : '-'}
@@ -902,7 +935,7 @@ const DealerReport: React.FC = () => {
                 {previewProducts.some((p) => p.totalAmount || p.quantity) && (
                   <tfoot>
                     <tr style={{ borderTop: '2px solid var(--theme-elevation-200)', fontWeight: 700 }}>
-                      <td colSpan={2} style={{ textAlign: 'right' }}>Total:</td>
+                      <td colSpan={3} style={{ textAlign: 'right' }}>Total:</td>
                       <td style={{ textAlign: 'right' }}>
                         {previewProducts.reduce((sum, p) => sum + (p.quantity || 0), 0).toLocaleString('en-IN')}
                       </td>

@@ -12,6 +12,7 @@ export type DealerReportProductItem = {
   name: string
   quantity?: number
   totalAmount?: number
+  photoUrl?: string
 }
 
 export type DealerReportItem = {
@@ -23,6 +24,7 @@ export type DealerReportItem = {
   payments?: { amount: number; date: string }[]
   billCopyUrl?: string
   productsUrl?: string
+  productsPhotoUrls?: string[]
   time: string
   status: string
   products?: DealerReportProductItem[]
@@ -289,6 +291,31 @@ export const getDealerReportData = async (
     },
     {
       $lookup: {
+        from: 'media',
+        let: { mediaIds: '$productsList.photo' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $in: [
+                  '$_id',
+                  {
+                    $map: {
+                      input: { $ifNull: ['$$mediaIds', []] },
+                      as: 'mid',
+                      in: { $convert: { input: '$$mid', to: 'objectId', onError: '$$mid', onNull: '$$mid' } },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        ],
+        as: 'productsListMedia',
+      },
+    },
+    {
+      $lookup: {
         from: 'products',
         let: { prodIds: '$products' },
         pipeline: [
@@ -332,8 +359,10 @@ export const getDealerReportData = async (
             productsUrl: { $arrayElemAt: ['$productsInfo.url', 0] },
             productsFilename: { $arrayElemAt: ['$productsInfo.filename', 0] },
             productsPrefix: { $arrayElemAt: ['$productsInfo.prefix', 0] },
+            productsPhotoInfo: '$productsInfo',
             status: { $ifNull: ['$status', 'pending'] },
             productsList: '$productsList',
+            productsListMedia: '$productsListMedia',
             productsListResolvedProducts: {
               $map: {
                 input: '$productsListResolvedProducts',
@@ -379,6 +408,21 @@ export const getDealerReportData = async (
 
         const products: DealerReportProductItem[] = []
 
+        const productsPhotoUrls: string[] = []
+        if (Array.isArray((item as any).productsPhotoInfo)) {
+          ;(item as any).productsPhotoInfo.forEach((p: any) => {
+            if (p && typeof p === 'object') {
+              const url = toNonEmptyString(p.url)
+              const filename = toNonEmptyString(p.filename)
+              const prefix = toNonEmptyString(p.prefix)
+              const resolved = url || resolveMediaUrl(filename, prefix) || ''
+              if (resolved) {
+                productsPhotoUrls.push(resolved)
+              }
+            }
+          })
+        }
+
         if (Array.isArray(item.productsList) && item.productsList.length > 0) {
           const resolvedMap = new Map<string, string>()
           if (Array.isArray(item.productsListResolvedProducts)) {
@@ -393,7 +437,20 @@ export const getDealerReportData = async (
             })
           }
 
-          item.productsList.forEach((p: any) => {
+          const mediaMap = new Map<string, string>()
+          if (Array.isArray((item as any).productsListMedia)) {
+            ;(item as any).productsListMedia.forEach((m: any) => {
+              if (m && typeof m === 'object') {
+                const id = toNonEmptyString(m._id || m.id)
+                const url = toNonEmptyString(m.url) || resolveMediaUrl(toNonEmptyString(m.filename), toNonEmptyString(m.prefix)) || ''
+                if (id && url) {
+                  mediaMap.set(id, url)
+                }
+              }
+            })
+          }
+
+          item.productsList.forEach((p: any, idx: number) => {
             if (p && typeof p === 'object') {
               let prodId = ''
               let name = ''
@@ -414,10 +471,27 @@ export const getDealerReportData = async (
               const quantity = toNumber(p.quantity)
               const totalAmount = toNumber(p.totalAmount)
 
+              let photoUrl = ''
+              if (p.photo) {
+                if (typeof p.photo === 'object' && p.photo.url) {
+                  photoUrl = toNonEmptyString(p.photo.url)
+                } else {
+                  const photoId = toNonEmptyString(p.photo.id || p.photo._id || p.photo)
+                  if (photoId) {
+                    photoUrl = mediaMap.get(photoId) || ''
+                  }
+                }
+              }
+
+              if (!photoUrl && productsPhotoUrls[idx]) {
+                photoUrl = productsPhotoUrls[idx]
+              }
+
               products.push({
                 name,
                 quantity,
                 totalAmount,
+                photoUrl: photoUrl || undefined,
               })
             }
           })
@@ -443,7 +517,7 @@ export const getDealerReportData = async (
         }
 
         const resolvedBillCopyUrl = billCopyUrl || resolveMediaUrl(billCopyFilename, billCopyPrefix)
-        const resolvedProductsUrl = productsUrl || resolveMediaUrl(productsFilename, productsPrefix)
+        const resolvedProductsUrl = productsUrl || resolveMediaUrl(productsFilename, productsPrefix) || productsPhotoUrls[0]
 
         return {
           id: toNonEmptyString(item.id),
@@ -454,6 +528,7 @@ export const getDealerReportData = async (
           time: toDateString(item.time),
           billCopyUrl: resolvedBillCopyUrl,
           productsUrl: resolvedProductsUrl,
+          productsPhotoUrls,
           status: toNonEmptyString(item.status, 'pending'),
           products,
         }

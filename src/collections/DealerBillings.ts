@@ -97,6 +97,15 @@ const DealerBillings: CollectionConfig = {
           required: false,
           defaultValue: 0,
         },
+        {
+          name: 'photo',
+          type: 'relationship',
+          relationTo: 'media',
+          required: false,
+          admin: {
+            description: 'Photo of the product taken during dealer billing',
+          },
+        },
       ],
     },
     {
@@ -156,10 +165,31 @@ const DealerBillings: CollectionConfig = {
           }
         }
         if (data.productsList) {
-          data.products = data.productsList.map(
-            (item: { product: string | { id: string } }) =>
+          data.productsList = data.productsList.map((item: any, index: number) => {
+            if (!item.photo && Array.isArray(data.productsPhoto) && data.productsPhoto[index]) {
+              const pPhoto = data.productsPhoto[index]
+              item.photo = typeof pPhoto === 'string' ? pPhoto : pPhoto?.id || pPhoto?._id
+            }
+            return item
+          })
+          data.products = data.productsList
+            .map((item: { product: string | { id: string } }) =>
               typeof item.product === 'string' ? item.product : item.product?.id
-          ).filter(Boolean);
+            )
+            .filter(Boolean);
+
+          const listPhotos = data.productsList
+            .map((item: any) => (typeof item.photo === 'string' ? item.photo : item.photo?.id || item.photo?._id))
+            .filter(Boolean)
+          if (listPhotos.length > 0) {
+            const existingPhotos = (Array.isArray(data.productsPhoto) ? data.productsPhoto : [])
+              .map((p: any) => (typeof p === 'string' ? p : p?.id || p?._id))
+              .filter(Boolean)
+            const combined = Array.from(new Set([...existingPhotos, ...listPhotos]))
+            if (combined.length > 0) {
+              data.productsPhoto = combined
+            }
+          }
         }
         if (data.bills) {
           const calculatedTotal = data.bills.reduce(

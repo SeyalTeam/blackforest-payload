@@ -1036,6 +1036,10 @@ export interface Billing {
     tableNumber?: string | null;
   };
   verificationStatus?: ('pending' | 'verified' | 'not_verified' | 'not_match' | 'cancelled') | null;
+  /**
+   * The exact time this bill was completed/settled. This value powers shift boundaries and does not change on subsequent updates.
+   */
+  settledAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1241,6 +1245,7 @@ export interface DealerBilling {
         product: string | Product;
         quantity: number;
         totalAmount?: number | null;
+        photo?: string | Media | null;
         id?: string | null;
       }[]
     | null;
@@ -2654,6 +2659,7 @@ export interface BillingsSelect<T extends boolean = true> {
         tableNumber?: T;
       };
   verificationStatus?: T;
+  settledAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

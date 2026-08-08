@@ -155,8 +155,10 @@ const ClosingEntries: CollectionConfig = {
   hooks: {
     afterRead: [
       async ({ doc }) => {
-        if (doc && !doc.createdByName && doc.createdBy && typeof doc.createdBy === 'object') {
-          doc.createdByName = doc.createdBy.name || doc.createdBy.email || 'Unknown'
+        if (doc && !doc.createdByName && doc.createdBy) {
+          if (typeof doc.createdBy === 'object') {
+            doc.createdByName = doc.createdBy.name || doc.createdBy.email || 'Unknown'
+          }
         }
         return doc
       },
@@ -167,12 +169,38 @@ const ClosingEntries: CollectionConfig = {
         const doc = operation === 'update' ? { ...originalDoc, ...data } : data
 
         // AUTO ASSIGN CREATED BY USER & NAME
-        if (operation === 'create' && user) {
-          if (!data.createdBy) {
+        if (user) {
+          if (!data.createdBy && !doc.createdBy) {
             data.createdBy = user.id
           }
-          if (!data.createdByName) {
+          if (!data.createdByName && !doc.createdByName) {
             data.createdByName = user.name || user.email || (user as any).username || 'Unknown'
+          }
+        }
+
+        // FALLBACK TO BRANCH USER IF CREATOR INFO STILL MISSING
+        if ((!data.createdBy && !doc.createdBy) || (!data.createdByName && !doc.createdByName)) {
+          const branchId = data.branch || doc.branch
+          if (branchId) {
+            try {
+              const targetBranchId = typeof branchId === 'object' ? branchId.id : branchId
+              const branchUserResult = await req.payload.find({
+                collection: 'users',
+                where: { branch: { equals: targetBranchId } },
+                limit: 1,
+              })
+              if (branchUserResult.docs.length > 0) {
+                const bUser = branchUserResult.docs[0]
+                if (!data.createdBy && !doc.createdBy) {
+                  data.createdBy = bUser.id
+                }
+                if (!data.createdByName && !doc.createdByName) {
+                  data.createdByName = bUser.name || bUser.email || 'Unknown'
+                }
+              }
+            } catch (err) {
+              /* ignore fallback error */
+            }
           }
         }
 
