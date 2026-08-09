@@ -46,6 +46,11 @@ const ClosingEntries: CollectionConfig = {
           label: 'Created By (Name)',
           type: 'text',
           required: false,
+          defaultValue: ({ user }: { user: any }) => user?.name || user?.email,
+          access: {
+            create: () => true,
+            update: () => true,
+          },
           admin: {
             width: '50%',
             description: 'Name of the user who created this closing entry',
@@ -57,6 +62,11 @@ const ClosingEntries: CollectionConfig = {
           type: 'relationship',
           relationTo: 'users',
           required: false,
+          defaultValue: ({ user }: { user: any }) => user?.id,
+          access: {
+            create: () => true,
+            update: () => true,
+          },
           admin: {
             width: '50%',
             readOnly: true,
