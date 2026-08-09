@@ -178,6 +178,22 @@ const ClosingEntries: CollectionConfig = {
           }
         }
 
+        // IF createdBy RELATIONSHIP IS PRESENT BUT createdByName IS MISSING, LOOK UP USER NAME
+        if (data.createdBy && (!data.createdByName || data.createdByName === 'Unknown')) {
+          try {
+            const userDoc = await req.payload.findByID({
+              collection: 'users',
+              id: typeof data.createdBy === 'object' ? data.createdBy.id : data.createdBy,
+            })
+            if (userDoc) {
+              const uName = userDoc.name || (userDoc as any).employee?.name || userDoc.email
+              if (uName) {
+                data.createdByName = uName
+              }
+            }
+          } catch (_) {}
+        }
+
         // FALLBACK TO BRANCH USER / BRANCH NAME IF CREATOR INFO STILL MISSING
         if (!data.createdBy || !data.createdByName || data.createdByName === 'Unknown') {
           const branchId = data.branch || doc.branch
