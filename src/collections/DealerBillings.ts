@@ -1,5 +1,20 @@
 import { CollectionConfig } from 'payload'
 
+function toIdString(val: any): string {
+  if (!val) return ''
+  if (typeof val === 'string') return val
+  if (Buffer.isBuffer(val)) return val.toString('hex')
+  if (val && typeof val === 'object') {
+    if (val._id && val._id !== val) return toIdString(val._id)
+    if (val.id && val.id !== val) return toIdString(val.id)
+    if (typeof val.toString === 'function') {
+      const s = val.toString()
+      if (typeof s === 'string' && s.length === 24) return s
+    }
+  }
+  return String(val)
+}
+
 const DealerBillings: CollectionConfig = {
   slug: 'dealer-billings',
   admin: {
@@ -169,35 +184,33 @@ const DealerBillings: CollectionConfig = {
         const rawPhotos = data.productsPhoto !== undefined ? data.productsPhoto : originalDoc?.productsPhoto
         if (Array.isArray(rawPhotos)) {
           photosArray = rawPhotos
-            .map((p: any) => (typeof p === 'string' ? p : p?.id || p?._id))
-            .filter(Boolean)
+            .map(toIdString)
+            .filter((s: string) => s.length === 24)
         } else if (rawPhotos) {
-          const pId = typeof rawPhotos === 'string' ? rawPhotos : rawPhotos.id || rawPhotos._id
-          if (pId) photosArray = [pId]
+          const pId = toIdString(rawPhotos)
+          if (pId && pId.length === 24) photosArray = [pId]
         }
 
         const productsList = data.productsList || originalDoc?.productsList
         if (productsList && Array.isArray(productsList)) {
           data.productsList = productsList.map((item: any, index: number) => {
-            let itemPhotoId = typeof item.photo === 'string' ? item.photo : item.photo?.id || item.photo?._id
+            let itemPhotoId = toIdString(item.photo)
             if (!itemPhotoId && photosArray.length > 0) {
               itemPhotoId = photosArray[index] || photosArray[0]
             }
             return {
               ...item,
-              photo: itemPhotoId || (item.photo ? item.photo : null),
+              photo: itemPhotoId || null,
             }
           })
 
           data.products = data.productsList
-            .map((item: { product: string | { id: string } }) =>
-              typeof item.product === 'string' ? item.product : item.product?.id
-            )
-            .filter(Boolean);
+            .map((item: { product: any }) => toIdString(item.product))
+            .filter((s: string) => s.length === 24);
 
           const listPhotos = data.productsList
-            .map((item: any) => (typeof item.photo === 'string' ? item.photo : item.photo?.id || item.photo?._id))
-            .filter(Boolean)
+            .map((item: any) => toIdString(item.photo))
+            .filter((s: string) => s.length === 24)
           
           const combinedPhotos = Array.from(new Set([...photosArray, ...listPhotos]))
           if (combinedPhotos.length > 0) {
