@@ -4,7 +4,7 @@ const ClosingEntries: CollectionConfig = {
   slug: 'closing-entries',
   admin: {
     useAsTitle: 'closingNumber',
-    defaultColumns: ['closingNumber', 'branch', 'date', 'createdByName', 'totalSales', 'net'],
+    defaultColumns: ['closingNumber', 'branch', 'date', 'createdBy', 'totalSales', 'net'],
     description:
       'Daily closing entries for branches. Auto-calculates totals, returns, stock receipts, and net.',
   },
@@ -39,42 +39,14 @@ const ClosingEntries: CollectionConfig = {
 
     // Creator tracking
     {
-      type: 'row',
-      fields: [
-        {
-          name: 'createdByName',
-          label: 'Created By (Name)',
-          type: 'text',
-          required: false,
-          defaultValue: ({ user }: { user: any }) =>
-            user?.role !== 'superadmin' && user?.role !== 'admin' ? (user?.name || user?.email) : undefined,
-          access: {
-            create: () => true,
-            update: () => true,
-          },
-          admin: {
-            width: '50%',
-            description: 'Name of the user who created this closing entry',
-          },
-        },
-        {
-          name: 'createdBy',
-          label: 'Created By User',
-          type: 'relationship',
-          relationTo: 'users',
-          required: false,
-          defaultValue: ({ user }: { user: any }) =>
-            user?.role !== 'superadmin' && user?.role !== 'admin' ? user?.id : undefined,
-          access: {
-            create: () => true,
-            update: () => true,
-          },
-          admin: {
-            width: '50%',
-            readOnly: true,
-          },
-        },
-      ],
+      name: 'createdBy',
+      label: 'Created By User',
+      type: 'relationship',
+      relationTo: 'users',
+      required: false,
+      admin: {
+        readOnly: true,
+      },
     },
 
     // Sales
@@ -165,91 +137,15 @@ const ClosingEntries: CollectionConfig = {
   ],
 
   hooks: {
-    afterRead: [
-      async ({ doc }) => {
-        if (doc && !doc.createdByName && doc.createdBy) {
-          if (typeof doc.createdBy === 'object') {
-            doc.createdByName = doc.createdBy.name || doc.createdBy.email || 'Unknown'
-          }
-        }
-        return doc
-      },
-    ],
     beforeChange: [
       async ({ req, operation, data, originalDoc }) => {
         const { user } = req
         const doc = operation === 'update' ? { ...originalDoc, ...data } : data
 
-        // AUTO ASSIGN CREATED BY USER & NAME (FOR NON-ADMIN STAFF USERS)
-        if (user && user.role !== 'superadmin' && user.role !== 'admin') {
-          if (!data.createdBy && !doc.createdBy) {
+        // AUTO ASSIGN CREATED BY USER
+        if (operation === 'create' && user) {
+          if (!data.createdBy) {
             data.createdBy = user.id
-          }
-          if (!data.createdByName && !doc.createdByName) {
-            data.createdByName = user.name || (user as any).employee?.name || user.email || (user as any).username || 'Unknown'
-          }
-        }
-
-        // IF createdBy RELATIONSHIP IS PRESENT BUT createdByName IS MISSING, LOOK UP USER NAME
-        if (data.createdBy && (!data.createdByName || data.createdByName === 'Unknown')) {
-          try {
-            const userDoc = await req.payload.findByID({
-              collection: 'users',
-              id: typeof data.createdBy === 'object' ? data.createdBy.id : data.createdBy,
-            })
-            if (userDoc) {
-              const uName = userDoc.name || (userDoc as any).employee?.name || userDoc.email
-              if (uName) {
-                data.createdByName = uName
-              }
-            }
-          } catch (_) {}
-        }
-
-        // FALLBACK TO BRANCH USER / BRANCH NAME IF CREATOR INFO STILL MISSING
-        if (!data.createdBy || !data.createdByName || data.createdByName === 'Unknown') {
-          const branchId = data.branch || doc.branch
-          if (branchId) {
-            try {
-              const targetBranchId = typeof branchId === 'object' ? branchId.id : branchId
-              
-              const branchUserResult = await req.payload.find({
-                collection: 'users',
-                where: {
-                  and: [
-                    { branch: { equals: targetBranchId } },
-                    { role: { in: ['branch', 'cashier', 'manager', 'admin'] } },
-                  ],
-                },
-                limit: 10,
-              })
-
-              const validUser = branchUserResult.docs.find((u) => u.name) || branchUserResult.docs[0]
-
-              let branchName = ''
-              if (!validUser?.name) {
-                const branchDoc = await req.payload.findByID({
-                  collection: 'branches',
-                  id: targetBranchId,
-                })
-                if (branchDoc?.name) branchName = branchDoc.name
-              }
-
-              if (validUser) {
-                if (!data.createdBy && !doc.createdBy) {
-                  data.createdBy = validUser.id
-                }
-                if (!data.createdByName || data.createdByName === 'Unknown') {
-                  data.createdByName = validUser.name || validUser.email || branchName || 'Unknown'
-                }
-              } else if (branchName) {
-                if (!data.createdByName || data.createdByName === 'Unknown') {
-                  data.createdByName = branchName
-                }
-              }
-            } catch (err) {
-              /* ignore fallback error */
-            }
           }
         }
 
