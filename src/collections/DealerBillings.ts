@@ -164,9 +164,25 @@ const DealerBillings: CollectionConfig = {
             data.branch = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
           }
         }
-        if (data.productsList && Array.isArray(data.productsList)) {
-          data.productsList = data.productsList.map((item: any) => {
-            const itemPhotoId = typeof item.photo === 'string' ? item.photo : item.photo?.id || item.photo?._id
+        // Normalize productsPhoto into an array of ID strings
+        let photosArray: string[] = []
+        const rawPhotos = data.productsPhoto !== undefined ? data.productsPhoto : originalDoc?.productsPhoto
+        if (Array.isArray(rawPhotos)) {
+          photosArray = rawPhotos
+            .map((p: any) => (typeof p === 'string' ? p : p?.id || p?._id))
+            .filter(Boolean)
+        } else if (rawPhotos) {
+          const pId = typeof rawPhotos === 'string' ? rawPhotos : rawPhotos.id || rawPhotos._id
+          if (pId) photosArray = [pId]
+        }
+
+        const productsList = data.productsList || originalDoc?.productsList
+        if (productsList && Array.isArray(productsList)) {
+          data.productsList = productsList.map((item: any, index: number) => {
+            let itemPhotoId = typeof item.photo === 'string' ? item.photo : item.photo?.id || item.photo?._id
+            if (!itemPhotoId && photosArray.length > 0) {
+              itemPhotoId = photosArray[index] || photosArray[0]
+            }
             return {
               ...item,
               photo: itemPhotoId || (item.photo ? item.photo : null),
@@ -183,15 +199,12 @@ const DealerBillings: CollectionConfig = {
             .map((item: any) => (typeof item.photo === 'string' ? item.photo : item.photo?.id || item.photo?._id))
             .filter(Boolean)
           
-          if (listPhotos.length > 0) {
-            const existingPhotos = (Array.isArray(data.productsPhoto) ? data.productsPhoto : [])
-              .map((p: any) => (typeof p === 'string' ? p : p?.id || p?._id))
-              .filter(Boolean)
-            const combinedPhotos = Array.from(new Set([...existingPhotos, ...listPhotos]))
-            if (combinedPhotos.length > 0) {
-              data.productsPhoto = combinedPhotos
-            }
+          const combinedPhotos = Array.from(new Set([...photosArray, ...listPhotos]))
+          if (combinedPhotos.length > 0) {
+            data.productsPhoto = combinedPhotos
           }
+        } else if (photosArray.length > 0 && !data.productsPhoto) {
+          data.productsPhoto = photosArray
         }
         if (data.bills) {
           const calculatedTotal = data.bills.reduce(
