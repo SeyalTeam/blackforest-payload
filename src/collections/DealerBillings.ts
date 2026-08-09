@@ -1,7 +1,7 @@
 import { CollectionConfig } from 'payload'
 
-function toIdString(val: any): string {
-  if (!val) return ''
+function toIdString(val: any): string | undefined {
+  if (!val) return undefined
   if (typeof val === 'string') return val
   if (Buffer.isBuffer(val)) return val.toString('hex')
   if (val && typeof val === 'object') {
@@ -12,7 +12,7 @@ function toIdString(val: any): string {
       if (typeof s === 'string' && s.length === 24) return s
     }
   }
-  return String(val)
+  return undefined
 }
 
 const DealerBillings: CollectionConfig = {
@@ -185,7 +185,7 @@ const DealerBillings: CollectionConfig = {
         if (Array.isArray(rawPhotos)) {
           photosArray = rawPhotos
             .map(toIdString)
-            .filter((s: string) => s.length === 24)
+            .filter((s?: string): s is string => Boolean(s && s.length === 24))
         } else if (rawPhotos) {
           const pId = toIdString(rawPhotos)
           if (pId && pId.length === 24) photosArray = [pId]
@@ -206,11 +206,11 @@ const DealerBillings: CollectionConfig = {
 
           data.products = data.productsList
             .map((item: { product: any }) => toIdString(item.product))
-            .filter((s: string) => s.length === 24);
+            .filter((s?: string): s is string => Boolean(s && s.length === 24));
 
           const listPhotos = data.productsList
             .map((item: any) => toIdString(item.photo))
-            .filter((s: string) => s.length === 24)
+            .filter((s?: string): s is string => Boolean(s && s.length === 24))
           
           const combinedPhotos = Array.from(new Set([...photosArray, ...listPhotos]))
           if (combinedPhotos.length > 0) {
