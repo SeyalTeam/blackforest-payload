@@ -46,7 +46,8 @@ const ClosingEntries: CollectionConfig = {
           label: 'Created By (Name)',
           type: 'text',
           required: false,
-          defaultValue: ({ user }: { user: any }) => user?.name || user?.email,
+          defaultValue: ({ user }: { user: any }) =>
+            user?.role !== 'superadmin' && user?.role !== 'admin' ? (user?.name || user?.email) : undefined,
           access: {
             create: () => true,
             update: () => true,
@@ -62,7 +63,8 @@ const ClosingEntries: CollectionConfig = {
           type: 'relationship',
           relationTo: 'users',
           required: false,
-          defaultValue: ({ user }: { user: any }) => user?.id,
+          defaultValue: ({ user }: { user: any }) =>
+            user?.role !== 'superadmin' && user?.role !== 'admin' ? user?.id : undefined,
           access: {
             create: () => true,
             update: () => true,
@@ -178,13 +180,13 @@ const ClosingEntries: CollectionConfig = {
         const { user } = req
         const doc = operation === 'update' ? { ...originalDoc, ...data } : data
 
-        // AUTO ASSIGN CREATED BY USER & NAME
-        if (user) {
+        // AUTO ASSIGN CREATED BY USER & NAME (FOR NON-ADMIN STAFF USERS)
+        if (user && user.role !== 'superadmin' && user.role !== 'admin') {
           if (!data.createdBy && !doc.createdBy) {
             data.createdBy = user.id
           }
           if (!data.createdByName && !doc.createdByName) {
-            data.createdByName = user.name || user.email || (user as any).username || 'Unknown'
+            data.createdByName = user.name || (user as any).employee?.name || user.email || (user as any).username || 'Unknown'
           }
         }
 
