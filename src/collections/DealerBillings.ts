@@ -164,56 +164,12 @@ const DealerBillings: CollectionConfig = {
             data.branch = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
           }
         }
-        // Get productsPhoto from data or fallback to originalDoc
-        const rawPhotos = data.productsPhoto !== undefined ? data.productsPhoto : originalDoc?.productsPhoto
-
-        // Normalize productsPhoto into an array of ID strings
-        let photosArray: string[] = []
-        if (Array.isArray(rawPhotos)) {
-          photosArray = rawPhotos
-            .map((p: any) => (typeof p === 'string' ? p : p?.id || p?._id))
-            .filter(Boolean)
-        } else if (rawPhotos) {
-          const pId = typeof rawPhotos === 'string' ? rawPhotos : rawPhotos.id || rawPhotos._id
-          if (pId) photosArray = [pId]
-        }
-
-        // Fallback: If photosArray is empty, check billCopyPhoto / deliveryPersonPhoto
-        if (photosArray.length === 0) {
-          const billPhoto = data.billCopyPhoto || originalDoc?.billCopyPhoto
-          const delPhoto = data.deliveryPersonPhoto || originalDoc?.deliveryPersonPhoto
-          const candidate = billPhoto || delPhoto
-          const cId = typeof candidate === 'string' ? candidate : candidate?.id || candidate?._id
-          if (cId) photosArray = [cId]
-        }
-
-        // Fallback: If still empty, search recently created media with overrideAccess
-        if (photosArray.length === 0) {
-          try {
-            const recentMedia = await req.payload.find({
-              collection: 'media',
-              overrideAccess: true,
-              sort: '-createdAt',
-              limit: 5,
-            })
-            if (recentMedia.docs.length > 0) {
-              photosArray = recentMedia.docs.map((m: any) => m.id)
-            }
-          } catch (e) {
-            // Ignore fallback lookup error
-          }
-        }
-
-        const productsList = data.productsList || originalDoc?.productsList
-        if (productsList && Array.isArray(productsList)) {
-          data.productsList = productsList.map((item: any, index: number) => {
-            let itemPhotoId = typeof item.photo === 'string' ? item.photo : item.photo?.id || item.photo?._id
-            if (!itemPhotoId && photosArray.length > 0) {
-              itemPhotoId = photosArray[index] || photosArray[0]
-            }
+        if (data.productsList && Array.isArray(data.productsList)) {
+          data.productsList = data.productsList.map((item: any) => {
+            const itemPhotoId = typeof item.photo === 'string' ? item.photo : item.photo?.id || item.photo?._id
             return {
               ...item,
-              photo: itemPhotoId || item.photo || null,
+              photo: itemPhotoId || (item.photo ? item.photo : null),
             }
           })
 
@@ -227,12 +183,15 @@ const DealerBillings: CollectionConfig = {
             .map((item: any) => (typeof item.photo === 'string' ? item.photo : item.photo?.id || item.photo?._id))
             .filter(Boolean)
           
-          const combinedPhotos = Array.from(new Set([...photosArray, ...listPhotos]))
-          if (combinedPhotos.length > 0) {
-            data.productsPhoto = combinedPhotos
+          if (listPhotos.length > 0) {
+            const existingPhotos = (Array.isArray(data.productsPhoto) ? data.productsPhoto : [])
+              .map((p: any) => (typeof p === 'string' ? p : p?.id || p?._id))
+              .filter(Boolean)
+            const combinedPhotos = Array.from(new Set([...existingPhotos, ...listPhotos]))
+            if (combinedPhotos.length > 0) {
+              data.productsPhoto = combinedPhotos
+            }
           }
-        } else if (photosArray.length > 0 && !data.productsPhoto) {
-          data.productsPhoto = photosArray
         }
         if (data.bills) {
           const calculatedTotal = data.bills.reduce(
