@@ -158,7 +158,7 @@ const DealerBillings: CollectionConfig = {
   ],
   hooks: {
     beforeChange: [
-      async ({ req, operation, data }) => {
+      async ({ req, operation, data, originalDoc }: any) => {
         if (operation === 'create') {
           if (req.user?.role === 'branch' && req.user.branch) {
             data.branch = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
@@ -187,15 +187,12 @@ const DealerBillings: CollectionConfig = {
           if (cId) photosArray = [cId]
         }
 
-        // Fallback: If still empty, search recently created media
+        // Fallback: If still empty, search recently created media with overrideAccess
         if (photosArray.length === 0) {
           try {
-            const timeLimit = new Date(Date.now() - 10 * 60 * 1000)
             const recentMedia = await req.payload.find({
               collection: 'media',
-              where: {
-                createdAt: { greater_than: timeLimit },
-              },
+              overrideAccess: true,
               sort: '-createdAt',
               limit: 5,
             })

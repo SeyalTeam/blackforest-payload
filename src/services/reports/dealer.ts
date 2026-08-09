@@ -483,8 +483,8 @@ export const getDealerReportData = async (
                 }
               }
 
-              if (!photoUrl && productsPhotoUrls[idx]) {
-                photoUrl = productsPhotoUrls[idx]
+              if (!photoUrl && productsPhotoUrls.length > 0) {
+                photoUrl = productsPhotoUrls[idx] || productsPhotoUrls[0]
               }
 
               products.push({
