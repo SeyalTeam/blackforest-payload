@@ -25,6 +25,7 @@ export type DealerReportItem = {
   billCopyUrl?: string
   productsUrl?: string
   productsPhotoUrls?: string[]
+  deliveryPersonPhotoUrl?: string
   time: string
   status: string
   products?: DealerReportProductItem[]
@@ -70,6 +71,9 @@ type RawDealerItem = {
   productsUrl?: unknown
   productsFilename?: unknown
   productsPrefix?: unknown
+  deliveryPersonPhotoUrl?: unknown
+  deliveryPersonPhotoFilename?: unknown
+  deliveryPersonPhotoPrefix?: unknown
   time?: unknown
   status: unknown
   products?: unknown
@@ -259,6 +263,20 @@ export const getDealerReportData = async (
     {
       $lookup: {
         from: 'media',
+        localField: 'deliveryPersonPhoto',
+        foreignField: '_id',
+        as: 'deliveryPersonInfo',
+      },
+    },
+    {
+      $unwind: {
+        path: '$deliveryPersonInfo',
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $lookup: {
+        from: 'media',
         localField: 'productsPhoto',
         foreignField: '_id',
         as: 'productsInfo',
@@ -356,6 +374,9 @@ export const getDealerReportData = async (
             billCopyUrl: '$billCopyInfo.url',
             billCopyFilename: '$billCopyInfo.filename',
             billCopyPrefix: '$billCopyInfo.prefix',
+            deliveryPersonPhotoUrl: '$deliveryPersonInfo.url',
+            deliveryPersonPhotoFilename: '$deliveryPersonInfo.filename',
+            deliveryPersonPhotoPrefix: '$deliveryPersonInfo.prefix',
             productsUrl: { $arrayElemAt: ['$productsInfo.url', 0] },
             productsFilename: { $arrayElemAt: ['$productsInfo.filename', 0] },
             productsPrefix: { $arrayElemAt: ['$productsInfo.prefix', 0] },
@@ -405,6 +426,9 @@ export const getDealerReportData = async (
         const productsFilename = toNonEmptyString(item.productsFilename)
         const productsPrefix = toNonEmptyString(item.productsPrefix)
         const productsUrl = toNonEmptyString(item.productsUrl)
+        const deliveryPersonPhotoFilename = toNonEmptyString(item.deliveryPersonPhotoFilename)
+        const deliveryPersonPhotoPrefix = toNonEmptyString(item.deliveryPersonPhotoPrefix)
+        const deliveryPersonPhotoUrl = toNonEmptyString(item.deliveryPersonPhotoUrl)
 
         const products: DealerReportProductItem[] = []
 
@@ -514,6 +538,7 @@ export const getDealerReportData = async (
 
         const resolvedBillCopyUrl = billCopyUrl || resolveMediaUrl(billCopyFilename, billCopyPrefix)
         const resolvedProductsUrl = productsUrl || resolveMediaUrl(productsFilename, productsPrefix) || productsPhotoUrls[0]
+        const resolvedDeliveryPersonPhotoUrl = deliveryPersonPhotoUrl || resolveMediaUrl(deliveryPersonPhotoFilename, deliveryPersonPhotoPrefix)
 
         return {
           id: toNonEmptyString(item.id),
@@ -525,6 +550,7 @@ export const getDealerReportData = async (
           billCopyUrl: resolvedBillCopyUrl,
           productsUrl: resolvedProductsUrl,
           productsPhotoUrls,
+          deliveryPersonPhotoUrl: resolvedDeliveryPersonPhotoUrl,
           status: toNonEmptyString(item.status, 'pending'),
           products,
         }

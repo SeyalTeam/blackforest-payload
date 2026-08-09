@@ -37,6 +37,7 @@ export type DealerReportItem = {
   billCopyUrl?: string
   productsUrl?: string
   productsPhotoUrls?: string[]
+  deliveryPersonPhotoUrl?: string
   time: string
   status: string
   products?: DealerReportProductItem[]
@@ -799,6 +800,17 @@ const DealerReport: React.FC = () => {
                                       title="View Product Photo"
                                     >
                                       📦
+                                    </button>
+                                  ) : (
+                                    <span style={{ opacity: 0.3 }}>-</span>
+                                  )}
+                                  {item.deliveryPersonPhotoUrl ? (
+                                    <button
+                                      className="image-view-btn active"
+                                      onClick={() => item.deliveryPersonPhotoUrl && setPreviewImage(item.deliveryPersonPhotoUrl)}
+                                      title="View Delivery Person Photo"
+                                    >
+                                      👤
                                     </button>
                                   ) : (
                                     <span style={{ opacity: 0.3 }}>-</span>
