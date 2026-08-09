@@ -191,16 +191,17 @@ const DealerBillings: CollectionConfig = {
           if (pId && pId.length === 24) photosArray = [pId]
         }
 
-        const productsList = data.productsList || originalDoc?.productsList
-        if (productsList && Array.isArray(productsList)) {
-          data.productsList = productsList.map((item: any, index: number) => {
-            let itemPhotoId = toIdString(item.photo)
-            if (!itemPhotoId && photosArray.length > 0) {
-              itemPhotoId = photosArray[index] || photosArray[0]
+        if (data.productsList && Array.isArray(data.productsList)) {
+          data.productsList = data.productsList.map((item: any, index: number) => {
+            // 1. Extract item photo if provided as string or object
+            let photoId = toIdString(item.photo)
+            // 2. If missing, fallback to photosArray (which holds data.productsPhoto or originalDoc.productsPhoto)
+            if (!photoId && photosArray.length > 0) {
+              photoId = photosArray[index] || photosArray[0]
             }
             return {
               ...item,
-              photo: itemPhotoId || null,
+              photo: photoId || null,
             }
           })
 
