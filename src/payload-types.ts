@@ -1079,10 +1079,6 @@ export interface ClosingEntry {
   id: string;
   closingNumber: string;
   date: string;
-  /**
-   * Name of the user who created this closing entry
-   */
-  createdByName?: string | null;
   createdBy?: (string | null) | User;
   systemSales?: number | null;
   /**
@@ -2700,7 +2696,6 @@ export interface ReturnOrdersSelect<T extends boolean = true> {
 export interface ClosingEntriesSelect<T extends boolean = true> {
   closingNumber?: T;
   date?: T;
-  createdByName?: T;
   createdBy?: T;
   systemSales?: T;
   totalBills?: T;

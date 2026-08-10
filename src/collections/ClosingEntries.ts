@@ -143,9 +143,27 @@ const ClosingEntries: CollectionConfig = {
         const doc = operation === 'update' ? { ...originalDoc, ...data } : data
 
         // AUTO ASSIGN CREATED BY USER
-        if (operation === 'create' && user) {
-          if (!data.createdBy) {
+        if (operation === 'create' && !data.createdBy) {
+          if (user) {
             data.createdBy = user.id
+          } else if (data.branch) {
+            try {
+              const branchUser = await req.payload.find({
+                collection: 'users',
+                where: {
+                  and: [
+                    { role: { equals: 'branch' } },
+                    { branch: { equals: data.branch } },
+                  ],
+                } as Where,
+                limit: 1,
+              })
+              if (branchUser.docs.length > 0) {
+                data.createdBy = branchUser.docs[0].id
+              }
+            } catch (err) {
+              req.payload.logger.error('Failed to auto-resolve createdBy user from branch:', err)
+            }
           }
         }
 
