@@ -698,6 +698,39 @@ const handleRoute = async (
   args: RouteArgs,
   handler: RouteHandler,
 ): Promise<Response> => {
+  // Fix Payload CMS multipart body parsing issue on Vercel where Content-Length is missing or '0'
+  const contentType = request.headers.get('content-type') || ''
+  if (contentType.includes('multipart/')) {
+    const contentLength = request.headers.get('content-length')
+    if (!contentLength || contentLength === '0') {
+      try {
+        const originalGet = request.headers.get.bind(request.headers)
+        request.headers.get = (name: string) => {
+          if (name.toLowerCase() === 'content-length') {
+            return '1'
+          }
+          return originalGet(name)
+        }
+      } catch (_err) {
+        // Fallback: request.headers is read-only. Wrap request with Proxy to intercept headers.
+        const newHeaders = new Headers(request.headers)
+        newHeaders.set('content-length', '1')
+        request = new Proxy(request, {
+          get(target, prop, receiver) {
+            if (prop === 'headers') {
+              return newHeaders
+            }
+            const value = Reflect.get(target, prop, receiver)
+            if (typeof value === 'function') {
+              return value.bind(target)
+            }
+            return value
+          },
+        })
+      }
+    }
+  }
+
   const requestID = resolveRequestID(request)
   const idempotency = await applyIdempotency(request, requestID)
 
