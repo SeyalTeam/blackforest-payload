@@ -147,16 +147,21 @@ const ClosingEntries: CollectionConfig = {
           if (user) {
             data.createdBy = user.id
           } else if (data.branch) {
+            const branchIdStr = typeof data.branch === 'object' && data.branch !== null
+              ? (data.branch.id || data.branch._id || data.branch)
+              : data.branch;
             try {
               const branchUser = await req.payload.find({
                 collection: 'users',
                 where: {
                   and: [
                     { role: { equals: 'branch' } },
-                    { branch: { equals: data.branch } },
+                    { branch: { equals: branchIdStr } },
                   ],
                 } as Where,
                 limit: 1,
+                overrideAccess: true,
+                depth: 0,
               })
               if (branchUser.docs.length > 0) {
                 data.createdBy = branchUser.docs[0].id
