@@ -2720,6 +2720,27 @@ const Billings: CollectionConfig = {
           }
         }
 
+        if (data.status === 'settled' || (operation === 'update' && data.status === 'settled')) {
+          if (!data.cashierName && originalDoc?.cashierName) {
+            data.cashierName = originalDoc.cashierName
+          } else if (!data.cashierName) {
+            const bodyCashier = (req.body as any)?.cashierName
+            if (typeof bodyCashier === 'string' && bodyCashier.trim().length > 0) {
+              data.cashierName = bodyCashier.trim()
+            } else if (req.user) {
+              const u = req.user as any
+              const empName = u.employee?.name || u.name || u.email
+              if (empName) {
+                data.cashierName = String(empName).trim()
+              }
+            }
+          }
+
+          if (req.user?.id && !data.settledBy) {
+            data.settledBy = req.user.id
+          }
+        }
+
         if (
           operation === 'create' ||
           (operation === 'update' &&
@@ -4770,6 +4791,26 @@ const Billings: CollectionConfig = {
       index: true,
       admin: {
         position: 'sidebar',
+      },
+    },
+    {
+      name: 'cashierName',
+      label: 'Cashier Name',
+      type: 'text',
+      index: true,
+      admin: {
+        position: 'sidebar',
+        description: 'Name of the cashier who settled the bill.',
+      },
+    },
+    {
+      name: 'settledBy',
+      label: 'Settled By',
+      type: 'relationship',
+      relationTo: 'users',
+      admin: {
+        position: 'sidebar',
+        description: 'User who settled the bill.',
       },
     },
     {

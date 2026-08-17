@@ -110,6 +110,7 @@ const ClosingEntries: CollectionConfig = {
         { name: 'count200', type: 'number', min: 0, defaultValue: 0 },
         { name: 'count100', type: 'number', min: 0, defaultValue: 0 },
         { name: 'count50', type: 'number', min: 0, defaultValue: 0 },
+        { name: 'count20', type: 'number', min: 0, defaultValue: 0 },
         { name: 'count10', type: 'number', min: 0, defaultValue: 0 },
         { name: 'count5', type: 'number', min: 0, defaultValue: 0 },
       ],
@@ -412,6 +413,7 @@ const ClosingEntries: CollectionConfig = {
           (d.count200 || 0) * 200 +
           (d.count100 || 0) * 100 +
           (d.count50 || 0) * 50 +
+          (d.count20 || 0) * 20 +
           (d.count10 || 0) * 10 +
           (d.count5 || 0) * 5
         doc.cash = data.cash

@@ -1037,6 +1037,14 @@ export interface Billing {
   };
   verificationStatus?: ('pending' | 'verified' | 'not_verified' | 'not_match' | 'cancelled') | null;
   /**
+   * Name of the cashier who settled the bill.
+   */
+  cashierName?: string | null;
+  /**
+   * User who settled the bill.
+   */
+  settledBy?: (string | null) | User;
+  /**
    * The exact time this bill was completed/settled. This value powers shift boundaries and does not change on subsequent updates.
    */
   settledAt?: string | null;
@@ -1099,6 +1107,7 @@ export interface ClosingEntry {
     count200?: number | null;
     count100?: number | null;
     count50?: number | null;
+    count20?: number | null;
     count10?: number | null;
     count5?: number | null;
   };
@@ -2658,6 +2667,8 @@ export interface BillingsSelect<T extends boolean = true> {
         tableNumber?: T;
       };
   verificationStatus?: T;
+  cashierName?: T;
+  settledBy?: T;
   settledAt?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -2715,6 +2726,7 @@ export interface ClosingEntriesSelect<T extends boolean = true> {
         count200?: T;
         count100?: T;
         count50?: T;
+        count20?: T;
         count10?: T;
         count5?: T;
       };
