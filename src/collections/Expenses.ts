@@ -89,10 +89,36 @@ const Expenses: CollectionConfig = {
       },
       required: true,
     },
+    {
+      name: 'cashierId',
+      type: 'text',
+      index: true,
+      admin: {
+        description: 'ID of the cashier who created/submitted the expense.',
+      },
+    },
+    {
+      name: 'cashierName',
+      type: 'text',
+      index: true,
+      admin: {
+        description: 'Name of the cashier who created/submitted the expense.',
+      },
+    },
   ],
   hooks: {
     beforeChange: [
       async ({ req, operation, data }) => {
+        if (!data.cashierId && req.user) {
+          const emp = (req.user as any)?.employee
+          const empId = typeof emp === 'object' && emp !== null ? (emp.id || emp._id) : emp
+          data.cashierId = empId ? String(empId) : String(req.user.id)
+        }
+        if (!data.cashierName && req.user) {
+          const emp = (req.user as any)?.employee
+          const empName = typeof emp === 'object' && emp !== null ? emp.name : null
+          data.cashierName = empName || req.user.name || (req.user as any).username || ''
+        }
         if (operation === 'create') {
           if (req.user?.role === 'branch' && req.user.branch) {
             data.branch = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id

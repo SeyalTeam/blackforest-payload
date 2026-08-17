@@ -14,19 +14,29 @@ const InstockEntries: CollectionConfig = {
   access: {
     read: () => true,
     create: ({ req: { user } }) =>
-      user?.role != null && ['branch', 'waiter', 'superadmin'].includes(user.role),
+      user?.role != null && ['branch', 'waiter', 'superadmin', 'cashier'].includes(user.role),
     update: ({ req: { user } }) =>
-      user?.role != null && ['superadmin', 'supervisor', 'branch'].includes(user.role),
+      user?.role != null && ['superadmin', 'supervisor', 'branch', 'cashier'].includes(user.role),
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   hooks: {
     beforeChange: [
       async ({ data, req, operation, originalDoc: _originalDoc }) => {
+        if (!data.cashierId && req.user) {
+          const emp = (req.user as any)?.employee
+          const empId = typeof emp === 'object' && emp !== null ? (emp.id || emp._id) : emp
+          data.cashierId = empId ? String(empId) : String(req.user.id)
+        }
+        if (!data.cashierName && req.user) {
+          const emp = (req.user as any)?.employee
+          const empName = typeof emp === 'object' && emp !== null ? emp.name : null
+          data.cashierName = empName || req.user.name || (req.user as any).username || ''
+        }
         if (operation === 'create') {
           if (!req.user) throw new Error('Unauthorized')
 
           // Validate branch matches user's branch
-          if (['branch', 'waiter'].includes(req.user.role)) {
+          if (['branch', 'waiter', 'cashier'].includes(req.user.role)) {
             const userBranchId =
               typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
             const dataBranchId = typeof data.branch === 'string' ? data.branch : data?.branch?.id
@@ -210,6 +220,18 @@ const InstockEntries: CollectionConfig = {
       access: {
         update: ({ req: { user } }) => ['superadmin', 'supervisor'].includes(user?.role || ''),
       },
+    },
+    {
+      name: 'cashierId',
+      type: 'text',
+      index: true,
+      admin: { description: 'ID of the cashier who created/submitted the instock entry.' },
+    },
+    {
+      name: 'cashierName',
+      type: 'text',
+      index: true,
+      admin: { description: 'Name of the cashier who created/submitted the instock entry.' },
     },
   ],
   timestamps: true,

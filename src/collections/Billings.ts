@@ -2720,6 +2720,18 @@ const Billings: CollectionConfig = {
           }
         }
 
+        if (!data.cashierId && req.user) {
+          const bodyCashierId = (req.body as any)?.cashierId
+          if (typeof bodyCashierId === 'string' && bodyCashierId.trim().length > 0) {
+            data.cashierId = bodyCashierId.trim()
+          } else {
+            const u = req.user as any
+            const emp = u.employee
+            const empId = typeof emp === 'object' && emp !== null ? (emp.id || emp._id) : emp
+            data.cashierId = empId ? String(empId) : String(u.id)
+          }
+        }
+
         if (data.status === 'settled' || (operation === 'update' && data.status === 'settled')) {
           if (!data.cashierName && originalDoc?.cashierName) {
             data.cashierName = originalDoc.cashierName
@@ -4801,6 +4813,16 @@ const Billings: CollectionConfig = {
       admin: {
         position: 'sidebar',
         description: 'Name of the cashier who settled the bill.',
+      },
+    },
+    {
+      name: 'cashierId',
+      label: 'Cashier ID',
+      type: 'text',
+      index: true,
+      admin: {
+        position: 'sidebar',
+        description: 'ID of the cashier who settled the bill.',
       },
     },
     {
