@@ -8,6 +8,8 @@ export const getRawMaterialBillingReportHandler: PayloadHandler = async (
     const report = await getRawMaterialBillingReportData(req, {
       startDate: typeof req.query.startDate === 'string' ? req.query.startDate : null,
       endDate: typeof req.query.endDate === 'string' ? req.query.endDate : null,
+      plannedStartDate: typeof req.query.plannedStartDate === 'string' ? req.query.plannedStartDate : null,
+      plannedEndDate: typeof req.query.plannedEndDate === 'string' ? req.query.plannedEndDate : null,
       company: typeof req.query.company === 'string' ? req.query.company : null,
       dealer: typeof req.query.dealer === 'string' ? req.query.dealer : null,
     })

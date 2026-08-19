@@ -8,6 +8,7 @@ import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import { ChevronDown, ChevronUp } from 'lucide-react'
+import { GoogleDateRangePicker } from './GoogleDateRangePicker'
 import './index.scss'
 
 dayjs.extend(utc)
@@ -22,6 +23,12 @@ type SelectOption = {
 export type RawMaterialBillingReportItem = {
   id: string
   dealerName: string
+  dealerAccountNumber?: string
+  dealerBankName?: string
+  dealerIfscCode?: string
+  dealerBranch?: string
+  dealerHasBankAccount?: boolean
+  dealerPreferredPaymentMethod?: string
   amount: number
   paidAmount?: number
   payments?: { amount: number; date: string }[]
@@ -31,6 +38,7 @@ export type RawMaterialBillingReportItem = {
   time: string
   status: string
   plannedPaymentDate?: string
+  notes?: string
   rawMaterials?: {
     name: string
     quantity: number
@@ -57,6 +65,7 @@ type ReportData = {
   meta: {
     grandTotal: number
     totalCount: number
+    plannedDatesWithBills?: string[]
   }
 }
 
@@ -155,7 +164,8 @@ const RawMaterialBillingReport: React.FC = () => {
   const [previewMaterials, setPreviewMaterials] = useState<RawMaterialBillingReportItem['rawMaterials'] | null>(null)
   const [dateRangePreset, setDateRangePreset] = useState<string>('today')
 
-  const [plannedDateFilter, setPlannedDateFilter] = useState<Date | null>(null)
+  const [plannedDateRange, setPlannedDateRange] = useState<[Date | null, Date | null]>([null, null])
+  const [plannedDatePreset, setPlannedDatePreset] = useState<string>('')
 
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
   const [selectedCompany, setSelectedCompany] = useState<string[]>(['all'])
@@ -174,6 +184,75 @@ const RawMaterialBillingReport: React.FC = () => {
   const [paymentAmountInput, setPaymentAmountInput] = useState('')
   const [historyModalItem, setHistoryModalItem] = useState<RawMaterialBillingReportItem | null>(null)
   const [tempPlannedDates, setTempPlannedDates] = useState<Record<string, string>>({})
+
+  const [userRole, setUserRole] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function fetchUserRole() {
+      try {
+        const res = await fetch('/api/users/me')
+        if (res.ok) {
+          const json = await res.json()
+          if (json.user?.role) {
+            setUserRole(json.user.role)
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    fetchUserRole()
+  }, [])
+
+  const isStoreKeeper = userRole === 'store_keeper'
+
+  const [showNotesModal, setShowNotesModal] = useState(false)
+  const [notesModalItem, setNotesModalItem] = useState<RawMaterialBillingReportItem | null>(null)
+  const [notesInput, setNotesInput] = useState('')
+  const [isSavingNote, setIsSavingNote] = useState(false)
+
+  const handleNotesUpdate = async (id: string, notesText: string) => {
+    setIsSavingNote(true)
+    try {
+      const res = await fetch(`/api/raw-material-billings/update-notes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          billId: id,
+          notes: notesText,
+        }),
+      })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        const errMsg = errData.errors?.[0]?.message || errData.message || `HTTP ${res.status}`
+        throw new Error(`Failed to update notes: ${errMsg}`)
+      }
+
+      if (data) {
+        const updatedGroups = data.groups.map((group) => {
+          const updatedItems = group.items.map((i) => {
+            if (i.id === id) {
+              return {
+                ...i,
+                notes: notesText,
+              }
+            }
+            return i
+          })
+          return { ...group, items: updatedItems }
+        })
+        setData({ ...data, groups: updatedGroups })
+      }
+      setShowNotesModal(false)
+      setNotesModalItem(null)
+    } catch (err: any) {
+      alert(err.message || 'Failed to save note')
+    } finally {
+      setIsSavingNote(false)
+    }
+  }
 
   const handlePaymentUpdate = async (id: string, newPaidAmount: number, targetItem?: RawMaterialBillingReportItem) => {
     try {
@@ -324,7 +403,14 @@ const RawMaterialBillingReport: React.FC = () => {
   }
 
   const fetchReport = React.useCallback(
-    async (start: Date, end: Date, companyIds: string[], dealerIds: string[]) => {
+    async (
+      start: Date,
+      end: Date,
+      companyIds: string[],
+      dealerIds: string[],
+      pStart?: Date | null,
+      pEnd?: Date | null,
+    ) => {
       setLoading(true)
       setError('')
       try {
@@ -333,9 +419,15 @@ const RawMaterialBillingReport: React.FC = () => {
         const companyParam = companyIds.includes('all') ? 'all' : companyIds.join(',')
         const dealerParam = dealerIds.includes('all') ? 'all' : dealerIds.join(',')
 
-        const res = await fetch(
-          `/api/reports/raw-material-billing?startDate=${startStr}&endDate=${endStr}&company=${companyParam}&dealer=${dealerParam}`,
-        )
+        let url = `/api/reports/raw-material-billing?startDate=${startStr}&endDate=${endStr}&company=${companyParam}&dealer=${dealerParam}`
+
+        if (pStart && pEnd) {
+          const pStartStr = toLocalDateStr(pStart)
+          const pEndStr = toLocalDateStr(pEnd)
+          url += `&plannedStartDate=${pStartStr}&plannedEndDate=${pEndStr}`
+        }
+
+        const res = await fetch(url)
         if (!res.ok) throw new Error(`Failed to fetch report (HTTP ${res.status})`)
 
         const reportData = (await res.json()) as ReportData
@@ -401,22 +493,22 @@ const RawMaterialBillingReport: React.FC = () => {
 
   useEffect(() => {
     if (startDate && endDate) {
-      void fetchReport(startDate, endDate, selectedCompany, selectedDealers)
+      void fetchReport(
+        startDate,
+        endDate,
+        selectedCompany,
+        selectedDealers,
+        plannedDateRange[0],
+        plannedDateRange[1],
+      )
     }
-  }, [startDate, endDate, selectedCompany, selectedDealers, fetchReport])
+  }, [startDate, endDate, selectedCompany, selectedDealers, plannedDateRange, fetchReport])
 
   const allItems = useMemo(() => {
     if (!data || !data.groups) return []
     const itemsList: (RawMaterialBillingReportItem & { companyName: string })[] = []
     data.groups.forEach((group) => {
       group.items.forEach((item) => {
-        if (plannedDateFilter) {
-          if (!item.plannedPaymentDate) return
-          const itemPlanned = dayjs(item.plannedPaymentDate).tz('Asia/Kolkata').startOf('day')
-          const filterPlanned = dayjs(plannedDateFilter).tz('Asia/Kolkata').startOf('day')
-          if (!itemPlanned.isSame(filterPlanned)) return
-        }
-
         if (!selectedCategories.includes('all')) {
           if (!item.rawMaterials || item.rawMaterials.length === 0) return
           const hasMatchingMaterial = item.rawMaterials.some((m) => {
@@ -434,7 +526,27 @@ const RawMaterialBillingReport: React.FC = () => {
       })
     })
     return itemsList.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
-  }, [data, plannedDateFilter, selectedCategories])
+  }, [data, selectedCategories])
+
+  const plannedDatesWithBills = useMemo(() => {
+    const dates = new Set<string>()
+
+    if (data?.meta?.plannedDatesWithBills) {
+      data.meta.plannedDatesWithBills.forEach((d) => dates.add(d))
+    }
+
+    if (data?.groups) {
+      data.groups.forEach((group) => {
+        group.items.forEach((item) => {
+          if (item.plannedPaymentDate) {
+            dates.add(dayjs(item.plannedPaymentDate).format('YYYY-MM-DD'))
+          }
+        })
+      })
+    }
+
+    return Array.from(dates)
+  }, [data])
 
   const statusTotals = useMemo(() => {
     let total = 0
@@ -537,63 +649,32 @@ const RawMaterialBillingReport: React.FC = () => {
         <div className="header-controls">
           {/* Row 1: Date & Calendars Filters */}
           <div className="filter-row date-filters">
-            <Select
-              options={dateRangeOptions}
-              value={dateRangeOptions.find((o) => o.value === dateRangePreset)}
-              onChange={(option) => {
-                if (option) handleDatePresetChange(option.value)
+            <GoogleDateRangePicker
+              startDate={startDate}
+              endDate={endDate}
+              presetKey={dateRangePreset}
+              onApply={(newStart, newEnd, presetKey) => {
+                setDateRange([newStart, newEnd])
+                setDateRangePreset(presetKey)
               }}
-              styles={customStyles}
-              classNamePrefix="react-select"
-              isSearchable={false}
             />
-            <div className="date-picker-wrapper">
-              <DatePicker
-                selectsRange={true}
-                startDate={startDate}
-                endDate={endDate}
-                onChange={(update: [Date | null, Date | null]) => {
-                  setDateRange(update)
-                  setDateRangePreset('custom')
-                }}
-                monthsShown={1}
-                dateFormat="yyyy-MM-dd"
-                customInput={<CustomInput />}
-                calendarClassName="custom-calendar"
-                popperPlacement="bottom-start"
-              />
-            </div>
-            <div className="date-picker-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <DatePicker
-                selected={plannedDateFilter}
-                onChange={(date: Date | null) => setPlannedDateFilter(date)}
-                dateFormat="yyyy-MM-dd"
-                customInput={<CustomPlannedInput />}
-                calendarClassName="custom-calendar"
-                popperPlacement="bottom-start"
-                isClearable={false}
-              />
-              {plannedDateFilter && (
-                <button
-                  type="button"
-                  onClick={() => setPlannedDateFilter(null)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--theme-text-secondary)',
-                    cursor: 'pointer',
-                    fontSize: '1.1rem',
-                    padding: '4px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                  title="Clear planned date filter"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
+            <GoogleDateRangePicker
+              startDate={plannedDateRange[0]}
+              endDate={plannedDateRange[1]}
+              presetKey={plannedDatePreset}
+              presetMode="future"
+              placeholder="All Planned Dates"
+              isFilterActive={Boolean(plannedDateRange[0] || plannedDateRange[1])}
+              highlightedDates={plannedDatesWithBills}
+              onApply={(newStart, newEnd, presetKey) => {
+                setPlannedDateRange([newStart, newEnd])
+                setPlannedDatePreset(presetKey)
+              }}
+              onClear={() => {
+                setPlannedDateRange([null, null])
+                setPlannedDatePreset('')
+              }}
+            />
           </div>
 
           {/* Row 2: Remaining Filters */}
@@ -691,14 +772,15 @@ const RawMaterialBillingReport: React.FC = () => {
                 MultiValue,
               }}
             />
-            {(dateRangePreset !== 'today' || plannedDateFilter !== null || !selectedCompany.includes('all') || !selectedDealers.includes('all') || !selectedCategories.includes('all')) && (
+            {(dateRangePreset !== 'today' || plannedDateRange[0] !== null || plannedDateRange[1] !== null || !selectedCompany.includes('all') || !selectedDealers.includes('all') || !selectedCategories.includes('all')) && (
               <button
                 type="button"
                 className="clear-all-filters-btn"
                 title="Clear all filters"
                 onClick={() => {
                   handleDatePresetChange('today')
-                  setPlannedDateFilter(null)
+                  setPlannedDateRange([null, null])
+                  setPlannedDatePreset('')
                   setSelectedCompany(['all'])
                   setSelectedDealers(['all'])
                   setSelectedCategories(['all'])
@@ -799,7 +881,9 @@ const RawMaterialBillingReport: React.FC = () => {
                           <th style={{ width: '5%', textAlign: 'right' }}>Paid</th>
                           <th style={{ width: '5%', textAlign: 'right' }}>Balance</th>
                           <th style={{ width: '6%', textAlign: 'center' }}>Status</th>
+                          <th style={{ width: '10%', textAlign: 'center' }}>Bank Acc No</th>
                           <th style={{ width: '9%', textAlign: 'center' }}>Planned Pay Date</th>
+                          {!isStoreKeeper && <th style={{ width: '4%', textAlign: 'center' }}>Notes</th>}
                           <th style={{ width: '4%', textAlign: 'center' }}>History</th>
                           <th style={{ width: '4%', textAlign: 'center' }}>Bill Copy</th>
                           <th style={{ width: '4%', textAlign: 'center' }}>Photos</th>
@@ -809,8 +893,9 @@ const RawMaterialBillingReport: React.FC = () => {
                       <tbody>
                         {paginatedItems.map((item: any, idx: number) => {
                           const remaining = item.amount - (item.paidAmount || 0)
+                          const hasPlannedDate = Boolean(item.plannedPaymentDate)
                           return (
-                            <tr key={item.id}>
+                            <tr key={item.id} className={hasPlannedDate ? 'has-planned-date-row' : ''}>
                               <td style={{ opacity: 0.5, fontSize: '0.8rem' }}>
                                 {(activePage - 1) * pageSize + idx + 1}
                               </td>
@@ -872,6 +957,39 @@ const RawMaterialBillingReport: React.FC = () => {
                                   <span className="status-cancelled-badge">Cancelled</span>
                                 )}
                               </td>
+                              <td className="bank-account-cell" style={{ textAlign: 'center' }}>
+                                {item.dealerAccountNumber ? (
+                                  (() => {
+                                    const normalize = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+                                    const isSameAsDealer = Boolean(
+                                      item.dealerBankName &&
+                                      item.dealerName &&
+                                      (normalize(item.dealerBankName).includes(normalize(item.dealerName)) ||
+                                       normalize(item.dealerName).includes(normalize(item.dealerBankName)))
+                                    )
+                                    const bankNameToShow = isSameAsDealer ? '' : item.dealerBankName
+                                    const subtext = [bankNameToShow, item.dealerIfscCode].filter(Boolean).join(' • ')
+                                    return (
+                                      <div>
+                                        <div style={{ fontWeight: 600, fontSize: '0.9rem', fontFamily: 'monospace' }}>
+                                          {item.dealerAccountNumber}
+                                        </div>
+                                        {subtext && (
+                                          <div style={{ fontSize: '0.72rem', color: 'var(--theme-text-secondary)', marginTop: '2px' }}>
+                                            {subtext}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )
+                                  })()
+                                ) : item.dealerPreferredPaymentMethod ? (
+                                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', padding: '2px 6px', borderRadius: '4px', background: 'var(--theme-elevation-150)', color: 'var(--theme-text-secondary)', fontWeight: 600 }}>
+                                    {item.dealerPreferredPaymentMethod}
+                                  </span>
+                                ) : (
+                                  <span style={{ opacity: 0.4 }}>-</span>
+                                )}
+                              </td>
                               <td className="planned-date-cell" style={{ textAlign: 'center' }}>
                                 {item.status === 'pending' ? (
                                   (() => {
@@ -925,13 +1043,56 @@ const RawMaterialBillingReport: React.FC = () => {
                                     )
                                   })()
                                 ) : (
-                                   item.plannedPaymentDate ? (
-                                     <span className="planned-date-text has-date">
-                                       {dayjs(item.plannedPaymentDate).format('DD-MM-YYYY')}
-                                     </span>
-                                   ) : '-'
+                                  item.plannedPaymentDate ? (
+                                    <span className="planned-date-badge">
+                                      📅 {dayjs(item.plannedPaymentDate).format('DD-MM-YYYY')}
+                                    </span>
+                                  ) : '-'
                                 )}
                               </td>
+                              {!isStoreKeeper && (
+                                <td className="notes-cell" style={{ textAlign: 'center' }}>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setNotesModalItem(item)
+                                      setNotesInput(item.notes || '')
+                                      setShowNotesModal(true)
+                                    }}
+                                    title="Click to view/add notes"
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      padding: '4px',
+                                      color: item.notes ? '#10b981' : 'var(--theme-text-secondary)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      margin: '0 auto',
+                                    }}
+                                  >
+                                    <svg
+                                      width="20"
+                                      height="20"
+                                      viewBox="0 0 24 24"
+                                      fill={item.notes ? 'currentColor' : 'none'}
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      style={{ pointerEvents: 'none' }}
+                                    >
+                                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                      <polyline points="14 2 14 8 20 8" />
+                                      <line x1="16" y1="13" x2="8" y2="13" />
+                                      <line x1="16" y1="17" x2="8" y2="17" />
+                                      <polyline points="10 9 9 9 8 9" />
+                                    </svg>
+                                  </button>
+                                </td>
+                              )}
                               <td className="history-cell" style={{ textAlign: 'center' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                                   {item.status === 'pending' && (
@@ -1264,6 +1425,104 @@ const RawMaterialBillingReport: React.FC = () => {
             <button type="button" className="close-modal-btn" onClick={() => setHistoryModalItem(null)}>
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Notes Modal Popup */}
+      {showNotesModal && notesModalItem && (
+        <div
+          className="modal-overlay-payment"
+          onClick={() => {
+            setShowNotesModal(false)
+            setNotesModalItem(null)
+          }}
+        >
+          <div
+            className="modal-content-payment"
+            style={{ maxWidth: '500px', width: '90%' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Notes - {notesModalItem.dealerName}</h2>
+              <button
+                type="button"
+                className="close-modal-btn"
+                onClick={() => {
+                  setShowNotesModal(false)
+                  setNotesModalItem(null)
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--theme-text-secondary)',
+                  fontSize: '1.4rem',
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ padding: '4px 0 16px' }}>
+              <div style={{ marginBottom: '12px', fontSize: '0.85rem', color: 'var(--theme-text-secondary)' }}>
+                Write or update remarks/notes for this raw material bill.
+              </div>
+              <textarea
+                value={notesInput}
+                onChange={(e) => setNotesInput(e.target.value)}
+                placeholder="Write notes about this bill here..."
+                rows={5}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--theme-elevation-200)',
+                  background: 'var(--theme-elevation-0)',
+                  color: 'var(--theme-text-primary)',
+                  fontSize: '0.95rem',
+                  fontFamily: 'inherit',
+                  resize: 'vertical',
+                  outline: 'none',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNotesModal(false)
+                  setNotesModalItem(null)
+                }}
+                disabled={isSavingNote}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--theme-elevation-200)',
+                  color: 'var(--theme-text-secondary)',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNotesUpdate(notesModalItem.id, notesInput)}
+                disabled={isSavingNote}
+                style={{
+                  background: '#10b981',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '8px 16px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
+                {isSavingNote ? 'Saving...' : 'Save Note'}
+              </button>
+            </div>
           </div>
         </div>
       )}

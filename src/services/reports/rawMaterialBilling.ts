@@ -11,6 +11,12 @@ dayjs.tz.setDefault('Asia/Kolkata')
 export type RawMaterialBillingReportItem = {
   id: string
   dealerName: string
+  dealerAccountNumber?: string
+  dealerBankName?: string
+  dealerIfscCode?: string
+  dealerBranch?: string
+  dealerHasBankAccount?: boolean
+  dealerPreferredPaymentMethod?: string
   amount: number
   paidAmount?: number
   payments?: { amount: number; date: string }[]
@@ -20,6 +26,7 @@ export type RawMaterialBillingReportItem = {
   time: string
   status: string
   plannedPaymentDate?: string
+  notes?: string
   rawMaterials?: {
     name: string
     quantity: number
@@ -42,6 +49,7 @@ export type CompanyGroup = {
 export type RawMaterialBillingReportMeta = {
   grandTotal: number
   totalCount: number
+  plannedDatesWithBills?: string[]
 }
 
 export type RawMaterialBillingReportResult = {
@@ -55,12 +63,20 @@ type RawMaterialBillingReportArgs = {
   company?: null | string
   endDate?: null | string
   startDate?: null | string
+  plannedStartDate?: null | string
+  plannedEndDate?: null | string
   dealer?: null | string
 }
 
 type RawItem = {
   id: unknown
   dealerName: unknown
+  dealerAccountNumber?: unknown
+  dealerBankName?: unknown
+  dealerIfscCode?: unknown
+  dealerBranch?: unknown
+  dealerHasBankAccount?: unknown
+  dealerPreferredPaymentMethod?: unknown
   amount: unknown
   paidAmount?: unknown
   payments?: unknown
@@ -185,11 +201,23 @@ export const getRawMaterialBillingReportData = async (
     selectedDealers = dealerParam.split(',').filter((id) => id.trim().length > 0)
   }
 
-  const matchQuery: Record<string, any> = {
-    date: {
+  const plannedStartDateParam = typeof args.plannedStartDate === 'string' ? args.plannedStartDate : ''
+  const plannedEndDateParam = typeof args.plannedEndDate === 'string' ? args.plannedEndDate : ''
+
+  const matchQuery: Record<string, any> = {}
+
+  if (plannedStartDateParam && plannedEndDateParam) {
+    const startPlanned = dayjs.utc(plannedStartDateParam).startOf('day').toDate()
+    const endPlanned = dayjs.utc(plannedEndDateParam).endOf('day').toDate()
+    matchQuery.plannedPaymentDate = {
+      $gte: startPlanned,
+      $lte: endPlanned,
+    }
+  } else {
+    matchQuery.date = {
       $gte: startOfDay,
       $lte: endOfDay,
-    },
+    }
   }
 
   const exprAnd: any[] = []
@@ -329,6 +357,7 @@ export const getRawMaterialBillingReportData = async (
         deliveryPersonInfo: { $first: '$deliveryPersonInfo' },
         status: { $first: '$status' },
         plannedPaymentDate: { $first: '$plannedPaymentDate' },
+        notes: { $first: '$notes' },
         rawMaterialsList: {
           $push: {
             $cond: {
@@ -364,6 +393,12 @@ export const getRawMaterialBillingReportData = async (
           $push: {
             id: { $toString: '$_id' },
             dealerName: { $ifNull: ['$dealerInfo.companyName', 'Unknown Dealer'] },
+            dealerAccountNumber: { $ifNull: ['$dealerInfo.bankDetails.accountNumber', ''] },
+            dealerBankName: { $ifNull: ['$dealerInfo.bankDetails.bankName', ''] },
+            dealerIfscCode: { $ifNull: ['$dealerInfo.bankDetails.ifscCode', ''] },
+            dealerBranch: { $ifNull: ['$dealerInfo.bankDetails.branch', ''] },
+            dealerHasBankAccount: '$dealerInfo.hasBankAccount',
+            dealerPreferredPaymentMethod: { $ifNull: ['$dealerInfo.preferredPaymentMethod', ''] },
             amount: '$total',
             paidAmount: { $ifNull: ['$paidAmount', 0] },
             payments: { $ifNull: ['$payments', []] },
@@ -384,6 +419,7 @@ export const getRawMaterialBillingReportData = async (
             deliveryPersonPhotoFilename: '$deliveryPersonInfo.filename',
             status: { $ifNull: ['$status', 'pending'] },
             plannedPaymentDate: '$plannedPaymentDate',
+            notes: '$notes',
             rawMaterialsList: '$rawMaterialsList',
           },
         },
@@ -428,6 +464,7 @@ export const getRawMaterialBillingReportData = async (
           packageSize?: number
           numberOfPackages?: number
           totalAmount?: number
+          category?: string
         }[] = []
         if (Array.isArray(item.rawMaterialsList)) {
           item.rawMaterialsList.forEach((m) => {
@@ -460,6 +497,12 @@ export const getRawMaterialBillingReportData = async (
         return {
           id: toNonEmptyString(item.id),
           dealerName: toNonEmptyString(item.dealerName, 'Unknown Dealer'),
+          dealerAccountNumber: toNonEmptyString(item.dealerAccountNumber, ''),
+          dealerBankName: toNonEmptyString(item.dealerBankName, ''),
+          dealerIfscCode: toNonEmptyString(item.dealerIfscCode, ''),
+          dealerBranch: toNonEmptyString(item.dealerBranch, ''),
+          dealerHasBankAccount: typeof item.dealerHasBankAccount === 'boolean' ? item.dealerHasBankAccount : undefined,
+          dealerPreferredPaymentMethod: toNonEmptyString(item.dealerPreferredPaymentMethod, ''),
           amount: toNumber(item.amount),
           paidAmount: toNumber(item.paidAmount),
           payments,
@@ -469,6 +512,7 @@ export const getRawMaterialBillingReportData = async (
           deliveryPersonPhotoUrl: deliveryPersonPhotoUrl || (deliveryPersonPhotoFilename ? `/api/media/file/${deliveryPersonPhotoFilename}` : undefined),
           status: toNonEmptyString(item.status, 'pending'),
           plannedPaymentDate: item.plannedPaymentDate ? toDateString(item.plannedPaymentDate) : undefined,
+          notes: toNonEmptyString(item.notes, ''),
           rawMaterials,
         }
       })
@@ -485,6 +529,20 @@ export const getRawMaterialBillingReportData = async (
   const grandTotal = groups.reduce((acc, group) => acc + group.total, 0)
   const totalCount = groups.reduce((acc, group) => acc + group.count, 0)
 
+  // Query MongoDB for all distinct planned payment dates across all non-cancelled bills
+  const plannedDocs = await RawMaterialBillingModel.find(
+    { plannedPaymentDate: { $exists: true, $ne: null }, status: { $ne: 'cancelled' } },
+    { plannedPaymentDate: 1 },
+  ).lean()
+
+  const plannedDatesSet = new Set<string>()
+  plannedDocs.forEach((doc: any) => {
+    if (doc.plannedPaymentDate) {
+      const dateStr = dayjs.utc(doc.plannedPaymentDate).format('YYYY-MM-DD')
+      if (dateStr) plannedDatesSet.add(dateStr)
+    }
+  })
+
   return {
     startDate: startDateParam,
     endDate: endDateParam,
@@ -492,6 +550,7 @@ export const getRawMaterialBillingReportData = async (
     meta: {
       grandTotal,
       totalCount,
+      plannedDatesWithBills: Array.from(plannedDatesSet),
     },
   }
 }

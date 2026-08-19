@@ -267,6 +267,18 @@
             &:hover {
               background: var(--theme-elevation-100);
             }
+
+            &.has-planned-date-row {
+              background: rgba(168, 85, 247, 0.06);
+
+              &:hover {
+                background: rgba(168, 85, 247, 0.12) !important;
+              }
+
+              td:first-child {
+                border-left: 3.5px solid #a855f7;
+              }
+            }
           }
 
           td {
@@ -329,16 +341,31 @@
                 }
 
                 &.has-date {
-                  color: #d97706;
-                  border-color: rgba(217, 119, 6, 0.5);
+                  color: #c084fc;
+                  border-color: rgba(168, 85, 247, 0.5);
                   font-weight: 600;
-                  background: rgba(217, 119, 6, 0.05);
+                  background: rgba(168, 85, 247, 0.08);
                 }
+              }
+
+              .planned-date-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                background: rgba(168, 85, 247, 0.18);
+                border: 1px solid rgba(168, 85, 247, 0.45);
+                color: #c084fc;
+                font-weight: 700;
+                font-size: 0.8rem;
+                padding: 3px 9px;
+                border-radius: 16px;
+                box-shadow: 0 1px 3px rgba(168, 85, 247, 0.2);
+                white-space: nowrap;
               }
 
               .planned-date-text {
                 &.has-date {
-                  color: #d97706;
+                  color: #c084fc;
                   font-weight: 600;
                 }
               }

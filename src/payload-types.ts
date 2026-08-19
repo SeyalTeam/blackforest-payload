@@ -1041,6 +1041,10 @@ export interface Billing {
    */
   cashierName?: string | null;
   /**
+   * ID of the cashier who settled the bill.
+   */
+  cashierId?: string | null;
+  /**
    * User who settled the bill.
    */
   settledBy?: (string | null) | User;
@@ -1074,6 +1078,14 @@ export interface ReturnOrder {
   company: string | Company;
   status?: ('pending' | 'accepted' | 'returned' | 'cancelled') | null;
   notes?: string | null;
+  /**
+   * ID of the cashier who created/submitted the return order.
+   */
+  cashierId?: string | null;
+  /**
+   * Name of the cashier who created/submitted the return order.
+   */
+  cashierName?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1152,6 +1164,14 @@ export interface Expense {
   }[];
   total: number;
   date: string;
+  /**
+   * ID of the cashier who created/submitted the expense.
+   */
+  cashierId?: string | null;
+  /**
+   * Name of the cashier who created/submitted the expense.
+   */
+  cashierName?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1180,6 +1200,14 @@ export interface Cake {
         id?: string | null;
       }[]
     | null;
+  /**
+   * ID of the cashier who created/submitted the cake order.
+   */
+  cashierId?: string | null;
+  /**
+   * Name of the cashier who created/submitted the cake order.
+   */
+  cashierName?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1224,6 +1252,14 @@ export interface StockOrder {
   company: string | Company;
   status?: ('ordered' | 'sending' | 'confirmed' | 'picked' | 'received') | null;
   notes?: string | null;
+  /**
+   * ID of the cashier who created/submitted the stock order.
+   */
+  cashierId?: string | null;
+  /**
+   * Name of the cashier who created/submitted the stock order.
+   */
+  cashierName?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1267,6 +1303,14 @@ export interface DealerBilling {
       }[]
     | null;
   status: 'pending' | 'paid' | 'cancelled';
+  /**
+   * ID of the cashier who submitted the dealer billing.
+   */
+  cashierId?: string | null;
+  /**
+   * Name of the cashier who submitted the dealer billing.
+   */
+  cashierName?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1290,7 +1334,7 @@ export interface RawMaterialBilling {
   rawMaterials?: (string | RawMaterial)[] | null;
   rawMaterialsList?:
     | {
-        rawMaterial: string | RawMaterial;
+        rawMaterial?: (string | null) | RawMaterial;
         packageSize?: number | null;
         numberOfPackages?: number | null;
         /**
@@ -1319,6 +1363,10 @@ export interface RawMaterialBilling {
     | null;
   status: 'pending' | 'paid' | 'cancelled';
   plannedPaymentDate?: string | null;
+  /**
+   * Notes or remarks for this raw material bill
+   */
+  notes?: string | null;
   createdBy?: (string | null) | User;
   createdByName?: string | null;
   createdByRole?: string | null;
@@ -1418,6 +1466,14 @@ export interface InstockEntry {
   createdBy: string | User;
   company: string | Company;
   status?: ('waiting' | 'approved') | null;
+  /**
+   * ID of the cashier who created/submitted the instock entry.
+   */
+  cashierId?: string | null;
+  /**
+   * Name of the cashier who created/submitted the instock entry.
+   */
+  cashierName?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2668,6 +2724,7 @@ export interface BillingsSelect<T extends boolean = true> {
       };
   verificationStatus?: T;
   cashierName?: T;
+  cashierId?: T;
   settledBy?: T;
   settledAt?: T;
   updatedAt?: T;
@@ -2697,6 +2754,8 @@ export interface ReturnOrdersSelect<T extends boolean = true> {
   company?: T;
   status?: T;
   notes?: T;
+  cashierId?: T;
+  cashierName?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2756,6 +2815,8 @@ export interface ExpensesSelect<T extends boolean = true> {
       };
   total?: T;
   date?: T;
+  cashierId?: T;
+  cashierName?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2783,6 +2844,8 @@ export interface CakesSelect<T extends boolean = true> {
         date?: T;
         id?: T;
       };
+  cashierId?: T;
+  cashierName?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2828,6 +2891,8 @@ export interface StockOrdersSelect<T extends boolean = true> {
   company?: T;
   status?: T;
   notes?: T;
+  cashierId?: T;
+  cashierName?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2869,6 +2934,8 @@ export interface DealerBillingsSelect<T extends boolean = true> {
         id?: T;
       };
   status?: T;
+  cashierId?: T;
+  cashierName?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2913,6 +2980,7 @@ export interface RawMaterialBillingsSelect<T extends boolean = true> {
       };
   status?: T;
   plannedPaymentDate?: T;
+  notes?: T;
   createdBy?: T;
   createdByName?: T;
   createdByRole?: T;
@@ -2995,6 +3063,8 @@ export interface InstockEntriesSelect<T extends boolean = true> {
   createdBy?: T;
   company?: T;
   status?: T;
+  cashierId?: T;
+  cashierName?: T;
   updatedAt?: T;
   createdAt?: T;
 }

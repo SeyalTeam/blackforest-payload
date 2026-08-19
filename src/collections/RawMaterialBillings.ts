@@ -4,7 +4,7 @@ const RawMaterialBillings: CollectionConfig = {
   slug: 'raw-material-billings',
   admin: {
     useAsTitle: 'id',
-    defaultColumns: ['id', 'dealer', 'company', 'total', 'date', 'status'],
+    defaultColumns: ['id', 'dealer', 'company', 'total', 'date', 'status', 'notes'],
   },
   access: {
     read: () => true,
@@ -85,13 +85,19 @@ const RawMaterialBillings: CollectionConfig = {
           name: 'rawMaterial',
           type: 'relationship',
           relationTo: 'raw-materials',
-          required: true,
+          required: false,
+          validate: (value: any, { operation }: any) => {
+            if (operation === 'create' && !value) {
+              return 'Raw Material is required'
+            }
+            return true
+          },
           filterOptions: ({ data }) => {
             const dealerId = typeof data?.dealer === 'string' ? data?.dealer : data?.dealer?.id
             if (dealerId) {
               return {
                 dealer: {
-                  contains: dealerId,
+                  equals: dealerId,
                 },
               }
             }
@@ -189,6 +195,15 @@ const RawMaterialBillings: CollectionConfig = {
       name: 'plannedPaymentDate',
       type: 'date',
       required: false,
+    },
+    {
+      name: 'notes',
+      type: 'textarea',
+      label: 'Notes / Remarks',
+      required: false,
+      admin: {
+        description: 'Notes or remarks for this raw material bill',
+      },
     },
     {
       name: 'createdBy',
