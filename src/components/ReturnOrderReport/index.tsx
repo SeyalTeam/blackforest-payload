@@ -261,7 +261,12 @@ const ReturnOrderReport: React.FC = () => {
             updatedItemsPayload = docData.items.map((it: any) => {
               const itId = it.id || it._id ? String(it.id || it._id) : ''
               const matchByItemId = Boolean(targetItemId && itId && itId === targetItemId)
-              const matchByProd = Boolean(targetProduct && it.name && it.name === targetProduct)
+              const matchByProd = Boolean(
+                !targetItemId &&
+                  targetProduct &&
+                  (it.name === targetProduct ||
+                    (typeof it.product === 'object' && it.product?.name === targetProduct)),
+              )
               if (matchByItemId || matchByProd) {
                 return { ...it, notes: notesText }
               }
@@ -273,9 +278,12 @@ const ReturnOrderReport: React.FC = () => {
         console.warn('Could not fetch doc items for item-level update, falling back to root notes', err)
       }
 
-      const patchBody: Record<string, any> = { notes: notesText }
+      const patchBody: Record<string, any> = {}
       if (updatedItemsPayload) {
         patchBody.items = updatedItemsPayload
+        patchBody.notes = ''
+      } else {
+        patchBody.notes = notesText
       }
 
       const res = await fetch(`/api/return-orders/${returnOrderId}`, {
@@ -304,7 +312,11 @@ const ReturnOrderReport: React.FC = () => {
               activeItemId && item.itemId && item.itemId.trim() === activeItemId,
             )
             const matchByProdNum = Boolean(
-              activeNum && activeProd && item.returnNumber === activeNum && item.product === activeProd,
+              !activeItemId &&
+                activeNum &&
+                activeProd &&
+                item.returnNumber === activeNum &&
+                item.product === activeProd,
             )
             const matchByIdFallback = Boolean(
               !activeItemId && !activeProd && activeId && item.id && item.id.trim() === activeId,
@@ -963,8 +975,12 @@ const ReturnOrderReport: React.FC = () => {
                   </span>
                 </div>
                 <textarea
-                  defaultValue={notesPopupData.notes}
-                  placeholder="Write notes about this return order here..."
+                  value={notesPopupData.notes}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setNotesPopupData((prev) => (prev ? { ...prev, notes: val } : null))
+                  }}
+                  placeholder="Write notes about this return order item here..."
                   style={{
                     width: '100%',
                     minHeight: '80px',
@@ -976,9 +992,6 @@ const ReturnOrderReport: React.FC = () => {
                     fontSize: '0.9rem',
                     resize: 'vertical',
                     outline: 'none',
-                  }}
-                  onBlur={(e) => {
-                    notesPopupData.notes = e.target.value
                   }}
                 />
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
