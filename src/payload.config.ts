@@ -98,6 +98,7 @@ import Tables from './collections/Tables'
 import Kitchens from './collections/Kitchens'
 import Attendance from './collections/Attendance'
 import { WidgetSettingsGlobal } from './globals/Widgets'
+import { testFaceHandler } from './endpoints/testFace'
 import { createWidgetOrderHandler } from './endpoints/createWidgetOrder'
 import { getTableCustomerDetailsVisibilityHandler } from './endpoints/getTableCustomerDetailsVisibility'
 import { getLiveTableStatusHandler } from './endpoints/getLiveTableStatus'
@@ -633,6 +634,11 @@ export default buildConfig({
   },
 
   endpoints: [
+    {
+      path: '/test-face',
+      method: 'get',
+      handler: testFaceHandler,
+    },
     {
       path: '/reports/branch-billing',
       method: 'get',
