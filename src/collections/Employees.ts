@@ -162,9 +162,11 @@ const Employees: CollectionConfig = {
           }
 
           // Download the image
+          const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL 
+            || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
           const imageUrl = media.url.startsWith('http')
             ? media.url
-            : `${process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3000'}${media.url}`
+            : `${baseUrl}${media.url}`
 
           const response = await fetch(imageUrl)
           if (!response.ok) {
