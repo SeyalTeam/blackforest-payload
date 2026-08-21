@@ -3,6 +3,7 @@ import * as canvas from 'canvas'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'node:fs'
+import sharp from 'sharp'
 
 // Patch face-api.js to use node-canvas
 const { Canvas, Image, ImageData } = canvas
@@ -40,7 +41,10 @@ export async function loadModels(): Promise<void> {
 export async function computeDescriptor(imageBuffer: Buffer): Promise<Float32Array | null> {
   await loadModels()
 
-  const img = await canvas.loadImage(imageBuffer)
+  // Auto-orient based on EXIF (crucial for Android camera photos!)
+  const orientedBuffer = await sharp(imageBuffer).rotate().toBuffer()
+
+  const img = await canvas.loadImage(orientedBuffer)
   const detection = await faceapi
     .detectSingleFace(img as any)
     .withFaceLandmarks()

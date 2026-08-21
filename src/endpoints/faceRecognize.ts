@@ -62,8 +62,8 @@ export const faceRecognizeHandler: PayloadHandler = async (req) => {
       }, { status: 200 })
     }
 
-    // 7. Find best match
-    const match = findBestMatch(selfieDescriptor, employeesWithDescriptors, 0.6)
+    // 7. Find best match (0.65 is more lenient than 0.6)
+    const match = findBestMatch(selfieDescriptor, employeesWithDescriptors, 0.65)
 
     if (!match.matched || !match.employeeDocId) {
       return Response.json({
