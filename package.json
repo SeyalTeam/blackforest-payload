@@ -101,7 +101,9 @@
     "onlyBuiltDependencies": [
       "sharp",
       "esbuild",
-      "unrs-resolver"
+      "unrs-resolver",
+      "canvas",
+      "@tensorflow/tfjs-node"
     ]
   }
 }
