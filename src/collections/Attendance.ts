@@ -111,6 +111,14 @@ const Attendance: CollectionConfig = {
           type: 'text',
         },
         {
+          name: 'capturedImage',
+          type: 'upload',
+          relationTo: 'media',
+          admin: {
+            description: 'Selfie captured during face recognition punch',
+          },
+        },
+        {
           name: 'latitude',
           type: 'number',
         },
