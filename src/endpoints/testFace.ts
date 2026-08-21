@@ -32,7 +32,10 @@ export const testFaceHandler: PayloadHandler = async (req) => {
       await req.payload.update({
         collection: 'employees',
         id: employee.id,
-        data: { faceDescriptor: Array.from(descriptor) },
+        data: { 
+          // @ts-ignore
+          faceDescriptor: Array.from(descriptor) 
+        },
       })
       return Response.json({ success: true, descriptorLength: descriptor.length })
     } else {

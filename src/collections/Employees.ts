@@ -186,6 +186,7 @@ const Employees: CollectionConfig = {
               collection: 'employees',
               id: doc.id,
               data: {
+                // @ts-ignore
                 faceDescriptor: Array.from(descriptor),
               },
               depth: 0,
