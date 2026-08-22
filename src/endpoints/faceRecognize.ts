@@ -90,7 +90,7 @@ export const faceRecognizeHandler: PayloadHandler = async (req) => {
       collection: 'attendance',
       where: {
         dateString: { equals: dateString },
-        user: { equals: req.user.id },
+        employee: { equals: match.employeeDocId },
       },
       limit: 1,
       depth: 0,
@@ -156,6 +156,7 @@ export const faceRecognizeHandler: PayloadHandler = async (req) => {
         collection: 'attendance',
         data: {
           user: req.user.id,
+          employee: match.employeeDocId,
           date: todayMidnight.toISOString(),
           dateString,
           activities: [

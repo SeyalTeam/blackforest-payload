@@ -4,7 +4,7 @@ const Attendance: CollectionConfig = {
   slug: 'attendance',
   admin: {
     useAsTitle: 'date',
-    defaultColumns: ['user', 'date', 'activities'],
+    defaultColumns: ['user', 'employee', 'date', 'activities'],
   },
   access: {
     read: ({ req: { user } }) => {
@@ -43,6 +43,15 @@ const Attendance: CollectionConfig = {
       relationTo: 'users',
       required: true,
       index: true,
+    },
+    {
+      name: 'employee',
+      type: 'relationship',
+      relationTo: 'employees',
+      index: true,
+      admin: {
+        description: 'The employee matched via face recognition',
+      },
     },
     {
       name: 'date',
