@@ -228,6 +228,13 @@ const Attendance: CollectionConfig = {
           relationTo: 'media',
           admin: {
             description: 'Selfie captured during face recognition punch',
+            condition: (data, siblingData) => siblingData?.type === 'session',
+          },
+          validate: (value: any, { siblingData }: any) => {
+            if (siblingData?.type === 'session' && !value) {
+              return 'A selfie (captured image) is required to start a session.';
+            }
+            return true;
           },
         },
         {
