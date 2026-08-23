@@ -591,55 +591,14 @@ export const Users: CollectionConfig = {
               })
             }
 
-            const activities = [...(attendanceDoc.activities || [])]
-
-            // 2. DUPLICATE PREVENTION: Check if already punched in
-            const lastActivity = activities.length > 0 ? activities[activities.length - 1] : null
-            if (
-              lastActivity &&
-              lastActivity.type === 'session' &&
-              lastActivity.status === 'active'
-            ) {
-              console.log(
-                `[Attendance] User ${user.email} already has an ACTIVE session in Daily Log. Skipping.`,
-              )
-              return
-            }
-
-            // 3. Check for Break (gap between last punchOut and now)
-            if (lastActivity && lastActivity.punchOut) {
-              const lastOut = new Date(lastActivity.punchOut)
-              const breakSeconds = Math.floor((now.getTime() - lastOut.getTime()) / 1000)
-
-              if (breakSeconds >= 30) {
-                activities.push({
-                  type: 'break',
-                  punchIn: lastOut.toISOString(),
-                  punchOut: now.toISOString(),
-                  status: 'closed',
-                  durationSeconds: breakSeconds,
-                  ipAddress: privateIp,
-                  device: deviceId || 'Unknown',
-                })
-              }
-            }
-
-            // 4. Append NEW Session activity
-            activities.push({
-              type: 'session',
-              punchIn: now.toISOString(),
-              status: 'active',
-              ipAddress: privateIp,
-              device: deviceId || 'Unknown',
-              latitude: lat,
-              longitude: lng,
-            } as any)
-
+            // 2. DO NOT AUTO-PUNCH IN AFTER LOGIN. 
+            // The user must manually punch in from the Profile page.
+            
+            // Just update the IP, device and location of the daily log
             await req.payload.update({
               collection: 'attendance',
               id: attendanceDoc.id,
               data: {
-                activities: activities as any,
                 ipAddress: privateIp,
                 device: deviceId || 'Unknown',
                 location: {
