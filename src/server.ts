@@ -31,6 +31,9 @@ const bootstrap = async (): Promise<void> => {
   const payload = await getPayload({ config: payloadConfig })
   const realtimeGateway = createRealtimeGateway(payload)
 
+  const { startCronJobs } = await import('./cron')
+  startCronJobs(payload)
+
   await app.prepare()
   const requestHandler = app.getRequestHandler()
   const upgradeHandler = app.getUpgradeHandler()

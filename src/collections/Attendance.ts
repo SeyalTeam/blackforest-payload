@@ -6,6 +6,109 @@ const Attendance: CollectionConfig = {
     useAsTitle: 'date',
     defaultColumns: ['user', 'employee', 'date', 'activities'],
   },
+  hooks: {
+    beforeValidate: [
+      async ({ data, req, operation }) => {
+        if (!data) return data;
+        
+        // Requirement 3: Enforce Unique Daily Logs
+        if (operation === 'create' && data.user && data.dateString) {
+          const existing = await req.payload.find({
+            collection: 'attendance',
+            where: {
+              and: [
+                {
+                  user: { equals: data.user },
+                },
+                {
+                  dateString: { equals: data.dateString },
+                },
+              ],
+            },
+            limit: 1,
+          })
+          if (existing.docs.length > 0) {
+            throw new Error(`An attendance record for user on ${data.dateString} already exists.`)
+          }
+        }
+        return data;
+      },
+    ],
+    beforeChange: [
+      async ({ data, req, operation, originalDoc }) => {
+        if (!data) return data;
+        
+        // Requirement 2: Close Previous Sessions on New "Punch In"
+        if (data.activities && Array.isArray(data.activities)) {
+          let lastActiveIndex = -1;
+          let hasActive = false;
+          for (let i = data.activities.length - 1; i >= 0; i--) {
+             if (data.activities[i].status === 'active') {
+                 if (lastActiveIndex === -1) {
+                     lastActiveIndex = i;
+                     hasActive = true;
+                 } else {
+                     data.activities[i].status = 'closed';
+                     if (!data.activities[i].punchOut) {
+                         data.activities[i].punchOut = new Date().toISOString();
+                     }
+                     if (data.activities[i].punchIn && data.activities[i].punchOut) {
+                         const duration = Math.floor((new Date(data.activities[i].punchOut).getTime() - new Date(data.activities[i].punchIn).getTime()) / 1000);
+                         data.activities[i].durationSeconds = duration > 0 ? duration : 0;
+                     }
+                 }
+             }
+          }
+          
+          if (hasActive && data.user) {
+            try {
+              const activeDocs = await req.payload.find({
+                collection: 'attendance',
+                where: {
+                  user: { equals: data.user }
+                },
+                limit: 100
+              })
+              
+              for (const doc of activeDocs.docs) {
+                if (operation === 'update' && originalDoc && doc.id === originalDoc.id) continue;
+                
+                let needsUpdate = false;
+                const updatedActivities = (doc.activities || []).map((act: any) => {
+                  if (act.status === 'active') {
+                    needsUpdate = true;
+                    const punchOut = new Date().toISOString();
+                    let durationSeconds = 0;
+                    if (act.punchIn) {
+                      durationSeconds = Math.floor((new Date(punchOut).getTime() - new Date(act.punchIn).getTime()) / 1000);
+                    }
+                    return {
+                      ...act,
+                      status: 'closed',
+                      punchOut,
+                      durationSeconds: durationSeconds > 0 ? durationSeconds : 0
+                    }
+                  }
+                  return act;
+                });
+                
+                if (needsUpdate) {
+                  await req.payload.update({
+                    collection: 'attendance',
+                    id: doc.id,
+                    data: { activities: updatedActivities }
+                  });
+                }
+              }
+            } catch (err) {
+              console.error('Error auto-closing previous sessions:', err);
+            }
+          }
+        }
+        return data;
+      },
+    ],
+  },
   access: {
     read: ({ req: { user } }) => {
       if (!user) return false
