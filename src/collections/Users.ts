@@ -540,79 +540,7 @@ export const Users: CollectionConfig = {
             `[Session] User ${user.email} (${user.role}) logged in. Standard 14h intended.`,
           )
 
-          // Log Attendance Daily Log (Punch In)
-          try {
-            const now = new Date()
 
-            // Detect Private IP (sent from mobile app header)
-            const privateIpHeader = req.headers.get('x-private-ip')
-            const privateIp =
-              typeof privateIpHeader === 'string' ? privateIpHeader.trim() : 'Unknown'
-
-            // Get IST Date string (YYYY-MM-DD)
-            const istDateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
-            const localStartOfDay = new Date(istDateStr + 'T00:00:00Z') // Normalized for DB date field
-
-            // 1. Find or Create today's attendance document by dateString
-            const latHeader = req.headers.get('x-latitude')
-            const lngHeader = req.headers.get('x-longitude')
-            const lat = latHeader ? parseFloat(latHeader) : null
-            const lng = lngHeader ? parseFloat(lngHeader) : null
-
-            const existingLogs = await req.payload.find({
-              collection: 'attendance',
-              where: {
-                user: { equals: user.id },
-                dateString: { equals: istDateStr },
-              },
-              depth: 0,
-              overrideAccess: true,
-            })
-
-            let attendanceDoc
-            if (existingLogs.docs.length > 0) {
-              attendanceDoc = existingLogs.docs[0]
-            } else {
-              attendanceDoc = await req.payload.create({
-                collection: 'attendance',
-                data: {
-                  user: user.id,
-                  date: localStartOfDay.toISOString(),
-                  dateString: istDateStr,
-                  activities: [],
-                  ipAddress: privateIp,
-                  device: deviceId || 'Unknown',
-                  location: {
-                    latitude: lat,
-                    longitude: lng,
-                  },
-                } as any,
-                overrideAccess: true,
-              })
-            }
-
-            // 2. DO NOT AUTO-PUNCH IN AFTER LOGIN. 
-            // The user must manually punch in from the Profile page.
-            
-            // Just update the IP, device and location of the daily log
-            await req.payload.update({
-              collection: 'attendance',
-              id: attendanceDoc.id,
-              data: {
-                ipAddress: privateIp,
-                device: deviceId || 'Unknown',
-                location: {
-                  latitude: lat,
-                  longitude: lng,
-                },
-              },
-              overrideAccess: true,
-            })
-
-            console.log(`[Attendance] Managed IST Daily Log (${istDateStr}) for ${user.email}`)
-          } catch (e) {
-            console.error(`[Attendance] Failed to manage Daily Log for ${user.email}:`, e)
-          }
         } else {
           console.log(
             `[Session] User ${user.email} (${user.role}) logged in. Extended 30d session allowed.`,
