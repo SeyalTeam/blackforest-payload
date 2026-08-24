@@ -59,6 +59,8 @@ import { getClosingEntryReportHandler } from './endpoints/getClosingEntryReport'
 import { getWaiterWiseBillingReportHandler } from './endpoints/getWaiterWiseBillingReport'
 import { ClosingEntryReportGlobal } from './globals/ClosingEntryReport'
 import { WaiterWiseBillingReportGlobal } from './globals/WaiterWiseBillingReport'
+import { AttendanceReportGlobal } from './globals/AttendanceReport'
+import { getAttendanceReportHandler } from './endpoints/getAttendanceReport'
 import { InventoryReportGlobal } from './globals/InventoryReport'
 import { getInventoryReportHandler } from './endpoints/getInventoryReport'
 import { StockOrderReportGlobal } from './globals/StockOrderReport'
@@ -679,6 +681,11 @@ export default buildConfig({
       handler: getWaiterWiseBillingReportHandler,
     },
     {
+      path: '/reports/attendance',
+      method: 'get',
+      handler: getAttendanceReportHandler,
+    },
+    {
       path: '/reports/inventory',
       method: 'get',
       handler: getInventoryReportHandler,
@@ -941,6 +948,7 @@ export default buildConfig({
     ChefReportGlobal,
     ClosingEntryReportGlobal,
     WaiterWiseBillingReportGlobal,
+    AttendanceReportGlobal,
     InventoryReportGlobal,
     StockOrderReportGlobal,
     AfterstockCustomerReportGlobal,

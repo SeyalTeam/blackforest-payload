@@ -14,6 +14,7 @@ import { default as default_8a4cc2be73f160763ed425d4819cb1e7 } from '../../../co
 import { default as default_20a99712a7f6df2c7d826602eae357af } from '../../../components/ChefReport/index.tsx'
 import { default as default_7397014835f53864fd04e60a81829907 } from '../../../components/ClosingEntryReport/index.tsx'
 import { default as default_bf85980ee3af56c75543fe343ccb1155 } from '../../../components/WaiterWiseBillingReport/index.tsx'
+import { default as default_attendance_report } from '../../../components/AttendanceReport/index.tsx'
 import { default as default_7c4eca9b024572db8dabeb53bf36c0e7 } from '../../../components/InventoryReport/index.tsx'
 import { default as default_f6297d9a270bdbbca7736c61f9f4f1e9 } from '../../../components/StockOrderReport/index.tsx'
 import { default as default_b041205a7c55420476e32a6bc72ba118 } from '../../../components/AfterstockCustomerReport/index.tsx'
@@ -49,6 +50,7 @@ export const importMap = {
   "/components/ChefReport/index.tsx#default": default_20a99712a7f6df2c7d826602eae357af,
   "/components/ClosingEntryReport/index.tsx#default": default_7397014835f53864fd04e60a81829907,
   "/components/WaiterWiseBillingReport/index.tsx#default": default_bf85980ee3af56c75543fe343ccb1155,
+  "/components/AttendanceReport/index.tsx#default": default_attendance_report,
   "/components/InventoryReport/index.tsx#default": default_7c4eca9b024572db8dabeb53bf36c0e7,
   "/components/StockOrderReport/index.tsx#default": default_f6297d9a270bdbbca7736c61f9f4f1e9,
   "/components/AfterstockCustomerReport/index.tsx#default": default_b041205a7c55420476e32a6bc72ba118,

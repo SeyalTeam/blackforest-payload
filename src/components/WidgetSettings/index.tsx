@@ -43,6 +43,7 @@ import BillReceipt, { BillData } from '@/components/BillReceipt'
 import CustomerOfferWidget from './CustomerOfferWidget'
 import FavoriteCategoriesWidget from './FavoriteCategoriesWidget'
 import FavoriteProductsWidget from './FavoriteProductsWidget'
+import AttendanceWidget from '../AttendanceWidget'
 import './index.scss'
 
 type Option = { value: string; label: string }
@@ -3018,6 +3019,14 @@ const WidgetSettings: React.FC<any> = (props) => {
             <Download className="tile-icon" size={48} />
             <span className="tile-label">App Downloads</span>
           </button>
+          <button
+            type="button"
+            className={`tile ${activeWidget === 'attendance' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('attendance')}
+          >
+            <Users className="tile-icon" size={48} />
+            <span className="tile-label">Attendance</span>
+          </button>
 
           <div className="tiles-group-title">Live</div>
           <button
@@ -4697,6 +4706,21 @@ const WidgetSettings: React.FC<any> = (props) => {
                 <button className="btn btn-secondary" onClick={() => setActiveWidget(null)}>
                   Close
                 </button>
+              </div>
+            </div>
+          )}
+
+          {activeWidget === 'attendance' && (
+            <div className="widget-modal">
+              <div className="modal-header">
+                <h2>Face Recognition Attendance</h2>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="modal-body">
+                <AttendanceWidget />
               </div>
             </div>
           )}

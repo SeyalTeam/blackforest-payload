@@ -657,6 +657,15 @@ export interface Employee {
     | 'account';
   aadhaarPhoto?: (string | null) | Media;
   photo?: (string | null) | Media;
+  faceDescriptor?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1834,6 +1843,10 @@ export interface Attendance {
   id: string;
   user: string | User;
   /**
+   * The employee matched via face recognition
+   */
+  employee?: (string | null) | Employee;
+  /**
    * The local date this log represents (normalized to midnight)
    */
   date: string;
@@ -1850,6 +1863,10 @@ export interface Attendance {
         durationSeconds?: number | null;
         ipAddress?: string | null;
         device?: string | null;
+        /**
+         * Selfie captured during face recognition punch
+         */
+        capturedImage?: (string | null) | Media;
         latitude?: number | null;
         longitude?: number | null;
         id?: string | null;
@@ -2548,6 +2565,7 @@ export interface EmployeesSelect<T extends boolean = true> {
   team?: T;
   aadhaarPhoto?: T;
   photo?: T;
+  faceDescriptor?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3112,6 +3130,7 @@ export interface KitchensSelect<T extends boolean = true> {
  */
 export interface AttendanceSelect<T extends boolean = true> {
   user?: T;
+  employee?: T;
   date?: T;
   dateString?: T;
   activities?:
@@ -3124,6 +3143,7 @@ export interface AttendanceSelect<T extends boolean = true> {
         durationSeconds?: T;
         ipAddress?: T;
         device?: T;
+        capturedImage?: T;
         latitude?: T;
         longitude?: T;
         id?: T;

@@ -8,8 +8,22 @@ import { getProductPreparationBillDetailsData } from '../services/reports/produc
 import { getProductWiseReportData } from '../services/reports/productWise'
 import { getReturnOrderReportData } from '../services/reports/returnOrder'
 import { getWaiterWiseBillingReportData } from '../services/reports/waiterWise'
+import { getAttendanceReportData } from '../services/reports/attendance'
 import { getStockOrderReportData } from '../services/reports/stockOrder'
 import { getTimeWiseReportData } from '../services/reports/timeWise'
+
+type AttendanceReportFilter = {
+  branch?: null | string
+  employee?: null | string
+  endDate?: null | string
+  role?: null | string
+  startDate?: null | string
+  status?: null | string
+}
+
+type AttendanceReportQueryArgs = {
+  filter?: AttendanceReportFilter
+}
 type BranchBillingFilter = {
   branch?: null | string
   endDate?: null | string
@@ -1467,6 +1481,158 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
         }
         return getTimeWiseReportData(context.req, args.filter || {})
       }
-    }
+    },
+    attendanceReport: {
+      type: new graphQL.GraphQLNonNull(
+        new graphQL.GraphQLObjectType({
+          name: 'AttendanceReportResult',
+          fields: {
+            startDate: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+            endDate: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+            items: {
+              type: new graphQL.GraphQLNonNull(
+                new graphQL.GraphQLList(
+                  new graphQL.GraphQLNonNull(
+                    new graphQL.GraphQLObjectType({
+                      name: 'AttendanceReportItem',
+                      fields: {
+                        id: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                        date: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                        dateString: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                        userId: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                        userName: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                        userEmail: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                        userRole: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                        employeeId: { type: graphQL.GraphQLString },
+                        employeeName: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                        employeeTeam: { type: graphQL.GraphQLString },
+                        employeePhone: { type: graphQL.GraphQLString },
+                        employeePhotoUrl: { type: graphQL.GraphQLString },
+                        branchId: { type: graphQL.GraphQLString },
+                        branchName: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                        firstPunchIn: { type: graphQL.GraphQLString },
+                        lastPunchOut: { type: graphQL.GraphQLString },
+                        totalWorkSeconds: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                        totalWorkFormatted: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                        totalBreakSeconds: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                        totalBreakFormatted: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                        sessionCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                        breakCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                        status: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                        activities: {
+                          type: new graphQL.GraphQLNonNull(
+                            new graphQL.GraphQLList(
+                              new graphQL.GraphQLNonNull(
+                                new graphQL.GraphQLObjectType({
+                                  name: 'AttendanceReportActivity',
+                                  fields: {
+                                    id: { type: graphQL.GraphQLString },
+                                    type: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                                    punchIn: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                                    punchOut: { type: graphQL.GraphQLString },
+                                    status: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                                    durationSeconds: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                                    durationFormatted: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                                    ipAddress: { type: graphQL.GraphQLString },
+                                    device: { type: graphQL.GraphQLString },
+                                    capturedImageUrl: { type: graphQL.GraphQLString },
+                                    latitude: { type: graphQL.GraphQLFloat },
+                                    longitude: { type: graphQL.GraphQLFloat },
+                                  },
+                                }),
+                              ),
+                            ),
+                          ),
+                        },
+                      },
+                    }),
+                  ),
+                ),
+              ),
+            },
+            totals: {
+              type: new graphQL.GraphQLNonNull(
+                new graphQL.GraphQLObjectType({
+                  name: 'AttendanceReportTotals',
+                  fields: {
+                    totalRecords: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                    uniqueEmployees: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                    currentlyActive: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                    totalWorkSeconds: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                    totalWorkFormatted: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                    totalBreakSeconds: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                    totalBreakFormatted: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                    avgWorkSecondsPerDay: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                    avgWorkFormatted: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                  },
+                }),
+              ),
+            },
+            roleStats: {
+              type: new graphQL.GraphQLNonNull(
+                new graphQL.GraphQLList(
+                  new graphQL.GraphQLNonNull(
+                    new graphQL.GraphQLObjectType({
+                      name: 'AttendanceReportRoleStat',
+                      fields: {
+                        role: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                        count: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                        totalHours: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+                      },
+                    }),
+                  ),
+                ),
+              ),
+            },
+            branchStats: {
+              type: new graphQL.GraphQLNonNull(
+                new graphQL.GraphQLList(
+                  new graphQL.GraphQLNonNull(
+                    new graphQL.GraphQLObjectType({
+                      name: 'AttendanceReportBranchStat',
+                      fields: {
+                        branchId: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                        branchName: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                        presentCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                        activeCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                        totalHours: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+                      },
+                    }),
+                  ),
+                ),
+              ),
+            },
+          },
+        }),
+      ),
+      args: {
+        filter: {
+          type: new graphQL.GraphQLInputObjectType({
+            name: 'AttendanceReportFilterInput',
+            fields: {
+              startDate: { type: graphQL.GraphQLString },
+              endDate: { type: graphQL.GraphQLString },
+              branch: { type: graphQL.GraphQLString },
+              role: { type: graphQL.GraphQLString },
+              employee: { type: graphQL.GraphQLString },
+              status: { type: graphQL.GraphQLString },
+            },
+          }),
+        },
+      },
+      resolve: async (
+        _source: unknown,
+        args: AttendanceReportQueryArgs,
+        context: {
+          req?: PayloadRequest
+        },
+      ) => {
+        if (!context.req) {
+          throw new Error('Request context is missing')
+        }
+        return getAttendanceReportData(context.req, args.filter || {})
+      },
+    },
   }
 }
+

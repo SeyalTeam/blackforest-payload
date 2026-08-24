@@ -103,6 +103,7 @@ export const MenuSettingsGlobal: GlobalConfig = {
             { label: 'Chef Report', value: 'chef-report' },
             { label: 'Closing Entry Report', value: 'closing-entry-report' },
             { label: 'Waiter Wise Billing Report', value: 'waiter-wise-billing-report' },
+            { label: 'Attendance Report', value: 'attendance-report' },
             { label: 'Inventory Report', value: 'inventory-report' },
             { label: 'Stock Order Report', value: 'stock-order-report' },
             { label: 'Afterstock Customer Report', value: 'afterstock-customer-report' },
