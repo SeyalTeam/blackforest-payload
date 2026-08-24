@@ -3,8 +3,8 @@ import type { CollectionConfig } from 'payload'
 const PunchIn: CollectionConfig = {
   slug: 'punchin',
   admin: {
-    useAsTitle: 'date',
-    defaultColumns: ['user', 'date', 'photo'],
+    useAsTitle: 'dateString',
+    defaultColumns: ['user', 'dateString'],
   },
   access: {
     read: ({ req: { user } }) => {
@@ -23,16 +23,8 @@ const PunchIn: CollectionConfig = {
         },
       } as any
     },
-    create: ({ req: { user } }) => !!user, // Any logged in user can create an entry
-    update: ({ req: { user } }) => {
-      if (!user) return false
-      if (['superadmin', 'admin', 'account'].includes(user.role)) return true
-      return {
-        user: {
-          equals: user.id,
-        },
-      } as any
-    },
+    create: ({ req: { user } }) => !!user,
+    update: ({ req: { user } }) => !!user,
     delete: ({ req: { user } }) =>
       user?.role ? ['superadmin', 'admin'].includes(user.role) : false,
   },
@@ -45,22 +37,33 @@ const PunchIn: CollectionConfig = {
       index: true,
     },
     {
-      name: 'date',
-      type: 'date',
+      name: 'dateString',
+      type: 'text',
       required: true,
       index: true,
       admin: {
-        description: 'The exact date and time the user punched in',
+        description: 'Format: YYYY-MM-DD. Ensures one document per user per day.',
       },
     },
     {
-      name: 'photo',
-      type: 'upload',
-      relationTo: 'media',
-      required: true,
-      admin: {
-        description: 'Selfie captured during punch in',
-      },
+      name: 'records',
+      type: 'array',
+      fields: [
+        {
+          name: 'punchIn',
+          type: 'date',
+          required: true,
+        },
+        {
+          name: 'punchOut',
+          type: 'date',
+        },
+        {
+          name: 'photo',
+          type: 'upload',
+          relationTo: 'media',
+        },
+      ],
     },
   ],
 }

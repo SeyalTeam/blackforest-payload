@@ -43,6 +43,52 @@ const Attendance: CollectionConfig = {
         return data;
       },
     ],
+    afterChange: [
+      async ({ doc, req, operation }) => {
+        try {
+          if (!doc.user || !doc.dateString || !doc.activities) return;
+          
+          const sessionActivities = doc.activities.filter((a: any) => a.type === 'session');
+          if (sessionActivities.length === 0) return;
+
+          const records = sessionActivities.map((a: any) => ({
+            punchIn: a.punchIn,
+            punchOut: a.punchOut,
+            photo: a.capturedImage,
+          }));
+
+          const existingPunchIn = await req.payload.find({
+            collection: 'punchin',
+            where: {
+              and: [
+                { user: { equals: typeof doc.user === 'string' ? doc.user : doc.user.id } },
+                { dateString: { equals: doc.dateString } }
+              ]
+            },
+            limit: 1
+          });
+
+          if (existingPunchIn.docs.length > 0) {
+            await req.payload.update({
+              collection: 'punchin',
+              id: existingPunchIn.docs[0].id,
+              data: { records }
+            });
+          } else {
+            await req.payload.create({
+              collection: 'punchin',
+              data: {
+                user: typeof doc.user === 'string' ? doc.user : doc.user.id,
+                dateString: doc.dateString,
+                records
+              }
+            });
+          }
+        } catch (e) {
+          console.error('Error syncing Attendance to PunchIn:', e);
+        }
+      }
+    ],
     beforeChange: [
       async ({ data, req, operation, originalDoc }) => {
         if (!data) return data;
