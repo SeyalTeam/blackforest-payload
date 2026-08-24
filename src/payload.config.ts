@@ -97,8 +97,8 @@ import { downloadHandler, uploadHandler, pingHandler } from './endpoints/speedte
 import Tables from './collections/Tables'
 import Kitchens from './collections/Kitchens'
 import Attendance from './collections/Attendance'
+import PunchIn from './collections/PunchIn'
 import { WidgetSettingsGlobal } from './globals/Widgets'
-import { testFaceHandler } from './endpoints/testFace'
 import { createWidgetOrderHandler } from './endpoints/createWidgetOrder'
 import { getTableCustomerDetailsVisibilityHandler } from './endpoints/getTableCustomerDetailsVisibility'
 import { getLiveTableStatusHandler } from './endpoints/getLiveTableStatus'
@@ -142,7 +142,6 @@ import { callSignalHandler } from './endpoints/callSignal'
 import BankStatements from './collections/BankStatements'
 import { BankStatementUploadGlobal } from './globals/BankStatementUpload'
 import { getPublicServerURL } from './utilities/serverUrl'
-import { faceRecognizeHandler } from './endpoints/faceRecognize'
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -635,11 +634,6 @@ export default buildConfig({
 
   endpoints: [
     {
-      path: '/test-face',
-      method: 'get',
-      handler: testFaceHandler,
-    },
-    {
       path: '/reports/branch-billing',
       method: 'get',
       handler: getBranchBillingReportHandler,
@@ -929,11 +923,6 @@ export default buildConfig({
       method: 'post',
       handler: callSignalHandler,
     },
-    {
-      path: '/face-recognize',
-      method: 'post',
-      handler: faceRecognizeHandler,
-    },
   ],
 
   globals: [
@@ -1006,6 +995,7 @@ export default buildConfig({
     Tables,
     Kitchens,
     Attendance,
+    PunchIn,
     APKFiles,
     BankStatements,
     StockAlerts,
