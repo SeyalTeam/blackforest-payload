@@ -11,6 +11,15 @@ const Attendance: CollectionConfig = {
       async ({ data, req, operation }) => {
         if (!data) return data;
         
+        // Requirement: Enforce selfie for sessions
+        if (data.activities && Array.isArray(data.activities)) {
+          for (const activity of data.activities) {
+            if (activity.type === 'session' && !activity.capturedImage) {
+              throw new Error('A selfie (captured image) is strictly required to start a session. Invalid request blocked.');
+            }
+          }
+        }
+
         // Requirement 3: Enforce Unique Daily Logs
         if (operation === 'create' && data.user && data.dateString) {
           const existing = await req.payload.find({
