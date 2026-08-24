@@ -98,6 +98,7 @@ export interface Config {
     tables: Table;
     kitchens: Kitchen;
     attendance: Attendance;
+    punchin: Punchin;
     'apk-files': ApkFile;
     'bank-statements': BankStatement;
     'stock-alerts': StockAlert;
@@ -140,6 +141,7 @@ export interface Config {
     tables: TablesSelect<false> | TablesSelect<true>;
     kitchens: KitchensSelect<false> | KitchensSelect<true>;
     attendance: AttendanceSelect<false> | AttendanceSelect<true>;
+    punchin: PunchinSelect<false> | PunchinSelect<true>;
     'apk-files': ApkFilesSelect<false> | ApkFilesSelect<true>;
     'bank-statements': BankStatementsSelect<false> | BankStatementsSelect<true>;
     'stock-alerts': StockAlertsSelect<false> | StockAlertsSelect<true>;
@@ -168,6 +170,7 @@ export interface Config {
     'chef-report': ChefReport;
     'closing-entry-report': ClosingEntryReport;
     'waiter-wise-billing-report': WaiterWiseBillingReport;
+    'attendance-report': AttendanceReport;
     'inventory-report': InventoryReport;
     'stock-order-report': StockOrderReport;
     'afterstock-customer-report': AfterstockCustomerReport;
@@ -204,6 +207,7 @@ export interface Config {
     'chef-report': ChefReportSelect<false> | ChefReportSelect<true>;
     'closing-entry-report': ClosingEntryReportSelect<false> | ClosingEntryReportSelect<true>;
     'waiter-wise-billing-report': WaiterWiseBillingReportSelect<false> | WaiterWiseBillingReportSelect<true>;
+    'attendance-report': AttendanceReportSelect<false> | AttendanceReportSelect<true>;
     'inventory-report': InventoryReportSelect<false> | InventoryReportSelect<true>;
     'stock-order-report': StockOrderReportSelect<false> | StockOrderReportSelect<true>;
     'afterstock-customer-report': AfterstockCustomerReportSelect<false> | AfterstockCustomerReportSelect<true>;
@@ -657,15 +661,6 @@ export interface Employee {
     | 'account';
   aadhaarPhoto?: (string | null) | Media;
   photo?: (string | null) | Media;
-  faceDescriptor?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1888,6 +1883,28 @@ export interface Attendance {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "punchin".
+ */
+export interface Punchin {
+  id: string;
+  user: string | User;
+  /**
+   * Format: YYYY-MM-DD. Ensures one document per user per day.
+   */
+  dateString: string;
+  records?:
+    | {
+        punchIn: string;
+        punchOut?: string | null;
+        photo?: (string | null) | Media;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "apk-files".
  */
 export interface ApkFile {
@@ -2145,6 +2162,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'attendance';
         value: string | Attendance;
+      } | null)
+    | ({
+        relationTo: 'punchin';
+        value: string | Punchin;
       } | null)
     | ({
         relationTo: 'apk-files';
@@ -2565,7 +2586,6 @@ export interface EmployeesSelect<T extends boolean = true> {
   team?: T;
   aadhaarPhoto?: T;
   photo?: T;
-  faceDescriptor?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3166,6 +3186,24 @@ export interface AttendanceSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "punchin_select".
+ */
+export interface PunchinSelect<T extends boolean = true> {
+  user?: T;
+  dateString?: T;
+  records?:
+    | T
+    | {
+        punchIn?: T;
+        punchOut?: T;
+        photo?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "apk-files_select".
  */
 export interface ApkFilesSelect<T extends boolean = true> {
@@ -3439,6 +3477,15 @@ export interface ClosingEntryReport {
  * via the `definition` "waiter-wise-billing-report".
  */
 export interface WaiterWiseBillingReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "attendance-report".
+ */
+export interface AttendanceReport {
   id: string;
   updatedAt?: string | null;
   createdAt?: string | null;
@@ -4807,6 +4854,7 @@ export interface MenuSetting {
               | 'chef-report'
               | 'closing-entry-report'
               | 'waiter-wise-billing-report'
+              | 'attendance-report'
               | 'inventory-report'
               | 'stock-order-report'
               | 'afterstock-customer-report'
@@ -4983,6 +5031,15 @@ export interface ClosingEntryReportSelect<T extends boolean = true> {
  * via the `definition` "waiter-wise-billing-report_select".
  */
 export interface WaiterWiseBillingReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "attendance-report_select".
+ */
+export interface AttendanceReportSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
