@@ -53,10 +53,22 @@ const PunchIn: CollectionConfig = {
           name: 'punchIn',
           type: 'date',
           required: true,
+          admin: {
+            date: {
+              pickerAppearance: 'dayAndTime',
+              displayFormat: 'yyyy-MM-dd HH:mm:ss',
+            },
+          },
         },
         {
           name: 'punchOut',
           type: 'date',
+          admin: {
+            date: {
+              pickerAppearance: 'dayAndTime',
+              displayFormat: 'yyyy-MM-dd HH:mm:ss',
+            },
+          },
         },
         {
           name: 'photo',
