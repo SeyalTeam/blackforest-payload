@@ -176,19 +176,65 @@ const Attendance: CollectionConfig = {
         }
 
         // Auto-calculate dayType ONLY for past completed days (after midnight).
-        // Never set dayType for today's ongoing attendance record.
+        // Uses WorkSettings.requiredHours for the role as the full-day threshold.
         if (data.activities && Array.isArray(data.activities) && data.dateString) {
-          const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD UTC
-          const isPastDay = data.dateString < todayStr;
+          const todayStr = new Date().toISOString().split('T')[0]
+          const isPastDay = data.dateString < todayStr
           if (isPastDay) {
-            const sessions = data.activities.filter((a: any) => a.type === 'session');
-            const hasOpenSession = sessions.some((a: any) => !a.punchOut || a.status === 'active');
+            const sessions = data.activities.filter((a: any) => a.type === 'session')
+            // Any session left open → always half day regardless of hours
+            const hasOpenSession = sessions.some((a: any) => !a.punchOut || a.status === 'active')
+
             if (sessions.length > 0) {
-              data.dayType = hasOpenSession ? 'half_day' : 'full_day';
+              if (hasOpenSession) {
+                data.dayType = 'half_day'
+              } else {
+                // All sessions closed — check total work hours against WorkSettings threshold
+                const totalWorkSeconds = sessions.reduce((sum: number, s: any) => {
+                  if (s.punchIn && s.punchOut) {
+                    const diff = Math.floor(
+                      (new Date(s.punchOut).getTime() - new Date(s.punchIn).getTime()) / 1000,
+                    )
+                    return sum + (diff > 0 ? diff : 0)
+                  }
+                  return sum + (s.durationSeconds || 0)
+                }, 0)
+
+                // Look up WorkSettings for this user's role
+                let thresholdSeconds: number | null = null
+                try {
+                  const userRecord = await req.payload.findByID({
+                    collection: 'users',
+                    id: typeof data.user === 'string' ? data.user : data.user?.id,
+                    depth: 0,
+                  })
+                  const userRole = (userRecord as any)?.role as string | undefined
+                  if (userRole) {
+                    const settingsResult = await req.payload.find({
+                      collection: 'work-settings',
+                      where: { role: { equals: userRole } },
+                      limit: 1,
+                    })
+                    const setting = settingsResult.docs[0] as any
+                    if (setting?.trackHours && setting?.requiredHours) {
+                      thresholdSeconds = Math.floor(setting.requiredHours * 3600)
+                    }
+                  }
+                } catch (e) {
+                  req.payload.logger.error({ err: e, msg: 'WorkSettings lookup failed for dayType' })
+                }
+
+                if (thresholdSeconds !== null) {
+                  data.dayType = totalWorkSeconds >= thresholdSeconds ? 'full_day' : 'half_day'
+                } else {
+                  // No WorkSettings configured for this role — default: any closed session = full day
+                  data.dayType = 'full_day'
+                }
+              }
             }
           } else {
             // Today's record: clear dayType — no judgement mid-day
-            data.dayType = undefined;
+            data.dayType = undefined
           }
         }
 
