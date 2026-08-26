@@ -174,6 +174,18 @@ const Attendance: CollectionConfig = {
             }
           }
         }
+
+        // Auto-calculate dayType:
+        // half_day = any session still active (punched in but never punched out)
+        // full_day  = all sessions have a punchOut (all closed)
+        if (data.activities && Array.isArray(data.activities)) {
+          const sessions = data.activities.filter((a: any) => a.type === 'session');
+          const hasOpenSession = sessions.some((a: any) => !a.punchOut || a.status === 'active');
+          data.dayType = sessions.length > 0
+            ? (hasOpenSession ? 'half_day' : 'full_day')
+            : data.dayType; // keep existing if no sessions yet
+        }
+
         return data;
       },
     ],
@@ -249,6 +261,18 @@ const Attendance: CollectionConfig = {
         description: 'YYYY-MM-DD format (timezone independent)',
       },
     },
+    {
+      name: 'dayType',
+      type: 'select',
+      options: [
+        { label: 'Full Day', value: 'full_day' },
+        { label: 'Half Day', value: 'half_day' },
+      ],
+      admin: {
+        description: 'Auto-calculated: full_day if all sessions are closed, half_day if any session has no punch-out.',
+      },
+    },
+
     {
       name: 'activities',
       type: 'array',
