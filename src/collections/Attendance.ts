@@ -175,15 +175,21 @@ const Attendance: CollectionConfig = {
           }
         }
 
-        // Auto-calculate dayType:
-        // half_day = any session still active (punched in but never punched out)
-        // full_day  = all sessions have a punchOut (all closed)
-        if (data.activities && Array.isArray(data.activities)) {
-          const sessions = data.activities.filter((a: any) => a.type === 'session');
-          const hasOpenSession = sessions.some((a: any) => !a.punchOut || a.status === 'active');
-          data.dayType = sessions.length > 0
-            ? (hasOpenSession ? 'half_day' : 'full_day')
-            : data.dayType; // keep existing if no sessions yet
+        // Auto-calculate dayType ONLY for past completed days (after midnight).
+        // Never set dayType for today's ongoing attendance record.
+        if (data.activities && Array.isArray(data.activities) && data.dateString) {
+          const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD UTC
+          const isPastDay = data.dateString < todayStr;
+          if (isPastDay) {
+            const sessions = data.activities.filter((a: any) => a.type === 'session');
+            const hasOpenSession = sessions.some((a: any) => !a.punchOut || a.status === 'active');
+            if (sessions.length > 0) {
+              data.dayType = hasOpenSession ? 'half_day' : 'full_day';
+            }
+          } else {
+            // Today's record: clear dayType — no judgement mid-day
+            data.dayType = undefined;
+          }
         }
 
         return data;
