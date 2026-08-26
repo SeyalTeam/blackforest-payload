@@ -114,6 +114,20 @@ const Attendance: CollectionConfig = {
                  }
              }
           }
+
+          // Auto-calculate breakDurationSeconds for each session activity
+          // Break = gap between previous session's punchOut and this session's punchIn
+          const sessionActivities = data.activities.filter((a: any) => a.type === 'session');
+          for (let i = 1; i < sessionActivities.length; i++) {
+            const prev = sessionActivities[i - 1];
+            const curr = sessionActivities[i];
+            if (prev.punchOut && curr.punchIn && !curr.breakDurationSeconds) {
+              const breakSecs = Math.floor(
+                (new Date(curr.punchIn).getTime() - new Date(prev.punchOut).getTime()) / 1000
+              );
+              curr.breakDurationSeconds = breakSecs > 0 ? breakSecs : 0;
+            }
+          }
           
           if (hasActive && data.user) {
             try {
@@ -163,6 +177,7 @@ const Attendance: CollectionConfig = {
         return data;
       },
     ],
+
   },
   access: {
     read: ({ req: { user } }) => {
@@ -280,7 +295,18 @@ const Attendance: CollectionConfig = {
         {
           name: 'durationSeconds',
           type: 'number',
+          admin: {
+            description: 'Work duration of this session in seconds',
+          },
         },
+        {
+          name: 'breakDurationSeconds',
+          type: 'number',
+          admin: {
+            description: 'Break duration before this session started (gap from previous session punchOut to this punchIn), in seconds. Auto-calculated by the server.',
+          },
+        },
+
         {
           name: 'ipAddress',
           type: 'text',
