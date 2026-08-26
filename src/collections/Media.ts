@@ -217,7 +217,12 @@ export const Media: CollectionConfig = {
       user?.role === 'branch' ||
       user?.role === 'store_keeper' ||
       user?.role === 'waiter' ||
-      user?.role === 'cashier',
+      user?.role === 'cashier' ||
+      user?.role === 'chef' ||
+      user?.role === 'supervisor' ||
+      user?.role === 'driver' ||
+      user?.role === 'factory' ||
+      user?.role === 'kitchen',
     update: ({ req: { user } }) =>
       user?.role === 'superadmin' ||
       user?.role === 'admin' ||
@@ -225,7 +230,12 @@ export const Media: CollectionConfig = {
       user?.role === 'branch' ||
       user?.role === 'store_keeper' ||
       user?.role === 'waiter' ||
-      user?.role === 'cashier',
+      user?.role === 'cashier' ||
+      user?.role === 'chef' ||
+      user?.role === 'supervisor' ||
+      user?.role === 'driver' ||
+      user?.role === 'factory' ||
+      user?.role === 'kitchen',
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   fields: [

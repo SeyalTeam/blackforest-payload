@@ -145,6 +145,39 @@ const toDayBoundary = (dateParam: string, mode: 'start' | 'end'): Date => {
   return (mode === 'start' ? parsedDate.startOf('day') : parsedDate.endOf('day')).toDate()
 }
 
+const getMediaUrl = (mediaDoc: any): string => {
+  if (!mediaDoc) return ''
+  if (typeof mediaDoc === 'string') {
+    const trimmed = mediaDoc.trim()
+    if (
+      trimmed.startsWith('http://') ||
+      trimmed.startsWith('https://') ||
+      trimmed.startsWith('/api/') ||
+      trimmed.startsWith('data:')
+    ) {
+      return trimmed
+    }
+  }
+
+  if (typeof mediaDoc === 'object' && mediaDoc !== null) {
+    if (mediaDoc.url && typeof mediaDoc.url === 'string') return mediaDoc.url
+    if (mediaDoc.thumbnailURL && typeof mediaDoc.thumbnailURL === 'string') return mediaDoc.thumbnailURL
+    if (mediaDoc.filename && typeof mediaDoc.filename === 'string') {
+      const publicURL = process.env.NEXT_PUBLIC_S3_PUBLIC_URL || process.env.S3_PUBLIC_URL
+      if (publicURL) {
+        const cleanURL = publicURL.endsWith('/') ? publicURL.slice(0, -1) : publicURL
+        const prefix = mediaDoc.prefix ? String(mediaDoc.prefix).replace(/^\/+|\/+$/g, '') : ''
+        return prefix
+          ? `${cleanURL}/blackforest/uploads/${prefix}/${mediaDoc.filename}`
+          : `${cleanURL}/blackforest/uploads/${mediaDoc.filename}`
+      }
+      return `/api/media/file/${mediaDoc.filename}`
+    }
+  }
+
+  return ''
+}
+
 export const getAttendanceReportData = async (
   req: PayloadRequest,
   args: AttendanceReportArgs = {},
@@ -352,41 +385,140 @@ export const getAttendanceReportData = async (
 
   const rawDocs = await AttendanceModel.aggregate(pipeline)
 
-  // Collect all media IDs from capturedImage and employee photo to batch fetch media URLs
+  // Collect all media IDs from capturedImage, photo, employee photo to batch fetch media URLs
   const mediaIdSet = new Set<string>()
-  for (const doc of rawDocs) {
-    if (doc.employeeDetails?.photo) {
-      const pId = toNonEmptyString(doc.employeeDetails.photo)
-      if (pId) mediaIdSet.add(pId)
-    }
-    if (Array.isArray(doc.activities)) {
-      for (const act of doc.activities) {
-        if (act.capturedImage) {
-          const mId = toNonEmptyString(act.capturedImage)
-          if (mId) mediaIdSet.add(mId)
-        }
+
+  const extractMediaId = (val: unknown) => {
+    if (!val) return
+    if (typeof val === 'string') {
+      const trimmed = val.trim()
+      if (
+        !trimmed.startsWith('http://') &&
+        !trimmed.startsWith('https://') &&
+        !trimmed.startsWith('/api/') &&
+        !trimmed.startsWith('data:')
+      ) {
+        mediaIdSet.add(trimmed)
+      }
+    } else if (typeof val === 'object' && val !== null) {
+      const rec = val as { id?: unknown; _id?: unknown; url?: unknown; filename?: unknown }
+      if (!rec.url && !rec.filename) {
+        const idStr = toNonEmptyString(rec.id || rec._id)
+        if (idStr) mediaIdSet.add(idStr)
       }
     }
   }
 
-  const mediaMap = new Map<string, string>()
-  if (mediaIdSet.size > 0 && payload.db.collections['media']) {
-    try {
-      const MediaModel = payload.db.collections['media']
-      const mediaDocs = await MediaModel.find({
-        _id: { $in: Array.from(mediaIdSet).map((id) => toNonEmptyString(id)) },
-      }).lean()
+  for (const doc of rawDocs) {
+    extractMediaId(doc.employeeDetails?.photo)
+    extractMediaId(doc.photo)
+    extractMediaId(doc.capturedImage)
 
-      for (const m of mediaDocs as any[]) {
-        const idStr = String(m._id || m.id)
-        const url = m.url || (m.filename ? `/api/media/file/${m.filename}` : '')
+    const activitiesList = Array.isArray(doc.activities) ? doc.activities : []
+    for (const act of activitiesList) {
+      extractMediaId(act.capturedImage)
+      extractMediaId(act.photo)
+      extractMediaId(act.image)
+      extractMediaId(act.photoUrl)
+      extractMediaId(act.imageUrl)
+    }
+
+    const recordsList = Array.isArray(doc.records) ? doc.records : []
+    for (const rec of recordsList) {
+      extractMediaId(rec.photo)
+      extractMediaId(rec.capturedImage)
+      extractMediaId(rec.image)
+    }
+  }
+
+  const mediaMap = new Map<string, string>()
+
+  if (mediaIdSet.size > 0) {
+    const idArray = Array.from(mediaIdSet)
+    try {
+      const mediaRes = await payload.find({
+        collection: 'media',
+        where: {
+          id: {
+            in: idArray,
+          },
+        },
+        depth: 0,
+        pagination: false,
+        limit: 1000,
+        overrideAccess: true,
+      })
+
+      for (const m of mediaRes.docs as any[]) {
+        const idStr = String(m.id || m._id)
+        const url = getMediaUrl(m)
         if (url) {
           mediaMap.set(idStr, url)
         }
       }
     } catch (e) {
-      console.error('[AttendanceReport] Error resolving media images:', e)
+      console.error('[AttendanceReport] Error resolving media images with payload.find:', e)
     }
+
+    // Fallback: Check if any IDs are still missing from mediaMap and query DB directly
+    const missingIds = idArray.filter((id) => !mediaMap.has(id))
+    if (missingIds.length > 0 && payload.db.collections['media']) {
+      try {
+        const MediaModel = payload.db.collections['media']
+        const mongoose = await import('mongoose')
+        const objectIds = missingIds
+          .map((id) => {
+            try {
+              return new mongoose.Types.ObjectId(id)
+            } catch {
+              return null
+            }
+          })
+          .filter(Boolean)
+
+        const mediaDocs = await MediaModel.find({
+          $or: [{ _id: { $in: objectIds } }, { _id: { $in: missingIds } }],
+        }).lean()
+
+        for (const m of mediaDocs as any[]) {
+          const idStr = String(m._id || m.id)
+          const url = getMediaUrl(m)
+          if (url) {
+            mediaMap.set(idStr, url)
+          }
+        }
+      } catch (dbErr) {
+        console.error('[AttendanceReport] Fallback DB media query error:', dbErr)
+      }
+    }
+  }
+
+  const resolveImage = (rawVal: unknown): string | undefined => {
+    if (!rawVal) return undefined
+    const directUrl = getMediaUrl(rawVal)
+    if (directUrl) return directUrl
+
+    const idStr = toNonEmptyString(rawVal)
+    if (idStr) {
+      if (mediaMap.has(idStr)) return mediaMap.get(idStr)
+      if (
+        idStr.startsWith('http://') ||
+        idStr.startsWith('https://') ||
+        idStr.startsWith('/api/') ||
+        idStr.startsWith('data:')
+      ) {
+        return idStr
+      }
+      if (idStr.includes('.')) {
+        const publicURL = process.env.NEXT_PUBLIC_S3_PUBLIC_URL || process.env.S3_PUBLIC_URL
+        if (publicURL) {
+          const cleanURL = publicURL.endsWith('/') ? publicURL.slice(0, -1) : publicURL
+          return `${cleanURL}/blackforest/uploads/${idStr}`
+        }
+        return `/api/media/file/${idStr}`
+      }
+    }
+    return undefined
   }
 
   const now = new Date()
@@ -415,13 +547,28 @@ export const getAttendanceReportData = async (
     const employeeTeam = toNonEmptyString(doc.employeeDetails?.team || userRole)
     const employeePhone = toNonEmptyString(doc.employeeDetails?.phoneNumber || '')
     
-    const photoMediaId = toNonEmptyString(doc.employeeDetails?.photo || '')
-    const employeePhotoUrl = photoMediaId ? mediaMap.get(photoMediaId) : undefined
+    const employeePhotoUrl = resolveImage(doc.employeeDetails?.photo)
 
     const branchId = toNonEmptyString(doc.branchDetails?._id || doc.resolvedBranchId || '')
     const branchName = toNonEmptyString(doc.branchDetails?.name || 'Unassigned')
 
-    const activitiesRaw = Array.isArray(doc.activities) ? doc.activities : []
+    const activitiesRaw = Array.isArray(doc.activities) && doc.activities.length > 0
+      ? doc.activities
+      : Array.isArray(doc.records) && doc.records.length > 0
+        ? doc.records.map((r: any, idx: number) => ({
+            id: r.id || r._id || `rec-${idx}`,
+            type: 'session',
+            punchIn: r.punchIn,
+            punchOut: r.punchOut,
+            capturedImage: r.photo || r.capturedImage,
+            status: !r.punchOut ? 'active' : 'closed',
+            ipAddress: r.ipAddress || doc.ipAddress,
+            device: r.device || doc.device,
+            latitude: r.latitude || doc.location?.latitude,
+            longitude: r.longitude || doc.location?.longitude,
+          }))
+        : []
+
     const activities: AttendanceReportActivity[] = []
 
     let recordWorkSeconds = 0
@@ -442,6 +589,8 @@ export const getAttendanceReportData = async (
         ? Math.max(0, Math.floor((new Date(pOut).getTime() - new Date(pIn).getTime()) / 1000))
         : Math.max(0, Math.floor((now.getTime() - new Date(pIn).getTime()) / 1000))
 
+      const capturedImageUrl = resolveImage(doc.capturedImage || doc.photo || doc.image)
+
       activities.push({
         id: 'legacy-1',
         type: 'session',
@@ -452,6 +601,7 @@ export const getAttendanceReportData = async (
         durationFormatted: formatSecondsToReadable(dur),
         ipAddress: toNonEmptyString(doc.ipAddress),
         device: toNonEmptyString(doc.device),
+        capturedImageUrl,
         latitude: toNumber(doc.location?.latitude),
         longitude: toNumber(doc.location?.longitude),
       })
@@ -476,8 +626,9 @@ export const getAttendanceReportData = async (
           }
         }
 
-        const mId = toNonEmptyString(act.capturedImage)
-        const capturedImageUrl = mId ? mediaMap.get(mId) : undefined
+        const capturedImageUrl = resolveImage(
+          act.capturedImage || act.photo || act.image || act.photoUrl || act.imageUrl,
+        )
 
         activities.push({
           id: toNonEmptyString(act.id || act._id),
