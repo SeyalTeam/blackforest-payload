@@ -100,9 +100,9 @@ import Tables from './collections/Tables'
 import Kitchens from './collections/Kitchens'
 import Attendance from './collections/Attendance'
 import PunchIn from './collections/PunchIn'
-import WorkSettings from './collections/WorkSettings'
 
 import { WidgetSettingsGlobal } from './globals/Widgets'
+import { WorkSettingsGlobal } from './globals/WorkSettings'
 import { createWidgetOrderHandler } from './endpoints/createWidgetOrder'
 import { getTableCustomerDetailsVisibilityHandler } from './endpoints/getTableCustomerDetailsVisibility'
 import { getLiveTableStatusHandler } from './endpoints/getLiveTableStatus'
@@ -968,6 +968,7 @@ export default buildConfig({
     CustomerOfferSettings,
     AppDownloadSettings,
     AppVersionSettings,
+    WorkSettingsGlobal,
     MenuSettingsGlobal,
     MessagesChatGlobal,
   ].map(wrapGlobal),
@@ -1011,7 +1012,6 @@ export default buildConfig({
     StockAlerts,
     IdempotencyKeys,
     WaiterCalls,
-    WorkSettings,
   ].map(wrapCollection),
 
 

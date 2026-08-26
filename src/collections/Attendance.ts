@@ -210,19 +210,21 @@ const Attendance: CollectionConfig = {
                   })
                   const userRole = (userRecord as any)?.role as string | undefined
                   if (userRole) {
-                    const settingsResult = await req.payload.find({
-                      collection: 'work-settings',
-                      where: { role: { equals: userRole } },
-                      limit: 1,
-                    })
-                    const setting = settingsResult.docs[0] as any
-                    if (setting?.trackHours && setting?.requiredHours) {
-                      thresholdSeconds = Math.floor(setting.requiredHours * 3600)
+                    const globalSettings = await req.payload.findGlobal({
+                      slug: 'work-settings',
+                    }) as any
+                    
+                    if (globalSettings?.roleSettings && Array.isArray(globalSettings.roleSettings)) {
+                      const setting = globalSettings.roleSettings.find((s: any) => s.role === userRole)
+                      if (setting?.trackHours && setting?.requiredHours) {
+                        thresholdSeconds = Math.floor(setting.requiredHours * 3600)
+                      }
                     }
                   }
                 } catch (e) {
                   req.payload.logger.error({ err: e, msg: 'WorkSettings lookup failed for dayType' })
                 }
+
 
                 if (thresholdSeconds !== null) {
                   data.dayType = totalWorkSeconds >= thresholdSeconds ? 'full_day' : 'half_day'
