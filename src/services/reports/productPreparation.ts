@@ -444,183 +444,191 @@ export const getProductPreparationBillDetailsData = async (
     chefMatch['items.preparedBy'] = { $in: [new mongoose.Types.ObjectId('000000000000000000000000')] }
   }
 
-  const pipeline: PipelineStage[] = [
-    { $match: matchQuery },
-    { $unwind: '$items' },
-    {
-      $match: itemMatchWithoutChef,
-    },
-    {
-      $lookup: {
-        from: 'products',
-        localField: 'items.product',
-        foreignField: '_id',
-        as: 'productDetails',
-      },
-    },
-    {
-      $unwind: {
-        path: '$productDetails',
-        preserveNullAndEmptyArrays: true,
-      },
-    },
-    {
-      $lookup: {
-        from: 'categories',
-        localField: 'productDetails.category',
-        foreignField: '_id',
-        as: 'categoryDetails',
-      },
-    },
-    {
-      $unwind: {
-        path: '$categoryDetails',
-        preserveNullAndEmptyArrays: true,
-      },
-    },
-    {
-      $lookup: {
-        from: 'users',
-        localField: 'items.preparedBy',
-        foreignField: '_id',
-        as: 'chefDetails',
-      },
-    },
-    {
-      $lookup: {
-        from: 'users',
-        localField: 'items.confirmedBy',
-        foreignField: '_id',
-        as: 'confirmedByUserDetails',
-      },
-    },
-    {
-      $lookup: {
-        from: 'users',
-        localField: 'items.deliveredBy',
-        foreignField: '_id',
-        as: 'deliveredByUserDetails',
-      },
-    },
-    {
-      $lookup: {
-        from: 'users',
-        localField: 'createdBy',
-        foreignField: '_id',
-        as: 'waiterDetails',
-      },
-    },
-    {
-      $unwind: {
-        path: '$chefDetails',
-        preserveNullAndEmptyArrays: true,
-      },
-    },
-    {
-      $unwind: {
-        path: '$confirmedByUserDetails',
-        preserveNullAndEmptyArrays: true,
-      },
-    },
-    {
-      $unwind: {
-        path: '$deliveredByUserDetails',
-        preserveNullAndEmptyArrays: true,
-      },
-    },
-    {
-      $unwind: {
-        path: '$waiterDetails',
-        preserveNullAndEmptyArrays: true,
-      },
-    },
-  ]
-
-  if (finalCategoryIds.length > 0) {
-    pipeline.push({
-      $match: {
-        'productDetails.category': {
-          $in: finalCategoryIds.map((id) => {
-            try {
-              return new mongoose.Types.ObjectId(id)
-            } catch {
-              return id
-            }
-          }),
-        },
-      },
-    })
-  } else if (kitchenId || (categoryParam && categoryParam !== 'all')) {
-    pipeline.push({
-      $match: {
-        'productDetails.category': {
-          $in: [new mongoose.Types.ObjectId('000000000000000000000000')],
-        },
-      },
-    })
-  }
-
-  if (
-    departmentParam &&
-    departmentParam !== 'all' &&
-    mongoose.Types.ObjectId.isValid(departmentParam)
-  ) {
-    pipeline.push({
-      $match: {
-        'categoryDetails.department': { $eq: new mongoose.Types.ObjectId(departmentParam) },
-      },
-    })
-  }
-
-  pipeline.push({
-    $facet: {
-      filteredRows: [
-        { $match: chefMatch },
-        {
-          $project: {
-            _id: 0,
-            billingId: '$_id',
-            invoiceNumber: '$invoiceNumber',
-            kotNumber: '$kotNumber',
-            billCreatedAt: '$createdAt',
-            productId: '$items.product',
-            orderedAt: '$items.orderedAt',
-            preparedAt: '$items.preparedAt',
-            preparingTime: '$items.preparingTime',
-            finalLineTotal: '$items.finalLineTotal',
-            subtotal: '$items.subtotal',
-            productName: '$productDetails.name',
-            productStandardPreparationTime: '$productDetails.preparationTime',
-            chefName: '$chefDetails.name',
-            confirmedByName: '$confirmedByUserDetails.name',
-            deliveredByName: '$deliveredByUserDetails.name',
-            confirmedAt: '$items.confirmedAt',
-            deliveredAt: '$items.deliveredAt',
-            waiterName: '$waiterDetails.name',
-            quantity: '$items.quantity',
-          },
-        },
-      ],
-      activeChefs: [
-        {
-          $group: {
-            _id: '$items.preparedBy',
-            name: { $first: '$chefDetails.name' },
-          },
-        },
-        { $match: { _id: { $ne: null } } },
-        { $project: { id: '$_id', name: '$name', _id: 0 } },
-      ],
-    },
+  // Pre-fetch all departments & categories to avoid lookup stages
+  const deptRes = await req.payload.find({
+    collection: 'departments',
+    limit: 1000,
+    pagination: false,
+    depth: 0,
+  })
+  const deptMap = new Map<string, string>()
+  deptRes.docs.forEach((d: any) => {
+    deptMap.set(String(d.id), d.name || '')
   })
 
-  const [facetResult] = (await BillingModel.aggregate(pipeline)) as unknown as Array<{
-    activeChefs: Array<{ id: unknown; name: unknown }>
-    filteredRows: RawPreparationItem[]
-  }>
+  const catRes = await req.payload.find({
+    collection: 'categories',
+    limit: 1000,
+    pagination: false,
+    depth: 0,
+  })
+  const catMap = new Map<string, any>()
+  catRes.docs.forEach((c: any) => {
+    const deptId = typeof c.department === 'object' ? c.department?.id : c.department
+    catMap.set(String(c.id), {
+      name: c.name || '',
+      departmentId: deptId,
+      departmentName: deptId ? deptMap.get(String(deptId)) || 'No Department' : 'No Department',
+    })
+  })
 
-  const rows = Array.isArray(facetResult?.filteredRows) ? facetResult.filteredRows : []
-  const availableChefs = Array.isArray(facetResult?.activeChefs) ? facetResult.activeChefs : []
+  // Fetch billing docs using projection
+  const billingDocs = await BillingModel.find(matchQuery, {
+    branch: 1,
+    invoiceNumber: 1,
+    kotNumber: 1,
+    createdAt: 1,
+    createdBy: 1,
+    section: 1,
+    tableNumber: 1,
+    'tableDetails.section': 1,
+    'tableDetails.tableNumber': 1,
+    'items.product': 1,
+    'items.status': 1,
+    'items.preparedBy': 1,
+    'items.confirmedBy': 1,
+    'items.deliveredBy': 1,
+    'items.orderedAt': 1,
+    'items.preparedAt': 1,
+    'items.preparingTime': 1,
+    'items.finalLineTotal': 1,
+    'items.subtotal': 1,
+    'items.quantity': 1,
+    'items.confirmedAt': 1,
+    'items.deliveredAt': 1,
+  }).lean()
+
+  // Gather referenced products and users
+  const tableProductIds = new Set<string>()
+  const tableUserIds = new Set<string>()
+
+  billingDocs.forEach((b: any) => {
+    const creatorId = String(b.createdBy || '')
+    if (creatorId) tableUserIds.add(creatorId)
+
+    if (b.items && Array.isArray(b.items)) {
+      b.items.forEach((item: any) => {
+        if (item.status === 'cancelled') return
+        const pid = String(item.product || '')
+        if (pid) tableProductIds.add(pid)
+
+        const preparedBy = String(item.preparedBy || '')
+        const confirmedBy = String(item.confirmedBy || '')
+        const deliveredBy = String(item.deliveredBy || '')
+
+        if (preparedBy) tableUserIds.add(preparedBy)
+        if (confirmedBy) tableUserIds.add(confirmedBy)
+        if (deliveredBy) tableUserIds.add(deliveredBy)
+      })
+    }
+  })
+
+  // Fetch referenced products and users in bulk with depth: 0
+  const tableProductMap = new Map<string, any>()
+  if (tableProductIds.size > 0) {
+    const { docs: products } = await req.payload.find({
+      collection: 'products',
+      where: { id: { in: Array.from(tableProductIds) } },
+      limit: 5000,
+      pagination: false,
+      depth: 0,
+    })
+    products.forEach((p: any) => {
+      const catId = typeof p.category === 'object' ? p.category?.id : p.category
+      const catData = catId ? catMap.get(String(catId)) : null
+      tableProductMap.set(String(p.id), {
+        name: p.name || '',
+        preparationTime: p.preparationTime,
+        category: catId,
+        categoryName: catData?.name || 'Uncategorized',
+        departmentId: catData?.departmentId,
+        departmentName: catData?.departmentName || 'No Department',
+      })
+    })
+  }
+
+  const tableUserMap = new Map<string, string>()
+  if (tableUserIds.size > 0) {
+    const { docs: users } = await req.payload.find({
+      collection: 'users',
+      where: { id: { in: Array.from(tableUserIds) } },
+      limit: 5000,
+      pagination: false,
+      depth: 0,
+    })
+    users.forEach((u: any) => {
+      tableUserMap.set(String(u.id), u.name || '')
+    })
+  }
+
+  const activeChefsMap = new Map<string, string>()
+  const rows: RawPreparationItem[] = []
+
+  billingDocs.forEach((b: any) => {
+    if (!b.items || !Array.isArray(b.items)) return
+    b.items.forEach((item: any) => {
+      if (item.status === 'cancelled') return
+
+      const prodId = String(item.product || '')
+      const pDetails = tableProductMap.get(prodId)
+
+      // 1. Filter by product
+      if (!isAllProducts && prodId !== productId) return
+
+      // 2. Filter by category
+      if (finalCategoryIds.length > 0) {
+        if (!pDetails?.category || !finalCategoryIds.includes(String(pDetails.category))) return
+      } else if (kitchenId || (categoryParam && categoryParam !== 'all')) {
+        return
+      }
+
+      // 3. Filter by department
+      if (departmentParam && departmentParam !== 'all' && mongoose.Types.ObjectId.isValid(departmentParam)) {
+        if (String(pDetails?.departmentId) !== departmentParam) return
+      }
+
+      // Track active chefs (before chef ID filter)
+      const preparedBy = item.preparedBy ? String(item.preparedBy) : ''
+      if (preparedBy) {
+        const chefName = tableUserMap.get(preparedBy) || ''
+        activeChefsMap.set(preparedBy, chefName)
+      }
+
+      // 4. Filter by chef ID
+      if (chefIds.length > 0) {
+        if (!preparedBy || !chefIds.includes(preparedBy)) return
+      }
+
+      const chefDetailsName = preparedBy ? tableUserMap.get(preparedBy) : undefined
+
+      rows.push({
+        billingId: String(b._id),
+        invoiceNumber: b.invoiceNumber,
+        kotNumber: b.kotNumber,
+        billCreatedAt: b.createdAt,
+        productId: item.product,
+        orderedAt: item.orderedAt,
+        preparedAt: item.preparedAt,
+        preparingTime: item.preparingTime,
+        finalLineTotal: item.finalLineTotal,
+        subtotal: item.subtotal,
+        productName: pDetails?.name || '',
+        productStandardPreparationTime: pDetails?.preparationTime,
+        chefName: chefDetailsName || '',
+        confirmedByName: item.confirmedBy ? tableUserMap.get(String(item.confirmedBy)) || '' : '',
+        deliveredByName: item.deliveredBy ? tableUserMap.get(String(item.deliveredBy)) || '' : '',
+        confirmedAt: item.confirmedAt || '',
+        deliveredAt: item.deliveredAt || '',
+        waiterName: b.createdBy ? tableUserMap.get(String(b.createdBy)) || '' : '',
+        quantity: item.quantity,
+      })
+    })
+  })
+
+  const availableChefs = Array.from(activeChefsMap.entries()).map(([id, name]) => ({
+    id,
+    name,
+  }))
 
   const details = rows
     .map((row) => {

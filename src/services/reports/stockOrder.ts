@@ -138,6 +138,46 @@ export const getStockOrderReportData = async (
     kitchenCategoryIDSet = new Set(kitchenCategoryIDs)
   }
 
+  // Pre-fetch all branches and build map to avoid depth: 1 on stock-orders
+  const branchRes = await req.payload.find({
+    collection: 'branches',
+    limit: 1000,
+    pagination: false,
+    depth: 0,
+  })
+  const branchLookupMap = new Map<string, any>()
+  branchRes.docs.forEach((b: any) => {
+    branchLookupMap.set(String(b.id), b)
+  })
+
+  // Pre-fetch all departments & categories to avoid depth: 2 on products
+  const deptRes = await req.payload.find({
+    collection: 'departments',
+    limit: 1000,
+    pagination: false,
+    depth: 0,
+  })
+  const deptMap = new Map<string, string>()
+  deptRes.docs.forEach((d: any) => {
+    deptMap.set(String(d.id), d.name || '')
+  })
+
+  const catRes = await req.payload.find({
+    collection: 'categories',
+    limit: 1000,
+    pagination: false,
+    depth: 0,
+  })
+  const catMap = new Map<string, any>()
+  catRes.docs.forEach((c: any) => {
+    const deptId = typeof c.department === 'object' ? c.department?.id : c.department
+    catMap.set(String(c.id), {
+      name: c.name || '',
+      departmentId: deptId,
+      departmentName: deptId ? deptMap.get(String(deptId)) || 'No Department' : 'No Department',
+    })
+  })
+
   // 1. Fetch Stock Orders
   const where: any = {
     deliveryDate: {
@@ -153,7 +193,7 @@ export const getStockOrderReportData = async (
   const { docs: orders } = await req.payload.find({
     collection: 'stock-orders',
     where,
-    depth: 1,
+    depth: 0,
     limit: 5000,
     pagination: false,
     sort: '-updatedAt',
@@ -173,7 +213,7 @@ export const getStockOrderReportData = async (
   const productsQuery: any = {
     limit: 5000,
     pagination: false,
-    depth: 2, 
+    depth: 0, 
     collection: 'products',
     where: {
       id: { in: Array.from(productIds) },
@@ -188,16 +228,16 @@ export const getStockOrderReportData = async (
 
   const productMap = new Map<string, any>()
   products.forEach((p: any) => {
-    const cat = typeof p.category === 'object' ? p.category : null
-    const dept = cat && typeof cat.department === 'object' ? cat.department : null
+    const catId = typeof p.category === 'object' ? p.category?.id : p.category
+    const catData = catId ? catMap.get(String(catId)) : null
 
     productMap.set(p.id, {
       name: p.name,
       price: p.defaultPriceDetails?.price || 0,
-      categoryId: cat?.id,
-      categoryName: cat?.name || 'Uncategorized',
-      departmentId: dept?.id,
-      departmentName: dept?.name || 'No Department',
+      categoryId: catId,
+      categoryName: catData?.name || 'Uncategorized',
+      departmentId: catData?.departmentId,
+      departmentName: catData?.departmentName || 'No Department',
     })
   })
 
@@ -287,7 +327,7 @@ export const getStockOrderReportData = async (
 
   orders.forEach((order) => {
     const branchId = typeof order.branch === 'object' ? order.branch?.id : order.branch
-    const branchName = typeof order.branch === 'object' ? order.branch?.name : 'Unknown'
+    const branchName = typeof order.branch === 'object' ? order.branch?.name : (branchId ? branchLookupMap.get(String(branchId))?.name : 'Unknown')
 
     const created = dayjs(order.createdAt).tz('Asia/Kolkata').format('YYYY-MM-DD')
     const delivery = dayjs(order.deliveryDate).tz('Asia/Kolkata').format('YYYY-MM-DD')

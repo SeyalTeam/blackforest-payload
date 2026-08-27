@@ -1318,6 +1318,7 @@ export interface DealerBilling {
    * Name of the cashier who submitted the dealer billing.
    */
   cashierName?: string | null;
+  plannedPaymentDate?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2989,6 +2990,7 @@ export interface DealerBillingsSelect<T extends boolean = true> {
   status?: T;
   cashierId?: T;
   cashierName?: T;
+  plannedPaymentDate?: T;
   updatedAt?: T;
   createdAt?: T;
 }
