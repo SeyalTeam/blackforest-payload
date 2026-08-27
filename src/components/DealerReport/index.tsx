@@ -8,6 +8,7 @@ import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import { ChevronDown, ChevronUp } from 'lucide-react'
+import { GoogleDateRangePicker } from '../RawMaterialBillingReport/GoogleDateRangePicker'
 import './index.scss'
 import Image from 'next/image'
 
@@ -30,6 +31,7 @@ export type DealerReportProductItem = {
 export type DealerReportItem = {
   id: string
   dealerName: string
+  dealerAccountNumber?: string
   branchName?: string
   amount: number
   paidAmount?: number
@@ -122,6 +124,18 @@ const customStyles = {
       background: 'var(--theme-elevation-200)',
     },
   }),
+  singleValue: (base: any) => ({
+    ...base,
+    color: 'var(--theme-text-primary)',
+  }),
+  placeholder: (base: any) => ({
+    ...base,
+    color: 'var(--theme-text-secondary)',
+  }),
+  input: (base: any) => ({
+    ...base,
+    color: 'var(--theme-text-primary)',
+  }),
 }
 
 const toLocalDateStr = (date: Date | null): string => {
@@ -144,6 +158,7 @@ const DealerReport: React.FC = () => {
   const [selectedBranch, setSelectedBranch] = useState<string[]>(['all'])
   const [dealers, setDealers] = useState<{ id: string; name: string }[]>([])
   const [selectedDealers, setSelectedDealers] = useState<string[]>(['all'])
+  const [selectedStatus, setSelectedStatus] = useState<string>('all')
   const [showScrollBottom, setShowScrollBottom] = useState(true)
   const lastScrollY = useRef(0)
 
@@ -252,6 +267,9 @@ const DealerReport: React.FC = () => {
     const items: (DealerReportItem & { branchName: string })[] = []
     data.groups.forEach((group) => {
       group.items.forEach((item) => {
+        if (selectedStatus !== 'all' && item.status !== selectedStatus) {
+          return
+        }
         items.push({
           ...item,
           branchName: group.branchName,
@@ -259,7 +277,7 @@ const DealerReport: React.FC = () => {
       })
     })
     return items.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
-  }, [data])
+  }, [data, selectedStatus])
 
   const totalItems = allItems.length
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
@@ -416,31 +434,6 @@ const DealerReport: React.FC = () => {
     setCurrentPage(1)
   }, [startDate, endDate, selectedBranch, selectedDealers])
 
-  const handleDatePresetChange = (preset: string) => {
-    setDateRangePreset(preset)
-    const today = dayjs().tz('Asia/Kolkata')
-    switch (preset) {
-      case 'today':
-        setDateRange([today.toDate(), today.toDate()])
-        break
-      case 'yesterday':
-        const yesterday = today.subtract(1, 'day')
-        setDateRange([yesterday.toDate(), yesterday.toDate()])
-        break
-      case 'last7':
-        setDateRange([today.subtract(6, 'day').toDate(), today.toDate()])
-        break
-      case 'last30':
-        setDateRange([today.subtract(29, 'day').toDate(), today.toDate()])
-        break
-      case 'thisMonth':
-        setDateRange([today.startOf('month').toDate(), today.endOf('month').toDate()])
-        break
-      default:
-        break
-    }
-  }
-
   const scrollToToggle = () => {
     if (showScrollBottom) {
       window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })
@@ -448,37 +441,6 @@ const DealerReport: React.FC = () => {
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
-
-  const CustomInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
-    ({ value, onClick }, ref) => {
-      const dates = value ? value.split(' - ') : []
-      const start = dates[0] ? dayjs(dates[0]).format('DD MMM YYYY') : ''
-      const end = dates[1] ? dayjs(dates[1]).format('DD MMM YYYY') : ''
-
-      return (
-        <button className="custom-date-input" onClick={onClick} ref={ref} type="button">
-          <span>{start}</span>
-          {end && (
-            <>
-              <span className="separator">→</span>
-              <span>{end}</span>
-            </>
-          )}
-          <span className="icon">📅</span>
-        </button>
-      )
-    },
-  )
-  CustomInput.displayName = 'CustomDateInput'
-
-  const dateRangeOptions = [
-    { value: 'today', label: 'Today' },
-    { value: 'yesterday', label: 'Yesterday' },
-    { value: 'last7', label: 'Last 7 Days' },
-    { value: 'last30', label: 'Last 30 Days' },
-    { value: 'thisMonth', label: 'This Month' },
-    { value: 'custom', label: 'Custom' },
-  ]
 
   const branchOptions = [
     { value: 'all', label: 'All Branches' },
@@ -490,37 +452,27 @@ const DealerReport: React.FC = () => {
     ...dealers.map((d) => ({ value: d.id, label: d.name })),
   ]
 
+  const statusOptions = [
+    { value: 'all', label: 'All Statuses' },
+    { value: 'paid', label: 'Paid' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'cancelled', label: 'Cancelled' },
+  ]
+
   return (
     <div className="dealer-report-container-v2">
       <div className="report-header-v2">
         <div className="header-controls">
           <div className="date-controls">
-            <Select
-              options={dateRangeOptions}
-              value={dateRangeOptions.find((o) => o.value === dateRangePreset)}
-              onChange={(option) => {
-                if (option) handleDatePresetChange(option.value)
+            <GoogleDateRangePicker
+              startDate={startDate}
+              endDate={endDate}
+              presetKey={dateRangePreset}
+              onApply={(newStart, newEnd, presetKey) => {
+                setDateRange([newStart, newEnd])
+                setDateRangePreset(presetKey)
               }}
-              styles={customStyles}
-              classNamePrefix="react-select"
-              isSearchable={false}
             />
-            <div className="date-picker-wrapper">
-              <DatePicker
-                selectsRange={true}
-                startDate={startDate}
-                endDate={endDate}
-                onChange={(update: [Date | null, Date | null]) => {
-                  setDateRange(update)
-                  setDateRangePreset('custom')
-                }}
-                monthsShown={1}
-                dateFormat="yyyy-MM-dd"
-                customInput={<CustomInput />}
-                calendarClassName="custom-calendar"
-                popperPlacement="bottom-start"
-              />
-            </div>
             <Select
               options={branchOptions}
               isMulti
@@ -582,6 +534,18 @@ const DealerReport: React.FC = () => {
                 ValueContainer: CustomValueContainer,
                 MultiValue,
               }}
+            />
+            <Select
+              options={statusOptions}
+              value={statusOptions.find((o) => o.value === selectedStatus)}
+              onChange={(newValue) => {
+                setSelectedStatus(newValue ? newValue.value : 'all')
+                setCurrentPage(1)
+              }}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Select Status..."
+              isSearchable={false}
             />
           </div>
         </div>
@@ -667,13 +631,14 @@ const DealerReport: React.FC = () => {
                     <table>
                       <thead>
                         <tr>
-                          <th style={{ width: '3%' }}>S.NO</th>
-                          <th style={{ width: '22%' }}>Dealer</th>
-                          <th style={{ width: '15%' }}>Branch</th>
-                          <th style={{ width: '10%', textAlign: 'right' }}>Amount</th>
-                          <th style={{ width: '10%', textAlign: 'right' }}>Paid</th>
-                          <th style={{ width: '10%', textAlign: 'right' }}>Balance</th>
-                          <th style={{ width: '8%', textAlign: 'center' }}>Status</th>
+                          <th style={{ width: '2%' }}>S.NO</th>
+                          <th style={{ width: '18%' }}>Dealer</th>
+                          <th style={{ width: '10%' }}>Branch</th>
+                          <th style={{ width: '8%', textAlign: 'right' }}>Amount</th>
+                          <th style={{ width: '8%', textAlign: 'right' }}>Paid</th>
+                          <th style={{ width: '8%', textAlign: 'right' }}>Balance</th>
+                          <th style={{ width: '7%', textAlign: 'center' }}>Status</th>
+                          <th style={{ width: '10%', textAlign: 'center' }}>Bank Acc No</th>
                           <th style={{ width: '5%', textAlign: 'center' }}>History</th>
                           <th style={{ width: '5%', textAlign: 'center' }}>Bill Copy</th>
                           <th style={{ width: '5%', textAlign: 'center' }}>Photos</th>
@@ -739,6 +704,13 @@ const DealerReport: React.FC = () => {
                                   <span className="status-paid-badge">Paid ✓</span>
                                 ) : (
                                   <span className="status-cancelled-badge">Cancelled</span>
+                                )}
+                              </td>
+                              <td className="bank-account-cell" style={{ textAlign: 'center' }}>
+                                {item.dealerAccountNumber ? (
+                                  <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{item.dealerAccountNumber}</span>
+                                ) : (
+                                  <span style={{ opacity: 0.5 }}>-</span>
                                 )}
                               </td>
                               <td className="history-cell" style={{ textAlign: 'center' }}>

@@ -18,6 +18,7 @@ export type DealerReportProductItem = {
 export type DealerReportItem = {
   id: string
   dealerName: string
+  dealerAccountNumber?: string
   branchName?: string
   amount: number
   paidAmount?: number
@@ -79,6 +80,7 @@ type RawDealerItem = {
   products?: unknown
   productsList?: unknown
   productsListResolvedProducts?: unknown
+  dealerAccountNumber?: unknown
 }
 
 type RawDealerGroup = {
@@ -367,6 +369,7 @@ export const getDealerReportData = async (
           $push: {
             id: { $toString: '$_id' },
             dealerName: { $ifNull: ['$dealerInfo.companyName', { $ifNull: ['$dealerInfo.name', 'Unknown Dealer'] }] },
+            dealerAccountNumber: '$dealerInfo.bankDetails.accountNumber',
             amount: '$total',
             paidAmount: { $ifNull: ['$paidAmount', 0] },
             payments: { $ifNull: ['$payments', []] },
@@ -543,6 +546,7 @@ export const getDealerReportData = async (
         return {
           id: toNonEmptyString(item.id),
           dealerName: toNonEmptyString(item.dealerName, 'Unknown Dealer'),
+          dealerAccountNumber: toNonEmptyString(item.dealerAccountNumber),
           amount: toNumber(item.amount),
           paidAmount: toNumber(item.paidAmount),
           payments,
