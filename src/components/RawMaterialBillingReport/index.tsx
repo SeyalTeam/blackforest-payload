@@ -130,6 +130,18 @@ const customStyles = {
       background: 'var(--theme-elevation-200)',
     },
   }),
+  singleValue: (base: any) => ({
+    ...base,
+    color: 'var(--theme-text-primary)',
+  }),
+  placeholder: (base: any) => ({
+    ...base,
+    color: 'var(--theme-text-secondary)',
+  }),
+  input: (base: any) => ({
+    ...base,
+    color: 'var(--theme-text-primary)',
+  }),
 }
 
 const customCategoryStyles = {
