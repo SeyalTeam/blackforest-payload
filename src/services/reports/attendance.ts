@@ -630,6 +630,8 @@ export const getAttendanceReportData = async (
           act.capturedImage || act.photo || act.image || act.photoUrl || act.imageUrl,
         )
 
+        let breakSecs = toNumber((act as any).breakDurationSeconds)
+        
         activities.push({
           id: toNonEmptyString(act.id || act._id),
           type: actType,
@@ -648,6 +650,23 @@ export const getAttendanceReportData = async (
         if (actType === 'session') {
           sessionCount++
           recordWorkSeconds += dur
+          
+          if (breakSecs > 0) {
+            breakCount++
+            recordBreakSeconds += breakSecs
+            
+            // Optionally, insert a break activity for the UI to display if needed
+            const breakStart = new Date(new Date(pIn).getTime() - (breakSecs * 1000)).toISOString()
+            activities.push({
+              type: 'break',
+              punchIn: breakStart,
+              punchOut: pIn,
+              status: 'closed',
+              durationSeconds: breakSecs,
+              durationFormatted: formatSecondsToReadable(breakSecs),
+            })
+          }
+          
           if (isAct) hasActiveSession = true
           if (!firstPunchIn || new Date(pIn).getTime() < new Date(firstPunchIn).getTime()) {
             firstPunchIn = pIn
