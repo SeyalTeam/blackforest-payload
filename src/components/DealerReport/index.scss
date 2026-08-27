@@ -231,6 +231,18 @@
             &:hover {
               background: var(--theme-elevation-100);
             }
+
+            &.has-planned-date-row {
+              background: rgba(168, 85, 247, 0.06);
+
+              &:hover {
+                background: rgba(168, 85, 247, 0.12) !important;
+              }
+
+              td:first-child {
+                border-left: 3.5px solid #a855f7;
+              }
+            }
           }
 
           td {
@@ -312,6 +324,57 @@
               padding: 4px 8px;
               background: rgba(239, 68, 68, 0.1);
               border-radius: 6px;
+            }
+
+            &.planned-date-cell {
+              text-align: center;
+
+              .planned-date-picker {
+                background: var(--theme-elevation-100);
+                border: 1px solid var(--theme-elevation-200);
+                color: var(--theme-text-primary);
+                border-radius: 6px;
+                padding: 4px 6px;
+                font-family: inherit;
+                font-size: 0.85rem;
+                outline: none;
+                cursor: pointer;
+                transition: all 0.2s;
+
+                &:hover, &:focus {
+                  border-color: #10b981;
+                  background: var(--theme-elevation-150);
+                }
+
+                &.has-date {
+                  color: #c084fc;
+                  border-color: rgba(168, 85, 247, 0.5);
+                  font-weight: 600;
+                  background: rgba(168, 85, 247, 0.08);
+                }
+              }
+
+              .planned-date-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                background: rgba(168, 85, 247, 0.18);
+                border: 1px solid rgba(168, 85, 247, 0.45);
+                color: #c084fc;
+                font-weight: 700;
+                font-size: 0.8rem;
+                padding: 3px 9px;
+                border-radius: 16px;
+                box-shadow: 0 1px 3px rgba(168, 85, 247, 0.2);
+                white-space: nowrap;
+              }
+
+              .planned-date-text {
+                &.has-date {
+                  color: #c084fc;
+                  font-weight: 600;
+                }
+              }
             }
 
             &.image-cell {

@@ -182,6 +182,11 @@ const DealerBillings: CollectionConfig = {
       index: true,
       admin: { description: 'Name of the cashier who submitted the dealer billing.' },
     },
+    {
+      name: 'plannedPaymentDate',
+      type: 'date',
+      required: false,
+    },
   ],
   hooks: {
     beforeChange: [

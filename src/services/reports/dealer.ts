@@ -29,6 +29,7 @@ export type DealerReportItem = {
   deliveryPersonPhotoUrl?: string
   time: string
   status: string
+  plannedPaymentDate?: string
   products?: DealerReportProductItem[]
 }
 
@@ -43,6 +44,7 @@ export type DealerReportGroup = {
 export type DealerReportMeta = {
   grandTotal: number
   totalCount: number
+  plannedDatesWithBills?: string[]
 }
 
 export type DealerReportResult = {
@@ -57,6 +59,8 @@ type DealerReportArgs = {
   endDate?: null | string
   startDate?: null | string
   dealer?: null | string
+  plannedStartDate?: null | string
+  plannedEndDate?: null | string
 }
 
 type RawDealerItem = {
@@ -81,6 +85,7 @@ type RawDealerItem = {
   productsList?: unknown
   productsListResolvedProducts?: unknown
   dealerAccountNumber?: unknown
+  plannedPaymentDate?: unknown
 }
 
 type RawDealerGroup = {
@@ -191,11 +196,23 @@ export const getDealerReportData = async (
     selectedDealers = dealerParam.split(',').filter((id) => id.trim().length > 0)
   }
 
-  const matchQuery: Record<string, any> = {
-    date: {
+  const plannedStartDateParam = typeof args.plannedStartDate === 'string' ? args.plannedStartDate : ''
+  const plannedEndDateParam = typeof args.plannedEndDate === 'string' ? args.plannedEndDate : ''
+
+  const matchQuery: Record<string, any> = {}
+
+  if (plannedStartDateParam && plannedEndDateParam) {
+    const startPlanned = dayjs.utc(plannedStartDateParam).startOf('day').toDate()
+    const endPlanned = dayjs.utc(plannedEndDateParam).endOf('day').toDate()
+    matchQuery.plannedPaymentDate = {
+      $gte: startPlanned,
+      $lte: endPlanned,
+    }
+  } else {
+    matchQuery.date = {
       $gte: startOfDay,
       $lte: endOfDay,
-    },
+    }
   }
 
   const exprAnd: any[] = []
@@ -385,6 +402,7 @@ export const getDealerReportData = async (
             productsPrefix: { $arrayElemAt: ['$productsInfo.prefix', 0] },
             productsPhotoInfo: '$productsInfo',
             status: { $ifNull: ['$status', 'pending'] },
+            plannedPaymentDate: '$plannedPaymentDate',
             productsList: '$productsList',
             productsListMedia: '$productsListMedia',
             productsListResolvedProducts: {
@@ -556,6 +574,7 @@ export const getDealerReportData = async (
           productsPhotoUrls,
           deliveryPersonPhotoUrl: resolvedDeliveryPersonPhotoUrl,
           status: toNonEmptyString(item.status, 'pending'),
+          plannedPaymentDate: item.plannedPaymentDate ? toDateString(item.plannedPaymentDate) : undefined,
           products,
         }
       })
@@ -572,6 +591,20 @@ export const getDealerReportData = async (
   const grandTotal = groups.reduce((acc, group) => acc + group.total, 0)
   const totalCount = groups.reduce((acc, group) => acc + group.count, 0)
 
+  // Query MongoDB for all distinct planned payment dates across all non-cancelled bills
+  const plannedDocs = await DealerBillingModel.find(
+    { plannedPaymentDate: { $exists: true, $ne: null }, status: { $ne: 'cancelled' } },
+    { plannedPaymentDate: 1 },
+  ).lean()
+
+  const plannedDatesSet = new Set<string>()
+  plannedDocs.forEach((doc: any) => {
+    if (doc.plannedPaymentDate) {
+      const dateStr = dayjs.utc(doc.plannedPaymentDate).format('YYYY-MM-DD')
+      if (dateStr) plannedDatesSet.add(dateStr)
+    }
+  })
+
   return {
     startDate: startDateParam,
     endDate: endDateParam,
@@ -579,6 +612,7 @@ export const getDealerReportData = async (
     meta: {
       grandTotal,
       totalCount,
+      plannedDatesWithBills: Array.from(plannedDatesSet),
     },
   }
 }

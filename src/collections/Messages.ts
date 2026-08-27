@@ -75,8 +75,8 @@ const prepareMessageForCreate = async ({ data, req }: any) => {
     throw new Error('Message thread is missing participant links.')
   }
 
-  if (!isAdminMessagingUser(user) && user.id !== staffUserID) {
-    throw new Error('You can only send messages in your own conversation.')
+  if (!canAccessMessaging(user)) {
+    throw new Error('You do not have access to messaging.')
   }
 
   const trimmedText = typeof data?.text === 'string' ? data.text.trim() : ''
@@ -199,18 +199,7 @@ export const Messages: CollectionConfig = {
   },
   access: {
     create: ({ req }) => canAccessMessaging(req.user as any),
-    read: ({ req }) => {
-      const user = req.user as any
-
-      if (!canAccessMessaging(user)) return false
-      if (isAdminMessagingUser(user)) return true
-
-      return {
-        staffUser: {
-          equals: user.id,
-        },
-      }
-    },
+    read: ({ req }) => canAccessMessaging(req.user as any),
     update: () => false,
     delete: () => false,
   },

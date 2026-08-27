@@ -42,6 +42,7 @@ export type DealerReportItem = {
   deliveryPersonPhotoUrl?: string
   time: string
   status: string
+  plannedPaymentDate?: string
   products?: DealerReportProductItem[]
 }
 
@@ -60,6 +61,7 @@ type ReportData = {
   meta: {
     grandTotal: number
     totalCount: number
+    plannedDatesWithBills?: string[]
   }
 }
 
@@ -153,6 +155,9 @@ const DealerReport: React.FC = () => {
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [previewProducts, setPreviewProducts] = useState<DealerReportProductItem[] | null>(null)
   const [dateRangePreset, setDateRangePreset] = useState<string>('today')
+  const [plannedDateRange, setPlannedDateRange] = useState<[Date | null, Date | null]>([null, null])
+  const [plannedDatePreset, setPlannedDatePreset] = useState<string>('')
+  const [tempPlannedDates, setTempPlannedDates] = useState<Record<string, string>>({})
 
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([])
   const [selectedBranch, setSelectedBranch] = useState<string[]>(['all'])
@@ -262,6 +267,43 @@ const DealerReport: React.FC = () => {
     }
   }
 
+  const handlePlannedDateUpdate = async (id: string, dateStr: string) => {
+    try {
+      const res = await fetch(`/api/dealer-billings/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          plannedPaymentDate: dateStr || null,
+        }),
+      })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        const errMsg = errData.errors?.[0]?.message || errData.message || `HTTP ${res.status}`
+        throw new Error(`Failed to update planned date: ${errMsg}`)
+      }
+
+      if (data) {
+        const updatedGroups = data.groups.map((group) => {
+          const updatedItems = group.items.map((i) => {
+            if (i.id === id) {
+              return {
+                ...i,
+                plannedPaymentDate: dateStr || undefined,
+              }
+            }
+            return i
+          })
+          return { ...group, items: updatedItems }
+        })
+        setData({ ...data, groups: updatedGroups })
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to update planned date')
+    }
+  }
+
   const allItems = useMemo(() => {
     if (!data) return []
     const items: (DealerReportItem & { branchName: string })[] = []
@@ -278,6 +320,26 @@ const DealerReport: React.FC = () => {
     })
     return items.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
   }, [data, selectedStatus])
+
+  const plannedDatesWithBills = useMemo(() => {
+    const dates = new Set<string>()
+
+    if (data?.meta?.plannedDatesWithBills) {
+      data.meta.plannedDatesWithBills.forEach((d) => dates.add(d))
+    }
+
+    if (data?.groups) {
+      data.groups.forEach((group) => {
+        group.items.forEach((item) => {
+          if (item.plannedPaymentDate) {
+            dates.add(dayjs(item.plannedPaymentDate).format('YYYY-MM-DD'))
+          }
+        })
+      })
+    }
+
+    return Array.from(dates)
+  }, [data])
 
   const totalItems = allItems.length
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
@@ -367,7 +429,14 @@ const DealerReport: React.FC = () => {
   }, [])
 
   const fetchReport = React.useCallback(
-    async (start: Date, end: Date, branchIds: string[], dealerIds: string[]) => {
+    async (
+      start: Date,
+      end: Date,
+      branchIds: string[],
+      dealerIds: string[],
+      pStart?: Date | null,
+      pEnd?: Date | null,
+    ) => {
       setLoading(true)
       setError('')
       try {
@@ -376,9 +445,15 @@ const DealerReport: React.FC = () => {
         const branchParam = branchIds.includes('all') ? 'all' : branchIds.join(',')
         const dealerParam = dealerIds.includes('all') ? 'all' : dealerIds.join(',')
 
-        const res = await fetch(
-          `/api/reports/dealer?startDate=${startStr}&endDate=${endStr}&branch=${branchParam}&dealer=${dealerParam}`,
-        )
+        let url = `/api/reports/dealer?startDate=${startStr}&endDate=${endStr}&branch=${branchParam}&dealer=${dealerParam}`
+
+        if (pStart && pEnd) {
+          const pStartStr = toLocalDateStr(pStart)
+          const pEndStr = toLocalDateStr(pEnd)
+          url += `&plannedStartDate=${pStartStr}&plannedEndDate=${pEndStr}`
+        }
+
+        const res = await fetch(url)
         if (!res.ok) throw new Error(`Failed to fetch report (HTTP ${res.status})`)
 
         const reportData = (await res.json()) as ReportData
@@ -426,13 +501,20 @@ const DealerReport: React.FC = () => {
 
   useEffect(() => {
     if (startDate && endDate) {
-      fetchReport(startDate, endDate, selectedBranch, selectedDealers)
+      void fetchReport(
+        startDate,
+        endDate,
+        selectedBranch,
+        selectedDealers,
+        plannedDateRange[0],
+        plannedDateRange[1],
+      )
     }
-  }, [startDate, endDate, selectedBranch, selectedDealers, fetchReport])
+  }, [startDate, endDate, selectedBranch, selectedDealers, plannedDateRange, fetchReport])
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [startDate, endDate, selectedBranch, selectedDealers])
+  }, [startDate, endDate, selectedBranch, selectedDealers, plannedDateRange])
 
   const scrollToToggle = () => {
     if (showScrollBottom) {
@@ -471,6 +553,23 @@ const DealerReport: React.FC = () => {
               onApply={(newStart, newEnd, presetKey) => {
                 setDateRange([newStart, newEnd])
                 setDateRangePreset(presetKey)
+              }}
+            />
+            <GoogleDateRangePicker
+              startDate={plannedDateRange[0]}
+              endDate={plannedDateRange[1]}
+              presetKey={plannedDatePreset}
+              presetMode="future"
+              placeholder="All Planned Dates"
+              isFilterActive={Boolean(plannedDateRange[0] || plannedDateRange[1])}
+              highlightedDates={plannedDatesWithBills}
+              onApply={(newStart, newEnd, presetKey) => {
+                setPlannedDateRange([newStart, newEnd])
+                setPlannedDatePreset(presetKey)
+              }}
+              onClear={() => {
+                setPlannedDateRange([null, null])
+                setPlannedDatePreset('')
               }}
             />
             <Select
@@ -632,24 +731,26 @@ const DealerReport: React.FC = () => {
                       <thead>
                         <tr>
                           <th style={{ width: '2%' }}>S.NO</th>
-                          <th style={{ width: '18%' }}>Dealer</th>
+                          <th style={{ width: '15%' }}>Dealer</th>
                           <th style={{ width: '10%' }}>Branch</th>
-                          <th style={{ width: '8%', textAlign: 'right' }}>Amount</th>
-                          <th style={{ width: '8%', textAlign: 'right' }}>Paid</th>
-                          <th style={{ width: '8%', textAlign: 'right' }}>Balance</th>
+                          <th style={{ width: '7%', textAlign: 'right' }}>Amount</th>
+                          <th style={{ width: '7%', textAlign: 'right' }}>Paid</th>
+                          <th style={{ width: '7%', textAlign: 'right' }}>Balance</th>
                           <th style={{ width: '7%', textAlign: 'center' }}>Status</th>
                           <th style={{ width: '10%', textAlign: 'center' }}>Bank Acc No</th>
+                          <th style={{ width: '10%', textAlign: 'center' }}>Planned Pay Date</th>
                           <th style={{ width: '5%', textAlign: 'center' }}>History</th>
                           <th style={{ width: '5%', textAlign: 'center' }}>Bill Copy</th>
                           <th style={{ width: '5%', textAlign: 'center' }}>Photos</th>
-                          <th style={{ width: '12%', textAlign: 'right' }}>Date & Time</th>
+                          <th style={{ width: '10%', textAlign: 'right' }}>Date & Time</th>
                         </tr>
                       </thead>
                       <tbody>
                         {paginatedItems.map((item, idx) => {
                           const remaining = item.amount - (item.paidAmount || 0)
+                          const hasPlannedDate = Boolean(item.plannedPaymentDate)
                           return (
-                            <tr key={item.id}>
+                            <tr key={item.id} className={hasPlannedDate ? 'has-planned-date-row' : ''}>
                               <td style={{ opacity: 0.5, fontSize: '0.8rem' }}>
                                 {(activePage - 1) * pageSize + idx + 1}
                               </td>
@@ -711,6 +812,66 @@ const DealerReport: React.FC = () => {
                                   <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{item.dealerAccountNumber}</span>
                                 ) : (
                                   <span style={{ opacity: 0.5 }}>-</span>
+                                )}
+                              </td>
+                              <td className="planned-date-cell" style={{ textAlign: 'center' }}>
+                                {item.status === 'pending' ? (
+                                  (() => {
+                                    const currentValue = tempPlannedDates[item.id] !== undefined
+                                      ? tempPlannedDates[item.id]
+                                      : (item.plannedPaymentDate ? dayjs(item.plannedPaymentDate).format('YYYY-MM-DD') : '')
+                                    const isModified = tempPlannedDates[item.id] !== undefined && tempPlannedDates[item.id] !== (item.plannedPaymentDate ? dayjs(item.plannedPaymentDate).format('YYYY-MM-DD') : '')
+                                    
+                                    return (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
+                                        <input
+                                          type="date"
+                                          className={`planned-date-picker ${currentValue ? 'has-date' : ''}`}
+                                          value={currentValue}
+                                          onChange={(e) => {
+                                            setTempPlannedDates({
+                                              ...tempPlannedDates,
+                                              [item.id]: e.target.value,
+                                            })
+                                          }}
+                                        />
+                                        {isModified && (
+                                          <button
+                                            type="button"
+                                            className="planned-date-save-btn"
+                                            onClick={async () => {
+                                              await handlePlannedDateUpdate(item.id, currentValue)
+                                              const updated = { ...tempPlannedDates }
+                                              delete updated[item.id]
+                                              setTempPlannedDates(updated)
+                                            }}
+                                            title="Save planned payment date"
+                                            style={{
+                                              background: '#10b981',
+                                              color: '#fff',
+                                              border: 'none',
+                                              borderRadius: '4px',
+                                              padding: '4px 8px',
+                                              cursor: 'pointer',
+                                              fontSize: '0.85rem',
+                                              fontWeight: 'bold',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                            }}
+                                          >
+                                            ✓
+                                          </button>
+                                        )}
+                                      </div>
+                                    )
+                                  })()
+                                ) : (
+                                  item.plannedPaymentDate ? (
+                                    <span className="planned-date-badge">
+                                      📅 {dayjs(item.plannedPaymentDate).format('DD-MM-YYYY')}
+                                    </span>
+                                  ) : '-'
                                 )}
                               </td>
                               <td className="history-cell" style={{ textAlign: 'center' }}>

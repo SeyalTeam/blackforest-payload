@@ -28,6 +28,12 @@ const RawMaterialCategories: CollectionConfig = {
       unique: true,
     },
     {
+      name: 'image',
+      type: 'upload',
+      relationTo: 'media',
+      required: false,
+    },
+    {
       name: 'company',
       type: 'relationship',
       relationTo: 'companies',

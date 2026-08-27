@@ -63,20 +63,9 @@ export const MessageThreads: CollectionConfig = {
     defaultColumns: ['participantName', 'staffUser', 'status', 'lastMessageAt', 'updatedAt'],
   },
   access: {
-    create: ({ req }) => isAdminMessagingUser(req.user as any),
-    read: ({ req }) => {
-      const user = req.user as any
-
-      if (!canAccessMessaging(user)) return false
-      if (isAdminMessagingUser(user)) return true
-
-      return {
-        staffUser: {
-          equals: user.id,
-        },
-      }
-    },
-    update: ({ req }) => isAdminMessagingUser(req.user as any),
+    create: ({ req }) => canAccessMessaging(req.user as any),
+    read: ({ req }) => canAccessMessaging(req.user as any),
+    update: ({ req }) => canAccessMessaging(req.user as any),
     delete: () => false,
   },
   hooks: {

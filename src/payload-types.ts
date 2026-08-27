@@ -188,6 +188,7 @@ export interface Config {
     'customer-offer-settings': CustomerOfferSetting;
     'app-download-settings': AppDownloadSetting;
     'app-version-settings': AppVersionSetting;
+    'work-settings': WorkSetting;
     'menu-settings': MenuSetting;
     'messages-chat': MessagesChat;
   };
@@ -225,6 +226,7 @@ export interface Config {
     'customer-offer-settings': CustomerOfferSettingsSelect<false> | CustomerOfferSettingsSelect<true>;
     'app-download-settings': AppDownloadSettingsSelect<false> | AppDownloadSettingsSelect<true>;
     'app-version-settings': AppVersionSettingsSelect<false> | AppVersionSettingsSelect<true>;
+    'work-settings': WorkSettingsSelect<false> | WorkSettingsSelect<true>;
     'menu-settings': MenuSettingsSelect<false> | MenuSettingsSelect<true>;
     'messages-chat': MessagesChatSelect<false> | MessagesChatSelect<true>;
   };
@@ -671,6 +673,7 @@ export interface Employee {
 export interface RawMaterialCategory {
   id: string;
   name: string;
+  image?: (string | null) | Media;
   company: (string | Company)[];
   updatedAt: string;
   createdAt: string;
@@ -1849,13 +1852,24 @@ export interface Attendance {
    * YYYY-MM-DD format (timezone independent)
    */
   dateString: string;
+  /**
+   * Auto-calculated: full_day if all sessions are closed, half_day if any session has no punch-out.
+   */
+  dayType?: ('full_day' | 'half_day') | null;
   activities?:
     | {
         type: 'session' | 'break';
         punchIn: string;
         punchOut?: string | null;
         status?: ('active' | 'closed') | null;
+        /**
+         * Work duration of this session in seconds
+         */
         durationSeconds?: number | null;
+        /**
+         * Break duration before this session started (gap from previous session punchOut to this punchIn), in seconds. Auto-calculated by the server.
+         */
+        breakDurationSeconds?: number | null;
         ipAddress?: string | null;
         device?: string | null;
         /**
@@ -2421,6 +2435,7 @@ export interface ProductsSelect<T extends boolean = true> {
  */
 export interface RawMaterialCategoriesSelect<T extends boolean = true> {
   name?: T;
+  image?: T;
   company?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -3153,6 +3168,7 @@ export interface AttendanceSelect<T extends boolean = true> {
   employee?: T;
   date?: T;
   dateString?: T;
+  dayType?: T;
   activities?:
     | T
     | {
@@ -3161,6 +3177,7 @@ export interface AttendanceSelect<T extends boolean = true> {
         punchOut?: T;
         status?: T;
         durationSeconds?: T;
+        breakDurationSeconds?: T;
         ipAddress?: T;
         device?: T;
         capturedImage?: T;
@@ -4779,6 +4796,43 @@ export interface AppVersionSetting {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "work-settings".
+ */
+export interface WorkSetting {
+  id: string;
+  /**
+   * Add a row for each role you want to track. Roles on the left, check Days or Hours to track them.
+   */
+  roleSettings?:
+    | {
+        role:
+          | 'superadmin'
+          | 'admin'
+          | 'manager'
+          | 'account'
+          | 'delivery'
+          | 'branch'
+          | 'company'
+          | 'factory'
+          | 'kitchen'
+          | 'chef'
+          | 'cashier'
+          | 'waiter'
+          | 'supervisor'
+          | 'driver'
+          | 'store_keeper';
+        trackDays?: boolean | null;
+        workDays?: ('monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday')[] | null;
+        trackHours?: boolean | null;
+        requiredHours?: number | null;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "menu-settings".
  */
 export interface MenuSetting {
@@ -5494,6 +5548,25 @@ export interface AppDownloadSettingsSelect<T extends boolean = true> {
 export interface AppVersionSettingsSelect<T extends boolean = true> {
   minAppVersion?: T;
   updateMessage?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "work-settings_select".
+ */
+export interface WorkSettingsSelect<T extends boolean = true> {
+  roleSettings?:
+    | T
+    | {
+        role?: T;
+        trackDays?: T;
+        workDays?: T;
+        trackHours?: T;
+        requiredHours?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
