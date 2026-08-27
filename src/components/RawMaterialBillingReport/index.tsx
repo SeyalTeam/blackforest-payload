@@ -173,6 +173,7 @@ const RawMaterialBillingReport: React.FC = () => {
   const [selectedDealers, setSelectedDealers] = useState<string[]>(['all'])
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const [selectedCategories, setSelectedCategories] = useState<string[]>(['all'])
+  const [selectedStatus, setSelectedStatus] = useState<string>('all')
   const [showScrollBottom, setShowScrollBottom] = useState(true)
   const lastScrollY = useRef(0)
 
@@ -476,7 +477,7 @@ const RawMaterialBillingReport: React.FC = () => {
           const list = await res.json()
           setCategories(
             (list.docs || []).map((c: any) => ({
-              id: c.id,
+              id: c.id || c._id,
               name: c.name,
             })),
           )
@@ -509,11 +510,17 @@ const RawMaterialBillingReport: React.FC = () => {
     const itemsList: (RawMaterialBillingReportItem & { companyName: string })[] = []
     data.groups.forEach((group) => {
       group.items.forEach((item) => {
+        if (selectedStatus !== 'all' && item.status !== selectedStatus) {
+          return
+        }
+
         if (!selectedCategories.includes('all')) {
           if (!item.rawMaterials || item.rawMaterials.length === 0) return
           const hasMatchingMaterial = item.rawMaterials.some((m) => {
             if (!m.category) return false
-            const catId = typeof m.category === 'object' ? (m.category as any).id : m.category
+            const catId = typeof m.category === 'object'
+              ? (m.category as any).id || (m.category as any)._id
+              : m.category
             return selectedCategories.includes(catId)
           })
           if (!hasMatchingMaterial) return
@@ -526,7 +533,7 @@ const RawMaterialBillingReport: React.FC = () => {
       })
     })
     return itemsList.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
-  }, [data, selectedCategories])
+  }, [data, selectedCategories, selectedStatus])
 
   const plannedDatesWithBills = useMemo(() => {
     const dates = new Set<string>()
@@ -605,6 +612,8 @@ const RawMaterialBillingReport: React.FC = () => {
   )
   CustomInput.displayName = 'CustomInput'
 
+  const plannedDateFilter = plannedDateRange[0] !== null || plannedDateRange[1] !== null
+
   const CustomPlannedInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
     ({ value, onClick }, ref) => (
       <button ref={ref} onClick={onClick} className={`custom-date-input planned-filter-input ${value ? 'has-value' : ''}`} type="button" style={{ borderColor: plannedDateFilter ? '#d97706' : undefined }}>
@@ -639,6 +648,13 @@ const RawMaterialBillingReport: React.FC = () => {
   const categoryOptions = [
     { value: 'all', label: 'All Categories' },
     ...categories.map((c) => ({ value: c.id, label: c.name })),
+  ]
+
+  const statusOptions = [
+    { value: 'all', label: 'All Statuses' },
+    { value: 'paid', label: 'Paid' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'cancelled', label: 'Cancelled' },
   ]
 
   return (
@@ -772,7 +788,19 @@ const RawMaterialBillingReport: React.FC = () => {
                 MultiValue,
               }}
             />
-            {(dateRangePreset !== 'today' || plannedDateRange[0] !== null || plannedDateRange[1] !== null || !selectedCompany.includes('all') || !selectedDealers.includes('all') || !selectedCategories.includes('all')) && (
+            <Select
+              options={statusOptions}
+              value={statusOptions.find((o) => o.value === selectedStatus)}
+              onChange={(newValue) => {
+                setSelectedStatus(newValue ? newValue.value : 'all')
+                setCurrentPage(1)
+              }}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Select Status..."
+              isSearchable={false}
+            />
+            {(dateRangePreset !== 'today' || plannedDateRange[0] !== null || plannedDateRange[1] !== null || !selectedCompany.includes('all') || !selectedDealers.includes('all') || !selectedCategories.includes('all') || selectedStatus !== 'all') && (
               <button
                 type="button"
                 className="clear-all-filters-btn"
@@ -784,6 +812,7 @@ const RawMaterialBillingReport: React.FC = () => {
                   setSelectedCompany(['all'])
                   setSelectedDealers(['all'])
                   setSelectedCategories(['all'])
+                  setSelectedStatus('all')
                   setCurrentPage(1)
                 }}
               >
@@ -1249,7 +1278,7 @@ const RawMaterialBillingReport: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {previewMaterials.map((mat, idx) => {
+                  {previewMaterials.map((mat: any, idx) => {
                     const materialName = mat.name || mat.rawMaterialName || 'Unknown Material'
                     const pUrl = mat.photoUrl || (typeof mat.photo === 'object' ? mat.photo?.url : null)
                     return (
