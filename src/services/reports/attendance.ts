@@ -630,7 +630,7 @@ export const getAttendanceReportData = async (
           act.capturedImage || act.photo || act.image || act.photoUrl || act.imageUrl,
         )
 
-        let breakSecs = toNumber((act as any).breakDurationSeconds)
+        const breakSecs = toNumber((act as any).breakDurationSeconds)
         
         activities.push({
           id: toNonEmptyString(act.id || act._id),
