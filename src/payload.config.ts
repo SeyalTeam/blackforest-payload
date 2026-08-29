@@ -571,6 +571,13 @@ export default buildConfig({
     importMap: {
       baseDir: path.resolve(dirname),
     },
+    timezones: {
+      defaultTimezone: 'Asia/Calcutta',
+      supportedTimezones: ({ defaultTimezones }) => [
+        ...defaultTimezones,
+        { label: 'India Standard Time', value: 'Asia/Calcutta' },
+      ],
+    },
     components: {
       /* views: {
         dashboard: {

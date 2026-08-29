@@ -22,8 +22,11 @@ function scheduleNextNightlyJob(payload: Payload) {
 async function runNightlyJob(payload: Payload) {
   console.log('[cron] Running nightly attendance cleanup...')
   try {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const d = new Date()
+    const utcOffset = d.getTime() + (5.5 * 60 * 60 * 1000)
+    const localDate = new Date(utcOffset)
+    localDate.setUTCHours(0, 0, 0, 0)
+    const today = new Date(localDate.getTime() - (5.5 * 60 * 60 * 1000))
     
     let hasMore = true
     let page = 1
@@ -43,8 +46,7 @@ async function runNightlyJob(payload: Payload) {
         const updatedActivities = (doc.activities || []).map((act: any) => {
           if (act.status === 'active') {
             needsUpdate = true
-            const punchOut = new Date(doc.date)
-            punchOut.setHours(23, 59, 59, 999)
+            const punchOut = new Date(new Date(doc.date).getTime() + 24 * 60 * 60 * 1000 - 1)
             
             let durationSeconds = 0
             if (act.punchIn) {

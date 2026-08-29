@@ -178,7 +178,13 @@ const Attendance: CollectionConfig = {
         // Auto-calculate dayType ONLY for past completed days (after midnight).
         // Uses WorkSettings.requiredHours for the role as the full-day threshold.
         if (data.activities && Array.isArray(data.activities) && data.dateString) {
-          const todayStr = new Date().toISOString().split('T')[0]
+          const d = new Date()
+          const utcOffset = d.getTime() + (5.5 * 60 * 60 * 1000)
+          const localDate = new Date(utcOffset)
+          const year = localDate.getUTCFullYear()
+          const month = String(localDate.getUTCMonth() + 1).padStart(2, '0')
+          const day = String(localDate.getUTCDate()).padStart(2, '0')
+          const todayStr = `${year}-${month}-${day}`
           const isPastDay = data.dateString < todayStr
           if (isPastDay) {
             const sessions = data.activities.filter((a: any) => a.type === 'session')
@@ -302,8 +308,10 @@ const Attendance: CollectionConfig = {
       },
       defaultValue: () => {
         const d = new Date()
-        d.setHours(0, 0, 0, 0)
-        return d
+        const utcOffset = d.getTime() + (5.5 * 60 * 60 * 1000)
+        const localDate = new Date(utcOffset)
+        localDate.setUTCHours(0, 0, 0, 0)
+        return new Date(localDate.getTime() - (5.5 * 60 * 60 * 1000))
       },
     },
     {
@@ -313,6 +321,15 @@ const Attendance: CollectionConfig = {
       index: true,
       admin: {
         description: 'YYYY-MM-DD format (timezone independent)',
+      },
+      defaultValue: () => {
+        const d = new Date()
+        const utcOffset = d.getTime() + (5.5 * 60 * 60 * 1000)
+        const localDate = new Date(utcOffset)
+        const year = localDate.getUTCFullYear()
+        const month = String(localDate.getUTCMonth() + 1).padStart(2, '0')
+        const day = String(localDate.getUTCDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
       },
     },
     {
@@ -344,6 +361,7 @@ const Attendance: CollectionConfig = {
           name: 'punchIn',
           type: 'date',
           required: true,
+          timezone: true,
           admin: {
             date: {
               pickerAppearance: 'dayAndTime',
@@ -354,6 +372,7 @@ const Attendance: CollectionConfig = {
         {
           name: 'punchOut',
           type: 'date',
+          timezone: true,
           admin: {
             date: {
               pickerAppearance: 'dayAndTime',

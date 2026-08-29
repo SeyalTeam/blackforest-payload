@@ -53,6 +53,7 @@ const PunchIn: CollectionConfig = {
           name: 'punchIn',
           type: 'date',
           required: true,
+          timezone: true,
           admin: {
             date: {
               pickerAppearance: 'dayAndTime',
@@ -63,6 +64,7 @@ const PunchIn: CollectionConfig = {
         {
           name: 'punchOut',
           type: 'date',
+          timezone: true,
           admin: {
             date: {
               pickerAppearance: 'dayAndTime',

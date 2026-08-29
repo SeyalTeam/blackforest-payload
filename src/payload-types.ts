@@ -1861,7 +1861,9 @@ export interface Attendance {
     | {
         type: 'session' | 'break';
         punchIn: string;
+        punchIn_tz: SupportedTimezones;
         punchOut?: string | null;
+        punchOut_tz?: SupportedTimezones;
         status?: ('active' | 'closed') | null;
         /**
          * Work duration of this session in seconds
@@ -1910,7 +1912,9 @@ export interface Punchin {
   records?:
     | {
         punchIn: string;
+        punchIn_tz: SupportedTimezones;
         punchOut?: string | null;
+        punchOut_tz?: SupportedTimezones;
         photo?: (string | null) | Media;
         id?: string | null;
       }[]
@@ -3176,7 +3180,9 @@ export interface AttendanceSelect<T extends boolean = true> {
     | {
         type?: T;
         punchIn?: T;
+        punchIn_tz?: T;
         punchOut?: T;
+        punchOut_tz?: T;
         status?: T;
         durationSeconds?: T;
         breakDurationSeconds?: T;
@@ -3214,7 +3220,9 @@ export interface PunchinSelect<T extends boolean = true> {
     | T
     | {
         punchIn?: T;
+        punchIn_tz?: T;
         punchOut?: T;
+        punchOut_tz?: T;
         photo?: T;
         id?: T;
       };
