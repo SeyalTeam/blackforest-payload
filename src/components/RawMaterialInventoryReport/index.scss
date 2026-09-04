@@ -118,7 +118,7 @@
     border-radius: 12px;
     padding: 1.5rem;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    width: 50%;
+    width: 100%;
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
@@ -154,20 +154,26 @@
     }
 
     .report-items-table {
+      overflow-x: auto;
+      border-radius: 8px;
+      border: 1px solid var(--theme-elevation-200);
+
       table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 0.9rem;
+        font-size: 0.95rem;
 
         th {
           text-align: left;
           color: var(--theme-text-secondary);
-          font-weight: 600;
-          padding: 0.75rem 1rem;
-          border-bottom: 1px solid var(--theme-elevation-150);
-          border-right: 1px solid var(--theme-elevation-150);
-          font-size: 0.8rem;
+          font-weight: 700;
+          padding: 1rem 1.25rem;
+          border-bottom: 2px solid var(--theme-elevation-200);
+          border-right: 1px solid var(--theme-elevation-100);
+          font-size: 0.85rem;
           text-transform: uppercase;
+          background: var(--theme-elevation-50);
+          white-space: nowrap;
 
           &:last-child {
             border-right: none;
@@ -175,22 +181,27 @@
         }
 
         tr {
-          transition: background-color 0.2s;
+          transition: all 0.2s ease-in-out;
 
           &:nth-child(even) {
-            background: rgba(0, 0, 0, 0.02);
+            background: rgba(0, 0, 0, 0.015);
           }
 
           &:hover {
             background: var(--theme-elevation-100);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transform: translateY(-1px);
+            z-index: 1;
+            position: relative;
           }
         }
 
         td {
-          padding: 0.75rem 1rem;
+          padding: 1rem 1.25rem;
           border-bottom: 1px solid var(--theme-elevation-100);
           border-right: 1px solid var(--theme-elevation-100);
           color: var(--theme-text-primary);
+          vertical-align: middle;
 
           &:last-child {
             border-right: none;
@@ -198,27 +209,28 @@
 
           &.raw-material-cell {
             font-weight: 600;
-            font-size: 0.95rem;
+            font-size: 1rem;
+            color: #1e293b;
           }
 
           &.quantity-cell {
             font-weight: 700;
             text-align: right;
-            font-size: 1.05rem;
+            font-size: 1.1rem;
 
             .unit-label {
               color: var(--theme-text-secondary);
-              font-size: 0.85rem;
+              font-size: 0.9rem;
               font-weight: 500;
-              margin-left: 0.25rem;
+              margin-left: 0.3rem;
             }
           }
 
           &.value-cell {
-            font-weight: 700;
+            font-weight: 800;
             text-align: right;
-            font-size: 1.15rem;
-            color: #10b981;
+            font-size: 1.2rem;
+            color: #059669;
           }
         }
 
