@@ -178,6 +178,7 @@ export interface Config {
     'instock-entry-report': InstockEntryReport;
     'expense-report': ExpenseReport;
     'return-order-report': ReturnOrderReport;
+    'report-graph': ReportGraph;
     'dealer-report': DealerReport;
     'raw-material-billing-report': RawMaterialBillingReport;
     'other-products-inventory-report': OtherProductsInventoryReport;
@@ -216,6 +217,7 @@ export interface Config {
     'instock-entry-report': InstockEntryReportSelect<false> | InstockEntryReportSelect<true>;
     'expense-report': ExpenseReportSelect<false> | ExpenseReportSelect<true>;
     'return-order-report': ReturnOrderReportSelect<false> | ReturnOrderReportSelect<true>;
+    'report-graph': ReportGraphSelect<false> | ReportGraphSelect<true>;
     'dealer-report': DealerReportSelect<false> | DealerReportSelect<true>;
     'raw-material-billing-report': RawMaterialBillingReportSelect<false> | RawMaterialBillingReportSelect<true>;
     'other-products-inventory-report': OtherProductsInventoryReportSelect<false> | OtherProductsInventoryReportSelect<true>;
@@ -3582,6 +3584,15 @@ export interface ReturnOrderReport {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "report-graph".
+ */
+export interface ReportGraph {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "dealer-report".
  */
 export interface DealerReport {
@@ -5167,6 +5178,15 @@ export interface ExpenseReportSelect<T extends boolean = true> {
  * via the `definition` "return-order-report_select".
  */
 export interface ReturnOrderReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "report-graph_select".
+ */
+export interface ReportGraphSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

@@ -60,8 +60,10 @@ export type TrendPoint = {
   label: string
   fullLabel: string
   totalAmount: number
+  totalBills: number
   totalExpense: number
   totalReturn: number
+  branchesData?: { branchId: string; amount: number; billCount: number }[]
 }
 
 export type BranchBillingSummary = {
@@ -120,6 +122,7 @@ type BranchBillingReportArgs = {
   endDate?: null | string
   startDate?: null | string
   trendPeriod?: null | string
+  trendMetricFilter?: null | string
   gstFilter?: null | string
 }
 
@@ -632,11 +635,20 @@ export const getBranchBillingReportData = async (
   // Calculate Sales Trend based on Selected Period
   const trendPeriod = args.trendPeriod ?? '12months'
   const now = dayjs().tz('Asia/Kolkata')
+  
+  let granularity: 'month' | 'day' | 'hour' = 'month'
   let trendStartDate = now.subtract(11, 'month').startOf('month')
-  let granularity: 'month' | 'day' = 'month'
   let pointsCount = 12
 
-  if (trendPeriod === 'thisMonth') {
+  if (trendPeriod === 'hourly') {
+    granularity = 'hour'
+    trendStartDate = dayjs(startOfDay).tz('Asia/Kolkata').startOf('day')
+    pointsCount = 24
+  } else if (trendPeriod === 'daily') {
+    granularity = 'day'
+    trendStartDate = dayjs(startOfDay).tz('Asia/Kolkata')
+    pointsCount = dayjs(endOfDay).tz('Asia/Kolkata').diff(trendStartDate, 'day') + 1
+  } else if (trendPeriod === 'thisMonth') {
     trendStartDate = now.startOf('month')
     pointsCount = now.date()
     granularity = 'day'
@@ -656,8 +668,23 @@ export const getBranchBillingReportData = async (
 
   const trendMatch: any = {
     createdAt: { $gte: trendStartDate.toDate() },
-    status: { $in: ['completed', 'settled'] },
     ...branchFilter,
+  }
+  
+  const metricFilter = args.trendMetricFilter
+  if (metricFilter === 'cancelled') {
+    trendMatch.status = 'cancelled'
+  } else {
+    trendMatch.status = { $in: ['completed', 'settled'] }
+    if (metricFilter === 'table') {
+      trendMatch.$expr = hasTableOrderReferenceExpression
+    } else if (metricFilter === 'counter') {
+      trendMatch.$expr = { $not: hasTableOrderReferenceExpression }
+    }
+  }
+
+  if (trendPeriod === 'hourly' || trendPeriod === 'daily') {
+    trendMatch.createdAt = { $gte: trendStartDate.toDate(), $lte: dayjs(endOfDay).tz('Asia/Kolkata').toDate() }
   }
 
   const rawTrendStats = await BillingModel.aggregate([
@@ -665,20 +692,26 @@ export const getBranchBillingReportData = async (
     {
       $group: {
         _id: {
-          year: { $year: { $add: ['$createdAt', 19800000] } },
-          month: { $month: { $add: ['$createdAt', 19800000] } },
+          year: granularity === 'hour' ? null : { $year: { $add: ['$createdAt', 19800000] } },
+          month: granularity === 'hour' ? null : { $month: { $add: ['$createdAt', 19800000] } },
           day: granularity === 'day' ? { $dayOfMonth: { $add: ['$createdAt', 19800000] } } : null,
+          hour: granularity === 'hour' ? { $hour: { $add: ['$createdAt', 19800000] } } : null,
+          branch: '$branch',
         },
         totalAmount: { $sum: '$totalAmount' },
+        totalBills: { $sum: 1 },
       },
     },
-    { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } },
+    { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1, '_id.hour': 1 } },
   ])
 
   // Aggregate Expenses for the same trend period
   const expenseTrendMatch: any = {
     date: { $gte: trendStartDate.toDate() },
     ...branchFilter,
+  }
+  if (trendPeriod === 'hourly' || trendPeriod === 'daily') {
+    expenseTrendMatch.date = { $gte: trendStartDate.toDate(), $lte: dayjs(endOfDay).tz('Asia/Kolkata').toDate() }
   }
 
   const rawExpenseTrendStats = await ExpenseModel.aggregate([
@@ -687,14 +720,15 @@ export const getBranchBillingReportData = async (
     {
       $group: {
         _id: {
-          year: { $year: '$date' },
-          month: { $month: '$date' },
+          year: granularity === 'hour' ? null : { $year: '$date' },
+          month: granularity === 'hour' ? null : { $month: '$date' },
           day: granularity === 'day' ? { $dayOfMonth: '$date' } : null,
+          hour: granularity === 'hour' ? { $hour: '$date' } : null,
         },
         totalExpense: { $sum: '$details.amount' },
       },
     },
-    { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } },
+    { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1, '_id.hour': 1 } },
   ])
 
   // Aggregate Returns for the same trend period
@@ -702,69 +736,90 @@ export const getBranchBillingReportData = async (
     createdAt: { $gte: trendStartDate.toDate() },
     ...branchFilter,
   }
+  if (trendPeriod === 'hourly' || trendPeriod === 'daily') {
+    returnTrendMatch.createdAt = { $gte: trendStartDate.toDate(), $lte: dayjs(endOfDay).tz('Asia/Kolkata').toDate() }
+  }
 
   const rawReturnTrendStats = await ReturnOrderModel.aggregate([
     { $match: returnTrendMatch },
     {
       $group: {
         _id: {
-          year: { $year: { $add: ['$createdAt', 19800000] } },
-          month: { $month: { $add: ['$createdAt', 19800000] } },
+          year: granularity === 'hour' ? null : { $year: { $add: ['$createdAt', 19800000] } },
+          month: granularity === 'hour' ? null : { $month: { $add: ['$createdAt', 19800000] } },
           day: granularity === 'day' ? { $dayOfMonth: { $add: ['$createdAt', 19800000] } } : null,
+          hour: granularity === 'hour' ? { $hour: { $add: ['$createdAt', 19800000] } } : null,
         },
         totalReturn: { $sum: '$totalAmount' },
       },
     },
-    { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } },
+    { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1, '_id.hour': 1 } },
   ])
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   const trendData: TrendPoint[] = []
 
-  for (let i = pointsCount - 1; i >= 0; i -= 1) {
-    const d = granularity === 'month' ? now.subtract(i, 'month') : now.subtract(i, 'day')
+  for (let i = 0; i < pointsCount; i += 1) {
+    let d = trendStartDate
+    if (granularity === 'month') d = trendStartDate.add(i, 'month')
+    else if (granularity === 'day') d = trendStartDate.add(i, 'day')
+    else if (granularity === 'hour') d = trendStartDate.add(i, 'hour')
+
     const year = d.year()
     const month = d.month() + 1
-    const day = granularity === 'day' ? d.date() : null
+    const day = (granularity === 'day' || granularity === 'hour') ? d.date() : null
+    const hour = granularity === 'hour' ? d.hour() : null
 
-    const found = rawTrendStats.find(
+    const foundItems = rawTrendStats.filter(
       (s) =>
-        s._id.year === year &&
-        s._id.month === month &&
-        (granularity === 'month' || s._id.day === day),
+        (granularity === 'hour' || s._id.year === year) &&
+        (granularity === 'hour' || s._id.month === month) &&
+        (granularity === 'month' || granularity === 'hour' || s._id.day === day) &&
+        (granularity !== 'hour' || s._id.hour === hour),
     )
+    const totalAmount = foundItems.reduce((acc, curr) => acc + curr.totalAmount, 0)
+    const totalBills = foundItems.reduce((acc, curr) => acc + curr.totalBills, 0)
+    const branchesData = foundItems.map(item => ({ branchId: String(item._id.branch), amount: item.totalAmount, billCount: item.totalBills }))
 
     const foundExpense = rawExpenseTrendStats.find(
       (s) =>
-        s._id.year === year &&
-        s._id.month === month &&
-        (granularity === 'month' || s._id.day === day),
+        (granularity === 'hour' || s._id.year === year) &&
+        (granularity === 'hour' || s._id.month === month) &&
+        (granularity === 'month' || granularity === 'hour' || s._id.day === day) &&
+        (granularity !== 'hour' || s._id.hour === hour),
     )
 
     const foundReturn = rawReturnTrendStats.find(
       (s) =>
-        s._id.year === year &&
-        s._id.month === month &&
-        (granularity === 'month' || s._id.day === day),
+        (granularity === 'hour' || s._id.year === year) &&
+        (granularity === 'hour' || s._id.month === month) &&
+        (granularity === 'month' || granularity === 'hour' || s._id.day === day) &&
+        (granularity !== 'hour' || s._id.hour === hour),
     )
 
     const dayInitials = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-    const label =
-      granularity === 'month'
-        ? monthNames[month - 1]
-        : `${d.date()}|${dayInitials[d.day()]}`
+    let label = ''
+    let fullLabel = ''
 
-    const fullLabel =
-      granularity === 'month'
-        ? `${monthNames[month - 1]} ${year}`
-        : `${monthNames[month - 1]} ${d.date()}`
+    if (granularity === 'month') {
+      label = monthNames[month - 1]
+      fullLabel = `${monthNames[month - 1]} ${year}`
+    } else if (granularity === 'day') {
+      label = `${d.date()}|${dayInitials[d.day()]}`
+      fullLabel = `${monthNames[month - 1]} ${d.date()}`
+    } else if (granularity === 'hour') {
+      label = d.format('h A')
+      fullLabel = `${monthNames[month - 1]} ${d.date()}, ${d.format('h A')}`
+    }
 
     trendData.push({
       label,
       fullLabel,
-      totalAmount: found?.totalAmount ?? 0,
+      totalAmount,
+      totalBills,
       totalExpense: foundExpense?.totalExpense ?? 0,
       totalReturn: foundReturn?.totalReturn ?? 0,
+      branchesData,
     })
   }
 

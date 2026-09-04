@@ -167,6 +167,7 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       endDate: { type: graphQL.GraphQLString },
       branch: { type: graphQL.GraphQLString },
       trendPeriod: { type: graphQL.GraphQLString },
+      trendMetricFilter: { type: graphQL.GraphQLString },
       gstFilter: { type: graphQL.GraphQLString },
     },
   })
@@ -225,14 +226,25 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
     },
   })
 
+  const TrendBranchDataType = new graphQL.GraphQLObjectType({
+    name: 'TrendBranchData',
+    fields: {
+      branchId: { type: graphQL.GraphQLString },
+      amount: { type: graphQL.GraphQLFloat },
+      billCount: { type: graphQL.GraphQLInt },
+    },
+  })
+
   const BranchBillingTrendPointType = new graphQL.GraphQLObjectType({
     name: 'BranchBillingTrendPoint',
     fields: {
       label: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       fullLabel: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       totalAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      totalBills: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
       totalExpense: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       totalReturn: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+      branchesData: { type: new graphQL.GraphQLList(new graphQL.GraphQLNonNull(TrendBranchDataType)) },
     },
   })
 

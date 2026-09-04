@@ -384,6 +384,18 @@
 
 /* Light Theme Override if user switches Payload to Light mode */
 [data-theme='light'] .google-daterange-picker-wrapper {
+  .google-daterange-trigger-btn {
+    background: #ffffff;
+    border-color: #dadce0;
+    color: #3c4043;
+    .trigger-label { color: #3c4043; }
+    .trigger-icon, .trigger-arrow { color: #5f6368; }
+    &:hover, &.active {
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 1px #1a73e8;
+    }
+  }
+
   .google-daterange-popover {
     background: #ffffff;
     border-color: #dadce0;
@@ -428,6 +440,16 @@
 
           .date-read-input {
             color: #202124;
+          }
+        }
+      }
+
+      .month-nav-header {
+        .month-nav-btn {
+          border-color: #dadce0;
+          color: #5f6368;
+          &:hover {
+            background: #f1f3f4;
           }
         }
       }

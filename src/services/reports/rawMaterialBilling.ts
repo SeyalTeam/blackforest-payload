@@ -24,6 +24,7 @@ export type RawMaterialBillingReportItem = {
   productsPhotoUrls?: string[]
   deliveryPersonPhotoUrl?: string
   time: string
+  updatedAt?: string
   status: string
   plannedPaymentDate?: string
   notes?: string
@@ -86,6 +87,7 @@ type RawItem = {
   deliveryPersonPhotoUrl?: unknown
   deliveryPersonPhotoFilename?: unknown
   time: unknown
+  updatedAt?: unknown
   status: unknown
   plannedPaymentDate?: unknown
   rawMaterialsList?: {
@@ -214,10 +216,20 @@ export const getRawMaterialBillingReportData = async (
       $lte: endPlanned,
     }
   } else {
-    matchQuery.date = {
-      $gte: startOfDay,
-      $lte: endOfDay,
-    }
+    matchQuery.$or = [
+      {
+        date: {
+          $gte: startOfDay,
+          $lte: endOfDay,
+        }
+      },
+      {
+        'payments.date': {
+          $gte: startOfDay,
+          $lte: endOfDay,
+        }
+      }
+    ]
   }
 
   const exprAnd: any[] = []
@@ -403,6 +415,7 @@ export const getRawMaterialBillingReportData = async (
             paidAmount: { $ifNull: ['$paidAmount', 0] },
             payments: { $ifNull: ['$payments', []] },
             time: '$date',
+            updatedAt: '$updatedAt',
             billCopyUrl: '$billCopyInfo.url',
             billCopyFilename: '$billCopyInfo.filename',
             productsPhotos: {
@@ -507,6 +520,7 @@ export const getRawMaterialBillingReportData = async (
           paidAmount: toNumber(item.paidAmount),
           payments,
           time: toDateString(item.time),
+          updatedAt: item.updatedAt ? toDateString(item.updatedAt) : undefined,
           billCopyUrl: billCopyUrl || (billCopyFilename ? `/api/media/file/${billCopyFilename}` : undefined),
           productsPhotoUrls,
           deliveryPersonPhotoUrl: deliveryPersonPhotoUrl || (deliveryPersonPhotoFilename ? `/api/media/file/${deliveryPersonPhotoFilename}` : undefined),
