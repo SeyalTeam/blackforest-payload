@@ -233,7 +233,7 @@ export const Users: CollectionConfig = {
       relationTo: 'companies',
       required: false,
       admin: {
-        condition: ({ role }) => role === 'company',
+        condition: ({ role }) => role === 'company' || role === 'chef',
       },
       access: {
         create: ({ req }) => req.user?.role === 'superadmin',
@@ -1143,8 +1143,8 @@ export const Users: CollectionConfig = {
             }
             nextData.branch = null
           }
-          if (nextData.role === 'company' && !nextData.company) {
-            throw new Error('Company is required for company role users')
+          if ((nextData.role === 'company' || nextData.role === 'chef') && !nextData.company) {
+            throw new Error(`Company is required for ${nextData.role} role users`)
           }
           if (
             nextData.role === 'factory' &&
