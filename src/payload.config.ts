@@ -35,6 +35,7 @@ import Expenses from './collections/Expenses'
 import StockOrders from './collections/StockOrders'
 import DealerBillings from './collections/DealerBillings'
 import RawMaterialBillings from './collections/RawMaterialBillings'
+import ProductionRequests from './collections/ProductionRequests'
 import { IPSettings } from './globals/IPSettings'
 import { DashboardGlobal } from './globals/Dashboard'
 import { JarvisGlobal } from './globals/Jarvis'
@@ -91,6 +92,7 @@ import { getRawMaterialBillingReportHandler } from './endpoints/getRawMaterialBi
 import { RawMaterialBillingReportGlobal } from './globals/RawMaterialBillingReport'
 import { getReturnOrderReportHandler } from './endpoints/getReturnOrderReport'
 import { ReturnOrderReportGlobal } from './globals/ReturnOrderReport'
+import { ReportGraphGlobal } from './globals/ReportGraph'
 import { MessagesChatGlobal } from './globals/MessagesChat'
 import { BranchGeoSettings } from './globals/BranchGeoSettings'
 import { NetworkStatus } from './globals/NetworkStatus'
@@ -965,6 +967,7 @@ export default buildConfig({
     InstockEntryReportGlobal,
     ExpenseReportGlobal,
     ReturnOrderReportGlobal,
+    ReportGraphGlobal,
     DealerReportGlobal,
     RawMaterialBillingReportGlobal,
     OtherProductsInventoryReportGlobal,
@@ -1006,6 +1009,7 @@ export default buildConfig({
     StockOrders,
     DealerBillings,
     RawMaterialBillings,
+    ProductionRequests,
     Reviews,
     Customers,
     BillingCustomers,
