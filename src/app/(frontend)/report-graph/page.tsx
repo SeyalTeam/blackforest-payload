@@ -229,6 +229,7 @@ export default function ReportGraphPage() {
   }, [])
 
   const [rawMaterialData, setRawMaterialData] = useState<any[]>([])
+  const [selectedBill, setSelectedBill] = useState<any>(null)
   const [rawMaterialLoading, setRawMaterialLoading] = useState(false)
 
   useEffect(() => {
@@ -277,17 +278,20 @@ export default function ReportGraphPage() {
           // Bucket by payment times
           if (item.payments && item.payments.length > 0) {
             item.payments.forEach((p: any) => {
-              if (p.date && isValidDate(p.date)) {
-                const bin = isSingleDay ? dayjs(p.date).hour().toString() : dayjs(p.date).format('YYYY-MM-DD')
-                results.push({ bin, matchedDate: p.date, matchedReason: 'payment', matchedAmount: p.amount || paymentFallbackAmt })
+              const paymentDateToUse = p.date || item.updatedAt || item.time;
+              if (paymentDateToUse && isValidDate(paymentDateToUse)) {
+                const bin = isSingleDay ? dayjs(paymentDateToUse).hour().toString() : dayjs(paymentDateToUse).format('YYYY-MM-DD')
+                results.push({ bin, matchedDate: paymentDateToUse, matchedReason: 'payment', matchedAmount: (typeof p.amount === 'number' && p.amount > 0) ? p.amount : paymentFallbackAmt })
               }
             })
-          } else if (item.status === 'paid' && item.time && isValidDate(item.time)) {
-            // Fallback if marked paid but has no payments array
-            const bin = isSingleDay ? dayjs(item.time).hour().toString() : dayjs(item.time).format('YYYY-MM-DD')
-            // Only add if we didn't already add it for creation (avoid duplicate if we just added it)
-            if (!results.some(r => r.bin === bin && r.matchedReason === 'payment')) {
-              results.push({ bin, matchedDate: item.time, matchedReason: 'payment', matchedAmount: paymentFallbackAmt })
+          } else {
+            const fallbackDate = item.updatedAt || item.time;
+            if (item.status === 'paid' && fallbackDate && isValidDate(fallbackDate)) {
+              // Fallback if marked paid but has no payments array
+              const bin = isSingleDay ? dayjs(fallbackDate).hour().toString() : dayjs(fallbackDate).format('YYYY-MM-DD')
+              if (!results.some(r => r.bin === bin && r.matchedReason === 'payment')) {
+                results.push({ bin, matchedDate: fallbackDate, matchedReason: 'payment', matchedAmount: paymentFallbackAmt })
+              }
             }
           }
         }
@@ -337,7 +341,7 @@ export default function ReportGraphPage() {
               label: hourStr,
               dealer: dealerNames,
               timeStr: hourStr,
-              totalPaid: selectedStatus === 'paid' ? paidTotal : selectedStatus === 'pending' ? pendingTotal : selectedStatus === 'cancelled' ? cancelledTotal : total,
+              totalPaid: total,
               pendingTotal,
               paidTotal,
               cancelledTotal,
@@ -384,7 +388,7 @@ export default function ReportGraphPage() {
               sortKey: key, 
               label: 'Unknown', 
               fullDate: 'Unknown', 
-              totalPaid: selectedStatus === 'paid' ? paidTotal : selectedStatus === 'pending' ? pendingTotal : selectedStatus === 'cancelled' ? cancelledTotal : total, 
+              totalPaid: total, 
               pendingTotal,
               paidTotal,
               cancelledTotal,
@@ -411,7 +415,7 @@ export default function ReportGraphPage() {
             sortKey: key,
             label,
             fullDate: d.format('MMM DD, YYYY'),
-            totalPaid: selectedStatus === 'paid' ? paidTotal : selectedStatus === 'pending' ? pendingTotal : selectedStatus === 'cancelled' ? cancelledTotal : total,
+            totalPaid: total,
             pendingTotal,
             paidTotal,
             cancelledTotal,
@@ -554,13 +558,10 @@ export default function ReportGraphPage() {
       if (d.rawItems) {
         d.rawItems.forEach((item: any) => {
           let shouldInclude = false;
-          if (visibleLines.total) {
-            shouldInclude = item.matchedReason === 'creation';
-          } else {
-            if (visibleLines.paid && item.matchedReason === 'payment') shouldInclude = true;
-            if (visibleLines.pending && item.matchedReason === 'creation' && item.status === 'pending') shouldInclude = true;
-            if (visibleLines.cancelled && item.matchedReason === 'creation' && item.status === 'cancelled') shouldInclude = true;
-          }
+          if (visibleLines.total && item.matchedReason === 'creation') shouldInclude = true;
+          if (visibleLines.paid && item.matchedReason === 'payment') shouldInclude = true;
+          if (visibleLines.pending && item.matchedReason === 'creation' && item.status === 'pending') shouldInclude = true;
+          if (visibleLines.cancelled && item.matchedReason === 'creation' && item.status === 'cancelled') shouldInclude = true;
           
           if (shouldInclude) {
             const name = item.dealerName || 'Unknown';
@@ -585,13 +586,10 @@ export default function ReportGraphPage() {
       if (d.rawItems) {
         d.rawItems.forEach((item: any) => {
           let shouldInclude = false;
-          if (visibleLines.total) {
-            shouldInclude = item.matchedReason === 'creation';
-          } else {
-            if (visibleLines.paid && item.matchedReason === 'payment') shouldInclude = true;
-            if (visibleLines.pending && item.matchedReason === 'creation' && item.status === 'pending') shouldInclude = true;
-            if (visibleLines.cancelled && item.matchedReason === 'creation' && item.status === 'cancelled') shouldInclude = true;
-          }
+          if (visibleLines.total && item.matchedReason === 'creation') shouldInclude = true;
+          if (visibleLines.paid && item.matchedReason === 'payment') shouldInclude = true;
+          if (visibleLines.pending && item.matchedReason === 'creation' && item.status === 'pending') shouldInclude = true;
+          if (visibleLines.cancelled && item.matchedReason === 'creation' && item.status === 'cancelled') shouldInclude = true;
           
           if (shouldInclude) {
             bills.push(item);
@@ -912,6 +910,15 @@ export default function ReportGraphPage() {
                             onClick={() => {
                               setSelectedStatus(status.value);
                               setIsStatusDropdownOpen(false);
+                              if (status.value === 'all') {
+                                setVisibleLines({ total: true, paid: true, pending: true, cancelled: true });
+                              } else if (status.value === 'paid') {
+                                setVisibleLines({ total: false, paid: true, pending: false, cancelled: false });
+                              } else if (status.value === 'pending') {
+                                setVisibleLines({ total: false, paid: false, pending: true, cancelled: false });
+                              } else if (status.value === 'cancelled') {
+                                setVisibleLines({ total: false, paid: false, pending: false, cancelled: true });
+                              }
                             }}
                             style={{
                               display: 'flex',
@@ -1077,12 +1084,12 @@ export default function ReportGraphPage() {
             
             {/* Actions */}
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-               {activeMenu === 'branch-billing' && (
-                 <>
                    <div style={{ display: 'flex', backgroundColor: '#f3f4f6', padding: '4px', borderRadius: '20px' }}>
                      <button onClick={() => setGraphType('line')} style={{ padding: '4px 12px', fontSize: '12px', fontWeight: 600, borderRadius: '16px', border: 'none', backgroundColor: graphType === 'line' ? '#fff' : 'transparent', color: graphType === 'line' ? '#374151' : '#6b7280', boxShadow: graphType === 'line' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', cursor: 'pointer', transition: 'all 0.2s' }}>Line</button>
                      <button onClick={() => setGraphType('bar')} style={{ padding: '4px 12px', fontSize: '12px', fontWeight: 600, borderRadius: '16px', border: 'none', backgroundColor: graphType === 'bar' ? '#fff' : 'transparent', color: graphType === 'bar' ? '#374151' : '#6b7280', boxShadow: graphType === 'bar' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', cursor: 'pointer', transition: 'all 0.2s' }}>Bar</button>
                    </div>
+               {activeMenu === 'branch-billing' && (
+                 <>
                    <button
                      onClick={() => {
                        const nextLive = !isLive
@@ -1210,9 +1217,7 @@ export default function ReportGraphPage() {
                               let filteredItems = [];
                               if (data.rawItems && data.rawItems.length > 0) {
                                 filteredItems = data.rawItems.filter((item: any) => {
-                                  if (visibleLines.total) {
-                                    return item.matchedReason === 'creation';
-                                  }
+                                  if (visibleLines.total && item.matchedReason === 'creation') return true;
                                   if (visibleLines.paid && item.matchedReason === 'payment') return true;
                                   if (visibleLines.pending && item.matchedReason === 'creation' && item.status === 'pending') return true;
                                   if (visibleLines.cancelled && item.matchedReason === 'creation' && item.status === 'cancelled') return true;
@@ -1229,7 +1234,8 @@ export default function ReportGraphPage() {
                                         {data.timeStr ? 'Time: ' : 'Date: '}
                                         <span style={{ color: '#111827', fontWeight: 600 }}>{data.timeRangeStr || data.timeStr || data.fullDate || label}</span>
                                       </div>
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '8px', maxHeight: '280px', overflowY: 'auto', paddingRight: '4px' }}>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '8px', maxHeight: '250px', overflowY: 'scroll', paddingRight: '8px' }}>
+                                        {/* Force scrollbar to be visible so Mac users know there are more items */}
                                         {filteredItems.map((item: any, i: number) => (
                                           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
                                             <div>
@@ -1257,13 +1263,18 @@ export default function ReportGraphPage() {
                                                   textTransform: 'capitalize',
                                                   fontWeight: 500
                                                 }}>
-                                                  {item.status}
+                                                  {item.matchedReason === 'payment' ? 'Paid' : 'New'}
                                                 </span>
                                               )}
                                             </div>
                                           </div>
                                         ))}
                                       </div>
+                                      {filteredItems.length > 5 && (
+                                        <div style={{ textAlign: 'center', fontSize: '11px', color: '#9ca3af', marginBottom: '8px', paddingBottom: '4px', borderBottom: '1px dashed #e5e7eb' }}>
+                                          ↓ Scroll down inside popup to see all {filteredItems.length} bills ↓
+                                        </div>
+                                      )}
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid #f3f4f6', paddingTop: '6px' }}>
                                         {visibleLines.total && (
                                           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -1334,22 +1345,33 @@ export default function ReportGraphPage() {
                             return null;
                           }}
                         />
-                        {visibleLines.total && (
-                          <Bar dataKey="totalPaid" fill="#9333ea" fillOpacity={(visibleLines.paid || visibleLines.pending || visibleLines.cancelled) ? 0.2 : 1} radius={[4, 4, 0, 0]} barSize={16} name="Total Bill" />
+                        {graphType === 'bar' ? (
+                          <>
+                            {visibleLines.total && <Bar dataKey="totalPaid" fill="#9333ea" radius={[4, 4, 0, 0]} maxBarSize={30} name="Total Bill" />}
+                            {visibleLines.paid && <Bar dataKey="paidTotal" fill="#16a34a" radius={[4, 4, 0, 0]} maxBarSize={30} name="Paid" />}
+                            {visibleLines.pending && <Bar dataKey="pendingTotal" fill="#ca8a04" radius={[4, 4, 0, 0]} maxBarSize={30} name="Pending" />}
+                            {visibleLines.cancelled && <Bar dataKey="cancelledTotal" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={30} name="Cancelled" />}
+                          </>
+                        ) : (
+                          <>
+                            {visibleLines.total && (
+                              <Bar dataKey="totalPaid" fill="#9333ea" fillOpacity={(visibleLines.paid || visibleLines.pending || visibleLines.cancelled) ? 0.2 : 1} radius={[4, 4, 0, 0]} barSize={16} name="Total Bill" />
+                            )}
+                            {!visibleLines.total && visibleLines.paid && (
+                              <Bar dataKey="paidTotal" fill="#16a34a" fillOpacity={(visibleLines.pending || visibleLines.cancelled) ? 0.2 : 1} radius={[4, 4, 0, 0]} barSize={16} name="Paid" />
+                            )}
+                            {!visibleLines.total && !visibleLines.paid && visibleLines.pending && (
+                              <Bar dataKey="pendingTotal" fill="#ca8a04" fillOpacity={(visibleLines.cancelled) ? 0.2 : 1} radius={[4, 4, 0, 0]} barSize={16} name="Pending" />
+                            )}
+                            {!visibleLines.total && !visibleLines.paid && !visibleLines.pending && visibleLines.cancelled && (
+                              <Bar dataKey="cancelledTotal" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={16} name="Cancelled" />
+                            )}
+                            
+                            {visibleLines.paid && visibleLines.total && rawMaterialData.some(d => d.paidTotal > 0) && <Line type="monotone" dataKey="paidTotal" stroke="#16a34a" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Paid" />}
+                            {visibleLines.pending && (visibleLines.total || visibleLines.paid) && rawMaterialData.some(d => d.pendingTotal > 0) && <Line type="monotone" dataKey="pendingTotal" stroke="#ca8a04" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Pending" />}
+                            {visibleLines.cancelled && (visibleLines.total || visibleLines.paid || visibleLines.pending) && rawMaterialData.some(d => d.cancelledTotal > 0) && <Line type="monotone" dataKey="cancelledTotal" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Cancelled" />}
+                          </>
                         )}
-                        {!visibleLines.total && visibleLines.paid && (
-                          <Bar dataKey="paidTotal" fill="#16a34a" fillOpacity={(visibleLines.pending || visibleLines.cancelled) ? 0.2 : 1} radius={[4, 4, 0, 0]} barSize={16} name="Paid" />
-                        )}
-                        {!visibleLines.total && !visibleLines.paid && visibleLines.pending && (
-                          <Bar dataKey="pendingTotal" fill="#ca8a04" fillOpacity={(visibleLines.cancelled) ? 0.2 : 1} radius={[4, 4, 0, 0]} barSize={16} name="Pending" />
-                        )}
-                        {!visibleLines.total && !visibleLines.paid && !visibleLines.pending && visibleLines.cancelled && (
-                          <Bar dataKey="cancelledTotal" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={16} name="Cancelled" />
-                        )}
-                        
-                        {visibleLines.paid && visibleLines.total && rawMaterialData.some(d => d.paidTotal > 0) && <Line type="monotone" dataKey="paidTotal" stroke="#16a34a" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Paid" />}
-                        {visibleLines.pending && (visibleLines.total || visibleLines.paid) && rawMaterialData.some(d => d.pendingTotal > 0) && <Line type="monotone" dataKey="pendingTotal" stroke="#ca8a04" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Pending" />}
-                        {visibleLines.cancelled && (visibleLines.total || visibleLines.paid || visibleLines.pending) && rawMaterialData.some(d => d.cancelledTotal > 0) && <Line type="monotone" dataKey="cancelledTotal" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Cancelled" />}
                       </ComposedChart>
                     </ResponsiveContainer>
                   </div>
@@ -1570,7 +1592,7 @@ export default function ReportGraphPage() {
                                   fontWeight: 500,
                                   width: 'fit-content'
                                 }}>
-                                  {bill.status}
+                                  {bill.matchedReason === 'payment' ? 'Paid' : 'New'}
                                 </span>
                               )}
                               {isSameDayPaid && (
@@ -1591,6 +1613,12 @@ export default function ReportGraphPage() {
                     )
                   )}
                 </div>
+                
+                {(selectedDealer === 'all' ? dealerSummary.length > 8 : dealerBills.length > 8) && (
+                  <div style={{ textAlign: 'center', fontSize: '11px', color: '#9ca3af', marginTop: '8px', paddingBottom: '4px', borderBottom: '1px dashed #e5e7eb' }}>
+                    ↓ Scroll down to see all {selectedDealer === 'all' ? dealerSummary.length : dealerBills.length} items ↓
+                  </div>
+                )}
                 
                 <div style={{ paddingTop: '16px', borderTop: '1px solid #e5e7eb', marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ color: '#4b5563', fontSize: '14px', fontWeight: 600 }}>Total Amount</span>
@@ -1671,6 +1699,148 @@ export default function ReportGraphPage() {
             </div>
           )}
 
+          {/* Raw Material Details Table */}
+          {activeMenu === 'raw-material' && rawMaterialData.length > 0 && (
+            <div style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '12px',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+              padding: '20px 24px',
+              width: 'calc(75% - 10px)',
+              marginTop: '20px',
+              overflowX: 'auto'
+            }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#374151', marginBottom: '16px' }}>Bill Details</h3>
+              <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+                <div style={{ flex: selectedBill ? '0 0 65%' : '1 1 100%', transition: 'all 0.3s', overflowX: 'auto' }}>
+                  <table style={{ width: '100%', tableLayout: 'auto', borderCollapse: 'separate', borderSpacing: '0', fontSize: '13px' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '5%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>S.NO</th>
+                        <th style={{ backgroundColor: '#f9fafb', width: '20%', textAlign: 'left', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>Dealer Name</th>
+                        <th style={{ width: '18%', textAlign: 'left', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>Company Name</th>
+                        <th style={{ backgroundColor: '#f9fafb', width: '13%', textAlign: 'left', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>Amount</th>
+                        <th style={{ width: '10%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>Status</th>
+                        <th style={{ backgroundColor: '#f9fafb', width: '17%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>Created Time</th>
+                        <th style={{ width: '17%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6' }}>Paid Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const displayedItems = Array.from(new Map(
+                          rawMaterialData.flatMap(d => d.rawItems || []).filter((item: any) => {
+                            if (visibleLines.total && item.matchedReason === 'creation') return true;
+                            if (visibleLines.paid && item.matchedReason === 'payment') return true;
+                            if (visibleLines.pending && item.matchedReason === 'creation' && item.status === 'pending') return true;
+                            if (visibleLines.cancelled && item.matchedReason === 'creation' && item.status === 'cancelled') return true;
+                            return false;
+                          }).map((item: any) => [item.id || Math.random(), item])
+                        ).values())
+                          .sort((a: any, b: any) => new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime());
+
+                        const totalAmount = displayedItems.reduce((acc, item: any) => acc + (item.amount || 0), 0);
+
+                        return (
+                          <>
+                            {displayedItems.map((item: any, i: number) => {
+                              const paidTimeStr = item.payments && item.payments.length > 0 
+                                ? item.payments.map((p: any) => p.date ? dayjs(p.date).format('MMM DD, YYYY HH:mm') : '').filter(Boolean).join(', ') 
+                                : (item.status === 'paid' && item.updatedAt ? dayjs(item.updatedAt).format('MMM DD, YYYY HH:mm') : '-');
+                                
+                              return (
+                                <tr key={i} 
+                                    onClick={() => setSelectedBill(selectedBill?.id === item.id ? null : item)}
+                                    style={{ cursor: 'pointer', transition: 'background-color 0.2s', borderBottom: '1px solid #e5e7eb' }}>
+                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : 'transparent', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontSize: '12px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{i + 1}</td>
+                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : '#f9fafb', padding: '12px 8px', color: '#374151', fontWeight: 700, textTransform: 'uppercase', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.dealerName || 'Unknown'}>{item.dealerName || 'Unknown'}</td>
+                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : 'transparent', padding: '12px 8px', color: '#374151', fontWeight: 500, textTransform: 'uppercase', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.companyName || '-'}>{item.companyName || '-'}</td>
+                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : '#f9fafb', padding: '12px 8px', color: '#111827', fontWeight: 700, fontSize: '14.5px', textAlign: 'left', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>₹{(item.amount || 0).toLocaleString('en-IN')}</td>
+                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : 'transparent', textAlign: 'center', padding: '12px 8px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>
+                                    <span style={{ 
+                                      fontSize: '11px', 
+                                      padding: '4px 8px', 
+                                      borderRadius: '12px', 
+                                      backgroundColor: item.status === 'paid' ? '#dcfce7' : item.status === 'pending' ? '#fef9c3' : '#fee2e2', 
+                                      color: item.status === 'paid' ? '#166534' : item.status === 'pending' ? '#854d0e' : '#991b1b',
+                                      textTransform: 'capitalize',
+                                      fontWeight: 500
+                                    }}>
+                                      {item.status}
+                                    </span>
+                                  </td>
+                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : '#f9fafb', textAlign: 'center', padding: '12px 8px', color: '#374151', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6', whiteSpace: 'nowrap' }}>{item.time ? dayjs(item.time).format('MMM DD, YYYY HH:mm') : '-'}</td>
+                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : 'transparent', textAlign: 'center', padding: '12px 8px', color: '#374151', borderBottom: '1px solid #f3f4f6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={paidTimeStr || '-'}>{paidTimeStr || '-'}</td>
+                                </tr>
+                              );
+                            })}
+                            <tr style={{ backgroundColor: '#fff', borderTop: '2px solid #e5e7eb' }}>
+                              <td style={{ padding: '16px 8px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}></td>
+                              <td style={{ backgroundColor: '#f9fafb', padding: '16px 8px', color: '#111827', fontWeight: 700, borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6', textAlign: 'left' }}>Total Amount</td>
+                              <td style={{ padding: '16px 8px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}></td>
+                              <td style={{ backgroundColor: '#f9fafb', padding: '16px 8px', color: '#111827', fontWeight: 800, fontSize: '15px', textAlign: 'left', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>₹{totalAmount.toLocaleString('en-IN')}</td>
+                              <td colSpan={3} style={{ padding: '16px 8px', borderBottom: '1px solid #f3f4f6' }}></td>
+                            </tr>
+                          </>
+                        );
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+
+                {selectedBill && (
+                  <div style={{ flex: '0 0 calc(35% - 20px)', backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h4 style={{ fontSize: '15px', fontWeight: 600, textTransform: 'uppercase' }}>{selectedBill.dealerName || 'Bill Details'}</h4>
+                      <button onClick={() => setSelectedBill(null)} style={{ padding: '4px', cursor: 'pointer', background: 'transparent', border: 'none' }}>
+                        <X size={16} className="text-gray-500 hover:text-gray-800" />
+                      </button>
+                    </div>
+                    
+                    {selectedBill.billCopyUrl ? (
+                      <a href={selectedBill.billCopyUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '4px', backgroundColor: '#f9fafb' }}>
+                        <img src={selectedBill.billCopyUrl} alt="Bill Copy" style={{ width: '100%', height: 'auto', maxHeight: '500px', objectFit: 'contain' }} />
+                      </a>
+                    ) : (
+                      <div style={{ padding: '40px 20px', textAlign: 'center', color: '#6b7280', backgroundColor: '#f9fafb', border: '1px dashed #d1d5db', borderRadius: '6px' }}>
+                        No bill copy uploaded
+                      </div>
+                    )}
+                    
+                    <div style={{ marginTop: '20px', backgroundColor: '#f9fafb', padding: '12px', borderRadius: '6px', border: '1px solid #f3f4f6' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '13px', color: '#6b7280' }}>Amount:</span>
+                        <span style={{ fontSize: '14px', fontWeight: 700, color: '#111827' }}>₹{(selectedBill.amount || 0).toLocaleString('en-IN')}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '13px', color: '#6b7280' }}>Company:</span>
+                        <span style={{ fontSize: '13px', fontWeight: 500, color: '#374151', textTransform: 'uppercase' }}>{selectedBill.companyName || '-'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '13px', color: '#6b7280' }}>Status:</span>
+                        <span style={{ 
+                          fontSize: '11px', 
+                          padding: '2px 6px', 
+                          borderRadius: '10px', 
+                          backgroundColor: selectedBill.status === 'paid' ? '#dcfce7' : selectedBill.status === 'pending' ? '#fef9c3' : '#fee2e2', 
+                          color: selectedBill.status === 'paid' ? '#166534' : selectedBill.status === 'pending' ? '#854d0e' : '#991b1b',
+                          textTransform: 'capitalize',
+                          fontWeight: 500
+                        }}>
+                          {selectedBill.status}
+                        </span>
+                      </div>
+                      {selectedBill.time && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '13px', color: '#6b7280' }}>Created:</span>
+                          <span style={{ fontSize: '13px', color: '#374151' }}>{dayjs(selectedBill.time).format('MMM DD, YYYY HH:mm')}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </main>
 

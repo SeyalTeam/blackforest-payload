@@ -216,6 +216,9 @@ export const getRawMaterialBillingReportData = async (
       $lte: endPlanned,
     }
   } else {
+    const startStr = startOfDay.toISOString()
+    const endStr = endOfDay.toISOString()
+
     matchQuery.$or = [
       {
         date: {
@@ -224,9 +227,21 @@ export const getRawMaterialBillingReportData = async (
         }
       },
       {
+        date: {
+          $gte: startStr,
+          $lte: endStr,
+        }
+      },
+      {
         'payments.date': {
           $gte: startOfDay,
           $lte: endOfDay,
+        }
+      },
+      {
+        'payments.date': {
+          $gte: startStr,
+          $lte: endStr,
         }
       }
     ]

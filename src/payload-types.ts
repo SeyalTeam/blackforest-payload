@@ -91,6 +91,7 @@ export interface Config {
     'stock-orders': StockOrder;
     'dealer-billings': DealerBilling;
     'raw-material-billings': RawMaterialBilling;
+    'production-requests': ProductionRequest;
     reviews: Review;
     customers: Customer;
     'billing-customers': BillingCustomer;
@@ -134,6 +135,7 @@ export interface Config {
     'stock-orders': StockOrdersSelect<false> | StockOrdersSelect<true>;
     'dealer-billings': DealerBillingsSelect<false> | DealerBillingsSelect<true>;
     'raw-material-billings': RawMaterialBillingsSelect<false> | RawMaterialBillingsSelect<true>;
+    'production-requests': ProductionRequestsSelect<false> | ProductionRequestsSelect<true>;
     reviews: ReviewsSelect<false> | ReviewsSelect<true>;
     customers: CustomersSelect<false> | CustomersSelect<true>;
     'billing-customers': BillingCustomersSelect<false> | BillingCustomersSelect<true>;
@@ -1385,6 +1387,32 @@ export interface RawMaterialBilling {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "production-requests".
+ */
+export interface ProductionRequest {
+  id: string;
+  requestNumber?: string | null;
+  company: string | Company;
+  rawMaterials?: (string | RawMaterial)[] | null;
+  rawMaterialsList?:
+    | {
+        rawMaterial: string | RawMaterial;
+        requestCount: number;
+        sendingCount?: number | null;
+        status?: ('pending' | 'sent' | 'cancelled') | null;
+        id?: string | null;
+      }[]
+    | null;
+  date: string;
+  status: 'pending' | 'approved' | 'fulfilled' | 'cancelled';
+  notes?: string | null;
+  createdBy?: (string | null) | User;
+  createdByName?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "reviews".
  */
 export interface Review {
@@ -2155,6 +2183,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'raw-material-billings';
         value: string | RawMaterialBilling;
+      } | null)
+    | ({
+        relationTo: 'production-requests';
+        value: string | ProductionRequest;
       } | null)
     | ({
         relationTo: 'reviews';
@@ -3045,6 +3077,31 @@ export interface RawMaterialBillingsSelect<T extends boolean = true> {
   createdBy?: T;
   createdByName?: T;
   createdByRole?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "production-requests_select".
+ */
+export interface ProductionRequestsSelect<T extends boolean = true> {
+  requestNumber?: T;
+  company?: T;
+  rawMaterials?: T;
+  rawMaterialsList?:
+    | T
+    | {
+        rawMaterial?: T;
+        requestCount?: T;
+        sendingCount?: T;
+        status?: T;
+        id?: T;
+      };
+  date?: T;
+  status?: T;
+  notes?: T;
+  createdBy?: T;
+  createdByName?: T;
   updatedAt?: T;
   createdAt?: T;
 }
