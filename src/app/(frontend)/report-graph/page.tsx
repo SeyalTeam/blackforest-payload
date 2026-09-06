@@ -1701,18 +1701,17 @@ export default function ReportGraphPage() {
 
           {/* Raw Material Details Table */}
           {activeMenu === 'raw-material' && rawMaterialData.length > 0 && (
-            <div style={{
-              backgroundColor: '#ffffff',
-              borderRadius: '12px',
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
-              padding: '20px 24px',
-              width: 'calc(75% - 10px)',
-              marginTop: '20px',
-              overflowX: 'auto'
-            }}>
-              <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#374151', marginBottom: '16px' }}>Bill Details</h3>
-              <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
-                <div style={{ flex: selectedBill ? '0 0 65%' : '1 1 100%', transition: 'all 0.3s', overflowX: 'auto' }}>
+            <div style={{ display: 'flex', gap: '20px', width: '100%', alignItems: 'flex-start', marginTop: '20px' }}>
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+                padding: '20px 24px',
+                flex: '0 0 calc(75% - 10px)',
+                overflowX: 'auto'
+              }}>
+                <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#374151', marginBottom: '16px' }}>Bill Details</h3>
+                <div style={{ width: '100%', overflowX: 'auto' }}>
                   <table style={{ width: '100%', tableLayout: 'auto', borderCollapse: 'separate', borderSpacing: '0', fontSize: '13px' }}>
                     <thead>
                       <tr>
@@ -1786,59 +1785,59 @@ export default function ReportGraphPage() {
                     </tbody>
                   </table>
                 </div>
+              </div>
 
-                {selectedBill && (
-                  <div style={{ flex: '0 0 calc(35% - 20px)', backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                      <h4 style={{ fontSize: '15px', fontWeight: 600, textTransform: 'uppercase' }}>{selectedBill.dealerName || 'Bill Details'}</h4>
-                      <button onClick={() => setSelectedBill(null)} style={{ padding: '4px', cursor: 'pointer', background: 'transparent', border: 'none' }}>
-                        <X size={16} className="text-gray-500 hover:text-gray-800" />
-                      </button>
+              {selectedBill && (
+                <div style={{ flex: '0 0 calc(25% - 10px)', backgroundColor: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)', padding: '20px 24px', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h4 style={{ fontSize: '15px', fontWeight: 600, textTransform: 'uppercase' }}>{selectedBill.dealerName || 'Bill Details'}</h4>
+                    <button onClick={() => setSelectedBill(null)} style={{ padding: '4px', cursor: 'pointer', background: 'transparent', border: 'none' }}>
+                      <X size={16} className="text-gray-500 hover:text-gray-800" />
+                    </button>
+                  </div>
+                  
+                  {selectedBill.billCopyUrl ? (
+                    <a href={selectedBill.billCopyUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '4px', backgroundColor: '#f9fafb' }}>
+                      <img src={selectedBill.billCopyUrl} alt="Bill Copy" style={{ width: '100%', height: 'auto', maxHeight: '500px', objectFit: 'contain' }} />
+                    </a>
+                  ) : (
+                    <div style={{ padding: '40px 20px', textAlign: 'center', color: '#6b7280', backgroundColor: '#f9fafb', border: '1px dashed #d1d5db', borderRadius: '6px' }}>
+                      No bill copy uploaded
                     </div>
-                    
-                    {selectedBill.billCopyUrl ? (
-                      <a href={selectedBill.billCopyUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '4px', backgroundColor: '#f9fafb' }}>
-                        <img src={selectedBill.billCopyUrl} alt="Bill Copy" style={{ width: '100%', height: 'auto', maxHeight: '500px', objectFit: 'contain' }} />
-                      </a>
-                    ) : (
-                      <div style={{ padding: '40px 20px', textAlign: 'center', color: '#6b7280', backgroundColor: '#f9fafb', border: '1px dashed #d1d5db', borderRadius: '6px' }}>
-                        No bill copy uploaded
+                  )}
+                  
+                  <div style={{ marginTop: '20px', backgroundColor: '#f9fafb', padding: '12px', borderRadius: '6px', border: '1px solid #f3f4f6' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '13px', color: '#6b7280' }}>Amount:</span>
+                      <span style={{ fontSize: '14px', fontWeight: 700, color: '#111827' }}>₹{(selectedBill.amount || 0).toLocaleString('en-IN')}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '13px', color: '#6b7280' }}>Company:</span>
+                      <span style={{ fontSize: '13px', fontWeight: 500, color: '#374151', textTransform: 'uppercase' }}>{selectedBill.companyName || '-'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '13px', color: '#6b7280' }}>Status:</span>
+                      <span style={{ 
+                        fontSize: '11px', 
+                        padding: '2px 6px', 
+                        borderRadius: '10px', 
+                        backgroundColor: selectedBill.status === 'paid' ? '#dcfce7' : selectedBill.status === 'pending' ? '#fef9c3' : '#fee2e2', 
+                        color: selectedBill.status === 'paid' ? '#166534' : selectedBill.status === 'pending' ? '#854d0e' : '#991b1b',
+                        textTransform: 'capitalize',
+                        fontWeight: 500
+                      }}>
+                        {selectedBill.status}
+                      </span>
+                    </div>
+                    {selectedBill.time && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '13px', color: '#6b7280' }}>Created:</span>
+                        <span style={{ fontSize: '13px', color: '#374151' }}>{dayjs(selectedBill.time).format('MMM DD, YYYY HH:mm')}</span>
                       </div>
                     )}
-                    
-                    <div style={{ marginTop: '20px', backgroundColor: '#f9fafb', padding: '12px', borderRadius: '6px', border: '1px solid #f3f4f6' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '13px', color: '#6b7280' }}>Amount:</span>
-                        <span style={{ fontSize: '14px', fontWeight: 700, color: '#111827' }}>₹{(selectedBill.amount || 0).toLocaleString('en-IN')}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '13px', color: '#6b7280' }}>Company:</span>
-                        <span style={{ fontSize: '13px', fontWeight: 500, color: '#374151', textTransform: 'uppercase' }}>{selectedBill.companyName || '-'}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '13px', color: '#6b7280' }}>Status:</span>
-                        <span style={{ 
-                          fontSize: '11px', 
-                          padding: '2px 6px', 
-                          borderRadius: '10px', 
-                          backgroundColor: selectedBill.status === 'paid' ? '#dcfce7' : selectedBill.status === 'pending' ? '#fef9c3' : '#fee2e2', 
-                          color: selectedBill.status === 'paid' ? '#166534' : selectedBill.status === 'pending' ? '#854d0e' : '#991b1b',
-                          textTransform: 'capitalize',
-                          fontWeight: 500
-                        }}>
-                          {selectedBill.status}
-                        </span>
-                      </div>
-                      {selectedBill.time && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: '13px', color: '#6b7280' }}>Created:</span>
-                          <span style={{ fontSize: '13px', color: '#374151' }}>{dayjs(selectedBill.time).format('MMM DD, YYYY HH:mm')}</span>
-                        </div>
-                      )}
-                    </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>
