@@ -67,6 +67,7 @@ type RawMaterialBillingReportArgs = {
   plannedStartDate?: null | string
   plannedEndDate?: null | string
   dealer?: null | string
+  category?: null | string
 }
 
 type RawItem = {
@@ -186,6 +187,7 @@ export const getRawMaterialBillingReportData = async (
 
   const companyParam = typeof args.company === 'string' ? args.company : ''
   const dealerParam = typeof args.dealer === 'string' ? args.dealer : ''
+  const categoryParam = typeof args.category === 'string' ? args.category : ''
 
   const startOfDay = dayjs.utc(startDateParam).startOf('day').toDate()
   const endOfDay = dayjs.utc(endDateParam).endOf('day').toDate()
@@ -201,6 +203,11 @@ export const getRawMaterialBillingReportData = async (
   let selectedDealers: string[] = []
   if (dealerParam && dealerParam !== 'all') {
     selectedDealers = dealerParam.split(',').filter((id) => id.trim().length > 0)
+  }
+
+  let selectedCategories: string[] = []
+  if (categoryParam && categoryParam !== 'all') {
+    selectedCategories = categoryParam.split(',').filter((id) => id.trim().length > 0)
   }
 
   const plannedStartDateParam = typeof args.plannedStartDate === 'string' ? args.plannedStartDate : ''
@@ -368,6 +375,17 @@ export const getRawMaterialBillingReportData = async (
         preserveNullAndEmptyArrays: true,
       },
     },
+    ...(selectedCategories.length > 0
+      ? [
+          {
+            $match: {
+              $expr: {
+                $in: [{ $toString: '$materialInfo.category' }, selectedCategories],
+              },
+            },
+          },
+        ]
+      : []),
     // Group back by billing id to reconstruct the rawMaterialsList
     {
       $group: {

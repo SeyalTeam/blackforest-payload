@@ -12,6 +12,7 @@ export const getRawMaterialBillingReportHandler: PayloadHandler = async (
       plannedEndDate: typeof req.query.plannedEndDate === 'string' ? req.query.plannedEndDate : null,
       company: typeof req.query.company === 'string' ? req.query.company : null,
       dealer: typeof req.query.dealer === 'string' ? req.query.dealer : null,
+      category: typeof req.query.category === 'string' ? req.query.category : null,
     })
 
     req.payload.logger.info(`Generated Raw Material Billing Report: ${report.groups.length} company groups found`)

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { Menu, Home as HomeIcon, FileText, BarChart2, TrendingUp, MousePointerClick, CheckCircle, Settings, ChevronDown, Check, X, CheckSquare, Square } from 'lucide-react'
+import { Menu, Home as HomeIcon, FileText, BarChart2, TrendingUp, MousePointerClick, CheckCircle, Settings, ChevronDown, Check, X, CheckSquare, Square, Building2, Tag } from 'lucide-react'
 import Link from 'next/link'
 import { GoogleDateRangePicker, getPresetDates } from '../../../components/RawMaterialBillingReport/GoogleDateRangePicker'
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, ComposedChart } from 'recharts'
@@ -108,9 +108,20 @@ export default function ReportGraphPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false)
   const [dealers, setDealers] = useState<{ id: string; name: string }[]>([])
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
+
   const [selectedDealer, setSelectedDealer] = useState<string>('all')
+  const [selectedCompany, setSelectedCompany] = useState<string>('all')
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  
   const [isDealerDropdownOpen, setIsDealerDropdownOpen] = useState(false)
   const [dealerSearchQuery, setDealerSearchQuery] = useState('')
+  const [isCompanyDropdownOpen, setIsCompanyDropdownOpen] = useState(false)
+  const [companySearchQuery, setCompanySearchQuery] = useState('')
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false)
+  const [categorySearchQuery, setCategorySearchQuery] = useState('')
+
   const [visibleLines, setVisibleLines] = useState({ total: true, paid: true, pending: true, cancelled: false })
 
 
@@ -138,8 +149,32 @@ export default function ReportGraphPage() {
         console.error('Error fetching dealers:', err)
       }
     }
+    const fetchCompanies = async () => {
+      try {
+        const response = await fetch('/api/companies?limit=1000')
+        const json = await response.json()
+        if (json?.docs) {
+          setCompanies(json.docs.map((c: any) => ({ id: c.id, name: c.name })))
+        }
+      } catch (err) {
+        console.error('Error fetching companies:', err)
+      }
+    }
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch('/api/raw-material-categories?limit=1000')
+        const json = await response.json()
+        if (json?.docs) {
+          setCategories(json.docs.map((c: any) => ({ id: c.id, name: c.name })))
+        }
+      } catch (err) {
+        console.error('Error fetching categories:', err)
+      }
+    }
     fetchBranches()
     fetchDealers()
+    fetchCompanies()
+    fetchCategories()
   }, [])
 
   const fetchBranchBillingData = useCallback(async (start: Date, end: Date, currentPreset: string, branch: string, metricFilter: string, isBackground: boolean = false) => {
@@ -238,13 +273,12 @@ export default function ReportGraphPage() {
       setVisibleLines(prev => ({ ...prev, cancelled: hasCancelled }))
     }
   }, [rawMaterialData, activeMenu])
-
   const fetchRawMaterialData = useCallback(async (start: Date, end: Date) => {
     setRawMaterialLoading(true)
     try {
       const startStr = [start.getFullYear(), String(start.getMonth() + 1).padStart(2, '0'), String(start.getDate()).padStart(2, '0')].join('-')
       const endStr = [end.getFullYear(), String(end.getMonth() + 1).padStart(2, '0'), String(end.getDate()).padStart(2, '0')].join('-')
-      const res = await fetch(`/api/reports/raw-material-billing?startDate=${startStr}&endDate=${endStr}&company=all&dealer=${selectedDealer}`)
+      const res = await fetch(`/api/reports/raw-material-billing?startDate=${startStr}&endDate=${endStr}&company=${selectedCompany}&dealer=${selectedDealer}&category=${selectedCategory}`)
       if (!res.ok) throw new Error('Failed to fetch raw material')
       const reportData = await res.json()
       
@@ -429,7 +463,7 @@ export default function ReportGraphPage() {
     } finally {
       setRawMaterialLoading(false)
     }
-  }, [selectedStatus, selectedDealer])
+  }, [selectedStatus, selectedDealer, selectedCompany, selectedCategory])
 
   useEffect(() => {
     if (activeMenu === 'raw-material' && startDate && endDate) {
@@ -1071,6 +1105,180 @@ export default function ReportGraphPage() {
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
                               {dealer.name}
                             </span>
+                            {isSelected && <Check size={16} color="#374151" flexShrink={0} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {activeMenu === 'raw-material' && (
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => {
+                    if (!isCompanyDropdownOpen) setCompanySearchQuery('');
+                    setIsCompanyDropdownOpen(!isCompanyDropdownOpen);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 16px',
+                    backgroundColor: isCompanyDropdownOpen ? '#f3f4f6' : '#ffffff',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    color: '#374151',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                  }}
+                >
+                  <Building2 size={16} color="#6b7280" />
+                  <span style={{ maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {selectedCompany === 'all' ? 'All Companies' : companies.find(c => c.id === selectedCompany)?.name || 'Unknown Company'}
+                  </span>
+                  <ChevronDown size={14} color="#9ca3af" />
+                </button>
+
+                {isCompanyDropdownOpen && (
+                  <>
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setIsCompanyDropdownOpen(false)}></div>
+                    <div style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 8px)',
+                      left: 0,
+                      width: '240px',
+                      maxHeight: '300px',
+                      overflowY: 'auto',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                      zIndex: 50,
+                      display: 'flex',
+                      flexDirection: 'column'
+                    }}>
+                      <div style={{ padding: '0 12px 8px 12px', borderBottom: '1px solid #f3f4f6', marginBottom: '4px' }}>
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                          <input
+                            autoFocus
+                            type="text"
+                            placeholder="Search company..."
+                            value={companySearchQuery}
+                            onChange={(e) => setCompanySearchQuery(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ width: '100%', padding: '6px 28px 6px 12px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '13px', outline: 'none' }}
+                          />
+                          {companySearchQuery && (
+                            <button onClick={(e) => { e.stopPropagation(); setCompanySearchQuery(''); setSelectedCompany('all'); }} style={{ position: 'absolute', right: '6px', background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
+                              <X size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {[{ id: 'all', name: 'All Companies' }, ...companies.filter(c => c.name.toLowerCase().includes(companySearchQuery.toLowerCase()))].map((company) => {
+                        const isSelected = selectedCompany === company.id;
+                        return (
+                          <button
+                            key={company.id}
+                            onClick={() => { setSelectedCompany(company.id); setIsCompanyDropdownOpen(false); }}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '8px 16px', backgroundColor: isSelected ? '#f3f4f6' : 'transparent', color: isSelected ? '#111827' : '#374151', border: 'none', textAlign: 'left', fontSize: '13px', fontWeight: isSelected ? 600 : 500, cursor: 'pointer' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isSelected ? '#f3f4f6' : '#f9fafb'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isSelected ? '#f3f4f6' : 'transparent'}
+                          >
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>{company.name}</span>
+                            {isSelected && <Check size={16} color="#374151" flexShrink={0} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {activeMenu === 'raw-material' && (
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => {
+                    if (!isCategoryDropdownOpen) setCategorySearchQuery('');
+                    setIsCategoryDropdownOpen(!isCategoryDropdownOpen);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 16px',
+                    backgroundColor: isCategoryDropdownOpen ? '#f3f4f6' : '#ffffff',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    color: '#374151',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                  }}
+                >
+                  <Tag size={16} color="#6b7280" />
+                  <span style={{ maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {selectedCategory === 'all' ? 'All Categories' : categories.find(c => c.id === selectedCategory)?.name || 'Unknown Category'}
+                  </span>
+                  <ChevronDown size={14} color="#9ca3af" />
+                </button>
+
+                {isCategoryDropdownOpen && (
+                  <>
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setIsCategoryDropdownOpen(false)}></div>
+                    <div style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 8px)',
+                      left: 0,
+                      width: '240px',
+                      maxHeight: '300px',
+                      overflowY: 'auto',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                      zIndex: 50,
+                      display: 'flex',
+                      flexDirection: 'column'
+                    }}>
+                      <div style={{ padding: '0 12px 8px 12px', borderBottom: '1px solid #f3f4f6', marginBottom: '4px' }}>
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                          <input
+                            autoFocus
+                            type="text"
+                            placeholder="Search category..."
+                            value={categorySearchQuery}
+                            onChange={(e) => setCategorySearchQuery(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ width: '100%', padding: '6px 28px 6px 12px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '13px', outline: 'none' }}
+                          />
+                          {categorySearchQuery && (
+                            <button onClick={(e) => { e.stopPropagation(); setCategorySearchQuery(''); setSelectedCategory('all'); }} style={{ position: 'absolute', right: '6px', background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
+                              <X size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {[{ id: 'all', name: 'All Categories' }, ...categories.filter(c => c.name.toLowerCase().includes(categorySearchQuery.toLowerCase()))].map((category) => {
+                        const isSelected = selectedCategory === category.id;
+                        return (
+                          <button
+                            key={category.id}
+                            onClick={() => { setSelectedCategory(category.id); setIsCategoryDropdownOpen(false); }}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '8px 16px', backgroundColor: isSelected ? '#f3f4f6' : 'transparent', color: isSelected ? '#111827' : '#374151', border: 'none', textAlign: 'left', fontSize: '13px', fontWeight: isSelected ? 600 : 500, cursor: 'pointer' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isSelected ? '#f3f4f6' : '#f9fafb'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isSelected ? '#f3f4f6' : 'transparent'}
+                          >
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>{category.name}</span>
                             {isSelected && <Check size={16} color="#374151" flexShrink={0} />}
                           </button>
                         );
