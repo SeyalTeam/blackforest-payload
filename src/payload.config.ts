@@ -36,6 +36,7 @@ import StockOrders from './collections/StockOrders'
 import DealerBillings from './collections/DealerBillings'
 import RawMaterialBillings from './collections/RawMaterialBillings'
 import ProductionRequests from './collections/ProductionRequests'
+import DealerOrders from './collections/DealerOrders'
 import { IPSettings } from './globals/IPSettings'
 import { DashboardGlobal } from './globals/Dashboard'
 import { JarvisGlobal } from './globals/Jarvis'
@@ -1010,6 +1011,7 @@ export default buildConfig({
     DealerBillings,
     RawMaterialBillings,
     ProductionRequests,
+    DealerOrders,
     Reviews,
     Customers,
     BillingCustomers,
