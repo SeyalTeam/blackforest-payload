@@ -403,6 +403,17 @@ const Attendance: CollectionConfig = {
             description: 'Break duration before this session started (gap from previous session punchOut to this punchIn), in seconds. Auto-calculated by the server.',
           },
         },
+        {
+          name: 'punchOutType',
+          type: 'select',
+          options: [
+            { label: 'Manual', value: 'manual' },
+            { label: 'Auto (Geofence Exit)', value: 'auto' },
+          ],
+          admin: {
+            description: 'How the punch-out was triggered — by the employee (manual) or automatically by GPS geofence exit (auto).',
+          },
+        },
 
         {
           name: 'ipAddress',
