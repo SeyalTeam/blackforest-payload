@@ -57,7 +57,8 @@ async function runNightlyJob(payload: Payload) {
               ...act,
               status: 'closed',
               punchOut: punchOut.toISOString(),
-              durationSeconds: durationSeconds > 0 ? durationSeconds : 0
+              durationSeconds: durationSeconds > 0 ? durationSeconds : 0,
+              punchOutType: 'auto',
             }
           }
           return act
