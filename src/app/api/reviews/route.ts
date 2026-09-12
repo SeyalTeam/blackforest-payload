@@ -100,20 +100,22 @@ export const GET = async (req: NextRequest) => {
   const { searchParams } = new URL(req.url)
   const bill = searchParams.get('bill')
   const product = searchParams.get('product')
+  const branchEquals = searchParams.get('where[branch][equals]')
+  const branchIn = searchParams.get('where[branch][in]')
 
   const where: any = {}
   if (bill) {
     where.bill = { equals: bill }
   }
-  // Note: product filtering would be on items.product, which is inside an array.
-  // Payload query syntax for array searching:
-  /*
-    where: {
-      'items.product': { equals: product }
-    }
-  */
   if (product) {
     where['items.product'] = { equals: product }
+  }
+  if (branchEquals && branchEquals !== 'NONE') {
+    where.branch = { equals: branchEquals }
+  } else if (branchEquals === 'NONE') {
+    where.branch = { equals: '000000000000000000000000' }
+  } else if (branchIn) {
+    where.branch = { in: branchIn.split(',') }
   }
 
   try {
