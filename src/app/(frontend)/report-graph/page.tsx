@@ -611,6 +611,37 @@ export default function ReportGraphPage() {
       .sort((a, b) => b.amount - a.amount);
   }, [rawMaterialData, activeMenu, selectedStatus, visibleLines]);
 
+  const categorySummary = useMemo(() => {
+    if (activeMenu !== 'raw-material' || !rawMaterialData.length) return [];
+    
+    const map: Record<string, number> = {};
+
+    rawMaterialData.forEach(d => {
+      if (d.rawItems) {
+        d.rawItems.forEach((item: any) => {
+          let shouldInclude = false;
+          if (visibleLines.total && item.matchedReason === 'creation') shouldInclude = true;
+          if (visibleLines.paid && item.matchedReason === 'payment') shouldInclude = true;
+          if (visibleLines.pending && item.matchedReason === 'creation' && item.status === 'pending') shouldInclude = true;
+          if (visibleLines.cancelled && item.matchedReason === 'creation' && item.status === 'cancelled') shouldInclude = true;
+          
+          if (shouldInclude && item.rawMaterials) {
+             item.rawMaterials.forEach((rm: any) => {
+                if (!rm.category) return;
+                const catName = categories.find(c => c.id === rm.category)?.name || 'Unknown Category';
+                const amt = rm.totalAmount || 0;
+                const billTotal = item.amount || 1;
+                const factor = item.matchedAmount / billTotal;
+                map[catName] = (map[catName] || 0) + (amt * factor);
+             });
+          }
+        });
+      }
+    });
+
+    return Object.entries(map).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount);
+  }, [rawMaterialData, activeMenu, visibleLines, categories]);
+
   const dealerBills = useMemo(() => {
     if (activeMenu !== 'raw-material' || selectedDealer === 'all' || !rawMaterialData.length) return [];
     
@@ -641,6 +672,10 @@ export default function ReportGraphPage() {
     }
     return dealerSummary.reduce((acc, d) => acc + d.amount, 0);
   }, [dealerSummary, dealerBills, selectedDealer]);
+
+  const totalCategoryAmount = useMemo(() => {
+    return categorySummary.reduce((acc, c) => acc + c.amount, 0);
+  }, [categorySummary]);
 
   return (
     <div style={{ backgroundColor: '#f0f4f9', minHeight: '100vh', width: '100vw', margin: 0, padding: 0, overflowX: 'hidden' }}>
@@ -1349,7 +1384,8 @@ export default function ReportGraphPage() {
               borderRadius: '12px',
               boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
               padding: '20px 24px',
-              flex: activeMenu === 'raw-material' ? '0 0 calc(75% - 10px)' : '1',
+              flex: 1,
+              minWidth: 0,
               margin: '0',
               height: '520px',
               display: 'flex',
@@ -1733,8 +1769,8 @@ export default function ReportGraphPage() {
                backgroundColor: '#ffffff',
                borderRadius: '12px',
                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
-               padding: '20px 24px',
-               flex: '0 0 calc(25% - 10px)',
+               padding: '20px 16px',
+               flex: '0 0 170px',
                height: '520px',
                display: 'flex',
                flexDirection: 'column'
@@ -1752,7 +1788,7 @@ export default function ReportGraphPage() {
                   {selectedDealer === 'all' ? (
                     dealerSummary.length > 0 ? (
                       dealerSummary.map((dealer, idx) => (
-                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: idx < dealerSummary.length - 1 ? '1px solid #f9fafb' : 'none' }}>
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', borderRadius: '6px', backgroundColor: idx % 2 === 0 ? '#f9fafb' : '#ffffff' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
                             <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#eff6ff', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, flexShrink: 0 }}>
                               {idx + 1}
@@ -1835,6 +1871,64 @@ export default function ReportGraphPage() {
                   </span>
                 </div>
              </div>
+           )}
+
+          {/* Right Side Panel: Category Summary */}
+          {activeMenu === 'raw-material' && selectedCategory === 'all' && (
+             <div style={{
+               backgroundColor: '#ffffff',
+               borderRadius: '12px',
+               boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+               padding: '20px 16px',
+               flex: '0 0 170px',
+               height: '520px',
+               display: 'flex',
+               flexDirection: 'column'
+             }}>
+                <div style={{ paddingBottom: '16px', borderBottom: '1px solid #f3f4f6', marginBottom: '12px' }}>
+                  <h3 style={{ margin: '0', color: '#111827', fontSize: '16px', fontWeight: 600 }}>
+                    Category Summary
+                  </h3>
+                  <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                    Total across selected date range
+                  </div>
+                </div>
+                
+                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '8px' }}>
+                  {categorySummary.length > 0 ? (
+                    categorySummary.map((cat, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', borderRadius: '6px', backgroundColor: idx % 2 === 0 ? '#f9fafb' : '#ffffff' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                          <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#fdf4ff', color: '#c026d3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, flexShrink: 0 }}>
+                            {idx + 1}
+                          </div>
+                          <span style={{ color: '#374151', fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={cat.name}>
+                            {cat.name}
+                          </span>
+                        </div>
+                        <span style={{ color: '#111827', fontSize: '13px', fontWeight: 600, paddingLeft: '8px' }}>
+                          ₹{Math.round(cat.amount).toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ color: '#9ca3af', fontSize: '13px', textAlign: 'center', marginTop: '40px' }}>No categories found</div>
+                  )}
+                </div>
+                
+                {categorySummary.length > 8 && (
+                  <div style={{ textAlign: 'center', fontSize: '11px', color: '#9ca3af', marginTop: '8px', paddingBottom: '4px', borderBottom: '1px dashed #e5e7eb' }}>
+                    ↓ Scroll down to see all {categorySummary.length} items ↓
+                  </div>
+                )}
+                
+                <div style={{ paddingTop: '16px', borderTop: '1px solid #e5e7eb', marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#4b5563', fontSize: '14px', fontWeight: 600 }}>Total Amount</span>
+                  <span style={{ color: '#111827', fontSize: '16px', fontWeight: 700 }}>
+                    ₹{Math.round(totalCategoryAmount).toLocaleString('en-IN')}
+                  </span>
+                </div>
+             </div>
           )}
         </div>
           {/* Heatmap Container */}
@@ -1914,7 +2008,7 @@ export default function ReportGraphPage() {
                 backgroundColor: '#ffffff',
                 borderRadius: '12px',
                 boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
-                padding: '20px 24px',
+                padding: '20px 16px',
                 flex: '0 0 calc(75% - 10px)',
                 overflowX: 'auto'
               }}>
@@ -1958,11 +2052,11 @@ export default function ReportGraphPage() {
                                 <tr key={i} 
                                     onClick={() => setSelectedBill(selectedBill?.id === item.id ? null : item)}
                                     style={{ cursor: 'pointer', transition: 'background-color 0.2s', borderBottom: '1px solid #e5e7eb' }}>
-                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : 'transparent', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontSize: '12px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{i + 1}</td>
-                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : '#f9fafb', padding: '12px 8px', color: '#374151', fontWeight: 700, textTransform: 'uppercase', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.dealerName || 'Unknown'}>{item.dealerName || 'Unknown'}</td>
-                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : 'transparent', padding: '12px 8px', color: '#374151', fontWeight: 500, textTransform: 'uppercase', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.companyName || '-'}>{item.companyName || '-'}</td>
-                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : '#f9fafb', padding: '12px 8px', color: '#111827', fontWeight: 700, fontSize: '14.5px', textAlign: 'left', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>₹{(item.amount || 0).toLocaleString('en-IN')}</td>
-                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : 'transparent', textAlign: 'center', padding: '12px 8px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>
+                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : i % 2 === 0 ? '#f9fafb' : '#ffffff', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontSize: '12px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{i + 1}</td>
+                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : i % 2 === 0 ? '#f3f4f6' : '#f9fafb', padding: '12px 8px', color: '#374151', fontWeight: 700, textTransform: 'uppercase', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.dealerName || 'Unknown'}>{item.dealerName || 'Unknown'}</td>
+                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : i % 2 === 0 ? '#f9fafb' : '#ffffff', padding: '12px 8px', color: '#374151', fontWeight: 500, textTransform: 'uppercase', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.companyName || '-'}>{item.companyName || '-'}</td>
+                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : i % 2 === 0 ? '#f3f4f6' : '#f9fafb', padding: '12px 8px', color: '#111827', fontWeight: 700, fontSize: '14.5px', textAlign: 'left', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>₹{(item.amount || 0).toLocaleString('en-IN')}</td>
+                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : i % 2 === 0 ? '#f9fafb' : '#ffffff', textAlign: 'center', padding: '12px 8px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>
                                     <span style={{ 
                                       fontSize: '11px', 
                                       padding: '4px 8px', 
@@ -1975,8 +2069,8 @@ export default function ReportGraphPage() {
                                       {item.status}
                                     </span>
                                   </td>
-                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : '#f9fafb', textAlign: 'center', padding: '12px 8px', color: '#374151', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6', whiteSpace: 'nowrap' }}>{item.time ? dayjs(item.time).format('MMM DD, YYYY HH:mm') : '-'}</td>
-                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : 'transparent', textAlign: 'center', padding: '12px 8px', color: '#374151', borderBottom: '1px solid #f3f4f6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={paidTimeStr || '-'}>{paidTimeStr || '-'}</td>
+                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : i % 2 === 0 ? '#f3f4f6' : '#f9fafb', textAlign: 'center', padding: '12px 8px', color: '#374151', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6', whiteSpace: 'nowrap' }}>{item.time ? dayjs(item.time).format('MMM DD, YYYY HH:mm') : '-'}</td>
+                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : i % 2 === 0 ? '#f9fafb' : '#ffffff', textAlign: 'center', padding: '12px 8px', color: '#374151', borderBottom: '1px solid #f3f4f6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={paidTimeStr || '-'}>{paidTimeStr || '-'}</td>
                                 </tr>
                               );
                             })}

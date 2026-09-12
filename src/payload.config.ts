@@ -24,6 +24,7 @@ import RawMaterialDealers from './collections/RawMaterialDealers'
 import { Media } from './collections/Media'
 import Dealers from './collections/Dealers'
 import Employees from './collections/Employees'
+import Tasks from './collections/Tasks'
 import Billings from './collections/Billings'
 import { MessageThreads } from './collections/MessageThreads'
 import { Messages } from './collections/Messages'
@@ -106,6 +107,7 @@ import PunchIn from './collections/PunchIn'
 
 import { WidgetSettingsGlobal } from './globals/Widgets'
 import { WorkSettingsGlobal } from './globals/WorkSettings'
+import { WorkTasksGlobal } from './globals/WorkTasks'
 import { createWidgetOrderHandler } from './endpoints/createWidgetOrder'
 import { getTableCustomerDetailsVisibilityHandler } from './endpoints/getTableCustomerDetailsVisibility'
 import { getLiveTableStatusHandler } from './endpoints/getLiveTableStatus'
@@ -980,6 +982,7 @@ export default buildConfig({
     AppDownloadSettings,
     AppVersionSettings,
     WorkSettingsGlobal,
+    WorkTasksGlobal,
     MenuSettingsGlobal,
     MessagesChatGlobal,
   ].map(wrapGlobal),
@@ -998,6 +1001,7 @@ export default buildConfig({
     Media,
     Dealers,
     Employees,
+    Tasks,
     MessageThreads,
     MessageAttachments,
     Messages,

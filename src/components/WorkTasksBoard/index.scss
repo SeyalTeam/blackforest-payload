@@ -1,0 +1,1174 @@
+/* Trello Board Modern Styles */
+
+.trello-workspace {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 60px);
+  min-height: 700px;
+  width: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  color: #172b4d;
+  background: linear-gradient(180deg, #5b86b8 0%, #76a3d1 40%, #8ebfe3 100%);
+  position: relative;
+  box-sizing: border-box;
+
+  * {
+    box-sizing: border-box;
+  }
+}
+
+/* Standalone Page Mode */
+.trello-workspace.trello-standalone {
+  height: 100vh;
+}
+
+/* TOP APP BAR (Dark Trello brand blue header) */
+.trello-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(8px);
+  color: #ffffff;
+  font-size: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  flex-shrink: 0;
+
+  .topbar-left, .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .topbar-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    border: none;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+  }
+
+  .trello-brand {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: #ffffff;
+    opacity: 0.95;
+
+    .trello-icon-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      background: #ffffff;
+      color: #0079bf;
+      border-radius: 4px;
+      font-weight: 900;
+      font-size: 14px;
+    }
+  }
+}
+
+/* SECOND HEADER: BOARD TITLE & CONTROLS */
+.trello-board-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(6px);
+  color: #ffffff;
+  gap: 12px;
+  flex-shrink: 0;
+
+  .board-header-left {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .board-header-right {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .board-title-text {
+    font-size: 18px;
+    font-weight: 700;
+    color: #ffffff;
+    margin: 0;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  }
+
+  .icon-star-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: #ffdc40;
+    }
+
+    &.starred {
+      color: #ffd700;
+    }
+  }
+
+  .header-divider {
+    width: 1px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.3);
+    margin: 0 2px;
+  }
+
+  .header-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #ffffff;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .tag-badge {
+      background: rgba(0, 0, 0, 0.25);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+  }
+
+  .avatar-stack {
+    display: flex;
+    align-items: center;
+
+    .avatar-circle {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #dfe1e6;
+      border: 2px solid #ffffff;
+      color: #172b4d;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      margin-left: -6px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+      overflow: hidden;
+
+      &:first-child {
+        margin-left: 0;
+      }
+
+      img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      &.avatar-count {
+        background: rgba(0, 0, 0, 0.4);
+        color: #ffffff;
+        border-color: rgba(255, 255, 255, 0.6);
+      }
+    }
+  }
+
+  .invite-btn {
+    background: #ffffff;
+    color: #172b4d;
+    font-weight: 600;
+    font-size: 13px;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: #f4f5f7;
+    }
+  }
+}
+
+/* VIEW MODE & FILTER TOOLBAR */
+.trello-filter-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.1);
+  gap: 12px;
+  flex-shrink: 0;
+
+  .view-switchers {
+    display: flex;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 3px;
+    border-radius: 6px;
+    gap: 4px;
+
+    .view-tab {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 4px;
+      border: none;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+
+      &.active {
+        background: #ffffff;
+        color: #0c66e4;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      }
+
+      &:hover:not(.active) {
+        background: rgba(255, 255, 255, 0.15);
+        color: #ffffff;
+      }
+    }
+  }
+
+  .filter-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    .search-box {
+      display: flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.25);
+      padding: 4px 10px;
+      border-radius: 4px;
+      gap: 6px;
+      color: #ffffff;
+
+      input {
+        background: transparent;
+        border: none;
+        outline: none;
+        color: #ffffff;
+        font-size: 12px;
+        width: 140px;
+
+        &::placeholder {
+          color: rgba(255, 255, 255, 0.7);
+        }
+      }
+    }
+
+    .filter-select {
+      background: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+      border: none;
+      padding: 5px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      outline: none;
+      cursor: pointer;
+
+      option {
+        background: #ffffff;
+        color: #172b4d;
+      }
+    }
+
+    .clear-filter-btn {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: #ffffff;
+      border-radius: 4px;
+      padding: 5px 8px;
+      font-size: 12px;
+      cursor: pointer;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.35);
+      }
+    }
+  }
+}
+
+/* KANBAN BOARD CONTAINER */
+.trello-board-canvas {
+  display: flex;
+  flex: 1;
+  padding: 14px 16px 16px 16px;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  align-items: flex-start;
+
+  /* Smooth scrollbar */
+  &::-webkit-scrollbar {
+    height: 12px;
+  }
+  &::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.4);
+    border-radius: 6px;
+    &:hover {
+      background: rgba(255, 255, 255, 0.6);
+    }
+  }
+}
+
+/* TRELLO LIST / COLUMN */
+.trello-list {
+  width: 280px;
+  min-width: 280px;
+  max-width: 280px;
+  background: #ebecf0;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 180px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+  flex-shrink: 0;
+
+  .list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px 8px 14px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #172b4d;
+
+    .list-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow: hidden;
+
+      .list-title {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .list-count-badge {
+        background: #dfe1e6;
+        color: #5e6c84;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 6px;
+        border-radius: 10px;
+      }
+    }
+
+    .list-menu-btn {
+      background: transparent;
+      border: none;
+      color: #6b778c;
+      padding: 4px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+
+      &:hover {
+        background: #091e4214;
+        color: #172b4d;
+      }
+    }
+  }
+
+  .list-cards {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 8px 4px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 20px;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: #c1c7d0;
+      border-radius: 3px;
+    }
+  }
+
+  .list-footer {
+    padding: 6px 8px 8px 8px;
+
+    .add-card-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      color: #5e6c84;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.15s ease;
+
+      &:hover {
+        background: #091e4214;
+        color: #172b4d;
+      }
+    }
+  }
+}
+
+/* ADD ANOTHER LIST BUTTON */
+.add-list-container {
+  width: 280px;
+  min-width: 280px;
+  flex-shrink: 0;
+
+  .add-list-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.24);
+    border: none;
+    border-radius: 12px;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    transition: background 0.2s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.35);
+    }
+  }
+
+  .inline-add-list-form {
+    background: #ebecf0;
+    padding: 10px;
+    border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+
+    input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 2px solid #0079bf;
+      border-radius: 4px;
+      font-size: 13px;
+      margin-bottom: 8px;
+      outline: none;
+    }
+
+    .form-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .btn-primary {
+        background: #0079bf;
+        color: #ffffff;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+
+        &:hover {
+          background: #026aa7;
+        }
+      }
+
+      .btn-cancel {
+        background: transparent;
+        border: none;
+        color: #6b778c;
+        cursor: pointer;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+
+        &:hover {
+          color: #172b4d;
+        }
+      }
+    }
+  }
+}
+
+/* INLINE QUICK ADD CARD COMPOSER */
+.inline-card-composer {
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(9, 30, 66, 0.25);
+  padding: 8px;
+  margin-bottom: 6px;
+
+  textarea {
+    width: 100%;
+    border: none;
+    outline: none;
+    resize: none;
+    min-height: 56px;
+    font-size: 13px;
+    font-family: inherit;
+    color: #172b4d;
+
+    &::placeholder {
+      color: #6b778c;
+    }
+  }
+
+  .composer-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+
+    .btn-add {
+      background: #0079bf;
+      color: #ffffff;
+      border: none;
+      border-radius: 4px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+
+      &:hover {
+        background: #026aa7;
+      }
+    }
+
+    .btn-cancel {
+      background: transparent;
+      border: none;
+      color: #6b778c;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+
+      &:hover {
+        color: #172b4d;
+      }
+    }
+  }
+}
+
+/* TRELLO CARD COMPONENT */
+.trello-card {
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0px 1px 1px #091e4240, 0px 0px 1px #091e424f;
+  padding: 8px 10px 10px 10px;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  position: relative;
+
+  &:hover {
+    box-shadow: 0 4px 8px rgba(9, 30, 66, 0.25), 0 0 1px rgba(9, 30, 66, 0.31);
+    transform: translateY(-1px);
+  }
+
+  /* COLOR LABELS CONTAINER */
+  .card-labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 6px;
+
+    .card-label-pill {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      color: #ffffff;
+      display: inline-block;
+      line-height: 1.2;
+      box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+
+      &.label-green { background: #61bd4f; }
+      &.label-yellow { background: #f2d600; color: #172b4d; }
+      &.label-orange { background: #ff9f1a; }
+      &.label-red { background: #eb5a46; }
+      &.label-purple { background: #c377e0; }
+      &.label-blue { background: #0079bf; }
+      &.label-cyan { background: #00c2e0; }
+      &.label-pink { background: #ff78cb; }
+    }
+  }
+
+  .card-title {
+    font-size: 14px;
+    line-height: 1.35;
+    color: #172b4d;
+    font-weight: 500;
+    margin-bottom: 6px;
+    word-break: break-word;
+  }
+
+  /* ROLE & ASSIGNEE TAGS */
+  .card-assignment-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+
+    .role-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      background: #e9f2ff;
+      color: #0c66e4;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid #cce0ff;
+    }
+
+    .individual-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      background: #f3f0ff;
+      color: #6e5dc6;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid #e1d9fc;
+    }
+  }
+
+  /* CARD BADGES & AVATARS ROW */
+  .card-footer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 4px;
+    min-height: 24px;
+
+    .card-badges {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+
+      .badge-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        color: #5e6c84;
+        font-size: 12px;
+        font-weight: 500;
+
+        &.badge-date {
+          padding: 2px 6px;
+          border-radius: 3px;
+          font-size: 11px;
+
+          &.due-overdue {
+            background: #eb5a46;
+            color: #ffffff;
+          }
+          &.due-soon {
+            background: #f2d600;
+            color: #172b4d;
+          }
+          &.due-normal {
+            background: #dfe1e6;
+            color: #5e6c84;
+          }
+        }
+      }
+    }
+
+    .card-members {
+      display: flex;
+      align-items: center;
+      margin-left: auto;
+
+      .member-avatar {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #0079bf;
+        color: #ffffff;
+        font-size: 10px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid #ffffff;
+        margin-left: -5px;
+        overflow: hidden;
+
+        &:first-child {
+          margin-left: 0;
+        }
+
+        img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+      }
+    }
+  }
+}
+
+/* TRELLO CARD DETAIL MODAL */
+.trello-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+
+  .trello-modal {
+    background: #f4f5f7;
+    width: 100%;
+    max-width: 768px;
+    max-height: 90vh;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+
+    .modal-close-btn {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      background: transparent;
+      border: none;
+      color: #6b778c;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 10;
+
+      &:hover {
+        background: #091e4214;
+        color: #172b4d;
+      }
+    }
+
+    .modal-header {
+      padding: 20px 48px 12px 24px;
+
+      .modal-title-input {
+        width: 100%;
+        font-size: 20px;
+        font-weight: 700;
+        color: #172b4d;
+        border: 2px solid transparent;
+        border-radius: 6px;
+        padding: 4px 6px;
+        background: transparent;
+        outline: none;
+
+        &:focus {
+          background: #ffffff;
+          border-color: #0079bf;
+        }
+      }
+
+      .modal-subtitle {
+        font-size: 13px;
+        color: #5e6c84;
+        margin-top: 4px;
+        padding-left: 6px;
+
+        span {
+          text-decoration: underline;
+          cursor: pointer;
+          font-weight: 600;
+        }
+      }
+    }
+
+    .modal-body {
+      padding: 0 24px 24px 24px;
+      overflow-y: auto;
+      display: grid;
+      grid-template-columns: 1fr 220px;
+      gap: 24px;
+
+      @media (max-width: 680px) {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* LEFT CONTENT AREA */
+    .modal-main-content {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+
+      .modal-section {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+
+        .section-label {
+          font-size: 12px;
+          font-weight: 700;
+          color: #5e6c84;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+      }
+
+      /* Quick metadata badges */
+      .modal-meta-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+
+        .meta-group {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+
+          .meta-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #5e6c84;
+          }
+
+          .meta-value-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+          }
+        }
+      }
+
+      /* Description textarea */
+      .description-box {
+        width: 100%;
+        min-height: 100px;
+        border: 1px solid #dfe1e6;
+        border-radius: 6px;
+        padding: 10px;
+        font-size: 14px;
+        color: #172b4d;
+        background: #ffffff;
+        font-family: inherit;
+        resize: vertical;
+        outline: none;
+
+        &:focus {
+          border-color: #0079bf;
+        }
+      }
+
+      /* Checklist section */
+      .checklist-progress-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+
+        .progress-pct {
+          font-size: 11px;
+          font-weight: 600;
+          color: #5e6c84;
+          width: 32px;
+        }
+
+        .bar-track {
+          flex: 1;
+          height: 8px;
+          background: #dfe1e6;
+          border-radius: 4px;
+          overflow: hidden;
+
+          .bar-fill {
+            height: 100%;
+            background: #61bd4f;
+            transition: width 0.2s ease;
+          }
+        }
+      }
+
+      .checklist-items {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+
+        .checklist-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: #ffffff;
+          padding: 6px 10px;
+          border-radius: 4px;
+          border: 1px solid #ebecf0;
+
+          input[type='checkbox'] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+          }
+
+          .item-text {
+            flex: 1;
+            font-size: 13px;
+            color: #172b4d;
+
+            &.completed {
+              text-decoration: line-through;
+              color: #8993a4;
+            }
+          }
+
+          .item-delete-btn {
+            background: transparent;
+            border: none;
+            color: #a5b2c6;
+            cursor: pointer;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+
+            &:hover {
+              color: #eb5a46;
+            }
+          }
+        }
+      }
+
+      .add-checklist-item-form {
+        display: flex;
+        gap: 8px;
+        margin-top: 6px;
+
+        input {
+          flex: 1;
+          padding: 6px 10px;
+          border: 1px solid #dfe1e6;
+          border-radius: 4px;
+          font-size: 13px;
+          outline: none;
+
+          &:focus {
+            border-color: #0079bf;
+          }
+        }
+
+        button {
+          background: #0079bf;
+          color: #ffffff;
+          border: none;
+          padding: 6px 12px;
+          border-radius: 4px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+
+          &:hover {
+            background: #026aa7;
+          }
+        }
+      }
+    }
+
+    /* RIGHT ACTIONS SIDEBAR */
+    .modal-actions-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+
+      .sidebar-section-title {
+        font-size: 12px;
+        font-weight: 700;
+        color: #5e6c84;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 6px;
+      }
+
+      .action-buttons-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+
+        .sidebar-btn {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: #091e420a;
+          color: #172b4d;
+          border: none;
+          border-radius: 4px;
+          padding: 7px 12px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: background 0.15s ease;
+          text-align: left;
+
+          &:hover {
+            background: #091e4214;
+          }
+
+          &.btn-danger {
+            color: #eb5a46;
+
+            &:hover {
+              background: #ffebe6;
+            }
+          }
+        }
+      }
+
+      .sidebar-select-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+
+        label {
+          font-size: 11px;
+          font-weight: 600;
+          color: #5e6c84;
+        }
+
+        select, input {
+          width: 100%;
+          background: #ffffff;
+          border: 1px solid #dfe1e6;
+          border-radius: 4px;
+          padding: 6px 8px;
+          font-size: 13px;
+          color: #172b4d;
+          outline: none;
+
+          &:focus {
+            border-color: #0079bf;
+          }
+        }
+      }
+    }
+
+    .modal-footer {
+      padding: 14px 24px;
+      background: #ebecf0;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      border-top: 1px solid #dfe1e6;
+
+      .btn-save {
+        background: #0079bf;
+        color: #ffffff;
+        border: none;
+        padding: 8px 18px;
+        border-radius: 4px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+
+        &:hover {
+          background: #026aa7;
+        }
+      }
+
+      .btn-cancel {
+        background: #ffffff;
+        color: #172b4d;
+        border: 1px solid #dfe1e6;
+        padding: 8px 16px;
+        border-radius: 4px;
+        font-size: 14px;
+        cursor: pointer;
+
+        &:hover {
+          background: #f4f5f7;
+        }
+      }
+    }
+  }
+}
