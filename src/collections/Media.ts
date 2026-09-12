@@ -220,6 +220,7 @@ export const Media: CollectionConfig = {
       user?.role === 'cashier' ||
       user?.role === 'chef' ||
       user?.role === 'supervisor' ||
+      user?.role === 'manager' ||
       user?.role === 'driver' ||
       user?.role === 'factory' ||
       user?.role === 'kitchen',
@@ -233,6 +234,7 @@ export const Media: CollectionConfig = {
       user?.role === 'cashier' ||
       user?.role === 'chef' ||
       user?.role === 'supervisor' ||
+      user?.role === 'manager' ||
       user?.role === 'driver' ||
       user?.role === 'factory' ||
       user?.role === 'kitchen',
