@@ -269,6 +269,22 @@ export const Users: CollectionConfig = {
       },
     },
     {
+      name: 'manager_companies',
+      label: 'Companies',
+      type: 'relationship',
+      relationTo: 'companies',
+      hasMany: true,
+      required: false,
+      admin: {
+        condition: ({ role }) => role === 'manager',
+        description: 'Select the companies this manager is responsible for.',
+      },
+      access: {
+        create: ({ req }) => req.user?.role === 'superadmin',
+        update: ({ req }) => req.user?.role === 'superadmin',
+      },
+    },
+    {
       name: 'employee',
       type: 'relationship',
       relationTo: 'employees',
