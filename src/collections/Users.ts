@@ -275,7 +275,7 @@ export const Users: CollectionConfig = {
       required: false,
       admin: {
         condition: ({ role }) =>
-          ['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef', 'kitchen', 'store_keeper'].includes(
+          ['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef', 'kitchen', 'store_keeper', 'manager'].includes(
             role,
           ),
       },
@@ -283,7 +283,7 @@ export const Users: CollectionConfig = {
         const role = (siblingData as { role?: string }).role
         if (
           !role ||
-          !['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef', 'kitchen', 'store_keeper'].includes(
+          !['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef', 'kitchen', 'store_keeper', 'manager'].includes(
             role,
           )
         ) {
