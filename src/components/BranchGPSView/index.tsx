@@ -17,6 +17,9 @@ import {
   Eye,
   Crosshair,
   Building2,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
 } from 'lucide-react'
 import './index.scss'
 
@@ -80,6 +83,54 @@ const ROLE_EMOJIS: Record<string, string> = {
   store_keeper: '📦',
   account: '📊',
   admin: '🛡️',
+}
+
+// Computes non-overlapping radial dispersion positions around a building center
+function computeDispersedPositions(
+  center: [number, number],
+  count: number,
+  maxRadiusMeters: number = 45,
+): [number, number][] {
+  if (count <= 1) {
+    return [center]
+  }
+
+  const positions: [number, number][] = []
+  const [baseLat, baseLng] = center
+  const latToMeters = 111320
+  const lngToMeters = 111320 * Math.cos((baseLat * Math.PI) / 180)
+
+  if (count <= 6) {
+    // Single ring around the center
+    const r = Math.max(16, Math.min(maxRadiusMeters * 0.45, 15 + count * 2.5))
+    for (let i = 0; i < count; i++) {
+      const angle = -Math.PI / 2 + (i / count) * 2 * Math.PI
+      const dLat = (r * Math.sin(angle)) / latToMeters
+      const dLng = (r * Math.cos(angle)) / lngToMeters
+      positions.push([baseLat + dLat, baseLng + dLng])
+    }
+  } else {
+    // Concentric rings (inner & outer) for large teams in one building
+    const innerCount = Math.floor(count * 0.38)
+    const outerCount = count - innerCount
+    const rInner = Math.max(15, maxRadiusMeters * 0.3)
+    const rOuter = Math.max(28, maxRadiusMeters * 0.6)
+
+    for (let i = 0; i < innerCount; i++) {
+      const angle = -Math.PI / 2 + (i / innerCount) * 2 * Math.PI
+      const dLat = (rInner * Math.sin(angle)) / latToMeters
+      const dLng = (rInner * Math.cos(angle)) / lngToMeters
+      positions.push([baseLat + dLat, baseLng + dLng])
+    }
+    for (let i = 0; i < outerCount; i++) {
+      const angle = -Math.PI / 2 + ((i + 0.5) / outerCount) * 2 * Math.PI
+      const dLat = (rOuter * Math.sin(angle)) / latToMeters
+      const dLng = (rOuter * Math.cos(angle)) / lngToMeters
+      positions.push([baseLat + dLat, baseLng + dLng])
+    }
+  }
+
+  return positions
 }
 
 export default function BranchGPSView() {
@@ -149,14 +200,15 @@ export default function BranchGPSView() {
     // Initialize map centered around standard coordinates (Tamil Nadu / Tuticorin default)
     const map = L.map(mapContainerRef.current, {
       center: [8.7642, 78.1348],
-      zoom: 13,
+      zoom: 16,
       zoomControl: false,
     })
 
     L.control.zoom({ position: 'bottomright' }).addTo(map)
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
+      maxZoom: 21,
+      maxNativeZoom: 19,
       attribution: '© OpenStreetMap contributors',
     }).addTo(map)
 
@@ -248,14 +300,30 @@ export default function BranchGPSView() {
 
       const branchMarker = L.marker(branchPos, { icon: branchIcon }).addTo(layerGroup)
       branchMarker.on('click', () => {
-        map.flyTo(branchPos, 17, { duration: 1.2 })
+        map.flyTo(branchPos, 20, { duration: 1.2 })
       })
 
-      // 4C. Person Markers Inside Branch Circle
-      branch.persons.forEach((person) => {
-        if (!person.latitude || !person.longitude) return
+      // 4C. Disperse Person Markers to avoid stacking in the same building
+      const dispersedCoords = computeDispersedPositions(
+        branchPos,
+        branch.persons.length,
+        branch.radius || 100,
+      )
 
-        const personPos: [number, number] = [person.latitude, person.longitude]
+      // Draw subtle dashed spider lines connecting building center to each dispersed staff marker
+      if (branch.persons.length > 1) {
+        dispersedCoords.forEach((pPos) => {
+          L.polyline([branchPos, pPos], {
+            color: '#38bdf8',
+            weight: 1.5,
+            opacity: 0.45,
+            dashArray: '3, 4',
+          }).addTo(layerGroup)
+        })
+      }
+
+      branch.persons.forEach((person, idx) => {
+        const personPos = dispersedCoords[idx] || branchPos
         bounds.push(personPos)
 
         const initials = person.name
@@ -278,11 +346,14 @@ export default function BranchGPSView() {
           ? `<img src="${person.photoUrl}" alt="${person.name}" />`
           : `<span class="initials">${initials || 'ST'}</span>`
 
+        const firstName = person.name.split(' ')[0]
+
         const personHtml = `
           <div class="person-avatar-pin" data-person-id="${person.id}">
             ${avatarInner}
             <span class="status-indicator ${statusClass}"></span>
             ${person.status === 'active' ? '<div class="radar-ring"></div>' : ''}
+            <span class="person-pin-nametag">${firstName}</span>
           </div>
         `
 
@@ -294,6 +365,10 @@ export default function BranchGPSView() {
         })
 
         const personMarker = L.marker(personPos, { icon: personIcon }).addTo(layerGroup)
+
+        personMarker.on('click', () => {
+          map.flyTo(personPos, 20.5, { duration: 0.8 })
+        })
 
         // Mouse hover on map marker -> display rich person detail card
         personMarker.on('mouseover', (e: any) => {
@@ -327,17 +402,23 @@ export default function BranchGPSView() {
     // Fit map bounds if markers exist
     if (bounds.length > 0) {
       if (bounds.length === 1) {
-        map.setView(bounds[0], 16)
+        map.setView(bounds[0], 19)
       } else {
-        map.fitBounds(bounds, { padding: [60, 60], maxZoom: 16 })
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 18.5 })
       }
     }
   }, [leafletLib, filteredBranches, data])
 
-  // Center map onto a specific branch
+  // Center map onto a specific branch (Building Close-Up)
   const handleZoomToBranch = (branch: BranchGPSData) => {
     if (!mapInstanceRef.current || !branch.latitude || !branch.longitude) return
-    mapInstanceRef.current.flyTo([branch.latitude, branch.longitude], 17, { duration: 1.2 })
+    mapInstanceRef.current.flyTo([branch.latitude, branch.longitude], 20.5, { duration: 1.2 })
+  }
+
+  // Center map onto a specific person (Maximum Zoom)
+  const handleZoomToPerson = (person: PersonPresence) => {
+    if (!mapInstanceRef.current || !person.latitude || !person.longitude) return
+    mapInstanceRef.current.flyTo([person.latitude, person.longitude], 21, { duration: 1.2 })
   }
 
   // Format date / punch times
@@ -430,6 +511,85 @@ export default function BranchGPSView() {
       <div className="gps-content-area">
         {/* Leaflet Map Wrapper */}
         <div className="gps-map-wrapper">
+          {/* Quick Zoom Toolbar */}
+          <div className="map-zoom-toolbar">
+            <button
+              type="button"
+              className="zoom-tool-btn"
+              onClick={() => mapInstanceRef.current?.zoomIn()}
+              title="Zoom In"
+            >
+              <ZoomIn size={14} />
+              <span>Zoom In</span>
+            </button>
+            <button
+              type="button"
+              className="zoom-tool-btn"
+              onClick={() => mapInstanceRef.current?.zoomOut()}
+              title="Zoom Out"
+            >
+              <ZoomOut size={14} />
+              <span>Zoom Out</span>
+            </button>
+            <div className="zoom-divider" />
+            <button
+              type="button"
+              className="zoom-tool-btn"
+              onClick={() => {
+                if (!mapInstanceRef.current) return
+                const activeBranch =
+                  filteredBranches.find((b) => b.id === selectedBranchId) || filteredBranches[0]
+                if (activeBranch) {
+                  mapInstanceRef.current.flyTo(
+                    [activeBranch.latitude, activeBranch.longitude],
+                    20.5,
+                    { duration: 1 },
+                  )
+                } else {
+                  mapInstanceRef.current.setZoom(20.5)
+                }
+              }}
+              title="Building Close-Up (20.5x) - View All Staff in Building"
+            >
+              <Crosshair size={14} />
+              <span>Building View (20.5x)</span>
+            </button>
+            <button
+              type="button"
+              className="zoom-tool-btn"
+              onClick={() => {
+                if (!mapInstanceRef.current) return
+                const activeBranch =
+                  filteredBranches.find((b) => b.id === selectedBranchId) || filteredBranches[0]
+                if (activeBranch) {
+                  mapInstanceRef.current.flyTo(
+                    [activeBranch.latitude, activeBranch.longitude],
+                    18.5,
+                    { duration: 1 },
+                  )
+                } else {
+                  mapInstanceRef.current.setZoom(18.5)
+                }
+              }}
+              title="Geofence Circle View (18.5x)"
+            >
+              <Radio size={14} />
+              <span>Geofence (18.5x)</span>
+            </button>
+            <button
+              type="button"
+              className="zoom-tool-btn"
+              onClick={() => {
+                if (!mapInstanceRef.current) return
+                mapInstanceRef.current.setZoom(14)
+              }}
+              title="City Overview (14x)"
+            >
+              <Maximize2 size={14} />
+              <span>Overview</span>
+            </button>
+          </div>
+
           <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
         </div>
 
@@ -601,6 +761,11 @@ export default function BranchGPSView() {
                           <div
                             key={person.id}
                             className="mini-staff-chip"
+                            title={`Click to zoom directly to ${person.name}`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleZoomToPerson(person)
+                            }}
                             onMouseEnter={(e) => {
                               setHoveredPerson({
                                 person,

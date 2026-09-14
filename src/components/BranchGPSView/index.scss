@@ -167,6 +167,49 @@
   position: relative;
   z-index: 1;
 
+  .map-zoom-toolbar {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.9);
+    backdrop-filter: blur(8px);
+    padding: 6px 10px;
+    border-radius: 12px;
+    border: 1px solid #334155;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+
+    .zoom-tool-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #f8fafc;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+
+      &:hover {
+        background: #2563eb;
+        border-color: #3b82f6;
+        color: #ffffff;
+      }
+    }
+
+    .zoom-divider {
+      width: 1px;
+      height: 18px;
+      background: #334155;
+    }
+  }
+
   .leaflet-container {
     width: 100%;
     height: 100%;
@@ -312,6 +355,25 @@
     border: 2px solid #22c55e;
     animation: radarPulse 2s infinite cubic-bezier(0, 0.2, 0.8, 1);
     pointer-events: none;
+  }
+
+  .person-pin-nametag {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 2px;
+    background: rgba(15, 23, 42, 0.92);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+    line-height: 1.2;
   }
 }
 

@@ -11,11 +11,11 @@ const Attendance: CollectionConfig = {
       async ({ data, req, operation }) => {
         if (!data) return data;
         
-        // Requirement: Enforce selfie for sessions
+        // Requirement: Enforce selfie before closing session (punch-out)
         if (data.activities && Array.isArray(data.activities)) {
           for (const activity of data.activities) {
-            if (activity.type === 'session' && !activity.capturedImage) {
-              throw new Error('A selfie (captured image) is strictly required to start a session. Invalid request blocked.');
+            if (activity.type === 'session' && activity.punchOut && !activity.capturedImage) {
+              throw new Error('A selfie (captured image) is strictly required before punching out.');
             }
           }
         }
@@ -432,8 +432,8 @@ const Attendance: CollectionConfig = {
             condition: (data, siblingData) => siblingData?.type === 'session',
           },
           validate: (value: any, { siblingData }: any) => {
-            if (siblingData?.type === 'session' && !value) {
-              return 'A selfie (captured image) is required to start a session.';
+            if (siblingData?.type === 'session' && siblingData?.punchOut && !value) {
+              return 'A selfie (captured image) is required before punching out.';
             }
             return true;
           },
