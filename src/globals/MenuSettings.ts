@@ -119,6 +119,7 @@ export const MenuSettingsGlobal: GlobalConfig = {
             { label: 'Customer Offer Settings', value: 'customer-offer-settings' },
             { label: 'App Download Settings', value: 'app-download-settings' },
             { label: 'App Version Settings', value: 'app-version-settings' },
+            { label: 'Work GPS', value: 'work-gps' },
           ],
         },
       ],

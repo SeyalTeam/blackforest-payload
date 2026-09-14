@@ -108,6 +108,7 @@ import PunchIn from './collections/PunchIn'
 import { WidgetSettingsGlobal } from './globals/Widgets'
 import { WorkSettingsGlobal } from './globals/WorkSettings'
 import { WorkTasksGlobal } from './globals/WorkTasks'
+import { WorkGPSGlobal } from './globals/WorkGPS'
 import { createWidgetOrderHandler } from './endpoints/createWidgetOrder'
 import { getTableCustomerDetailsVisibilityHandler } from './endpoints/getTableCustomerDetailsVisibility'
 import { getLiveTableStatusHandler } from './endpoints/getLiveTableStatus'
@@ -983,6 +984,7 @@ export default buildConfig({
     AppVersionSettings,
     WorkSettingsGlobal,
     WorkTasksGlobal,
+    WorkGPSGlobal,
     MenuSettingsGlobal,
     MessagesChatGlobal,
   ].map(wrapGlobal),

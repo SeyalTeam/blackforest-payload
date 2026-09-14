@@ -32,6 +32,7 @@ import { default as default_33fb18e2b81f2b37393ae18281df6f35 } from '../../../co
 import { default as default_7b1ab22c3fec8de15c6e9105699e8e3c } from '../../../components/WidgetSettings/index.tsx'
 import { default as default_d4c0194fffb8d598abc8dcbf5bd68b64 } from '../../../components/ProductPriceOfferPreviewField/index.tsx'
 import { default as default_5e6a0e56c42edcb4e104ac5a24108eec } from '../../../components/WorkTasksBoard/index.tsx'
+import { default as default_3005347841fa10396ea6b3f07ad955e3 } from '../../../components/BranchGPSView/index.tsx'
 import { default as default_b07b651643e9d499f934280c75fe9e9c } from '../../../components/MessageChat/index.tsx'
 import { S3ClientUploadHandler as S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24 } from '@payloadcms/storage-s3/client'
 
@@ -70,6 +71,7 @@ export const importMap = {
   "/components/WidgetSettings/index.tsx#default": default_7b1ab22c3fec8de15c6e9105699e8e3c,
   "/components/ProductPriceOfferPreviewField/index.tsx#default": default_d4c0194fffb8d598abc8dcbf5bd68b64,
   "/components/WorkTasksBoard/index.tsx#default": default_5e6a0e56c42edcb4e104ac5a24108eec,
+  "/components/BranchGPSView/index.tsx#default": default_3005347841fa10396ea6b3f07ad955e3,
   "/components/MessageChat/index.tsx#default": default_b07b651643e9d499f934280c75fe9e9c,
   "@payloadcms/storage-s3/client#S3ClientUploadHandler": S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24
 }

@@ -53,12 +53,43 @@ export const resolveReportBranchScope = async (
     | {
         role?: string
         company?: unknown
+        manager_companies?: unknown[]
       }
     | undefined
 
+  if (!user) return {}
+
+  if (user.role === 'manager') {
+    const managerCompanies = user.manager_companies || []
+    const allowedCompanyIds = managerCompanies
+      .map((comp: any) => toId(comp))
+      .filter((id: any): id is string => typeof id === 'string')
+    
+    if (allowedCompanyIds.length === 0) return { branchIds: [] }
+
+    const { docs: companyBranches } = await req.payload.find({
+      collection: 'branches',
+      where: {
+        company: {
+          in: allowedCompanyIds,
+        },
+      },
+      depth: 0,
+      limit: 1000,
+      pagination: false,
+    })
+
+    const allowedBranchIds = companyBranches.map((branch) => branch.id)
+
+    if (requestedBranchIds.length > 0) {
+      return { branchIds: requestedBranchIds.filter((id) => allowedBranchIds.includes(id)) }
+    }
+    return { branchIds: allowedBranchIds }
+  }
+
   // For non-company users, preserve existing behavior:
   // if they passed branch filters, use them; otherwise no branch scope.
-  if (!user || user.role !== 'company') {
+  if (user.role !== 'company') {
     if (requestedBranchIds.length > 0) {
       return { branchIds: requestedBranchIds }
     }
@@ -130,6 +161,19 @@ export const resolveReportCompanyScope = async (
       return { companyIds: requestedCompanyIds.filter((id) => id === companyId) }
     }
     return { companyIds: [companyId] }
+  }
+
+  // Manager role: scope to manager_companies
+  if (user.role === 'manager') {
+    const managerCompanies = user.manager_companies || []
+    const allowedCompanyIds = managerCompanies
+      .map((comp: any) => toId(comp))
+      .filter((id: any): id is string => typeof id === 'string')
+
+    if (requestedCompanyIds.length > 0) {
+      return { companyIds: requestedCompanyIds.filter((id) => allowedCompanyIds.includes(id)) }
+    }
+    return { companyIds: allowedCompanyIds }
   }
 
   // Store Keeper role: scope to storekeeper_companies

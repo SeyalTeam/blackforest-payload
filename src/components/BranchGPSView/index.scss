@@ -1,0 +1,671 @@
+/* Branch GPS Geofence & Staff Presence Component Styles */
+
+.branch-gps-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: calc(100vh - var(--app-header-height, 60px) - 20px);
+  min-height: 650px;
+  background: var(--theme-bg, #0f172a);
+  color: var(--theme-text-primary, #f8fafc);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  overflow: hidden;
+  position: relative;
+}
+
+/* 1. Header Toolbar */
+.gps-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: var(--theme-elevation-50, #1e293b);
+  border-bottom: 1px solid var(--theme-elevation-150, #334155);
+  flex-wrap: wrap;
+  gap: 12px;
+  z-index: 10;
+}
+
+.gps-title-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  .gps-icon-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #2563eb, #06b6d4);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+  }
+
+  h1 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1.2;
+    color: var(--theme-text-primary, #ffffff);
+  }
+
+  p {
+    font-size: 0.8rem;
+    color: var(--theme-elevation-500, #94a3b8);
+    margin: 2px 0 0 0;
+  }
+}
+
+.gps-stats-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.stat-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--theme-elevation-100, #1e293b);
+  border: 1px solid var(--theme-elevation-200, #334155);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.82rem;
+
+  .stat-val {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #38bdf8;
+  }
+
+  &.active-pill .stat-val {
+    color: #22c55e;
+  }
+}
+
+.gps-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gps-select {
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--theme-elevation-200, #334155);
+  background: var(--theme-elevation-100, #1e293b);
+  color: var(--theme-text-primary, #ffffff);
+  font-size: 0.85rem;
+  outline: none;
+  cursor: pointer;
+
+  &:focus {
+    border-color: #38bdf8;
+  }
+}
+
+.gps-refresh-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #1d4ed8;
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  &.loading svg {
+    animation: spin 1s linear infinite;
+  }
+}
+
+.drawer-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--theme-elevation-100, #1e293b);
+  border: 1px solid var(--theme-elevation-200, #334155);
+  color: var(--theme-text-primary, #ffffff);
+  font-size: 0.85rem;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--theme-elevation-150, #334155);
+  }
+}
+
+/* 2. Main Content Area (Map + Side Panel) */
+.gps-content-area {
+  display: flex;
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Map Container */
+.gps-map-wrapper {
+  flex: 1;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+
+  .leaflet-container {
+    width: 100%;
+    height: 100%;
+    background: #0f172a;
+    font-family: inherit;
+  }
+}
+
+/* Custom Leaflet Marker Styling */
+.branch-marker-icon {
+  background: transparent;
+  border: none;
+}
+
+.branch-pin-bubble {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translate(-50%, -100%);
+  cursor: pointer;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
+  transition: transform 0.2s ease;
+
+  &:hover {
+    transform: translate(-50%, -105%) scale(1.05);
+  }
+
+  .branch-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #0f172a;
+    color: #ffffff;
+    padding: 4px 10px;
+    border-radius: 16px;
+    border: 1.5px solid #38bdf8;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+
+    .staff-count-tag {
+      background: #22c55e;
+      color: #ffffff;
+      padding: 1px 6px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 800;
+
+      &.zero {
+        background: #64748b;
+      }
+    }
+  }
+
+  .branch-pin-head {
+    width: 32px;
+    height: 32px;
+    border-radius: 50% 50% 50% 0;
+    background: linear-gradient(135deg, #2563eb, #0284c7);
+    transform: rotate(-45deg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 4px;
+    border: 2px solid #ffffff;
+
+    svg {
+      transform: rotate(45deg);
+      color: #ffffff;
+    }
+  }
+}
+
+/* Person Marker Icon on Map */
+.person-marker-icon {
+  background: transparent;
+  border: none;
+}
+
+.person-avatar-pin {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2.5px solid #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  background: #1e293b;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  overflow: visible;
+
+  &:hover {
+    transform: scale(1.25);
+    z-index: 1000 !important;
+    border-color: #38bdf8;
+  }
+
+  img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .initials {
+    font-size: 11px;
+    font-weight: 700;
+    color: #ffffff;
+    text-transform: uppercase;
+  }
+
+  .status-indicator {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    border: 2px solid #0f172a;
+    background: #22c55e;
+
+    &.break {
+      background: #f59e0b;
+    }
+    &.assigned {
+      background: #3b82f6;
+    }
+    &.closed {
+      background: #94a3b8;
+    }
+  }
+
+  .radar-ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 2px solid #22c55e;
+    animation: radarPulse 2s infinite cubic-bezier(0, 0.2, 0.8, 1);
+    pointer-events: none;
+  }
+}
+
+@keyframes radarPulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* 3. Rich Hover Detail Card (Floating / Tooltip) */
+.person-hover-card {
+  position: fixed;
+  z-index: 9999;
+  width: 320px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+  overflow: hidden;
+  pointer-events: none;
+  animation: cardFadeIn 0.15s ease-out;
+}
+
+@keyframes cardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.hover-card-header {
+  position: relative;
+  background: linear-gradient(135deg, #1e293b, #0f172a);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid #1e293b;
+
+  .hover-avatar-box {
+    position: relative;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 2px solid #38bdf8;
+    background: #334155;
+    flex-shrink: 0;
+    overflow: hidden;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .hover-fallback-avatar {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 18px;
+      color: #38bdf8;
+    }
+  }
+
+  .hover-title-info {
+    flex: 1;
+    min-width: 0;
+
+    .hover-person-name {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin: 0 0 4px 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .hover-role-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+
+    .hover-empid {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-left: 6px;
+    }
+  }
+}
+
+.hover-card-body {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hover-geofence-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #4ade80;
+  font-weight: 600;
+
+  .inside-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 6px #22c55e;
+  }
+}
+
+.hover-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  padding: 3px 0;
+
+  .detail-label {
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .detail-value {
+    color: #f1f5f9;
+    font-weight: 500;
+    max-width: 170px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    &.highlight {
+      color: #38bdf8;
+      font-weight: 600;
+    }
+  }
+}
+
+/* 4. Side Panel / Branch Cards Drawer */
+.gps-side-panel {
+  width: 360px;
+  height: 100%;
+  background: var(--theme-elevation-50, #1e293b);
+  border-left: 1px solid var(--theme-elevation-150, #334155);
+  display: flex;
+  flex-direction: column;
+  z-index: 5;
+  transition: transform 0.3s ease;
+
+  &.collapsed {
+    transform: translateX(100%);
+    position: absolute;
+    right: 0;
+  }
+}
+
+.panel-search-box {
+  padding: 14px;
+  border-bottom: 1px solid var(--theme-elevation-150, #334155);
+
+  .search-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--theme-elevation-100, #0f172a);
+    border: 1px solid var(--theme-elevation-200, #334155);
+    border-radius: 8px;
+    padding: 6px 12px;
+
+    input {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--theme-text-primary, #ffffff);
+      font-size: 0.85rem;
+      width: 100%;
+    }
+  }
+}
+
+.panel-branch-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.branch-card {
+  background: var(--theme-elevation-100, #0f172a);
+  border: 1px solid var(--theme-elevation-200, #334155);
+  border-radius: 10px;
+  padding: 14px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+
+  &:hover {
+    border-color: #38bdf8;
+    background: var(--theme-elevation-150, #1e293b);
+  }
+
+  &.selected {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 1px #2563eb;
+  }
+
+  .branch-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+
+    .branch-name {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--theme-text-primary, #ffffff);
+      margin: 0;
+    }
+
+    .inside-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(34, 197, 94, 0.15);
+      color: #22c55e;
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+
+      &.zero {
+        background: rgba(148, 163, 184, 0.15);
+        color: #94a3b8;
+        border-color: rgba(148, 163, 184, 0.2);
+      }
+    }
+  }
+
+  .branch-meta-line {
+    font-size: 12px;
+    color: var(--theme-elevation-500, #94a3b8);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+
+    span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+  }
+
+  .branch-staff-tray {
+    border-top: 1px solid var(--theme-elevation-200, #334155);
+    padding-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    .staff-tray-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      font-weight: 600;
+    }
+
+    .staff-avatars-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .mini-staff-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--theme-elevation-200, #1e293b);
+      border: 1px solid var(--theme-elevation-300, #334155);
+      border-radius: 16px;
+      padding: 3px 8px 3px 4px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+
+      &:hover {
+        border-color: #38bdf8;
+        background: rgba(56, 189, 248, 0.15);
+      }
+
+      .chip-avatar {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        object-fit: cover;
+        background: #475569;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        font-weight: 700;
+        color: #ffffff;
+      }
+
+      .chip-name {
+        color: var(--theme-text-primary, #ffffff);
+        font-weight: 500;
+      }
+    }
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
