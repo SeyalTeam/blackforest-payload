@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Star,
   Users,
-  Lock,
   Globe,
   Plus,
   MoreHorizontal,
@@ -14,16 +13,14 @@ import {
   AlignLeft,
   CheckSquare,
   Zap,
-  Filter,
   Search,
   Check,
-  ChevronDown,
   Trash2,
   Tag,
-  Calendar,
-  AlertCircle,
-  FolderPlus,
   RefreshCw,
+  Edit2,
+  Columns,
+  ShieldAlert,
 } from 'lucide-react'
 import './index.scss'
 
@@ -39,11 +36,20 @@ export type ChecklistItem = {
   completed: boolean
 }
 
+export type TaskColumn = {
+  id: string
+  title: string
+  order?: number
+  role?: string
+  color?: string
+}
+
 export type TaskItem = {
   id: string
   title: string
   description?: string
-  status: 'backlog' | 'todo' | 'in_progress' | 'review' | 'done'
+  column?: any // string ID or TaskColumn object
+  status?: 'backlog' | 'todo' | 'in_progress' | 'review' | 'done'
   priority?: 'low' | 'medium' | 'high' | 'urgent'
   assignmentType?: 'role' | 'individual' | 'both'
   assignedRole?: string
@@ -86,14 +92,6 @@ const DEFAULT_ROLES = [
   { value: 'admin', label: 'Admin', emoji: '🛡️' },
 ]
 
-const STATUS_COLUMNS: { id: TaskItem['status']; title: string }[] = [
-  { id: 'backlog', title: 'Goal 1: Grow Customers By 25%' },
-  { id: 'todo', title: 'Goal 2: Reduce Office Supply Costs By 15%' },
-  { id: 'in_progress', title: 'Goal Template' },
-  { id: 'review', title: 'Done (Q1 2019)' },
-  { id: 'done', title: 'Done (Q4 2018)' },
-]
-
 const LABEL_PRESETS: { text: string; color: TaskLabel['color'] }[] = [
   { text: 'Achieved!', color: 'green' },
   { text: 'Up Next', color: 'yellow' },
@@ -105,142 +103,21 @@ const LABEL_PRESETS: { text: string; color: TaskLabel['color'] }[] = [
   { text: 'Planning', color: 'pink' },
 ]
 
-const SAMPLE_INITIAL_TASKS: Omit<TaskItem, 'id'>[] = [
-  {
-    title: 'Trello Tip: Set S. M. A. R. T Goals (Click for more info)',
-    status: 'backlog',
-    priority: 'medium',
-    assignedRole: 'manager',
-    labels: [{ text: 'Trello Tips', color: 'cyan' }],
-    description: 'Specific, Measurable, Achievable, Relevant, and Time-bound goal setting framework.',
-    checklist: [
-      { text: 'Define customer acquisition targets', completed: true },
-      { text: 'Align referral bonuses', completed: false },
-    ],
-  },
-  {
-    title: 'Goal Stakeholders',
-    status: 'backlog',
-    priority: 'high',
-    assignedRole: 'manager',
-    description: 'Executive committee and marketing leads.',
-  },
-  {
-    title: 'Current Progress Towards "Grow Customers By 25%"',
-    status: 'backlog',
-    priority: 'urgent',
-    assignedRole: 'account',
-    labels: [{ text: 'At Risk', color: 'orange' }],
-    dueDate: new Date(Date.now() + 86400000 * 2).toISOString(),
-    description: 'Evaluating quarterly run-rate versus initial projections.',
-  },
-  {
-    title: 'Launch customer referral email program.',
-    status: 'backlog',
-    priority: 'high',
-    assignedRole: 'supervisor',
-    labels: [{ text: 'Up Next', color: 'yellow' }],
-    dueDate: '2026-01-31T18:30:00.000Z',
-    description: 'Prepare HTML email campaign templates and promotional discounts.',
-  },
-  {
-    title: 'Trello Tip: Cards can summarize specific projects and efforts that your team is working on to reach the goal.',
-    status: 'backlog',
-    priority: 'low',
-    labels: [{ text: 'Trello Tips', color: 'cyan' }],
-  },
-  {
-    title: 'Trello Tip: Card labels! What do they mean? (Click for more info)',
-    status: 'todo',
-    priority: 'medium',
-    labels: [
-      { text: 'Achieved!', color: 'green' },
-      { text: 'Up Next', color: 'yellow' },
-      { text: 'At Risk', color: 'orange' },
-      { text: 'Missed (for now)', color: 'red' },
-      { text: 'In Progress', color: 'purple' },
-      { text: 'On Track', color: 'blue' },
-      { text: 'Trello Tips', color: 'cyan' },
-      { text: 'Planning', color: 'pink' },
-    ],
-  },
-  {
-    title: 'Goal Stakeholders',
-    status: 'todo',
-    assignedRole: 'store_keeper',
-    description: 'Procurement manager, logistics, and store keeper.',
-  },
-  {
-    title: 'Current Progress Towards "Reduce Office Supply $$ By 15%',
-    status: 'todo',
-    assignedRole: 'account',
-    labels: [{ text: 'On Track', color: 'blue' }],
-  },
-  {
-    title: 'Reduce total team printing volume by 20%',
-    status: 'todo',
-    assignedRole: 'cashier',
-    labels: [{ text: 'In Progress', color: 'purple' }],
-  },
-  {
-    title: 'Negotiate loyalty discount with supplier for new fiscal year',
-    status: 'todo',
-    assignedRole: 'store_keeper',
-    labels: [{ text: 'Achieved!', color: 'green' }],
-  },
-  {
-    title: 'Trello Tip: Keep a list "template" that you can copy and rename for each new goal.',
-    status: 'in_progress',
-    labels: [{ text: 'Trello Tips', color: 'cyan' }],
-  },
-  {
-    title: 'Goal Stakeholders',
-    status: 'in_progress',
-    assignedRole: 'manager',
-  },
-  {
-    title: 'Current Progress Towards Goal',
-    status: 'in_progress',
-    assignedRole: 'supervisor',
-    labels: [{ text: 'On Track', color: 'blue' }],
-  },
-  {
-    title: 'Trello Tip: Try these 5 team-building exercises for setting goals! (Click for more info)',
-    status: 'in_progress',
-    labels: [{ text: 'Trello Tips', color: 'cyan' }],
-    description: 'Resource guides and ice-breaker templates.',
-  },
-  {
-    title: 'Trello Tip: Put finished projects and closed goals here.',
-    status: 'review',
-    labels: [{ text: 'Trello Tips', color: 'cyan' }],
-  },
-  {
-    title: 'Hire 5 new people for 2019!',
-    status: 'review',
-    assignedRole: 'manager',
-    labels: [{ text: 'Achieved!', color: 'green' }],
-  },
-  {
-    title: 'Trello Tip: Create new "Done" lists for each quarter to build a history of accomplished goals.',
-    status: 'done',
-    labels: [{ text: 'Trello Tips', color: 'cyan' }],
-  },
-]
-
 type WorkTasksBoardProps = {
   isStandalone?: boolean
 }
 
 export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardProps) {
+  const [currentUser, setCurrentUser] = useState<UserOption | null>(null)
+  const [columnsData, setColumnsData] = useState<TaskColumn[]>([])
   const [tasks, setTasks] = useState<TaskItem[]>([])
   const [employees, setEmployees] = useState<EmployeeOption[]>([])
   const [users, setUsers] = useState<UserOption[]>([])
   const [loading, setLoading] = useState(true)
   const [isStarred, setIsStarred] = useState(false)
 
-  // View switch mode: 'status' | 'role' | 'individual'
-  const [viewMode, setViewMode] = useState<'status' | 'role' | 'individual'>('status')
+  // View switch mode: 'board' (Custom lists created by superadmin) | 'role' | 'individual'
+  const [viewMode, setViewMode] = useState<'board' | 'role' | 'individual'>('board')
 
   // Search and filter controls
   const [searchQuery, setSearchQuery] = useState('')
@@ -248,7 +125,14 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
   const [individualFilter, setIndividualFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
 
-  // Inline Card Quick Add composer state: { columnId: string, title: string } | null
+  // Superadmin new list inline form state
+  const [isAddingList, setIsAddingList] = useState(false)
+  const [newColumnTitle, setNewColumnTitle] = useState('')
+
+  // Column options menu popover state
+  const [activeColumnMenu, setActiveColumnMenu] = useState<string | null>(null)
+
+  // Inline Card Quick Add composer state: columnId or null
   const [inlineAddingCol, setInlineAddingCol] = useState<string | null>(null)
   const [inlineTitle, setInlineTitle] = useState('')
 
@@ -259,75 +143,47 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
   // New checklist item input inside modal
   const [newChecklistText, setNewChecklistText] = useState('')
 
-  // Fetch initial tasks, employees, and users
+  // Determine if logged-in user is Superadmin or Admin
+  const isSuperAdmin = currentUser?.role === 'superadmin' || currentUser?.role === 'admin'
+
+  // Fetch initial user, columns, tasks, employees
   const fetchData = useCallback(async () => {
     try {
       setLoading(true)
-      const [tasksRes, employeesRes, usersRes] = await Promise.all([
+      const [meRes, colsRes, tasksRes, employeesRes, usersRes] = await Promise.all([
+        fetch('/api/users/me').catch(() => null),
+        fetch('/api/task-columns?limit=100&sort=order').catch(() => null),
         fetch('/api/tasks?limit=500&depth=2').catch(() => null),
         fetch('/api/employees?limit=300&depth=1').catch(() => null),
         fetch('/api/users?limit=300&depth=1').catch(() => null),
       ])
 
-      let loadedEmployees: EmployeeOption[] = []
-      if (employeesRes && employeesRes.ok) {
-        const empJson = await employeesRes.json()
-        loadedEmployees = empJson.docs || []
-        setEmployees(loadedEmployees)
+      if (meRes && meRes.ok) {
+        const meJson = await meRes.json()
+        if (meJson?.user) {
+          setCurrentUser(meJson.user)
+        }
       }
 
-      let loadedUsers: UserOption[] = []
+      if (colsRes && colsRes.ok) {
+        const colsJson = await colsRes.json()
+        setColumnsData(colsJson.docs || [])
+      }
+
+      if (employeesRes && employeesRes.ok) {
+        const empJson = await employeesRes.json()
+        setEmployees(empJson.docs || [])
+      }
+
       if (usersRes && usersRes.ok) {
         const userJson = await usersRes.json()
-        loadedUsers = userJson.docs || []
-        setUsers(loadedUsers)
+        setUsers(userJson.docs || [])
       }
 
       if (tasksRes && tasksRes.ok) {
         const tasksJson = await tasksRes.json()
-        const existingDocs: TaskItem[] = tasksJson.docs || []
-
-        if (existingDocs.length > 0) {
-          setTasks(existingDocs)
-        } else {
-          // Empty DB: Seed sample tasks matching the Trello screenshot
-          const seeded: TaskItem[] = []
-          for (let i = 0; i < SAMPLE_INITIAL_TASKS.length; i++) {
-            const sample = SAMPLE_INITIAL_TASKS[i]
-            // Assign some employees if available
-            const emp = loadedEmployees[i % (loadedEmployees.length || 1)]
-            const payloadData = {
-              ...sample,
-              assignedEmployee: emp ? emp.id : undefined,
-              order: i,
-            }
-
-            try {
-              const createRes = await fetch('/api/tasks', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payloadData),
-              })
-              if (createRes.ok) {
-                const created = await createRes.json()
-                seeded.push(created.doc)
-              }
-            } catch (err) {
-              console.error('Error seeding task:', err)
-            }
-          }
-          if (seeded.length > 0) {
-            setTasks(seeded)
-          } else {
-            // Fallback in-memory state
-            setTasks(
-              SAMPLE_INITIAL_TASKS.map((t, idx) => ({
-                ...t,
-                id: `sample-${idx}`,
-              })),
-            )
-          }
-        }
+        // DO NOT AUTOMATICALLY SEED! Load only tasks created by superadmin
+        setTasks(tasksJson.docs || [])
       }
     } catch (err) {
       console.error('Error loading task board data:', err)
@@ -339,6 +195,13 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  // Helper to extract column ID from task
+  const getTaskColumnId = (task: TaskItem): string | null => {
+    if (!task.column) return null
+    if (typeof task.column === 'object') return task.column.id || null
+    return String(task.column)
+  }
 
   // Filtered tasks based on search & dropdowns
   const filteredTasks = useMemo(() => {
@@ -369,19 +232,33 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
 
   // Compute Columns dynamically based on viewMode
   const columns = useMemo(() => {
-    if (viewMode === 'status') {
-      return STATUS_COLUMNS.map((col) => ({
+    if (viewMode === 'board') {
+      // Dynamic lists created by Superadmin
+      const cols = columnsData.map((col) => ({
         id: col.id,
         title: col.title,
-        tasks: filteredTasks.filter((t) => (t.status || 'todo') === col.id),
+        isCustom: true,
+        tasks: filteredTasks.filter((t) => getTaskColumnId(t) === col.id),
       }))
+
+      // If there are tasks without a column, show an Uncategorized column
+      const unassignedTasks = filteredTasks.filter((t) => !getTaskColumnId(t))
+      if (unassignedTasks.length > 0 && cols.length > 0) {
+        cols.push({
+          id: 'unassigned-col',
+          title: '📋 Uncategorized Tasks',
+          isCustom: false,
+          tasks: unassignedTasks,
+        })
+      }
+      return cols
     }
 
     if (viewMode === 'role') {
       const roleCols = DEFAULT_ROLES.map((r) => ({
         id: r.value,
         title: `${r.emoji} ${r.label}`,
-        roleKey: r.value,
+        isCustom: false,
         tasks: filteredTasks.filter((t) => t.assignedRole === r.value),
       }))
       const unassignedTasks = filteredTasks.filter((t) => !t.assignedRole)
@@ -389,7 +266,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
         roleCols.push({
           id: 'unassigned-role',
           title: '⚪ General / Unassigned Role',
-          roleKey: '',
+          isCustom: false,
           tasks: unassignedTasks,
         })
       }
@@ -397,7 +274,6 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
     }
 
     if (viewMode === 'individual') {
-      // Group by Employee / Member
       const indCols = employees.map((emp) => {
         const empTasks = filteredTasks.filter((t) => {
           const id = typeof t.assignedEmployee === 'object' ? t.assignedEmployee?.id : t.assignedEmployee
@@ -406,53 +282,146 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
         return {
           id: emp.id,
           title: `👤 ${emp.name} (${emp.team || 'Staff'})`,
-          employeeId: emp.id,
+          isCustom: false,
           tasks: empTasks,
         }
       })
 
-      // Unassigned individual column
       const unassignedInd = filteredTasks.filter((t) => !t.assignedEmployee && !t.assignedUser)
-      indCols.unshift({
-        id: 'unassigned-ind',
-        title: '📋 Unassigned Members',
-        employeeId: '',
-        tasks: unassignedInd,
-      })
+      if (unassignedInd.length > 0 || indCols.length === 0) {
+        indCols.unshift({
+          id: 'unassigned-ind',
+          title: '📋 Unassigned Members',
+          isCustom: false,
+          tasks: unassignedInd,
+        })
+      }
 
       return indCols
     }
 
     return []
-  }, [viewMode, filteredTasks, employees])
+  }, [viewMode, columnsData, filteredTasks, employees])
 
-  // Quick Add Card handler
+  // Superadmin: Add New Column List
+  const handleAddColumn = async () => {
+    if (!newColumnTitle.trim()) return
+    if (!isSuperAdmin) {
+      alert('Only Superadmin can create columns.')
+      return
+    }
+
+    try {
+      const res = await fetch('/api/task-columns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newColumnTitle.trim(),
+          order: columnsData.length,
+        }),
+      })
+
+      if (res.ok) {
+        const json = await res.json()
+        setColumnsData((prev) => [...prev, json.doc])
+        setNewColumnTitle('')
+        setIsAddingList(false)
+      } else {
+        alert('Failed to create list. Ensure you are logged in as Superadmin.')
+      }
+    } catch (err) {
+      console.error('Error creating column:', err)
+    }
+  }
+
+  // Superadmin: Rename Column List
+  const handleRenameColumn = async (colId: string) => {
+    if (!isSuperAdmin) {
+      alert('Only Superadmin can rename columns.')
+      return
+    }
+    const current = columnsData.find((c) => c.id === colId)
+    const newTitle = prompt('Enter new title for this list:', current?.title || '')
+    if (!newTitle || !newTitle.trim() || newTitle === current?.title) return
+
+    try {
+      const res = await fetch(`/api/task-columns/${colId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle.trim() }),
+      })
+
+      if (res.ok) {
+        const json = await res.json()
+        setColumnsData((prev) => prev.map((c) => (c.id === colId ? json.doc : c)))
+      }
+    } catch (err) {
+      console.error('Error renaming column:', err)
+    } finally {
+      setActiveColumnMenu(null)
+    }
+  }
+
+  // Superadmin: Delete Column List
+  const handleDeleteColumn = async (colId: string) => {
+    if (!isSuperAdmin) {
+      alert('Only Superadmin can delete columns.')
+      return
+    }
+    if (!confirm('Are you sure you want to delete this list?')) return
+
+    try {
+      const res = await fetch(`/api/task-columns/${colId}`, { method: 'DELETE' })
+      if (res.ok) {
+        setColumnsData((prev) => prev.filter((c) => c.id !== colId))
+      }
+    } catch (err) {
+      console.error('Error deleting column:', err)
+    } finally {
+      setActiveColumnMenu(null)
+    }
+  }
+
+  // Superadmin: Quick Add Card
   const handleQuickAddCard = async (columnId: string) => {
     if (!inlineTitle.trim()) return
+    if (!isSuperAdmin) {
+      alert('Only Superadmin can create tasks.')
+      return
+    }
 
-    let statusVal: TaskItem['status'] = 'todo'
+    let targetColId: string | undefined = undefined
     let assignedRoleVal: string | undefined = undefined
     let assignedEmpVal: string | undefined = undefined
 
-    if (viewMode === 'status') {
-      statusVal = columnId as TaskItem['status']
+    if (viewMode === 'board') {
+      if (columnId !== 'unassigned-col') {
+        targetColId = columnId
+      }
     } else if (viewMode === 'role') {
       if (columnId !== 'unassigned-role') {
         assignedRoleVal = columnId
+      }
+      // Pick first column if available
+      if (columnsData.length > 0) {
+        targetColId = columnsData[0].id
       }
     } else if (viewMode === 'individual') {
       if (columnId !== 'unassigned-ind') {
         assignedEmpVal = columnId
       }
+      if (columnsData.length > 0) {
+        targetColId = columnsData[0].id
+      }
     }
 
     const newTaskData: Partial<TaskItem> = {
       title: inlineTitle.trim(),
-      status: statusVal,
+      column: targetColId,
+      status: 'todo',
       assignedRole: assignedRoleVal,
       assignedEmployee: assignedEmpVal,
       priority: 'medium',
-      labels: [{ text: 'Up Next', color: 'yellow' }],
     }
 
     try {
@@ -466,17 +435,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
         const json = await res.json()
         setTasks((prev) => [json.doc, ...prev])
       } else {
-        // Local fallback
-        const mockNew: TaskItem = {
-          id: `task-${Date.now()}`,
-          title: inlineTitle.trim(),
-          status: statusVal,
-          assignedRole: assignedRoleVal,
-          assignedEmployee: assignedEmpVal,
-          priority: 'medium',
-          labels: [{ text: 'Up Next', color: 'yellow' }],
-        }
-        setTasks((prev) => [mockNew, ...prev])
+        alert('Failed to create task. Ensure you have Superadmin privileges.')
       }
     } catch (err) {
       console.error('Error creating task:', err)
@@ -486,24 +445,52 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
     setInlineAddingCol(null)
   }
 
-  // Save Modal Card Edits
+  // Superadmin: Save Modal Card Edits
   const handleSaveModalCard = async () => {
     if (!activeModalCard) return
     setIsSaving(true)
     try {
       const { id, ...dataToSave } = activeModalCard
 
-      const res = await fetch(`/api/tasks/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dataToSave),
-      })
+      // Normalize column reference to string ID
+      if (typeof dataToSave.column === 'object' && dataToSave.column !== null) {
+        dataToSave.column = dataToSave.column.id
+      }
+      if (typeof dataToSave.assignedEmployee === 'object' && dataToSave.assignedEmployee !== null) {
+        dataToSave.assignedEmployee = dataToSave.assignedEmployee.id
+      }
+      if (typeof dataToSave.assignedUser === 'object' && dataToSave.assignedUser !== null) {
+        dataToSave.assignedUser = dataToSave.assignedUser.id
+      }
 
-      if (res.ok) {
-        const json = await res.json()
-        setTasks((prev) => prev.map((t) => (t.id === id ? json.doc : t)))
+      if (id.startsWith('new-')) {
+        // Create new card from modal
+        if (!isSuperAdmin) {
+          alert('Only Superadmin can create tasks.')
+          setIsSaving(false)
+          return
+        }
+        const res = await fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dataToSave),
+        })
+        if (res.ok) {
+          const json = await res.json()
+          setTasks((prev) => [json.doc, ...prev])
+        }
       } else {
-        setTasks((prev) => prev.map((t) => (t.id === id ? activeModalCard : t)))
+        // Update existing card
+        const res = await fetch(`/api/tasks/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dataToSave),
+        })
+
+        if (res.ok) {
+          const json = await res.json()
+          setTasks((prev) => prev.map((t) => (t.id === id ? json.doc : t)))
+        }
       }
       setActiveModalCard(null)
     } catch (err) {
@@ -513,8 +500,12 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
     }
   }
 
-  // Delete Card
+  // Superadmin: Delete Card
   const handleDeleteCard = async (taskId: string) => {
+    if (!isSuperAdmin) {
+      alert('Only Superadmin can delete tasks.')
+      return
+    }
     if (!confirm('Are you sure you want to delete this card?')) return
     try {
       await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' })
@@ -596,32 +587,36 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
         </div>
 
         <div className="topbar-right">
-          <button
-            className="topbar-btn"
-            onClick={() => {
-              if (activeModalCard) return
-              const newCard: TaskItem = {
-                id: `new-${Date.now()}`,
-                title: 'New Work Task',
-                status: 'todo',
-                priority: 'medium',
-                assignmentType: 'role',
-                assignedRole: 'kitchen',
-                labels: [{ text: 'Up Next', color: 'yellow' }],
-              }
-              setActiveModalCard(newCard)
-            }}
-          >
-            <Plus size={15} />
-            <span>Create</span>
-          </button>
+          {isSuperAdmin && (
+            <button
+              className="topbar-btn"
+              onClick={() => {
+                if (activeModalCard) return
+                const defaultCol = columnsData[0]?.id
+                const newCard: TaskItem = {
+                  id: `new-${Date.now()}`,
+                  title: 'New Work Task',
+                  column: defaultCol,
+                  status: 'todo',
+                  priority: 'medium',
+                  assignmentType: 'role',
+                  assignedRole: 'kitchen',
+                  labels: [],
+                }
+                setActiveModalCard(newCard)
+              }}
+            >
+              <Plus size={15} />
+              <span>Create Task</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* 2. BOARD HEADER (Title, Stars, Team pill, Public pill, Avatars, Butler, Menu) */}
       <div className="trello-board-header">
         <div className="board-header-left">
-          <h1 className="board-title-text">Team Goal Setting Central</h1>
+          <h1 className="board-title-text">Work Task Board</h1>
 
           <button
             className={`icon-star-btn ${isStarred ? 'starred' : ''}`}
@@ -642,40 +637,36 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
 
           <div className="header-pill">
             <Globe size={14} />
-            <span>Public</span>
+            <span>Workspace</span>
           </div>
 
           <div className="header-divider" />
 
           {/* Member Avatar Stack */}
           <div className="avatar-stack">
-            <div className="avatar-circle" title="Admin">
-              AD
-            </div>
-            <div className="avatar-circle" title="Chef Raj">
-              CR
-            </div>
-            <div className="avatar-circle" title="Manager">
-              MG
-            </div>
-            <div className="avatar-circle" title="Cashier">
-              CS
-            </div>
-            <div className="avatar-circle avatar-count" title="More team members">
-              +7
-            </div>
+            {employees.slice(0, 4).map((emp, i) => (
+              <div key={emp.id || i} className="avatar-circle" title={emp.name}>
+                {emp.name.slice(0, 2).toUpperCase()}
+              </div>
+            ))}
+            {employees.length > 4 && (
+              <div className="avatar-circle avatar-count" title="More team members">
+                +{employees.length - 4}
+              </div>
+            )}
           </div>
-
-          <button
-            className="invite-btn"
-            onClick={() => alert('Invite team link copied to clipboard!')}
-          >
-            <Plus size={14} />
-            <span>Invite</span>
-          </button>
         </div>
 
         <div className="board-header-right">
+          {currentUser && (
+            <div className="header-pill" title={`Logged in as ${currentUser.role || 'user'}`}>
+              <Users size={14} />
+              <span>
+                {currentUser.name || currentUser.email} ({currentUser.role || 'user'})
+              </span>
+            </div>
+          )}
+
           <button className="header-pill" onClick={() => alert('Butler automations: All rules are active!')}>
             <Zap size={14} />
             <span>Butler</span>
@@ -685,7 +676,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
             className="header-pill"
             onClick={() =>
               alert(
-                'Trello Work Module:\n- View tasks by Status, Role, or Individual.\n- Click on cards to edit.\n- Add tasks directly via + Add another card.',
+                'Trello Work Module:\n- Only Superadmin can create/edit columns and create/delete tasks.\n- View tasks by Custom Lists, by Role, or by Individual.',
               )
             }
           >
@@ -697,13 +688,14 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
 
       {/* 3. VIEW MODE & FILTERS TOOLBAR */}
       <div className="trello-filter-toolbar">
-        {/* View Switchers: Status | Role | Individual */}
+        {/* View Switchers: Board Lists | By Role | By Individual */}
         <div className="view-switchers">
           <button
-            className={`view-tab ${viewMode === 'status' ? 'active' : ''}`}
-            onClick={() => setViewMode('status')}
+            className={`view-tab ${viewMode === 'board' ? 'active' : ''}`}
+            onClick={() => setViewMode('board')}
           >
-            <span>📊 Status Board</span>
+            <Columns size={13} />
+            <span>Board Lists ({columnsData.length})</span>
           </button>
           <button
             className={`view-tab ${viewMode === 'role' ? 'active' : ''}`}
@@ -789,9 +781,36 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
       </div>
 
       {/* 4. MAIN KANBAN BOARD CANVAS */}
-      <div className="trello-board-canvas">
+      <div className="trello-board-canvas" onClick={() => setActiveColumnMenu(null)}>
+        {/* EMPTY STATE: When Superadmin has not created any columns yet */}
+        {viewMode === 'board' && columnsData.length === 0 && (
+          <div className="empty-board-banner">
+            <div className="banner-icon">
+              <Columns size={28} />
+            </div>
+            <h3>No Lists Created Yet</h3>
+            {isSuperAdmin ? (
+              <>
+                <p>
+                  As Superadmin, you have full control over the board. Create your first column list to get started.
+                </p>
+                <button onClick={() => setIsAddingList(true)}>
+                  <Plus size={16} />
+                  <span>Add First List</span>
+                </button>
+              </>
+            ) : (
+              <p>
+                No task lists have been configured for this board. Please contact a Superadmin to create columns.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* COLUMNS */}
         {columns.map((col) => {
-          const isAdding = inlineAddingCol === col.id
+          const isAddingCard = inlineAddingCol === col.id
+          const isMenuOpen = activeColumnMenu === col.id
 
           return (
             <div key={col.id} className="trello-list">
@@ -803,12 +822,47 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                   </span>
                   <span className="list-count-badge">{col.tasks.length}</span>
                 </div>
-                <button
-                  className="list-menu-btn"
-                  onClick={() => alert(`Column Options for: ${col.title}`)}
-                >
-                  <MoreHorizontal size={15} />
-                </button>
+
+                {/* Superadmin Menu for Custom Columns */}
+                {viewMode === 'board' && col.isCustom && isSuperAdmin && (
+                  <div
+                    className="column-menu-wrapper"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      className="list-menu-btn"
+                      onClick={() => setActiveColumnMenu(isMenuOpen ? null : col.id)}
+                      title="List actions"
+                    >
+                      <MoreHorizontal size={15} />
+                    </button>
+
+                    {isMenuOpen && (
+                      <div className="column-menu-popover">
+                        <div className="popover-header">
+                          <span>List Actions</span>
+                          <button onClick={() => setActiveColumnMenu(null)}>
+                            <X size={14} />
+                          </button>
+                        </div>
+                        <button
+                          className="popover-item"
+                          onClick={() => handleRenameColumn(col.id)}
+                        >
+                          <Edit2 size={13} />
+                          <span>Rename List</span>
+                        </button>
+                        <button
+                          className="popover-item danger"
+                          onClick={() => handleDeleteColumn(col.id)}
+                        >
+                          <Trash2 size={13} />
+                          <span>Delete List</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Column Cards Container */}
@@ -915,19 +969,15 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                             <div className="member-avatar" title={roleObj?.label || task.assignedRole}>
                               {roleObj?.emoji || '👤'}
                             </div>
-                          ) : (
-                            <div className="member-avatar" title="Unassigned">
-                              ?
-                            </div>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     </div>
                   )
                 })}
 
-                {/* Inline Quick Add Composer */}
-                {isAdding && (
+                {/* Inline Quick Add Composer (Superadmin Only) */}
+                {isAddingCard && isSuperAdmin && (
                   <div className="inline-card-composer">
                     <textarea
                       autoFocus
@@ -961,8 +1011,8 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                 )}
               </div>
 
-              {/* Column Footer */}
-              {!isAdding && (
+              {/* Column Footer: Only Superadmin can add cards */}
+              {!isAddingCard && isSuperAdmin && (
                 <div className="list-footer">
                   <button
                     className="add-card-btn"
@@ -980,21 +1030,48 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
           )
         })}
 
-        {/* Add Another List placeholder */}
-        <div className="add-list-container">
-          <button
-            className="add-list-btn"
-            onClick={() => {
-              const name = prompt('Enter new list / goal name:')
-              if (name) {
-                alert(`New custom list "${name}" created!`)
-              }
-            }}
-          >
-            <Plus size={16} />
-            <span>Add another list</span>
-          </button>
-        </div>
+        {/* Superadmin: Add Another List button & form */}
+        {viewMode === 'board' && isSuperAdmin && (
+          <div className="add-list-container">
+            {isAddingList ? (
+              <div className="inline-add-list-form">
+                <input
+                  autoFocus
+                  placeholder="Enter list title..."
+                  value={newColumnTitle}
+                  onChange={(e) => setNewColumnTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleAddColumn()
+                    } else if (e.key === 'Escape') {
+                      setIsAddingList(false)
+                    }
+                  }}
+                />
+                <div className="form-actions">
+                  <button className="btn-primary" onClick={handleAddColumn}>
+                    Add list
+                  </button>
+                  <button
+                    className="btn-cancel"
+                    onClick={() => {
+                      setIsAddingList(false)
+                      setNewColumnTitle('')
+                    }}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button className="add-list-btn" onClick={() => setIsAddingList(true)}>
+                <Plus size={16} />
+                <span>Add another list</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 5. INTERACTIVE TRELLO CARD DETAIL MODAL */}
@@ -1014,12 +1091,20 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
               <input
                 className="modal-title-input"
                 value={activeModalCard.title}
+                disabled={!isSuperAdmin}
                 onChange={(e) =>
                   setActiveModalCard({ ...activeModalCard, title: e.target.value })
                 }
               />
               <div className="modal-subtitle">
-                in list <span>{activeModalCard.status.toUpperCase()}</span>
+                in list{' '}
+                <span>
+                  {(() => {
+                    const colId = getTaskColumnId(activeModalCard)
+                    const found = columnsData.find((c) => c.id === colId)
+                    return found?.title || 'Uncategorized'
+                  })()}
+                </span>
               </div>
             </div>
 
@@ -1027,8 +1112,33 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
             <div className="modal-body">
               {/* Left Main Content */}
               <div className="modal-main-content">
-                {/* Meta Grid (Members, Role, Labels, Due Date) */}
+                {/* Meta Grid (Column, Members, Role, Due Date) */}
                 <div className="modal-meta-grid">
+                  {/* Column List Selector */}
+                  <div className="meta-group">
+                    <span className="meta-title">List / Column</span>
+                    <div className="meta-value-chips">
+                      <select
+                        style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                        value={getTaskColumnId(activeModalCard) || ''}
+                        disabled={!isSuperAdmin}
+                        onChange={(e) =>
+                          setActiveModalCard({
+                            ...activeModalCard,
+                            column: e.target.value || undefined,
+                          })
+                        }
+                      >
+                        <option value="">None / Uncategorized</option>
+                        {columnsData.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
                   {/* Role */}
                   <div className="meta-group">
                     <span className="meta-title">Assigned Role</span>
@@ -1036,6 +1146,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                       <select
                         style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ccc' }}
                         value={activeModalCard.assignedRole || ''}
+                        disabled={!isSuperAdmin}
                         onChange={(e) =>
                           setActiveModalCard({
                             ...activeModalCard,
@@ -1064,6 +1175,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                             ? activeModalCard.assignedEmployee?.id || ''
                             : activeModalCard.assignedEmployee || ''
                         }
+                        disabled={!isSuperAdmin}
                         onChange={(e) =>
                           setActiveModalCard({
                             ...activeModalCard,
@@ -1088,6 +1200,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                       <select
                         style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ccc' }}
                         value={activeModalCard.priority || 'medium'}
+                        disabled={!isSuperAdmin}
                         onChange={(e) =>
                           setActiveModalCard({
                             ...activeModalCard,
@@ -1113,6 +1226,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                         value={
                           activeModalCard.dueDate ? activeModalCard.dueDate.slice(0, 10) : ''
                         }
+                        disabled={!isSuperAdmin}
                         onChange={(e) =>
                           setActiveModalCard({
                             ...activeModalCard,
@@ -1137,6 +1251,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                         <button
                           key={preset.text}
                           type="button"
+                          disabled={!isSuperAdmin}
                           onClick={() => handleToggleLabelPreset(preset)}
                           style={{
                             padding: '4px 10px',
@@ -1145,7 +1260,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                             color: '#fff',
                             fontWeight: 700,
                             fontSize: '12px',
-                            cursor: 'pointer',
+                            cursor: isSuperAdmin ? 'pointer' : 'default',
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '4px',
@@ -1170,6 +1285,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                     className="description-box"
                     placeholder="Add a more detailed description..."
                     value={activeModalCard.description || ''}
+                    disabled={!isSuperAdmin}
                     onChange={(e) =>
                       setActiveModalCard({ ...activeModalCard, description: e.target.value })
                     }
@@ -1214,68 +1330,78 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                         <span className={`item-text ${item.completed ? 'completed' : ''}`}>
                           {item.text}
                         </span>
-                        <button
-                          className="item-delete-btn"
-                          onClick={() => handleDeleteChecklistItem(idx)}
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                        {isSuperAdmin && (
+                          <button
+                            className="item-delete-btn"
+                            onClick={() => handleDeleteChecklistItem(idx)}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
 
                   {/* Add checklist item */}
-                  <div className="add-checklist-item-form">
-                    <input
-                      type="text"
-                      placeholder="Add an item..."
-                      value={newChecklistText}
-                      onChange={(e) => setNewChecklistText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          handleAddChecklistItem()
-                        }
-                      }}
-                    />
-                    <button type="button" onClick={handleAddChecklistItem}>
-                      Add
-                    </button>
-                  </div>
+                  {isSuperAdmin && (
+                    <div className="add-checklist-item-form">
+                      <input
+                        type="text"
+                        placeholder="Add an item..."
+                        value={newChecklistText}
+                        onChange={(e) => setNewChecklistText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleAddChecklistItem()
+                          }
+                        }}
+                      />
+                      <button type="button" onClick={handleAddChecklistItem}>
+                        Add
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Right Sidebar Actions */}
               <div className="modal-actions-sidebar">
-                <div className="sidebar-section-title">Change Status</div>
+                <div className="sidebar-section-title">Change List</div>
                 <div className="sidebar-select-field">
                   <select
-                    value={activeModalCard.status}
+                    value={getTaskColumnId(activeModalCard) || ''}
+                    disabled={!isSuperAdmin}
                     onChange={(e) =>
                       setActiveModalCard({
                         ...activeModalCard,
-                        status: e.target.value as any,
+                        column: e.target.value || undefined,
                       })
                     }
                   >
-                    <option value="backlog">Goal 1: Grow Customers (Backlog)</option>
-                    <option value="todo">Goal 2: Reduce Costs (To Do)</option>
-                    <option value="in_progress">Goal Template (In Progress)</option>
-                    <option value="review">Done (Q1 2019)</option>
-                    <option value="done">Done (Q4 2018)</option>
+                    <option value="">Uncategorized</option>
+                    {columnsData.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.title}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
-                <div className="sidebar-section-title">Actions</div>
-                <div className="action-buttons-list">
-                  <button
-                    className="sidebar-btn btn-danger"
-                    onClick={() => handleDeleteCard(activeModalCard.id)}
-                  >
-                    <Trash2 size={14} />
-                    <span>Delete Card</span>
-                  </button>
-                </div>
+                {isSuperAdmin && (
+                  <>
+                    <div className="sidebar-section-title">Superadmin Actions</div>
+                    <div className="action-buttons-list">
+                      <button
+                        className="sidebar-btn btn-danger"
+                        onClick={() => handleDeleteCard(activeModalCard.id)}
+                      >
+                        <Trash2 size={14} />
+                        <span>Delete Card</span>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 

@@ -25,6 +25,7 @@ import { Media } from './collections/Media'
 import Dealers from './collections/Dealers'
 import Employees from './collections/Employees'
 import Tasks from './collections/Tasks'
+import TaskColumns from './collections/TaskColumns'
 import Billings from './collections/Billings'
 import { MessageThreads } from './collections/MessageThreads'
 import { Messages } from './collections/Messages'
@@ -1004,6 +1005,7 @@ export default buildConfig({
     Dealers,
     Employees,
     Tasks,
+    TaskColumns,
     MessageThreads,
     MessageAttachments,
     Messages,

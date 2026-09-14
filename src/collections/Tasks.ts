@@ -27,9 +27,9 @@ export const Tasks: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: ({ req: { user } }) => Boolean(user),
+    create: ({ req: { user } }) => user?.role === 'superadmin' || user?.role === 'admin',
     update: ({ req: { user } }) => Boolean(user),
-    delete: ({ req: { user } }) => Boolean(user),
+    delete: ({ req: { user } }) => user?.role === 'superadmin' || user?.role === 'admin',
   },
   fields: [
     {
@@ -37,6 +37,15 @@ export const Tasks: CollectionConfig = {
       type: 'text',
       required: true,
       label: 'Task Title',
+    },
+    {
+      name: 'column',
+      type: 'relationship',
+      relationTo: 'task-columns' as any,
+      label: 'Column / List',
+      admin: {
+        position: 'sidebar',
+      },
     },
     {
       name: 'description',
