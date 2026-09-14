@@ -76,6 +76,17 @@ export const Branches: CollectionConfig = {
       required: true,
     },
     {
+      name: 'status',
+      type: 'select',
+      options: [
+        { label: 'Active', value: 'active' },
+        { label: 'Inactive', value: 'inactive' },
+        { label: 'Others', value: 'others' },
+      ],
+      defaultValue: 'active',
+      required: true,
+    },
+    {
       name: 'gst',
       type: 'text',
       required: true,
