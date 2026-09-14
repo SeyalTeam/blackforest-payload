@@ -85,32 +85,18 @@ export async function GET(req: NextRequest) {
     const istTime = new Date(now.getTime() + 5.5 * 60 * 60 * 1000)
     const todayStr = istTime.toISOString().slice(0, 10)
 
-    // 4. Fetch Attendance records (today + active sessions)
+    // 4. Fetch Attendance records strictly for today
     let attendanceDocs: any[] = []
     try {
       const todayAttendance = await payload.find({
         collection: 'attendance',
         where: {
-          or: [
-            { dateString: { equals: todayStr } },
-            { 'activities.status': { equals: 'active' } },
-          ],
+          dateString: { equals: todayStr },
         },
-        limit: 300,
+        limit: 500,
         depth: 2,
       })
       attendanceDocs = todayAttendance.docs || []
-
-      // If today has no attendance records yet, fetch recent records to show realistic live state
-      if (attendanceDocs.length === 0) {
-        const recentAttendance = await payload.find({
-          collection: 'attendance',
-          limit: 50,
-          sort: '-updatedAt',
-          depth: 2,
-        })
-        attendanceDocs = recentAttendance.docs || []
-      }
     } catch (err) {
       console.error('Error fetching attendance in work-gps route:', err)
     }
@@ -163,109 +149,101 @@ export async function GET(req: NextRequest) {
       const branchLng = geo?.longitude ?? 78.1348
       const branchRadius = geo?.radius ?? 100
 
-      // Find people associated with or present at this branch
+      // Find people who are currently live working (active punchin) at this branch today
       const persons: any[] = []
       const processedPersonIds = new Set<string>()
 
-      // Check attendance records
+      // Check attendance records strictly for people currently live working (punched in today)
       for (const att of attendanceDocs) {
         const u = typeof att.user === 'object' ? att.user : userMap.get(String(att.user))
         const emp = typeof att.employee === 'object' ? att.employee : (att.employee ? employeeMap.get(String(att.employee)) : null)
         const personKey = (u?.id || emp?.id || att.id).toString()
         if (processedPersonIds.has(personKey)) continue
 
+        const activities = Array.isArray(att.activities) ? att.activities : []
+        
+        // Find current live active session (status: 'active' and NO punchOut)
+        const liveSession = activities.slice().reverse().find(
+          (a: any) => (a.type === 'session' || !a.type) && a.status === 'active' && !a.punchOut
+        )
+        // If activities are recorded, strictly require an active open session. Otherwise check root status
+        const isLiveActive = activities.length > 0
+          ? !!liveSession
+          : (att.status === 'active' && !att.punchOut)
+
+        // STRICT: Only show staff who are currently live working (punched in right now)
+        if (!isLiveActive) {
+          continue
+        }
+
         // Determine user branch association
         const userBranchId = typeof u?.branch === 'object' ? u?.branch?.id : u?.branch
         const userLastBranchId = typeof u?.lastLoginBranch === 'object' ? u?.lastLoginBranch?.id : u?.lastLoginBranch
-        const isAssignedToThisBranch = String(userBranchId) === bId || String(userLastBranchId) === bId
+        const userKitchenBranches = Array.isArray(u?.kitchenBranches)
+          ? u.kitchenBranches.map((kb: any) => String(typeof kb === 'object' ? kb.id : kb))
+          : []
+        const isAssignedToThisBranch =
+          String(userBranchId) === bId ||
+          String(userLastBranchId) === bId ||
+          userKitchenBranches.includes(bId)
 
-        // Find active session or latest activity
-        const activities = Array.isArray(att.activities) ? att.activities : []
-        const activeActivity = activities.slice().reverse().find((a: any) => a.status === 'active')
-        const latestActivity = activeActivity || activities[activities.length - 1]
-
-        const personLat = typeof latestActivity?.latitude === 'number'
-          ? latestActivity.latitude
+        const personLat = typeof liveSession?.latitude === 'number'
+          ? liveSession.latitude
           : (typeof att.location?.latitude === 'number' ? att.location.latitude : null)
 
-        const personLng = typeof latestActivity?.longitude === 'number'
-          ? latestActivity.longitude
+        const personLng = typeof liveSession?.longitude === 'number'
+          ? liveSession.longitude
           : (typeof att.location?.longitude === 'number' ? att.location.longitude : null)
 
+        const hasPersonCoords = personLat !== null && personLng !== null
         let distanceMeters: number | null = null
-        let isInside = false
+        let isPhysicallyInside = false
 
-        if (hasGps && personLat !== null && personLng !== null) {
+        if (hasGps && hasPersonCoords) {
           distanceMeters = distanceInMeters(personLat, personLng, branchLat, branchLng)
           if (distanceMeters <= branchRadius) {
-            isInside = true
+            isPhysicallyInside = true
           }
         }
 
-        // If coordinates match or person is actively punched into this branch
-        if (isInside || (isAssignedToThisBranch && latestActivity?.status === 'active')) {
-          processedPersonIds.add(personKey)
+        // STRICT: Person belongs to this branch's GPS circle if:
+        // 1. Both branch and person have GPS coords -> MUST be physically inside the circle!
+        // 2. If person has no GPS coords (e.g. desktop/POS punchin) -> MUST be assigned to this branch
+        const isBelongingToThisBranch = (hasGps && hasPersonCoords)
+          ? isPhysicallyInside
+          : isAssignedToThisBranch
 
-          const statusVal = latestActivity?.status === 'active'
-            ? (latestActivity.type === 'break' ? 'on_break' : 'active')
-            : 'closed'
-
-          const photoUrl =
-            typeof latestActivity?.capturedImage === 'object' && latestActivity.capturedImage?.url
-              ? latestActivity.capturedImage.url
-              : (typeof emp?.photo === 'object' ? emp.photo?.url : (typeof u?.photo === 'object' ? u.photo?.url : null))
-
-          persons.push({
-            id: personKey,
-            userId: u?.id || null,
-            employeeId: emp?.employeeId || null,
-            name: emp?.name || u?.name || 'Staff Member',
-            role: emp?.team || u?.role || 'Staff',
-            phoneNumber: emp?.phoneNumber || u?.phoneNumber || '',
-            email: emp?.email || u?.email || '',
-            photoUrl: photoUrl || null,
-            status: statusVal,
-            isInside: true,
-            punchIn: latestActivity?.punchIn || att.firstPunchIn || att.createdAt,
-            punchOut: latestActivity?.punchOut || att.lastPunchOut || null,
-            latitude: personLat,
-            longitude: personLng,
-            distanceMeters: distanceMeters !== null ? distanceMeters : Math.round(Math.random() * (branchRadius * 0.6)),
-            ipAddress: latestActivity?.ipAddress || att.ipAddress || '',
-            device: latestActivity?.device || att.device || 'Android Device',
-          })
+        if (!isBelongingToThisBranch) {
+          continue
         }
+
+        processedPersonIds.add(personKey)
+
+        const photoUrl =
+          typeof liveSession?.capturedImage === 'object' && liveSession.capturedImage?.url
+            ? liveSession.capturedImage.url
+            : (typeof emp?.photo === 'object' ? emp.photo?.url : (typeof u?.photo === 'object' ? u.photo?.url : null))
+
+        persons.push({
+          id: personKey,
+          userId: u?.id || null,
+          employeeId: emp?.employeeId || null,
+          name: emp?.name || u?.name || 'Staff Member',
+          role: emp?.team || u?.role || 'Staff',
+          phoneNumber: emp?.phoneNumber || u?.phoneNumber || '',
+          email: emp?.email || u?.email || '',
+          photoUrl: photoUrl || null,
+          status: 'active',
+          isInside: hasGps && hasPersonCoords ? isPhysicallyInside : true,
+          punchIn: liveSession?.punchIn || att.firstPunchIn || att.createdAt,
+          punchOut: null,
+          latitude: personLat,
+          longitude: personLng,
+          distanceMeters: distanceMeters !== null ? Math.round(distanceMeters) : Math.round(branchRadius * 0.3),
+          ipAddress: liveSession?.ipAddress || att.ipAddress || '',
+          device: liveSession?.device || att.device || 'Android Device',
+        })
       }
-
-      // Also include users specifically assigned to this branch who are marked active
-      userDocs.forEach((u: any) => {
-        const uBranchId = typeof u.branch === 'object' ? u.branch?.id : u.branch
-        if (String(uBranchId) === bId && !processedPersonIds.has(String(u.id))) {
-          // If staff is active role and assigned here
-          if (['manager', 'cashier', 'waiter', 'chef', 'supervisor', 'kitchen'].includes(u.role)) {
-            processedPersonIds.add(String(u.id))
-            persons.push({
-              id: String(u.id),
-              userId: String(u.id),
-              employeeId: null,
-              name: u.name || 'Team Member',
-              role: u.role || 'Staff',
-              phoneNumber: u.phoneNumber || '',
-              email: u.email || '',
-              photoUrl: typeof u.photo === 'object' ? u.photo?.url : null,
-              status: 'assigned',
-              isInside: true,
-              punchIn: null,
-              punchOut: null,
-              latitude: null,
-              longitude: null,
-              distanceMeters: Math.round(branchRadius * 0.4),
-              ipAddress: u.lastLoginIp || '',
-              device: 'Staff Portal',
-            })
-          }
-        }
-      })
 
       // Assign visual coordinates within circle for rendering markers on the map
       const mappedPersons = persons.map((p, idx) => {
