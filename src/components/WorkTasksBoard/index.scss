@@ -522,6 +522,55 @@
       font-size: 13px;
       margin-bottom: 8px;
       outline: none;
+      box-sizing: border-box;
+    }
+
+    .add-list-dropdown-group {
+      margin-bottom: 8px;
+
+      .add-list-field-label {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        color: #5e6c84;
+        margin-bottom: 5px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .add-list-filter-input {
+        width: 100%;
+        padding: 6px 8px;
+        border: 1px solid #dfe1e6;
+        border-radius: 4px;
+        font-size: 12px;
+        margin-bottom: 6px;
+        outline: none;
+        background: #ffffff;
+        box-sizing: border-box;
+
+        &:focus {
+          border-color: #0079bf;
+        }
+      }
+
+      .add-list-select {
+        width: 100%;
+        padding: 8px 10px;
+        border: 2px solid #0079bf;
+        border-radius: 4px;
+        font-size: 13px;
+        outline: none;
+        background: #ffffff;
+        color: #172b4d;
+        font-weight: 600;
+        cursor: pointer;
+        box-sizing: border-box;
+
+        &:focus {
+          box-shadow: 0 0 0 2px rgba(0, 121, 191, 0.2);
+        }
+      }
     }
 
     .form-actions {
@@ -539,8 +588,13 @@
         font-size: 13px;
         cursor: pointer;
 
-        &:hover {
+        &:hover:not(:disabled) {
           background: #026aa7;
+        }
+
+        &:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
         }
       }
 

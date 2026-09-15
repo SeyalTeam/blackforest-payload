@@ -129,6 +129,9 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
   // Superadmin new list inline form state
   const [isAddingList, setIsAddingList] = useState(false)
   const [newColumnTitle, setNewColumnTitle] = useState('')
+  const [selectedRoleForCol, setSelectedRoleForCol] = useState('')
+  const [selectedEmployeeForCol, setSelectedEmployeeForCol] = useState('')
+  const [empFilterText, setEmpFilterText] = useState('')
 
   // Column options menu popover state
   const [activeColumnMenu, setActiveColumnMenu] = useState<string | null>(null)
@@ -265,6 +268,19 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
     })
     return employees.filter((e) => empIdSet.has(e.id))
   }, [columnsData, tasks, employees])
+
+  // Alphabetically sorted and filtered employee list for dropdown selection
+  const sortedEmployees = useMemo(() => {
+    return [...employees].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+  }, [employees])
+
+  const filteredEmployeesForDropdown = useMemo(() => {
+    if (!empFilterText.trim()) return sortedEmployees
+    const q = empFilterText.toLowerCase().trim()
+    return sortedEmployees.filter(
+      (e) => (e.name || '').toLowerCase().includes(q) || (e.team || '').toLowerCase().includes(q),
+    )
+  }, [sortedEmployees, empFilterText])
 
   // Compute Columns dynamically based on viewMode
   const columns = useMemo(() => {
@@ -433,32 +449,50 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
 
   // Superadmin: Add New Column List
   const handleAddColumn = async () => {
-    if (!newColumnTitle.trim()) return
     if (!isSuperAdmin) {
       alert('Only Superadmin can create columns.')
       return
     }
 
+    let titleToSave = ''
     let roleVal: string | undefined = undefined
     let assignedEmpVal: string | undefined = undefined
 
     if (viewMode === 'role') {
+      const roleKey = selectedRoleForCol || newColumnTitle.trim().toLowerCase().replace(/\s+/g, '_')
+      if (!roleKey) {
+        alert('Please select a role from the dropdown list.')
+        return
+      }
       const matched = DEFAULT_ROLES.find(
         (r) =>
-          r.label.toLowerCase() === newColumnTitle.trim().toLowerCase() ||
-          r.value === newColumnTitle.trim().toLowerCase(),
+          r.value === roleKey ||
+          r.label.toLowerCase() === roleKey.toLowerCase(),
       )
-      roleVal = matched ? matched.value : newColumnTitle.trim().toLowerCase().replace(/\s+/g, '_')
+      roleVal = matched ? matched.value : roleKey
+      titleToSave = matched ? matched.label : newColumnTitle.trim()
     } else if (viewMode === 'individual') {
+      const empIdToUse = selectedEmployeeForCol
+      if (!empIdToUse && !newColumnTitle.trim()) {
+        alert('Please select an employee from the dropdown list.')
+        return
+      }
       const matchedEmp = employees.find(
         (e) =>
+          e.id === empIdToUse ||
           e.name.toLowerCase() === newColumnTitle.trim().toLowerCase() ||
-          e.id === newColumnTitle.trim() ||
           newColumnTitle.toLowerCase().includes(e.name.toLowerCase()),
       )
       if (matchedEmp) {
         assignedEmpVal = matchedEmp.id
+        titleToSave = matchedEmp.name + (matchedEmp.team ? ` (${matchedEmp.team})` : '')
+      } else {
+        assignedEmpVal = empIdToUse
+        titleToSave = newColumnTitle.trim() || 'Employee'
       }
+    } else {
+      if (!newColumnTitle.trim()) return
+      titleToSave = newColumnTitle.trim()
     }
 
     try {
@@ -466,7 +500,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: newColumnTitle.trim(),
+          title: titleToSave,
           role: roleVal,
           assignedEmployee: assignedEmpVal,
           order: columnsData.length,
@@ -477,6 +511,9 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
         const json = await res.json()
         setColumnsData((prev) => [...prev, json.doc])
         setNewColumnTitle('')
+        setSelectedRoleForCol('')
+        setSelectedEmployeeForCol('')
+        setEmpFilterText('')
         setIsAddingList(false)
       } else {
         alert('Failed to create list. Ensure you are logged in as Superadmin.')
@@ -946,7 +983,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
         {/* EMPTY STATE: When Superadmin has not created any columns yet */}
         {((viewMode === 'board' && columnsData.length === 0) ||
           (viewMode === 'role' && columns.length === 0) ||
-          (viewMode === 'individual' && columns.length === 0)) && (
+          (viewMode === 'individual' && columns.length === 0)) && !isAddingList && (
           <div className="empty-board-banner">
             <div className="banner-icon">
               <Columns size={28} />
@@ -1214,84 +1251,105 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
           <div className="add-list-container">
             {isAddingList ? (
               <div className="inline-add-list-form">
-                <input
-                  autoFocus
-                  placeholder={
-                    viewMode === 'role'
-                      ? 'Enter role title (e.g. Chef, Kitchen)...'
-                      : viewMode === 'individual'
-                      ? 'Enter employee name or select below...'
-                      : 'Enter list title...'
-                  }
-                  value={newColumnTitle}
-                  onChange={(e) => setNewColumnTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      handleAddColumn()
-                    } else if (e.key === 'Escape') {
-                      setIsAddingList(false)
-                    }
-                  }}
-                />
-                {viewMode === 'role' && (
-                  <div style={{ margin: '6px 0' }}>
+                {viewMode === 'role' ? (
+                  <div className="add-list-dropdown-group">
+                    <label className="add-list-field-label">Select Role List</label>
                     <select
-                      style={{
-                        width: '100%',
-                        padding: '4px 6px',
-                        fontSize: '12px',
-                        borderRadius: '4px',
-                        border: '1px solid #dfe1e6',
-                        background: '#ffffff',
-                      }}
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          const r = DEFAULT_ROLES.find((item) => item.value === e.target.value)
-                          if (r) setNewColumnTitle(r.label)
+                      autoFocus
+                      className="add-list-select"
+                      value={selectedRoleForCol}
+                      onChange={(e) => setSelectedRoleForCol(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleAddColumn()
+                        } else if (e.key === 'Escape') {
+                          setIsAddingList(false)
                         }
                       }}
-                      defaultValue=""
                     >
-                      <option value="">-- Or choose from standard role --</option>
-                      {DEFAULT_ROLES.map((r) => (
-                        <option key={r.value} value={r.value}>
-                          {r.emoji} {r.label}
-                        </option>
-                      ))}
+                      <option value="">-- Select a Role --</option>
+                      {DEFAULT_ROLES.map((r) => {
+                        const alreadyExists = columnsData.some((c) => c.role === r.value)
+                        return (
+                          <option key={r.value} value={r.value} disabled={alreadyExists}>
+                            {r.emoji} {r.label} {alreadyExists ? '✓ (Already added)' : ''}
+                          </option>
+                        )
+                      })}
                     </select>
                   </div>
-                )}
-                {viewMode === 'individual' && (
-                  <div style={{ margin: '6px 0' }}>
+                ) : viewMode === 'individual' ? (
+                  <div className="add-list-dropdown-group">
+                    <label className="add-list-field-label">Select Employee List</label>
+                    {employees.length > 6 && (
+                      <input
+                        type="text"
+                        className="add-list-filter-input"
+                        placeholder="🔍 Filter employee name..."
+                        value={empFilterText}
+                        onChange={(e) => setEmpFilterText(e.target.value)}
+                      />
+                    )}
                     <select
-                      style={{
-                        width: '100%',
-                        padding: '4px 6px',
-                        fontSize: '12px',
-                        borderRadius: '4px',
-                        border: '1px solid #dfe1e6',
-                        background: '#ffffff',
-                      }}
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          const emp = employees.find((item) => item.id === e.target.value)
-                          if (emp) setNewColumnTitle(`${emp.name} (${emp.team || 'Staff'})`)
+                      autoFocus
+                      className="add-list-select"
+                      value={selectedEmployeeForCol}
+                      onChange={(e) => setSelectedEmployeeForCol(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleAddColumn()
+                        } else if (e.key === 'Escape') {
+                          setIsAddingList(false)
                         }
                       }}
-                      defaultValue=""
                     >
-                      <option value="">-- Or select an employee --</option>
-                      {employees.map((emp) => (
-                        <option key={emp.id} value={emp.id}>
-                          👤 {emp.name} ({emp.team || 'Staff'})
-                        </option>
-                      ))}
+                      <option value="">-- Select an Employee --</option>
+                      {filteredEmployeesForDropdown.map((emp) => {
+                        const alreadyExists = columnsData.some((c) => {
+                          const colEmpId =
+                            typeof c.assignedEmployee === 'object'
+                              ? c.assignedEmployee?.id
+                              : c.assignedEmployee
+                          return colEmpId === emp.id
+                        })
+                        return (
+                          <option key={emp.id} value={emp.id} disabled={alreadyExists}>
+                            👤 {emp.name} {emp.team ? `(${emp.team})` : ''} {alreadyExists ? '✓ (Already added)' : ''}
+                          </option>
+                        )
+                      })}
                     </select>
                   </div>
+                ) : (
+                  <input
+                    autoFocus
+                    placeholder="Enter list title (e.g. To Do, In Progress)..."
+                    value={newColumnTitle}
+                    onChange={(e) => setNewColumnTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleAddColumn()
+                      } else if (e.key === 'Escape') {
+                        setIsAddingList(false)
+                      }
+                    }}
+                  />
                 )}
                 <div className="form-actions">
-                  <button className="btn-primary" onClick={handleAddColumn}>
+                  <button
+                    className="btn-primary"
+                    onClick={handleAddColumn}
+                    disabled={
+                      viewMode === 'role'
+                        ? !selectedRoleForCol
+                        : viewMode === 'individual'
+                        ? !selectedEmployeeForCol
+                        : !newColumnTitle.trim()
+                    }
+                  >
                     {viewMode === 'role'
                       ? 'Add role list'
                       : viewMode === 'individual'
@@ -1303,6 +1361,9 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                     onClick={() => {
                       setIsAddingList(false)
                       setNewColumnTitle('')
+                      setSelectedRoleForCol('')
+                      setSelectedEmployeeForCol('')
+                      setEmpFilterText('')
                     }}
                   >
                     <X size={18} />
