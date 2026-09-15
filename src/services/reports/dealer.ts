@@ -1,4 +1,5 @@
 import type { PayloadRequest } from 'payload'
+import mongoose from 'mongoose'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
@@ -215,21 +216,14 @@ export const getDealerReportData = async (
     }
   }
 
-  const exprAnd: any[] = []
   if (selectedBranches.length > 0) {
-    exprAnd.push({
-      $in: [{ $toString: '$branch' }, selectedBranches],
-    })
+    matchQuery.branch = {
+      $in: selectedBranches.map((id) => new mongoose.Types.ObjectId(id)),
+    }
   }
   if (selectedDealers.length > 0) {
-    exprAnd.push({
-      $in: [{ $toString: '$dealer' }, selectedDealers],
-    })
-  }
-
-  if (exprAnd.length > 0) {
-    matchQuery.$expr = {
-      $and: exprAnd,
+    matchQuery.dealer = {
+      $in: selectedDealers.map((id) => new mongoose.Types.ObjectId(id)),
     }
   }
 
@@ -304,75 +298,24 @@ export const getDealerReportData = async (
     {
       $lookup: {
         from: 'products',
-        let: { prodIds: '$productsList.product' },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $in: [
-                  '$_id',
-                  {
-                    $map: {
-                      input: { $ifNull: ['$$prodIds', []] },
-                      as: 'pid',
-                      in: { $convert: { input: '$$pid', to: 'objectId', onError: '$$pid', onNull: '$$pid' } },
-                    },
-                  },
-                ],
-              },
-            },
-          },
-        ],
+        localField: 'productsList.product',
+        foreignField: '_id',
         as: 'productsListResolvedProducts',
       },
     },
     {
       $lookup: {
         from: 'media',
-        let: { mediaIds: '$productsList.photo' },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $in: [
-                  '$_id',
-                  {
-                    $map: {
-                      input: { $ifNull: ['$$mediaIds', []] },
-                      as: 'mid',
-                      in: { $convert: { input: '$$mid', to: 'objectId', onError: '$$mid', onNull: '$$mid' } },
-                    },
-                  },
-                ],
-              },
-            },
-          },
-        ],
+        localField: 'productsList.photo',
+        foreignField: '_id',
         as: 'productsListMedia',
       },
     },
     {
       $lookup: {
         from: 'products',
-        let: { prodIds: '$products' },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $in: [
-                  '$_id',
-                  {
-                    $map: {
-                      input: { $ifNull: ['$$prodIds', []] },
-                      as: 'pid',
-                      in: { $convert: { input: '$$pid', to: 'objectId', onError: '$$pid', onNull: '$$pid' } },
-                    },
-                  },
-                ],
-              },
-            },
-          },
-        ],
+        localField: 'products',
+        foreignField: '_id',
         as: 'resolvedProducts',
       },
     },
@@ -592,15 +535,15 @@ export const getDealerReportData = async (
   const totalCount = groups.reduce((acc, group) => acc + group.count, 0)
 
   // Query MongoDB for all distinct planned payment dates across all non-cancelled bills
-  const plannedDocs = await DealerBillingModel.find(
-    { plannedPaymentDate: { $exists: true, $ne: null }, status: { $ne: 'cancelled' } },
-    { plannedPaymentDate: 1 },
-  ).lean()
+  const distinctPlannedDates = await DealerBillingModel.distinct('plannedPaymentDate', {
+    plannedPaymentDate: { $exists: true, $ne: null },
+    status: { $ne: 'cancelled' },
+  })
 
   const plannedDatesSet = new Set<string>()
-  plannedDocs.forEach((doc: any) => {
-    if (doc.plannedPaymentDate) {
-      const dateStr = dayjs.utc(doc.plannedPaymentDate).format('YYYY-MM-DD')
+  distinctPlannedDates.forEach((dateObj: any) => {
+    if (dateObj) {
+      const dateStr = dayjs.utc(dateObj).format('YYYY-MM-DD')
       if (dateStr) plannedDatesSet.add(dateStr)
     }
   })

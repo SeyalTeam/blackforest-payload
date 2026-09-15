@@ -87,9 +87,10 @@ export const Tasks: CollectionConfig = {
       type: 'select',
       defaultValue: 'role',
       options: [
-        { label: 'By Role', value: 'role' },
+        { label: 'By Role (All Role Members)', value: 'role' },
         { label: 'By Individual', value: 'individual' },
         { label: 'Both (Role & Individual)', value: 'both' },
+        { label: 'Unassigned', value: 'unassigned' },
       ],
       admin: {
         position: 'sidebar',

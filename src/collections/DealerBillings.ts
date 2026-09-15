@@ -127,6 +127,7 @@ const DealerBillings: CollectionConfig = {
       name: 'date',
       type: 'date',
       required: true,
+      index: true,
     },
     {
       name: 'paidAmount',
@@ -166,6 +167,7 @@ const DealerBillings: CollectionConfig = {
       ],
       defaultValue: 'pending',
       required: true,
+      index: true,
       admin: {
         readOnly: true,
       },
@@ -186,6 +188,7 @@ const DealerBillings: CollectionConfig = {
       name: 'plannedPaymentDate',
       type: 'date',
       required: false,
+      index: true,
     },
   ],
   hooks: {

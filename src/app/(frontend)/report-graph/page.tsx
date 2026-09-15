@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { Menu, Home as HomeIcon, FileText, BarChart2, TrendingUp, MousePointerClick, CheckCircle, Settings, ChevronDown, Check, X, CheckSquare, Square, Building2, Tag } from 'lucide-react'
+import { Menu, Home as HomeIcon, FileText, BarChart2, TrendingUp, MousePointerClick, CheckCircle, Settings, ChevronDown, Check, X, CheckSquare, Square, Building2, Tag, Maximize2, Minimize2 } from 'lucide-react'
 import Link from 'next/link'
 import { GoogleDateRangePicker, getPresetDates } from '../../../components/RawMaterialBillingReport/GoogleDateRangePicker'
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, ComposedChart } from 'recharts'
@@ -123,6 +123,7 @@ export default function ReportGraphPage() {
   const [categorySearchQuery, setCategorySearchQuery] = useState('')
 
   const [visibleLines, setVisibleLines] = useState({ total: true, paid: true, pending: true, cancelled: false })
+  const [expandedSummaryView, setExpandedSummaryView] = useState<'none' | 'dealers' | 'categories'>('none')
 
 
 
@@ -1776,9 +1777,18 @@ export default function ReportGraphPage() {
                flexDirection: 'column'
              }}>
                 <div style={{ paddingBottom: '16px', borderBottom: '1px solid #f3f4f6', marginBottom: '12px' }}>
-                  <h3 style={{ margin: '0', color: '#111827', fontSize: '16px', fontWeight: 600 }}>
-                    {selectedDealer === 'all' ? 'Dealers Summary' : 'Bills Summary'}
-                  </h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ margin: '0', color: '#111827', fontSize: '16px', fontWeight: 600 }}>
+                      {selectedDealer === 'all' ? 'Dealers Summary' : 'Bills Summary'}
+                    </h3>
+                    <button 
+                      onClick={() => setExpandedSummaryView(prev => prev === 'dealers' ? 'none' : 'dealers')} 
+                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280', borderRadius: '4px' }}
+                      title={expandedSummaryView === 'dealers' ? "Collapse" : "Expand to bottom"}
+                    >
+                      {expandedSummaryView === 'dealers' ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                    </button>
+                  </div>
                   <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
                     {selectedDealer === 'all' ? 'Total across selected date range' : (dealers.find(d => d.id === selectedDealer)?.name || 'Unknown Dealer')}
                   </div>
@@ -1886,9 +1896,18 @@ export default function ReportGraphPage() {
                flexDirection: 'column'
              }}>
                 <div style={{ paddingBottom: '16px', borderBottom: '1px solid #f3f4f6', marginBottom: '12px' }}>
-                  <h3 style={{ margin: '0', color: '#111827', fontSize: '16px', fontWeight: 600 }}>
-                    Category Summary
-                  </h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ margin: '0', color: '#111827', fontSize: '16px', fontWeight: 600 }}>
+                      Category Summary
+                    </h3>
+                    <button 
+                      onClick={() => setExpandedSummaryView(prev => prev === 'categories' ? 'none' : 'categories')} 
+                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280', borderRadius: '4px' }}
+                      title={expandedSummaryView === 'categories' ? "Collapse" : "Expand to bottom"}
+                    >
+                      {expandedSummaryView === 'categories' ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                    </button>
+                  </div>
                   <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
                     Total across selected date range
                   </div>
@@ -2009,11 +2028,93 @@ export default function ReportGraphPage() {
                 borderRadius: '12px',
                 boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
                 padding: '20px 16px',
-                flex: '0 0 calc(75% - 10px)',
+                flex: expandedSummaryView !== 'none' ? '1' : '0 0 calc(75% - 10px)',
                 overflowX: 'auto'
               }}>
-                <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#374151', marginBottom: '16px' }}>Bill Details</h3>
+                <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#374151', marginBottom: '16px' }}>
+                  {expandedSummaryView === 'dealers' ? (selectedDealer === 'all' ? 'Dealers Summary' : 'Bills Summary') : 
+                   expandedSummaryView === 'categories' ? 'Category Summary' : 
+                   'Bill Details'}
+                </h3>
                 <div style={{ width: '100%', overflowX: 'auto' }}>
+                  {expandedSummaryView === 'dealers' ? (
+                     <table style={{ width: '100%', tableLayout: 'auto', borderCollapse: 'separate', borderSpacing: '0', fontSize: '13px' }}>
+                       <thead>
+                         <tr>
+                           <th style={{ width: '5%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>S.NO</th>
+                           <th style={{ backgroundColor: '#f9fafb', textAlign: 'left', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>
+                             {selectedDealer === 'all' ? 'Dealer Name' : 'Bill Info'}
+                           </th>
+                           <th style={{ width: '20%', textAlign: 'right', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6' }}>Amount</th>
+                         </tr>
+                       </thead>
+                       <tbody>
+                         {selectedDealer === 'all' ? (
+                           dealerSummary.map((dealer, i) => (
+                             <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                               <td style={{ backgroundColor: i % 2 === 0 ? '#f9fafb' : '#ffffff', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontSize: '12px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{i + 1}</td>
+                               <td style={{ backgroundColor: i % 2 === 0 ? '#f3f4f6' : '#f9fafb', padding: '12px 8px', color: '#374151', fontWeight: 700, textTransform: 'uppercase', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{dealer.name}</td>
+                               <td style={{ backgroundColor: i % 2 === 0 ? '#f9fafb' : '#ffffff', padding: '12px 8px', color: '#111827', fontWeight: 700, fontSize: '14.5px', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>₹{dealer.amount.toLocaleString('en-IN')}</td>
+                             </tr>
+                           ))
+                         ) : (
+                           dealerBills.map((bill, i) => {
+                             const isSameDayPaid = bill.status === 'paid' && (
+                               (bill.payments && bill.payments.length > 0 && bill.payments.some((p: any) => p.date && dayjs(p.date).isSame(bill.time, 'day'))) ||
+                               (!bill.payments || bill.payments.length === 0)
+                             );
+                             return (
+                             <tr key={i} style={{ borderBottom: '1px solid #e5e7eb', backgroundColor: isSameDayPaid ? '#f0fdf4' : 'transparent' }}>
+                               <td style={{ backgroundColor: i % 2 === 0 ? '#f9fafb' : '#ffffff', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontSize: '12px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{i + 1}</td>
+                               <td style={{ backgroundColor: i % 2 === 0 ? '#f3f4f6' : '#f9fafb', padding: '12px 8px', color: '#374151', fontWeight: 700, textTransform: 'uppercase', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>
+                                 {bill.companyName && <span style={{ marginRight: '4px', color: '#6b7280' }}>{bill.companyName} •</span>}
+                                 {(() => {
+                                   if (bill.matchedReason === 'payment') return bill.matchedDate ? dayjs(bill.matchedDate).format('MMM DD, YYYY - HH:mm') : '';
+                                   if (bill.status === 'cancelled' || bill.status === 'paid') return dayjs(bill.updatedAt || bill.time).format('MMM DD, YYYY - HH:mm');
+                                   return dayjs(bill.time || bill.date).format('MMM DD, YYYY - HH:mm');
+                                 })()}
+                                 {bill.status && (
+                                   <span style={{ marginLeft: '8px', fontSize: '10px', padding: '2px 6px', borderRadius: '12px', backgroundColor: bill.status === 'paid' ? '#dcfce7' : bill.status === 'pending' ? '#fef9c3' : '#fee2e2', color: bill.status === 'paid' ? '#166534' : bill.status === 'pending' ? '#854d0e' : '#991b1b', textTransform: 'capitalize', fontWeight: 500 }}>
+                                     {bill.matchedReason === 'payment' ? 'Paid' : 'New'}
+                                   </span>
+                                 )}
+                               </td>
+                               <td style={{ backgroundColor: i % 2 === 0 ? '#f9fafb' : '#ffffff', padding: '12px 8px', color: '#111827', fontWeight: 700, fontSize: '14.5px', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>₹{(bill.matchedAmount || 0).toLocaleString('en-IN')}</td>
+                             </tr>
+                           )})
+                         )}
+                         <tr style={{ backgroundColor: '#fff', borderTop: '2px solid #e5e7eb' }}>
+                           <td style={{ padding: '16px 8px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}></td>
+                           <td style={{ backgroundColor: '#f9fafb', padding: '16px 8px', color: '#111827', fontWeight: 700, borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6', textAlign: 'left' }}>Total Amount</td>
+                           <td style={{ backgroundColor: '#f9fafb', padding: '16px 8px', color: '#111827', fontWeight: 800, fontSize: '15px', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>₹{totalDealerAmount.toLocaleString('en-IN')}</td>
+                         </tr>
+                       </tbody>
+                     </table>
+                  ) : expandedSummaryView === 'categories' ? (
+                     <table style={{ width: '100%', tableLayout: 'auto', borderCollapse: 'separate', borderSpacing: '0', fontSize: '13px' }}>
+                       <thead>
+                         <tr>
+                           <th style={{ width: '5%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>S.NO</th>
+                           <th style={{ backgroundColor: '#f9fafb', textAlign: 'left', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>Category Name</th>
+                           <th style={{ width: '20%', textAlign: 'right', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6' }}>Amount</th>
+                         </tr>
+                       </thead>
+                       <tbody>
+                         {categorySummary.map((cat, i) => (
+                           <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                             <td style={{ backgroundColor: i % 2 === 0 ? '#f9fafb' : '#ffffff', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontSize: '12px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{i + 1}</td>
+                             <td style={{ backgroundColor: i % 2 === 0 ? '#f3f4f6' : '#f9fafb', padding: '12px 8px', color: '#374151', fontWeight: 700, textTransform: 'uppercase', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{cat.name}</td>
+                             <td style={{ backgroundColor: i % 2 === 0 ? '#f9fafb' : '#ffffff', padding: '12px 8px', color: '#111827', fontWeight: 700, fontSize: '14.5px', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>₹{Math.round(cat.amount).toLocaleString('en-IN')}</td>
+                           </tr>
+                         ))}
+                         <tr style={{ backgroundColor: '#fff', borderTop: '2px solid #e5e7eb' }}>
+                           <td style={{ padding: '16px 8px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}></td>
+                           <td style={{ backgroundColor: '#f9fafb', padding: '16px 8px', color: '#111827', fontWeight: 700, borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6', textAlign: 'left' }}>Total Amount</td>
+                           <td style={{ backgroundColor: '#f9fafb', padding: '16px 8px', color: '#111827', fontWeight: 800, fontSize: '15px', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>₹{Math.round(totalCategoryAmount).toLocaleString('en-IN')}</td>
+                         </tr>
+                       </tbody>
+                     </table>
+                  ) : (
                   <table style={{ width: '100%', tableLayout: 'auto', borderCollapse: 'separate', borderSpacing: '0', fontSize: '13px' }}>
                     <thead>
                       <tr>
@@ -2086,6 +2187,7 @@ export default function ReportGraphPage() {
                       })()}
                     </tbody>
                   </table>
+                  )}
                 </div>
               </div>
 

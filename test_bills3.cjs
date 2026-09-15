@@ -1,0 +1,12 @@
+const https = require('https');
+const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5NzI0YWZlZjkxMjczYWUwYjFlMTIzMiIsImNvbGxlY3Rpb24iOiJ1c2VycyIsImVtYWlsIjoiZXR0cm9hZEBiZi5jb20iLCJzaWQiOiJkOThjN2FmNS01NTAzLTRmODctODA1OS00Mjc4ZGMwOTdlZDUiLCJpYXQiOjE3ODEwOTg0ODYsImV4cCI6MTc4MzY5MDQ4Nn0.-_LafEG2c3I197Z_wBGXJ9CPUAqBXXmJAZttT206ONk";
+
+const options = {
+  hostname: 'dev1-blacforest.vseyal.com',
+  path: encodeURI('/api/billings?where[branch][equals]=68fcabe613ce32e6595e46be&limit=1000&where[status][equals]=completed&where[createdAt][greater_than_equal]=2026-09-14T00:00:00.000Z'),
+  headers: { 'Authorization': `Bearer ${token}` }
+};
+
+https.get(options, (res) => {
+  console.log('Status:', res.statusCode);
+});

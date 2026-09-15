@@ -79,6 +79,8 @@ export interface Config {
     media: Media;
     dealers: Dealer;
     employees: Employee;
+    tasks: Task;
+    'task-columns': TaskColumn;
     'message-threads': MessageThread;
     'message-attachments': MessageAttachment;
     messages: Message;
@@ -92,6 +94,7 @@ export interface Config {
     'dealer-billings': DealerBilling;
     'raw-material-billings': RawMaterialBilling;
     'production-requests': ProductionRequest;
+    'dealer-orders': DealerOrder;
     reviews: Review;
     customers: Customer;
     'billing-customers': BillingCustomer;
@@ -123,6 +126,8 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     dealers: DealersSelect<false> | DealersSelect<true>;
     employees: EmployeesSelect<false> | EmployeesSelect<true>;
+    tasks: TasksSelect<false> | TasksSelect<true>;
+    'task-columns': TaskColumnsSelect<false> | TaskColumnsSelect<true>;
     'message-threads': MessageThreadsSelect<false> | MessageThreadsSelect<true>;
     'message-attachments': MessageAttachmentsSelect<false> | MessageAttachmentsSelect<true>;
     messages: MessagesSelect<false> | MessagesSelect<true>;
@@ -136,6 +141,7 @@ export interface Config {
     'dealer-billings': DealerBillingsSelect<false> | DealerBillingsSelect<true>;
     'raw-material-billings': RawMaterialBillingsSelect<false> | RawMaterialBillingsSelect<true>;
     'production-requests': ProductionRequestsSelect<false> | ProductionRequestsSelect<true>;
+    'dealer-orders': DealerOrdersSelect<false> | DealerOrdersSelect<true>;
     reviews: ReviewsSelect<false> | ReviewsSelect<true>;
     customers: CustomersSelect<false> | CustomersSelect<true>;
     'billing-customers': BillingCustomersSelect<false> | BillingCustomersSelect<true>;
@@ -192,6 +198,8 @@ export interface Config {
     'app-download-settings': AppDownloadSetting;
     'app-version-settings': AppVersionSetting;
     'work-settings': WorkSetting;
+    'work-tasks': WorkTask;
+    'work-gps': WorkGp;
     'menu-settings': MenuSetting;
     'messages-chat': MessagesChat;
   };
@@ -231,6 +239,8 @@ export interface Config {
     'app-download-settings': AppDownloadSettingsSelect<false> | AppDownloadSettingsSelect<true>;
     'app-version-settings': AppVersionSettingsSelect<false> | AppVersionSettingsSelect<true>;
     'work-settings': WorkSettingsSelect<false> | WorkSettingsSelect<true>;
+    'work-tasks': WorkTasksSelect<false> | WorkTasksSelect<true>;
+    'work-gps': WorkGpsSelect<false> | WorkGpsSelect<true>;
     'menu-settings': MenuSettingsSelect<false> | MenuSettingsSelect<true>;
     'messages-chat': MessagesChatSelect<false> | MessagesChatSelect<true>;
   };
@@ -297,6 +307,10 @@ export interface User {
   company?: (string | null) | Company;
   factory_companies?: (string | Company)[] | null;
   storekeeper_companies?: (string | Company)[] | null;
+  /**
+   * Select the companies this manager is responsible for.
+   */
+  manager_companies?: (string | Company)[] | null;
   employee?: (string | null) | Employee;
   deviceId?: string | null;
   /**
@@ -352,6 +366,7 @@ export interface Branch {
   company: string | Company;
   name: string;
   address: string;
+  status: 'active' | 'inactive' | 'others';
   gst: string;
   /**
    * Choose whether GST is inclusive or exclusive for this branch.
@@ -792,6 +807,91 @@ export interface RawMaterialDealer {
     ifscCode?: string | null;
     branch?: string | null;
   };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tasks".
+ */
+export interface Task {
+  id: string;
+  title: string;
+  column?: (string | null) | TaskColumn;
+  description?: string | null;
+  status: 'backlog' | 'todo' | 'in_progress' | 'review' | 'done';
+  priority?: ('low' | 'medium' | 'high' | 'urgent') | null;
+  assignmentType?: ('role' | 'individual' | 'both' | 'unassigned') | null;
+  assignedRole?:
+    | (
+        | 'superadmin'
+        | 'admin'
+        | 'manager'
+        | 'account'
+        | 'delivery'
+        | 'branch'
+        | 'company'
+        | 'factory'
+        | 'kitchen'
+        | 'chef'
+        | 'cashier'
+        | 'waiter'
+        | 'supervisor'
+        | 'driver'
+        | 'store_keeper'
+      )
+    | null;
+  assignedEmployee?: (string | null) | Employee;
+  assignedUser?: (string | null) | User;
+  dueDate?: string | null;
+  branch?: (string | null) | Branch;
+  order?: number | null;
+  labels?:
+    | {
+        text: string;
+        color?: ('green' | 'yellow' | 'orange' | 'red' | 'purple' | 'blue' | 'cyan' | 'pink') | null;
+        id?: string | null;
+      }[]
+    | null;
+  checklist?:
+    | {
+        text: string;
+        completed?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "task-columns".
+ */
+export interface TaskColumn {
+  id: string;
+  title: string;
+  order?: number | null;
+  role?:
+    | (
+        | 'superadmin'
+        | 'admin'
+        | 'manager'
+        | 'account'
+        | 'delivery'
+        | 'branch'
+        | 'company'
+        | 'factory'
+        | 'kitchen'
+        | 'chef'
+        | 'cashier'
+        | 'waiter'
+        | 'supervisor'
+        | 'driver'
+        | 'store_keeper'
+      )
+    | null;
+  assignedEmployee?: (string | null) | Employee;
+  color?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1413,6 +1513,33 @@ export interface ProductionRequest {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "dealer-orders".
+ */
+export interface DealerOrder {
+  id: string;
+  orderNumber?: string | null;
+  company: string | Company;
+  dealer: string | RawMaterialDealer;
+  rawMaterials?: (string | RawMaterial)[] | null;
+  rawMaterialsList?:
+    | {
+        rawMaterial: string | RawMaterial;
+        requestCount: number;
+        sendingCount?: number | null;
+        status?: ('pending' | 'sent' | 'cancelled') | null;
+        id?: string | null;
+      }[]
+    | null;
+  date: string;
+  status: 'pending' | 'approved' | 'fulfilled' | 'cancelled';
+  notes?: string | null;
+  createdBy?: (string | null) | User;
+  createdByName?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "reviews".
  */
 export interface Review {
@@ -1903,6 +2030,10 @@ export interface Attendance {
          * Break duration before this session started (gap from previous session punchOut to this punchIn), in seconds. Auto-calculated by the server.
          */
         breakDurationSeconds?: number | null;
+        /**
+         * How the punch-out was triggered — by the employee (manual) or automatically by GPS geofence exit (auto).
+         */
+        punchOutType?: ('manual' | 'auto') | null;
         ipAddress?: string | null;
         device?: string | null;
         /**
@@ -2137,6 +2268,14 @@ export interface PayloadLockedDocument {
         value: string | Employee;
       } | null)
     | ({
+        relationTo: 'tasks';
+        value: string | Task;
+      } | null)
+    | ({
+        relationTo: 'task-columns';
+        value: string | TaskColumn;
+      } | null)
+    | ({
         relationTo: 'message-threads';
         value: string | MessageThread;
       } | null)
@@ -2187,6 +2326,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'production-requests';
         value: string | ProductionRequest;
+      } | null)
+    | ({
+        relationTo: 'dealer-orders';
+        value: string | DealerOrder;
       } | null)
     | ({
         relationTo: 'reviews';
@@ -2299,6 +2442,7 @@ export interface UsersSelect<T extends boolean = true> {
   company?: T;
   factory_companies?: T;
   storekeeper_companies?: T;
+  manager_companies?: T;
   employee?: T;
   deviceId?: T;
   forceLogoutAllDevices?: T;
@@ -2341,6 +2485,7 @@ export interface BranchesSelect<T extends boolean = true> {
   company?: T;
   name?: T;
   address?: T;
+  status?: T;
   gst?: T;
   gstMode?: T;
   phone?: T;
@@ -2640,6 +2785,53 @@ export interface EmployeesSelect<T extends boolean = true> {
   team?: T;
   aadhaarPhoto?: T;
   photo?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tasks_select".
+ */
+export interface TasksSelect<T extends boolean = true> {
+  title?: T;
+  column?: T;
+  description?: T;
+  status?: T;
+  priority?: T;
+  assignmentType?: T;
+  assignedRole?: T;
+  assignedEmployee?: T;
+  assignedUser?: T;
+  dueDate?: T;
+  branch?: T;
+  order?: T;
+  labels?:
+    | T
+    | {
+        text?: T;
+        color?: T;
+        id?: T;
+      };
+  checklist?:
+    | T
+    | {
+        text?: T;
+        completed?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "task-columns_select".
+ */
+export interface TaskColumnsSelect<T extends boolean = true> {
+  title?: T;
+  order?: T;
+  role?: T;
+  assignedEmployee?: T;
+  color?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3107,6 +3299,32 @@ export interface ProductionRequestsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "dealer-orders_select".
+ */
+export interface DealerOrdersSelect<T extends boolean = true> {
+  orderNumber?: T;
+  company?: T;
+  dealer?: T;
+  rawMaterials?: T;
+  rawMaterialsList?:
+    | T
+    | {
+        rawMaterial?: T;
+        requestCount?: T;
+        sendingCount?: T;
+        status?: T;
+        id?: T;
+      };
+  date?: T;
+  status?: T;
+  notes?: T;
+  createdBy?: T;
+  createdByName?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "reviews_select".
  */
 export interface ReviewsSelect<T extends boolean = true> {
@@ -3245,6 +3463,7 @@ export interface AttendanceSelect<T extends boolean = true> {
         status?: T;
         durationSeconds?: T;
         breakDurationSeconds?: T;
+        punchOutType?: T;
         ipAddress?: T;
         device?: T;
         capturedImage?: T;
@@ -4911,6 +5130,24 @@ export interface WorkSetting {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "work-tasks".
+ */
+export interface WorkTask {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "work-gps".
+ */
+export interface WorkGp {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "menu-settings".
  */
 export interface MenuSetting {
@@ -5002,6 +5239,7 @@ export interface MenuSetting {
               | 'customer-offer-settings'
               | 'app-download-settings'
               | 'app-version-settings'
+              | 'work-gps'
             )[]
           | null;
         id?: string | null;
@@ -5654,6 +5892,24 @@ export interface WorkSettingsSelect<T extends boolean = true> {
         requiredHours?: T;
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "work-tasks_select".
+ */
+export interface WorkTasksSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "work-gps_select".
+ */
+export interface WorkGpsSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

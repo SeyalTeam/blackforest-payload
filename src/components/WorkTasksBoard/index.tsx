@@ -131,7 +131,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
   const [newColumnTitle, setNewColumnTitle] = useState('')
   const [selectedRoleForCol, setSelectedRoleForCol] = useState('')
   const [selectedEmployeeForCol, setSelectedEmployeeForCol] = useState('')
-  const [empFilterText, setEmpFilterText] = useState('')
+  const [selectedRoleForEmpFilter, setSelectedRoleForEmpFilter] = useState('')
 
   // Column options menu popover state
   const [activeColumnMenu, setActiveColumnMenu] = useState<string | null>(null)
@@ -221,9 +221,19 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
         return false
       }
       if (individualFilter !== 'all') {
-        const empId = typeof task.assignedEmployee === 'object' ? task.assignedEmployee?.id : task.assignedEmployee
-        const usrId = typeof task.assignedUser === 'object' ? task.assignedUser?.id : task.assignedUser
-        if (empId !== individualFilter && usrId !== individualFilter) {
+        const empId =
+          typeof task.assignedEmployee === 'object' ? task.assignedEmployee?.id : task.assignedEmployee
+        const usrId =
+          typeof task.assignedUser === 'object' ? task.assignedUser?.id : task.assignedUser
+        if (empId === individualFilter || usrId === individualFilter) {
+          // Explicitly assigned to this individual
+        } else if (!empId && task.assignedRole && task.assignmentType !== 'unassigned') {
+          // Assigned to role (for all members of this role)
+          const emp = employees.find((e) => e.id === individualFilter)
+          const empTeam = (emp?.team || '').toLowerCase().replace(/[\s_-]+/g, '')
+          const taskRole = task.assignedRole.toLowerCase().replace(/[\s_-]+/g, '')
+          if (!empTeam || empTeam !== taskRole) return false
+        } else {
           return false
         }
       }
@@ -275,12 +285,13 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
   }, [employees])
 
   const filteredEmployeesForDropdown = useMemo(() => {
-    if (!empFilterText.trim()) return sortedEmployees
-    const q = empFilterText.toLowerCase().trim()
-    return sortedEmployees.filter(
-      (e) => (e.name || '').toLowerCase().includes(q) || (e.team || '').toLowerCase().includes(q),
-    )
-  }, [sortedEmployees, empFilterText])
+    if (!selectedRoleForEmpFilter) return sortedEmployees
+    const filterRole = selectedRoleForEmpFilter.toLowerCase().replace(/[\s_-]+/g, '')
+    return sortedEmployees.filter((e) => {
+      const empTeam = (e.team || '').toLowerCase().replace(/[\s_-]+/g, '')
+      return empTeam === filterRole
+    })
+  }, [sortedEmployees, selectedRoleForEmpFilter])
 
   // Compute Columns dynamically based on viewMode
   const columns = useMemo(() => {
@@ -388,7 +399,15 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
           tasks: filteredTasks.filter((t) => {
             const tEmpId =
               typeof t.assignedEmployee === 'object' ? t.assignedEmployee?.id : t.assignedEmployee
-            return tEmpId === empId || getTaskColumnId(t) === col.id
+            if (tEmpId === empId || getTaskColumnId(t) === col.id) return true
+            // If task is assigned to a role (for all in that role), and this employee has that role
+            if (!tEmpId && t.assignedRole && t.assignmentType !== 'unassigned') {
+              const emp = employees.find((e) => e.id === empId)
+              const empTeam = (emp?.team || '').toLowerCase().replace(/[\s_-]+/g, '')
+              const taskRole = t.assignedRole.toLowerCase().replace(/[\s_-]+/g, '')
+              if (empTeam && empTeam === taskRole) return true
+            }
+            return false
           }),
         })
       })
@@ -513,7 +532,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
         setNewColumnTitle('')
         setSelectedRoleForCol('')
         setSelectedEmployeeForCol('')
-        setEmpFilterText('')
+        setSelectedRoleForEmpFilter('')
         setIsAddingList(false)
       } else {
         alert('Failed to create list. Ensure you are logged in as Superadmin.')
@@ -606,6 +625,17 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
       } else if (columnId !== 'unassigned-ind') {
         assignedEmpVal = columnId
       }
+
+      if (assignedEmpVal) {
+        const emp = employees.find((e) => e.id === assignedEmpVal)
+        if (emp && emp.team) {
+          const empTeamClean = emp.team.toLowerCase().replace(/[\s_-]+/g, '')
+          const matchedRole = DEFAULT_ROLES.find((r) => r.value.toLowerCase().replace(/[\s_-]+/g, '') === empTeamClean)
+          if (matchedRole) {
+            assignedRoleVal = matchedRole.value
+          }
+        }
+      }
       if (columnsData.some((c) => c.id === columnId)) {
         targetColId = columnId
       } else if (columnsData.length > 0) {
@@ -656,6 +686,13 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
       }
       if (typeof dataToSave.assignedEmployee === 'object' && dataToSave.assignedEmployee !== null) {
         dataToSave.assignedEmployee = dataToSave.assignedEmployee.id
+      }
+      if (
+        dataToSave.assignedEmployee === 'all' ||
+        dataToSave.assignedEmployee === 'unassigned' ||
+        !dataToSave.assignedEmployee
+      ) {
+        dataToSave.assignedEmployee = null
       }
       if (typeof dataToSave.assignedUser === 'object' && dataToSave.assignedUser !== null) {
         dataToSave.assignedUser = dataToSave.assignedUser.id
@@ -1122,22 +1159,6 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                       {/* Card Title */}
                       <div className="card-title">{task.title}</div>
 
-                      {/* Assignment Tags (Role / Individual) */}
-                      {(task.assignedRole || empName) && (
-                        <div className="card-assignment-tags">
-                          {task.assignedRole && (
-                            <span className="role-badge">
-                              {roleObj?.emoji || '🏷️'} {roleObj?.label || task.assignedRole}
-                            </span>
-                          )}
-                          {empName && (
-                            <span className="individual-badge">
-                              👤 {empName}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
                       {/* Badges & Avatars */}
                       <div className="card-footer-row">
                         <div className="card-badges">
@@ -1170,22 +1191,19 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                           )}
                         </div>
 
-                        {/* Assignee Avatar Circles */}
-                        <div className="card-members">
-                          {empName ? (
-                            <div className="member-avatar" title={empName}>
-                              {empName
-                                .split(' ')
-                                .map((n) => n[0])
-                                .join('')
-                                .slice(0, 2)
-                                .toUpperCase()}
-                            </div>
-                          ) : task.assignedRole ? (
-                            <div className="member-avatar" title={roleObj?.label || task.assignedRole}>
-                              {roleObj?.emoji || '👤'}
-                            </div>
-                          ) : null}
+                        <div className="card-footer-right">
+                          {/* Assignee Name (Show if assigned to specific individual) */}
+                          {empName && (
+                            <span className="individual-badge" title={empName}>
+                              👤 {empName}
+                            </span>
+                          )}
+
+                          {task.priority && (
+                            <span className={`card-label-pill label-priority-${task.priority}`}>
+                              {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1197,6 +1215,8 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                   <div className="inline-card-composer">
                     <textarea
                       autoFocus
+                      className="composer-textarea"
+                      style={{ backgroundColor: '#ffffff', color: '#172b4d' }}
                       placeholder="Enter a title for this card..."
                       value={inlineTitle}
                       onChange={(e) => setInlineTitle(e.target.value)}
@@ -1282,15 +1302,36 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                 ) : viewMode === 'individual' ? (
                   <div className="add-list-dropdown-group">
                     <label className="add-list-field-label">Select Employee List</label>
-                    {employees.length > 6 && (
-                      <input
-                        type="text"
-                        className="add-list-filter-input"
-                        placeholder="🔍 Filter employee name..."
-                        value={empFilterText}
-                        onChange={(e) => setEmpFilterText(e.target.value)}
-                      />
-                    )}
+
+                    {/* Step 1: Filter by Role */}
+                    <label className="add-list-field-sublabel">1. Choose Role / Team</label>
+                    <select
+                      className="add-list-role-filter-select"
+                      value={selectedRoleForEmpFilter}
+                      onChange={(e) => {
+                        setSelectedRoleForEmpFilter(e.target.value)
+                        setSelectedEmployeeForCol('')
+                      }}
+                    >
+                      <option value="">-- All Roles / Teams --</option>
+                      {DEFAULT_ROLES.map((r) => {
+                        const count = employees.filter((e) => {
+                          const empTeam = (e.team || '').toLowerCase().replace(/[\s_-]+/g, '')
+                          const rVal = r.value.toLowerCase().replace(/[\s_-]+/g, '')
+                          return empTeam === rVal
+                        }).length
+                        return (
+                          <option key={r.value} value={r.value}>
+                            {r.emoji} {r.label} ({count})
+                          </option>
+                        )
+                      })}
+                    </select>
+
+                    {/* Step 2: Select Employee from chosen role */}
+                    <label className="add-list-field-sublabel" style={{ marginTop: '6px' }}>
+                      2. Select Employee
+                    </label>
                     <select
                       autoFocus
                       className="add-list-select"
@@ -1305,7 +1346,11 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                         }
                       }}
                     >
-                      <option value="">-- Select an Employee --</option>
+                      <option value="">
+                        {selectedRoleForEmpFilter
+                          ? `-- Select ${DEFAULT_ROLES.find((r) => r.value === selectedRoleForEmpFilter)?.label || 'Employee'} (${filteredEmployeesForDropdown.length}) --`
+                          : `-- Select an Employee (${filteredEmployeesForDropdown.length}) --`}
+                      </option>
                       {filteredEmployeesForDropdown.map((emp) => {
                         const alreadyExists = columnsData.some((c) => {
                           const colEmpId =
@@ -1363,7 +1408,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                       setNewColumnTitle('')
                       setSelectedRoleForCol('')
                       setSelectedEmployeeForCol('')
-                      setEmpFilterText('')
+                      setSelectedRoleForEmpFilter('')
                     }}
                   >
                     <X size={18} />
@@ -1501,28 +1546,108 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                   <div className="meta-group">
                     <span className="meta-title">Assigned Individual</span>
                     <div className="meta-value-chips">
-                      <select
-                        style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ccc' }}
-                        value={
-                          typeof activeModalCard.assignedEmployee === 'object'
-                            ? activeModalCard.assignedEmployee?.id || ''
-                            : activeModalCard.assignedEmployee || ''
+                      {(() => {
+                        const currentRoleObj = DEFAULT_ROLES.find(
+                          (r) => r.value === activeModalCard.assignedRole,
+                        )
+                        const roleLabel = currentRoleObj?.label || activeModalCard.assignedRole
+
+                        // Determine current select value
+                        let selectedVal = ''
+                        if (
+                          typeof activeModalCard.assignedEmployee === 'object' &&
+                          activeModalCard.assignedEmployee?.id
+                        ) {
+                          selectedVal = activeModalCard.assignedEmployee.id
+                        } else if (
+                          activeModalCard.assignedEmployee &&
+                          activeModalCard.assignedEmployee !== 'unassigned' &&
+                          activeModalCard.assignedEmployee !== 'all'
+                        ) {
+                          selectedVal = activeModalCard.assignedEmployee
+                        } else if (
+                          activeModalCard.assignmentType === 'unassigned' ||
+                          activeModalCard.assignedEmployee === 'unassigned'
+                        ) {
+                          selectedVal = 'unassigned'
+                        } else if (activeModalCard.assignedRole) {
+                          selectedVal = 'all'
+                        } else {
+                          selectedVal = 'unassigned'
                         }
-                        disabled={!isSuperAdmin}
-                        onChange={(e) =>
-                          setActiveModalCard({
-                            ...activeModalCard,
-                            assignedEmployee: e.target.value || undefined,
-                          })
-                        }
-                      >
-                        <option value="">Unassigned</option>
-                        {employees.map((emp) => (
-                          <option key={emp.id} value={emp.id}>
-                            👤 {emp.name} ({emp.team || 'Staff'})
-                          </option>
-                        ))}
-                      </select>
+
+                        // Split employees into role-matching and others
+                        const roleKeyClean = (activeModalCard.assignedRole || '')
+                          .toLowerCase()
+                          .replace(/[\s_-]+/g, '')
+                        const roleEmployees = roleKeyClean
+                          ? employees.filter(
+                              (e) => (e.team || '').toLowerCase().replace(/[\s_-]+/g, '') === roleKeyClean,
+                            )
+                          : []
+                        const otherEmployees = roleKeyClean
+                          ? employees.filter(
+                              (e) => (e.team || '').toLowerCase().replace(/[\s_-]+/g, '') !== roleKeyClean,
+                            )
+                          : employees
+
+                        return (
+                          <select
+                            style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                            value={selectedVal}
+                            disabled={!isSuperAdmin}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              if (val === 'all') {
+                                setActiveModalCard({
+                                  ...activeModalCard,
+                                  assignedEmployee: undefined,
+                                  assignmentType: 'role',
+                                })
+                              } else if (val === 'unassigned') {
+                                setActiveModalCard({
+                                  ...activeModalCard,
+                                  assignedEmployee: 'unassigned',
+                                  assignmentType: 'unassigned',
+                                })
+                              } else {
+                                setActiveModalCard({
+                                  ...activeModalCard,
+                                  assignedEmployee: val,
+                                  assignmentType: activeModalCard.assignedRole ? 'both' : 'individual',
+                                })
+                              }
+                            }}
+                          >
+                            {activeModalCard.assignedRole ? (
+                              <>
+                                <option value="all">
+                                  👥 All {roleLabel}s (Default - All in Role)
+                                </option>
+                                <option value="unassigned">⚪ Unassigned</option>
+                                {roleEmployees.length > 0 && (
+                                  <optgroup label={`Specific ${roleLabel}s`}>
+                                    {roleEmployees.map((emp) => (
+                                      <option key={emp.id} value={emp.id}>
+                                        👤 {emp.name} ({roleLabel})
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <option value="unassigned">Unassigned</option>
+                                {employees.map((emp) => (
+                                  <option key={emp.id} value={emp.id}>
+                                    👤 {emp.name} ({emp.team || 'Staff'})
+                                  </option>
+                                ))}
+                              </>
+                            )}
+                          </select>
+                        )
+                      })()}
                     </div>
                   </div>
 

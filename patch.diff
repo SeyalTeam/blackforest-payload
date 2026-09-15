@@ -1,0 +1,55 @@
+--- src/app/(frontend)/report-graph/page.tsx
++++ src/app/(frontend)/report-graph/page.tsx
+@@ -1762,14 +1762,21 @@
+             </div>
+           </div>
+           
+-          {/* Right Side Panel: Dealers Summary */}
++          {/* Right Side Column for Summaries */}
+           {activeMenu === 'raw-material' && (
++             <div style={{
++               flex: '0 0 calc(25% - 10px)',
++               display: 'flex',
++               flexDirection: 'column',
++               gap: '20px',
++               height: '520px'
++             }}>
++             {/* Dealers Summary Panel */}
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+                padding: '20px 16px',
+-               flex: '0 0 200px',
+-               height: '520px',
++               flex: 1,
+                display: 'flex',
+-               flexDirection: 'column'
++               flexDirection: 'column',
++               overflow: 'hidden'
+              }}>
+@@ -1871,15 +1878,14 @@
+                 </div>
+              </div>
+-           )}
+ 
+-          {/* Right Side Panel: Category Summary */}
+-          {activeMenu === 'raw-material' && (
++             {/* Category Summary Panel */}
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+                padding: '20px 16px',
+-               flex: '0 0 200px',
+-               height: '520px',
++               flex: 1,
+                display: 'flex',
+-               flexDirection: 'column'
++               flexDirection: 'column',
++               overflow: 'hidden'
+              }}>
+@@ -1929,2 +1935,3 @@
+              </div>
++             </div>
+           )}
