@@ -55,6 +55,15 @@ export const TaskColumns: CollectionConfig = {
       },
     },
     {
+      name: 'assignedEmployee',
+      type: 'relationship',
+      relationTo: 'employees',
+      label: 'Associated Employee (Optional)',
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
       name: 'color',
       type: 'text',
       label: 'Column Accent (Optional)',

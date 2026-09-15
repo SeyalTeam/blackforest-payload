@@ -41,6 +41,7 @@ export type TaskColumn = {
   title: string
   order?: number
   role?: string
+  assignedEmployee?: any
   color?: string
 }
 
@@ -249,6 +250,22 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
     })
   }, [columnsData, tasks])
 
+  // Active employees that have been created in columns or used in tasks
+  const availableEmployees = useMemo(() => {
+    const empIdSet = new Set<string>()
+    columnsData.forEach((c) => {
+      const empId =
+        typeof c.assignedEmployee === 'object' ? c.assignedEmployee?.id : c.assignedEmployee
+      if (empId) empIdSet.add(empId)
+    })
+    tasks.forEach((t) => {
+      const empId =
+        typeof t.assignedEmployee === 'object' ? t.assignedEmployee?.id : t.assignedEmployee
+      if (empId) empIdSet.add(empId)
+    })
+    return employees.filter((e) => empIdSet.has(e.id))
+  }, [columnsData, tasks, employees])
+
   // Compute Columns dynamically based on viewMode
   const columns = useMemo(() => {
     if (viewMode === 'board') {
@@ -333,23 +350,75 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
     }
 
     if (viewMode === 'individual') {
-      const indCols = employees.map((emp) => {
-        const empTasks = filteredTasks.filter((t) => {
-          const id = typeof t.assignedEmployee === 'object' ? t.assignedEmployee?.id : t.assignedEmployee
-          return id === emp.id
+      // Only show employee columns that have been manually created by superadmin or have tasks
+      const indCols: {
+        id: string
+        title: string
+        employeeId: string
+        isCustom: boolean
+        tasks: TaskItem[]
+      }[] = []
+
+      // 1. Manually created columns in DB that have an assignedEmployee
+      const empColumnsFromDB = columnsData.filter((col) => Boolean(col.assignedEmployee))
+      empColumnsFromDB.forEach((col) => {
+        const empId =
+          typeof col.assignedEmployee === 'object' ? col.assignedEmployee?.id : col.assignedEmployee
+        indCols.push({
+          id: col.id,
+          employeeId: empId || '',
+          title: `👤 ${col.title}`,
+          isCustom: true,
+          tasks: filteredTasks.filter((t) => {
+            const tEmpId =
+              typeof t.assignedEmployee === 'object' ? t.assignedEmployee?.id : t.assignedEmployee
+            return tEmpId === empId || getTaskColumnId(t) === col.id
+          }),
         })
-        return {
-          id: emp.id,
-          title: `👤 ${emp.name} (${emp.team || 'Staff'})`,
-          isCustom: false,
-          tasks: empTasks,
+      })
+
+      // 2. Any additional employees that have existing tasks assigned to them
+      const existingEmpIds = new Set(
+        empColumnsFromDB.map((c) =>
+          typeof c.assignedEmployee === 'object' ? c.assignedEmployee?.id : c.assignedEmployee,
+        ),
+      )
+
+      const empsWithTasks = Array.from(
+        new Set(
+          filteredTasks
+            .map((t) =>
+              typeof t.assignedEmployee === 'object' ? t.assignedEmployee?.id : t.assignedEmployee,
+            )
+            .filter(Boolean),
+        ),
+      ) as string[]
+
+      empsWithTasks.forEach((empId) => {
+        if (!existingEmpIds.has(empId)) {
+          const emp = employees.find((e) => e.id === empId)
+          indCols.push({
+            id: `ind-${empId}`,
+            employeeId: empId,
+            title: `👤 ${emp?.name || 'Staff'} (${emp?.team || 'Staff'})`,
+            isCustom: false,
+            tasks: filteredTasks.filter((t) => {
+              const tEmpId =
+                typeof t.assignedEmployee === 'object' ? t.assignedEmployee?.id : t.assignedEmployee
+              return tEmpId === empId
+            }),
+          })
         }
       })
 
-      const unassignedInd = filteredTasks.filter((t) => !t.assignedEmployee && !t.assignedUser)
-      if (unassignedInd.length > 0 || indCols.length === 0) {
-        indCols.unshift({
+      // 3. Unassigned tasks (only if unassigned tasks actually exist and there are other columns)
+      const unassignedInd = filteredTasks.filter(
+        (t) => !t.assignedEmployee && !t.assignedUser && !getTaskColumnId(t),
+      )
+      if (unassignedInd.length > 0 && indCols.length > 0) {
+        indCols.push({
           id: 'unassigned-ind',
+          employeeId: '',
           title: '📋 Unassigned Members',
           isCustom: false,
           tasks: unassignedInd,
@@ -371,6 +440,8 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
     }
 
     let roleVal: string | undefined = undefined
+    let assignedEmpVal: string | undefined = undefined
+
     if (viewMode === 'role') {
       const matched = DEFAULT_ROLES.find(
         (r) =>
@@ -378,6 +449,16 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
           r.value === newColumnTitle.trim().toLowerCase(),
       )
       roleVal = matched ? matched.value : newColumnTitle.trim().toLowerCase().replace(/\s+/g, '_')
+    } else if (viewMode === 'individual') {
+      const matchedEmp = employees.find(
+        (e) =>
+          e.name.toLowerCase() === newColumnTitle.trim().toLowerCase() ||
+          e.id === newColumnTitle.trim() ||
+          newColumnTitle.toLowerCase().includes(e.name.toLowerCase()),
+      )
+      if (matchedEmp) {
+        assignedEmpVal = matchedEmp.id
+      }
     }
 
     try {
@@ -387,6 +468,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
         body: JSON.stringify({
           title: newColumnTitle.trim(),
           role: roleVal,
+          assignedEmployee: assignedEmpVal,
           order: columnsData.length,
         }),
       })
@@ -481,10 +563,15 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
         targetColId = columnsData[0].id
       }
     } else if (viewMode === 'individual') {
-      if (columnId !== 'unassigned-ind') {
+      const targetCol = columns.find((c) => c.id === columnId) as any
+      if (targetCol && targetCol.employeeId) {
+        assignedEmpVal = targetCol.employeeId
+      } else if (columnId !== 'unassigned-ind') {
         assignedEmpVal = columnId
       }
-      if (columnsData.length > 0) {
+      if (columnsData.some((c) => c.id === columnId)) {
+        targetColId = columnId
+      } else if (columnsData.length > 0) {
         targetColId = columnsData[0].id
       }
     }
@@ -819,7 +906,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
             onChange={(e) => setIndividualFilter(e.target.value)}
           >
             <option value="all">All Individuals</option>
-            {employees.map((emp) => (
+            {availableEmployees.map((emp) => (
               <option key={emp.id} value={emp.id}>
                 👤 {emp.name}
               </option>
@@ -857,24 +944,38 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
       {/* 4. MAIN KANBAN BOARD CANVAS */}
       <div className="trello-board-canvas" onClick={() => setActiveColumnMenu(null)}>
         {/* EMPTY STATE: When Superadmin has not created any columns yet */}
-        {((viewMode === 'board' && columnsData.length === 0) || (viewMode === 'role' && columns.length === 0)) && (
+        {((viewMode === 'board' && columnsData.length === 0) ||
+          (viewMode === 'role' && columns.length === 0) ||
+          (viewMode === 'individual' && columns.length === 0)) && (
           <div className="empty-board-banner">
             <div className="banner-icon">
               <Columns size={28} />
             </div>
             <h3>
-              {viewMode === 'role' ? 'No Role Lists Created Yet' : 'No Lists Created Yet'}
+              {viewMode === 'role'
+                ? 'No Role Lists Created Yet'
+                : viewMode === 'individual'
+                ? 'No Individual Lists Created Yet'
+                : 'No Lists Created Yet'}
             </h3>
             {isSuperAdmin ? (
               <>
                 <p>
                   {viewMode === 'role'
                     ? "You haven't created any role lists yet. As Superadmin, click '+ Add another list' to create a role column manually."
+                    : viewMode === 'individual'
+                    ? "You haven't created any individual employee lists yet. As Superadmin, click '+ Add another list' to create an individual column manually."
                     : "As Superadmin, you have full control over the board. Create your first column list to get started."}
                 </p>
                 <button onClick={() => setIsAddingList(true)}>
                   <Plus size={16} />
-                  <span>{viewMode === 'role' ? 'Add Role List' : 'Add First List'}</span>
+                  <span>
+                    {viewMode === 'role'
+                      ? 'Add Role List'
+                      : viewMode === 'individual'
+                      ? 'Add Employee List'
+                      : 'Add First List'}
+                  </span>
                 </button>
               </>
             ) : (
@@ -902,7 +1003,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                 </div>
 
                 {/* Superadmin Menu for Custom Columns */}
-                {(viewMode === 'board' || viewMode === 'role') && col.isCustom && isSuperAdmin && (
+                {(viewMode === 'board' || viewMode === 'role' || viewMode === 'individual') && col.isCustom && isSuperAdmin && (
                   <div
                     className="column-menu-wrapper"
                     onClick={(e) => e.stopPropagation()}
@@ -1109,7 +1210,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
         })}
 
         {/* Superadmin: Add Another List button & form */}
-        {(viewMode === 'board' || viewMode === 'role') && isSuperAdmin && (
+        {(viewMode === 'board' || viewMode === 'role' || viewMode === 'individual') && isSuperAdmin && (
           <div className="add-list-container">
             {isAddingList ? (
               <div className="inline-add-list-form">
@@ -1118,6 +1219,8 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                   placeholder={
                     viewMode === 'role'
                       ? 'Enter role title (e.g. Chef, Kitchen)...'
+                      : viewMode === 'individual'
+                      ? 'Enter employee name or select below...'
                       : 'Enter list title...'
                   }
                   value={newColumnTitle}
@@ -1159,9 +1262,41 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                     </select>
                   </div>
                 )}
+                {viewMode === 'individual' && (
+                  <div style={{ margin: '6px 0' }}>
+                    <select
+                      style={{
+                        width: '100%',
+                        padding: '4px 6px',
+                        fontSize: '12px',
+                        borderRadius: '4px',
+                        border: '1px solid #dfe1e6',
+                        background: '#ffffff',
+                      }}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const emp = employees.find((item) => item.id === e.target.value)
+                          if (emp) setNewColumnTitle(`${emp.name} (${emp.team || 'Staff'})`)
+                        }
+                      }}
+                      defaultValue=""
+                    >
+                      <option value="">-- Or select an employee --</option>
+                      {employees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          👤 {emp.name} ({emp.team || 'Staff'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="form-actions">
                   <button className="btn-primary" onClick={handleAddColumn}>
-                    {viewMode === 'role' ? 'Add role list' : 'Add list'}
+                    {viewMode === 'role'
+                      ? 'Add role list'
+                      : viewMode === 'individual'
+                      ? 'Add employee list'
+                      : 'Add list'}
                   </button>
                   <button
                     className="btn-cancel"
@@ -1177,7 +1312,13 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
             ) : (
               <button className="add-list-btn" onClick={() => setIsAddingList(true)}>
                 <Plus size={16} />
-                <span>{viewMode === 'role' ? 'Add another role list' : 'Add another list'}</span>
+                <span>
+                  {viewMode === 'role'
+                    ? 'Add another role list'
+                    : viewMode === 'individual'
+                    ? 'Add another employee list'
+                    : 'Add another list'}
+                </span>
               </button>
             )}
           </div>
