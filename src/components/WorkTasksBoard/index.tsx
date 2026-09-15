@@ -230,6 +230,25 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
     })
   }, [tasks, searchQuery, roleFilter, individualFilter, priorityFilter])
 
+  // Active roles that have been created in columns or used in tasks
+  const availableRoles = useMemo(() => {
+    const roleSet = new Set<string>()
+    columnsData.forEach((c) => {
+      if (c.role) roleSet.add(c.role)
+    })
+    tasks.forEach((t) => {
+      if (t.assignedRole) roleSet.add(t.assignedRole)
+    })
+    return Array.from(roleSet).map((rKey) => {
+      const found = DEFAULT_ROLES.find((r) => r.value === rKey)
+      return {
+        value: rKey,
+        label: found?.label || rKey.charAt(0).toUpperCase() + rKey.slice(1),
+        emoji: found?.emoji || '🏷️',
+      }
+    })
+  }, [columnsData, tasks])
+
   // Compute Columns dynamically based on viewMode
   const columns = useMemo(() => {
     if (viewMode === 'board') {
@@ -255,21 +274,61 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
     }
 
     if (viewMode === 'role') {
-      const roleCols = DEFAULT_ROLES.map((r) => ({
-        id: r.value,
-        title: `${r.emoji} ${r.label}`,
-        isCustom: false,
-        tasks: filteredTasks.filter((t) => t.assignedRole === r.value),
-      }))
-      const unassignedTasks = filteredTasks.filter((t) => !t.assignedRole)
-      if (unassignedTasks.length > 0) {
+      // Only show role columns that have been manually created by superadmin or have tasks
+      const roleCols: {
+        id: string
+        title: string
+        roleKey: string
+        isCustom: boolean
+        tasks: TaskItem[]
+      }[] = []
+
+      // 1. Manually created columns in DB that have a role set
+      const roleColumnsFromDB = columnsData.filter((col) => Boolean(col.role))
+      roleColumnsFromDB.forEach((col) => {
+        const roleObj = DEFAULT_ROLES.find((r) => r.value === col.role)
+        roleCols.push({
+          id: col.id,
+          roleKey: col.role || '',
+          title: `${roleObj?.emoji || '🏷️'} ${col.title}`,
+          isCustom: true,
+          tasks: filteredTasks.filter(
+            (t) => t.assignedRole === col.role || getTaskColumnId(t) === col.id,
+          ),
+        })
+      })
+
+      // 2. Any additional roles that have existing tasks assigned to them
+      const existingRoleKeys = new Set(roleColumnsFromDB.map((c) => c.role))
+      const rolesWithTasks = Array.from(
+        new Set(filteredTasks.map((t) => t.assignedRole).filter(Boolean)),
+      ) as string[]
+
+      rolesWithTasks.forEach((rKey) => {
+        if (!existingRoleKeys.has(rKey)) {
+          const roleObj = DEFAULT_ROLES.find((r) => r.value === rKey)
+          roleCols.push({
+            id: `role-${rKey}`,
+            roleKey: rKey,
+            title: `${roleObj?.emoji || '🏷️'} ${roleObj?.label || rKey}`,
+            isCustom: false,
+            tasks: filteredTasks.filter((t) => t.assignedRole === rKey),
+          })
+        }
+      })
+
+      // 3. Unassigned tasks (if any)
+      const unassignedTasks = filteredTasks.filter((t) => !t.assignedRole && !getTaskColumnId(t))
+      if (unassignedTasks.length > 0 && roleCols.length > 0) {
         roleCols.push({
           id: 'unassigned-role',
+          roleKey: '',
           title: '⚪ General / Unassigned Role',
           isCustom: false,
           tasks: unassignedTasks,
         })
       }
+
       return roleCols
     }
 
@@ -311,12 +370,23 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
       return
     }
 
+    let roleVal: string | undefined = undefined
+    if (viewMode === 'role') {
+      const matched = DEFAULT_ROLES.find(
+        (r) =>
+          r.label.toLowerCase() === newColumnTitle.trim().toLowerCase() ||
+          r.value === newColumnTitle.trim().toLowerCase(),
+      )
+      roleVal = matched ? matched.value : newColumnTitle.trim().toLowerCase().replace(/\s+/g, '_')
+    }
+
     try {
       const res = await fetch('/api/task-columns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: newColumnTitle.trim(),
+          role: roleVal,
           order: columnsData.length,
         }),
       })
@@ -399,11 +469,15 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
         targetColId = columnId
       }
     } else if (viewMode === 'role') {
-      if (columnId !== 'unassigned-role') {
+      const targetCol = columns.find((c) => c.id === columnId) as any
+      if (targetCol && targetCol.roleKey) {
+        assignedRoleVal = targetCol.roleKey
+      } else if (columnId !== 'unassigned-role') {
         assignedRoleVal = columnId
       }
-      // Pick first column if available
-      if (columnsData.length > 0) {
+      if (columnsData.some((c) => c.id === columnId)) {
+        targetColId = columnId
+      } else if (columnsData.length > 0) {
         targetColId = columnsData[0].id
       }
     } else if (viewMode === 'individual') {
@@ -732,7 +806,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
             onChange={(e) => setRoleFilter(e.target.value)}
           >
             <option value="all">All Roles</option>
-            {DEFAULT_ROLES.map((r) => (
+            {availableRoles.map((r) => (
               <option key={r.value} value={r.value}>
                 {r.emoji} {r.label}
               </option>
@@ -783,25 +857,29 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
       {/* 4. MAIN KANBAN BOARD CANVAS */}
       <div className="trello-board-canvas" onClick={() => setActiveColumnMenu(null)}>
         {/* EMPTY STATE: When Superadmin has not created any columns yet */}
-        {viewMode === 'board' && columnsData.length === 0 && (
+        {((viewMode === 'board' && columnsData.length === 0) || (viewMode === 'role' && columns.length === 0)) && (
           <div className="empty-board-banner">
             <div className="banner-icon">
               <Columns size={28} />
             </div>
-            <h3>No Lists Created Yet</h3>
+            <h3>
+              {viewMode === 'role' ? 'No Role Lists Created Yet' : 'No Lists Created Yet'}
+            </h3>
             {isSuperAdmin ? (
               <>
                 <p>
-                  As Superadmin, you have full control over the board. Create your first column list to get started.
+                  {viewMode === 'role'
+                    ? "You haven't created any role lists yet. As Superadmin, click '+ Add another list' to create a role column manually."
+                    : "As Superadmin, you have full control over the board. Create your first column list to get started."}
                 </p>
                 <button onClick={() => setIsAddingList(true)}>
                   <Plus size={16} />
-                  <span>Add First List</span>
+                  <span>{viewMode === 'role' ? 'Add Role List' : 'Add First List'}</span>
                 </button>
               </>
             ) : (
               <p>
-                No task lists have been configured for this board. Please contact a Superadmin to create columns.
+                No task lists have been configured for this view. Please contact a Superadmin to create columns.
               </p>
             )}
           </div>
@@ -824,7 +902,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                 </div>
 
                 {/* Superadmin Menu for Custom Columns */}
-                {viewMode === 'board' && col.isCustom && isSuperAdmin && (
+                {(viewMode === 'board' || viewMode === 'role') && col.isCustom && isSuperAdmin && (
                   <div
                     className="column-menu-wrapper"
                     onClick={(e) => e.stopPropagation()}
@@ -1031,13 +1109,17 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
         })}
 
         {/* Superadmin: Add Another List button & form */}
-        {viewMode === 'board' && isSuperAdmin && (
+        {(viewMode === 'board' || viewMode === 'role') && isSuperAdmin && (
           <div className="add-list-container">
             {isAddingList ? (
               <div className="inline-add-list-form">
                 <input
                   autoFocus
-                  placeholder="Enter list title..."
+                  placeholder={
+                    viewMode === 'role'
+                      ? 'Enter role title (e.g. Chef, Kitchen)...'
+                      : 'Enter list title...'
+                  }
                   value={newColumnTitle}
                   onChange={(e) => setNewColumnTitle(e.target.value)}
                   onKeyDown={(e) => {
@@ -1049,9 +1131,37 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                     }
                   }}
                 />
+                {viewMode === 'role' && (
+                  <div style={{ margin: '6px 0' }}>
+                    <select
+                      style={{
+                        width: '100%',
+                        padding: '4px 6px',
+                        fontSize: '12px',
+                        borderRadius: '4px',
+                        border: '1px solid #dfe1e6',
+                        background: '#ffffff',
+                      }}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const r = DEFAULT_ROLES.find((item) => item.value === e.target.value)
+                          if (r) setNewColumnTitle(r.label)
+                        }
+                      }}
+                      defaultValue=""
+                    >
+                      <option value="">-- Or choose from standard role --</option>
+                      {DEFAULT_ROLES.map((r) => (
+                        <option key={r.value} value={r.value}>
+                          {r.emoji} {r.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="form-actions">
                   <button className="btn-primary" onClick={handleAddColumn}>
-                    Add list
+                    {viewMode === 'role' ? 'Add role list' : 'Add list'}
                   </button>
                   <button
                     className="btn-cancel"
@@ -1067,7 +1177,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
             ) : (
               <button className="add-list-btn" onClick={() => setIsAddingList(true)}>
                 <Plus size={16} />
-                <span>Add another list</span>
+                <span>{viewMode === 'role' ? 'Add another role list' : 'Add another list'}</span>
               </button>
             )}
           </div>
@@ -1155,11 +1265,32 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                         }
                       >
                         <option value="">No Role</option>
-                        {DEFAULT_ROLES.map((r) => (
-                          <option key={r.value} value={r.value}>
-                            {r.emoji} {r.label}
-                          </option>
-                        ))}
+                        {availableRoles.length > 0 ? (
+                          <>
+                            <optgroup label="Created / Active Roles">
+                              {availableRoles.map((r) => (
+                                <option key={r.value} value={r.value}>
+                                  {r.emoji} {r.label}
+                                </option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Other Standard Roles">
+                              {DEFAULT_ROLES.filter(
+                                (r) => !availableRoles.some((ar) => ar.value === r.value),
+                              ).map((r) => (
+                                <option key={r.value} value={r.value}>
+                                  {r.emoji} {r.label}
+                                </option>
+                              ))}
+                            </optgroup>
+                          </>
+                        ) : (
+                          DEFAULT_ROLES.map((r) => (
+                            <option key={r.value} value={r.value}>
+                              {r.emoji} {r.label}
+                            </option>
+                          ))
+                        )}
                       </select>
                     </div>
                   </div>
