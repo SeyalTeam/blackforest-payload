@@ -124,6 +124,9 @@ export default function ReportGraphPage() {
 
   const [visibleLines, setVisibleLines] = useState({ total: true, paid: true, pending: true, cancelled: false })
   const [expandedSummaryView, setExpandedSummaryView] = useState<'none' | 'dealers' | 'categories'>('none')
+  const [expandedSelectedDealer, setExpandedSelectedDealer] = useState<string | null>(null)
+  const [expandedSelectedCategory, setExpandedSelectedCategory] = useState<string | null>(null)
+  const [expandedCategorySelectedDealer, setExpandedCategorySelectedDealer] = useState<string | null>(null)
 
 
 
@@ -270,7 +273,7 @@ export default function ReportGraphPage() {
 
   useEffect(() => {
     if (activeMenu === 'raw-material' && rawMaterialData.length > 0) {
-      const hasCancelled = rawMaterialData.some(d => d.cancelledTotal > 0)
+      const hasCancelled = filteredGraphData.some(d => d.cancelledTotal > 0)
       setVisibleLines(prev => ({ ...prev, cancelled: hasCancelled }))
     }
   }, [rawMaterialData, activeMenu])
@@ -587,7 +590,8 @@ export default function ReportGraphPage() {
   const dealerSummary = useMemo(() => {
     if (activeMenu !== 'raw-material' || !rawMaterialData.length) return [];
     
-    const map: Record<string, number> = {};
+    const map: Record<string, { amount: number, count: number }> = {};
+    const processedBills = new Set<string>();
 
     rawMaterialData.forEach(d => {
       if (d.rawItems) {
@@ -598,17 +602,20 @@ export default function ReportGraphPage() {
           if (visibleLines.pending && item.matchedReason === 'creation' && item.status === 'pending') shouldInclude = true;
           if (visibleLines.cancelled && item.matchedReason === 'creation' && item.status === 'cancelled') shouldInclude = true;
           
-          if (shouldInclude) {
+          if (shouldInclude && !processedBills.has(item.id)) {
+            processedBills.add(item.id);
             const name = item.dealerName || 'Unknown';
             const amt = item.matchedAmount || 0;
-            map[name] = (map[name] || 0) + amt;
+            if (!map[name]) map[name] = { amount: 0, count: 0 };
+            map[name].amount += amt;
+            map[name].count += 1;
           }
         });
       }
     });
 
     return Object.entries(map)
-      .map(([name, amount]) => ({ name, amount }))
+      .map(([name, data]) => ({ name, amount: data.amount, count: data.count }))
       .sort((a, b) => b.amount - a.amount);
   }, [rawMaterialData, activeMenu, selectedStatus, visibleLines]);
 
@@ -616,6 +623,7 @@ export default function ReportGraphPage() {
     if (activeMenu !== 'raw-material' || !rawMaterialData.length) return [];
     
     const map: Record<string, number> = {};
+    const processedBills = new Set<string>();
 
     rawMaterialData.forEach(d => {
       if (d.rawItems) {
@@ -626,27 +634,44 @@ export default function ReportGraphPage() {
           if (visibleLines.pending && item.matchedReason === 'creation' && item.status === 'pending') shouldInclude = true;
           if (visibleLines.cancelled && item.matchedReason === 'creation' && item.status === 'cancelled') shouldInclude = true;
           
-          if (shouldInclude && item.rawMaterials) {
-             item.rawMaterials.forEach((rm: any) => {
-                if (!rm.category) return;
-                const catName = categories.find(c => c.id === rm.category)?.name || 'Unknown Category';
-                const amt = rm.totalAmount || 0;
-                const billTotal = item.amount || 1;
-                const factor = item.matchedAmount / billTotal;
-                map[catName] = (map[catName] || 0) + (amt * factor);
-             });
+          if (shouldInclude && !processedBills.has(item.id)) {
+             processedBills.add(item.id);
+             let billCategorizedAmount = 0;
+             if (item.rawMaterials) {
+               item.rawMaterials.forEach((rm: any) => {
+                  const amt = rm.totalAmount || 0;
+                  const billTotal = item.amount || 1;
+                  const factor = item.matchedAmount / billTotal;
+                  const scaledAmt = amt * factor;
+                  
+                  let catName = 'Others';
+                  if (rm.category) {
+                    catName = categories.find(c => c.id === rm.category)?.name || 'Others';
+                  }
+                  map[catName] = (map[catName] || 0) + scaledAmt;
+                  billCategorizedAmount += scaledAmt;
+               });
+             }
+             const remaining = (item.matchedAmount || 0) - billCategorizedAmount;
+             if (remaining > 0.01 || remaining < -0.01) {
+                map['Others'] = (map['Others'] || 0) + remaining;
+             }
           }
         });
       }
     });
 
-    return Object.entries(map).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount);
+    const sorted = Object.entries(map).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount);
+    const others = sorted.find(c => c.name === 'Others');
+    const rest = sorted.filter(c => c.name !== 'Others');
+    return others ? [...rest, others] : rest;
   }, [rawMaterialData, activeMenu, visibleLines, categories]);
 
   const dealerBills = useMemo(() => {
     if (activeMenu !== 'raw-material' || selectedDealer === 'all' || !rawMaterialData.length) return [];
     
     const bills: any[] = [];
+    const processedBills = new Set<string>();
 
     rawMaterialData.forEach(d => {
       if (d.rawItems) {
@@ -657,7 +682,8 @@ export default function ReportGraphPage() {
           if (visibleLines.pending && item.matchedReason === 'creation' && item.status === 'pending') shouldInclude = true;
           if (visibleLines.cancelled && item.matchedReason === 'creation' && item.status === 'cancelled') shouldInclude = true;
           
-          if (shouldInclude) {
+          if (shouldInclude && !processedBills.has(item.id)) {
+            processedBills.add(item.id);
             bills.push(item);
           }
         });
@@ -673,6 +699,244 @@ export default function ReportGraphPage() {
     }
     return dealerSummary.reduce((acc, d) => acc + d.amount, 0);
   }, [dealerSummary, dealerBills, selectedDealer]);
+
+  const expandedDealerBills = useMemo(() => {
+    if (!expandedSelectedDealer || !rawMaterialData.length) return [];
+    
+    const bills: any[] = [];
+    const processedBills = new Set<string>();
+
+    rawMaterialData.forEach(d => {
+      if (d.rawItems) {
+        d.rawItems.forEach((item: any) => {
+          if (item.dealerName === expandedSelectedDealer) {
+            let shouldInclude = false;
+            if (visibleLines.total && item.matchedReason === 'creation') shouldInclude = true;
+            if (visibleLines.paid && item.matchedReason === 'payment') shouldInclude = true;
+            if (visibleLines.pending && item.matchedReason === 'creation' && item.status === 'pending') shouldInclude = true;
+            if (visibleLines.cancelled && item.matchedReason === 'creation' && item.status === 'cancelled') shouldInclude = true;
+            
+            if (shouldInclude && !processedBills.has(item.id)) {
+              processedBills.add(item.id);
+              bills.push(item);
+            }
+          }
+        });
+      }
+    });
+    return bills.sort((a, b) => new Date(b.matchedDate || b.date || b.time || 0).getTime() - new Date(a.matchedDate || a.date || a.time || 0).getTime());
+  }, [rawMaterialData, expandedSelectedDealer, visibleLines]);
+
+  const expandedCategoryDealers = useMemo(() => {
+    if (!expandedSelectedCategory || !rawMaterialData.length) return [];
+    
+    const map: Record<string, { amount: number, count: number }> = {};
+    const processedBills = new Set<string>();
+
+    rawMaterialData.forEach(d => {
+      if (d.rawItems) {
+        d.rawItems.forEach((item: any) => {
+          let shouldInclude = false;
+          if (visibleLines.total && item.matchedReason === 'creation') shouldInclude = true;
+          if (visibleLines.paid && item.matchedReason === 'payment') shouldInclude = true;
+          if (visibleLines.pending && item.matchedReason === 'creation' && item.status === 'pending') shouldInclude = true;
+          if (visibleLines.cancelled && item.matchedReason === 'creation' && item.status === 'cancelled') shouldInclude = true;
+          
+          if (shouldInclude && !processedBills.has(item.id)) {
+            processedBills.add(item.id);
+            
+            let catAmountInBill = 0;
+            let billCategorizedAmount = 0;
+            if (item.rawMaterials) {
+              item.rawMaterials.forEach((rm: any) => {
+                const amt = rm.totalAmount || 0;
+                const billTotal = item.amount || 1;
+                const factor = item.matchedAmount / billTotal;
+                const scaledAmt = amt * factor;
+                
+                let catName = 'Others';
+                if (rm.category) {
+                  catName = categories.find((c: any) => c.id === rm.category)?.name || 'Others';
+                }
+                
+                billCategorizedAmount += scaledAmt;
+                if (catName === expandedSelectedCategory) {
+                  catAmountInBill += scaledAmt;
+                }
+              });
+            }
+            if (expandedSelectedCategory === 'Others') {
+              const remaining = (item.matchedAmount || 0) - billCategorizedAmount;
+              if (remaining > 0.01 || remaining < -0.01) {
+                 catAmountInBill += remaining;
+              }
+            }
+
+            if (catAmountInBill > 0.01 || catAmountInBill < -0.01) {
+               const dealerName = item.dealerName || 'Unknown';
+               if (!map[dealerName]) map[dealerName] = { amount: 0, count: 0 };
+               map[dealerName].amount += catAmountInBill;
+               map[dealerName].count += 1;
+            }
+          }
+        });
+      }
+    });
+
+    return Object.entries(map)
+      .map(([dealerName, data]) => ({ dealerName, amount: data.amount, count: data.count }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [rawMaterialData, expandedSelectedCategory, visibleLines, categories]);
+
+  const filteredGraphData = useMemo(() => {
+    if (expandedSummaryView === 'none') return rawMaterialData;
+    
+    return rawMaterialData.map(bin => {
+      let filteredItems = bin.rawItems || [];
+      
+      if (expandedSummaryView === 'dealers' && expandedSelectedDealer) {
+        filteredItems = filteredItems.filter((item: any) => item.dealerName === expandedSelectedDealer);
+      } else if (expandedSummaryView === 'categories' && expandedSelectedCategory) {
+        if (expandedCategorySelectedDealer) {
+          filteredItems = filteredItems.filter((item: any) => {
+             if (item.dealerName !== expandedCategorySelectedDealer) return false;
+             if (!item.rawMaterials) return expandedSelectedCategory === 'Others';
+             let hasCat = false;
+             item.rawMaterials.forEach((rm: any) => {
+                const catName = rm.category ? (categories.find((c: any) => c.id === rm.category)?.name || 'Others') : 'Others';
+                if (catName === expandedSelectedCategory) hasCat = true;
+             });
+             return hasCat || expandedSelectedCategory === 'Others';
+          });
+        } else {
+          filteredItems = filteredItems.filter((item: any) => {
+             if (!item.rawMaterials) return expandedSelectedCategory === 'Others';
+             let hasCat = false;
+             item.rawMaterials.forEach((rm: any) => {
+                const catName = rm.category ? (categories.find((c: any) => c.id === rm.category)?.name || 'Others') : 'Others';
+                if (catName === expandedSelectedCategory) hasCat = true;
+             });
+             return hasCat || expandedSelectedCategory === 'Others'; // Wait, what if they bought A but not Others? If expandedSelectedCategory is 'Others', the remaining calculation will include it.
+          });
+        }
+      }
+
+      let totalPaid = 0;
+      let paidTotal = 0;
+      let pendingTotal = 0;
+      let cancelledTotal = 0;
+      const dealerAmounts: Record<string, number> = {};
+
+      const adjustedItems = filteredItems.map((item: any) => {
+         let amountToAdd = item.matchedAmount || 0;
+         
+         if (expandedSummaryView === 'categories' && expandedSelectedCategory) {
+            let catAmountInBill = 0;
+            let billCategorizedAmount = 0;
+            if (item.rawMaterials) {
+               item.rawMaterials.forEach((rm: any) => {
+                 const amt = rm.totalAmount || 0;
+                 const billTotal = item.amount || 1;
+                 const factor = (item.matchedAmount || 0) / billTotal;
+                 const scaledAmt = amt * factor;
+                 const catName = rm.category ? (categories.find((c: any) => c.id === rm.category)?.name || 'Others') : 'Others';
+                 billCategorizedAmount += scaledAmt;
+                 if (catName === expandedSelectedCategory) catAmountInBill += scaledAmt;
+               });
+            }
+            if (expandedSelectedCategory === 'Others') {
+               const remaining = (item.matchedAmount || 0) - billCategorizedAmount;
+               if (remaining > 0.01 || remaining < -0.01) catAmountInBill += remaining;
+            }
+            amountToAdd = catAmountInBill;
+         }
+
+         if (item.matchedReason === 'creation') {
+            totalPaid += amountToAdd;
+            if (item.status === 'pending') pendingTotal += amountToAdd;
+            if (item.status === 'cancelled') cancelledTotal += amountToAdd;
+         }
+         if (item.matchedReason === 'payment') {
+            paidTotal += amountToAdd;
+         }
+         
+         if (expandedSummaryView === 'categories' && expandedSelectedCategory && !expandedCategorySelectedDealer && item.matchedReason === 'creation') {
+            const dealerName = item.dealerName || 'Unknown';
+            dealerAmounts[dealerName] = (dealerAmounts[dealerName] || 0) + amountToAdd;
+         }
+
+         return { ...item, matchedAmount: amountToAdd };
+      }).filter((item: any) => (item.matchedAmount > 0.01 || item.matchedAmount < -0.01)); // Only keep items that actually have amount for this category!
+
+      return {
+        ...bin,
+        totalPaid,
+        paidTotal,
+        pendingTotal,
+        cancelledTotal,
+        ...dealerAmounts,
+        rawItems: adjustedItems
+      };
+    });
+  }, [rawMaterialData, expandedSummaryView, expandedSelectedCategory, expandedCategorySelectedDealer, expandedSelectedDealer, categories]);
+
+  const expandedCategoryDealerBills = useMemo(() => {
+    if (!expandedSelectedCategory || !expandedCategorySelectedDealer || !rawMaterialData.length) return [];
+    
+    const bills: any[] = [];
+    const processedBills = new Set<string>();
+
+    rawMaterialData.forEach(d => {
+      if (d.rawItems) {
+        d.rawItems.forEach((item: any) => {
+          if (item.dealerName !== expandedCategorySelectedDealer) return;
+          
+          let shouldInclude = false;
+          if (visibleLines.total && item.matchedReason === 'creation') shouldInclude = true;
+          if (visibleLines.paid && item.matchedReason === 'payment') shouldInclude = true;
+          if (visibleLines.pending && item.matchedReason === 'creation' && item.status === 'pending') shouldInclude = true;
+          if (visibleLines.cancelled && item.matchedReason === 'creation' && item.status === 'cancelled') shouldInclude = true;
+          
+          if (shouldInclude && !processedBills.has(item.id)) {
+            let catAmountInBill = 0;
+            let billCategorizedAmount = 0;
+            if (item.rawMaterials) {
+              item.rawMaterials.forEach((rm: any) => {
+                const amt = rm.totalAmount || 0;
+                const billTotal = item.amount || 1;
+                const factor = item.matchedAmount / billTotal;
+                const scaledAmt = amt * factor;
+                
+                let catName = 'Others';
+                if (rm.category) {
+                  catName = categories.find((c: any) => c.id === rm.category)?.name || 'Others';
+                }
+                
+                billCategorizedAmount += scaledAmt;
+                if (catName === expandedSelectedCategory) {
+                  catAmountInBill += scaledAmt;
+                }
+              });
+            }
+
+            if (expandedSelectedCategory === 'Others') {
+              const remaining = (item.matchedAmount || 0) - billCategorizedAmount;
+              if (remaining > 0.01 || remaining < -0.01) {
+                 catAmountInBill += remaining;
+              }
+            }
+
+            if (catAmountInBill > 0.01 || catAmountInBill < -0.01) {
+               processedBills.add(item.id);
+               bills.push({ ...item, categorySpecificAmount: catAmountInBill });
+            }
+          }
+        });
+      }
+    });
+
+    return bills.sort((a, b) => new Date(b.matchedDate || b.date || b.time || 0).getTime() - new Date(a.matchedDate || a.date || a.time || 0).getTime());
+  }, [rawMaterialData, expandedSelectedCategory, expandedCategorySelectedDealer, visibleLines, categories]);
 
   const totalCategoryAmount = useMemo(() => {
     return categorySummary.reduce((acc, c) => acc + c.amount, 0);
@@ -1408,7 +1672,7 @@ export default function ReportGraphPage() {
                           <div style={{ fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.9, marginBottom: '6px' }}>
                             {visibleLines.total ? <CheckSquare size={12} /> : <Square size={12} />} TOTAL BILL
                           </div>
-                          <div style={{ fontSize: '22px', fontWeight: 500 }}>₹{rawMaterialData.reduce((acc, d) => acc + (d.totalPaid || 0), 0).toLocaleString('en-IN')}</div>
+                          <div style={{ fontSize: '22px', fontWeight: 500 }}>₹{filteredGraphData.reduce((acc, d) => acc + (d.totalPaid || 0), 0).toLocaleString('en-IN')}</div>
                         </div>
 
                         <div 
@@ -1418,7 +1682,7 @@ export default function ReportGraphPage() {
                           <div style={{ fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.9, marginBottom: '6px' }}>
                             {visibleLines.paid ? <CheckSquare size={12} /> : <Square size={12} />} PAID
                           </div>
-                          <div style={{ fontSize: '22px', fontWeight: 500 }}>₹{rawMaterialData.reduce((acc, d) => acc + (d.paidTotal || 0), 0).toLocaleString('en-IN')}</div>
+                          <div style={{ fontSize: '22px', fontWeight: 500 }}>₹{filteredGraphData.reduce((acc, d) => acc + (d.paidTotal || 0), 0).toLocaleString('en-IN')}</div>
                         </div>
 
                         <div 
@@ -1428,7 +1692,7 @@ export default function ReportGraphPage() {
                           <div style={{ fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.9, marginBottom: '6px' }}>
                             {visibleLines.pending ? <CheckSquare size={12} /> : <Square size={12} />} PENDING
                           </div>
-                          <div style={{ fontSize: '22px', fontWeight: 500 }}>₹{rawMaterialData.reduce((acc, d) => acc + (d.pendingTotal || 0), 0).toLocaleString('en-IN')}</div>
+                          <div style={{ fontSize: '22px', fontWeight: 500 }}>₹{filteredGraphData.reduce((acc, d) => acc + (d.pendingTotal || 0), 0).toLocaleString('en-IN')}</div>
                         </div>
 
                         <div 
@@ -1438,13 +1702,13 @@ export default function ReportGraphPage() {
                           <div style={{ fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.9, marginBottom: '6px' }}>
                             {visibleLines.cancelled ? <CheckSquare size={12} /> : <Square size={12} />} CANCELLED
                           </div>
-                          <div style={{ fontSize: '22px', fontWeight: 500 }}>₹{rawMaterialData.reduce((acc, d) => acc + (d.cancelledTotal || 0), 0).toLocaleString('en-IN')}</div>
+                          <div style={{ fontSize: '22px', fontWeight: 500 }}>₹{filteredGraphData.reduce((acc, d) => acc + (d.cancelledTotal || 0), 0).toLocaleString('en-IN')}</div>
                         </div>
                       </div>
                     )}
                     <div style={{ flex: 1, minHeight: 0, marginTop: '20px' }}>
                       <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={rawMaterialData} margin={{ top: 85, right: 0, left: 0, bottom: 0 }}>
+                      <ComposedChart data={filteredGraphData} margin={{ top: 85, right: 0, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                         <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280' }} dy={10} interval={0} />
                         <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280' }} dx={-10} tickFormatter={(val) => val >= 1000 ? `₹${(val / 1000).toFixed(1)}K` : `₹${val}`} orientation="left" />
@@ -1548,41 +1812,7 @@ export default function ReportGraphPage() {
                                       </div>
                                     </>
                                   ) : (
-                                    <>
-                                      <div style={{ color: '#111827', fontWeight: 'bold', marginBottom: '4px' }}>
-                                        {data.fullDate || label}
-                                      </div>
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        {visibleLines.total && (
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#9333ea' }}></div>
-                                            <span style={{ color: '#6b7280', fontSize: '12px' }}>Total Bill:</span>
-                                            <span style={{ color: '#111827', fontWeight: 600 }}>₹{(data.totalPaid || 0).toLocaleString('en-IN')}</span>
-                                          </div>
-                                        )}
-                                        {visibleLines.paid && (
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#16a34a' }}></div>
-                                            <span style={{ color: '#6b7280', fontSize: '12px' }}>Paid:</span>
-                                            <span style={{ color: '#111827', fontWeight: 600 }}>₹{(data.paidTotal || 0).toLocaleString('en-IN')}</span>
-                                          </div>
-                                        )}
-                                        {visibleLines.pending && (
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ca8a04' }}></div>
-                                            <span style={{ color: '#6b7280', fontSize: '12px' }}>Pending:</span>
-                                            <span style={{ color: '#111827', fontWeight: 600 }}>₹{(data.pendingTotal || 0).toLocaleString('en-IN')}</span>
-                                          </div>
-                                        )}
-                                        {visibleLines.cancelled && (
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444' }}></div>
-                                            <span style={{ color: '#6b7280', fontSize: '12px' }}>Cancelled:</span>
-                                            <span style={{ color: '#111827', fontWeight: 600 }}>₹{(data.cancelledTotal || 0).toLocaleString('en-IN')}</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </>
+                                    <div style={{ color: '#6b7280', fontSize: '12px' }}>No bills matched</div>
                                   )}
                                 </div>
                               );
@@ -1590,7 +1820,14 @@ export default function ReportGraphPage() {
                             return null;
                           }}
                         />
-                        {graphType === 'bar' ? (
+                        
+                        {(expandedSummaryView === 'categories' && expandedSelectedCategory && !expandedCategorySelectedDealer) ? (
+                           expandedCategoryDealers.map((d, index) => {
+                             const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#6366f1', '#14b8a6'];
+                             const color = colors[index % colors.length];
+                             return <Line key={d.dealerName} type="monotone" dataKey={d.dealerName} stroke={color} strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name={d.dealerName} />
+                           })
+                        ) : graphType === 'bar' ? (
                           <>
                             {visibleLines.total && <Bar dataKey="totalPaid" fill="#9333ea" radius={[4, 4, 0, 0]} maxBarSize={30} name="Total Bill" />}
                             {visibleLines.paid && <Bar dataKey="paidTotal" fill="#16a34a" radius={[4, 4, 0, 0]} maxBarSize={30} name="Paid" />}
@@ -1612,9 +1849,9 @@ export default function ReportGraphPage() {
                               <Bar dataKey="cancelledTotal" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={16} name="Cancelled" />
                             )}
                             
-                            {visibleLines.paid && visibleLines.total && rawMaterialData.some(d => d.paidTotal > 0) && <Line type="monotone" dataKey="paidTotal" stroke="#16a34a" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Paid" />}
-                            {visibleLines.pending && (visibleLines.total || visibleLines.paid) && rawMaterialData.some(d => d.pendingTotal > 0) && <Line type="monotone" dataKey="pendingTotal" stroke="#ca8a04" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Pending" />}
-                            {visibleLines.cancelled && (visibleLines.total || visibleLines.paid || visibleLines.pending) && rawMaterialData.some(d => d.cancelledTotal > 0) && <Line type="monotone" dataKey="cancelledTotal" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Cancelled" />}
+                            {visibleLines.paid && visibleLines.total && filteredGraphData.some(d => d.paidTotal > 0) && <Line type="monotone" dataKey="paidTotal" stroke="#16a34a" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Paid" />}
+                            {visibleLines.pending && (visibleLines.total || visibleLines.paid) && filteredGraphData.some(d => d.pendingTotal > 0) && <Line type="monotone" dataKey="pendingTotal" stroke="#ca8a04" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Pending" />}
+                            {visibleLines.cancelled && (visibleLines.total || visibleLines.paid || visibleLines.pending) && filteredGraphData.some(d => d.cancelledTotal > 0) && <Line type="monotone" dataKey="cancelledTotal" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Cancelled" />}
                           </>
                         )}
                       </ComposedChart>
@@ -2028,7 +2265,8 @@ export default function ReportGraphPage() {
                 borderRadius: '12px',
                 boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
                 padding: '20px 16px',
-                flex: expandedSummaryView !== 'none' ? '1' : '0 0 calc(75% - 10px)',
+                flex: (expandedSummaryView === 'categories' && expandedCategorySelectedDealer) ? '0 0 25%' : (expandedSummaryView !== 'none' ? '0 0 35%' : 1),
+                minWidth: 0,
                 overflowX: 'auto'
               }}>
                 <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#374151', marginBottom: '16px' }}>
@@ -2038,25 +2276,41 @@ export default function ReportGraphPage() {
                 </h3>
                 <div style={{ width: '100%', overflowX: 'auto' }}>
                   {expandedSummaryView === 'dealers' ? (
-                     <table style={{ width: '100%', tableLayout: 'auto', borderCollapse: 'separate', borderSpacing: '0', fontSize: '13px' }}>
+                     <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: '0', fontSize: '13px' }}>
                        <thead>
                          <tr>
-                           <th style={{ width: '5%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>S.NO</th>
-                           <th style={{ backgroundColor: '#f9fafb', textAlign: 'left', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>
+                           <th style={{ width: '10%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>S.NO</th>
+                           <th style={{ backgroundColor: '#f9fafb', width: selectedDealer === 'all' ? '40%' : '45%', textAlign: 'left', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>
                              {selectedDealer === 'all' ? 'Dealer Name' : 'Bill Info'}
                            </th>
-                           <th style={{ width: '20%', textAlign: 'right', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6' }}>Amount</th>
+                           <th style={{ width: selectedDealer === 'all' ? '30%' : '45%', textAlign: 'right', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: selectedDealer === 'all' ? '1px solid #f3f4f6' : 'none' }}>Amount</th>
+                           {selectedDealer === 'all' && (
+                             <th style={{ backgroundColor: '#f9fafb', width: '20%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6' }}>Bills</th>
+                           )}
                          </tr>
                        </thead>
                        <tbody>
                          {selectedDealer === 'all' ? (
-                           dealerSummary.map((dealer, i) => (
-                             <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                               <td style={{ backgroundColor: i % 2 === 0 ? '#f9fafb' : '#ffffff', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontSize: '12px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{i + 1}</td>
-                               <td style={{ backgroundColor: i % 2 === 0 ? '#f3f4f6' : '#f9fafb', padding: '12px 8px', color: '#374151', fontWeight: 700, textTransform: 'uppercase', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{dealer.name}</td>
-                               <td style={{ backgroundColor: i % 2 === 0 ? '#f9fafb' : '#ffffff', padding: '12px 8px', color: '#111827', fontWeight: 700, fontSize: '14.5px', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>₹{dealer.amount.toLocaleString('en-IN')}</td>
-                             </tr>
-                           ))
+                            dealerSummary.map((dealer, i) => (
+                              <tr 
+                                key={i} 
+                                onClick={() => setExpandedSelectedDealer(dealer.name)}
+                                style={{ 
+                                  borderBottom: '1px solid #e5e7eb', 
+                                  cursor: 'pointer',
+                                  backgroundColor: expandedSelectedDealer === dealer.name ? '#eef2ff' : 'transparent',
+                                  outline: expandedSelectedDealer === dealer.name ? '2px solid #6366f1' : 'none',
+                                  outlineOffset: '-2px'
+                                }}
+                              >
+                                <td style={{ backgroundColor: expandedSelectedDealer === dealer.name ? 'transparent' : i % 2 === 0 ? '#f9fafb' : '#ffffff', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontSize: '12px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{i + 1}</td>
+                                <td style={{ backgroundColor: expandedSelectedDealer === dealer.name ? 'transparent' : i % 2 === 0 ? '#f3f4f6' : '#f9fafb', padding: '12px 8px', color: '#374151', fontWeight: 700, textTransform: 'uppercase', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{dealer.name}</td>
+                                <td style={{ backgroundColor: expandedSelectedDealer === dealer.name ? 'transparent' : i % 2 === 0 ? '#f9fafb' : '#ffffff', padding: '12px 8px', color: '#111827', fontWeight: 700, fontSize: '14.5px', textAlign: 'right', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>₹{dealer.amount.toLocaleString('en-IN')}</td>
+                                <td style={{ backgroundColor: expandedSelectedDealer === dealer.name ? 'transparent' : i % 2 === 0 ? '#f3f4f6' : '#f9fafb', padding: '12px 8px', color: '#4b5563', fontWeight: 600, textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+                                  <span style={{ backgroundColor: expandedSelectedDealer === dealer.name ? '#c7d2fe' : '#e5e7eb', padding: '2px 8px', borderRadius: '12px', fontSize: '12px', color: expandedSelectedDealer === dealer.name ? '#3730a3' : 'inherit' }}>{dealer.count}</span>
+                                </td>
+                              </tr>
+                            ))
                          ) : (
                            dealerBills.map((bill, i) => {
                              const isSameDayPaid = bill.status === 'paid' && (
@@ -2086,25 +2340,28 @@ export default function ReportGraphPage() {
                          <tr style={{ backgroundColor: '#fff', borderTop: '2px solid #e5e7eb' }}>
                            <td style={{ padding: '16px 8px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}></td>
                            <td style={{ backgroundColor: '#f9fafb', padding: '16px 8px', color: '#111827', fontWeight: 700, borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6', textAlign: 'left' }}>Total Amount</td>
-                           <td style={{ backgroundColor: '#f9fafb', padding: '16px 8px', color: '#111827', fontWeight: 800, fontSize: '15px', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>₹{totalDealerAmount.toLocaleString('en-IN')}</td>
+                           <td style={{ backgroundColor: '#f9fafb', padding: '16px 8px', color: '#111827', fontWeight: 800, fontSize: '15px', textAlign: 'right', borderBottom: '1px solid #f3f4f6', borderRight: selectedDealer === 'all' ? '1px solid #f3f4f6' : 'none' }}>₹{totalDealerAmount.toLocaleString('en-IN')}</td>
+                           {selectedDealer === 'all' && (
+                             <td style={{ backgroundColor: '#f9fafb', padding: '16px 8px', borderBottom: '1px solid #f3f4f6' }}></td>
+                           )}
                          </tr>
                        </tbody>
                      </table>
                   ) : expandedSummaryView === 'categories' ? (
-                     <table style={{ width: '100%', tableLayout: 'auto', borderCollapse: 'separate', borderSpacing: '0', fontSize: '13px' }}>
+                     <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: '0', fontSize: '13px' }}>
                        <thead>
                          <tr>
-                           <th style={{ width: '5%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>S.NO</th>
-                           <th style={{ backgroundColor: '#f9fafb', textAlign: 'left', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>Category Name</th>
-                           <th style={{ width: '20%', textAlign: 'right', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6' }}>Amount</th>
+                           <th style={{ width: '10%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>S.NO</th>
+                           <th style={{ backgroundColor: '#f9fafb', width: '45%', textAlign: 'left', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>Category Name</th>
+                           <th style={{ width: '45%', textAlign: 'right', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6' }}>Amount</th>
                          </tr>
                        </thead>
                        <tbody>
                          {categorySummary.map((cat, i) => (
-                           <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                             <td style={{ backgroundColor: i % 2 === 0 ? '#f9fafb' : '#ffffff', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontSize: '12px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{i + 1}</td>
-                             <td style={{ backgroundColor: i % 2 === 0 ? '#f3f4f6' : '#f9fafb', padding: '12px 8px', color: '#374151', fontWeight: 700, textTransform: 'uppercase', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{cat.name}</td>
-                             <td style={{ backgroundColor: i % 2 === 0 ? '#f9fafb' : '#ffffff', padding: '12px 8px', color: '#111827', fontWeight: 700, fontSize: '14.5px', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>₹{Math.round(cat.amount).toLocaleString('en-IN')}</td>
+                           <tr key={i} onClick={() => { setExpandedSelectedCategory(cat.name); setExpandedCategorySelectedDealer(null); }} style={{ borderBottom: '1px solid #e5e7eb', cursor: 'pointer', backgroundColor: expandedSelectedCategory === cat.name ? '#eef2ff' : 'transparent', outline: expandedSelectedCategory === cat.name ? '2px solid #6366f1' : 'none', outlineOffset: '-2px' }}>
+                             <td style={{ backgroundColor: expandedSelectedCategory === cat.name ? 'transparent' : i % 2 === 0 ? '#f9fafb' : '#ffffff', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontSize: '12px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{i + 1}</td>
+                             <td style={{ backgroundColor: expandedSelectedCategory === cat.name ? 'transparent' : i % 2 === 0 ? '#f3f4f6' : '#f9fafb', padding: '12px 8px', color: '#374151', fontWeight: 700, textTransform: 'uppercase', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{cat.name}</td>
+                             <td style={{ backgroundColor: expandedSelectedCategory === cat.name ? 'transparent' : i % 2 === 0 ? '#f9fafb' : '#ffffff', padding: '12px 8px', color: '#111827', fontWeight: 700, fontSize: '14.5px', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>₹{Math.round(cat.amount).toLocaleString('en-IN')}</td>
                            </tr>
                          ))}
                          <tr style={{ backgroundColor: '#fff', borderTop: '2px solid #e5e7eb' }}>
@@ -2115,7 +2372,7 @@ export default function ReportGraphPage() {
                        </tbody>
                      </table>
                   ) : (
-                  <table style={{ width: '100%', tableLayout: 'auto', borderCollapse: 'separate', borderSpacing: '0', fontSize: '13px' }}>
+                  <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: '0', fontSize: '13px' }}>
                     <thead>
                       <tr>
                         <th style={{ width: '5%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>S.NO</th>
@@ -2170,8 +2427,8 @@ export default function ReportGraphPage() {
                                       {item.status}
                                     </span>
                                   </td>
-                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : i % 2 === 0 ? '#f3f4f6' : '#f9fafb', textAlign: 'center', padding: '12px 8px', color: '#374151', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6', whiteSpace: 'nowrap' }}>{item.time ? dayjs(item.time).format('MMM DD, YYYY HH:mm') : '-'}</td>
-                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : i % 2 === 0 ? '#f9fafb' : '#ffffff', textAlign: 'center', padding: '12px 8px', color: '#374151', borderBottom: '1px solid #f3f4f6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={paidTimeStr || '-'}>{paidTimeStr || '-'}</td>
+                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : i % 2 === 0 ? '#f3f4f6' : '#f9fafb', textAlign: 'center', padding: '12px 8px', color: '#374151', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{item.time ? dayjs(item.time).format('MMM DD, YYYY HH:mm') : '-'}</td>
+                                  <td style={{ backgroundColor: selectedBill?.id === item.id ? '#eef2ff' : i % 2 === 0 ? '#f9fafb' : '#ffffff', textAlign: 'center', padding: '12px 8px', color: '#374151', borderBottom: '1px solid #f3f4f6', overflow: 'hidden', textOverflow: 'ellipsis' }} title={paidTimeStr || '-'}>{paidTimeStr || '-'}</td>
                                 </tr>
                               );
                             })}
@@ -2190,58 +2447,217 @@ export default function ReportGraphPage() {
                   )}
                 </div>
               </div>
-
-              {selectedBill && (
-                <div style={{ flex: '0 0 calc(25% - 10px)', backgroundColor: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)', padding: '20px 24px', display: 'flex', flexDirection: 'column' }}>
+              
+              {expandedSummaryView === 'dealers' && expandedSelectedDealer && (
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '12px',
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+                  padding: '20px 16px',
+                  flex: 1,
+                  minWidth: 0,
+                  overflowX: 'auto'
+                }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <h4 style={{ fontSize: '15px', fontWeight: 600, textTransform: 'uppercase' }}>{selectedBill.dealerName || 'Bill Details'}</h4>
-                    <button onClick={() => setSelectedBill(null)} style={{ padding: '4px', cursor: 'pointer', background: 'transparent', border: 'none' }}>
+                    <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#374151' }}>
+                      {expandedSelectedDealer} - Bills
+                    </h3>
+                    <button onClick={() => setExpandedSelectedDealer(null)} style={{ padding: '4px', cursor: 'pointer', background: 'transparent', border: 'none' }}>
                       <X size={16} className="text-gray-500 hover:text-gray-800" />
                     </button>
                   </div>
-                  
-                  {selectedBill.billCopyUrl ? (
-                    <a href={selectedBill.billCopyUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '4px', backgroundColor: '#f9fafb' }}>
-                      <img src={selectedBill.billCopyUrl} alt="Bill Copy" style={{ width: '100%', height: 'auto', maxHeight: '500px', objectFit: 'contain' }} />
-                    </a>
-                  ) : (
-                    <div style={{ padding: '40px 20px', textAlign: 'center', color: '#6b7280', backgroundColor: '#f9fafb', border: '1px dashed #d1d5db', borderRadius: '6px' }}>
-                      No bill copy uploaded
-                    </div>
-                  )}
-                  
-                  <div style={{ marginTop: '20px', backgroundColor: '#f9fafb', padding: '12px', borderRadius: '6px', border: '1px solid #f3f4f6' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '13px', color: '#6b7280' }}>Amount:</span>
-                      <span style={{ fontSize: '14px', fontWeight: 700, color: '#111827' }}>₹{(selectedBill.amount || 0).toLocaleString('en-IN')}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '13px', color: '#6b7280' }}>Company:</span>
-                      <span style={{ fontSize: '13px', fontWeight: 500, color: '#374151', textTransform: 'uppercase' }}>{selectedBill.companyName || '-'}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '13px', color: '#6b7280' }}>Status:</span>
-                      <span style={{ 
-                        fontSize: '11px', 
-                        padding: '2px 6px', 
-                        borderRadius: '10px', 
-                        backgroundColor: selectedBill.status === 'paid' ? '#dcfce7' : selectedBill.status === 'pending' ? '#fef9c3' : '#fee2e2', 
-                        color: selectedBill.status === 'paid' ? '#166534' : selectedBill.status === 'pending' ? '#854d0e' : '#991b1b',
-                        textTransform: 'capitalize',
-                        fontWeight: 500
-                      }}>
-                        {selectedBill.status}
-                      </span>
-                    </div>
-                    {selectedBill.time && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '13px', color: '#6b7280' }}>Created:</span>
-                        <span style={{ fontSize: '13px', color: '#374151' }}>{dayjs(selectedBill.time).format('MMM DD, YYYY HH:mm')}</span>
-                      </div>
-                    )}
+                  <div style={{ width: '100%', overflowX: 'auto' }}>
+                    <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: '0', fontSize: '13px' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '5%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>S.NO</th>
+                          <th style={{ backgroundColor: '#f9fafb', width: '25%', textAlign: 'left', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>Company Name</th>
+                          <th style={{ width: '20%', textAlign: 'left', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>Amount</th>
+                          <th style={{ backgroundColor: '#f9fafb', width: '15%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>Status</th>
+                          <th style={{ width: '17%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>Created Time</th>
+                          <th style={{ backgroundColor: '#f9fafb', width: '18%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6' }}>Paid Time</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {expandedDealerBills.length > 0 ? expandedDealerBills.map((bill, i) => {
+                           const paidTimeStr = bill.payments && bill.payments.length > 0 ? bill.payments.map((p: any) => p.date ? dayjs(p.date).format('MMM DD, YYYY HH:mm') : '').filter(Boolean).join(', ') : (bill.status === 'paid' && bill.updatedAt ? dayjs(bill.updatedAt).format('MMM DD, YYYY HH:mm') : '');
+                           
+                           return (
+                            <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                              <td style={{ backgroundColor: i % 2 === 0 ? '#f9fafb' : '#ffffff', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontSize: '12px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{i + 1}</td>
+                              <td style={{ backgroundColor: i % 2 === 0 ? '#f3f4f6' : '#f9fafb', padding: '12px 8px', color: '#374151', fontWeight: 500, textTransform: 'uppercase', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bill.companyName || '-'}</td>
+                              <td style={{ backgroundColor: i % 2 === 0 ? '#f9fafb' : '#ffffff', padding: '12px 8px', color: '#111827', fontWeight: 700, fontSize: '14.5px', textAlign: 'left', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>₹{(bill.amount || bill.matchedAmount || 0).toLocaleString('en-IN')}</td>
+                              <td style={{ backgroundColor: i % 2 === 0 ? '#f3f4f6' : '#f9fafb', textAlign: 'center', padding: '12px 8px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>
+                                <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '12px', backgroundColor: bill.status === 'paid' ? '#dcfce7' : bill.status === 'pending' ? '#fef9c3' : '#fee2e2', color: bill.status === 'paid' ? '#166534' : bill.status === 'pending' ? '#854d0e' : '#991b1b', textTransform: 'capitalize', fontWeight: 500 }}>{bill.status}</span>
+                              </td>
+                              <td style={{ backgroundColor: i % 2 === 0 ? '#f9fafb' : '#ffffff', textAlign: 'center', padding: '12px 8px', color: '#374151', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{bill.time ? dayjs(bill.time).format('MMM DD, YYYY HH:mm') : '-'}</td>
+                              <td style={{ backgroundColor: i % 2 === 0 ? '#f3f4f6' : '#f9fafb', textAlign: 'center', padding: '12px 8px', color: '#374151', borderBottom: '1px solid #f3f4f6', overflow: 'hidden', textOverflow: 'ellipsis' }}>{paidTimeStr || '-'}</td>
+                            </tr>
+                           )
+                        }) : (
+                          <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>No bills found</td></tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
+              
+              {expandedSummaryView === 'categories' && expandedSelectedCategory && (
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '12px',
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+                  padding: '20px 16px',
+                  flex: expandedCategorySelectedDealer ? '0 0 25%' : 1,
+                  minWidth: 0,
+                  overflowX: 'auto'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#374151' }}>
+                      {expandedSelectedCategory} - Dealers
+                    </h3>
+                    <button onClick={() => setExpandedSelectedCategory(null)} style={{ padding: '4px', cursor: 'pointer', background: 'transparent', border: 'none' }}>
+                      <X size={16} className="text-gray-500 hover:text-gray-800" />
+                    </button>
+                  </div>
+                  <div style={{ width: '100%', overflowX: 'auto' }}>
+                    <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: '0', fontSize: '13px' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '10%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>S.NO</th>
+                          <th style={{ backgroundColor: '#f9fafb', width: '45%', textAlign: 'left', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>Dealer Name</th>
+                          <th style={{ width: '30%', textAlign: 'right', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>Amount</th>
+                          <th style={{ backgroundColor: '#f9fafb', width: '15%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6' }}>Bills</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {expandedCategoryDealers.length > 0 ? expandedCategoryDealers.map((dealer, i) => (
+                           <tr key={i} onClick={() => setExpandedCategorySelectedDealer(dealer.dealerName)} style={{ borderBottom: '1px solid #e5e7eb', cursor: 'pointer', backgroundColor: expandedCategorySelectedDealer === dealer.dealerName ? '#eef2ff' : 'transparent', outline: expandedCategorySelectedDealer === dealer.dealerName ? '2px solid #6366f1' : 'none', outlineOffset: '-2px' }}>
+                             <td style={{ backgroundColor: expandedCategorySelectedDealer === dealer.dealerName ? 'transparent' : i % 2 === 0 ? '#f9fafb' : '#ffffff', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontSize: '12px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{i + 1}</td>
+                             <td style={{ backgroundColor: expandedCategorySelectedDealer === dealer.dealerName ? 'transparent' : i % 2 === 0 ? '#f3f4f6' : '#f9fafb', padding: '12px 8px', color: '#374151', fontWeight: 700, textTransform: 'uppercase', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dealer.dealerName || 'Unknown'}</td>
+                             <td style={{ backgroundColor: expandedCategorySelectedDealer === dealer.dealerName ? 'transparent' : i % 2 === 0 ? '#f9fafb' : '#ffffff', padding: '12px 8px', color: '#111827', fontWeight: 700, fontSize: '14.5px', textAlign: 'right', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>₹{Math.round(dealer.amount).toLocaleString('en-IN')}</td>
+                             <td style={{ backgroundColor: expandedCategorySelectedDealer === dealer.dealerName ? 'transparent' : i % 2 === 0 ? '#f3f4f6' : '#f9fafb', padding: '12px 8px', color: '#4b5563', fontWeight: 600, textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+                               <span style={{ backgroundColor: expandedCategorySelectedDealer === dealer.dealerName ? '#c7d2fe' : '#e5e7eb', padding: '2px 8px', borderRadius: '12px', fontSize: '12px', color: expandedCategorySelectedDealer === dealer.dealerName ? '#3730a3' : 'inherit' }}>{dealer.count}</span>
+                             </td>
+                           </tr>
+                        )) : (
+                          <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px' }}>No dealers found</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {expandedSummaryView === 'categories' && expandedSelectedCategory && expandedCategorySelectedDealer && (
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '12px',
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+                  padding: '20px 16px',
+                  flex: 1,
+                  minWidth: 0,
+                  overflowX: 'auto'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#374151' }}>
+                      {expandedCategorySelectedDealer} - Bills
+                    </h3>
+                    <button onClick={() => setExpandedCategorySelectedDealer(null)} style={{ padding: '4px', cursor: 'pointer', background: 'transparent', border: 'none' }}>
+                      <X size={16} className="text-gray-500 hover:text-gray-800" />
+                    </button>
+                  </div>
+                  <div style={{ width: '100%', overflowX: 'auto' }}>
+                    <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: '0', fontSize: '13px' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '5%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>S.NO</th>
+                          <th style={{ backgroundColor: '#f9fafb', width: '25%', textAlign: 'left', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>Company Name</th>
+                          <th style={{ width: '20%', textAlign: 'left', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>Amount</th>
+                          <th style={{ backgroundColor: '#f9fafb', width: '15%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>Status</th>
+                          <th style={{ width: '17%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>Created Time</th>
+                          <th style={{ backgroundColor: '#f9fafb', width: '18%', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontWeight: 600, borderBottom: '2px solid #f3f4f6' }}>Paid Time</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {expandedCategoryDealerBills.length > 0 ? expandedCategoryDealerBills.map((bill, i) => {
+                           const paidTimeStr = bill.payments && bill.payments.length > 0 ? bill.payments.map((p: any) => p.date ? dayjs(p.date).format('MMM DD, YYYY HH:mm') : '').filter(Boolean).join(', ') : (bill.status === 'paid' && bill.updatedAt ? dayjs(bill.updatedAt).format('MMM DD, YYYY HH:mm') : '');
+                           
+                           return (
+                            <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                              <td style={{ backgroundColor: i % 2 === 0 ? '#f9fafb' : '#ffffff', textAlign: 'center', padding: '12px 8px', color: '#6b7280', fontSize: '12px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{i + 1}</td>
+                              <td style={{ backgroundColor: i % 2 === 0 ? '#f3f4f6' : '#f9fafb', padding: '12px 8px', color: '#374151', fontWeight: 500, textTransform: 'uppercase', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bill.companyName || '-'}</td>
+                              <td style={{ backgroundColor: i % 2 === 0 ? '#f9fafb' : '#ffffff', padding: '12px 8px', color: '#111827', fontWeight: 700, fontSize: '14.5px', textAlign: 'left', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>₹{(bill.categorySpecificAmount || bill.amount || 0).toLocaleString('en-IN')}</td>
+                              <td style={{ backgroundColor: i % 2 === 0 ? '#f3f4f6' : '#f9fafb', textAlign: 'center', padding: '12px 8px', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>
+                                <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '12px', backgroundColor: bill.status === 'paid' ? '#dcfce7' : bill.status === 'pending' ? '#fef9c3' : '#fee2e2', color: bill.status === 'paid' ? '#166534' : bill.status === 'pending' ? '#854d0e' : '#991b1b', textTransform: 'capitalize', fontWeight: 500 }}>{bill.status}</span>
+                              </td>
+                              <td style={{ backgroundColor: i % 2 === 0 ? '#f9fafb' : '#ffffff', textAlign: 'center', padding: '12px 8px', color: '#374151', borderBottom: '1px solid #f3f4f6', borderRight: '1px solid #f3f4f6' }}>{bill.time ? dayjs(bill.time).format('MMM DD, YYYY HH:mm') : '-'}</td>
+                              <td style={{ backgroundColor: i % 2 === 0 ? '#f3f4f6' : '#f9fafb', textAlign: 'center', padding: '12px 8px', color: '#374151', borderBottom: '1px solid #f3f4f6', overflow: 'hidden', textOverflow: 'ellipsis' }}>{paidTimeStr || '-'}</td>
+                            </tr>
+                           )
+                        }) : (
+                          <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>No bills found</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ flex: (selectedBill || expandedSummaryView === 'none' || (expandedSummaryView === 'dealers') || (expandedSummaryView === 'categories' && !expandedCategorySelectedDealer)) ? `0 0 ${selectedCategory === 'all' ? '360px' : '170px'}` : '0 0 0px', display: (selectedBill || expandedSummaryView === 'none' || (expandedSummaryView === 'dealers') || (expandedSummaryView === 'categories' && !expandedCategorySelectedDealer)) ? 'flex' : 'none', flexDirection: 'column' }}>
+                {selectedBill && (
+                  <div style={{ flex: 1, backgroundColor: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)', padding: '20px 24px', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h4 style={{ fontSize: '15px', fontWeight: 600, textTransform: 'uppercase' }}>{selectedBill.dealerName || 'Bill Details'}</h4>
+                      <button onClick={() => setSelectedBill(null)} style={{ padding: '4px', cursor: 'pointer', background: 'transparent', border: 'none' }}>
+                        <X size={16} className="text-gray-500 hover:text-gray-800" />
+                      </button>
+                    </div>
+                    
+                    {selectedBill.billCopyUrl ? (
+                      <a href={selectedBill.billCopyUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '4px', backgroundColor: '#f9fafb' }}>
+                        <img src={selectedBill.billCopyUrl} alt="Bill Copy" style={{ width: '100%', height: 'auto', maxHeight: '500px', objectFit: 'contain' }} />
+                      </a>
+                    ) : (
+                      <div style={{ padding: '40px 20px', textAlign: 'center', color: '#6b7280', backgroundColor: '#f9fafb', border: '1px dashed #d1d5db', borderRadius: '6px' }}>
+                        No bill copy uploaded
+                      </div>
+                    )}
+                    
+                    <div style={{ marginTop: '20px', backgroundColor: '#f9fafb', padding: '12px', borderRadius: '6px', border: '1px solid #f3f4f6' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '13px', color: '#6b7280' }}>Amount:</span>
+                        <span style={{ fontSize: '14px', fontWeight: 700, color: '#111827' }}>₹{(selectedBill.amount || 0).toLocaleString('en-IN')}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '13px', color: '#6b7280' }}>Company:</span>
+                        <span style={{ fontSize: '13px', fontWeight: 500, color: '#374151', textTransform: 'uppercase' }}>{selectedBill.companyName || '-'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '13px', color: '#6b7280' }}>Status:</span>
+                        <span style={{ 
+                          fontSize: '11px', 
+                          padding: '2px 6px', 
+                          borderRadius: '10px', 
+                          backgroundColor: selectedBill.status === 'paid' ? '#dcfce7' : selectedBill.status === 'pending' ? '#fef9c3' : '#fee2e2', 
+                          color: selectedBill.status === 'paid' ? '#166534' : selectedBill.status === 'pending' ? '#854d0e' : '#991b1b',
+                          textTransform: 'capitalize',
+                          fontWeight: 500
+                        }}>
+                          {selectedBill.status}
+                        </span>
+                      </div>
+                      {selectedBill.time && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '13px', color: '#6b7280' }}>Created:</span>
+                          <span style={{ fontSize: '13px', color: '#374151' }}>{dayjs(selectedBill.time).format('MMM DD, YYYY HH:mm')}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
