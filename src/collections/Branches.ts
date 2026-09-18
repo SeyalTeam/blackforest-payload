@@ -186,6 +186,16 @@ export const Branches: CollectionConfig = {
       },
     },
     {
+      name: 'isClosingEntryEnabled',
+      label: 'Enable Closing Entry Form',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        description: 'When enabled by a manager, allows the branch cashier to submit their closing entry. Automatically resets to false after submission.',
+        position: 'sidebar',
+      },
+    },
+    {
       name: 'stockOrderWorkflow',
       label: 'Stock Order Workflow',
       type: 'group',
@@ -219,6 +229,14 @@ export const Branches: CollectionConfig = {
     update: ({ req, id: _id }): boolean | import('payload').Where => {
       if (!req.user) return false
       if (req.user.role === 'superadmin') return true
+      if (req.user.role === 'manager') {
+        const userCompanies = req.user.companies || [];
+        const userCompanyIds = userCompanies.map((c: any) => typeof c === 'string' ? c : (c.id || ''));
+        if (userCompanyIds.length > 0) {
+          return { company: { in: userCompanyIds } };
+        }
+        return false;
+      }
       if (req.user.role === 'branch') {
         if (!req.user.branch) return false
         const userBranchId =
