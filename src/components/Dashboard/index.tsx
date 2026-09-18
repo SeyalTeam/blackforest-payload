@@ -6,7 +6,8 @@ import './index.scss'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import Select from 'react-select'
-import { Calendar, RotateCw } from 'lucide-react'
+import { Calendar, RotateCw, Lock, Unlock } from 'lucide-react'
+import ClosingEntryWidget from './ClosingEntryWidget'
 
 interface StockStat {
   name: string
@@ -300,6 +301,7 @@ const Dashboard: React.FC = () => {
   return (
     <div className="dashboard-page">
       <Gutter>
+        <ClosingEntryWidget />
         <div className="header-row">
           <h1>Overall Report</h1>
           <div className="top-actions">
