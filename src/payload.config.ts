@@ -154,6 +154,8 @@ import { callSignalHandler } from './endpoints/callSignal'
 import BankStatements from './collections/BankStatements'
 import { BankStatementUploadGlobal } from './globals/BankStatementUpload'
 import { getPublicServerURL } from './utilities/serverUrl'
+import ManagerClosingReplies from './collections/ManagerClosingReplies'
+
 
 // Path helpers
 const filename = fileURLToPath(import.meta.url)
@@ -993,6 +995,7 @@ export default buildConfig({
 
   // Collections
   collections: [
+    ManagerClosingReplies,
     Users,
     Companies,
     Branches,
