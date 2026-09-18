@@ -44,6 +44,7 @@ import CustomerOfferWidget from './CustomerOfferWidget'
 import FavoriteCategoriesWidget from './FavoriteCategoriesWidget'
 import FavoriteProductsWidget from './FavoriteProductsWidget'
 import AttendanceWidget from '../AttendanceWidget'
+import ClosingEntryWidget from '../Dashboard/ClosingEntryWidget'
 import './index.scss'
 
 type Option = { value: string; label: string }
@@ -214,6 +215,7 @@ type WidgetKey =
   | 'confirm-skip'
   | 'category-delay'
   | 'entire-bill-blocking'
+  | 'closing-entry-access'
 
 const BILLING_APP_KEY = 'billing-app'
 
@@ -3053,6 +3055,14 @@ const WidgetSettings: React.FC<any> = (props) => {
             <Globe className="tile-icon" size={48} />
             <span className="tile-label">LIVE API</span>
           </button>
+<button
+            type="button"
+            className={`tile ${(activeWidget as string) === 'closing-entry-access' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('closing-entry-access' as any)}
+          >
+            <Lock className="tile-icon" size={48} />
+            <span className="tile-label">Closing Entry Access</span>
+          </button>
 
           <div className="tiles-group-title">Skip</div>
           <button
@@ -5088,6 +5098,20 @@ const WidgetSettings: React.FC<any> = (props) => {
                   </section>
 
                 </div>
+              </div>
+            </div>
+          )}
+
+          {(activeWidget as string) === 'closing-entry-access' && (
+            <div className="widget-modal">
+              <div className="modal-header">
+                <h2>Closing Entry Access Control</h2>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="modal-body" style={{ padding: '20px' }}>
+                <ClosingEntryWidget />
               </div>
             </div>
           )}

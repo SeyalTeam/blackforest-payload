@@ -150,7 +150,7 @@ const ClosingEntries: CollectionConfig = {
                 id: branchId,
                 data: {
                   isClosingEntryEnabled: false,
-                },
+                } as any,
                 overrideAccess: true,
               });
             }
