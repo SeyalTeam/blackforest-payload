@@ -230,7 +230,7 @@ export const Branches: CollectionConfig = {
       if (!req.user) return false
       if (req.user.role === 'superadmin') return true
       if (req.user.role === 'manager') {
-        const userCompanies = req.user.companies || [];
+        const userCompanies = req.user.manager_companies || [];
         const userCompanyIds = userCompanies.map((c: any) => typeof c === 'string' ? c : (c.id || ''));
         if (userCompanyIds.length > 0) {
           return { company: { in: userCompanyIds } };
