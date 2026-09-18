@@ -3021,8 +3021,8 @@ const WidgetSettings: React.FC<any> = (props) => {
           </button>
           <button
             type="button"
-            className={`tile ${activeWidget === 'attendance' ? 'active' : ''}`}
-            onClick={() => setActiveWidget('attendance')}
+            className={`tile ${(activeWidget as string) === 'attendance' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('attendance' as any)}
           >
             <Users className="tile-icon" size={48} />
             <span className="tile-label">Attendance</span>
@@ -4710,7 +4710,7 @@ const WidgetSettings: React.FC<any> = (props) => {
             </div>
           )}
 
-          {activeWidget === 'attendance' && (
+          {(activeWidget as string) === 'attendance' && (
             <div className="widget-modal">
               <div className="modal-header">
                 <h2>Face Recognition Attendance</h2>

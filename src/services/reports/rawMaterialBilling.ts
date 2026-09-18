@@ -559,7 +559,7 @@ export const getRawMaterialBillingReportData = async (
           deliveryPersonPhotoUrl: deliveryPersonPhotoUrl || (deliveryPersonPhotoFilename ? `/api/media/file/${deliveryPersonPhotoFilename}` : undefined),
           status: toNonEmptyString(item.status, 'pending'),
           plannedPaymentDate: item.plannedPaymentDate ? toDateString(item.plannedPaymentDate) : undefined,
-          notes: toNonEmptyString(item.notes, ''),
+          notes: toNonEmptyString((item as any).notes, ''),
           rawMaterials,
         }
       })

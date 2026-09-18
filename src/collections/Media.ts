@@ -223,7 +223,7 @@ export const Media: CollectionConfig = {
       user?.role === 'manager' ||
       user?.role === 'driver' ||
       user?.role === 'factory' ||
-      user?.role === 'watcher' ||
+      (user?.role as string) === 'watcher' ||
       user?.role === 'kitchen',
     update: ({ req: { user } }) =>
       user?.role === 'superadmin' ||
@@ -238,7 +238,7 @@ export const Media: CollectionConfig = {
       user?.role === 'manager' ||
       user?.role === 'driver' ||
       user?.role === 'factory' ||
-      user?.role === 'watcher' ||
+      (user?.role as string) === 'watcher' ||
       user?.role === 'kitchen',
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },

@@ -250,7 +250,7 @@ export default function ReportGraphPage() {
 
         let trimmedData = mappedData
         if (trimmedData.length > 0) {
-          const firstValidIndex = trimmedData.findIndex(pt => pt.totalAmount > 0 || pt.totalBills > 0)
+          const firstValidIndex = trimmedData.findIndex((pt: any) => pt.totalAmount > 0 || pt.totalBills > 0)
           if (firstValidIndex > 0) {
             trimmedData = trimmedData.slice(firstValidIndex)
           }
@@ -1405,7 +1405,7 @@ export default function ReportGraphPage() {
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
                               {dealer.name}
                             </span>
-                            {isSelected && <Check size={16} color="#374151" flexShrink={0} />}
+                            {isSelected && <Check size={16} color="#374151" style={{ flexShrink: 0 }} />}
                           </button>
                         );
                       })}
@@ -1492,7 +1492,7 @@ export default function ReportGraphPage() {
                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isSelected ? '#f3f4f6' : 'transparent'}
                           >
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>{company.name}</span>
-                            {isSelected && <Check size={16} color="#374151" flexShrink={0} />}
+                            {isSelected && <Check size={16} color="#374151" style={{ flexShrink: 0 }} />}
                           </button>
                         );
                       })}
@@ -1579,7 +1579,7 @@ export default function ReportGraphPage() {
                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isSelected ? '#f3f4f6' : 'transparent'}
                           >
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>{category.name}</span>
-                            {isSelected && <Check size={16} color="#374151" flexShrink={0} />}
+                            {isSelected && <Check size={16} color="#374151" style={{ flexShrink: 0 }} />}
                           </button>
                         );
                       })}

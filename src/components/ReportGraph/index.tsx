@@ -9,7 +9,7 @@ const ReportGraph: React.FC = () => {
   }, [])
 
   return (
-    <Gutter style={{ paddingTop: '50px' }}>
+    <Gutter className="pt-[50px]">
       <h1>Report Graph</h1>
       <p>The Report Graph has been opened in a new tab.</p>
       <p>If your browser blocked the popup, please click the button below:</p>

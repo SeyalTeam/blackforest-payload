@@ -1160,27 +1160,51 @@ export const Users: CollectionConfig = {
             }
             nextData.branch = null
           }
-          if ((nextData.role === 'company' || nextData.role === 'chef') && !nextData.company) {
-            throw new Error(`Company is required for ${nextData.role} role users`)
+          const resolvedCompany =
+            nextData.company ??
+            (operation === 'update'
+              ? (originalDoc as { company?: unknown } | undefined)?.company
+              : undefined)
+              
+          if ((resolvedRole === 'company' || resolvedRole === 'chef') && !resolvedCompany) {
+            throw new Error(`Company is required for ${resolvedRole} role users`)
           }
+          const resolvedFactoryCompanies =
+            nextData.factory_companies ??
+            (operation === 'update'
+              ? (originalDoc as { factory_companies?: unknown[] } | undefined)?.factory_companies
+              : undefined)
+              
           if (
-            nextData.role === 'factory' &&
-            (!nextData.factory_companies || nextData.factory_companies.length === 0)
+            resolvedRole === 'factory' &&
+            (!Array.isArray(resolvedFactoryCompanies) || resolvedFactoryCompanies.length === 0)
           ) {
             throw new Error('At least one company is required for factory role users')
           }
+          const resolvedStorekeeperCompanies =
+            nextData.storekeeper_companies ??
+            (operation === 'update'
+              ? (originalDoc as { storekeeper_companies?: unknown[] } | undefined)?.storekeeper_companies
+              : undefined)
+              
           if (
-            nextData.role === 'store_keeper' &&
-            (!nextData.storekeeper_companies || nextData.storekeeper_companies.length === 0)
+            resolvedRole === 'store_keeper' &&
+            (!Array.isArray(resolvedStorekeeperCompanies) || resolvedStorekeeperCompanies.length === 0)
           ) {
             throw new Error('At least one company is required for store keeper role users')
           }
+          const resolvedEmployee =
+            nextData.employee ??
+            (operation === 'update'
+              ? (originalDoc as { employee?: unknown } | undefined)?.employee
+              : undefined)
+              
           if (
-            typeof nextData.role === 'string' &&
+            typeof resolvedRole === 'string' &&
             ['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef', 'store_keeper'].includes(
-              nextData.role,
+              resolvedRole,
             ) &&
-            !nextData.employee
+            !resolvedEmployee
           ) {
             throw new Error(
               'Employee is required for waiter, cashier, supervisor, delivery, driver, chef, or store keeper role users',

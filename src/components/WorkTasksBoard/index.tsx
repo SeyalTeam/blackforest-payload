@@ -227,7 +227,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
           typeof task.assignedUser === 'object' ? task.assignedUser?.id : task.assignedUser
         if (empId === individualFilter || usrId === individualFilter) {
           // Explicitly assigned to this individual
-        } else if (!empId && task.assignedRole && task.assignmentType !== 'unassigned') {
+        } else if (!empId && task.assignedRole && (task.assignmentType as string) !== 'unassigned') {
           // Assigned to role (for all members of this role)
           const emp = employees.find((e) => e.id === individualFilter)
           const empTeam = (emp?.team || '').toLowerCase().replace(/[\s_-]+/g, '')
@@ -401,7 +401,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
               typeof t.assignedEmployee === 'object' ? t.assignedEmployee?.id : t.assignedEmployee
             if (tEmpId === empId || getTaskColumnId(t) === col.id) return true
             // If task is assigned to a role (for all in that role), and this employee has that role
-            if (!tEmpId && t.assignedRole && t.assignmentType !== 'unassigned') {
+            if (!tEmpId && t.assignedRole && (t.assignmentType as string) !== 'unassigned') {
               const emp = employees.find((e) => e.id === empId)
               const empTeam = (emp?.team || '').toLowerCase().replace(/[\s_-]+/g, '')
               const taskRole = t.assignedRole.toLowerCase().replace(/[\s_-]+/g, '')
@@ -1566,7 +1566,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                         ) {
                           selectedVal = activeModalCard.assignedEmployee
                         } else if (
-                          activeModalCard.assignmentType === 'unassigned' ||
+                          (activeModalCard.assignmentType as string) === 'unassigned' ||
                           activeModalCard.assignedEmployee === 'unassigned'
                         ) {
                           selectedVal = 'unassigned'
@@ -1608,7 +1608,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                                 setActiveModalCard({
                                   ...activeModalCard,
                                   assignedEmployee: 'unassigned',
-                                  assignmentType: 'unassigned',
+                                  assignmentType: 'unassigned' as any,
                                 })
                               } else {
                                 setActiveModalCard({

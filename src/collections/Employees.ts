@@ -143,14 +143,18 @@ const Employees: CollectionConfig = {
 
           if (usersRes.docs && usersRes.docs.length > 0) {
             for (const user of usersRes.docs) {
-              await req.payload.update({
-                collection: 'users',
-                id: user.id,
-                data: {
-                  role: doc.team,
-                },
-                overrideAccess: true,
-              })
+              try {
+                await req.payload.update({
+                  collection: 'users',
+                  id: user.id,
+                  data: {
+                    role: doc.team,
+                  },
+                  overrideAccess: true,
+                })
+              } catch (e) {
+                console.error(`Failed to sync role to user ${user.id}:`, e)
+              }
             }
           }
         }
