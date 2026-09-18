@@ -89,6 +89,7 @@ const Employees: CollectionConfig = {
         { label: 'Kitchen', value: 'kitchen' },
         { label: 'Store Keeper', value: 'store_keeper' },
         { label: 'Account', value: 'account' },
+        { label: 'Watcher', value: 'watcher' }, // CCTV monitoring team
       ],
       required: true,
       admin: {

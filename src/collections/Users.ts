@@ -65,6 +65,7 @@ export const Users: CollectionConfig = {
         { label: 'Supervisor', value: 'supervisor' },
         { label: 'Driver', value: 'driver' },
         { label: 'Store Keeper', value: 'store_keeper' },
+        { label: 'Watcher', value: 'watcher' }, // CCTV monitoring team
       ],
       defaultValue: 'admin',
       required: true,
@@ -291,7 +292,7 @@ export const Users: CollectionConfig = {
       required: false,
       admin: {
         condition: ({ role }) =>
-          ['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef', 'kitchen', 'store_keeper', 'manager'].includes(
+          ['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef', 'kitchen', 'store_keeper', 'manager', 'watcher'].includes(
             role,
           ),
       },
