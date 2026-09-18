@@ -22,7 +22,7 @@ const Employees: CollectionConfig = {
     update: ({ req: { user }, id: _id }) => {
       if (!user) return false
       if (user.role === 'superadmin' || user.role === 'admin') return true
-      return user.role === 'company' || user.role === 'branch'
+      return user.role === 'company' || user.role === 'branch' || user.role === 'manager'
     },
     delete: ({ req: { user } }) => {
       if (!user) return false
@@ -124,6 +124,36 @@ const Employees: CollectionConfig = {
           }
         }
         return data
+      },
+    ],
+    afterChange: [
+      async ({ doc, previousDoc, req }) => {
+        // If team (role) has changed, update the associated User record
+        if (doc.team !== previousDoc?.team) {
+          const usersRes = await req.payload.find({
+            collection: 'users',
+            where: {
+              employee: {
+                equals: doc.id,
+              },
+            },
+            depth: 0,
+            overrideAccess: true,
+          })
+
+          if (usersRes.docs && usersRes.docs.length > 0) {
+            for (const user of usersRes.docs) {
+              await req.payload.update({
+                collection: 'users',
+                id: user.id,
+                data: {
+                  role: doc.team,
+                },
+                overrideAccess: true,
+              })
+            }
+          }
+        }
       },
     ],
   },
