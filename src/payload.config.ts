@@ -105,6 +105,7 @@ import Tables from './collections/Tables'
 import Kitchens from './collections/Kitchens'
 import Attendance from './collections/Attendance'
 import PunchIn from './collections/PunchIn'
+import CctvReports from './collections/CctvReports'
 
 import { WidgetSettingsGlobal } from './globals/Widgets'
 import { WorkSettingsGlobal } from './globals/WorkSettings'
@@ -1033,6 +1034,7 @@ export default buildConfig({
     StockAlerts,
     IdempotencyKeys,
     WaiterCalls,
+    CctvReports,
   ].map(wrapCollection),
 
 
