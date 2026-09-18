@@ -134,9 +134,9 @@ export const Branches: CollectionConfig = {
         return true
       },
       access: {
-        create: ({ req }) => req.user?.role === 'superadmin',
-        read: ({ req }) => req.user?.role === 'superadmin',
-        update: ({ req }) => req.user?.role === 'superadmin',
+        create: ({ req }) => req.user?.role === 'superadmin' || req.user?.role === 'admin',
+        read: ({ req }) => req.user?.role === 'superadmin' || req.user?.role === 'admin',
+        update: ({ req }) => req.user?.role === 'superadmin' || req.user?.role === 'admin',
       },
     },
     {
@@ -224,11 +224,11 @@ export const Branches: CollectionConfig = {
     },
   ],
   access: {
-    create: ({ req }) => req.user?.role === 'superadmin',
+    create: ({ req }) => req.user?.role === 'superadmin' || req.user?.role === 'admin',
     read: () => true,
     update: ({ req, id: _id }): boolean | import('payload').Where => {
       if (!req.user) return false
-      if (req.user.role === 'superadmin') return true
+      if (req.user.role === 'superadmin' || req.user.role === 'admin') return true
       if (req.user.role === 'manager') {
         const userCompanies = req.user.manager_companies || [];
         const userCompanyIds = userCompanies.map((c: any) => typeof c === 'string' ? c : (c.id || ''));
