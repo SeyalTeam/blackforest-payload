@@ -300,7 +300,7 @@ export const Users: CollectionConfig = {
         const role = (siblingData as { role?: string }).role
         if (
           !role ||
-          !['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef', 'kitchen', 'store_keeper', 'manager'].includes(
+          !['waiter', 'cashier', 'supervisor', 'delivery', 'driver', 'chef', 'kitchen', 'store_keeper', 'manager', 'watcher'].includes(
             role,
           )
         ) {
