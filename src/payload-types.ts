@@ -67,6 +67,7 @@ export interface Config {
   };
   blocks: {};
   collections: {
+    'manager-closing-replies': ManagerClosingReply;
     users: User;
     companies: Company;
     branches: Branch;
@@ -108,12 +109,14 @@ export interface Config {
     'stock-alerts': StockAlert;
     'idempotency-keys': IdempotencyKey;
     'waiter-calls': WaiterCall;
+    'cctv-reports': CctvReport;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
   };
   collectionsJoins: {};
   collectionsSelect: {
+    'manager-closing-replies': ManagerClosingRepliesSelect<false> | ManagerClosingRepliesSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
     companies: CompaniesSelect<false> | CompaniesSelect<true>;
     branches: BranchesSelect<false> | BranchesSelect<true>;
@@ -155,6 +158,7 @@ export interface Config {
     'stock-alerts': StockAlertsSelect<false> | StockAlertsSelect<true>;
     'idempotency-keys': IdempotencyKeysSelect<false> | IdempotencyKeysSelect<true>;
     'waiter-calls': WaiterCallsSelect<false> | WaiterCallsSelect<true>;
+    'cctv-reports': CctvReportsSelect<false> | CctvReportsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -273,89 +277,27 @@ export interface UserAuthOperations {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "users".
+ * via the `definition` "manager-closing-replies".
  */
-export interface User {
+export interface ManagerClosingReply {
   id: string;
-  name?: string | null;
-  role:
-    | 'superadmin'
-    | 'admin'
-    | 'manager'
-    | 'account'
-    | 'delivery'
-    | 'branch'
-    | 'company'
-    | 'factory'
-    | 'kitchen'
-    | 'chef'
-    | 'cashier'
-    | 'waiter'
-    | 'supervisor'
-    | 'driver'
-    | 'store_keeper';
-  isKitchen?: boolean | null;
-  isStock?: boolean | null;
-  branch?: (string | null) | Branch;
-  /**
-   * Automatically captured from login context for live monitoring widgets.
-   */
-  lastLoginBranch?: (string | null) | Branch;
-  kitchenBranches?: (string | Branch)[] | null;
-  kitchen?: (string | Kitchen)[] | null;
-  categories?: (string | Category)[] | null;
-  company?: (string | null) | Company;
-  factory_companies?: (string | Company)[] | null;
-  storekeeper_companies?: (string | Company)[] | null;
-  /**
-   * Select the companies this manager is responsible for.
-   */
-  manager_companies?: (string | Company)[] | null;
-  employee?: (string | null) | Employee;
-  deviceId?: string | null;
-  /**
-   * Enable and save to force logout this user from all devices. The value resets after save.
-   */
-  forceLogoutAllDevices?: boolean | null;
-  /**
-   * When enabled, this user cannot login until a superadmin disables this block.
-   */
-  loginBlocked?: boolean | null;
-  allowedCollections?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  allowedGlobals?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
+  branch: string | Branch;
+  date: string;
+  type: 'common' | 'individual';
+  closingEntry?: (string | null) | ClosingEntry;
+  message: string;
+  denominations?: {
+    rs500?: number | null;
+    rs200?: number | null;
+    rs100?: number | null;
+    rs50?: number | null;
+    rs20?: number | null;
+    rs10?: number | null;
+    coins?: number | null;
+  };
+  totalAmount: number;
   updatedAt: string;
   createdAt: string;
-  email: string;
-  resetPasswordToken?: string | null;
-  resetPasswordExpiration?: string | null;
-  salt?: string | null;
-  hash?: string | null;
-  loginAttempts?: number | null;
-  lockUntil?: string | null;
-  sessions?:
-    | {
-        id: string;
-        createdAt?: string | null;
-        expiresAt: string;
-      }[]
-    | null;
-  password?: string | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -400,6 +342,10 @@ export interface Branch {
         id?: string | null;
       }[]
     | null;
+  /**
+   * When enabled by a manager, allows the branch cashier to submit their closing entry. Automatically resets to false after submission.
+   */
+  isClosingEntryEnabled?: boolean | null;
   /**
    * Customize the stock order process for this branch.
    */
@@ -645,6 +591,138 @@ export interface Dealer {
   createdAt: string;
 }
 /**
+ * Daily closing entries for branches. Auto-calculates totals, returns, stock receipts, and net.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "closing-entries".
+ */
+export interface ClosingEntry {
+  id: string;
+  closingNumber: string;
+  date: string;
+  createdBy?: (string | null) | User;
+  systemSales?: number | null;
+  /**
+   * Auto-calculated from Billings (can be overridden)
+   */
+  totalBills?: number | null;
+  manualSales: number;
+  onlineSales: number;
+  expenses: number;
+  returnTotal: number;
+  stockOrders?: number | null;
+  creditCard: number;
+  upi: number;
+  cash: number;
+  denominations?: {
+    count2000?: number | null;
+    count500?: number | null;
+    count200?: number | null;
+    count100?: number | null;
+    count50?: number | null;
+    count20?: number | null;
+    count10?: number | null;
+    count5?: number | null;
+  };
+  totalSales?: number | null;
+  totalPayments?: number | null;
+  net?: number | null;
+  branch: string | Branch;
+  /**
+   * Notes from the accounts team about this closing
+   */
+  notes?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "users".
+ */
+export interface User {
+  id: string;
+  name?: string | null;
+  role:
+    | 'superadmin'
+    | 'admin'
+    | 'manager'
+    | 'account'
+    | 'delivery'
+    | 'branch'
+    | 'company'
+    | 'factory'
+    | 'kitchen'
+    | 'chef'
+    | 'cashier'
+    | 'waiter'
+    | 'supervisor'
+    | 'driver'
+    | 'store_keeper'
+    | 'watcher';
+  isKitchen?: boolean | null;
+  isStock?: boolean | null;
+  branch?: (string | null) | Branch;
+  /**
+   * Automatically captured from login context for live monitoring widgets.
+   */
+  lastLoginBranch?: (string | null) | Branch;
+  kitchenBranches?: (string | Branch)[] | null;
+  kitchen?: (string | Kitchen)[] | null;
+  categories?: (string | Category)[] | null;
+  company?: (string | null) | Company;
+  factory_companies?: (string | Company)[] | null;
+  storekeeper_companies?: (string | Company)[] | null;
+  /**
+   * Select the companies this manager is responsible for.
+   */
+  manager_companies?: (string | Company)[] | null;
+  employee?: (string | null) | Employee;
+  deviceId?: string | null;
+  /**
+   * Enable and save to force logout this user from all devices. The value resets after save.
+   */
+  forceLogoutAllDevices?: boolean | null;
+  /**
+   * When enabled, this user cannot login until a superadmin disables this block.
+   */
+  loginBlocked?: boolean | null;
+  allowedCollections?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  allowedGlobals?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+  email: string;
+  resetPasswordToken?: string | null;
+  resetPasswordExpiration?: string | null;
+  salt?: string | null;
+  hash?: string | null;
+  loginAttempts?: number | null;
+  lockUntil?: string | null;
+  sessions?:
+    | {
+        id: string;
+        createdAt?: string | null;
+        expiresAt: string;
+      }[]
+    | null;
+  password?: string | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "kitchens".
  */
@@ -679,7 +757,8 @@ export interface Employee {
     | 'delivery'
     | 'kitchen'
     | 'store_keeper'
-    | 'account';
+    | 'account'
+    | 'watcher';
   aadhaarPhoto?: (string | null) | Media;
   photo?: (string | null) | Media;
   updatedAt: string;
@@ -1197,51 +1276,6 @@ export interface ReturnOrder {
    * Name of the cashier who created/submitted the return order.
    */
   cashierName?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Daily closing entries for branches. Auto-calculates totals, returns, stock receipts, and net.
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "closing-entries".
- */
-export interface ClosingEntry {
-  id: string;
-  closingNumber: string;
-  date: string;
-  createdBy?: (string | null) | User;
-  systemSales?: number | null;
-  /**
-   * Auto-calculated from Billings (can be overridden)
-   */
-  totalBills?: number | null;
-  manualSales: number;
-  onlineSales: number;
-  expenses: number;
-  returnTotal: number;
-  stockOrders?: number | null;
-  creditCard: number;
-  upi: number;
-  cash: number;
-  denominations?: {
-    count2000?: number | null;
-    count500?: number | null;
-    count200?: number | null;
-    count100?: number | null;
-    count50?: number | null;
-    count20?: number | null;
-    count10?: number | null;
-    count5?: number | null;
-  };
-  totalSales?: number | null;
-  totalPayments?: number | null;
-  net?: number | null;
-  branch: string | Branch;
-  /**
-   * Notes from the accounts team about this closing
-   */
-  notes?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2214,11 +2248,39 @@ export interface WaiterCall {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cctv-reports".
+ */
+export interface CctvReport {
+  id: string;
+  branch: string | Branch;
+  status: 'pending' | 'mng_replied' | 'st_replied';
+  screenshot?: (string | null) | Media;
+  message: string;
+  /**
+   * Reply from the manager to the watcher
+   */
+  managerMessage?: string | null;
+  manager?: (string | null) | User;
+  /**
+   * Reply from the branch staff to the watcher
+   */
+  staffMessage?: string | null;
+  staff?: (string | null) | User;
+  createdBy?: (string | null) | User;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
   id: string;
   document?:
+    | ({
+        relationTo: 'manager-closing-replies';
+        value: string | ManagerClosingReply;
+      } | null)
     | ({
         relationTo: 'users';
         value: string | User;
@@ -2382,6 +2444,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'waiter-calls';
         value: string | WaiterCall;
+      } | null)
+    | ({
+        relationTo: 'cctv-reports';
+        value: string | CctvReport;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -2424,6 +2490,31 @@ export interface PayloadMigration {
   batch?: number | null;
   updatedAt: string;
   createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "manager-closing-replies_select".
+ */
+export interface ManagerClosingRepliesSelect<T extends boolean = true> {
+  branch?: T;
+  date?: T;
+  type?: T;
+  closingEntry?: T;
+  message?: T;
+  denominations?:
+    | T
+    | {
+        rs500?: T;
+        rs200?: T;
+        rs100?: T;
+        rs50?: T;
+        rs20?: T;
+        rs10?: T;
+        coins?: T;
+      };
+  totalAmount?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -2501,6 +2592,7 @@ export interface BranchesSelect<T extends boolean = true> {
         resetDate?: T;
         id?: T;
       };
+  isClosingEntryEnabled?: T;
   stockOrderWorkflow?:
     | T
     | {
@@ -3599,6 +3691,23 @@ export interface WaiterCallsSelect<T extends boolean = true> {
   assignedWaiter?: T;
   billing?: T;
   callTimestamp?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cctv-reports_select".
+ */
+export interface CctvReportsSelect<T extends boolean = true> {
+  branch?: T;
+  status?: T;
+  screenshot?: T;
+  message?: T;
+  managerMessage?: T;
+  manager?: T;
+  staffMessage?: T;
+  staff?: T;
+  createdBy?: T;
   updatedAt?: T;
   createdAt?: T;
 }
