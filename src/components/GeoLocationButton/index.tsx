@@ -216,7 +216,7 @@ export const GeoLocationButton: React.FC<{ path: string }> = ({ path }) => {
         <div ref={mapContainerRef} style={{ width: '100%', height: '400px', backgroundColor: '#f0f0f0', zIndex: 1 }} />
       </div>
       <div style={{ marginTop: '8px', fontSize: '12px', color: '#666' }}>
-        Tip: Drag the red marker or click anywhere on the map to change the location. Update the "Radius" field below to visually resize the geofence circle.
+        Tip: Drag the red marker or click anywhere on the map to change the location. Update the &quot;Radius&quot; field below to visually resize the geofence circle.
       </div>
     </div>
   )
