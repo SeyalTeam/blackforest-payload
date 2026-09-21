@@ -2163,6 +2163,9 @@ const Billings: CollectionConfig = {
       fields: ['customerDetails.phoneNumber', 'createdAt'],
     },
     {
+      fields: ['status', 'createdAt'],
+    },
+    {
       fields: ['branch', 'createdAt'],
     },
     {

@@ -1166,12 +1166,17 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
         context: {
           req?: PayloadRequest
         },
+        info: any,
       ) => {
         if (!context.req) {
           throw new Error('Request context is missing')
         }
 
-        return getBranchBillingReportData(context.req, args.filter || {})
+        const requestedFields = info?.fieldNodes?.[0]?.selectionSet?.selections?.map(
+          (node: any) => node.name?.value
+        ) || []
+
+        return getBranchBillingReportData(context.req, args.filter || {}, requestedFields)
       },
     },
     closingEntryReport: {

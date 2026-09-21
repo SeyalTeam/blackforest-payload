@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { Gutter } from '@payloadcms/ui'
 import './index.scss'
 import DatePicker from 'react-datepicker'
@@ -18,8 +18,13 @@ interface StockStat {
   cis: number
 }
 
-const DASHBOARD_API_BASE_URL = 'https://blackforest.vseyal.com'
-const withDashboardApiBase = (path: string) => `${DASHBOARD_API_BASE_URL}${path}`
+import {
+  fetchCachedBranches,
+  fetchCachedCategories,
+  fetchCachedDepartments,
+  fetchCachedProducts,
+  fetchWithCache,
+} from '@/lib/reportCache'
 
 // Custom Date Input Component
 const CustomInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
@@ -119,27 +124,22 @@ const Dashboard: React.FC = () => {
   const [selectedDept, setSelectedDept] = useState('')
   const [selectedCat, setSelectedCat] = useState('')
   const [selectedProd, setSelectedProd] = useState('')
+  const requestIdRef = useRef(0)
 
   // 1. Fetch Options on Mount
   useEffect(() => {
     const fetchOptions = async () => {
       try {
         const [resBranches, resDepts, resCats, resProds] = await Promise.all([
-          fetch(withDashboardApiBase('/api/reports/branches')).then((res) => res.json()),
-          fetch(withDashboardApiBase('/api/departments?limit=1000&sort=name')).then((res) =>
-            res.json(),
-          ),
-          fetch(withDashboardApiBase('/api/categories?limit=1000&sort=name')).then((res) =>
-            res.json(),
-          ),
-          fetch(withDashboardApiBase('/api/products?limit=1000&sort=name')).then((res) =>
-            res.json(),
-          ),
+          fetchCachedBranches(),
+          fetchCachedDepartments(),
+          fetchCachedCategories(),
+          fetchCachedProducts(),
         ])
-        setBranches(resBranches.docs || [])
-        setDepartments(resDepts.docs || [])
-        setCategories(resCats.docs || [])
-        setProducts(resProds.docs || [])
+        setBranches(resBranches || [])
+        setDepartments(resDepts || [])
+        setCategories(resCats || [])
+        setProducts(resProds || [])
       } catch (err) {
         console.error('Error fetching filter options', err)
       }
@@ -189,28 +189,45 @@ const Dashboard: React.FC = () => {
   }
 
   // 2. Fetch Dashboard Stats
-  const fetchStats = useCallback(async () => {
-    setLoading(true)
-    try {
-      const query = new URLSearchParams()
-      if (startDate) query.append('startDate', startDate.toISOString())
-      if (endDate) query.append('endDate', endDate.toISOString())
-      if (selectedBranch) query.append('branch', selectedBranch)
-      if (selectedDept) query.append('department', selectedDept)
-      if (selectedCat) query.append('category', selectedCat)
-      if (selectedProd) query.append('product', selectedProd)
+  const fetchStats = useCallback(
+    async (forceRefresh = false) => {
+      const requestId = ++requestIdRef.current
+      setLoading(true)
+      try {
+        const query = new URLSearchParams()
+        if (startDate) query.append('startDate', startDate.toISOString())
+        if (endDate) query.append('endDate', endDate.toISOString())
+        if (selectedBranch) query.append('branch', selectedBranch)
+        if (selectedDept) query.append('department', selectedDept)
+        if (selectedCat) query.append('category', selectedCat)
+        if (selectedProd) query.append('product', selectedProd)
 
-      const res = await fetch(withDashboardApiBase(`/api/dashboard-stats?${query.toString()}`))
-      if (res.ok) {
-        const data = await res.json()
-        setStats(data)
+        const cacheKey = `dashboardStats:${query.toString()}`
+
+        const data = await fetchWithCache<StockStat[]>(
+          cacheKey,
+          async () => {
+            const res = await fetch(`/api/dashboard-stats?${query.toString()}`)
+            if (!res.ok) throw new Error('Failed to fetch dashboard stats')
+            return res.json()
+          },
+          60000,
+          forceRefresh,
+        )
+
+        if (requestId !== requestIdRef.current) return
+        setStats(data || [])
+      } catch (error) {
+        if (requestId !== requestIdRef.current) return
+        console.error('Error fetching dashboard stats:', error)
+      } finally {
+        if (requestId === requestIdRef.current) {
+          setLoading(false)
+        }
       }
-    } catch (error) {
-      console.error('Error fetching dashboard stats:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [startDate, endDate, selectedBranch, selectedDept, selectedCat, selectedProd])
+    },
+    [startDate, endDate, selectedBranch, selectedDept, selectedCat, selectedProd],
+  )
 
   useEffect(() => {
     fetchStats()
@@ -269,6 +286,7 @@ const Dashboard: React.FC = () => {
     setSelectedCat('')
     setSelectedProd('')
     setSelectedColumn('')
+    fetchStats(true)
   }
 
   const dateOptions = [

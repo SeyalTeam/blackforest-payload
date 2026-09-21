@@ -3,7 +3,7 @@ import mongoose, { type PipelineStage } from 'mongoose'
 import dayjs, { type Dayjs } from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
-import { resolveReportBranchScope } from '../../endpoints/reportScope'
+import { resolveReportBranchScope, toIndexedIdList } from '../../endpoints/reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -316,35 +316,173 @@ export const getProductWiseReportData = async (
   }
 
   if (resolvedBranchIds.length > 0) {
+    const branchObjectIds = resolvedBranchIds
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id))
     matchQuery.branch = {
-      $in: resolvedBranchIds.map((id) => new mongoose.Types.ObjectId(id)),
+      $in: [...branchObjectIds, ...resolvedBranchIds],
     }
   }
 
-  const buildCommonPipeline = (): PipelineStage[] => {
-    const pipeline: PipelineStage[] = [
-      {
-        $match: matchQuery,
-      },
-      {
-        $unwind: '$items',
-      },
-      {
-        $match: {
-          'items.status': { $ne: 'cancelled' },
-        },
-      },
-    ]
-
-    if (chefId && chefId !== 'all' && mongoose.Types.ObjectId.isValid(chefId)) {
-      pipeline.push({
-        $match: {
-          'items.preparedBy': { $eq: new mongoose.Types.ObjectId(chefId) },
-        },
-      })
+  const commonItemMatch: Record<string, any> = {
+    'items.status': { $ne: 'cancelled' },
+  }
+  if (chefId && chefId !== 'all' && mongoose.Types.ObjectId.isValid(chefId)) {
+    commonItemMatch['items.preparedBy'] = { $eq: new mongoose.Types.ObjectId(chefId) }
+  }
+  if (productParam && productParam !== 'all') {
+    const pTargets = productParam
+      .split(',')
+      .filter(Boolean)
+      .map((id) => (mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id))
+    if (pTargets.length > 0) {
+      commonItemMatch['items.product'] = { $in: pTargets }
     }
+  }
 
-    pipeline.push(
+  const aggregationPipeline: PipelineStage[] = [
+    {
+      $match: matchQuery,
+    },
+    {
+      $unwind: '$items',
+    },
+    {
+      $match: commonItemMatch,
+    },
+    // Group first by product + branch to reduce ~100k items to ~1k unique products
+    {
+      $group: {
+        _id: {
+          productId: '$items.product',
+          branchId: '$branch',
+        },
+        quantity: { $sum: '$items.quantity' },
+        amount: { $sum: '$items.subtotal' },
+      },
+    },
+    {
+      $lookup: {
+        from: 'products',
+        localField: '_id.productId',
+        foreignField: '_id',
+        as: 'productDetails',
+      },
+    },
+    {
+      $unwind: {
+        path: '$productDetails',
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $lookup: {
+        from: 'categories',
+        localField: 'productDetails.category',
+        foreignField: '_id',
+        as: 'categoryDetails',
+      },
+    },
+    {
+      $unwind: {
+        path: '$categoryDetails',
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+  ]
+
+  if (finalCategoryIds.length > 0) {
+    aggregationPipeline.push({
+      $match: {
+        'categoryDetails._id': {
+          $in: finalCategoryIds.map((id) => new mongoose.Types.ObjectId(id)),
+        },
+      },
+    })
+  } else {
+    aggregationPipeline.push({
+      $match: {
+        'productDetails._id': { $exists: true },
+        'categoryDetails._id': { $exists: true },
+      },
+    })
+  }
+
+  if (departmentParam && departmentParam !== 'all') {
+    aggregationPipeline.push({
+      $match: {
+        'categoryDetails.department': { $eq: new mongoose.Types.ObjectId(departmentParam) },
+      },
+    })
+  }
+
+  aggregationPipeline.push(
+    {
+      $group: {
+        _id: {
+          productId: '$_id.productId',
+          productName: '$productDetails.name',
+        },
+        price: { $first: '$productDetails.defaultPriceDetails.price' },
+        unit: { $first: '$productDetails.defaultPriceDetails.unit' },
+        preparationTime: { $first: '$productDetails.preparationTime' },
+        totalQuantity: { $sum: '$quantity' },
+        totalAmount: { $sum: '$amount' },
+        branchData: {
+          $push: {
+            branchId: '$_id.branchId',
+            amount: '$amount',
+            quantity: '$quantity',
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        productId: '$_id.productId',
+        productName: '$_id.productName',
+        price: 1,
+        unit: 1,
+        preparationTime: 1,
+        totalQuantity: 1,
+        totalAmount: 1,
+        branchData: 1,
+      },
+    },
+    {
+      $sort: { totalAmount: -1 },
+    },
+  )
+
+  const needsCategoryFilterInPrep = finalCategoryIds.length > 0 || (departmentParam && departmentParam !== 'all')
+  const prepItemMatch: Record<string, any> = {
+    ...commonItemMatch,
+    $or: [
+      {
+        'items.orderedAt': { $exists: true, $nin: [null, ''] },
+        'items.preparedAt': { $exists: true, $nin: [null, ''] },
+      },
+      {
+        'items.preparingTime': { $exists: true, $nin: [null, '', 0] },
+      },
+    ],
+  }
+
+  const preparationPipeline: PipelineStage[] = [
+    {
+      $match: matchQuery,
+    },
+    {
+      $unwind: '$items',
+    },
+    {
+      $match: prepItemMatch,
+    },
+  ]
+
+  if (needsCategoryFilterInPrep) {
+    preparationPipeline.push(
       {
         $lookup: {
           from: 'products',
@@ -374,119 +512,39 @@ export const getProductWiseReportData = async (
         },
       },
     )
-
     if (finalCategoryIds.length > 0) {
-      pipeline.push({
+      preparationPipeline.push({
         $match: {
           'categoryDetails._id': {
             $in: finalCategoryIds.map((id) => new mongoose.Types.ObjectId(id)),
           },
         },
       })
-    } else {
-      pipeline.push({
-        $match: {
-          'productDetails._id': { $exists: true },
-          'categoryDetails._id': { $exists: true },
-        },
-      })
     }
-
     if (departmentParam && departmentParam !== 'all') {
-      pipeline.push({
+      preparationPipeline.push({
         $match: {
           'categoryDetails.department': { $eq: new mongoose.Types.ObjectId(departmentParam) },
         },
       })
     }
-
-    if (productParam && productParam !== 'all') {
-      const productIds = productParam.split(',').filter(Boolean)
-      if (productIds.length > 0) {
-        pipeline.push({
-          $match: {
-            'items.product': {
-              $in: productIds.map((id) => new mongoose.Types.ObjectId(id)),
-            },
-          },
-        })
-      }
-    }
-
-    return pipeline
   }
 
-  const aggregationPipeline: PipelineStage[] = [
-    ...buildCommonPipeline(),
-    {
-      $group: {
-        _id: {
-          productId: '$productDetails._id',
-          productName: '$productDetails.name',
-          branchId: '$branch',
-          price: '$productDetails.defaultPriceDetails.price',
-          unit: '$productDetails.defaultPriceDetails.unit',
-          preparationTime: '$productDetails.preparationTime',
-        },
-        quantity: { $sum: '$items.quantity' },
-        amount: { $sum: '$items.subtotal' },
-      },
+  preparationPipeline.push({
+    $project: {
+      _id: 0,
+      productId: '$items.product',
+      orderedAt: '$items.orderedAt',
+      preparedAt: '$items.preparedAt',
+      preparingTime: '$items.preparingTime',
+      billCreatedAt: '$createdAt',
     },
-    {
-      $group: {
-        _id: {
-          productId: '$_id.productId',
-          productName: '$_id.productName',
-        },
-        price: { $first: '$_id.price' },
-        unit: { $first: '$_id.unit' },
-        preparationTime: { $first: '$_id.preparationTime' },
-        totalQuantity: { $sum: '$quantity' },
-        totalAmount: { $sum: '$amount' },
-        branchData: {
-          $push: {
-            branchId: '$_id.branchId',
-            amount: '$amount',
-            quantity: '$quantity',
-          },
-        },
-      },
-    },
-    {
-      $project: {
-        _id: 0,
-        productId: '$_id.productId',
-        productName: '$_id.productName',
-        price: 1,
-        unit: 1,
-        preparationTime: 1,
-        totalQuantity: 1,
-        totalAmount: 1,
-        branchData: 1,
-      },
-    },
-    {
-      $sort: { totalAmount: -1 },
-    },
-  ]
+  })
 
-  const rawStats = (await BillingModel.aggregate(aggregationPipeline)) as RawStat[]
-
-  const preparationPipeline: PipelineStage[] = [
-    ...buildCommonPipeline(),
-    {
-      $project: {
-        _id: 0,
-        productId: '$productDetails._id',
-        orderedAt: '$items.orderedAt',
-        preparedAt: '$items.preparedAt',
-        preparingTime: '$items.preparingTime',
-        billCreatedAt: '$createdAt',
-      },
-    },
-  ]
-
-  const rawPreparationItems = (await BillingModel.aggregate(preparationPipeline)) as RawPreparationItem[]
+  const [rawStats, rawPreparationItems] = await Promise.all([
+    BillingModel.aggregate(aggregationPipeline) as Promise<RawStat[]>,
+    BillingModel.aggregate(preparationPipeline) as Promise<RawPreparationItem[]>,
+  ])
   const preparationByProductId: Record<string, { totalMinutes: number; count: number }> = {}
 
   rawPreparationItems.forEach((row) => {

@@ -2,7 +2,7 @@ import type { PayloadRequest } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
-import { resolveReportBranchScope } from '../../endpoints/reportScope'
+import { resolveReportBranchScope, toBranchQueryFilter } from '../../endpoints/reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -139,6 +139,7 @@ const toDayBoundary = (dateParam: string, mode: 'start' | 'end'): Date => {
 export const getBranchBillingReportData = async (
   req: PayloadRequest,
   args: BranchBillingReportArgs = {},
+  requestedFields: string[] = [],
 ): Promise<BranchBillingReportResult> => {
   const { payload } = req
 
@@ -164,10 +165,8 @@ export const getBranchBillingReportData = async (
       $lte: endOfDay,
     },
   }
-  if (branchIds) {
-    matchQuery.$expr = {
-      $in: [{ $toString: '$branch' }, branchIds],
-    }
+  if (branchIds && branchIds.length > 0) {
+    Object.assign(matchQuery, toBranchQueryFilter(branchIds, 'branch'))
   }
 
   const completedOrSettledExpression = { $in: ['$status', ['completed', 'settled']] }
@@ -573,12 +572,8 @@ export const getBranchBillingReportData = async (
   const utcEnd = dayjs.utc(endDateParam).endOf('day').toDate()
 
   // Branch filter condition
-  const branchFilter = branchIds
-    ? {
-        $expr: {
-          $in: [{ $toString: '$branch' }, branchIds],
-        },
-      }
+  const branchFilter = branchIds && branchIds.length > 0
+    ? toBranchQueryFilter(branchIds, 'branch')
     : {}
 
   // Calculate Expenses
@@ -687,23 +682,7 @@ export const getBranchBillingReportData = async (
     trendMatch.createdAt = { $gte: trendStartDate.toDate(), $lte: dayjs(endOfDay).tz('Asia/Kolkata').toDate() }
   }
 
-  const rawTrendStats = await BillingModel.aggregate([
-    { $match: trendMatch },
-    {
-      $group: {
-        _id: {
-          year: granularity === 'hour' ? null : { $year: { $add: ['$createdAt', 19800000] } },
-          month: granularity === 'hour' ? null : { $month: { $add: ['$createdAt', 19800000] } },
-          day: granularity === 'day' ? { $dayOfMonth: { $add: ['$createdAt', 19800000] } } : null,
-          hour: granularity === 'hour' ? { $hour: { $add: ['$createdAt', 19800000] } } : null,
-          branch: '$branch',
-        },
-        totalAmount: { $sum: '$totalAmount' },
-        totalBills: { $sum: 1 },
-      },
-    },
-    { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1, '_id.hour': 1 } },
-  ])
+  const needsTrendData = requestedFields.length === 0 || requestedFields.includes('trendData') || requestedFields.includes('summary')
 
   // Aggregate Expenses for the same trend period
   const expenseTrendMatch: any = {
@@ -714,23 +693,6 @@ export const getBranchBillingReportData = async (
     expenseTrendMatch.date = { $gte: trendStartDate.toDate(), $lte: dayjs(endOfDay).tz('Asia/Kolkata').toDate() }
   }
 
-  const rawExpenseTrendStats = await ExpenseModel.aggregate([
-    { $match: expenseTrendMatch },
-    { $unwind: '$details' },
-    {
-      $group: {
-        _id: {
-          year: granularity === 'hour' ? null : { $year: '$date' },
-          month: granularity === 'hour' ? null : { $month: '$date' },
-          day: granularity === 'day' ? { $dayOfMonth: '$date' } : null,
-          hour: granularity === 'hour' ? { $hour: '$date' } : null,
-        },
-        totalExpense: { $sum: '$details.amount' },
-      },
-    },
-    { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1, '_id.hour': 1 } },
-  ])
-
   // Aggregate Returns for the same trend period
   const returnTrendMatch: any = {
     createdAt: { $gte: trendStartDate.toDate() },
@@ -740,20 +702,55 @@ export const getBranchBillingReportData = async (
     returnTrendMatch.createdAt = { $gte: trendStartDate.toDate(), $lte: dayjs(endOfDay).tz('Asia/Kolkata').toDate() }
   }
 
-  const rawReturnTrendStats = await ReturnOrderModel.aggregate([
-    { $match: returnTrendMatch },
-    {
-      $group: {
-        _id: {
-          year: granularity === 'hour' ? null : { $year: { $add: ['$createdAt', 19800000] } },
-          month: granularity === 'hour' ? null : { $month: { $add: ['$createdAt', 19800000] } },
-          day: granularity === 'day' ? { $dayOfMonth: { $add: ['$createdAt', 19800000] } } : null,
-          hour: granularity === 'hour' ? { $hour: { $add: ['$createdAt', 19800000] } } : null,
+  const [rawTrendStats, rawExpenseTrendStats, rawReturnTrendStats] = await Promise.all([
+    needsTrendData ? BillingModel.aggregate([
+      { $match: trendMatch },
+      {
+        $group: {
+          _id: {
+            year: granularity === 'hour' ? null : { $year: { $add: ['$createdAt', 19800000] } },
+            month: granularity === 'hour' ? null : { $month: { $add: ['$createdAt', 19800000] } },
+            day: granularity === 'day' ? { $dayOfMonth: { $add: ['$createdAt', 19800000] } } : null,
+            hour: granularity === 'hour' ? { $hour: { $add: ['$createdAt', 19800000] } } : null,
+            branch: '$branch',
+          },
+          totalAmount: { $sum: '$totalAmount' },
+          totalBills: { $sum: 1 },
         },
-        totalReturn: { $sum: '$totalAmount' },
       },
-    },
-    { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1, '_id.hour': 1 } },
+      { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1, '_id.hour': 1 } },
+    ]) : Promise.resolve([]),
+    needsTrendData ? ExpenseModel.aggregate([
+      { $match: expenseTrendMatch },
+      { $unwind: '$details' },
+      {
+        $group: {
+          _id: {
+            year: granularity === 'hour' ? null : { $year: '$date' },
+            month: granularity === 'hour' ? null : { $month: '$date' },
+            day: granularity === 'day' ? { $dayOfMonth: '$date' } : null,
+            hour: granularity === 'hour' ? { $hour: '$date' } : null,
+          },
+          totalExpense: { $sum: '$details.amount' },
+        },
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1, '_id.hour': 1 } },
+    ]) : Promise.resolve([]),
+    needsTrendData ? ReturnOrderModel.aggregate([
+      { $match: returnTrendMatch },
+      {
+        $group: {
+          _id: {
+            year: granularity === 'hour' ? null : { $year: { $add: ['$createdAt', 19800000] } },
+            month: granularity === 'hour' ? null : { $month: { $add: ['$createdAt', 19800000] } },
+            day: granularity === 'day' ? { $dayOfMonth: { $add: ['$createdAt', 19800000] } } : null,
+            hour: granularity === 'hour' ? { $hour: { $add: ['$createdAt', 19800000] } } : null,
+          },
+          totalReturn: { $sum: '$totalAmount' },
+        },
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1, '_id.hour': 1 } },
+    ]) : Promise.resolve([])
   ])
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -841,7 +838,9 @@ export const getBranchBillingReportData = async (
   const trendPercentage = previousTotal > 0 ? ((currentTotal - previousTotal) / previousTotal) * 100 : 0
 
   // Calculate Heatmap Data (Day vs Hour)
-  const heatmapStats = await BillingModel.aggregate([
+  const needsHeatmapData = requestedFields.length === 0 || requestedFields.includes('heatmapData')
+  
+  const heatmapStats = needsHeatmapData ? await BillingModel.aggregate([
     { $match: trendMatch },
     {
       $group: {
@@ -853,7 +852,7 @@ export const getBranchBillingReportData = async (
         count: { $sum: 1 },
       },
     },
-  ])
+  ]) : []
 
   const heatmapData: HeatmapPoint[] = heatmapStats.map((s) => ({
     day: s._id.day,
@@ -876,182 +875,207 @@ export const getBranchBillingReportData = async (
 
   const subReportSort = (args.gstFilter === 'gst' ? { gstAmount: -1 } : { totalAmount: -1 }) as any
 
-  const productGstStats = await BillingModel.aggregate([
-    {
-      $match: {
-        ...matchQuery,
-        status: { $in: ['completed', 'settled'] },
-      },
-    },
-    {
-      $unwind: '$items',
-    },
-    {
-      $match: {
-        'items.status': { $ne: 'cancelled' },
-        ...gstFilterMatch,
-      },
-    },
-    {
-      $group: {
-        _id: {
-          productName: '$items.name',
-          gstRate: '$items.gstRate',
+  const needsProductGstStats = requestedFields.length === 0 || requestedFields.includes('productGstStats')
+  const needsCategoryGstStats = requestedFields.length === 0 || requestedFields.includes('categoryGstStats')
+  const needsDealerGstStats = requestedFields.length === 0 || requestedFields.includes('dealerGstStats')
+
+  const [productGstStats, categoryGstStats, dealerGstStats] = await Promise.all([
+    needsProductGstStats ? BillingModel.aggregate([
+      {
+        $match: {
+          ...matchQuery,
+          status: { $in: ['completed', 'settled'] },
         },
-        count: { $sum: '$items.quantity' },
-        taxableAmount: { $sum: '$items.taxableAmount' },
-        gstAmount: { $sum: '$items.gstAmount' },
-        totalAmount: { $sum: '$items.finalLineTotal' },
       },
-    },
-    {
-      $project: {
-        _id: 0,
-        productName: '$_id.productName',
-        gstRate: '$_id.gstRate',
-        count: { $ifNull: ['$count', 0] },
-        taxableAmount: { $ifNull: ['$taxableAmount', 0] },
-        gstAmount: { $ifNull: ['$gstAmount', 0] },
-        totalAmount: { $ifNull: ['$totalAmount', 0] },
+      {
+        $unwind: '$items',
       },
-    },
-    {
-      $sort: subReportSort,
-    },
+      {
+        $match: {
+          'items.status': { $ne: 'cancelled' },
+          ...gstFilterMatch,
+        },
+      },
+      {
+        $group: {
+          _id: {
+            productName: '$items.name',
+            gstRate: '$items.gstRate',
+          },
+          count: { $sum: '$items.quantity' },
+          taxableAmount: { $sum: '$items.taxableAmount' },
+          gstAmount: { $sum: '$items.gstAmount' },
+          totalAmount: { $sum: '$items.finalLineTotal' },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          productName: '$_id.productName',
+          gstRate: '$_id.gstRate',
+          count: { $ifNull: ['$count', 0] },
+          taxableAmount: { $ifNull: ['$taxableAmount', 0] },
+          gstAmount: { $ifNull: ['$gstAmount', 0] },
+          totalAmount: { $ifNull: ['$totalAmount', 0] },
+        },
+      },
+      {
+        $sort: subReportSort,
+      },
+    ]) : Promise.resolve([]),
+    needsCategoryGstStats ? BillingModel.aggregate([
+      {
+        $match: {
+          ...matchQuery,
+          status: { $in: ['completed', 'settled'] },
+        },
+      },
+      {
+        $unwind: '$items',
+      },
+      {
+        $match: {
+          'items.status': { $ne: 'cancelled' },
+          ...gstFilterMatch,
+        },
+      },
+      // Group first by product to reduce documents from ~100k to ~1k
+      {
+        $group: {
+          _id: '$items.product',
+          count: { $sum: '$items.quantity' },
+          taxableAmount: { $sum: '$items.taxableAmount' },
+          gstAmount: { $sum: '$items.gstAmount' },
+          totalAmount: { $sum: '$items.finalLineTotal' },
+        },
+      },
+      {
+        $lookup: {
+          from: 'products',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'productDetails',
+        },
+      },
+      {
+        $unwind: '$productDetails',
+      },
+      {
+        $lookup: {
+          from: 'categories',
+          localField: 'productDetails.category',
+          foreignField: '_id',
+          as: 'categoryDetails',
+        },
+      },
+      {
+        $unwind: '$categoryDetails',
+      },
+      {
+        $group: {
+          _id: {
+            categoryName: '$categoryDetails.name',
+          },
+          count: { $sum: '$count' },
+          taxableAmount: { $sum: '$taxableAmount' },
+          gstAmount: { $sum: '$gstAmount' },
+          totalAmount: { $sum: '$totalAmount' },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          categoryName: '$_id.categoryName',
+          count: { $ifNull: ['$count', 0] },
+          taxableAmount: { $ifNull: ['$taxableAmount', 0] },
+          gstAmount: { $ifNull: ['$gstAmount', 0] },
+          totalAmount: { $ifNull: ['$totalAmount', 0] },
+        },
+      },
+      {
+        $sort: subReportSort,
+      },
+    ]) : Promise.resolve([]),
+    needsDealerGstStats ? BillingModel.aggregate([
+      {
+        $match: {
+          ...matchQuery,
+          status: { $in: ['completed', 'settled'] },
+        },
+      },
+      {
+        $unwind: '$items',
+      },
+      {
+        $match: {
+          'items.status': { $ne: 'cancelled' },
+          ...gstFilterMatch,
+        },
+      },
+      // Group first by product to reduce documents from ~100k to ~1k
+      {
+        $group: {
+          _id: '$items.product',
+          count: { $sum: '$items.quantity' },
+          taxableAmount: { $sum: '$items.taxableAmount' },
+          gstAmount: { $sum: '$items.gstAmount' },
+          totalAmount: { $sum: '$items.finalLineTotal' },
+        },
+      },
+      {
+        $lookup: {
+          from: 'products',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'productDetails',
+        },
+      },
+      {
+        $unwind: '$productDetails',
+      },
+      {
+        $match: {
+          'productDetails.dealer': { $ne: null },
+        },
+      },
+      {
+        $lookup: {
+          from: 'dealers',
+          localField: 'productDetails.dealer',
+          foreignField: '_id',
+          as: 'dealerDetails',
+        },
+      },
+      {
+        $unwind: '$dealerDetails',
+      },
+      {
+        $group: {
+          _id: {
+            dealerName: '$dealerDetails.companyName',
+          },
+          count: { $sum: '$count' },
+          taxableAmount: { $sum: '$taxableAmount' },
+          gstAmount: { $sum: '$gstAmount' },
+          totalAmount: { $sum: '$totalAmount' },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          dealerName: '$_id.dealerName',
+          count: { $ifNull: ['$count', 0] },
+          taxableAmount: { $ifNull: ['$taxableAmount', 0] },
+          gstAmount: { $ifNull: ['$gstAmount', 0] },
+          totalAmount: { $ifNull: ['$totalAmount', 0] },
+        },
+      },
+      {
+        $sort: subReportSort,
+      },
+    ]) : Promise.resolve([])
   ])
 
-  const categoryGstStats = await BillingModel.aggregate([
-    {
-      $match: {
-        ...matchQuery,
-        status: { $in: ['completed', 'settled'] },
-      },
-    },
-    {
-      $unwind: '$items',
-    },
-    {
-      $match: {
-        'items.status': { $ne: 'cancelled' },
-        ...gstFilterMatch,
-      },
-    },
-    {
-      $lookup: {
-        from: 'products',
-        localField: 'items.product',
-        foreignField: '_id',
-        as: 'productDetails',
-      },
-    },
-    {
-      $unwind: '$productDetails',
-    },
-    {
-      $lookup: {
-        from: 'categories',
-        localField: 'productDetails.category',
-        foreignField: '_id',
-        as: 'categoryDetails',
-      },
-    },
-    {
-      $unwind: '$categoryDetails',
-    },
-    {
-      $group: {
-        _id: {
-          categoryName: '$categoryDetails.name',
-        },
-        count: { $sum: '$items.quantity' },
-        taxableAmount: { $sum: '$items.taxableAmount' },
-        gstAmount: { $sum: '$items.gstAmount' },
-        totalAmount: { $sum: '$items.finalLineTotal' },
-      },
-    },
-    {
-      $project: {
-        _id: 0,
-        categoryName: '$_id.categoryName',
-        count: { $ifNull: ['$count', 0] },
-        taxableAmount: { $ifNull: ['$taxableAmount', 0] },
-        gstAmount: { $ifNull: ['$gstAmount', 0] },
-        totalAmount: { $ifNull: ['$totalAmount', 0] },
-      },
-    },
-    {
-      $sort: subReportSort,
-    },
-  ])
-
-  const dealerGstStats = await BillingModel.aggregate([
-    {
-      $match: {
-        ...matchQuery,
-        status: { $in: ['completed', 'settled'] },
-      },
-    },
-    {
-      $unwind: '$items',
-    },
-    {
-      $match: {
-        'items.status': { $ne: 'cancelled' },
-        ...gstFilterMatch,
-      },
-    },
-    {
-      $lookup: {
-        from: 'products',
-        localField: 'items.product',
-        foreignField: '_id',
-        as: 'productDetails',
-      },
-    },
-    {
-      $unwind: '$productDetails',
-    },
-    {
-      $match: {
-        'productDetails.dealer': { $ne: null },
-      },
-    },
-    {
-      $lookup: {
-        from: 'dealers',
-        localField: 'productDetails.dealer',
-        foreignField: '_id',
-        as: 'dealerDetails',
-      },
-    },
-    {
-      $unwind: '$dealerDetails',
-    },
-    {
-      $group: {
-        _id: {
-          dealerName: '$dealerDetails.companyName',
-        },
-        count: { $sum: '$items.quantity' },
-        taxableAmount: { $sum: '$items.taxableAmount' },
-        gstAmount: { $sum: '$items.gstAmount' },
-        totalAmount: { $sum: '$items.finalLineTotal' },
-      },
-    },
-    {
-      $project: {
-        _id: 0,
-        dealerName: '$_id.dealerName',
-        count: { $ifNull: ['$count', 0] },
-        taxableAmount: { $ifNull: ['$taxableAmount', 0] },
-        gstAmount: { $ifNull: ['$gstAmount', 0] },
-        totalAmount: { $ifNull: ['$totalAmount', 0] },
-      },
-    },
-    {
-      $sort: subReportSort,
-    },
-  ])
 
   return {
     startDate: startDateParam,

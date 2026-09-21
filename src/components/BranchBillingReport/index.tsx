@@ -14,6 +14,7 @@ import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import Select, { StylesConfig } from 'react-select'
 import './index.scss'
+import { fetchCachedBranches, fetchCachedFirstBillDate, fetchWithCache } from '@/lib/reportCache'
 
 type ReportStats = {
   branchName: string
@@ -347,7 +348,7 @@ const BranchBillingReport: React.FC = () => {
     })
   }
 
-  const fetchReport = useCallback(async (start: Date, end: Date, trendPeriod: string, branch: string) => {
+  const fetchReport = useCallback(async (start: Date, end: Date, trendPeriod: string, branch: string, forceRefresh = false) => {
     const requestId = ++requestIdRef.current
     setLoading(true)
     setError('')
@@ -355,31 +356,40 @@ const BranchBillingReport: React.FC = () => {
     try {
       const startStr = toLocalDateStr(start)
       const endStr = toLocalDateStr(end)
+      const cacheKey = `branchBilling:${startStr}:${endStr}:${trendPeriod}:${branch}`
 
-      const response = await fetch('/api/graphql', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: BRANCH_BILLING_REPORT_QUERY,
-          variables: { filter: { startDate: startStr, endDate: endStr, trendPeriod, branch } },
-        }),
-      })
+      const report = await fetchWithCache(
+        cacheKey,
+        async () => {
+          const response = await fetch('/api/graphql', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: BRANCH_BILLING_REPORT_QUERY,
+              variables: { filter: { startDate: startStr, endDate: endStr, trendPeriod, branch } },
+            }),
+          })
 
-      if (!response.ok) {
-        throw new Error(await getResponseErrorMessage(response, 'Failed to fetch report'))
-      }
+          if (!response.ok) {
+            throw new Error(await getResponseErrorMessage(response, 'Failed to fetch report'))
+          }
 
-      const json = await response.json()
+          const json = await response.json()
 
-      if (json.errors && json.errors.length > 0) {
-        throw new Error(json.errors[0].message || 'GraphQL Error in report')
-      }
+          if (json.errors && json.errors.length > 0) {
+            throw new Error(json.errors[0].message || 'GraphQL Error in report')
+          }
 
-      const report = json.data?.branchBillingReport
-      
-      if (!report) {
-        throw new Error('No report data returned from GraphQL')
-      }
+          const rep = json.data?.branchBillingReport
+          if (!rep) {
+            throw new Error('No report data returned from GraphQL')
+          }
+
+          return rep
+        },
+        60000,
+        forceRefresh,
+      )
 
       if (requestId !== requestIdRef.current) {
         return
@@ -409,22 +419,12 @@ const BranchBillingReport: React.FC = () => {
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
-        const [branchesRes, billingsRes] = await Promise.all([
-          fetch('/api/reports/branches'),
-          fetch('/api/billings?sort=createdAt&limit=1'),
+        const [cachedBranches, firstBill] = await Promise.all([
+          fetchCachedBranches(),
+          fetchCachedFirstBillDate(),
         ])
-        
-        if (branchesRes.ok) {
-          const branchesJson = await branchesRes.json()
-          setBranches(branchesJson.docs || [])
-        }
-
-        if (billingsRes.ok) {
-          const json = await billingsRes.json()
-          if (json.docs && json.docs.length > 0) {
-            setFirstBillDate(new Date(json.docs[0].createdAt))
-          }
-        }
+        if (cachedBranches) setBranches(cachedBranches)
+        if (firstBill) setFirstBillDate(firstBill)
       } catch (err) {
         console.error('Error fetching metadata', err)
       }

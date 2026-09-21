@@ -2,8 +2,9 @@ import { PayloadHandler, PayloadRequest } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
+import mongoose from 'mongoose'
 import { Product } from '../payload-types'
-import { resolveReportBranchScope } from './reportScope'
+import { resolveReportBranchScope, toBranchQueryFilter } from './reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -58,11 +59,26 @@ export const getDashboardStatsHandler: PayloadHandler = async (
     // 3. Helper for Aggregation Matches
     // Common match: branch (if selected), status (not cancelled)
     const commonMatch: any = { status: { $ne: 'cancelled' } }
-    if (branchIds) {
-      commonMatch.$expr = {
-        $in: [{ $toString: '$branch' }, branchIds],
-      }
+    if (branchIds && branchIds.length > 0) {
+      Object.assign(commonMatch, toBranchQueryFilter(branchIds, 'branch'))
     }
+
+    const targetProductIds = (department || category || product)
+      ? products.map((p) => p.id).filter(Boolean)
+      : []
+    const productMatchStage = targetProductIds.length > 0 && targetProductIds.length < 2000
+      ? [
+          {
+            $match: {
+              'items.product': {
+                $in: targetProductIds.map((id) =>
+                  mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id,
+                ),
+              },
+            },
+          },
+        ]
+      : []
 
     // Helper to generate pipelines
     const createPipeline = (
@@ -75,9 +91,6 @@ export const getDashboardStatsHandler: PayloadHandler = async (
 
       // If dateField is provided, we filter by range
       if (dateField) {
-        // Special handling for 'receivedDate' if stored as string or date
-        // We'll use $gte/$lte which works for both ISO strings and Date objects usually
-        // but strict type might matter. 'StockOrders' uses 'receivedDate'.
         match[dateField] = {
           $gte: startISO,
           $lte: endISO,
@@ -88,9 +101,7 @@ export const getDashboardStatsHandler: PayloadHandler = async (
         { $match: match },
         { $unwind: '$items' },
         { $match: { [`items.${countField}`]: { $gt: 0 } } },
-        // Optimization: Match products we are interested in?
-        // Removed to avoid ObjectId vs String casting issues in raw aggregation.
-        // We filter in the final map loop anyway.
+        ...productMatchStage,
         {
           $group: {
             _id: '$items.product',
@@ -101,42 +112,20 @@ export const getDashboardStatsHandler: PayloadHandler = async (
     }
 
     // --- A. Current Instock (CIS) ---
-    // CIS = All Time In - All Time Out (filtered by branch)
-
-    // 1. Initial Stock (Special Case, no 'branch' field on top level usually? Need to check.
-    // Usually Initial Stock is a special StochOrder type.
-    // If branch filter is on, we trust the 'branch' field on StockOrder.
     const initialPipeline = createPipeline('stock-orders', null, 'inStock', {
       notes: 'INITIAL STOCK',
     })
 
-    // 2. All Received
     const allReceivedPipeline = createPipeline('stock-orders', null, 'receivedQty', {})
-
-    // 3. All Sold
     const allSoldPipeline = createPipeline('billings', null, 'quantity', {})
-
-    // 4. All Returns
     const allReturnedPipeline = createPipeline('return-orders', null, 'quantity', {})
-
-    // 5. All Instock Entries
     const allInstockPipeline = createPipeline('instock-entries', null, 'instock', {
       status: 'approved',
     })
 
     // --- B.  Movements in Range (REC, BILL, RTN) ---
-
-    // 1. Received (REC)
-    const recPipeline = createPipeline('stock-orders', 'items.receivedDate', 'receivedQty', {}) // Note: receivedDate is on Item usually?
-    // Wait, createPipeline assumes top-level match.
-    // StackOrder 'items' has 'receivedDate'.
-    // My createPipeline applies match at top level.
-    // For 'receivedDate', we need to unwind first IF it's inside items.
-    // Let's refine createPipeline or do it manually for REC.
-
-    // Manual REC Pipeline to handle item-level date
     const manualRecPipeline = [
-      { $match: { ...commonMatch } }, // Branch match
+      { $match: { ...commonMatch } },
       { $unwind: '$items' },
       {
         $match: {
@@ -144,6 +133,7 @@ export const getDashboardStatsHandler: PayloadHandler = async (
           'items.receivedDate': { $gte: startISO, $lte: endISO },
         },
       },
+      ...productMatchStage,
       {
         $group: {
           _id: '$items.product',
@@ -152,10 +142,7 @@ export const getDashboardStatsHandler: PayloadHandler = async (
       },
     ]
 
-    // 2. Billed (BILL) - createdAt is top level
     const billPipeline = createPipeline('billings', 'createdAt', 'quantity', {})
-
-    // 3. Returned (RTN) - createdAt is top level
     const rtnPipeline = createPipeline('return-orders', 'createdAt', 'quantity', {})
 
     // Execute Aggregations
@@ -179,34 +166,45 @@ export const getDashboardStatsHandler: PayloadHandler = async (
       payload.db.collections['return-orders'].aggregate(rtnPipeline),
     ])
 
+    // Convert to Maps for O(1) hash lookups instead of 8 * O(N) array finds
+    const createSumMap = (arr: any[]) => {
+      const map = new Map<string, number>()
+      for (const item of arr) {
+        if (item?._id != null) {
+          map.set(String(item._id), Number(item.total) || 0)
+        }
+      }
+      return map
+    }
+
+    const initialMap = createSumMap(initialRes)
+    const allRecMap = createSumMap(allRecRes)
+    const allSoldMap = createSumMap(allSoldRes)
+    const allRtnMap = createSumMap(allRtnRes)
+    const allInstockMap = createSumMap(allInstockRes)
+    const rangeRecMap = createSumMap(rangeRecRes)
+    const rangeBillMap = createSumMap(rangeBillRes)
+    const rangeRtnMap = createSumMap(rangeRtnRes)
+
     // --- Combine Data ---
     const productStats = products.map((pDoc) => {
       const p = pDoc as Product
-      const pid = p.id
-      const getSum = (arr: any[]) => arr.find((x) => String(x._id) === pid)?.total || 0
+      const pid = String(p.id)
 
       // CIS (Total based on filters)
       const cis =
-        getSum(initialRes) +
-        getSum(allRecRes) +
-        getSum(allInstockRes) -
-        getSum(allSoldRes) -
-        getSum(allRtnRes)
+        (initialMap.get(pid) || 0) +
+        (allRecMap.get(pid) || 0) +
+        (allInstockMap.get(pid) || 0) -
+        (allSoldMap.get(pid) || 0) -
+        (allRtnMap.get(pid) || 0)
 
       // Range Movements
-      const rec = getSum(rangeRecRes)
-      const bill = getSum(rangeBillRes)
-      const rtn = getSum(rangeRtnRes)
+      const rec = rangeRecMap.get(pid) || 0
+      const bill = rangeBillMap.get(pid) || 0
+      const rtn = rangeRtnMap.get(pid) || 0
 
       // OIS (Calculated Backwards from CIS)
-      // Math: Closing = Opening + In - Out
-      // CIS = OIS + REC - BILL - RTN
-      // => OIS = CIS - REC + BILL + RTN
-      // Accuracy Note: This OIS is "Start of Range" implies that CIS is "End of Range".
-      // But CIS is actually "Now".
-      // So OIS calculated this way is "Stock at Start of Range, assuming no movements occurred AFTER Range".
-      // This is imperfect for past ranges but correct for "Today" and "Month to Date".
-
       const ois = cis - rec + bill + rtn
 
       return {

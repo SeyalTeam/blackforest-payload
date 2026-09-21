@@ -2,7 +2,7 @@ import type { PayloadRequest } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
-import { resolveReportBranchScope } from '../../endpoints/reportScope'
+import { resolveReportBranchScope, toBranchQueryFilter } from '../../endpoints/reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -192,9 +192,7 @@ export const getExpenseReportData = async (
   }
 
   if (selectedBranches.length > 0) {
-    matchQuery.$expr = {
-      $in: [{ $toString: '$branch' }, selectedBranches],
-    }
+    Object.assign(matchQuery, toBranchQueryFilter(selectedBranches, 'branch'))
   }
 
   const pipeline: any[] = [

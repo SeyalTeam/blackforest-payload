@@ -2,7 +2,7 @@ import type { PayloadRequest } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
-import { resolveReportBranchScope } from '../../endpoints/reportScope'
+import { resolveReportBranchScope, toBranchQueryFilter } from '../../endpoints/reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -190,10 +190,8 @@ export const getWaiterWiseBillingReportData = async (
     },
   }
 
-  const exprConditions: any[] = []
-
-  if (branchIds) {
-    exprConditions.push({ $in: [{ $toString: '$branch' }, branchIds] })
+  if (branchIds && branchIds.length > 0) {
+    Object.assign(matchQuery, toBranchQueryFilter(branchIds, 'branch'))
   }
 
   if (waiterParam && waiterParam !== 'all') {
@@ -203,25 +201,16 @@ export const getWaiterWiseBillingReportData = async (
       .filter((id) => id.length > 0 && id !== 'all')
 
     if (waiterIds.length > 0) {
-      exprConditions.push({ $in: [{ $toString: '$createdBy' }, waiterIds] })
+      Object.assign(matchQuery, toBranchQueryFilter(waiterIds, 'createdBy'))
     }
   }
 
   if (hourParam !== null && !Number.isNaN(hourParam)) {
-    exprConditions.push({
+    matchQuery.$expr = {
       $eq: [{ $hour: { date: '$createdAt', timezone: '+05:30' } }, hourParam],
-    })
-  }
-
-  if (exprConditions.length > 0) {
-    if (exprConditions.length === 1) {
-      matchQuery.$expr = exprConditions[0]
-    } else {
-      matchQuery.$expr = { $and: exprConditions }
     }
   }
 
-  const benchmarkExprConditions: any[] = []
   const benchmarkMatchBase: Record<string, any> = {
     createdAt: {
       $gte: startOfDay,
@@ -229,24 +218,17 @@ export const getWaiterWiseBillingReportData = async (
     },
   }
 
-  if (branchIds) {
-    benchmarkExprConditions.push({ $in: [{ $toString: '$branch' }, branchIds] })
+  if (branchIds && branchIds.length > 0) {
+    Object.assign(benchmarkMatchBase, toBranchQueryFilter(branchIds, 'branch'))
   }
 
   if (hourParam !== null && !Number.isNaN(hourParam)) {
-    benchmarkExprConditions.push({
+    benchmarkMatchBase.$expr = {
       $eq: [{ $hour: { date: '$createdAt', timezone: '+05:30' } }, hourParam],
-    })
-  }
-
-  const benchmarkMatchQuery: Record<string, any> = { ...benchmarkMatchBase }
-  if (benchmarkExprConditions.length > 0) {
-    if (benchmarkExprConditions.length === 1) {
-      benchmarkMatchQuery.$expr = benchmarkExprConditions[0]
-    } else {
-      benchmarkMatchQuery.$expr = { $and: benchmarkExprConditions }
     }
   }
+
+  const benchmarkMatchQuery: Record<string, any> = benchmarkMatchBase
 
   const branchBenchmarksRaw = (await BillingModel.aggregate([
     { $match: benchmarkMatchQuery },
@@ -602,8 +584,8 @@ export const getWaiterWiseBillingReportData = async (
     branch: { $exists: true, $ne: null },
   }
 
-  if (branchIds) {
-    branchMatchQuery.$expr = { $in: [{ $toString: '$branch' }, branchIds] }
+  if (branchIds && branchIds.length > 0) {
+    Object.assign(branchMatchQuery, toBranchQueryFilter(branchIds, 'branch'))
   }
 
   let timeline: WaiterWiseReportTimeline = { minHour: 6, maxHour: 23 }

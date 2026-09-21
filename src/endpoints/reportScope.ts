@@ -1,8 +1,32 @@
 import type { PayloadRequest } from 'payload'
+import mongoose from 'mongoose'
 
 type BranchScopeResult = {
   branchIds?: string[]
   errorResponse?: Response
+}
+
+export const toIndexedIdList = (
+  ids?: (string | null | undefined)[] | null,
+): (mongoose.Types.ObjectId | string)[] => {
+  if (!ids || ids.length === 0) return []
+  const result: (mongoose.Types.ObjectId | string)[] = []
+  for (const raw of ids) {
+    if (!raw) continue
+    const id = String(raw).trim()
+    if (!id || id === 'all') continue
+    result.push(id)
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      result.push(new mongoose.Types.ObjectId(id))
+    }
+  }
+  return result
+}
+
+export const toBranchQueryFilter = (branchIds?: string[] | null, fieldName = 'branch'): Record<string, any> => {
+  const targets = toIndexedIdList(branchIds)
+  if (targets.length === 0) return {}
+  return { [fieldName]: { $in: targets } }
 }
 
 const toId = (value: unknown): string | null => {

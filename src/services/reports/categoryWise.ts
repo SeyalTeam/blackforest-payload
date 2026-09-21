@@ -3,7 +3,7 @@ import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import mongoose, { type PipelineStage } from 'mongoose'
-import { resolveReportBranchScope } from '../../endpoints/reportScope'
+import { resolveReportBranchScope, toBranchQueryFilter, toIndexedIdList } from '../../endpoints/reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -126,10 +126,8 @@ export const getCategoryWiseReportData = async (
     },
   }
 
-  if (branchIds) {
-    matchQuery.$expr = {
-      $in: [{ $toString: '$branch' }, branchIds],
-    }
+  if (branchIds && branchIds.length > 0) {
+    Object.assign(matchQuery, toBranchQueryFilter(branchIds, 'branch'))
   }
 
   const pipeline: PipelineStage[] = [
@@ -139,10 +137,21 @@ export const getCategoryWiseReportData = async (
     {
       $unwind: '$items',
     },
+    // Group first by product + branch to reduce ~100k items to ~1k unique products
+    {
+      $group: {
+        _id: {
+          productId: '$items.product',
+          branchId: '$branch',
+        },
+        quantity: { $sum: '$items.quantity' },
+        amount: { $sum: '$items.subtotal' },
+      },
+    },
     {
       $lookup: {
         from: 'products',
-        localField: 'items.product',
+        localField: '_id.productId',
         foreignField: '_id',
         as: 'productDetails',
       },
@@ -179,10 +188,11 @@ export const getCategoryWiseReportData = async (
   }
 
   if (departmentParam && departmentParam !== 'all') {
+    const deptTargets = toIndexedIdList([departmentParam])
     pipeline.push({
       $match: {
-        $expr: {
-          $eq: [{ $toString: '$categoryDetails.department' }, departmentParam],
+        'categoryDetails.department': {
+          $in: deptTargets,
         },
       },
     })
@@ -193,10 +203,10 @@ export const getCategoryWiseReportData = async (
       $group: {
         _id: {
           categoryName: '$categoryDetails.name',
-          branchId: '$branch',
+          branchId: '$_id.branchId',
         },
-        quantity: { $sum: '$items.quantity' },
-        amount: { $sum: '$items.subtotal' },
+        quantity: { $sum: '$quantity' },
+        amount: { $sum: '$amount' },
       },
     },
     {

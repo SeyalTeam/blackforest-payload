@@ -1,5 +1,5 @@
 import type { PayloadRequest } from 'payload'
-import { resolveReportBranchScope } from '../../endpoints/reportScope'
+import { resolveReportBranchScope, toBranchQueryFilter } from '../../endpoints/reportScope'
 
 export type ClosingEntryExpenseDetail = {
   amount: number
@@ -345,10 +345,8 @@ export const getClosingEntryReportData = async (
       $lte: endOfDay,
     },
   }
-  if (branchIds) {
-    closingMatch.$expr = {
-      $in: [{ $toString: '$branch' }, branchIds],
-    }
+  if (branchIds && branchIds.length > 0) {
+    Object.assign(closingMatch, toBranchQueryFilter(branchIds, 'branch'))
   }
 
   const statsRaw = (await ClosingModel.aggregate([

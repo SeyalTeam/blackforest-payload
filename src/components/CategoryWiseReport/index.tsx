@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import './index.scss'
 
 type ReportStats = {
@@ -65,6 +65,14 @@ import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import './index.scss'
 import Select, { components, OptionProps } from 'react-select'
+import {
+  fetchCachedBranches,
+  fetchCachedCategories,
+  fetchCachedDepartments,
+  fetchCachedFirstBillDate,
+  fetchWithCache,
+} from '@/lib/reportCache'
+import { RefreshCw } from 'lucide-react'
 
 const CheckboxOption = (props: OptionProps<any>) => {
   return (
@@ -159,6 +167,7 @@ const CategoryWiseReport: React.FC = () => {
 
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null)
+  const requestIdRef = useRef(0)
 
   const formatValue = (val: number) => {
     const fixed = val.toFixed(2)
@@ -361,45 +370,28 @@ const CategoryWiseReport: React.FC = () => {
     }),
   }
 
-  // Fetch available branches and departments
+  // Fetch available branches, departments, categories, and first bill date from cache
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
-        const [branchRes, deptRes, billRes] = await Promise.all([
-          fetch('/api/reports/branches'),
-          fetch('/api/departments?limit=100&pagination=false'),
-          fetch('/api/billings?sort=createdAt&limit=1'),
+        const [cachedBranches, cachedDepts, cachedCats, firstBill] = await Promise.all([
+          fetchCachedBranches(),
+          fetchCachedDepartments(),
+          fetchCachedCategories(),
+          fetchCachedFirstBillDate(),
         ])
 
-        if (branchRes.ok) {
-          const json = await branchRes.json()
-          setBranches(json.docs)
-        }
-        if (deptRes.ok) {
-          const json = await deptRes.json()
-          setDepartments(json.docs)
-        }
-        // Fetch Categories too
-        const catRes = await fetch('/api/categories?limit=100&pagination=false')
-        if (catRes.ok) {
-          const json = await catRes.json()
-          setCategories(json.docs)
-        }
-        // Set date range from first bill
-        // Set first bill date state but default view is Today
-        if (billRes.ok) {
-          const json = await billRes.json()
-          if (json.docs && json.docs.length > 0) {
-            const firstDate = new Date(json.docs[0].createdAt)
-            setFirstBillDate(firstDate)
-          }
-        }
+        if (cachedBranches) setBranches(cachedBranches)
+        if (cachedDepts) setDepartments(cachedDepts)
+        if (cachedCats) setCategories(cachedCats)
+        if (firstBill) setFirstBillDate(firstBill)
+
         // Set default range to Today
         const now = new Date()
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
         setDateRange([today, today])
       } catch (e) {
-        console.error(e)
+        console.error('Error fetching metadata:', e)
       }
     }
     fetchMetadata()
@@ -419,7 +411,9 @@ const CategoryWiseReport: React.FC = () => {
     branchIds: string[],
     categoryIds: string[],
     deptId: string,
+    forceRefresh = false,
   ) => {
+    const requestId = ++requestIdRef.current
     setLoading(true)
     setError('')
     try {
@@ -427,70 +421,83 @@ const CategoryWiseReport: React.FC = () => {
       const endStr = toLocalDateStr(end)
       const branchParam = branchIds.includes('all') ? 'all' : branchIds.join(',')
       const categoryParam = categoryIds.includes('all') ? 'all' : categoryIds.join(',')
-      const res = await fetch('/api/graphql', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const cacheKey = `categoryWise:${startStr}:${endStr}:${branchParam}:${categoryParam}:${deptId}`
+
+      const normalizedReport = await fetchWithCache<ReportData>(
+        cacheKey,
+        async () => {
+          const res = await fetch('/api/graphql', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              query: CATEGORY_WISE_REPORT_QUERY,
+              variables: {
+                filter: {
+                  startDate: startStr,
+                  endDate: endStr,
+                  branch: branchParam,
+                  category: categoryParam,
+                  department: deptId,
+                },
+              },
+            }),
+          })
+          if (!res.ok) throw new Error('Failed to fetch report')
+
+          const json = (await res.json()) as CategoryWiseReportQueryResponse
+          if (Array.isArray(json.errors) && json.errors.length > 0) {
+            throw new Error(json.errors[0]?.message || 'Failed to fetch report')
+          }
+
+          const report = json.data?.categoryWiseReport
+          if (!report) throw new Error('No report data returned from GraphQL')
+
+          return {
+            startDate: report.startDate,
+            endDate: report.endDate,
+            branchHeaders: report.branchHeaders,
+            stats: report.stats.map((row) => ({
+              ...row,
+              branchSales: row.branchSales.reduce(
+                (acc, sale) => {
+                  acc[sale.branchCode] = {
+                    amount: sale.amount,
+                    quantity: sale.quantity,
+                  }
+                  return acc
+                },
+                {} as Record<string, { amount: number; quantity: number }>,
+              ),
+            })),
+            totals: {
+              totalQuantity: report.totals.totalQuantity,
+              totalAmount: report.totals.totalAmount,
+              branchTotals: report.totals.branchTotals.reduce(
+                (acc, item) => {
+                  acc[item.branchCode] = item.amount
+                  return acc
+                },
+                {} as Record<string, number>,
+              ),
+            },
+          }
         },
-        body: JSON.stringify({
-          query: CATEGORY_WISE_REPORT_QUERY,
-          variables: {
-            filter: {
-              startDate: startStr,
-              endDate: endStr,
-              branch: branchParam,
-              category: categoryParam,
-              department: deptId,
-            },
-          },
-        }),
-      })
-      if (!res.ok) throw new Error('Failed to fetch report')
+        60000,
+        forceRefresh,
+      )
 
-      const json = (await res.json()) as CategoryWiseReportQueryResponse
-      if (Array.isArray(json.errors) && json.errors.length > 0) {
-        throw new Error(json.errors[0]?.message || 'Failed to fetch report')
-      }
-
-      const report = json.data?.categoryWiseReport
-      if (!report) throw new Error('No report data returned from GraphQL')
-
-      const normalizedReport: ReportData = {
-        startDate: report.startDate,
-        endDate: report.endDate,
-        branchHeaders: report.branchHeaders,
-        stats: report.stats.map((row) => ({
-          ...row,
-          branchSales: row.branchSales.reduce(
-            (acc, sale) => {
-              acc[sale.branchCode] = {
-                amount: sale.amount,
-                quantity: sale.quantity,
-              }
-              return acc
-            },
-            {} as Record<string, { amount: number; quantity: number }>,
-          ),
-        })),
-        totals: {
-          totalQuantity: report.totals.totalQuantity,
-          totalAmount: report.totals.totalAmount,
-          branchTotals: report.totals.branchTotals.reduce(
-            (acc, item) => {
-              acc[item.branchCode] = item.amount
-              return acc
-            },
-            {} as Record<string, number>,
-          ),
-        },
-      }
-
+      if (requestId !== requestIdRef.current) return
       setData(normalizedReport)
     } catch (err) {
+      if (requestId !== requestIdRef.current) return
       console.error(err)
       setError(err instanceof Error ? err.message : 'Error loading report data')
     } finally {
-      setLoading(false)
+      if (requestId === requestIdRef.current) {
+        setLoading(false)
+      }
     }
   }
 
@@ -614,6 +621,27 @@ const CategoryWiseReport: React.FC = () => {
                 </div>
               )}
             </div>
+            {/* Refresh Button */}
+            <button
+              className="export-btn"
+              onClick={() => {
+                if (startDate && endDate) {
+                  fetchReport(
+                    startDate,
+                    endDate,
+                    selectedBranch,
+                    selectedCategory,
+                    selectedDepartment,
+                    true,
+                  )
+                }
+              }}
+              title="Refresh Report"
+              disabled={loading}
+              style={{ padding: '0 12px' }}
+            >
+              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            </button>
             {/* Backdrop */}
             {showExportMenu && (
               <div

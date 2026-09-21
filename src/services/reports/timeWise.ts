@@ -2,7 +2,7 @@ import type { PayloadRequest } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
-import { resolveReportBranchScope } from '../../endpoints/reportScope'
+import { resolveReportBranchScope, toBranchQueryFilter } from '../../endpoints/reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -104,10 +104,8 @@ export const getTimeWiseReportData = async (
     },
   }
   
-  if (branchIds) {
-    matchQuery.$expr = {
-      $in: [{ $toString: '$branch' }, branchIds],
-    }
+  if (branchIds && branchIds.length > 0) {
+    Object.assign(matchQuery, toBranchQueryFilter(branchIds, 'branch'))
   }
 
   const completedOrSettledExpression = { $in: ['$status', ['completed', 'settled']] }
