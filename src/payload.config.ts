@@ -37,6 +37,7 @@ import Expenses from './collections/Expenses'
 import StockOrders from './collections/StockOrders'
 import DealerBillings from './collections/DealerBillings'
 import RawMaterialBillings from './collections/RawMaterialBillings'
+import RawMaterialInstockEntries from './collections/RawMaterialInstockEntries'
 import ProductionRequests from './collections/ProductionRequests'
 import DealerOrders from './collections/DealerOrders'
 import { IPSettings } from './globals/IPSettings'
@@ -1034,6 +1035,7 @@ export default buildConfig({
     StockOrders,
     DealerBillings,
     RawMaterialBillings,
+    RawMaterialInstockEntries,
     ProductionRequests,
     DealerOrders,
     Reviews,

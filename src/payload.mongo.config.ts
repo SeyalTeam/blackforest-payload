@@ -27,6 +27,7 @@ import Reviews from './collections/Reviews'
 import Customers from './collections/Customers'
 import BillingCustomers from './collections/BillingCustomers'
 import InstockEntries from './collections/InstockEntries'
+import RawMaterialInstockEntries from './collections/RawMaterialInstockEntries'
 import Tables from './collections/Tables'
 import Kitchens from './collections/Kitchens'
 import Attendance from './collections/Attendance'
@@ -79,6 +80,7 @@ export default buildConfig({
     ClosingEntries,
     Departments,
     InstockEntries,
+    RawMaterialInstockEntries,
     StockAlerts,
     IdempotencyKeys,
   ],
