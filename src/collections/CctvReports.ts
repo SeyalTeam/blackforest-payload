@@ -26,13 +26,13 @@ const CctvReports: CollectionConfig = {
           data.status = 'pending'
         }
         if (operation === 'update' && req.user) {
-          // If manager message is added/changed and manager isn't set, set it
-          if (data.managerMessage && data.managerMessage !== originalDoc.managerMessage && !data.manager) {
+          // If manager message is added/changed, tag manager and update status
+          if (data.managerMessage && data.managerMessage !== originalDoc?.managerMessage) {
             data.manager = req.user.id
             data.status = 'mng_replied'
           }
-          // If staff message is added/changed and staff isn't set, set it
-          if (data.staffMessage && data.staffMessage !== originalDoc.staffMessage && !data.staff) {
+          // If staff message is added/changed, tag staff and update status
+          if (data.staffMessage && data.staffMessage !== originalDoc?.staffMessage) {
             data.staff = req.user.id
             data.status = 'st_replied'
           }
