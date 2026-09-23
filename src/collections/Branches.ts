@@ -203,6 +203,16 @@ export const Branches: CollectionConfig = {
       },
     },
     {
+      name: 'isCashDrawerEnabled',
+      label: 'Enable Cash Drawer Opening',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        description: 'When enabled by a manager, allows the branch cashier to manually open the cash drawer.',
+        position: 'sidebar',
+      },
+    },
+    {
       name: 'stockOrderWorkflow',
       label: 'Stock Order Workflow',
       type: 'group',

@@ -45,6 +45,7 @@ import FavoriteCategoriesWidget from './FavoriteCategoriesWidget'
 import FavoriteProductsWidget from './FavoriteProductsWidget'
 import AttendanceWidget from '../AttendanceWidget'
 import ClosingEntryWidget from '../Dashboard/ClosingEntryWidget'
+import CashDrawerWidget from '../Dashboard/CashDrawerWidget'
 import './index.scss'
 
 type Option = { value: string; label: string }
@@ -216,6 +217,7 @@ type WidgetKey =
   | 'category-delay'
   | 'entire-bill-blocking'
   | 'closing-entry-access'
+  | 'cashdrawer-access'
 
 const BILLING_APP_KEY = 'billing-app'
 
@@ -3063,6 +3065,14 @@ const WidgetSettings: React.FC<any> = (props) => {
             <Lock className="tile-icon" size={48} />
             <span className="tile-label">Closing Entry Access</span>
           </button>
+<button
+            type="button"
+            className={`tile ${(activeWidget as string) === 'cashdrawer-access' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('cashdrawer-access' as any)}
+          >
+            <Lock className="tile-icon" size={48} />
+            <span className="tile-label">Cash Drawer Access</span>
+          </button>
 
           <div className="tiles-group-title">Skip</div>
           <button
@@ -5112,6 +5122,20 @@ const WidgetSettings: React.FC<any> = (props) => {
               </div>
               <div className="modal-body" style={{ padding: '20px' }}>
                 <ClosingEntryWidget />
+              </div>
+            </div>
+          )}
+
+          {(activeWidget as string) === 'cashdrawer-access' && (
+            <div className="widget-modal">
+              <div className="modal-header">
+                <h2>Cash Drawer Access Control</h2>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="modal-body" style={{ padding: '20px' }}>
+                <CashDrawerWidget />
               </div>
             </div>
           )}
