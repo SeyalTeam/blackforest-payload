@@ -11,16 +11,42 @@ import {
 
 const getRelationshipID = (value: unknown): string | null => {
   if (!value) return null
-  if (typeof value === 'string') return value
+  if (typeof value === 'string') return value.trim()
   if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-  if (typeof value === 'object' && value !== null && 'id' in value) {
-    const id = (value as { id?: unknown }).id
-    return typeof id === 'string' || typeof id === 'number' ? String(id) : null
+  if (typeof value === 'object' && value !== null) {
+    if ('id' in value && (value as { id?: unknown }).id != null) {
+      const id = (value as { id?: unknown }).id
+      if (typeof id === 'string' || typeof id === 'number') return String(id).trim()
+      if (typeof id === 'object') {
+        const nestedId = getRelationshipID(id)
+        if (nestedId) return nestedId
+      }
+    }
+    if ('_id' in value && (value as { _id?: unknown })._id != null) {
+      const id = (value as { _id?: unknown })._id
+      if (typeof id === 'string' || typeof id === 'number') return String(id).trim()
+      if (id && typeof (id as any).toString === 'function') {
+        const str = (id as any).toString()
+        if (str && str !== '[object Object]') return str
+      }
+    }
+    if ('value' in value && (value as { value?: unknown }).value != null) {
+      const resolved = getRelationshipID((value as { value?: unknown }).value)
+      if (resolved) return resolved
+    }
+    if (typeof (value as any).toHexString === 'function') {
+      return (value as any).toHexString()
+    }
+    if (typeof (value as any).toString === 'function') {
+      const str = (value as any).toString()
+      if (str && str !== '[object Object]') return str
+    }
   }
   return null
 }
 
 const getRelationshipIDs = (value: unknown): string[] => {
+  if (!value) return []
   if (!Array.isArray(value)) {
     const id = getRelationshipID(value)
     return id ? [id] : []
@@ -172,8 +198,8 @@ export const Users: CollectionConfig = {
             return true
           },
           access: {
-            create: ({ req }) => ['superadmin', 'branch'].includes(req.user?.role || ''),
-            update: ({ req }) => ['superadmin', 'branch'].includes(req.user?.role || ''),
+            create: ({ req }) => canManageChefDetails(req.user?.role),
+            update: ({ req }) => canManageChefDetails(req.user?.role),
           },
         },
       ],
@@ -193,37 +219,64 @@ export const Users: CollectionConfig = {
             condition: ({ role, isKitchen }) =>
               Boolean(isKitchen) || ['kitchen', 'chef'].includes(role),
           },
-          filterOptions: async ({ data, req }) => {
-            const selectedKitchens = data?.kitchen
-            if (selectedKitchens && Array.isArray(selectedKitchens) && selectedKitchens.length > 0 && req?.payload) {
-              const kitchenIds = selectedKitchens.map((k: any) => (typeof k === 'object' ? k.id : k))
-              try {
-                const kitchensResult = await req.payload.find({
-                  collection: 'kitchens',
-                  where: { id: { in: kitchenIds } },
-                  depth: 0,
-                })
-                const categoryIds = kitchensResult.docs
-                  .flatMap((k: any) => k.categories || [])
-                  .map((c: any) => (typeof c === 'object' ? c.id : c))
-                  .filter(Boolean)
+          filterOptions: async ({ data, siblingData, id, req }): Promise<Where | boolean> => {
+            if (!req?.payload) return true
 
-                const uniqueCategoryIds = Array.from(new Set(categoryIds))
-
-                if (uniqueCategoryIds.length > 0) {
-                  return { id: { in: uniqueCategoryIds } }
-                } else {
-                  return { id: { equals: 'none' } }
-                }
-              } catch (e) {
-                console.error('Error fetching kitchen categories for filterOptions:', e)
-              }
+            // Resolve kitchen IDs from form data, siblingData, or fallback to current user from DB
+            let kitchenIds = getRelationshipIDs(data?.kitchen)
+            if (kitchenIds.length === 0 && siblingData && typeof siblingData === 'object') {
+              kitchenIds = getRelationshipIDs((siblingData as Record<string, unknown>).kitchen)
             }
-            return true
+            if (kitchenIds.length === 0 && id) {
+              try {
+                const existingUser = await req.payload.findByID({
+                  collection: 'users',
+                  id: String(id),
+                  depth: 0,
+                  overrideAccess: true,
+                })
+                if (existingUser?.kitchen) {
+                  kitchenIds = getRelationshipIDs(existingUser.kitchen)
+                }
+              } catch (_) {}
+            }
+
+            // Only show categories that belong to the selected kitchen(s)
+            if (kitchenIds.length === 0) {
+              return { id: { in: ['000000000000000000000000'] } }
+            }
+
+            try {
+              const kitchensResult = await req.payload.find({
+                collection: 'kitchens',
+                where: { id: { in: kitchenIds } },
+                depth: 0,
+                limit: 100,
+                pagination: false,
+                overrideAccess: true,
+              })
+
+              const categoryIds: string[] = []
+              for (const kitchen of kitchensResult.docs) {
+                const ids = getRelationshipIDs((kitchen as any).categories)
+                categoryIds.push(...ids)
+              }
+
+              const uniqueCategoryIds = Array.from(new Set(categoryIds))
+
+              if (uniqueCategoryIds.length > 0) {
+                return { id: { in: uniqueCategoryIds } }
+              } else {
+                return { id: { in: ['000000000000000000000000'] } }
+              }
+            } catch (e) {
+              console.error('Error fetching kitchen categories for filterOptions:', e)
+              return { id: { in: ['000000000000000000000000'] } }
+            }
           },
           access: {
-            create: ({ req }) => ['superadmin', 'branch'].includes(req.user?.role || ''),
-            update: ({ req }) => ['superadmin', 'branch'].includes(req.user?.role || ''),
+            create: ({ req }) => canManageChefDetails(req.user?.role),
+            update: ({ req }) => canManageChefDetails(req.user?.role),
           },
         },
       ],
@@ -1114,9 +1167,12 @@ export const Users: CollectionConfig = {
             throw new Error('Branch is required for branch, kitchen, or chef role users')
           }
 
-          if (branchManagerBranchId && resolvedRole === 'chef') {
+          if (resolvedRole === 'chef') {
             const kitchenIds = getRelationshipIDs(resolvedKitchen)
-            const categoryIds = getRelationshipIDs(resolvedCategories)
+            const categoryIds = Array.from(new Set(getRelationshipIDs(resolvedCategories)))
+            if (nextData.categories !== undefined) {
+              nextData.categories = categoryIds
+            }
 
             if (kitchenIds.length > 0) {
               const kitchensResult = await req.payload.find({
@@ -1132,22 +1188,24 @@ export const Users: CollectionConfig = {
                 overrideAccess: true,
               })
 
-              const allowedCategoryIds = new Set<string>()
-              const allowedKitchenCount = kitchensResult.docs.filter((kitchen: any) => {
-                const kitchenBranchIds = getRelationshipIDs(kitchen.branches)
-                const isBranchKitchen = kitchenBranchIds.includes(branchManagerBranchId)
-                if (isBranchKitchen) {
-                  getRelationshipIDs(kitchen.categories).forEach((id) => allowedCategoryIds.add(id))
-                }
-                return isBranchKitchen
-              }).length
+              if (branchManagerBranchId) {
+                const allowedKitchenCount = kitchensResult.docs.filter((kitchen: any) => {
+                  const kitchenBranchIds = getRelationshipIDs(kitchen.branches)
+                  return kitchenBranchIds.includes(branchManagerBranchId)
+                }).length
 
-              if (allowedKitchenCount !== kitchenIds.length) {
-                throw new Error('Branch users can assign only kitchens from their own branch')
+                if (allowedKitchenCount !== kitchenIds.length) {
+                  throw new Error('Branch users can assign only kitchens from their own branch')
+                }
               }
 
+              const allowedCategoryIds = new Set<string>()
+              kitchensResult.docs.forEach((kitchen: any) => {
+                getRelationshipIDs(kitchen.categories).forEach((id) => allowedCategoryIds.add(id))
+              })
+
               if (categoryIds.some((id) => !allowedCategoryIds.has(id))) {
-                throw new Error('Branch users can assign only categories from selected kitchens')
+                throw new Error('Can assign only categories from selected kitchens')
               }
             } else if (categoryIds.length > 0) {
               throw new Error('Kitchen is required before assigning chef categories')
@@ -1214,5 +1272,62 @@ export const Users: CollectionConfig = {
         return nextData
       },
     ],
+    afterChange: [
+      async ({ doc, req }) => {
+        if (req.context?.skipChefCategorySync) return doc
+
+        // When a chef is updated with categories, enforce "one category one chef only":
+        // Automatically remove those categories from any other chef(s) so it reflects immediately
+        if (doc && doc.role === 'chef') {
+          const currentChefId = String(doc.id)
+          const assignedCategoryIds = getRelationshipIDs(doc.categories)
+
+          if (assignedCategoryIds.length > 0) {
+            try {
+              const conflictingChefsResult = await req.payload.find({
+                collection: 'users',
+                where: {
+                  and: [
+                    { id: { not_equals: currentChefId } },
+                    { role: { equals: 'chef' } },
+                    { categories: { in: assignedCategoryIds } },
+                  ],
+                },
+                depth: 0,
+                limit: 100,
+                pagination: false,
+                overrideAccess: true,
+              })
+
+              for (const otherChef of conflictingChefsResult.docs) {
+                const otherCatIds = getRelationshipIDs(otherChef.categories)
+                const updatedOtherCatIds = otherCatIds.filter(
+                  (cId) => !assignedCategoryIds.includes(cId),
+                )
+
+                if (updatedOtherCatIds.length !== otherCatIds.length) {
+                  await req.payload.update({
+                    collection: 'users',
+                    id: otherChef.id,
+                    data: {
+                      categories: updatedOtherCatIds,
+                    },
+                    context: {
+                      ...(req.context || {}),
+                      skipChefCategorySync: true,
+                    },
+                    overrideAccess: true,
+                  })
+                }
+              }
+            } catch (err) {
+              console.error('Error synchronizing chef categories in afterChange:', err)
+            }
+          }
+        }
+        return doc
+      },
+    ],
   },
 }
+
