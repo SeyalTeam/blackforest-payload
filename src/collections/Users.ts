@@ -433,7 +433,7 @@ export const Users: CollectionConfig = {
     },
     update: ({ req, id }): boolean | Where => {
       if (!req.user) return false
-      if (req.user.role === 'superadmin') return true
+      if (req.user.role === 'superadmin' || req.user.role === 'admin') return true
       if (req.user.role === 'branch') {
         if (req.user.id === id) return true
 
@@ -452,6 +452,11 @@ export const Users: CollectionConfig = {
                 {
                   branch: {
                     equals: userBranchId,
+                  },
+                },
+                {
+                  kitchenBranches: {
+                    in: [userBranchId],
                   },
                 },
                 {
@@ -1160,11 +1165,11 @@ export const Users: CollectionConfig = {
                 )
 
           if (
-            ['branch', 'kitchen', 'chef'].includes(resolvedRole) &&
+            ['branch', 'kitchen'].includes(resolvedRole) &&
             !resolvedKitchenFlag &&
             !resolvedBranch
           ) {
-            throw new Error('Branch is required for branch, kitchen, or chef role users')
+            throw new Error('Branch is required for branch or kitchen role users')
           }
 
           if (resolvedRole === 'chef') {
@@ -1224,8 +1229,8 @@ export const Users: CollectionConfig = {
               ? (originalDoc as { company?: unknown } | undefined)?.company
               : undefined)
               
-          if ((resolvedRole === 'company' || resolvedRole === 'chef') && !resolvedCompany) {
-            throw new Error(`Company is required for ${resolvedRole} role users`)
+          if (resolvedRole === 'company' && !resolvedCompany) {
+            throw new Error(`Company is required for company role users`)
           }
           const resolvedFactoryCompanies =
             nextData.factory_companies ??
