@@ -87,8 +87,8 @@ export const allocateTableWaiterHandler: PayloadHandler = async (req): Promise<R
 
     const tableConfig = tableConfigResult.docs[0]
 
-    // Clone and update sections
-    const updatedSections = (tableConfig.sections || []).map((sec: any) => {
+    // Clone and prepare sections
+    const rawSections = (tableConfig.sections || []).map((sec: any) => {
       const currentAllocations = Array.isArray(sec.waiterAllocations) ? sec.waiterAllocations : []
       let cleanedAllocations = currentAllocations
         .map((alloc: any) => {
@@ -106,7 +106,7 @@ export const allocateTableWaiterHandler: PayloadHandler = async (req): Promise<R
           const wId = getRelationshipID(alloc?.waiter)
           return { tableNumber: tNum, waiterId: wId }
         })
-        .filter((alloc: any) => alloc.tableNumber)
+        .filter((alloc: any) => alloc.tableNumber && alloc.waiterId)
 
       // Find updates for this specific section
       const updatesForThisSection = tablesToProcess.filter(
@@ -129,18 +129,54 @@ export const allocateTableWaiterHandler: PayloadHandler = async (req): Promise<R
             })
           }
         }
+      }
 
-        const dbAllocations = cleanedAllocations.map((alloc: any) => ({
+      return {
+        ...sec,
+        cleanedAllocations,
+      }
+    })
+
+    // Verify that referenced waiterIds actually exist in users collection
+    const allWaiterIds = new Set<string>()
+    for (const sec of rawSections) {
+      for (const alloc of sec.cleanedAllocations) {
+        if (alloc.waiterId) {
+          allWaiterIds.add(alloc.waiterId)
+        }
+      }
+    }
+
+    const validUserIds = new Set<string>()
+    if (allWaiterIds.size > 0) {
+      const usersCheck = await req.payload.find({
+        collection: 'users',
+        where: {
+          id: { in: Array.from(allWaiterIds) },
+        },
+        depth: 0,
+        limit: 1000,
+        pagination: false,
+        overrideAccess: true,
+      })
+      for (const u of usersCheck.docs) {
+        validUserIds.add(String(u.id))
+      }
+    }
+
+    const updatedSections = rawSections.map((sec: any) => {
+      const dbAllocations = sec.cleanedAllocations
+        .filter((alloc: any) => alloc.tableNumber && alloc.waiterId && validUserIds.has(alloc.waiterId))
+        .map((alloc: any) => ({
           tableNumber: alloc.tableNumber,
           waiter: alloc.waiterId,
         }))
 
-        return {
-          ...sec,
-          waiterAllocations: dbAllocations,
-        }
+      const { cleanedAllocations: _omitted, ...secRest } = sec
+      return {
+        ...secRest,
+        waiterAllocations: dbAllocations,
       }
-      return sec
     })
 
     // Perform local update with overrideAccess: true to bypass restriction

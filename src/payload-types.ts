@@ -94,6 +94,7 @@ export interface Config {
     'stock-orders': StockOrder;
     'dealer-billings': DealerBilling;
     'raw-material-billings': RawMaterialBilling;
+    'raw-material-instock-entries': RawMaterialInstockEntry;
     'production-requests': ProductionRequest;
     'dealer-orders': DealerOrder;
     reviews: Review;
@@ -143,6 +144,7 @@ export interface Config {
     'stock-orders': StockOrdersSelect<false> | StockOrdersSelect<true>;
     'dealer-billings': DealerBillingsSelect<false> | DealerBillingsSelect<true>;
     'raw-material-billings': RawMaterialBillingsSelect<false> | RawMaterialBillingsSelect<true>;
+    'raw-material-instock-entries': RawMaterialInstockEntriesSelect<false> | RawMaterialInstockEntriesSelect<true>;
     'production-requests': ProductionRequestsSelect<false> | ProductionRequestsSelect<true>;
     'dealer-orders': DealerOrdersSelect<false> | DealerOrdersSelect<true>;
     reviews: ReviewsSelect<false> | ReviewsSelect<true>;
@@ -346,6 +348,10 @@ export interface Branch {
    * When enabled by a manager, allows the branch cashier to submit their closing entry. Automatically resets to false after submission.
    */
   isClosingEntryEnabled?: boolean | null;
+  /**
+   * When enabled by a manager, allows the branch cashier to manually open the cash drawer.
+   */
+  isCashDrawerEnabled?: boolean | null;
   /**
    * Customize the stock order process for this branch.
    */
@@ -1521,6 +1527,41 @@ export interface RawMaterialBilling {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "raw-material-instock-entries".
+ */
+export interface RawMaterialInstockEntry {
+  id: string;
+  invoiceNumber: string;
+  date: string;
+  items: {
+    rawMaterial: string | RawMaterial;
+    dealer?: (string | null) | RawMaterialDealer;
+    instock: number;
+    unit?: string | null;
+    notes?: string | null;
+    status?: ('waiting' | 'approved') | null;
+    id?: string | null;
+  }[];
+  company?: (string | null) | Company;
+  branch?: (string | null) | Branch;
+  status?: ('waiting' | 'approved') | null;
+  notes?: string | null;
+  createdBy?: (string | null) | User;
+  createdByName?: string | null;
+  createdByRole?: string | null;
+  /**
+   * ID of the store keeper who created/submitted the entry.
+   */
+  storeKeeperId?: string | null;
+  /**
+   * Name of the store keeper who created/submitted the entry.
+   */
+  storeKeeperName?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "production-requests".
  */
 export interface ProductionRequest {
@@ -2386,6 +2427,10 @@ export interface PayloadLockedDocument {
         value: string | RawMaterialBilling;
       } | null)
     | ({
+        relationTo: 'raw-material-instock-entries';
+        value: string | RawMaterialInstockEntry;
+      } | null)
+    | ({
         relationTo: 'production-requests';
         value: string | ProductionRequest;
       } | null)
@@ -2593,6 +2638,7 @@ export interface BranchesSelect<T extends boolean = true> {
         id?: T;
       };
   isClosingEntryEnabled?: T;
+  isCashDrawerEnabled?: T;
   stockOrderWorkflow?:
     | T
     | {
@@ -3361,6 +3407,36 @@ export interface RawMaterialBillingsSelect<T extends boolean = true> {
   createdBy?: T;
   createdByName?: T;
   createdByRole?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "raw-material-instock-entries_select".
+ */
+export interface RawMaterialInstockEntriesSelect<T extends boolean = true> {
+  invoiceNumber?: T;
+  date?: T;
+  items?:
+    | T
+    | {
+        rawMaterial?: T;
+        dealer?: T;
+        instock?: T;
+        unit?: T;
+        notes?: T;
+        status?: T;
+        id?: T;
+      };
+  company?: T;
+  branch?: T;
+  status?: T;
+  notes?: T;
+  createdBy?: T;
+  createdByName?: T;
+  createdByRole?: T;
+  storeKeeperId?: T;
+  storeKeeperName?: T;
   updatedAt?: T;
   createdAt?: T;
 }

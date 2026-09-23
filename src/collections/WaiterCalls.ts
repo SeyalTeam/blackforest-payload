@@ -59,7 +59,17 @@ const WaiterCalls: CollectionConfig = {
         description: 'The waiter assigned or responding to this call.',
       },
       filterOptions: {
-        role: { in: ['waiter', 'supervisor', 'cashier'] },
+        role: {
+          in: [
+            'waiter',
+            'supervisor',
+            'cashier',
+            'manager',
+            'branch',
+            'admin',
+            'superadmin',
+          ],
+        },
       },
     },
     {

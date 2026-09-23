@@ -473,5 +473,201 @@ describe('API & Tables integration', () => {
       overrideAccess: true,
     })
   }, 30000)
+
+  it('allows allocating a manager role user to tables and reallocating tables without validation error', async () => {
+    // 0. Clean up leftovers
+    await payload.delete({
+      collection: 'users',
+      where: {
+        email: { in: ['manager_waiter_test@test.com'] },
+      },
+      overrideAccess: true,
+    })
+    await payload.delete({
+      collection: 'employees',
+      where: {
+        employeeId: { equals: 'EMP_MGR_TEST' },
+      },
+      overrideAccess: true,
+    })
+    await payload.delete({
+      collection: 'branches',
+      where: {
+        name: { equals: 'Manager Alloc Branch' },
+      },
+      overrideAccess: true,
+    })
+    await payload.delete({
+      collection: 'companies',
+      where: {
+        name: { equals: 'Manager Alloc Company' },
+      },
+      overrideAccess: true,
+    })
+
+    // 1. Setup Company & Branch
+    const company = await payload.create({
+      collection: 'companies',
+      data: {
+        name: 'Manager Alloc Company',
+      },
+      req: { user: { role: 'superadmin' } } as any,
+      overrideAccess: true,
+    })
+
+    const branch = await payload.create({
+      collection: 'branches',
+      data: {
+        company: company.id,
+        name: 'Manager Alloc Branch',
+        address: '100 Manager Way',
+        gst: 'GST99999',
+        gstMode: 'inclusive',
+        phone: '9876543299',
+        email: 'mgrbranch@test.com',
+        branchPin: '8888',
+      },
+      req: { user: { role: 'superadmin' } } as any,
+      overrideAccess: true,
+    })
+
+    // 2. Create Employee & User with MANAGER role
+    const employee = await payload.create({
+      collection: 'employees',
+      data: {
+        name: 'Jane Manager',
+        employeeId: 'EMP_MGR_TEST',
+        phoneNumber: '9876543298',
+        team: 'manager',
+        status: 'active',
+      },
+      req: { user: { role: 'superadmin' } } as any,
+      overrideAccess: true,
+    })
+
+    const managerUser = await payload.create({
+      collection: 'users',
+      data: {
+        email: 'manager_waiter_test@test.com',
+        password: 'password',
+        role: 'manager',
+        name: 'Jane Manager',
+        employee: employee.id,
+      },
+      req: { user: { role: 'superadmin' } } as any,
+      overrideAccess: true,
+    })
+
+    // 3. Create Table Config with initial allocation to Manager User
+    const tableConfig = await payload.create({
+      collection: 'tables',
+      data: {
+        branch: branch.id,
+        sections: [
+          {
+            name: 'AC Dining',
+            tableCount: 10,
+            waiterAllocations: [
+              {
+                tableNumber: '1',
+                waiter: managerUser.id,
+              },
+              {
+                tableNumber: '2',
+                waiter: managerUser.id,
+              },
+            ],
+          },
+        ],
+      },
+      req: { user: { role: 'superadmin' } } as any,
+      overrideAccess: true,
+    })
+
+    expect(tableConfig).toBeDefined()
+    expect(tableConfig.sections![0].waiterAllocations).toHaveLength(2)
+
+    // 4. Test allocateTableWaiterHandler reallocating table 2 to unassigned (waiterId: '')
+    const { allocateTableWaiterHandler } = await import('@/endpoints/allocateTableWaiter')
+    const unassignReq = {
+      payload,
+      url: 'http://localhost/api/widgets/allocate-table-waiter',
+      json: async () => ({
+        branchId: branch.id,
+        sectionName: 'AC Dining',
+        tableNumber: '2',
+        waiterId: '',
+      }),
+      user: { role: 'superadmin' },
+    } as any
+
+    const unassignRes = await allocateTableWaiterHandler(unassignReq)
+    expect(unassignRes.status).toBe(200)
+
+    // 5. Test allocateTableWaiterHandler allocating table 3 to managerUser
+    const assignReq = {
+      payload,
+      url: 'http://localhost/api/widgets/allocate-table-waiter',
+      json: async () => ({
+        branchId: branch.id,
+        sectionName: 'AC Dining',
+        tableNumber: '3',
+        waiterId: managerUser.id,
+      }),
+      user: { role: 'superadmin' },
+    } as any
+
+    const assignRes = await allocateTableWaiterHandler(assignReq)
+    expect(assignRes.status).toBe(200)
+
+    // 6. Verify table document state
+    const freshTableConfig = await payload.findByID({
+      collection: 'tables',
+      id: tableConfig.id,
+      depth: 0,
+      overrideAccess: true,
+    })
+    const allocations = freshTableConfig.sections![0].waiterAllocations as any[]
+    expect(allocations).toHaveLength(2)
+    const tableNumbers = allocations.map((a) => a.tableNumber).sort()
+    expect(tableNumbers).toEqual(['1', '3'])
+
+    // Clean up
+    await payload.delete({
+      collection: 'tables',
+      where: {
+        branch: { equals: branch.id },
+      },
+      overrideAccess: true,
+    })
+    await payload.delete({
+      collection: 'users',
+      where: {
+        id: { equals: managerUser.id },
+      },
+      overrideAccess: true,
+    })
+    await payload.delete({
+      collection: 'employees',
+      where: {
+        id: { equals: employee.id },
+      },
+      overrideAccess: true,
+    })
+    await payload.delete({
+      collection: 'branches',
+      where: {
+        id: { equals: branch.id },
+      },
+      overrideAccess: true,
+    })
+    await payload.delete({
+      collection: 'companies',
+      where: {
+        id: { equals: company.id },
+      },
+      overrideAccess: true,
+    })
+  }, 30000)
 })
 
