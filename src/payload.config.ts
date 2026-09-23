@@ -144,6 +144,7 @@ import { getTimeWiseReportHandler } from './endpoints/getTimeWiseReport'
 import { toggleFavoriteRuleHandler } from './endpoints/toggleFavoriteRule'
 import { updateFavoriteRuleProductsHandler } from './endpoints/updateFavoriteRuleProducts'
 import { toggleFavoriteCategoryRuleHandler } from './endpoints/toggleFavoriteCategoryRule'
+import { toggleBranchClosingAccessHandler } from './endpoints/toggleBranchClosingAccess'
 import { updateFavoriteCategoryRuleCategoriesHandler } from './endpoints/updateFavoriteCategoryRuleCategories'
 import { AppVersionSettings } from './globals/AppVersionSettings'
 import { checkAppVersionHandler } from './endpoints/checkAppVersion'
@@ -948,6 +949,11 @@ export default buildConfig({
       path: '/call-signal',
       method: 'post',
       handler: callSignalHandler,
+    },
+    {
+      path: '/branches/toggle-closing-access',
+      method: 'post',
+      handler: toggleBranchClosingAccessHandler,
     },
   ],
 

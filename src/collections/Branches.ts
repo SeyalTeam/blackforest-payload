@@ -18,40 +18,47 @@ export const Branches: CollectionConfig = {
           nextData.branchPin = normalizedBranchPin
         }
 
-        const resolvedBranchPin =
-          normalizedBranchPin ||
-          (operation === 'update'
-            ? (originalDoc as { branchPin?: string | null } | undefined)?.branchPin?.trim()
-            : undefined)
+        // Only validate duplicate PIN if PIN is being created or explicitly updated
+        if (operation === 'create' || normalizedBranchPin !== undefined) {
+          const resolvedBranchPin =
+            normalizedBranchPin ||
+            (operation === 'update'
+              ? (originalDoc as { branchPin?: string | null } | undefined)?.branchPin?.trim()
+              : undefined)
 
-        if (!resolvedBranchPin) {
-          return nextData
-        }
+          if (!resolvedBranchPin) {
+            return nextData
+          }
 
-        const existingBranches = await req.payload.find({
-          collection: 'branches',
-          where: {
-            branchPin: {
-              equals: resolvedBranchPin,
+          const existingBranches = await req.payload.find({
+            collection: 'branches',
+            where: {
+              branchPin: {
+                equals: resolvedBranchPin,
+              },
             },
-          },
-          limit: 2,
-          depth: 0,
-          overrideAccess: true,
-        })
+            limit: 2,
+            depth: 0,
+            overrideAccess: true,
+          })
 
-        const currentBranchID =
-          operation === 'update'
-            ? String((originalDoc as { id?: string } | undefined)?.id || '')
-            : ''
-        const duplicateBranch = existingBranches.docs.find(
-          (branch) => String(branch.id) !== currentBranchID,
-        )
-
-        if (duplicateBranch) {
-          throw new Error(
-            `Branch PIN ${resolvedBranchPin} is already assigned to ${duplicateBranch.name}. Use a unique 4-digit PIN.`,
+          const currentBranchID =
+            operation === 'update'
+              ? String(
+                  (originalDoc as { id?: string; _id?: string } | undefined)?.id ||
+                    (originalDoc as any)?._id ||
+                    '',
+                )
+              : ''
+          const duplicateBranch = existingBranches.docs.find(
+            (branch) => String(branch.id || (branch as any)._id) !== currentBranchID,
           )
+
+          if (duplicateBranch) {
+            throw new Error(
+              `Branch PIN ${resolvedBranchPin} is already assigned to ${duplicateBranch.name}. Use a unique 4-digit PIN.`,
+            )
+          }
         }
 
         return nextData
@@ -230,18 +237,37 @@ export const Branches: CollectionConfig = {
       if (!req.user) return false
       if (req.user.role === 'superadmin' || req.user.role === 'admin') return true
       if (req.user.role === 'manager') {
-        const userCompanies = req.user.manager_companies || [];
-        const userCompanyIds = userCompanies.map((c: any) => typeof c === 'string' ? c : (c.id || ''));
+        const userCompanies = (req.user.manager_companies || []) as any[]
+        const userCompanyIds = userCompanies
+          .map((c: any) => (typeof c === 'string' ? c : (c?.id || c?._id || '')))
+          .concat(
+            req.user.company
+              ? [typeof req.user.company === 'string' ? req.user.company : (req.user.company?.id || (req.user.company as any)?._id || '')]
+              : [],
+          )
+          .filter(Boolean)
+          .map(String)
+
         if (userCompanyIds.length > 0) {
-          return { company: { in: userCompanyIds } };
+          return { company: { in: userCompanyIds } }
         }
-        return false;
+        return false
+      }
+      if (req.user.role === 'company') {
+        const comp = req.user.company
+        const compId = typeof comp === 'string' ? comp : (comp?.id || (comp as any)?._id || '')
+        if (compId) {
+          return { company: { equals: String(compId) } }
+        }
+        return false
       }
       if (req.user.role === 'branch') {
         if (!req.user.branch) return false
         const userBranchId =
-          typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
-        return { id: { equals: userBranchId } }
+          typeof req.user.branch === 'string'
+            ? req.user.branch
+            : (req.user.branch.id || (req.user.branch as any)._id)
+        return { id: { equals: String(userBranchId) } }
       }
       return false
     },
