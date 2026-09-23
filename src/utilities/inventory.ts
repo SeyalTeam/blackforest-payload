@@ -136,14 +136,14 @@ export const getMultipleProductsStock = async (
   // Define common matching for multiple products
   const productMatch = { 'items.product': { $in: productObjectIds } }
 
+  const branchObjectId = new ObjectId(branchId)
+
   // 1. Initial Stock
   const initialStockPipeline: any[] = [
     {
       $match: {
-        $and: [
-          { $expr: { $eq: [{ $toString: '$branch' }, branchId] } },
-          { notes: 'INITIAL STOCK' },
-        ],
+        branch: branchObjectId,
+        notes: 'INITIAL STOCK',
       },
     },
   ]
@@ -163,7 +163,7 @@ export const getMultipleProductsStock = async (
   const stockInPipeline: any[] = [
     {
       $match: {
-        $expr: { $eq: [{ $toString: '$branch' }, branchId] },
+        branch: branchObjectId,
       },
     },
   ]
@@ -183,10 +183,8 @@ export const getMultipleProductsStock = async (
   const stockOutPipeline: any[] = [
     {
       $match: {
-        $and: [
-          { $expr: { $eq: [{ $toString: '$branch' }, branchId] } },
-          { status: { $ne: 'cancelled' } },
-        ],
+        branch: branchObjectId,
+        status: { $ne: 'cancelled' },
       },
     },
   ]
@@ -206,10 +204,8 @@ export const getMultipleProductsStock = async (
   const returnPipeline: any[] = [
     {
       $match: {
-        $and: [
-          { $expr: { $eq: [{ $toString: '$branch' }, branchId] } },
-          { status: { $ne: 'cancelled' } },
-        ],
+        branch: branchObjectId,
+        status: { $ne: 'cancelled' },
       },
     },
   ]
@@ -229,7 +225,8 @@ export const getMultipleProductsStock = async (
   const instockPipeline: any[] = [
     {
       $match: {
-        $and: [{ $expr: { $eq: [{ $toString: '$branch' }, branchId] } }, { status: 'approved' }],
+        branch: branchObjectId,
+        status: 'approved',
       },
     },
   ]

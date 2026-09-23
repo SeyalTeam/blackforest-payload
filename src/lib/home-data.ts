@@ -14,7 +14,7 @@ import { resolveApiTokenForBranch } from "@/lib/api-token";
 import { getPublicServerURL } from "@/utilities/serverUrl";
 
 const NEXT_PUBLIC_SERVER_URL = getPublicServerURL();
-const API_BASE = `${NEXT_PUBLIC_SERVER_URL}/api`;
+const API_BASE = `http://127.0.0.1:${process.env.PORT || 3014}/api`;
 const DEFAULT_BRANCH_ID =
   process.env.DEFAULT_BRANCH_ID?.trim() ||
   process.env.NEXT_PUBLIC_DEFAULT_BRANCH_ID?.trim() ||
@@ -1779,7 +1779,7 @@ async function buildHomePageData(branchId: string): Promise<HomePageData> {
 const getCachedHomePageData = unstable_cache(
   async (branchId: string) => buildHomePageData(branchId),
   ["home-page-data-v4"],
-  { revalidate: 5 },
+  { revalidate: 120 },
 );
 
 export async function getHomePageData(inputBranchId?: string): Promise<HomePageData> {
