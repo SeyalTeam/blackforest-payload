@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import QRCode from "react-qr-code";
 import { useRouter } from "next/navigation";
 import {
   clearActiveBillSession,
@@ -424,6 +425,7 @@ export default function KotPage() {
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [branchId, setBranchId] = useState("");
   const [branchName, setBranchName] = useState("VSeyal");
+  const [branchUpiId, setBranchUpiId] = useState("");
   const [sharedTableNumber, setSharedTableNumber] = useState("");
   const [isQrTableLocked, setIsQrTableLocked] = useState(false);
   const [preferredSection, setPreferredSection] = useState("");
@@ -446,6 +448,7 @@ export default function KotPage() {
   const [isSubmittingBill, setIsSubmittingBill] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("cash");
   const [upiBankTransactionId, setUpiBankTransactionId] = useState("");
+  const [showUpiPayment, setShowUpiPayment] = useState(false);
   const [billError, setBillError] = useState("");
   const [showBillDisabledReason, setShowBillDisabledReason] = useState(false);
   const [orderMessage, setOrderMessage] = useState("");
@@ -467,6 +470,7 @@ export default function KotPage() {
       setHasAccess(true);
       setBranchId(session.branchId);
       setBranchName(session.branchName || "VSeyal");
+      setBranchUpiId(session.upiId || "");
       const tableSession = readTableSession(session.branchId);
       if (tableSession?.tableNumber) {
         setSharedTableNumber(tableSession.tableNumber);
@@ -785,6 +789,13 @@ export default function KotPage() {
             undeliveredPreviousItems,
           )}.`
         : "";
+
+  const upiIntentUrl = useMemo(() => {
+    if (!branchUpiId || !matchingPreviousBill) return "";
+    const amount = (matchingPreviousBill.totalAmount ?? 0).toFixed(2);
+    return `upi://pay?pa=${branchUpiId}&pn=${encodeURIComponent(branchName)}&am=${amount}&cu=INR`;
+  }, [branchUpiId, branchName, matchingPreviousBill]);
+
   const normalizedCustomerPhoneDraft = normalizePhone(customerPhoneDraft);
   const normalizedCustomerPhone = normalizePhone(customerPhone);
   const isGenericCustomerName =
@@ -1541,22 +1552,8 @@ export default function KotPage() {
                 })}
               </div>
               
-              {selectedPaymentMethod === "upi" && (
-                <div className={styles.transactionInputRow}>
-                  <input
-                    type="text"
-                    placeholder="Enter UPI Transaction ID / UTR"
-                    value={upiBankTransactionId}
-                    onChange={(e) => {
-                      setUpiBankTransactionId(e.target.value);
-                      setBillError("");
-                    }}
-                    className={styles.sharedTableInput}
-                    disabled={isSubmittingBill}
-                  />
-                </div>
-              )}
-
+              {/* UPI input moved to modal */}
+              
               <button
                 type="button"
                 className={`${styles.billButton} ${!canCompleteBill ? styles.billButtonDisabled : ""}`}
@@ -1568,7 +1565,12 @@ export default function KotPage() {
                   }
 
                   setShowBillDisabledReason(false);
-                  void completeBill();
+                  
+                  if (selectedPaymentMethod === "upi") {
+                    setShowUpiPayment(true);
+                  } else {
+                    void completeBill();
+                  }
                 }}
                 disabled={isSubmittingBill}
                 aria-disabled={isSubmittingBill || !canCompleteBill}
@@ -1851,6 +1853,104 @@ export default function KotPage() {
                 onClick={saveRequestEditor}
               >
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showUpiPayment ? (
+        <div className={styles.modalBackdrop} onClick={() => setShowUpiPayment(false)}>
+          <div
+            className={styles.customerModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="upi-payment-title"
+            onClick={(event) => event.stopPropagation()}
+            style={{ maxWidth: "400px" }}
+          >
+            <div className={styles.customerModalHeader}>
+              <div style={{ width: "24px" }} />
+              <h2 id="upi-payment-title" className={styles.customerModalTitle}>
+                Pay via UPI
+              </h2>
+              <button
+                type="button"
+                className={styles.closeModalButton}
+                onClick={() => setShowUpiPayment(false)}
+                aria-label="Close"
+              >
+                <CloseIcon className={styles.closeModalIcon} />
+              </button>
+            </div>
+            <div className={styles.customerModalBody} style={{ textAlign: "center", padding: "1rem" }}>
+              {upiIntentUrl ? (
+                <>
+                  <div style={{ marginBottom: "1rem", marginTop: "1rem" }}>
+                    <div style={{ padding: "1rem", background: "#fff", display: "inline-block", borderRadius: "12px", border: "1px solid #ddd" }}>
+                      <QRCode value={upiIntentUrl} size={180} />
+                    </div>
+                  </div>
+                  <p style={{ marginBottom: "1.5rem", color: "#666", fontSize: "0.95rem", lineHeight: 1.4 }}>
+                    Scan QR to pay <strong>₹{(matchingPreviousBill?.totalAmount ?? 0).toFixed(2)}</strong> to {branchName}
+                  </p>
+                  
+                  <div style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem" }}>
+                    <a
+                      href={upiIntentUrl}
+                      style={{
+                        flex: 1,
+                        background: "#0d65ff",
+                        color: "#fff",
+                        padding: "0.875rem 1rem",
+                        borderRadius: "8px",
+                        textDecoration: "none",
+                        fontWeight: "600",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "0.5rem"
+                      }}
+                    >
+                      Pay Now on Mobile
+                    </a>
+                  </div>
+                </>
+              ) : (
+                <p style={{ margin: "2rem 0", color: "#d93025" }}>
+                  UPI ID is not configured for this branch. Please contact support.
+                </p>
+              )}
+
+              <div className={styles.customerModalSection} style={{ textAlign: "left", marginBottom: "1.5rem" }}>
+                <label className={styles.customerModalLabel} style={{ fontSize: "0.85rem" }}>
+                  Optional: UPI Transaction ID / UTR
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 31234567890"
+                  value={upiBankTransactionId}
+                  onChange={(e) => {
+                    setUpiBankTransactionId(e.target.value);
+                    setBillError("");
+                  }}
+                  className={styles.customerModalInput}
+                  disabled={isSubmittingBill}
+                />
+              </div>
+
+              {billError ? <div style={{ color: "#d93025", fontSize: "0.875rem", marginBottom: "1rem" }}>{billError}</div> : null}
+
+              <button
+                type="button"
+                className={styles.saveCustomerButton}
+                onClick={() => {
+                  void completeBill();
+                }}
+                disabled={isSubmittingBill}
+                style={{ width: "100%", padding: "1rem" }}
+              >
+                {isSubmittingBill ? "Completing..." : "Verify & Complete Bill"}
               </button>
             </div>
           </div>

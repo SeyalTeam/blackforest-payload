@@ -1,7 +1,9 @@
 export const SESSION_BRANCH_ID_KEY = "blackforest-order-web-branch-id";
 export const SESSION_BRANCH_NAME_KEY = "blackforest-order-web-branch-name";
+export const SESSION_UPI_ID_KEY = "blackforest-order-web-upi-id";
 export const COOKIE_BRANCH_ID_KEY = "blackforest-order-web-branch-id";
 export const COOKIE_BRANCH_NAME_KEY = "blackforest-order-web-branch-name";
+export const COOKIE_UPI_ID_KEY = "blackforest-order-web-upi-id";
 export const COOKIE_ADMIN_TOKEN_KEY = "blackforest-order-web-admin-token";
 export const SESSION_TABLE_NUMBER_KEY = "blackforest-order-web-table-number";
 export const SESSION_TABLE_SECTION_KEY = "blackforest-order-web-table-section";
@@ -21,6 +23,7 @@ export const SESSION_ACTIVE_BILL_CUSTOMER_PHONE_KEY =
 export type BranchSession = {
   branchId: string;
   branchName: string;
+  upiId: string;
 };
 
 export type TableSession = {
@@ -92,18 +95,21 @@ export function readBranchSession(): BranchSession | null {
   return {
     branchId,
     branchName: getStorageItem(SESSION_BRANCH_NAME_KEY),
+    upiId: getStorageItem(SESSION_UPI_ID_KEY),
   };
 }
 
-export function writeBranchSession(branchId: string, branchName: string) {
+export function writeBranchSession(branchId: string, branchName: string, upiId: string = "") {
   if (typeof window === "undefined") {
     return;
   }
 
   setStorageItem(SESSION_BRANCH_ID_KEY, branchId);
   setStorageItem(SESSION_BRANCH_NAME_KEY, branchName);
+  setStorageItem(SESSION_UPI_ID_KEY, upiId);
   writeCookie(COOKIE_BRANCH_ID_KEY, branchId);
   writeCookie(COOKIE_BRANCH_NAME_KEY, branchName);
+  writeCookie(COOKIE_UPI_ID_KEY, upiId);
 }
 
 export function clearBranchSession() {

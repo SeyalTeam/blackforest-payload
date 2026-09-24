@@ -465,7 +465,11 @@ export default function HomePageClient({
 
       setBranchId(resolvedBranchId);
       setBranchNameOverride(restoredBranchName);
-      writeBranchSession(resolvedBranchId, initialHomeData?.branchName || restoredBranchName);
+      writeBranchSession(
+        resolvedBranchId,
+        initialHomeData?.branchName || restoredBranchName,
+        initialHomeData?.upiId || cachedSession?.upiId || "",
+      );
     };
 
     initializeBranch();
@@ -509,7 +513,7 @@ export default function HomePageClient({
 
       if (cachedData && !isDisposed) {
         setHomeData((current) => (current?.branchId === branchId ? current : cachedData));
-        writeBranchSession(branchId, cachedData.branchName || "");
+        writeBranchSession(branchId, cachedData.branchName || "", cachedData.upiId || "");
       }
 
       if (initialDataForBranch && !isDisposed) {
@@ -517,7 +521,7 @@ export default function HomePageClient({
           current?.branchId === branchId ? current : initialDataForBranch,
         );
         writeCachedHomeData(branchId, initialDataForBranch);
-        writeBranchSession(branchId, initialDataForBranch.branchName || "");
+        writeBranchSession(branchId, initialDataForBranch.branchName || "", initialDataForBranch.upiId || "");
       }
 
       if (cachedData || initialDataForBranch) {
@@ -530,7 +534,7 @@ export default function HomePageClient({
         const payload = await fetchHomeDataForBranch(branchId);
         if (isDisposed) return;
         setHomeData(payload);
-        writeBranchSession(branchId, payload.branchName || "");
+        writeBranchSession(branchId, payload.branchName || "", payload.upiId || "");
         writeCachedHomeData(branchId, payload);
         setErrorMessage("");
       } catch (error) {
@@ -575,7 +579,7 @@ export default function HomePageClient({
         const payload = await fetchHomeDataForBranch(branchId);
         if (isDisposed) return;
         setHomeData(payload);
-        writeBranchSession(branchId, payload.branchName || "");
+        writeBranchSession(branchId, payload.branchName || "", payload.upiId || "");
         writeCachedHomeData(branchId, payload);
         setErrorMessage("");
       } catch {

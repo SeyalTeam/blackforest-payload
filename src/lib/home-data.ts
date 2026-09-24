@@ -1003,11 +1003,13 @@ async function fetchBranchMeta(branchId: string) {
     return {
       name: readText(branchMap?.name) || "VSeyal",
       companyId: extractRefId(branchMap?.company),
+      upiId: readText(branchMap?.upiId) || "",
     };
   } catch {
     return {
       name: "VSeyal",
       companyId: "",
+      upiId: "",
     };
   }
 }
@@ -1765,6 +1767,7 @@ async function buildHomePageData(branchId: string): Promise<HomePageData> {
   return {
     branchId,
     branchName: branchMeta.name,
+    upiId: branchMeta.upiId,
     billingPrinterIp: printerInfo.billingPrinterIp,
     kotPrinterIps: printerInfo.kotPrinterIps,
     offerSlides,

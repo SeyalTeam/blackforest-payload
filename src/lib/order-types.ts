@@ -50,6 +50,7 @@ export type OfferSlide = {
 export type HomePageData = {
   branchId: string;
   branchName: string;
+  upiId: string;
   billingPrinterIp: string;
   kotPrinterIps: string[];
   offerSlides: OfferSlide[];
