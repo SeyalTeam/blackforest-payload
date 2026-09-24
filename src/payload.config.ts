@@ -58,6 +58,7 @@ import { updateBillVerificationStatusHandler } from './endpoints/updateBillVerif
 import { updateBillTransactionIdHandler } from './endpoints/updateBillTransactionId'
 import { getCategoryWiseReportHandler } from './endpoints/getCategoryWiseReport'
 import { getCategoryWiseReportPDFHandler } from './endpoints/getCategoryWiseReportPDF'
+import { PaymentSettings } from './globals/PaymentSettings'
 import { getProductWiseReportHandler } from './endpoints/getProductWiseReport'
 import { getProductPreparationBillDetailsHandler } from './endpoints/getProductPreparationBillDetails'
 import { getClosingEntryReportHandler } from './endpoints/getClosingEntryReport'
@@ -965,6 +966,7 @@ export default buildConfig({
   ],
 
   globals: [
+    PaymentSettings,
     IPSettings,
     JarvisGlobal,
     DashboardGlobal,
