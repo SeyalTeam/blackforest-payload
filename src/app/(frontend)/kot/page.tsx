@@ -1922,36 +1922,7 @@ export default function KotPage() {
                 </p>
               )}
 
-              <div className={styles.customerModalSection} style={{ textAlign: "left", marginBottom: "1.5rem" }}>
-                <label className={styles.customerModalLabel} style={{ fontSize: "0.85rem" }}>
-                  Optional: UPI Transaction ID / UTR
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 31234567890"
-                  value={upiBankTransactionId}
-                  onChange={(e) => {
-                    setUpiBankTransactionId(e.target.value);
-                    setBillError("");
-                  }}
-                  className={styles.customerModalInput}
-                  disabled={isSubmittingBill}
-                />
-              </div>
-
               {billError ? <div style={{ color: "#d93025", fontSize: "0.875rem", marginBottom: "1rem" }}>{billError}</div> : null}
-
-              <button
-                type="button"
-                className={styles.saveCustomerButton}
-                onClick={() => {
-                  void completeBill();
-                }}
-                disabled={isSubmittingBill}
-                style={{ width: "100%", padding: "1rem" }}
-              >
-                {isSubmittingBill ? "Completing..." : "Verify & Complete Bill"}
-              </button>
             </div>
           </div>
         </div>
