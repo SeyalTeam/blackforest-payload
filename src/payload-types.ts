@@ -322,7 +322,11 @@ export interface Branch {
    * Manual 4-digit PIN used for branch staff login verification.
    */
   branchPin: string;
-  bankDetails?: string | null;
+  bankName?: string | null;
+  accountNumber?: string | null;
+  ifscCode?: string | null;
+  micrCode?: string | null;
+  branchDetails?: string | null;
   upiId?: string | null;
   qrUpload?: (string | null) | Media;
   /**
@@ -2630,7 +2634,11 @@ export interface BranchesSelect<T extends boolean = true> {
   phone?: T;
   email?: T;
   branchPin?: T;
-  bankDetails?: T;
+  bankName?: T;
+  accountNumber?: T;
+  ifscCode?: T;
+  micrCode?: T;
+  branchDetails?: T;
   upiId?: T;
   qrUpload?: T;
   ipAddress?: T;

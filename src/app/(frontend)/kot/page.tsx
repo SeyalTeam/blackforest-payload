@@ -445,6 +445,7 @@ export default function KotPage() {
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [isSubmittingBill, setIsSubmittingBill] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("cash");
+  const [upiBankTransactionId, setUpiBankTransactionId] = useState("");
   const [billError, setBillError] = useState("");
   const [showBillDisabledReason, setShowBillDisabledReason] = useState(false);
   const [orderMessage, setOrderMessage] = useState("");
@@ -1145,6 +1146,7 @@ export default function KotPage() {
           billId: matchingPreviousBill.billId,
           paymentMethod: selectedPaymentMethod,
           branchId,
+          upiBankTransactionId: selectedPaymentMethod === "upi" ? upiBankTransactionId : undefined,
         }),
       });
 
@@ -1538,6 +1540,22 @@ export default function KotPage() {
                   );
                 })}
               </div>
+              
+              {selectedPaymentMethod === "upi" && (
+                <div className={styles.transactionInputRow}>
+                  <input
+                    type="text"
+                    placeholder="Enter UPI Transaction ID / UTR"
+                    value={upiBankTransactionId}
+                    onChange={(e) => {
+                      setUpiBankTransactionId(e.target.value);
+                      setBillError("");
+                    }}
+                    className={styles.sharedTableInput}
+                    disabled={isSubmittingBill}
+                  />
+                </div>
+              )}
 
               <button
                 type="button"

@@ -147,8 +147,44 @@ export const Branches: CollectionConfig = {
       },
     },
     {
-      name: 'bankDetails',
-      label: 'Bank Details',
+      name: 'bankName',
+      label: 'Bank Name',
+      type: 'text',
+      required: false,
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'accountNumber',
+      label: 'Account Number',
+      type: 'text',
+      required: false,
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'ifscCode',
+      label: 'IFSC Code',
+      type: 'text',
+      required: false,
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'micrCode',
+      label: 'MICR Code',
+      type: 'text',
+      required: false,
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'branchDetails',
+      label: 'Branch Details',
       type: 'textarea',
       required: false,
       admin: {
