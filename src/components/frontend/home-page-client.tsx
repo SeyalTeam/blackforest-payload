@@ -402,6 +402,7 @@ export default function HomePageClient({
   const [requestedTableSection, setRequestedTableSection] = useState(
     initialRequestedTableSection,
   );
+  const [searchQuery, setSearchQuery] = useState("");
   const [activeOfferIndex, setActiveOfferIndex] = useState(0);
   const [favoriteProducts, setFavoriteProducts] = useState<FavoriteProductCard[]>(() =>
     (initialHomeData?.ruleSections ?? []).flatMap((section, sectionIndex) =>
@@ -611,6 +612,26 @@ export default function HomePageClient({
     () => homeData?.ruleSections ?? [],
     [homeData?.ruleSections],
   );
+
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const query = searchQuery.toLowerCase();
+    
+    const seen = new Set<string>();
+    const results: Product[] = [];
+    
+    for (const section of orderedSections) {
+      for (const product of section.products) {
+        if (!seen.has(product.id) && product.name.toLowerCase().includes(query)) {
+          seen.add(product.id);
+          results.push(product);
+        }
+      }
+    }
+    
+    return results;
+  }, [searchQuery, orderedSections]);
+
   const baseFavoriteProducts = useMemo<FavoriteProductCard[]>(
     () =>
       orderedSections.flatMap((section, sectionIndex) =>
@@ -1183,11 +1204,45 @@ export default function HomePageClient({
             </div>
           ) : (
             <>
-              <button type="button" className={styles.heroSearch}>
+              <div className={styles.heroSearch}>
                 <SearchIcon className={styles.inlineIconLarge} />
-                <span>Search for &quot;Pizza&quot;</span>
+                <input
+                  type="text"
+                  placeholder='Search for "Pizza"'
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    border: "none",
+                    outline: "none",
+                    background: "transparent",
+                    color: "inherit",
+                    fontSize: "inherit",
+                    width: "100%",
+                  }}
+                />
+                {searchQuery && searchResults.length > 0 && (
+                  <div className={styles.searchResults}>
+                    {searchResults.map((product) => {
+                      const appliedPriceProduct = applySectionPrice(product, requestedTableSection);
+                      return (
+                        <div key={product.id} className={styles.searchResultItem} onClick={() => { addItem(appliedPriceProduct); setSearchQuery(""); }}>
+                          <div className={styles.searchResultInfo}>
+                            <div className={styles.searchResultName}>{product.name}</div>
+                            <div className={styles.searchResultPrice}>₹{appliedPriceProduct.price}</div>
+                          </div>
+                          <button className={styles.searchResultAdd} onClick={(e) => { e.stopPropagation(); addItem(appliedPriceProduct); setSearchQuery(""); }}>+</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {searchQuery && searchResults.length === 0 && (
+                  <div className={styles.searchResults}>
+                    <div style={{ padding: '12px', textAlign: 'center', color: '#8c8c94' }}>No products found</div>
+                  </div>
+                )}
                 <MicIcon className={styles.inlineIconLarge} />
-              </button>
+              </div>
 
               {activeOffer ? (
                 <div className={styles.heroContent}>

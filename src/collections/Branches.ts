@@ -147,6 +147,34 @@ export const Branches: CollectionConfig = {
       },
     },
     {
+      name: 'bankDetails',
+      label: 'Bank Details',
+      type: 'textarea',
+      required: false,
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'upiId',
+      label: 'UPI ID',
+      type: 'text',
+      required: false,
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'qrUpload',
+      label: 'QR Upload',
+      type: 'upload',
+      relationTo: 'media',
+      required: false,
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
       name: 'ipAddress',
       type: 'text',
       label: 'Branch IP Address (from ISP)',
