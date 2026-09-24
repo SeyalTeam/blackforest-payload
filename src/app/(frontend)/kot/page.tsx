@@ -793,7 +793,8 @@ export default function KotPage() {
   const upiIntentUrl = useMemo(() => {
     if (!branchUpiId || !matchingPreviousBill) return "";
     const amount = (matchingPreviousBill.totalAmount ?? 0).toFixed(2);
-    return `upi://pay?pa=${branchUpiId}&pn=${encodeURIComponent(branchName)}&am=${amount}&cu=INR`;
+    const trId = matchingPreviousBill.billId || `TR${Date.now()}`;
+    return `upi://pay?pa=${branchUpiId}&pn=${encodeURIComponent(branchName)}&mc=5812&tr=${trId}&am=${amount}&cu=INR`;
   }, [branchUpiId, branchName, matchingPreviousBill]);
 
   const normalizedCustomerPhoneDraft = normalizePhone(customerPhoneDraft);
