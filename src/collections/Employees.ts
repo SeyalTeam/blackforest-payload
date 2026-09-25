@@ -62,6 +62,14 @@ const Employees: CollectionConfig = {
       required: false,
     },
     {
+      name: 'workingHours',
+      type: 'number',
+      required: false,
+      admin: {
+        description: 'Working hours for the employee',
+      },
+    },
+    {
       name: 'status',
       type: 'select',
       options: [

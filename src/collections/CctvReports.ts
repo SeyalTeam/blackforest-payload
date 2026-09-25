@@ -36,12 +36,31 @@ const CctvReports: CollectionConfig = {
             data.staff = req.user.id
             data.status = 'st_replied'
           }
+          // If watcher reply message is added/changed
+          if (data.watcherReplyMessage && data.watcherReplyMessage !== originalDoc?.watcherReplyMessage) {
+            data.status = 'watcher_replied'
+          }
         }
         return data
       },
     ],
   },
   fields: [
+    {
+      name: 'watcherReplyMessage',
+      label: 'Watcher Reply',
+      type: 'textarea',
+      admin: {
+        description: 'Reply from the watcher to the manager',
+      }
+    },
+    {
+      name: 'watcherReplyScreenshot',
+      label: 'Watcher Reply Screenshot',
+      type: 'upload',
+      relationTo: 'media',
+      required: false,
+    },
     {
       name: 'branch',
       type: 'relationship',
@@ -60,6 +79,7 @@ const CctvReports: CollectionConfig = {
         { label: 'Pending', value: 'pending' },
         { label: 'Mng Replied', value: 'mng_replied' },
         { label: 'ST Replied', value: 'st_replied' },
+        { label: 'Watcher Replied', value: 'watcher_replied' },
       ],
       admin: {
         position: 'sidebar',

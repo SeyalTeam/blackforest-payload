@@ -3227,13 +3227,13 @@ const Billings: CollectionConfig = {
           const skipCustomerRewardProcessing = Boolean(requestContext?.skipCustomerRewardProcessing)
           const skipOfferCounterProcessing = Boolean(requestContext?.skipOfferCounterProcessing)
 
-          // 1. Send WhatsApp Notification via Ownchat if finalized
+          // 1. Send WhatsApp Notification via Ownchat only when settled
           const skipWhatsAppNotification = Boolean(requestContext?.skipWhatsAppNotification)
-          const isFinalized = isBillingFinalizedStatus(doc.status)
+          const isSettled = doc.status === 'settled'
           const customerPhone = doc.customerDetails?.phoneNumber
           const whatsappAlreadySent = Boolean(doc.whatsappSent)
 
-          if (isFinalized && customerPhone && !whatsappAlreadySent && !skipWhatsAppNotification) {
+          if (isSettled && customerPhone && !whatsappAlreadySent && !skipWhatsAppNotification) {
             try {
               const success = await sendWhatsAppBill({
                 billId: doc.id,
