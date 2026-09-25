@@ -2169,6 +2169,9 @@ const Billings: CollectionConfig = {
       fields: ['branch', 'createdAt'],
     },
     {
+      fields: ['branch', 'createdAt', 'status'],
+    },
+    {
       fields: ['branch', 'status', 'createdAt'],
     },
     {

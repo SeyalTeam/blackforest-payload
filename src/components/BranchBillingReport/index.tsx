@@ -116,12 +116,6 @@ const BRANCH_BILLING_REPORT_QUERY = `
         trendPercentage
         medianAmount
       }
-      heatmapData {
-        day
-        hour
-        amount
-        count
-      }
     }
   }
 `

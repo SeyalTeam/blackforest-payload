@@ -97,6 +97,14 @@ const GST_REPORT_QUERY = `
         gstExclusiveTaxableAmount
         nonGstAmount
       }
+    }
+  }
+`
+
+
+const GST_PRODUCT_QUERY = `
+  query GSTProductReport($filter: BranchBillingReportFilterInput) {
+    branchBillingReport(filter: $filter) {
       productGstStats {
         productName
         gstRate
@@ -105,6 +113,13 @@ const GST_REPORT_QUERY = `
         gstAmount
         totalAmount
       }
+    }
+  }
+`
+
+const GST_CATEGORY_QUERY = `
+  query GSTCategoryReport($filter: BranchBillingReportFilterInput) {
+    branchBillingReport(filter: $filter) {
       categoryGstStats {
         categoryName
         count
@@ -112,6 +127,13 @@ const GST_REPORT_QUERY = `
         gstAmount
         totalAmount
       }
+    }
+  }
+`
+
+const GST_DEALER_QUERY = `
+  query GSTDealerReport($filter: BranchBillingReportFilterInput) {
+    branchBillingReport(filter: $filter) {
       dealerGstStats {
         dealerName
         count
@@ -296,6 +318,57 @@ const GSTReport: React.FC = () => {
   const [categorySearchValue, setCategorySearchValue] = useState('')
   const [dealerSearchValue, setDealerSearchValue] = useState('')
   const [page, setPage] = useState(1)
+
+  const [productData, setProductData] = useState<ProductGSTStat[] | null>(null)
+  const [categoryData, setCategoryData] = useState<CategoryGSTStat[] | null>(null)
+  const [dealerData, setDealerData] = useState<DealerGSTStat[] | null>(null)
+
+  const [loadingProducts, setLoadingProducts] = useState(false)
+  const [loadingCategories, setLoadingCategories] = useState(false)
+  const [loadingDealers, setLoadingDealers] = useState(false)
+
+  const [showProducts, setShowProducts] = useState(false)
+  const [showCategories, setShowCategories] = useState(false)
+  const [showDealers, setShowDealers] = useState(false)
+
+  const fetchSubReport = async (queryName: string, queryStr: string, setState: any, setLoading: any) => {
+    if (!startDate || !endDate) return;
+    setLoading(true);
+    try {
+      const startStr = toLocalDateStr(startDate)
+      const endStr = toLocalDateStr(endDate)
+      const response = await fetch('/api/graphql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: queryStr,
+          variables: { filter: { startDate: startStr, endDate: endStr, branch: selectedBranch, gstFilter: gstFilter } },
+        }),
+      })
+      if (!response.ok) throw new Error('Failed to fetch')
+      const json = await response.json()
+      if (json.errors) throw new Error(json.errors[0].message)
+      const rep = json.data?.branchBillingReport
+      if (queryName === 'products') setState(rep.productGstStats)
+      if (queryName === 'categories') setState(rep.categoryGstStats)
+      if (queryName === 'dealers') setState(rep.dealerGstStats)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    // Reset states on filter change
+    setProductData(null)
+    setCategoryData(null)
+    setDealerData(null)
+    setShowProducts(false)
+    setShowCategories(false)
+    setShowDealers(false)
+  }, [startDate, endDate, selectedBranch, gstFilter])
+
   const requestIdRef = useRef(0)
 
   const formatValue = (val: number) => {
@@ -449,10 +522,10 @@ const GSTReport: React.FC = () => {
   }, [searchValue])
 
   const filteredProducts = useMemo(() => {
-    if (!data?.productGstStats) return []
+    if (!productData) return []
     const term = productSearchValue.trim().toLowerCase()
-    if (!term) return data.productGstStats
-    return data.productGstStats.filter((p) => p.productName.toLowerCase().includes(term))
+    if (!term) return productData
+    return productData.filter((p) => p.productName.toLowerCase().includes(term))
   }, [data, productSearchValue])
 
   const productTotals = useMemo(() => {
@@ -469,10 +542,10 @@ const GSTReport: React.FC = () => {
   }, [filteredProducts])
 
   const filteredCategories = useMemo(() => {
-    if (!data?.categoryGstStats) return []
+    if (!categoryData) return []
     const term = categorySearchValue.trim().toLowerCase()
-    if (!term) return data.categoryGstStats
-    return data.categoryGstStats.filter((c) => c.categoryName.toLowerCase().includes(term))
+    if (!term) return categoryData
+    return categoryData.filter((c) => c.categoryName.toLowerCase().includes(term))
   }, [data, categorySearchValue])
 
   const categoryTotals = useMemo(() => {
@@ -489,10 +562,10 @@ const GSTReport: React.FC = () => {
   }, [filteredCategories])
 
   const filteredDealers = useMemo(() => {
-    if (!data?.dealerGstStats) return []
+    if (!dealerData) return []
     const term = dealerSearchValue.trim().toLowerCase()
-    if (!term) return data.dealerGstStats
-    return data.dealerGstStats.filter((d) => d.dealerName.toLowerCase().includes(term))
+    if (!term) return dealerData
+    return dealerData.filter((d) => d.dealerName.toLowerCase().includes(term))
   }, [data, dealerSearchValue])
 
   const dealerTotals = useMemo(() => {
@@ -657,9 +730,9 @@ const GSTReport: React.FC = () => {
     let totalProdCount = 0
     let totalProdTaxable = 0
     let totalProdGST = 0
-    let totalProdTotal = 0
+    let totalProdTotal = 0;
 
-    data.productGstStats.forEach((row, index) => {
+    (productData || []).forEach((row: any, index: number) => {
       totalProdCount += row.count
       totalProdTaxable += row.taxableAmount
       totalProdGST += row.gstAmount
@@ -707,9 +780,9 @@ const GSTReport: React.FC = () => {
     let totalCatCount = 0
     let totalCatTaxable = 0
     let totalCatGST = 0
-    let totalCatTotal = 0
+    let totalCatTotal = 0;
 
-    data.categoryGstStats.forEach((row, index) => {
+    (categoryData || []).forEach((row: any, index: number) => {
       totalCatCount += row.count
       totalCatTaxable += row.taxableAmount
       totalCatGST += row.gstAmount
@@ -755,9 +828,9 @@ const GSTReport: React.FC = () => {
     let totalDealerCount = 0
     let totalDealerTaxable = 0
     let totalDealerGST = 0
-    let totalDealerTotal = 0
+    let totalDealerTotal = 0;
 
-    data.dealerGstStats.forEach((row, index) => {
+    (dealerData || []).forEach((row: any, index: number) => {
       totalDealerCount += row.count
       totalDealerTaxable += row.taxableAmount
       totalDealerGST += row.gstAmount
@@ -1040,10 +1113,8 @@ const GSTReport: React.FC = () => {
           </div>
         </div>
 
-        {loading && <p className="state-text">Loading report...</p>}
-        {error && <p className="state-text error">{error}</p>}
-
-        {data && !loading && (
+        {loadingProducts && <p className="state-text">Loading products...</p>}
+        {showProducts && productData && !loadingProducts && (
           <div className="table-wrap">
             <table className="report-table">
               <thead>
@@ -1157,12 +1228,19 @@ const GSTReport: React.FC = () => {
         )}
       </section>
 
+      
       <section className="table-panel" style={{ marginTop: '24px' }}>
-        <div className="table-panel-header">
+        <div className="table-panel-header" style={{ cursor: 'pointer' }} onClick={() => {
+          if (!showProducts && !productData) {
+            fetchSubReport('products', GST_PRODUCT_QUERY, setProductData, setLoadingProducts)
+          }
+          setShowProducts(!showProducts)
+        }}>
           <div>
-            <h3>Product Wise {gstFilter === 'gst' ? 'GST' : 'NON GST'} Breakdown</h3>
-            <p>Product-level sales taxable value {gstFilter === 'gst' ? 'and GST collection' : 'breakdown'}</p>
+            <h3>Product Wise {gstFilter === 'gst' ? 'GST' : 'NON GST'} Breakdown {showProducts ? '▼' : '▶'}</h3>
+            <p>Product-level sales taxable value {gstFilter === 'gst' ? 'and GST collection' : 'breakdown'} (Click to Load/Toggle)</p>
           </div>
+
 
           <div className="panel-actions">
             <label className="search-box" htmlFor="product-search">
@@ -1178,10 +1256,8 @@ const GSTReport: React.FC = () => {
           </div>
         </div>
 
-        {loading && <p className="state-text">Loading report...</p>}
-        {error && <p className="state-text error">{error}</p>}
-
-        {data && !loading && (
+        {loadingCategories && <p className="state-text">Loading categories...</p>}
+        {showCategories && categoryData && !loadingCategories && (
           <div className="table-wrap product-table-wrap">
             <table className="report-table">
               <thead>
@@ -1236,12 +1312,19 @@ const GSTReport: React.FC = () => {
         )}
       </section>
 
+      
       <section className="table-panel" style={{ marginTop: '24px' }}>
-        <div className="table-panel-header">
+        <div className="table-panel-header" style={{ cursor: 'pointer' }} onClick={() => {
+          if (!showCategories && !categoryData) {
+            fetchSubReport('categories', GST_CATEGORY_QUERY, setCategoryData, setLoadingCategories)
+          }
+          setShowCategories(!showCategories)
+        }}>
           <div>
-            <h3>Category Wise {gstFilter === 'gst' ? 'GST' : 'NON GST'} Breakdown</h3>
-            <p>Category-level sales taxable value {gstFilter === 'gst' ? 'and GST collection' : 'breakdown'}</p>
+            <h3>Category Wise {gstFilter === 'gst' ? 'GST' : 'NON GST'} Breakdown {showCategories ? '▼' : '▶'}</h3>
+            <p>Category-level sales taxable value {gstFilter === 'gst' ? 'and GST collection' : 'breakdown'} (Click to Load/Toggle)</p>
           </div>
+
 
           <div className="panel-actions">
             <label className="search-box" htmlFor="category-search">
@@ -1257,10 +1340,8 @@ const GSTReport: React.FC = () => {
           </div>
         </div>
 
-        {loading && <p className="state-text">Loading report...</p>}
-        {error && <p className="state-text error">{error}</p>}
-
-        {data && !loading && (
+        {loadingDealers && <p className="state-text">Loading dealers...</p>}
+        {showDealers && dealerData && !loadingDealers && (
           <div className="table-wrap product-table-wrap">
             <table className="report-table">
               <thead>
@@ -1313,12 +1394,19 @@ const GSTReport: React.FC = () => {
         )}
       </section>
 
+      
       <section className="table-panel" style={{ marginTop: '24px' }}>
-        <div className="table-panel-header">
+        <div className="table-panel-header" style={{ cursor: 'pointer' }} onClick={() => {
+          if (!showDealers && !dealerData) {
+            fetchSubReport('dealers', GST_DEALER_QUERY, setDealerData, setLoadingDealers)
+          }
+          setShowDealers(!showDealers)
+        }}>
           <div>
-            <h3>Dealer Wise {gstFilter === 'gst' ? 'GST' : 'NON GST'} Breakdown</h3>
-            <p>Dealer-level sales taxable value {gstFilter === 'gst' ? 'and GST collection' : 'breakdown'}</p>
+            <h3>Dealer Wise {gstFilter === 'gst' ? 'GST' : 'NON GST'} Breakdown {showDealers ? '▼' : '▶'}</h3>
+            <p>Dealer-level sales taxable value {gstFilter === 'gst' ? 'and GST collection' : 'breakdown'} (Click to Load/Toggle)</p>
           </div>
+
 
           <div className="panel-actions">
             <label className="search-box" htmlFor="dealer-search">
