@@ -425,6 +425,7 @@ export default function KotPage() {
   const [branchId, setBranchId] = useState("");
   const [branchName, setBranchName] = useState("VSeyal");
   const [branchUpiId, setBranchUpiId] = useState("");
+  const [activePaymentMethod, setActivePaymentMethod] = useState("upi_direct");
   const [sharedTableNumber, setSharedTableNumber] = useState("");
   const [isQrTableLocked, setIsQrTableLocked] = useState(false);
   const [preferredSection, setPreferredSection] = useState("");
@@ -469,6 +470,7 @@ export default function KotPage() {
       setBranchId(session.branchId);
       setBranchName(session.branchName || "VSeyal");
       setBranchUpiId(session.upiId || "");
+      setActivePaymentMethod(session.activePaymentMethod || "upi_direct");
       const tableSession = readTableSession(session.branchId);
       if (tableSession?.tableNumber) {
         setSharedTableNumber(tableSession.tableNumber);
@@ -1566,13 +1568,51 @@ export default function KotPage() {
                   setShowBillDisabledReason(false);
 
                   if (selectedPaymentMethod === "upi") {
-                    if (upiIntentUrl) {
-                      window.location.href = upiIntentUrl;
-                      setTimeout(() => {
-                        void completeBill();
-                      }, 1000);
+                    if (activePaymentMethod === "disabled") {
+                      // Waiter handles it
+                      void completeBill();
+                    } else if (activePaymentMethod === "hdfc_smartgateway") {
+                      // Call the new create-payment-session endpoint
+                      setIsSubmittingBill(true);
+                      fetch("/api/create-payment-session", {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                          amount: matchingPreviousBill?.totalAmount ?? 0,
+                          billId: matchingPreviousBill?.billId,
+                          customerId: "", 
+                          customerName: customerName,
+                          customerPhone: customerPhone,
+                        }),
+                      })
+                        .then((res) => res.json())
+                        .then((data) => {
+                          if (data.paymentUrl) {
+                            window.location.href = data.paymentUrl;
+                            setTimeout(() => {
+                              void completeBill();
+                            }, 1000);
+                          } else {
+                            setIsSubmittingBill(false);
+                            setBillError(data.message || "Failed to create payment session.");
+                          }
+                        })
+                        .catch(() => {
+                          setIsSubmittingBill(false);
+                          setBillError("Network error. Please try again.");
+                        });
                     } else {
-                      setBillError("UPI is not configured for this branch.");
+                      // upi_direct
+                      if (upiIntentUrl) {
+                        window.location.href = upiIntentUrl;
+                        setTimeout(() => {
+                          void completeBill();
+                        }, 1000);
+                      } else {
+                        setBillError("UPI is not configured for this branch.");
+                      }
                     }
                   } else {
                     void completeBill();

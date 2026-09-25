@@ -58,7 +58,7 @@ export default function CategoriesPageClient({
       setBranchId(resolvedBranchId);
       writeBranchSession(
         resolvedBranchId,
-        initialBranchName || session?.branchName || "",
+        initialBranchName || session?.branchName || "", session?.upiId || "", session?.activePaymentMethod || "upi_direct",
       );
     });
 

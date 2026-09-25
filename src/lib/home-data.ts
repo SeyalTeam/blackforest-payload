@@ -1748,10 +1748,11 @@ export async function findBranchByCoordinates(
 }
 
 async function buildHomePageData(branchId: string): Promise<HomePageData> {
-  const [widgetSettings, offerSettings, branchMeta, billingCategories, printerInfo] =
+  const [widgetSettings, offerSettings, paymentSettings, branchMeta, billingCategories, printerInfo] =
     await Promise.all([
       fetchJson("/globals/widget-settings?depth=1"),
       fetchJson("/globals/customer-offer-settings?depth=1"),
+      fetchJson("/globals/payment-settings?depth=0"),
       fetchBranchMeta(branchId),
       fetchBillingCategories(branchId),
       fetchBranchPrinterInfo(branchId),
@@ -1768,6 +1769,7 @@ async function buildHomePageData(branchId: string): Promise<HomePageData> {
     branchId,
     branchName: branchMeta.name,
     upiId: branchMeta.upiId,
+    activePaymentMethod: (toMap(paymentSettings)?.activePaymentMethod as string) || "upi_direct",
     billingPrinterIp: printerInfo.billingPrinterIp,
     kotPrinterIps: printerInfo.kotPrinterIps,
     offerSlides,

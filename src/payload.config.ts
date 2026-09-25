@@ -59,6 +59,7 @@ import { updateBillTransactionIdHandler } from './endpoints/updateBillTransactio
 import { getCategoryWiseReportHandler } from './endpoints/getCategoryWiseReport'
 import { getCategoryWiseReportPDFHandler } from './endpoints/getCategoryWiseReportPDF'
 import { PaymentSettings } from './globals/PaymentSettings'
+import { createPaymentSessionHandler } from './endpoints/createPaymentSession'
 import { getProductWiseReportHandler } from './endpoints/getProductWiseReport'
 import { getProductPreparationBillDetailsHandler } from './endpoints/getProductPreparationBillDetails'
 import { getClosingEntryReportHandler } from './endpoints/getClosingEntryReport'
@@ -662,6 +663,11 @@ export default buildConfig({
       path: '/reports/branch-billing',
       method: 'get',
       handler: getBranchBillingReportHandler,
+    },
+    {
+      path: '/create-payment-session',
+      method: 'post',
+      handler: createPaymentSessionHandler,
     },
     {
       path: '/reports/tally-export',

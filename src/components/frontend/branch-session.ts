@@ -20,10 +20,14 @@ export const SESSION_ACTIVE_BILL_CUSTOMER_NAME_KEY =
 export const SESSION_ACTIVE_BILL_CUSTOMER_PHONE_KEY =
   "blackforest-order-web-active-bill-customer-phone";
 
+export const COOKIE_ACTIVE_PAYMENT_METHOD_KEY = "blackforest-order-web-active-payment-method";
+export const SESSION_ACTIVE_PAYMENT_METHOD_KEY = "blackforest-order-web-active-payment-method";
+
 export type BranchSession = {
   branchId: string;
   branchName: string;
   upiId: string;
+  activePaymentMethod: string;
 };
 
 export type TableSession = {
@@ -96,10 +100,11 @@ export function readBranchSession(): BranchSession | null {
     branchId,
     branchName: getStorageItem(SESSION_BRANCH_NAME_KEY),
     upiId: getStorageItem(SESSION_UPI_ID_KEY),
+    activePaymentMethod: getStorageItem(SESSION_ACTIVE_PAYMENT_METHOD_KEY) || "upi_direct",
   };
 }
 
-export function writeBranchSession(branchId: string, branchName: string, upiId: string = "") {
+export function writeBranchSession(branchId: string, branchName: string, upiId: string = "", activePaymentMethod: string = "upi_direct") {
   if (typeof window === "undefined") {
     return;
   }
@@ -107,9 +112,11 @@ export function writeBranchSession(branchId: string, branchName: string, upiId: 
   setStorageItem(SESSION_BRANCH_ID_KEY, branchId);
   setStorageItem(SESSION_BRANCH_NAME_KEY, branchName);
   setStorageItem(SESSION_UPI_ID_KEY, upiId);
+  setStorageItem(SESSION_ACTIVE_PAYMENT_METHOD_KEY, activePaymentMethod);
   writeCookie(COOKIE_BRANCH_ID_KEY, branchId);
   writeCookie(COOKIE_BRANCH_NAME_KEY, branchName);
   writeCookie(COOKIE_UPI_ID_KEY, upiId);
+  writeCookie(COOKIE_ACTIVE_PAYMENT_METHOD_KEY, activePaymentMethod);
 }
 
 export function clearBranchSession() {
@@ -119,8 +126,10 @@ export function clearBranchSession() {
 
   removeStorageItem(SESSION_BRANCH_ID_KEY);
   removeStorageItem(SESSION_BRANCH_NAME_KEY);
+  removeStorageItem(SESSION_ACTIVE_PAYMENT_METHOD_KEY);
   clearCookie(COOKIE_BRANCH_ID_KEY);
   clearCookie(COOKIE_BRANCH_NAME_KEY);
+  clearCookie(COOKIE_ACTIVE_PAYMENT_METHOD_KEY);
   clearTableSession();
 }
 

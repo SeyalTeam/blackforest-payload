@@ -468,7 +468,7 @@ export default function HomePageClient({
       writeBranchSession(
         resolvedBranchId,
         initialHomeData?.branchName || restoredBranchName,
-        initialHomeData?.upiId || cachedSession?.upiId || "",
+        initialHomeData?.upiId || cachedSession?.upiId || "", initialHomeData?.activePaymentMethod || cachedSession?.activePaymentMethod || "upi_direct",
       );
     };
 
@@ -513,7 +513,7 @@ export default function HomePageClient({
 
       if (cachedData && !isDisposed) {
         setHomeData((current) => (current?.branchId === branchId ? current : cachedData));
-        writeBranchSession(branchId, cachedData.branchName || "", cachedData.upiId || "");
+        writeBranchSession(branchId, cachedData.branchName || "", cachedData.upiId || "", cachedData.activePaymentMethod || "upi_direct");
       }
 
       if (initialDataForBranch && !isDisposed) {
@@ -521,7 +521,7 @@ export default function HomePageClient({
           current?.branchId === branchId ? current : initialDataForBranch,
         );
         writeCachedHomeData(branchId, initialDataForBranch);
-        writeBranchSession(branchId, initialDataForBranch.branchName || "", initialDataForBranch.upiId || "");
+        writeBranchSession(branchId, initialDataForBranch.branchName || "", initialDataForBranch.upiId || "", initialDataForBranch.activePaymentMethod || "upi_direct");
       }
 
       if (cachedData || initialDataForBranch) {
@@ -534,7 +534,7 @@ export default function HomePageClient({
         const payload = await fetchHomeDataForBranch(branchId);
         if (isDisposed) return;
         setHomeData(payload);
-        writeBranchSession(branchId, payload.branchName || "", payload.upiId || "");
+        writeBranchSession(branchId, payload.branchName || "", payload.upiId || "", payload.activePaymentMethod || "upi_direct");
         writeCachedHomeData(branchId, payload);
         setErrorMessage("");
       } catch (error) {
@@ -579,7 +579,7 @@ export default function HomePageClient({
         const payload = await fetchHomeDataForBranch(branchId);
         if (isDisposed) return;
         setHomeData(payload);
-        writeBranchSession(branchId, payload.branchName || "", payload.upiId || "");
+        writeBranchSession(branchId, payload.branchName || "", payload.upiId || "", payload.activePaymentMethod || "upi_direct");
         writeCachedHomeData(branchId, payload);
         setErrorMessage("");
       } catch {

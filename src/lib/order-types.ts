@@ -51,6 +51,7 @@ export type HomePageData = {
   branchId: string;
   branchName: string;
   upiId: string;
+  activePaymentMethod: string;
   billingPrinterIp: string;
   kotPrinterIps: string[];
   offerSlides: OfferSlide[];
