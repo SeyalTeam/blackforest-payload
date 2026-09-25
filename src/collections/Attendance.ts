@@ -11,10 +11,10 @@ const Attendance: CollectionConfig = {
       async ({ data, req, operation }) => {
         if (!data) return data;
         
-        // Requirement: Enforce selfie before closing session (punch-out)
+        // Requirement: Enforce selfie before closing session (punch-out) UNLESS it's an auto punch-out
         if (data.activities && Array.isArray(data.activities)) {
           for (const activity of data.activities) {
-            if (activity.type === 'session' && activity.punchOut && !activity.capturedImage) {
+            if (activity.type === 'session' && activity.punchOut && !activity.capturedImage && activity.punchOutType !== 'auto') {
               throw new Error('A selfie (captured image) is strictly required before punching out.');
             }
           }
@@ -432,7 +432,7 @@ const Attendance: CollectionConfig = {
             condition: (data, siblingData) => siblingData?.type === 'session',
           },
           validate: (value: any, { siblingData }: any) => {
-            if (siblingData?.type === 'session' && siblingData?.punchOut && !value) {
+            if (siblingData?.type === 'session' && siblingData?.punchOut && !value && siblingData?.punchOutType !== 'auto') {
               return 'A selfie (captured image) is required before punching out.';
             }
             return true;
