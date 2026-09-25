@@ -21,6 +21,8 @@ export type AttendanceReportActivity = {
   capturedImageUrl?: string
   latitude?: number
   longitude?: number
+  branchId?: string
+  branchName?: string
 }
 
 export type AttendanceReportItem = {
@@ -38,6 +40,8 @@ export type AttendanceReportItem = {
   employeePhotoUrl?: string
   branchId?: string
   branchName: string
+  loginBranchId?: string
+  loginBranchName?: string
   firstPunchIn?: string
   lastPunchOut?: string
   totalWorkSeconds: number
@@ -48,6 +52,18 @@ export type AttendanceReportItem = {
   breakCount: number
   status: 'active' | 'on_break' | 'closed'
   activities: AttendanceReportActivity[]
+}
+
+function distanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000 // Earth's radius in meters
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return Math.round(R * c)
 }
 
 export type AttendanceReportRoleStat = {
@@ -204,6 +220,133 @@ export const getAttendanceReportData = async (
 
   const { branchIds } = await resolveReportBranchScope(req, branchParam)
 
+  // Fetch branch geo settings and branches to resolve physical geofence for GPS punches
+  let geoLocations: any[] = []
+  try {
+    const geoSettings = await payload.findGlobal({
+      slug: 'branch-geo-settings',
+      depth: 1,
+    })
+    geoLocations = Array.isArray(geoSettings?.locations) ? geoSettings.locations : []
+  } catch (e) {
+    req.payload.logger.warn({ msg: 'Failed to fetch branch-geo-settings', error: e })
+  }
+
+  let allBranches: any[] = []
+  try {
+    const branchesResult = await payload.find({
+      collection: 'branches',
+      limit: 300,
+      depth: 0,
+    })
+    allBranches = branchesResult.docs || []
+  } catch (e) {
+    req.payload.logger.warn({ msg: 'Failed to fetch branches', error: e })
+  }
+
+  const branchMap = new Map<string, { id: string; name: string; latitude?: number; longitude?: number }>()
+  for (const b of allBranches) {
+    branchMap.set(String(b.id), {
+      id: String(b.id),
+      name: b.name || 'Unknown Branch',
+      latitude: typeof b.latitude === 'number' ? b.latitude : undefined,
+      longitude: typeof b.longitude === 'number' ? b.longitude : undefined,
+    })
+  }
+
+  type GeofenceTarget = {
+    branchId: string
+    branchName: string
+    latitude: number
+    longitude: number
+    radius: number
+  }
+  const geofences: GeofenceTarget[] = []
+
+  for (const loc of geoLocations) {
+    const bId = String(typeof loc.branch === 'object' ? loc.branch?.id : loc.branch || '')
+    const bName = (typeof loc.branch === 'object' && loc.branch?.name) || branchMap.get(bId)?.name || 'Branch'
+    const lat = typeof loc.latitude === 'number' ? loc.latitude : Number(loc.latitude)
+    const lng = typeof loc.longitude === 'number' ? loc.longitude : Number(loc.longitude)
+    const radius = typeof loc.radius === 'number' && loc.radius > 0 ? Number(loc.radius) : 100
+
+    if (bId && Number.isFinite(lat) && Number.isFinite(lng)) {
+      geofences.push({
+        branchId: bId,
+        branchName: bName,
+        latitude: lat,
+        longitude: lng,
+        radius,
+      })
+    }
+  }
+
+  for (const b of allBranches) {
+    const bId = String(b.id)
+    if (!geofences.some((g) => g.branchId === bId)) {
+      const lat = typeof b.latitude === 'number' ? b.latitude : Number(b.latitude)
+      const lng = typeof b.longitude === 'number' ? b.longitude : Number(b.longitude)
+      if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
+        geofences.push({
+          branchId: bId,
+          branchName: b.name || 'Branch',
+          latitude: lat,
+          longitude: lng,
+          radius: 100,
+        })
+      }
+    }
+  }
+
+  const resolveBranchFromCoords = (
+    lat?: number | null,
+    lng?: number | null,
+  ): { branchId: string; branchName: string; distance: number } | null => {
+    if (
+      typeof lat !== 'number' ||
+      typeof lng !== 'number' ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng) ||
+      (lat === 0 && lng === 0)
+    ) {
+      return null
+    }
+
+    let bestMatch: { branchId: string; branchName: string; distance: number } | null = null
+    let minDistance = Infinity
+
+    for (const g of geofences) {
+      const dist = distanceInMeters(lat, lng, g.latitude, g.longitude)
+      const effectiveRadius = g.radius + 30
+      if (dist <= effectiveRadius) {
+        if (dist < minDistance) {
+          minDistance = dist
+          bestMatch = {
+            branchId: g.branchId,
+            branchName: g.branchName,
+            distance: dist,
+          }
+        }
+      }
+    }
+
+    if (!bestMatch) {
+      for (const g of geofences) {
+        const dist = distanceInMeters(lat, lng, g.latitude, g.longitude)
+        if (dist <= 300 && dist < minDistance) {
+          minDistance = dist
+          bestMatch = {
+            branchId: g.branchId,
+            branchName: g.branchName,
+            distance: dist,
+          }
+        }
+      }
+    }
+
+    return bestMatch
+  }
+
   const AttendanceModel = payload.db.collections['attendance']
   if (!AttendanceModel) {
     throw new Error('Attendance collection not found')
@@ -330,16 +473,7 @@ export const getAttendanceReportData = async (
     },
   ]
 
-  // Branch filter
-  if (branchIds && branchIds.length > 0) {
-    pipeline.push({
-      $match: {
-        $expr: {
-          $in: [{ $toString: '$resolvedBranchId' }, branchIds],
-        },
-      },
-    })
-  }
+  // Branch filter will be applied in document processing after physical and login branches are resolved
 
   // Role / Team filter
   if (roleParam && roleParam !== 'all') {
@@ -591,6 +725,10 @@ export const getAttendanceReportData = async (
 
       const capturedImageUrl = resolveImage(doc.capturedImage || doc.photo || doc.image)
 
+      const actLat = toNumber(doc.location?.latitude)
+      const actLng = toNumber(doc.location?.longitude)
+      const matchedActBranch = resolveBranchFromCoords(actLat, actLng)
+
       activities.push({
         id: 'legacy-1',
         type: 'session',
@@ -602,8 +740,10 @@ export const getAttendanceReportData = async (
         ipAddress: toNonEmptyString(doc.ipAddress),
         device: toNonEmptyString(doc.device),
         capturedImageUrl,
-        latitude: toNumber(doc.location?.latitude),
-        longitude: toNumber(doc.location?.longitude),
+        latitude: actLat || undefined,
+        longitude: actLng || undefined,
+        branchId: matchedActBranch?.branchId,
+        branchName: matchedActBranch?.branchName,
       })
       sessionCount = 1
       recordWorkSeconds = dur
@@ -632,6 +772,10 @@ export const getAttendanceReportData = async (
 
         const breakSecs = toNumber((act as any).breakDurationSeconds)
         
+        const actLat = typeof act.latitude === 'number' ? act.latitude : (act.latitude ? Number(act.latitude) : undefined)
+        const actLng = typeof act.longitude === 'number' ? act.longitude : (act.longitude ? Number(act.longitude) : undefined)
+        const matchedActBranch = resolveBranchFromCoords(actLat, actLng)
+
         activities.push({
           id: toNonEmptyString(act.id || act._id),
           type: actType,
@@ -643,8 +787,10 @@ export const getAttendanceReportData = async (
           ipAddress: toNonEmptyString(act.ipAddress),
           device: toNonEmptyString(act.device),
           capturedImageUrl,
-          latitude: toNumber(act.latitude),
-          longitude: toNumber(act.longitude),
+          latitude: actLat,
+          longitude: actLng,
+          branchId: matchedActBranch?.branchId,
+          branchName: matchedActBranch?.branchName,
         })
 
         if (actType === 'session') {
@@ -698,6 +844,32 @@ export const getAttendanceReportData = async (
       if (statusParam === 'on_break' && status !== 'on_break') continue
     }
 
+    // Determine current branch where user is:
+    // 1. Check if there's an active session with a matched physical branch
+    // 2. Otherwise check the latest session with a matched physical branch (e.g. Session #2 at second branch)
+    // 3. Otherwise fall back to login branch
+    const sessionActs = activities.filter((a) => a.type === 'session')
+    const activeSessionWithBranch = sessionActs.slice().reverse().find((a) => a.status === 'active' && a.branchName)
+    const latestSessionWithBranch = sessionActs.slice().reverse().find((a) => a.branchName)
+
+    const loginBranchId = toNonEmptyString(doc.branchDetails?._id || doc.resolvedBranchId || '')
+    const loginBranchName = toNonEmptyString(doc.branchDetails?.name || branchMap.get(loginBranchId)?.name || 'Unassigned')
+
+    const currentBranchName = activeSessionWithBranch?.branchName || latestSessionWithBranch?.branchName || loginBranchName
+    const currentBranchId = activeSessionWithBranch?.branchId || latestSessionWithBranch?.branchId || loginBranchId
+
+    // Branch filter check
+    if (branchIds && branchIds.length > 0) {
+      const associatedBranchIds = new Set<string>()
+      if (currentBranchId) associatedBranchIds.add(String(currentBranchId))
+      if (loginBranchId) associatedBranchIds.add(String(loginBranchId))
+      for (const a of activities) {
+        if (a.branchId) associatedBranchIds.add(String(a.branchId))
+      }
+      const matchesBranch = branchIds.some((bId) => associatedBranchIds.has(String(bId)))
+      if (!matchesBranch) continue
+    }
+
     const item: AttendanceReportItem = {
       id,
       date: dateIso,
@@ -711,8 +883,10 @@ export const getAttendanceReportData = async (
       employeeTeam: employeeTeam || undefined,
       employeePhone: employeePhone || undefined,
       employeePhotoUrl,
-      branchId: branchId || undefined,
-      branchName,
+      branchId: currentBranchId || undefined,
+      branchName: currentBranchName,
+      loginBranchId: loginBranchId || undefined,
+      loginBranchName: loginBranchName !== 'Unassigned' ? loginBranchName : undefined,
       firstPunchIn,
       lastPunchOut: hasActiveSession ? undefined : lastPunchOut,
       totalWorkSeconds: recordWorkSeconds,
@@ -744,9 +918,9 @@ export const getAttendanceReportData = async (
     roleStatsMap.set(roleKey, existingRole)
 
     // Branch stats
-    const branchKey = branchId || 'unknown'
+    const branchKey = item.branchId || 'unknown'
     const existingBranch = branchStatsMap.get(branchKey) || {
-      branchName,
+      branchName: item.branchName,
       presentCount: 0,
       activeCount: 0,
       totalSeconds: 0,

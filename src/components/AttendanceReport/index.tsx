@@ -26,6 +26,8 @@ export type AttendanceActivity = {
   capturedImageUrl?: string
   latitude?: number
   longitude?: number
+  branchId?: string
+  branchName?: string
 }
 
 export type AttendanceItem = {
@@ -43,6 +45,8 @@ export type AttendanceItem = {
   employeePhotoUrl?: string
   branchId?: string
   branchName: string
+  loginBranchId?: string
+  loginBranchName?: string
   firstPunchIn?: string
   lastPunchOut?: string
   totalWorkSeconds: number
@@ -124,6 +128,8 @@ const ATTENDANCE_REPORT_QUERY = `
         employeePhotoUrl
         branchId
         branchName
+        loginBranchId
+        loginBranchName
         firstPunchIn
         lastPunchOut
         totalWorkSeconds
@@ -146,6 +152,8 @@ const ATTENDANCE_REPORT_QUERY = `
           capturedImageUrl
           latitude
           longitude
+          branchId
+          branchName
         }
       }
       totals {
@@ -962,7 +970,14 @@ const AttendanceReport: React.FC = () => {
                         </span>
                       </td>
                       <td>
-                        <strong style={{ color: 'var(--theme-text-secondary)' }}>{item.branchName}</strong>
+                        <strong style={{ color: 'var(--theme-text-secondary)', display: 'block' }}>
+                          {item.branchName}
+                        </strong>
+                        {item.loginBranchName && item.loginBranchName !== item.branchName && (
+                          <span style={{ fontSize: '0.75rem', color: '#9ca3af', display: 'block', marginTop: '2px' }}>
+                            Login: {item.loginBranchName}
+                          </span>
+                        )}
                       </td>
                       <td className="text-center">{formatTime(item.firstPunchIn)}</td>
                       <td className="text-center">
@@ -1048,6 +1063,9 @@ const AttendanceReport: React.FC = () => {
                     {selectedItemForModal.employeeId ? `${selectedItemForModal.employeeId} • ` : ''}
                     {(selectedItemForModal.employeeTeam || selectedItemForModal.userRole || '').toUpperCase()} •{' '}
                     {selectedItemForModal.branchName}
+                    {selectedItemForModal.loginBranchName && selectedItemForModal.loginBranchName !== selectedItemForModal.branchName && (
+                      <span style={{ fontSize: '0.8rem', opacity: 0.8 }}> (Login: {selectedItemForModal.loginBranchName})</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1148,6 +1166,14 @@ const AttendanceReport: React.FC = () => {
                                 >
                                   📍 View Location ({act.latitude.toFixed(4)}, {act.longitude.toFixed(4)})
                                 </a>
+                              </div>
+                            )}
+                            {act.branchName && (
+                              <div className="detail-row">
+                                <span>Branch:</span>
+                                <strong style={{ color: act.branchName === 'Outside Branch' ? '#f59e0b' : '#3b82f6' }}>
+                                  🏢 {act.branchName}
+                                </strong>
                               </div>
                             )}
                           </div>

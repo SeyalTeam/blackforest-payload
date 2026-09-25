@@ -169,6 +169,7 @@ export interface Config {
     defaultIDType: string;
   };
   globals: {
+    'payment-settings': PaymentSetting;
     'ip-settings': IpSetting;
     jarvis: Jarvi;
     'general-dashboard': GeneralDashboard;
@@ -210,6 +211,7 @@ export interface Config {
     'messages-chat': MessagesChat;
   };
   globalsSelect: {
+    'payment-settings': PaymentSettingsSelect<false> | PaymentSettingsSelect<true>;
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
     jarvis: JarvisSelect<false> | JarvisSelect<true>;
     'general-dashboard': GeneralDashboardSelect<false> | GeneralDashboardSelect<true>;
@@ -3835,6 +3837,31 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payment-settings".
+ */
+export interface PaymentSetting {
+  id: string;
+  /**
+   * Select which payment flow should be triggered when customers click BILL and select UPI/Online on their mobile phone.
+   */
+  activePaymentMethod: 'upi_direct' | 'hdfc_smartgateway' | 'disabled';
+  hdfcSettings?: {
+    merchantId: string;
+    /**
+     * The Base64 encoded API key used for Basic Auth.
+     */
+    apiKeyBase64: string;
+    /**
+     * For Sandbox use "hdfcmaster". For Production use your Merchant ID.
+     */
+    paymentPageClientId: string;
+    environment: 'sandbox' | 'production';
+  };
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "ip-settings".
  */
 export interface IpSetting {
@@ -5455,6 +5482,24 @@ export interface MessagesChat {
   id: string;
   updatedAt?: string | null;
   createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payment-settings_select".
+ */
+export interface PaymentSettingsSelect<T extends boolean = true> {
+  activePaymentMethod?: T;
+  hdfcSettings?:
+    | T
+    | {
+        merchantId?: T;
+        apiKeyBase64?: T;
+        paymentPageClientId?: T;
+        environment?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

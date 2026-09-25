@@ -25,6 +25,10 @@ export const PaymentSettings: GlobalConfig = {
           label: 'HDFC SmartGateway (Cards, Netbanking, UPI)',
           value: 'hdfc_smartgateway',
         },
+        {
+          label: 'Disable (Waiter will handle payments)',
+          value: 'disabled',
+        },
       ],
       admin: {
         description: 'Select which payment flow should be triggered when customers click BILL and select UPI/Online on their mobile phone.',
