@@ -2,7 +2,7 @@ import type { PayloadRequest } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
-import { resolveReportBranchScope } from '../../endpoints/reportScope'
+import { resolveReportBranchScope, toIndexedIdList } from '../../endpoints/reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -505,8 +505,8 @@ export const getAttendanceReportData = async (
       pipeline.push({
         $match: {
           $or: [
-            { $expr: { $in: [{ $toString: '$resolvedEmployeeId' }, employeeIds] } },
-            { $expr: { $in: [{ $toString: '$userObjectId' }, employeeIds] } },
+            { resolvedEmployeeId: { $in: toIndexedIdList(employeeIds) } },
+            { userObjectId: { $in: toIndexedIdList(employeeIds) } },
           ],
         },
       })

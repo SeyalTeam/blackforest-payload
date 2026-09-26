@@ -521,6 +521,16 @@ export interface Product {
    * Branches where this product should show as out of stock.
    */
   outOfStockBranches?: (string | Branch)[] | null;
+  /**
+   * Dates when the other products stock was reset to zero for specific branches.
+   */
+  otherProductsResetDates?:
+    | {
+        branch: string | Branch;
+        resetDate: string;
+        id?: string | null;
+      }[]
+    | null;
   branchOverrides?:
     | {
         branch: string | Branch;
@@ -2877,6 +2887,13 @@ export interface ProductsSelect<T extends boolean = true> {
       };
   inactiveBranches?: T;
   outOfStockBranches?: T;
+  otherProductsResetDates?:
+    | T
+    | {
+        branch?: T;
+        resetDate?: T;
+        id?: T;
+      };
   branchOverrides?:
     | T
     | {

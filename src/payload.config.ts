@@ -91,6 +91,7 @@ import { ExpenseReportGlobal } from './globals/ExpenseReport'
 import { getDealerReportHandler } from './endpoints/getDealerReport'
 import { DealerReportGlobal } from './globals/DealerReport'
 import { getOtherProductsInventoryReportHandler } from './endpoints/getOtherProductsInventoryReport'
+import { resetOtherProductStockHandler } from './endpoints/resetOtherProductStock'
 import { OtherProductsInventoryReportGlobal } from './globals/OtherProductsInventoryReport'
 import { getRawMaterialInventoryReportHandler } from './endpoints/getRawMaterialInventoryReport'
 import { RawMaterialInventoryReportGlobal } from './globals/RawMaterialInventoryReport'
@@ -753,6 +754,11 @@ export default buildConfig({
       path: '/reports/other-products-inventory',
       method: 'get',
       handler: getOtherProductsInventoryReportHandler,
+    },
+    {
+      path: '/reports/other-products-inventory/reset',
+      method: 'post',
+      handler: resetOtherProductStockHandler,
     },
     {
       path: '/reports/raw-material-inventory',

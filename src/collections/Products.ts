@@ -606,6 +606,27 @@ const Products: CollectionConfig = {
       },
     },
     {
+      name: 'otherProductsResetDates',
+      type: 'array',
+      label: 'Other Products Reset Dates',
+      admin: {
+        description: 'Dates when the other products stock was reset to zero for specific branches.',
+      },
+      fields: [
+        {
+          name: 'branch',
+          type: 'relationship',
+          relationTo: 'branches',
+          required: true,
+        },
+        {
+          name: 'resetDate',
+          type: 'date',
+          required: true,
+        },
+      ],
+    },
+    {
       name: 'branchOverrides',
       type: 'array', // Overrides for specific branches (e.g., the one at ₹12)
       label: 'Branch Overrides',

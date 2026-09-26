@@ -2,7 +2,7 @@ import type { PayloadRequest } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
-import { resolveReportBranchScope } from '../../endpoints/reportScope'
+import { resolveReportBranchScope, toIndexedIdList } from '../../endpoints/reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -116,20 +116,10 @@ export const getOtherProductsInventoryReportData = async (
 
   const exprAnd: any[] = []
   if (selectedBranches.length > 0) {
-    exprAnd.push({
-      $in: [{ $toString: '$branch' }, selectedBranches],
-    })
+    matchQuery.branch = { $in: toIndexedIdList(selectedBranches) }
   }
   if (selectedDealers.length > 0) {
-    exprAnd.push({
-      $in: [{ $toString: '$dealer' }, selectedDealers],
-    })
-  }
-
-  if (exprAnd.length > 0) {
-    matchQuery.$expr = {
-      $and: exprAnd,
-    }
+    matchQuery.dealer = { $in: toIndexedIdList(selectedDealers) }
   }
 
   const pipeline: any[] = [
@@ -144,9 +134,7 @@ export const getOtherProductsInventoryReportData = async (
   if (selectedProducts.length > 0) {
     pipeline.push({
       $match: {
-        $expr: {
-          $in: [{ $toString: '$productsList.product' }, selectedProducts],
-        },
+        'productsList.product': { $in: toIndexedIdList(selectedProducts) },
       },
     })
   }
@@ -203,6 +191,33 @@ export const getOtherProductsInventoryReportData = async (
       $unwind: {
         path: '$productInfo',
         preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $match: {
+        $expr: {
+          $not: {
+            $let: {
+              vars: {
+                resetDateObj: {
+                  $first: {
+                    $filter: {
+                      input: { $ifNull: ['$productInfo.otherProductsResetDates', []] },
+                      as: 'r',
+                      cond: { $eq: [{ $toString: '$$r.branch' }, { $toString: '$branch' }] },
+                    },
+                  },
+                },
+              },
+              in: {
+                $and: [
+                  { $ne: ['$$resetDateObj', null] },
+                  { $lte: ['$date', '$$resetDateObj.resetDate'] },
+                ],
+              },
+            },
+          },
+        },
       },
     },
     ...(purchaseFrequencyParam && purchaseFrequencyParam !== 'all'
