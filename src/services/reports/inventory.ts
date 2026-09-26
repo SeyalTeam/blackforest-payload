@@ -1,6 +1,6 @@
 import type { PayloadRequest } from 'payload'
 import { addGranularMatch } from '../../utilities/inventory'
-import { resolveReportBranchScope } from '../../endpoints/reportScope'
+import { resolveReportBranchScope, toIndexedIdList } from '../../endpoints/reportScope'
 
 export type InventoryReportBranch = {
   id: string
@@ -176,6 +176,7 @@ export const getInventoryReportData = async (
   const products = productsResult.docs as ProductDoc[]
   const branches = branchesResult.docs as BranchDoc[]
   const branchIds = branches.map((item) => item.id)
+  const mappedBranchIds = toIndexedIdList(branchIds)
 
   const StockOrderModel = payload.db.collections['stock-orders']
   const BillingModel = payload.db.collections['billings']
@@ -189,7 +190,7 @@ export const getInventoryReportData = async (
     {
       $match: {
         $and: [
-          { $expr: { $in: [{ $toString: '$branch' }, branchIds] } },
+          { branch: { $in: mappedBranchIds } },
           { notes: 'INITIAL STOCK' },
         ],
       },
@@ -213,7 +214,7 @@ export const getInventoryReportData = async (
   const stockInPipeline: any[] = [
     {
       $match: {
-        $expr: { $in: [{ $toString: '$branch' }, branchIds] },
+        branch: { $in: mappedBranchIds },
       },
     },
   ]
@@ -236,7 +237,7 @@ export const getInventoryReportData = async (
     {
       $match: {
         $and: [
-          { $expr: { $in: [{ $toString: '$branch' }, branchIds] } },
+          { branch: { $in: mappedBranchIds } },
           { status: { $ne: 'cancelled' } },
         ],
       },
@@ -258,7 +259,7 @@ export const getInventoryReportData = async (
     {
       $match: {
         $and: [
-          { $expr: { $in: [{ $toString: '$branch' }, branchIds] } },
+          { branch: { $in: mappedBranchIds } },
           { status: { $ne: 'cancelled' } },
         ],
       },
@@ -279,7 +280,7 @@ export const getInventoryReportData = async (
   const instockPipeline: any[] = [
     {
       $match: {
-        $and: [{ $expr: { $in: [{ $toString: '$branch' }, branchIds] } }],
+        $and: [{ branch: { $in: mappedBranchIds } }],
       },
     },
   ]

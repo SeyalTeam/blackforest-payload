@@ -4547,7 +4547,7 @@ var init_Employees = __esm({
     timeOptions = Array.from({ length: 48 }, (_, i) => {
       const hours = String(Math.floor(i / 2)).padStart(2, "0");
       const minutes = i % 2 === 0 ? "00" : "30";
-      return { label: `${hours}:${minutes}`, value: `${hours}:${minutes}` };
+      return { label: `${hours}:${minutes}`, value: `${hours}_${minutes}` };
     });
     Employees = {
       slug: "employees",
@@ -4614,7 +4614,10 @@ var init_Employees = __esm({
               options: timeOptions,
               label: "Work In Time (HH:mm)",
               required: false,
-              admin: { width: "33%" }
+              admin: { width: "33%" },
+              hooks: {
+                afterRead: [({ value }) => typeof value === "string" ? value.replace(":", "_") : value]
+              }
             },
             {
               name: "logoutTime",
@@ -4622,7 +4625,10 @@ var init_Employees = __esm({
               options: timeOptions,
               label: "Work Out Time (HH:mm)",
               required: false,
-              admin: { width: "33%" }
+              admin: { width: "33%" },
+              hooks: {
+                afterRead: [({ value }) => typeof value === "string" ? value.replace(":", "_") : value]
+              }
             },
             {
               name: "workingHours",
@@ -4736,8 +4742,10 @@ var init_Employees = __esm({
                 data.team = "kitchen";
               }
               if (data.loginTime && data.logoutTime) {
-                const [loginHour, loginMin] = data.loginTime.split(":").map(Number);
-                const [logoutHour, logoutMin] = data.logoutTime.split(":").map(Number);
+                const safeLoginTime = data.loginTime.replace("_", ":");
+                const safeLogoutTime = data.logoutTime.replace("_", ":");
+                const [loginHour, loginMin] = safeLoginTime.split(":").map(Number);
+                const [logoutHour, logoutMin] = safeLogoutTime.split(":").map(Number);
                 let diffHours = logoutHour - loginHour;
                 let diffMins = logoutMin - loginMin;
                 if (diffMins < 0) {
@@ -19001,6 +19009,7 @@ var init_inventory2 = __esm({
       const products = productsResult.docs;
       const branches = branchesResult.docs;
       const branchIds = branches.map((item) => item.id);
+      const mappedBranchIds = toIndexedIdList(branchIds);
       const StockOrderModel = payload.db.collections["stock-orders"];
       const BillingModel = payload.db.collections["billings"];
       const ReturnOrderModel = payload.db.collections["return-orders"];
@@ -19012,7 +19021,7 @@ var init_inventory2 = __esm({
         {
           $match: {
             $and: [
-              { $expr: { $in: [{ $toString: "$branch" }, branchIds] } },
+              { branch: { $in: mappedBranchIds } },
               { notes: "INITIAL STOCK" }
             ]
           }
@@ -19035,7 +19044,7 @@ var init_inventory2 = __esm({
       const stockInPipeline = [
         {
           $match: {
-            $expr: { $in: [{ $toString: "$branch" }, branchIds] }
+            branch: { $in: mappedBranchIds }
           }
         }
       ];
@@ -19057,7 +19066,7 @@ var init_inventory2 = __esm({
         {
           $match: {
             $and: [
-              { $expr: { $in: [{ $toString: "$branch" }, branchIds] } },
+              { branch: { $in: mappedBranchIds } },
               { status: { $ne: "cancelled" } }
             ]
           }
@@ -19078,7 +19087,7 @@ var init_inventory2 = __esm({
         {
           $match: {
             $and: [
-              { $expr: { $in: [{ $toString: "$branch" }, branchIds] } },
+              { branch: { $in: mappedBranchIds } },
               { status: { $ne: "cancelled" } }
             ]
           }
@@ -19098,7 +19107,7 @@ var init_inventory2 = __esm({
       const instockPipeline = [
         {
           $match: {
-            $and: [{ $expr: { $in: [{ $toString: "$branch" }, branchIds] } }]
+            $and: [{ branch: { $in: mappedBranchIds } }]
           }
         }
       ];
@@ -24341,7 +24350,8 @@ var init_Attendance = __esm({
                         const istTime = new Date(punchInDate.getTime() + 5.5 * 60 * 60 * 1e3);
                         const hours = istTime.getUTCHours();
                         const minutes = istTime.getUTCMinutes();
-                        const timeParts = employeeRes.loginTime.split(":");
+                        const safeLoginTime = employeeRes.loginTime.replace("_", ":");
+                        const timeParts = safeLoginTime.split(":");
                         if (timeParts.length >= 2) {
                           const loginStrH = parseInt(timeParts[0], 10);
                           const loginStrM = parseInt(timeParts[1], 10);
