@@ -51,11 +51,9 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
       }
     }
 
-    if (!employeeId) {
-      return Response.json(
-        { success: false, message: 'Current user has no associated employee profile' },
-        { status: 400 },
-      )
+    const userConditions: any[] = [{ user: { equals: req.user.id } }]
+    if (employeeId) {
+      userConditions.push({ employee: { equals: employeeId } })
     }
 
     // Check if task completion record already exists
@@ -64,8 +62,8 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
       where: {
         and: [
           { task: { equals: taskId } },
-          { employee: { equals: employeeId } },
           { dateString: { equals: dateString } },
+          { or: userConditions },
         ],
       },
       limit: 1,

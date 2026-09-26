@@ -70,26 +70,21 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
     }
 
     const normalizedRole = employeeRole.toLowerCase().trim()
+    const userRole = (req.user?.role || '').toLowerCase().trim()
+    const requestedRole = (url.searchParams.get('role') || '').toLowerCase().trim()
 
-    // Query active tasks
+    // Query tasks (fetch all and filter in JS to avoid database-level null/exists filter issues)
     const taskQuery = await req.payload.find({
       collection: 'tasks',
-      where: {
-        and: [
-          {
-            or: [
-              { isActive: { equals: true } },
-              { isActive: { exists: false } },
-            ],
-          },
-        ],
-      },
-      limit: 300,
+      limit: 500,
       depth: 1,
     })
 
     // Filter tasks based on assignment and branch
     const matchedTasks = taskQuery.docs.filter((task: any) => {
+      // Respect explicit deactivation
+      if (task.isActive === false) return false
+
       // Branch check: if task has branch, must match employee/user branch
       if (task.branch) {
         const taskBranchId = typeof task.branch === 'string' ? task.branch : task.branch.id
@@ -98,30 +93,48 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
         }
       }
 
-      const taskRole = (task.assignedRole || '').toLowerCase().trim()
+      const colRole =
+        typeof task.column === 'object' && task.column?.role
+          ? String(task.column.role).toLowerCase().trim()
+          : ''
+      const colTitle =
+        typeof task.column === 'object' && task.column?.title
+          ? String(task.column.title).toLowerCase().trim()
+          : ''
+      const assignedRole = task.assignedRole ? String(task.assignedRole).toLowerCase().trim() : ''
+      const taskRole = assignedRole || colRole || colTitle
+
       const tEmp = task.assignedEmployee
       const taskEmpId = tEmp ? (typeof tEmp === 'string' ? tEmp : tEmp.id) : null
+      const tUser = task.assignedUser
+      const taskUserId = tUser ? (typeof tUser === 'string' ? tUser : tUser.id) : null
 
       const assignmentType = task.assignmentType || 'role'
 
+      // Check if individual match
+      const matchesInd =
+        (employeeId && taskEmpId === employeeId) ||
+        (req.user.id && taskUserId === req.user.id)
+
+      // Check if role match
+      const matchesRole =
+        taskRole === 'all' ||
+        taskRole === normalizedRole ||
+        taskRole === userRole ||
+        (requestedRole && (taskRole === requestedRole || colRole === requestedRole)) ||
+        (userRole === 'manager' && (taskRole === 'manager' || colRole === 'manager' || colTitle === 'manager')) ||
+        userRole === 'superadmin' ||
+        userRole === 'admin'
+
       if (assignmentType === 'individual') {
-        return employeeId && taskEmpId === employeeId
+        return matchesInd
       }
 
       if (assignmentType === 'role') {
-        return (
-          taskRole === 'all' ||
-          taskRole === normalizedRole ||
-          taskRole === (req.user?.role || '').toLowerCase().trim()
-        )
+        return matchesRole
       }
 
       if (assignmentType === 'both') {
-        const matchesInd = employeeId && taskEmpId === employeeId
-        const matchesRole =
-          taskRole === 'all' ||
-          taskRole === normalizedRole ||
-          taskRole === (req.user?.role || '').toLowerCase().trim()
         return matchesInd || matchesRole
       }
 
@@ -129,11 +142,7 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
         return true
       }
 
-      return (
-        (employeeId && taskEmpId === employeeId) ||
-        taskRole === normalizedRole ||
-        taskRole === (req.user?.role || '').toLowerCase().trim()
-      )
+      return matchesInd || matchesRole
     })
 
     // Fetch completion logs for this employee or user on dateString

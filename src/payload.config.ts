@@ -979,12 +979,22 @@ export default buildConfig({
       handler: toggleBranchCashDrawerAccessHandler,
     },
     {
-      path: '/tasks/my-daily-tasks',
+      path: '/daily-tasks/my-tasks',
       method: 'get',
       handler: getMyDailyTasksHandler,
     },
     {
-      path: '/tasks/toggle-daily-task',
+      path: '/daily-tasks/toggle',
+      method: 'post',
+      handler: toggleDailyTaskHandler,
+    },
+    {
+      path: '/my-daily-tasks',
+      method: 'get',
+      handler: getMyDailyTasksHandler,
+    },
+    {
+      path: '/toggle-daily-task',
       method: 'post',
       handler: toggleDailyTaskHandler,
     },

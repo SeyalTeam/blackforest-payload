@@ -116,7 +116,7 @@ export const TaskCompletions: CollectionConfig = {
       name: 'employee',
       type: 'relationship',
       relationTo: 'employees',
-      required: true,
+      required: false,
       index: true,
       admin: {
         position: 'sidebar',
