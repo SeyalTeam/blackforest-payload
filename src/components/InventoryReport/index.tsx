@@ -35,6 +35,7 @@ type ProductInventory = {
 type ReportData = {
   products: ProductInventory[]
   timestamp: string
+  totalProducts: number
 }
 
 type InventoryReportQueryResponse = {
@@ -50,6 +51,7 @@ const INVENTORY_REPORT_QUERY = `
   query InventoryReport($filter: InventoryReportFilterInput) {
     inventoryReport(filter: $filter) {
       timestamp
+      totalProducts
       products {
         id
         name
@@ -88,7 +90,7 @@ const InventoryReport: React.FC = () => {
   const [selectedDepartment, setSelectedDepartment] = useState('all')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [selectedProduct, setSelectedProduct] = useState('all')
-  const [selectedBranch, setSelectedBranch] = useState('')
+  const [selectedBranch, setSelectedBranch] = useState('all')
   const [viewMode, setViewMode] = useState<'stock' | 'billing' | 'return' | 'received' | 'instock'>(
     'stock',
   )
@@ -144,7 +146,6 @@ const InventoryReport: React.FC = () => {
   }, [fetchMetadata])
 
   const fetchReport = useCallback(async () => {
-    if (!selectedBranch) return
     setLoading(true)
     setError('')
     try {
@@ -161,6 +162,8 @@ const InventoryReport: React.FC = () => {
               category: selectedCategory,
               product: selectedProduct,
               branch: selectedBranch,
+              page: currentPage,
+              limit: pageSize,
             },
           },
         }),
@@ -183,7 +186,7 @@ const InventoryReport: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }, [selectedDepartment, selectedCategory, selectedProduct, selectedBranch])
+  }, [selectedDepartment, selectedCategory, selectedProduct, selectedBranch, currentPage, pageSize])
 
   useEffect(() => {
     fetchReport()
@@ -193,15 +196,11 @@ const InventoryReport: React.FC = () => {
     setCurrentPage(1)
   }, [selectedDepartment, selectedCategory, selectedProduct, selectedBranch, viewMode])
 
-  const totalItems = data?.products.length || 0
+  const totalItems = data?.totalProducts || 0
   const totalPages = Math.ceil(totalItems / pageSize) || 1
   const activePage = Math.min(currentPage, totalPages)
 
-  const paginatedProducts = React.useMemo(() => {
-    if (!data?.products) return []
-    const start = (activePage - 1) * pageSize
-    return data.products.slice(start, start + pageSize)
-  }, [data, activePage, pageSize])
+  const paginatedProducts = data?.products || []
 
   const formatValue = (val: number) => {
     const fixed = val.toFixed(2)
@@ -448,7 +447,6 @@ const InventoryReport: React.FC = () => {
   ]
 
   const branchOptions = [
-    { value: '', label: 'Select Branch' },
     { value: 'all', label: 'All Branches' },
     ...allBranches.map((b) => ({ value: b.id, label: b.name })),
   ]
@@ -525,7 +523,7 @@ const InventoryReport: React.FC = () => {
           <Button
             buttonStyle="secondary"
             onClick={() => {
-              setSelectedBranch('')
+              setSelectedBranch('all')
               setSelectedDepartment('all')
               setSelectedCategory('all')
               setSelectedProduct('all')
@@ -551,12 +549,7 @@ const InventoryReport: React.FC = () => {
       </div>
       {loading && <p>Loading...</p>}
       {error && <p className="error">{error}</p>}
-      {!selectedBranch && !loading && (
-        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--theme-elevation-400)' }}>
-          <h3>Please select a branch to view the inventory report</h3>
-        </div>
-      )}
-      {data && data.products.length > 0 && selectedBranch && (
+      {data && data.products.length > 0 && (
         <>
           <div className="table-header-controls" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
             <div className="limit-selector" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>

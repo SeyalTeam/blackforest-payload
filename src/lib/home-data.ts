@@ -14,7 +14,7 @@ import { resolveApiTokenForBranch } from "@/lib/api-token";
 import { getPublicServerURL } from "@/utilities/serverUrl";
 
 const NEXT_PUBLIC_SERVER_URL = getPublicServerURL();
-const API_BASE = `http://127.0.0.1:${process.env.PORT || 3014}/api`;
+const API_BASE = `http://127.0.0.1:${process.env.PORT || 3000}/api`;
 const DEFAULT_BRANCH_ID =
   process.env.DEFAULT_BRANCH_ID?.trim() ||
   process.env.NEXT_PUBLIC_DEFAULT_BRANCH_ID?.trim() ||

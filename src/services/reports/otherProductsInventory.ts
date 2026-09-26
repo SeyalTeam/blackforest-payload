@@ -53,6 +53,7 @@ export type OtherProductsInventoryResult = {
 type OtherProductsInventoryArgs = {
   branch?: null | string
   dealer?: null | string
+  category?: null | string
   product?: null | string
   purchaseFrequency?: null | string
 }
@@ -91,6 +92,7 @@ export const getOtherProductsInventoryReportData = async (
 
   const branchParam = typeof args.branch === 'string' ? args.branch : ''
   const dealerParam = typeof args.dealer === 'string' ? args.dealer : ''
+  const categoryParam = typeof args.category === 'string' ? args.category : ''
   const productParam = typeof args.product === 'string' ? args.product : ''
   const purchaseFrequencyParam = typeof args.purchaseFrequency === 'string' ? args.purchaseFrequency : ''
 
@@ -105,6 +107,11 @@ export const getOtherProductsInventoryReportData = async (
   let selectedDealers: string[] = []
   if (dealerParam && dealerParam !== 'all') {
     selectedDealers = dealerParam.split(',').filter((id) => id.trim().length > 0)
+  }
+
+  let selectedCategories: string[] = []
+  if (categoryParam && categoryParam !== 'all') {
+    selectedCategories = categoryParam.split(',').filter((id) => id.trim().length > 0)
   }
 
   let selectedProducts: string[] = []
@@ -193,6 +200,17 @@ export const getOtherProductsInventoryReportData = async (
         preserveNullAndEmptyArrays: true,
       },
     },
+    ...(selectedCategories.length > 0
+      ? [
+          {
+            $match: {
+              $expr: {
+                $in: [{ $toString: '$productInfo.category' }, selectedCategories],
+              },
+            },
+          },
+        ]
+      : []),
     {
       $match: {
         $expr: {

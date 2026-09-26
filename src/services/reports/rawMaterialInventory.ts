@@ -1,5 +1,5 @@
 import { PayloadRequest } from 'payload'
-import { resolveReportBranchScope, toIndexedIdList } from '../../endpoints/reportScope'
+import { resolveReportBranchScope } from '../../endpoints/reportScope'
 
 export type RawMaterialInventoryItem = {
   rawMaterialId: string
@@ -99,10 +99,20 @@ export const getRawMaterialInventoryReportData = async (
 
   const exprAnd: any[] = []
   if (selectedBranches.length > 0) {
-    matchQuery.company = { $in: toIndexedIdList(selectedBranches) }
+    exprAnd.push({
+      $in: [{ $toString: '$company' }, selectedBranches],
+    })
   }
   if (selectedDealers.length > 0) {
-    matchQuery.dealer = { $in: toIndexedIdList(selectedDealers) }
+    exprAnd.push({
+      $in: [{ $toString: '$dealer' }, selectedDealers],
+    })
+  }
+
+  if (exprAnd.length > 0) {
+    matchQuery.$expr = {
+      $and: exprAnd,
+    }
   }
 
   const pipeline: any[] = [
@@ -117,7 +127,9 @@ export const getRawMaterialInventoryReportData = async (
   if (selectedRawMaterials.length > 0) {
     pipeline.push({
       $match: {
-        'rawMaterialsList.rawMaterial': { $in: toIndexedIdList(selectedRawMaterials) },
+        $expr: {
+          $in: [{ $toString: '$rawMaterialsList.rawMaterial' }, selectedRawMaterials],
+        },
       },
     })
   }

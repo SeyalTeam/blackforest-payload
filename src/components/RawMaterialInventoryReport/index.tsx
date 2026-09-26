@@ -175,7 +175,7 @@ const RawMaterialInventoryReport: React.FC = () => {
   const [error, setError] = useState('')
 
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([])
-  const [selectedBranch, setSelectedBranch] = useState<string[]>([])
+  const [selectedBranch, setSelectedBranch] = useState<string[]>(['all'])
   const [dealers, setDealers] = useState<{ id: string; name: string }[]>([])
   const [selectedDealers, setSelectedDealers] = useState<string[]>(['all'])
   const [rawMaterials, setRawMaterials] = useState<
@@ -253,7 +253,6 @@ const RawMaterialInventoryReport: React.FC = () => {
   }, [])
 
   const fetchReport = async () => {
-    if (selectedBranch.length === 0) return
     setLoading(true)
     setError('')
 
@@ -325,7 +324,7 @@ const RawMaterialInventoryReport: React.FC = () => {
 
   const handleBranchChange = (selected: readonly SelectOption[]) => {
     if (!selected || selected.length === 0) {
-      setSelectedBranch([])
+      setSelectedBranch(['all'])
       return
     }
     const lastSelected = selected[selected.length - 1]
@@ -333,7 +332,7 @@ const RawMaterialInventoryReport: React.FC = () => {
       setSelectedBranch(['all'])
     } else {
       const nextValues = selected.map((s) => s.value).filter((v) => v !== 'all')
-      setSelectedBranch(nextValues.length === 0 ? [] : nextValues)
+      setSelectedBranch(nextValues.length === 0 ? ['all'] : nextValues)
     }
   }
 
@@ -484,10 +483,6 @@ const RawMaterialInventoryReport: React.FC = () => {
           <div className="loading-state">Loading raw material inventory report...</div>
         ) : error ? (
           <div className="error-message">{error}</div>
-        ) : selectedBranch.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--theme-elevation-400)' }}>
-            <h3>Please select a branch to view the inventory report</h3>
-          </div>
         ) : data ? (
           <div>
             <div className="summary-cards-grid">

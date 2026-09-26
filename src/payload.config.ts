@@ -26,6 +26,7 @@ import Dealers from './collections/Dealers'
 import Employees from './collections/Employees'
 import Tasks from './collections/Tasks'
 import TaskColumns from './collections/TaskColumns'
+import TaskCompletions from './collections/TaskCompletions'
 import Billings from './collections/Billings'
 import { MessageThreads } from './collections/MessageThreads'
 import { Messages } from './collections/Messages'
@@ -91,7 +92,6 @@ import { ExpenseReportGlobal } from './globals/ExpenseReport'
 import { getDealerReportHandler } from './endpoints/getDealerReport'
 import { DealerReportGlobal } from './globals/DealerReport'
 import { getOtherProductsInventoryReportHandler } from './endpoints/getOtherProductsInventoryReport'
-import { resetOtherProductStockHandler } from './endpoints/resetOtherProductStock'
 import { OtherProductsInventoryReportGlobal } from './globals/OtherProductsInventoryReport'
 import { getRawMaterialInventoryReportHandler } from './endpoints/getRawMaterialInventoryReport'
 import { RawMaterialInventoryReportGlobal } from './globals/RawMaterialInventoryReport'
@@ -161,6 +161,8 @@ import BankStatements from './collections/BankStatements'
 import { BankStatementUploadGlobal } from './globals/BankStatementUpload'
 import { getPublicServerURL } from './utilities/serverUrl'
 import ManagerClosingReplies from './collections/ManagerClosingReplies'
+import { getMyDailyTasksHandler } from './endpoints/getMyDailyTasks'
+import { toggleDailyTaskHandler } from './endpoints/toggleDailyTask'
 
 
 // Path helpers
@@ -756,11 +758,6 @@ export default buildConfig({
       handler: getOtherProductsInventoryReportHandler,
     },
     {
-      path: '/reports/other-products-inventory/reset',
-      method: 'post',
-      handler: resetOtherProductStockHandler,
-    },
-    {
       path: '/reports/raw-material-inventory',
       method: 'get',
       handler: getRawMaterialInventoryReportHandler,
@@ -975,6 +972,16 @@ export default buildConfig({
       method: 'post',
       handler: toggleBranchCashDrawerAccessHandler,
     },
+    {
+      path: '/tasks/my-daily-tasks',
+      method: 'get',
+      handler: getMyDailyTasksHandler,
+    },
+    {
+      path: '/tasks/toggle-daily-task',
+      method: 'post',
+      handler: toggleDailyTaskHandler,
+    },
   ],
 
   globals: [
@@ -1037,6 +1044,7 @@ export default buildConfig({
     Employees,
     Tasks,
     TaskColumns,
+    TaskCompletions,
     MessageThreads,
     MessageAttachments,
     Messages,

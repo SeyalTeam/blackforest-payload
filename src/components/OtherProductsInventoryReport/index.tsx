@@ -178,8 +178,10 @@ const OtherProductsInventoryReport: React.FC = () => {
   const [selectedBranch, setSelectedBranch] = useState<string[]>([])
   const [dealers, setDealers] = useState<{ id: string; name: string }[]>([])
   const [selectedDealers, setSelectedDealers] = useState<string[]>(['all'])
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(['all'])
   const [products, setProducts] = useState<
-    { id: string; name: string; dealerIds: string[]; companyIds: string[]; packSize?: number; variants?: any[] }[]
+    { id: string; name: string; dealerIds: string[]; companyIds: string[]; categoryId?: string; packSize?: number; variants?: any[] }[]
   >([])
   const [selectedProducts, setSelectedProducts] = useState<string[]>(['all'])
   const [selectedFrequency, setSelectedFrequency] = useState<string>('all')
@@ -190,13 +192,15 @@ const OtherProductsInventoryReport: React.FC = () => {
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        const [branchRes, dealerRes, productRes] = await Promise.all([
+        const [branchRes, dealerRes, categoryRes, productRes] = await Promise.all([
           fetch('/api/branches?limit=1000'),
           fetch('/api/dealers?limit=1000'),
+          fetch('/api/categories?limit=1000'),
           fetch('/api/products?limit=1000'),
         ])
         const branchData = await branchRes.json()
         const dealerData = await dealerRes.json()
+        const categoryData = await categoryRes.json()
         const productData = await productRes.json()
 
         if (branchData.docs) {
@@ -207,6 +211,14 @@ const OtherProductsInventoryReport: React.FC = () => {
             dealerData.docs.map((d: any) => ({
               id: d.id,
               name: d.companyName || d.name || 'Unknown Dealer',
+            })),
+          )
+        }
+        if (categoryData.docs) {
+          setCategories(
+            categoryData.docs.map((c: any) => ({
+              id: c.id,
+              name: c.name || c.title || 'Unknown Category',
             })),
           )
         }
@@ -234,11 +246,13 @@ const OtherProductsInventoryReport: React.FC = () => {
                 companyIds = [p.company.id || p.company._id || ''].filter(Boolean)
               }
 
+              const categoryId = p.category ? (typeof p.category === 'string' ? p.category : p.category.id || p.category._id || '') : ''
               return {
                 id: p.id,
                 name: (p.name || 'Unknown Product').trim(),
                 dealerIds,
                 companyIds,
+                categoryId,
                 packSize: p.packSize,
                 variants: Array.isArray(p.variants) ? p.variants : [],
               }
@@ -260,10 +274,11 @@ const OtherProductsInventoryReport: React.FC = () => {
     try {
       const bStr = selectedBranch.includes('all') ? 'all' : selectedBranch.join(',')
       const dStr = selectedDealers.includes('all') ? 'all' : selectedDealers.join(',')
+      const cStr = selectedCategories.includes('all') ? 'all' : selectedCategories.join(',')
       const pStr = selectedProducts.includes('all') ? 'all' : selectedProducts.join(',')
 
       const res = await fetch(
-        `/api/reports/other-products-inventory?branch=${bStr}&dealer=${dStr}&product=${pStr}&purchaseFrequency=${selectedFrequency}`,
+        `/api/reports/other-products-inventory?branch=${bStr}&dealer=${dStr}&category=${cStr}&product=${pStr}&purchaseFrequency=${selectedFrequency}`,
       )
       if (!res.ok) throw new Error('Failed to fetch inventory report')
       const result: ReportData = await res.json()
@@ -275,24 +290,9 @@ const OtherProductsInventoryReport: React.FC = () => {
     }
   }
 
-  const handleResetStock = async (productId: string, branchId: string) => {
-    if (!confirm('Are you sure you want to reset the stock to zero for this product?')) return;
-    try {
-      const res = await fetch('/api/reports/other-products-inventory/reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId, branchId })
-      });
-      if (!res.ok) throw new Error('Failed to reset stock');
-      fetchReport();
-    } catch (err: any) {
-      alert(err.message || 'Something went wrong');
-    }
-  }
-
   useEffect(() => {
     fetchReport()
-  }, [selectedBranch, selectedDealers, selectedProducts, selectedFrequency])
+  }, [selectedBranch, selectedDealers, selectedCategories, selectedProducts, selectedFrequency])
 
   const branchOptions: SelectOption[] = useMemo(
     () => [{ value: 'all', label: 'All Branches' }, ...branches.map((b) => ({ value: b.id, label: b.name }))],
@@ -302,6 +302,11 @@ const OtherProductsInventoryReport: React.FC = () => {
   const dealerOptions: SelectOption[] = useMemo(
     () => [{ value: 'all', label: 'All Dealers' }, ...dealers.map((d) => ({ value: d.id, label: d.name }))],
     [dealers],
+  )
+
+  const categoryOptions: SelectOption[] = useMemo(
+    () => [{ value: 'all', label: 'All Categories' }, ...categories.map((c) => ({ value: c.id, label: c.name }))],
+    [categories],
   )
 
   const productOptions: SelectOption[] = useMemo(() => {
@@ -316,6 +321,12 @@ const OtherProductsInventoryReport: React.FC = () => {
     if (!selectedBranch.includes('all') && selectedBranch.length > 0) {
       filteredProducts = filteredProducts.filter(
         (p) => !p.companyIds || p.companyIds.length === 0 || p.companyIds.some((cId) => selectedBranch.includes(cId)),
+      )
+    }
+
+    if (!selectedCategories.includes('all') && selectedCategories.length > 0) {
+      filteredProducts = filteredProducts.filter(
+        (p) => p.categoryId && selectedCategories.includes(p.categoryId)
       )
     }
 
@@ -336,7 +347,7 @@ const OtherProductsInventoryReport: React.FC = () => {
     })
 
     return options
-  }, [products, selectedDealers])
+  }, [products, selectedDealers, selectedBranch, selectedCategories])
 
   const handleBranchChange = (selected: readonly SelectOption[]) => {
     if (!selected || selected.length === 0) {
@@ -349,6 +360,29 @@ const OtherProductsInventoryReport: React.FC = () => {
     } else {
       const nextValues = selected.map((s) => s.value).filter((v) => v !== 'all')
       setSelectedBranch(nextValues.length === 0 ? [] : nextValues)
+    }
+  }
+
+  const handleCategoryChange = (selected: readonly SelectOption[]) => {
+    let nextCategories: string[] = ['all']
+    if (selected && selected.length > 0) {
+      const lastSelected = selected[selected.length - 1]
+      if (lastSelected.value !== 'all') {
+        const values = selected.map((s) => s.value).filter((v) => v !== 'all')
+        if (values.length > 0) nextCategories = values
+      }
+    }
+    setSelectedCategories(nextCategories)
+
+    if (!nextCategories.includes('all')) {
+      setSelectedProducts((prev) => {
+        if (prev.includes('all')) return ['all']
+        const validIds = products
+          .filter((p) => p.categoryId && nextCategories.includes(p.categoryId))
+          .map((p) => p.id)
+        const filtered = prev.filter((id) => validIds.includes(id))
+        return filtered.length === 0 ? ['all'] : filtered
+      })
     }
   }
 
@@ -391,12 +425,10 @@ const OtherProductsInventoryReport: React.FC = () => {
 
   const allItems = useMemo(() => {
     if (!data || !data.groups) return []
-    const flat: (OtherProductsInventoryItem & { branchId?: string })[] = []
+    const flat: OtherProductsInventoryItem[] = []
     data.groups.forEach((g) => {
       if (Array.isArray(g.items)) {
-        g.items.forEach(item => {
-          flat.push({ ...item, branchId: g.branchId })
-        })
+        flat.push(...g.items)
       }
     })
     return flat.sort((a, b) => b.totalValue - a.totalValue)
@@ -421,7 +453,7 @@ const OtherProductsInventoryReport: React.FC = () => {
           <div className="filter-controls-group">
             <div className="filter-item">
               <label className="filter-label">Branch Filter:</label>
-              <Select
+              <Select instanceId="branch-filter"
                 isMulti
                 options={branchOptions}
                 value={branchOptions.filter((opt) => selectedBranch.includes(opt.value))}
@@ -436,7 +468,7 @@ const OtherProductsInventoryReport: React.FC = () => {
 
             <div className="filter-item">
               <label className="filter-label">Dealer Filter:</label>
-              <Select
+              <Select instanceId="dealer-filter"
                 isMulti
                 options={dealerOptions}
                 value={dealerOptions.filter((opt) => selectedDealers.includes(opt.value))}
@@ -450,8 +482,23 @@ const OtherProductsInventoryReport: React.FC = () => {
             </div>
 
             <div className="filter-item">
+              <label className="filter-label">Category Filter:</label>
+              <Select instanceId="category-filter"
+                isMulti
+                options={categoryOptions}
+                value={categoryOptions.filter((opt) => selectedCategories.includes(opt.value))}
+                onChange={handleCategoryChange}
+                styles={customSelectStyles}
+                closeMenuOnSelect={false}
+                hideSelectedOptions={false}
+                components={{ ValueContainer: CustomValueContainer, Option: CustomOption }}
+                placeholder="Select Category"
+              />
+            </div>
+
+            <div className="filter-item">
               <label className="filter-label">Product Filter:</label>
-              <Select
+              <Select instanceId="product-filter"
                 isMulti
                 options={productOptions}
                 value={productOptions.filter((opt) => selectedProducts.includes(opt.value))}
@@ -492,6 +539,8 @@ const OtherProductsInventoryReport: React.FC = () => {
                 <option value="yearly">Yearly</option>
               </select>
             </div>
+
+            
           </div>
         </div>
       </div>
@@ -556,7 +605,6 @@ const OtherProductsInventoryReport: React.FC = () => {
                         <th style={{ width: '10%', textAlign: 'right' }}>MIN</th>
                         <th style={{ width: '10%', textAlign: 'right' }}>MAX</th>
                         <th style={{ width: '16%', textAlign: 'right' }}>Total Value (₹)</th>
-                        <th style={{ width: '10%', textAlign: 'center' }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -634,15 +682,6 @@ const OtherProductsInventoryReport: React.FC = () => {
                               : '-'}
                           </td>
                           <td className="value-cell">₹{item.totalValue.toLocaleString('en-IN')}</td>
-                          <td style={{ textAlign: 'center' }}>
-                            <Button 
-                              buttonStyle="secondary" 
-                              size="small" 
-                              onClick={() => handleResetStock(item.productId, item.branchId || selectedBranch[0])}
-                            >
-                              Make Zero
-                            </Button>
-                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -659,7 +698,6 @@ const OtherProductsInventoryReport: React.FC = () => {
                         <td style={{ textAlign: 'right', fontWeight: 700, color: '#10b981' }}>
                           ₹{data.meta.grandTotalValue.toLocaleString('en-IN')}
                         </td>
-                        <td></td>
                       </tr>
                     </tfoot>
                   </table>

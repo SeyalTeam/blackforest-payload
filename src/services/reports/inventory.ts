@@ -29,6 +29,7 @@ export type InventoryReportProduct = {
 export type InventoryReportResult = {
   products: InventoryReportProduct[]
   timestamp: string
+  totalProducts: number
 }
 
 type InventoryReportArgs = {
@@ -36,6 +37,8 @@ type InventoryReportArgs = {
   category?: null | string
   department?: null | string
   product?: null | string
+  page?: number
+  limit?: number
 }
 
 type BranchDoc = {
@@ -158,12 +161,16 @@ export const getInventoryReportData = async (
 
   if (branchQuery.and.length === 0) delete branchQuery.and
 
+  const productPage = args.page || 1
+  const productLimit = args.limit || 100
+
   const [productsResult, branchesResult] = await Promise.all([
     payload.find({
       collection: 'products',
       where: query,
-      limit: 1000,
-      pagination: false,
+      limit: productLimit,
+      page: productPage,
+      pagination: true,
     }),
     payload.find({
       collection: 'branches',
@@ -174,9 +181,12 @@ export const getInventoryReportData = async (
   ])
 
   const products = productsResult.docs as ProductDoc[]
+  const totalProducts = productsResult.totalDocs || 0
   const branches = branchesResult.docs as BranchDoc[]
   const branchIds = branches.map((item) => item.id)
   const mappedBranchIds = toIndexedIdList(branchIds)
+  const productIds = products.map((item) => item.id)
+  const mappedProductIds = toIndexedIdList(productIds)
 
   const StockOrderModel = payload.db.collections['stock-orders']
   const BillingModel = payload.db.collections['billings']
@@ -198,7 +208,7 @@ export const getInventoryReportData = async (
   ]
   addGranularMatch(initialStockPipeline)
   initialStockPipeline.push(
-    { $match: { 'items.inStock': { $gt: 0 } } },
+    { $match: { 'items.inStock': { $gt: 0 }, 'items.product': { $in: mappedProductIds } } },
     {
       $group: {
         _id: {
@@ -220,7 +230,7 @@ export const getInventoryReportData = async (
   ]
   addGranularMatch(stockInPipeline, 'items.receivedDate')
   stockInPipeline.push(
-    { $match: { 'items.receivedQty': { $gt: 0 } } },
+    { $match: { 'items.receivedQty': { $gt: 0 }, 'items.product': { $in: mappedProductIds } } },
     {
       $group: {
         _id: {
@@ -244,15 +254,18 @@ export const getInventoryReportData = async (
     },
   ]
   addGranularMatch(stockOutPipeline)
-  stockOutPipeline.push({
-    $group: {
-      _id: {
-        branch: '$branch',
-        product: '$items.product',
+  stockOutPipeline.push(
+    { $match: { 'items.product': { $in: mappedProductIds } } },
+    {
+      $group: {
+        _id: {
+          branch: '$branch',
+          product: '$items.product',
+        },
+        totalSold: { $sum: '$items.quantity' },
       },
-      totalSold: { $sum: '$items.quantity' },
-    },
-  })
+    }
+  )
   const stockOutStats = await BillingModel.aggregate(stockOutPipeline)
 
   const returnPipeline: any[] = [
@@ -266,15 +279,18 @@ export const getInventoryReportData = async (
     },
   ]
   addGranularMatch(returnPipeline)
-  returnPipeline.push({
-    $group: {
-      _id: {
-        branch: '$branch',
-        product: '$items.product',
+  returnPipeline.push(
+    { $match: { 'items.product': { $in: mappedProductIds } } },
+    {
+      $group: {
+        _id: {
+          branch: '$branch',
+          product: '$items.product',
+        },
+        totalReturned: { $sum: '$items.quantity' },
       },
-      totalReturned: { $sum: '$items.quantity' },
-    },
-  })
+    }
+  )
   const returnStats = await ReturnOrderModel.aggregate(returnPipeline)
 
   const instockPipeline: any[] = [
@@ -286,9 +302,9 @@ export const getInventoryReportData = async (
   ]
   addGranularMatch(instockPipeline)
   instockPipeline.push(
-    { $unwind: '$items' },
     {
       $match: {
+        'items.product': { $in: mappedProductIds },
         'items.status': 'approved',
         'items.instock': { $gt: 0 },
       },
@@ -432,5 +448,6 @@ export const getInventoryReportData = async (
   return {
     timestamp: new Date().toISOString(),
     products: reportData,
+    totalProducts,
   }
 }

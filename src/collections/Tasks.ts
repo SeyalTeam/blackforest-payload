@@ -211,6 +211,36 @@ export const Tasks: CollectionConfig = {
         },
       ],
     },
+    {
+      name: 'completedBy',
+      type: 'relationship',
+      relationTo: 'employees',
+      hasMany: true,
+      label: 'Completed By (Employees)',
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'isDaily',
+      type: 'checkbox',
+      defaultValue: true,
+      label: 'Daily Recurring Task',
+      admin: {
+        position: 'sidebar',
+        description: 'If checked, this task recurs every day on the employee tracker app.',
+      },
+    },
+    {
+      name: 'isActive',
+      type: 'checkbox',
+      defaultValue: true,
+      label: 'Is Active',
+      admin: {
+        position: 'sidebar',
+        description: 'Uncheck to temporarily disable this task from appearing on employee apps.',
+      },
+    },
   ],
   timestamps: true,
 }

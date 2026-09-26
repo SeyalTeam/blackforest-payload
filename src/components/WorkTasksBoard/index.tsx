@@ -58,6 +58,7 @@ export type TaskItem = {
   assignedUser?: any
   dueDate?: string
   order?: number
+  completedBy?: any[]
   labels?: TaskLabel[]
   checklist?: ChecklistItem[]
   createdAt?: string
@@ -478,18 +479,14 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
     let assignedEmpVal: string | undefined = undefined
 
     if (viewMode === 'role') {
-      const roleKey = selectedRoleForCol || newColumnTitle.trim().toLowerCase().replace(/\s+/g, '_')
+      const roleKey = selectedRoleForCol
       if (!roleKey) {
         alert('Please select a role from the dropdown list.')
         return
       }
-      const matched = DEFAULT_ROLES.find(
-        (r) =>
-          r.value === roleKey ||
-          r.label.toLowerCase() === roleKey.toLowerCase(),
-      )
+      const matched = DEFAULT_ROLES.find((r) => r.value === roleKey)
       roleVal = matched ? matched.value : roleKey
-      titleToSave = matched ? matched.label : newColumnTitle.trim()
+      titleToSave = matched ? matched.label : roleKey
     } else if (viewMode === 'individual') {
       const empIdToUse = selectedEmployeeForCol
       if (!empIdToUse && !newColumnTitle.trim()) {
@@ -535,10 +532,12 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
         setSelectedRoleForEmpFilter('')
         setIsAddingList(false)
       } else {
-        alert('Failed to create list. Ensure you are logged in as Superadmin.')
+        const errData = await res.json().catch(() => ({}))
+        alert(`Failed to create list. Error: ${JSON.stringify(errData)}`)
       }
     } catch (err) {
       console.error('Error creating column:', err)
+      alert(`Network Error: ${String(err)}`)
     }
   }
 
@@ -587,6 +586,41 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
       console.error('Error deleting column:', err)
     } finally {
       setActiveColumnMenu(null)
+    }
+  }
+
+  const toggleTaskCompletion = async (task: TaskItem, employeeId: string) => {
+    try {
+      const currentCompletedBy = task.completedBy || []
+      const alreadyCompleted = currentCompletedBy.some(
+        (emp) => (typeof emp === 'string' ? emp : emp.id) === employeeId
+      )
+
+      let newCompletedBy = []
+      if (alreadyCompleted) {
+        newCompletedBy = currentCompletedBy.filter(
+          (emp) => (typeof emp === 'string' ? emp : emp.id) !== employeeId
+        ).map((emp) => typeof emp === 'string' ? emp : emp.id)
+      } else {
+        newCompletedBy = [
+          ...currentCompletedBy.map((emp) => typeof emp === 'string' ? emp : emp.id),
+          employeeId
+        ]
+      }
+
+      // Update Local State Optimistically
+      setTasks((prev) =>
+        prev.map((t) => (t.id === task.id ? { ...t, completedBy: newCompletedBy } : t))
+      )
+
+      await fetch(`/api/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completedBy: newCompletedBy }),
+      })
+    } catch (err) {
+      console.error('Error toggling task completion:', err)
+      fetchTasks() // Revert on error
     }
   }
 
@@ -1157,7 +1191,23 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                       )}
 
                       {/* Card Title */}
-                      <div className="card-title">{task.title}</div>
+                      <div className="card-title" style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                        {viewMode === 'individual' && col.employeeId && (
+                          <input
+                            type="checkbox"
+                            checked={(task.completedBy || []).some(
+                              (emp) => (typeof emp === 'string' ? emp : emp.id) === col.employeeId
+                            )}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              toggleTaskCompletion(task, col.employeeId)
+                            }}
+                            title="Mark as Done for this Employee"
+                            style={{ marginTop: '2px', cursor: 'pointer', transform: 'scale(1.2)' }}
+                          />
+                        )}
+                        <span>{task.title}</span>
+                      </div>
 
                       {/* Badges & Avatars */}
                       <div className="card-footer-row">
@@ -1749,6 +1799,81 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                     }
                   />
                 </div>
+
+                {/* Employee Progress Section */}
+                {(() => {
+                  let targetEmps: any[] = []
+                  if (activeModalCard.assignedRole && activeModalCard.assignmentType !== 'unassigned') {
+                     const roleClean = activeModalCard.assignedRole.toLowerCase().replace(/[\s_-]+/g, '')
+                     targetEmps = employees.filter(e => (e.team || '').toLowerCase().replace(/[\s_-]+/g, '') === roleClean)
+                  } else if (activeModalCard.assignedEmployee) {
+                     const empId = typeof activeModalCard.assignedEmployee === 'object' ? activeModalCard.assignedEmployee.id : activeModalCard.assignedEmployee
+                     if (empId && empId !== 'all' && empId !== 'unassigned') {
+                       const emp = employees.find(e => e.id === empId)
+                       if (emp) targetEmps = [emp]
+                     }
+                  }
+
+                  if (targetEmps.length === 0) return null;
+                  
+                  const completedIds = (activeModalCard.completedBy || []).map((emp) => typeof emp === 'string' ? emp : emp.id)
+                  const total = targetEmps.length
+                  const done = targetEmps.filter(e => completedIds.includes(e.id)).length
+                  const pct = Math.round((done / total) * 100)
+
+                  return (
+                    <div className="modal-section">
+                      <span className="section-label">
+                        <Users size={14} />
+                        <span>Employee Progress</span>
+                      </span>
+                      
+                      <div className="checklist-progress-bar">
+                        <span className="progress-pct">{pct}%</span>
+                        <div className="progress-track">
+                          <div
+                            className={`progress-fill ${pct === 100 ? 'done' : ''}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="checklist-items">
+                        {targetEmps.map(emp => {
+                          const isDone = completedIds.includes(emp.id)
+                          return (
+                            <div key={emp.id} className="checklist-item">
+                              <input
+                                type="checkbox"
+                                checked={isDone}
+                                disabled={!isSuperAdmin}
+                                onChange={(e) => {
+                                  e.stopPropagation()
+                                  toggleTaskCompletion(activeModalCard, emp.id)
+                                  // Update the modal state instantly too
+                                  setActiveModalCard(prev => {
+                                    if (!prev) return prev;
+                                    const currDone = (prev.completedBy || []).map((e: any) => typeof e === 'string' ? e : e.id)
+                                    let nextDone = []
+                                    if (currDone.includes(emp.id)) {
+                                      nextDone = currDone.filter((id: string) => id !== emp.id)
+                                    } else {
+                                      nextDone = [...currDone, emp.id]
+                                    }
+                                    return { ...prev, completedBy: nextDone }
+                                  })
+                                }}
+                              />
+                              <span className={`checklist-text ${isDone ? 'checked' : ''}`}>
+                                👤 {emp.name} {emp.team ? `(${emp.team})` : ''}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })()}
 
                 {/* Checklist Section */}
                 <div className="modal-section">

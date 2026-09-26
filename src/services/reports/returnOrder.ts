@@ -3,7 +3,7 @@ import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import type { PipelineStage } from 'mongoose'
-import { resolveReportBranchScope, toIndexedIdList } from '../../endpoints/reportScope'
+import { resolveReportBranchScope } from '../../endpoints/reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -196,7 +196,9 @@ export const getReturnOrderReportData = async (
   }
 
   if (selectedBranches.length > 0) {
-    matchQuery.branch = { $in: toIndexedIdList(selectedBranches) }
+    ;(matchQuery as Record<string, unknown>).$expr = {
+      $in: [{ $toString: '$branch' }, selectedBranches],
+    }
   }
 
   if (selectedStatus !== 'all') {

@@ -6,12 +6,14 @@ export const getOtherProductsInventoryReportHandler: PayloadHandler = async (req
     const url = new URL(req.url || '', 'http://localhost')
     const branch = url.searchParams.get('branch')
     const dealer = url.searchParams.get('dealer')
+    const category = url.searchParams.get('category')
     const product = url.searchParams.get('product')
     const purchaseFrequency = url.searchParams.get('purchaseFrequency')
 
     const report = await getOtherProductsInventoryReportData(req, {
       branch,
       dealer,
+      category,
       product,
       purchaseFrequency,
     })

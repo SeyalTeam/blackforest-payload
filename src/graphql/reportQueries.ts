@@ -493,6 +493,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       category: { type: graphQL.GraphQLString },
       product: { type: graphQL.GraphQLString },
       branch: { type: graphQL.GraphQLString },
+      page: { type: graphQL.GraphQLInt },
+      limit: { type: graphQL.GraphQLInt },
     },
   })
 
@@ -534,6 +536,7 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
     name: 'InventoryReportResult',
     fields: {
       timestamp: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+      totalProducts: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
       products: {
         type: new graphQL.GraphQLNonNull(
           new graphQL.GraphQLList(new graphQL.GraphQLNonNull(InventoryReportProductType)),

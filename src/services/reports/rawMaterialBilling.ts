@@ -2,7 +2,7 @@ import type { PayloadRequest } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
-import { resolveReportCompanyScope, toIndexedIdList } from '../../endpoints/reportScope'
+import { resolveReportCompanyScope } from '../../endpoints/reportScope'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -256,10 +256,20 @@ export const getRawMaterialBillingReportData = async (
 
   const exprAnd: any[] = []
   if (selectedCompanies.length > 0) {
-    matchQuery.company = { $in: toIndexedIdList(selectedCompanies) }
+    exprAnd.push({
+      $in: [{ $toString: '$company' }, selectedCompanies],
+    })
   }
   if (selectedDealers.length > 0) {
-    matchQuery.dealer = { $in: toIndexedIdList(selectedDealers) }
+    exprAnd.push({
+      $in: [{ $toString: '$dealer' }, selectedDealers],
+    })
+  }
+
+  if (exprAnd.length > 0) {
+    matchQuery.$expr = {
+      $and: exprAnd,
+    }
   }
 
   const pipeline: any[] = [

@@ -521,16 +521,6 @@ export interface Product {
    * Branches where this product should show as out of stock.
    */
   outOfStockBranches?: (string | Branch)[] | null;
-  /**
-   * Dates when the other products stock was reset to zero for specific branches.
-   */
-  otherProductsResetDates?:
-    | {
-        branch: string | Branch;
-        resetDate: string;
-        id?: string | null;
-      }[]
-    | null;
   branchOverrides?:
     | {
         branch: string | Branch;
@@ -1081,6 +1071,13 @@ export interface Task {
     | {
         text: string;
         completed?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
+  dailyCompletions?:
+    | {
+        employee: string | Employee;
+        date: string;
         id?: string | null;
       }[]
     | null;
@@ -2887,13 +2884,6 @@ export interface ProductsSelect<T extends boolean = true> {
       };
   inactiveBranches?: T;
   outOfStockBranches?: T;
-  otherProductsResetDates?:
-    | T
-    | {
-        branch?: T;
-        resetDate?: T;
-        id?: T;
-      };
   branchOverrides?:
     | T
     | {
@@ -3123,6 +3113,13 @@ export interface TasksSelect<T extends boolean = true> {
     | {
         text?: T;
         completed?: T;
+        id?: T;
+      };
+  dailyCompletions?:
+    | T
+    | {
+        employee?: T;
+        date?: T;
         id?: T;
       };
   updatedAt?: T;

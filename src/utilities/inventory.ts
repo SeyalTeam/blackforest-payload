@@ -12,8 +12,14 @@ export const addGranularMatch = (pipeline: any[], dateField: string = 'createdAt
   pipeline.push({
     $lookup: {
       from: 'branches',
-      localField: 'branch',
-      foreignField: '_id',
+      let: { bId: '$branch' },
+      pipeline: [
+        {
+          $match: {
+            $expr: { $eq: [{ $toString: '$_id' }, { $toString: '$$bId' }] },
+          },
+        },
+      ],
       as: 'branchData',
     },
   })
