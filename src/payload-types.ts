@@ -761,6 +761,126 @@ export interface Employee {
   phoneNumber: string;
   email?: string | null;
   address?: string | null;
+  loginTime?:
+    | (
+        | '00:00'
+        | '00:30'
+        | '01:00'
+        | '01:30'
+        | '02:00'
+        | '02:30'
+        | '03:00'
+        | '03:30'
+        | '04:00'
+        | '04:30'
+        | '05:00'
+        | '05:30'
+        | '06:00'
+        | '06:30'
+        | '07:00'
+        | '07:30'
+        | '08:00'
+        | '08:30'
+        | '09:00'
+        | '09:30'
+        | '10:00'
+        | '10:30'
+        | '11:00'
+        | '11:30'
+        | '12:00'
+        | '12:30'
+        | '13:00'
+        | '13:30'
+        | '14:00'
+        | '14:30'
+        | '15:00'
+        | '15:30'
+        | '16:00'
+        | '16:30'
+        | '17:00'
+        | '17:30'
+        | '18:00'
+        | '18:30'
+        | '19:00'
+        | '19:30'
+        | '20:00'
+        | '20:30'
+        | '21:00'
+        | '21:30'
+        | '22:00'
+        | '22:30'
+        | '23:00'
+        | '23:30'
+      )
+    | null;
+  logoutTime?:
+    | (
+        | '00:00'
+        | '00:30'
+        | '01:00'
+        | '01:30'
+        | '02:00'
+        | '02:30'
+        | '03:00'
+        | '03:30'
+        | '04:00'
+        | '04:30'
+        | '05:00'
+        | '05:30'
+        | '06:00'
+        | '06:30'
+        | '07:00'
+        | '07:30'
+        | '08:00'
+        | '08:30'
+        | '09:00'
+        | '09:30'
+        | '10:00'
+        | '10:30'
+        | '11:00'
+        | '11:30'
+        | '12:00'
+        | '12:30'
+        | '13:00'
+        | '13:30'
+        | '14:00'
+        | '14:30'
+        | '15:00'
+        | '15:30'
+        | '16:00'
+        | '16:30'
+        | '17:00'
+        | '17:30'
+        | '18:00'
+        | '18:30'
+        | '19:00'
+        | '19:30'
+        | '20:00'
+        | '20:30'
+        | '21:00'
+        | '21:30'
+        | '22:00'
+        | '22:30'
+        | '23:00'
+        | '23:30'
+      )
+    | null;
+  /**
+   * Auto-calculated from login and logout times
+   */
+  workingHours?: number | null;
+  /**
+   * Number of regular leaves per month
+   */
+  monthlyLeaveCount?: number | null;
+  /**
+   * Number of week-offs per month
+   */
+  weekoffCount?: number | null;
+  /**
+   * Monthly salary amount
+   */
+  salary?: number | null;
   status: 'active' | 'inactive';
   team:
     | 'waiter'
@@ -2095,9 +2215,13 @@ export interface Attendance {
    */
   dateString: string;
   /**
-   * Auto-calculated: full_day if all sessions are closed, half_day if any session has no punch-out.
+   * Auto-calculated: true if the first punch-in is after the employee's configured loginTime.
    */
-  dayType?: ('full_day' | 'half_day') | null;
+  isLate?: boolean | null;
+  /**
+   * Auto-calculated: full_day if all sessions are closed, half_day if any session has no punch-out. Can also be set manually.
+   */
+  dayType?: ('full_day' | 'half_day' | 'week_off' | 'on_leave' | 'holiday') | null;
   activities?:
     | {
         type: 'session' | 'break';
@@ -2302,8 +2426,13 @@ export interface WaiterCall {
  */
 export interface CctvReport {
   id: string;
+  /**
+   * Reply from the watcher to the manager
+   */
+  watcherReplyMessage?: string | null;
+  watcherReplyScreenshot?: (string | null) | Media;
   branch: string | Branch;
-  status: 'pending' | 'mng_replied' | 'st_replied';
+  status: 'pending' | 'mng_replied' | 'st_replied' | 'watcher_replied';
   screenshot?: (string | null) | Media;
   message: string;
   /**
@@ -2935,6 +3064,12 @@ export interface EmployeesSelect<T extends boolean = true> {
   phoneNumber?: T;
   email?: T;
   address?: T;
+  loginTime?: T;
+  logoutTime?: T;
+  workingHours?: T;
+  monthlyLeaveCount?: T;
+  weekoffCount?: T;
+  salary?: T;
   status?: T;
   team?: T;
   aadhaarPhoto?: T;
@@ -3635,6 +3770,7 @@ export interface AttendanceSelect<T extends boolean = true> {
   employee?: T;
   date?: T;
   dateString?: T;
+  isLate?: T;
   dayType?: T;
   activities?:
     | T
@@ -3791,6 +3927,8 @@ export interface WaiterCallsSelect<T extends boolean = true> {
  * via the `definition` "cctv-reports_select".
  */
 export interface CctvReportsSelect<T extends boolean = true> {
+  watcherReplyMessage?: T;
+  watcherReplyScreenshot?: T;
   branch?: T;
   status?: T;
   screenshot?: T;

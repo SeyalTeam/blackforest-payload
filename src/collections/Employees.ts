@@ -1,5 +1,13 @@
 import { CollectionConfig } from 'payload'
 
+const timeOptions = Array.from({ length: 48 }, (_, i) => {
+  const hours = String(Math.floor(i / 2)).padStart(2, '0')
+  const minutes = i % 2 === 0 ? '00' : '30'
+  return { label: `${hours}:${minutes}`, value: `${hours}:${minutes}` }
+})
+
+
+
 const Employees: CollectionConfig = {
   slug: 'employees',
   admin: {
@@ -66,15 +74,17 @@ const Employees: CollectionConfig = {
       fields: [
         {
           name: 'loginTime',
-          type: 'text',
-          label: 'Login Time (HH:mm)',
+          type: 'select',
+          options: timeOptions,
+          label: 'Work In Time (HH:mm)',
           required: false,
           admin: { width: '33%' }
         },
         {
           name: 'logoutTime',
-          type: 'text',
-          label: 'Logout Time (HH:mm)',
+          type: 'select',
+          options: timeOptions,
+          label: 'Work Out Time (HH:mm)',
           required: false,
           admin: { width: '33%' }
         },
@@ -85,10 +95,47 @@ const Employees: CollectionConfig = {
           required: false,
           admin: { 
             width: '33%',
-            description: 'E.g. 9',
+            description: 'Auto-calculated from login and logout times',
+            readOnly: true,
           }
         },
       ],
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'monthlyLeaveCount',
+          type: 'number',
+          label: 'Monthly Leave Count',
+          required: false,
+          defaultValue: 0,
+          admin: {
+            width: '50%',
+            description: 'Number of regular leaves per month',
+          }
+        },
+        {
+          name: 'weekoffCount',
+          type: 'number',
+          label: 'Weekoff Count',
+          required: false,
+          defaultValue: 0,
+          admin: {
+            width: '50%',
+            description: 'Number of week-offs per month',
+          }
+        },
+      ]
+    },
+    {
+      name: 'salary',
+      type: 'number',
+      label: 'Salary',
+      required: false,
+      admin: {
+        description: 'Monthly salary amount',
+      }
     },
     {
       name: 'status',
@@ -150,6 +197,27 @@ const Employees: CollectionConfig = {
         if (operation === 'create' || operation === 'update') {
           if (data.name === 'Kitchen') {
             data.team = 'kitchen'
+          }
+          
+          if (data.loginTime && data.logoutTime) {
+            const [loginHour, loginMin] = data.loginTime.split(':').map(Number)
+            const [logoutHour, logoutMin] = data.logoutTime.split(':').map(Number)
+            
+            let diffHours = logoutHour - loginHour
+            let diffMins = logoutMin - loginMin
+            
+            if (diffMins < 0) {
+              diffHours -= 1
+              diffMins += 60
+            }
+            if (diffHours < 0) {
+              diffHours += 24 // Handle overnight shifts
+            }
+            
+            // Decimal format (e.g., 8 hours 30 mins = 8.5)
+            data.workingHours = diffHours + (diffMins / 60)
+          } else {
+            data.workingHours = null
           }
         }
         return data

@@ -11,6 +11,19 @@ const Attendance: CollectionConfig = {
       async ({ data, req, operation }) => {
         if (!data) return data;
         
+        // Auto-populate employee from user if not set
+        if (!data.employee && data.user) {
+          try {
+            const userId = typeof data.user === 'string' ? data.user : data.user.id;
+            const userRes = await req.payload.findByID({ collection: 'users', id: userId });
+            if (userRes && userRes.employee) {
+              data.employee = typeof userRes.employee === 'string' ? userRes.employee : userRes.employee.id;
+            }
+          } catch (e) {
+            req.payload.logger.error({ err: e, msg: 'Error auto-populating employee from user' });
+          }
+        }
+        
         // Requirement: Enforce selfie before closing session (punch-out) UNLESS it's an auto punch-out
         if (data.activities && Array.isArray(data.activities)) {
           for (const activity of data.activities) {
@@ -443,9 +456,12 @@ const Attendance: CollectionConfig = {
       options: [
         { label: 'Full Day', value: 'full_day' },
         { label: 'Half Day', value: 'half_day' },
+        { label: 'Week Off', value: 'week_off' },
+        { label: 'On Leave', value: 'on_leave' },
+        { label: 'Holiday', value: 'holiday' },
       ],
       admin: {
-        description: 'Auto-calculated: full_day if all sessions are closed, half_day if any session has no punch-out.',
+        description: 'Auto-calculated: full_day if all sessions are closed, half_day if any session has no punch-out. Can also be set manually.',
       },
     },
 
