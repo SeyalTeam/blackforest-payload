@@ -3,7 +3,7 @@ import { CollectionConfig } from 'payload'
 const timeOptions = Array.from({ length: 48 }, (_, i) => {
   const hours = String(Math.floor(i / 2)).padStart(2, '0')
   const minutes = i % 2 === 0 ? '00' : '30'
-  return { label: `${hours}:${minutes}`, value: `${hours}:${minutes}` }
+  return { label: `${hours}:${minutes}`, value: `${hours}_${minutes}` }
 })
 
 
@@ -78,7 +78,10 @@ const Employees: CollectionConfig = {
           options: timeOptions,
           label: 'Work In Time (HH:mm)',
           required: false,
-          admin: { width: '33%' }
+          admin: { width: '33%' },
+          hooks: {
+            afterRead: [({ value }) => typeof value === 'string' ? value.replace(':', '_') : value]
+          }
         },
         {
           name: 'logoutTime',
@@ -86,7 +89,10 @@ const Employees: CollectionConfig = {
           options: timeOptions,
           label: 'Work Out Time (HH:mm)',
           required: false,
-          admin: { width: '33%' }
+          admin: { width: '33%' },
+          hooks: {
+            afterRead: [({ value }) => typeof value === 'string' ? value.replace(':', '_') : value]
+          }
         },
         {
           name: 'workingHours',
@@ -200,8 +206,11 @@ const Employees: CollectionConfig = {
           }
           
           if (data.loginTime && data.logoutTime) {
-            const [loginHour, loginMin] = data.loginTime.split(':').map(Number)
-            const [logoutHour, logoutMin] = data.logoutTime.split(':').map(Number)
+            const safeLoginTime = data.loginTime.replace('_', ':')
+            const safeLogoutTime = data.logoutTime.replace('_', ':')
+            
+            const [loginHour, loginMin] = safeLoginTime.split(':').map(Number)
+            const [logoutHour, logoutMin] = safeLogoutTime.split(':').map(Number)
             
             let diffHours = logoutHour - loginHour
             let diffMins = logoutMin - loginMin

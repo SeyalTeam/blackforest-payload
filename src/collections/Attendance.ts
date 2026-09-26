@@ -79,7 +79,8 @@ const Attendance: CollectionConfig = {
                     const hours = istTime.getUTCHours();
                     const minutes = istTime.getUTCMinutes();
                     
-                    const timeParts = employeeRes.loginTime.split(':');
+                    const safeLoginTime = employeeRes.loginTime.replace('_', ':');
+                    const timeParts = safeLoginTime.split(':');
                     if (timeParts.length >= 2) {
                       const loginStrH = parseInt(timeParts[0], 10);
                       const loginStrM = parseInt(timeParts[1], 10);

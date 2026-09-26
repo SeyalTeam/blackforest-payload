@@ -4540,10 +4540,15 @@ var init_Dealers = __esm({
 });
 
 // src/collections/Employees.ts
-var Employees, Employees_default;
+var timeOptions, Employees, Employees_default;
 var init_Employees = __esm({
   "src/collections/Employees.ts"() {
     "use strict";
+    timeOptions = Array.from({ length: 48 }, (_, i) => {
+      const hours = String(Math.floor(i / 2)).padStart(2, "0");
+      const minutes = i % 2 === 0 ? "00" : "30";
+      return { label: `${hours}:${minutes}`, value: `${hours}:${minutes}` };
+    });
     Employees = {
       slug: "employees",
       admin: {
@@ -4599,6 +4604,74 @@ var init_Employees = __esm({
           name: "address",
           type: "text",
           required: false
+        },
+        {
+          type: "row",
+          fields: [
+            {
+              name: "loginTime",
+              type: "select",
+              options: timeOptions,
+              label: "Work In Time (HH:mm)",
+              required: false,
+              admin: { width: "33%" }
+            },
+            {
+              name: "logoutTime",
+              type: "select",
+              options: timeOptions,
+              label: "Work Out Time (HH:mm)",
+              required: false,
+              admin: { width: "33%" }
+            },
+            {
+              name: "workingHours",
+              type: "number",
+              label: "Working Hours",
+              required: false,
+              admin: {
+                width: "33%",
+                description: "Auto-calculated from login and logout times",
+                readOnly: true
+              }
+            }
+          ]
+        },
+        {
+          type: "row",
+          fields: [
+            {
+              name: "monthlyLeaveCount",
+              type: "number",
+              label: "Monthly Leave Count",
+              required: false,
+              defaultValue: 0,
+              admin: {
+                width: "50%",
+                description: "Number of regular leaves per month"
+              }
+            },
+            {
+              name: "weekoffCount",
+              type: "number",
+              label: "Weekoff Count",
+              required: false,
+              defaultValue: 0,
+              admin: {
+                width: "50%",
+                description: "Number of week-offs per month"
+              }
+            }
+          ]
+        },
+        {
+          name: "salary",
+          type: "number",
+          label: "Salary",
+          required: false,
+          admin: {
+            description: "Monthly salary amount"
+          }
         },
         {
           name: "status",
@@ -4661,6 +4734,22 @@ var init_Employees = __esm({
             if (operation === "create" || operation === "update") {
               if (data.name === "Kitchen") {
                 data.team = "kitchen";
+              }
+              if (data.loginTime && data.logoutTime) {
+                const [loginHour, loginMin] = data.loginTime.split(":").map(Number);
+                const [logoutHour, logoutMin] = data.logoutTime.split(":").map(Number);
+                let diffHours = logoutHour - loginHour;
+                let diffMins = logoutMin - loginMin;
+                if (diffMins < 0) {
+                  diffHours -= 1;
+                  diffMins += 60;
+                }
+                if (diffHours < 0) {
+                  diffHours += 24;
+                }
+                data.workingHours = diffHours + diffMins / 60;
+              } else {
+                data.workingHours = null;
               }
             }
             return data;
@@ -8681,10 +8770,10 @@ var init_Billings = __esm({
               const skipCustomerRewardProcessing = Boolean(requestContext?.skipCustomerRewardProcessing);
               const skipOfferCounterProcessing = Boolean(requestContext?.skipOfferCounterProcessing);
               const skipWhatsAppNotification = Boolean(requestContext?.skipWhatsAppNotification);
-              const isFinalized = isBillingFinalizedStatus(doc.status);
+              const isSettled = doc.status === "settled";
               const customerPhone = doc.customerDetails?.phoneNumber;
               const whatsappAlreadySent = Boolean(doc.whatsappSent);
-              if (isFinalized && customerPhone && !whatsappAlreadySent && !skipWhatsAppNotification) {
+              if (isSettled && customerPhone && !whatsappAlreadySent && !skipWhatsAppNotification) {
                 try {
                   const success = await sendWhatsAppBill({
                     billId: doc.id,
@@ -24193,9 +24282,20 @@ var init_Attendance = __esm({
         beforeValidate: [
           async ({ data, req, operation }) => {
             if (!data) return data;
+            if (!data.employee && data.user) {
+              try {
+                const userId = typeof data.user === "string" ? data.user : data.user.id;
+                const userRes = await req.payload.findByID({ collection: "users", id: userId });
+                if (userRes && userRes.employee) {
+                  data.employee = typeof userRes.employee === "string" ? userRes.employee : userRes.employee.id;
+                }
+              } catch (e) {
+                req.payload.logger.error({ err: e, msg: "Error auto-populating employee from user" });
+              }
+            }
             if (data.activities && Array.isArray(data.activities)) {
               for (const activity of data.activities) {
-                if (activity.type === "session" && activity.punchOut && !activity.capturedImage) {
+                if (activity.type === "session" && activity.punchOut && !activity.capturedImage && activity.punchOutType !== "auto") {
                   throw new Error("A selfie (captured image) is strictly required before punching out.");
                 }
               }
@@ -24217,6 +24317,48 @@ var init_Attendance = __esm({
               });
               if (existing.docs.length > 0) {
                 throw new Error(`An attendance record for user on ${data.dateString} already exists.`);
+              }
+            }
+            if (data.activities && Array.isArray(data.activities) && data.user) {
+              const sessions = data.activities.filter((a) => a.type === "session");
+              if (sessions.length > 0) {
+                const firstSession = [...sessions].sort((a, b) => new Date(a.punchIn).getTime() - new Date(b.punchIn).getTime())[0];
+                if (firstSession && firstSession.punchIn) {
+                  try {
+                    let employeeId = data.employee;
+                    if (!employeeId) {
+                      const userRes = await req.payload.findByID({ collection: "users", id: typeof data.user === "string" ? data.user : data.user.id });
+                      if (userRes && userRes.employee) {
+                        employeeId = typeof userRes.employee === "string" ? userRes.employee : userRes.employee.id;
+                      }
+                    } else {
+                      employeeId = typeof employeeId === "string" ? employeeId : employeeId.id;
+                    }
+                    if (employeeId) {
+                      const employeeRes = await req.payload.findByID({ collection: "employees", id: employeeId });
+                      if (employeeRes && employeeRes.loginTime) {
+                        const punchInDate = new Date(firstSession.punchIn);
+                        const istTime = new Date(punchInDate.getTime() + 5.5 * 60 * 60 * 1e3);
+                        const hours = istTime.getUTCHours();
+                        const minutes = istTime.getUTCMinutes();
+                        const timeParts = employeeRes.loginTime.split(":");
+                        if (timeParts.length >= 2) {
+                          const loginStrH = parseInt(timeParts[0], 10);
+                          const loginStrM = parseInt(timeParts[1], 10);
+                          if (!isNaN(loginStrH) && !isNaN(loginStrM)) {
+                            if (hours > loginStrH || hours === loginStrH && minutes > loginStrM) {
+                              data.isLate = true;
+                            } else {
+                              data.isLate = false;
+                            }
+                          }
+                        }
+                      }
+                    }
+                  } catch (e) {
+                    req.payload.logger.error({ err: e, msg: "Error calculating isLate" });
+                  }
+                }
               }
             }
             return data;
@@ -24398,6 +24540,48 @@ var init_Attendance = __esm({
                 data.dayType = void 0;
               }
             }
+            if (data.activities && Array.isArray(data.activities) && data.user) {
+              const sessions = data.activities.filter((a) => a.type === "session");
+              if (sessions.length > 0) {
+                const firstSession = [...sessions].sort((a, b) => new Date(a.punchIn).getTime() - new Date(b.punchIn).getTime())[0];
+                if (firstSession && firstSession.punchIn) {
+                  try {
+                    let employeeId = data.employee;
+                    if (!employeeId) {
+                      const userRes = await req.payload.findByID({ collection: "users", id: typeof data.user === "string" ? data.user : data.user.id });
+                      if (userRes && userRes.employee) {
+                        employeeId = typeof userRes.employee === "string" ? userRes.employee : userRes.employee.id;
+                      }
+                    } else {
+                      employeeId = typeof employeeId === "string" ? employeeId : employeeId.id;
+                    }
+                    if (employeeId) {
+                      const employeeRes = await req.payload.findByID({ collection: "employees", id: employeeId });
+                      if (employeeRes && employeeRes.loginTime) {
+                        const punchInDate = new Date(firstSession.punchIn);
+                        const istTime = new Date(punchInDate.getTime() + 5.5 * 60 * 60 * 1e3);
+                        const hours = istTime.getUTCHours();
+                        const minutes = istTime.getUTCMinutes();
+                        const timeParts = employeeRes.loginTime.split(":");
+                        if (timeParts.length >= 2) {
+                          const loginStrH = parseInt(timeParts[0], 10);
+                          const loginStrM = parseInt(timeParts[1], 10);
+                          if (!isNaN(loginStrH) && !isNaN(loginStrM)) {
+                            if (hours > loginStrH || hours === loginStrH && minutes > loginStrM) {
+                              data.isLate = true;
+                            } else {
+                              data.isLate = false;
+                            }
+                          }
+                        }
+                      }
+                    }
+                  } catch (e) {
+                    req.payload.logger.error({ err: e, msg: "Error calculating isLate" });
+                  }
+                }
+              }
+            }
             return data;
           }
         ]
@@ -24484,14 +24668,25 @@ var init_Attendance = __esm({
           }
         },
         {
+          name: "isLate",
+          type: "checkbox",
+          defaultValue: false,
+          admin: {
+            description: "Auto-calculated: true if the first punch-in is after the employee's configured loginTime."
+          }
+        },
+        {
           name: "dayType",
           type: "select",
           options: [
             { label: "Full Day", value: "full_day" },
-            { label: "Half Day", value: "half_day" }
+            { label: "Half Day", value: "half_day" },
+            { label: "Week Off", value: "week_off" },
+            { label: "On Leave", value: "on_leave" },
+            { label: "Holiday", value: "holiday" }
           ],
           admin: {
-            description: "Auto-calculated: full_day if all sessions are closed, half_day if any session has no punch-out."
+            description: "Auto-calculated: full_day if all sessions are closed, half_day if any session has no punch-out. Can also be set manually."
           }
         },
         {
@@ -24581,7 +24776,7 @@ var init_Attendance = __esm({
                 condition: (data, siblingData) => siblingData?.type === "session"
               },
               validate: (value, { siblingData }) => {
-                if (siblingData?.type === "session" && siblingData?.punchOut && !value) {
+                if (siblingData?.type === "session" && siblingData?.punchOut && !value && siblingData?.punchOutType !== "auto") {
                   return "A selfie (captured image) is required before punching out.";
                 }
                 return true;
@@ -24786,12 +24981,30 @@ var init_CctvReports = __esm({
                 data.staff = req.user.id;
                 data.status = "st_replied";
               }
+              if (data.watcherReplyMessage && data.watcherReplyMessage !== originalDoc?.watcherReplyMessage) {
+                data.status = "watcher_replied";
+              }
             }
             return data;
           }
         ]
       },
       fields: [
+        {
+          name: "watcherReplyMessage",
+          label: "Watcher Reply",
+          type: "textarea",
+          admin: {
+            description: "Reply from the watcher to the manager"
+          }
+        },
+        {
+          name: "watcherReplyScreenshot",
+          label: "Watcher Reply Screenshot",
+          type: "upload",
+          relationTo: "media",
+          required: false
+        },
         {
           name: "branch",
           type: "relationship",
@@ -24809,7 +25022,8 @@ var init_CctvReports = __esm({
           options: [
             { label: "Pending", value: "pending" },
             { label: "Mng Replied", value: "mng_replied" },
-            { label: "ST Replied", value: "st_replied" }
+            { label: "ST Replied", value: "st_replied" },
+            { label: "Watcher Replied", value: "watcher_replied" }
           ],
           admin: {
             position: "sidebar"
