@@ -88,7 +88,7 @@ const InventoryReport: React.FC = () => {
   const [selectedDepartment, setSelectedDepartment] = useState('all')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [selectedProduct, setSelectedProduct] = useState('all')
-  const [selectedBranch, setSelectedBranch] = useState('all')
+  const [selectedBranch, setSelectedBranch] = useState('')
   const [viewMode, setViewMode] = useState<'stock' | 'billing' | 'return' | 'received' | 'instock'>(
     'stock',
   )
@@ -144,6 +144,7 @@ const InventoryReport: React.FC = () => {
   }, [fetchMetadata])
 
   const fetchReport = useCallback(async () => {
+    if (!selectedBranch) return
     setLoading(true)
     setError('')
     try {
@@ -447,6 +448,7 @@ const InventoryReport: React.FC = () => {
   ]
 
   const branchOptions = [
+    { value: '', label: 'Select Branch' },
     { value: 'all', label: 'All Branches' },
     ...allBranches.map((b) => ({ value: b.id, label: b.name })),
   ]
@@ -523,7 +525,7 @@ const InventoryReport: React.FC = () => {
           <Button
             buttonStyle="secondary"
             onClick={() => {
-              setSelectedBranch('all')
+              setSelectedBranch('')
               setSelectedDepartment('all')
               setSelectedCategory('all')
               setSelectedProduct('all')
@@ -549,7 +551,12 @@ const InventoryReport: React.FC = () => {
       </div>
       {loading && <p>Loading...</p>}
       {error && <p className="error">{error}</p>}
-      {data && data.products.length > 0 && (
+      {!selectedBranch && !loading && (
+        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--theme-elevation-400)' }}>
+          <h3>Please select a branch to view the inventory report</h3>
+        </div>
+      )}
+      {data && data.products.length > 0 && selectedBranch && (
         <>
           <div className="table-header-controls" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
             <div className="limit-selector" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
