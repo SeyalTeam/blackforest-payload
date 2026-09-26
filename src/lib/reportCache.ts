@@ -165,7 +165,7 @@ export async function fetchCachedFirstBillDate(bypassCache = false): Promise<Dat
   return fetchWithCache<Date | null>(
     'meta:firstBillDate',
     async () => {
-      const res = await fetch('/api/billings?sort=createdAt&limit=1')
+      const res = await fetch('/api/billings?sort=createdAt&limit=1&depth=0')
       if (!res.ok) return null
       const json = await res.json()
       if (json.docs && json.docs.length > 0 && json.docs[0]?.createdAt) {

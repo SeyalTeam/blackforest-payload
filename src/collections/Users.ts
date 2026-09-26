@@ -57,6 +57,9 @@ const getRelationshipIDs = (value: unknown): string[] => {
 const canManageChefDetails = (role?: string | null): boolean =>
   role === 'superadmin' || role === 'admin' || role === 'branch'
 
+let cachedMenuSettings: any = null
+let cachedMenuSettingsAt = 0
+
 export const Users: CollectionConfig = {
   slug: 'users',
   admin: {
@@ -425,9 +428,6 @@ export const Users: CollectionConfig = {
   access: {
     create: ({ req }) => req.user?.role === 'superadmin',
     read: ({ req }) => {
-      console.log('--- USERS READ ACCESS CHECK ---', {
-        user: req.user ? { id: req.user.id, role: req.user.role, email: req.user.email } : null,
-      });
       if (!req.user) return false
       return true
     },
@@ -489,10 +489,15 @@ export const Users: CollectionConfig = {
           return doc
         }
         try {
-          const menuSettings = (await req.payload.findGlobal({
-            slug: 'menu-settings',
-            depth: 0,
-          })) as any
+          const now = Date.now()
+          if (!cachedMenuSettings || now - cachedMenuSettingsAt > 60000) {
+            cachedMenuSettings = (await req.payload.findGlobal({
+              slug: 'menu-settings',
+              depth: 0,
+            })) as any
+            cachedMenuSettingsAt = now
+          }
+          const menuSettings = cachedMenuSettings
           const roleConfig = menuSettings?.roleMenus?.find((r: any) => r.role === doc.role)
           if (roleConfig) {
             doc.allowedCollections = roleConfig.visibleCollections || []
