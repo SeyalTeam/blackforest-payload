@@ -62,14 +62,6 @@ const Employees: CollectionConfig = {
       required: false,
     },
     {
-      name: 'workingHours',
-      type: 'number',
-      required: false,
-      admin: {
-        description: 'Working hours for the employee',
-      },
-    },
-    {
       type: 'row',
       fields: [
         {
@@ -77,12 +69,24 @@ const Employees: CollectionConfig = {
           type: 'text',
           label: 'Login Time (HH:mm)',
           required: false,
+          admin: { width: '33%' }
         },
         {
           name: 'logoutTime',
           type: 'text',
           label: 'Logout Time (HH:mm)',
           required: false,
+          admin: { width: '33%' }
+        },
+        {
+          name: 'workingHours',
+          type: 'number',
+          label: 'Working Hours',
+          required: false,
+          admin: { 
+            width: '33%',
+            description: 'E.g. 9',
+          }
         },
       ],
     },
