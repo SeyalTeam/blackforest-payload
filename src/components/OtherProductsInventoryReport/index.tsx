@@ -5,6 +5,7 @@ import Select, { components, OptionProps, ValueContainerProps } from 'react-sele
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
+import { Button } from '@payloadcms/ui'
 import './index.scss'
 
 dayjs.extend(utc)
@@ -287,6 +288,21 @@ const OtherProductsInventoryReport: React.FC = () => {
       setError(err.message || 'Something went wrong')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleResetStock = async (productId: string, branchId: string) => {
+    if (!confirm('Are you sure you want to reset the stock to zero for this product?')) return;
+    try {
+      const res = await fetch('/api/reports/other-products-inventory/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId, branchId })
+      });
+      if (!res.ok) throw new Error('Failed to reset stock');
+      fetchReport();
+    } catch (err: any) {
+      alert(err.message || 'Something went wrong');
     }
   }
 
@@ -605,6 +621,7 @@ const OtherProductsInventoryReport: React.FC = () => {
                         <th style={{ width: '10%', textAlign: 'right' }}>MIN</th>
                         <th style={{ width: '10%', textAlign: 'right' }}>MAX</th>
                         <th style={{ width: '16%', textAlign: 'right' }}>Total Value (₹)</th>
+                        <th style={{ width: '10%', textAlign: 'center' }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -682,6 +699,15 @@ const OtherProductsInventoryReport: React.FC = () => {
                               : '-'}
                           </td>
                           <td className="value-cell">₹{item.totalValue.toLocaleString('en-IN')}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <Button 
+                              buttonStyle="secondary" 
+                              size="small" 
+                              onClick={() => handleResetStock(item.productId, item.branchId || selectedBranch[0])}
+                            >
+                              Make Zero
+                            </Button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -698,6 +724,7 @@ const OtherProductsInventoryReport: React.FC = () => {
                         <td style={{ textAlign: 'right', fontWeight: 700, color: '#10b981' }}>
                           ₹{data.meta.grandTotalValue.toLocaleString('en-IN')}
                         </td>
+                        <td></td>
                       </tr>
                     </tfoot>
                   </table>

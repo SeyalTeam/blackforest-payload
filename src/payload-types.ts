@@ -82,6 +82,7 @@ export interface Config {
     employees: Employee;
     tasks: Task;
     'task-columns': TaskColumn;
+    'task-completions': TaskCompletion;
     'message-threads': MessageThread;
     'message-attachments': MessageAttachment;
     messages: Message;
@@ -132,6 +133,7 @@ export interface Config {
     employees: EmployeesSelect<false> | EmployeesSelect<true>;
     tasks: TasksSelect<false> | TasksSelect<true>;
     'task-columns': TaskColumnsSelect<false> | TaskColumnsSelect<true>;
+    'task-completions': TaskCompletionsSelect<false> | TaskCompletionsSelect<true>;
     'message-threads': MessageThreadsSelect<false> | MessageThreadsSelect<true>;
     'message-attachments': MessageAttachmentsSelect<false> | MessageAttachmentsSelect<true>;
     messages: MessagesSelect<false> | MessagesSelect<true>;
@@ -1074,13 +1076,15 @@ export interface Task {
         id?: string | null;
       }[]
     | null;
-  dailyCompletions?:
-    | {
-        employee: string | Employee;
-        date: string;
-        id?: string | null;
-      }[]
-    | null;
+  completedBy?: (string | Employee)[] | null;
+  /**
+   * If checked, this task recurs every day on the employee tracker app.
+   */
+  isDaily?: boolean | null;
+  /**
+   * Uncheck to temporarily disable this task from appearing on employee apps.
+   */
+  isActive?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1113,6 +1117,27 @@ export interface TaskColumn {
     | null;
   assignedEmployee?: (string | null) | Employee;
   color?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "task-completions".
+ */
+export interface TaskCompletion {
+  id: string;
+  task: string | Task;
+  employee: string | Employee;
+  user?: (string | null) | User;
+  branch?: (string | null) | Branch;
+  /**
+   * Format: YYYY-MM-DD. Timezone independent date log.
+   */
+  dateString: string;
+  date: string;
+  completed?: boolean | null;
+  completedAt?: string | null;
+  notes?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2524,6 +2549,10 @@ export interface PayloadLockedDocument {
         value: string | TaskColumn;
       } | null)
     | ({
+        relationTo: 'task-completions';
+        value: string | TaskCompletion;
+      } | null)
+    | ({
         relationTo: 'message-threads';
         value: string | MessageThread;
       } | null)
@@ -3115,13 +3144,9 @@ export interface TasksSelect<T extends boolean = true> {
         completed?: T;
         id?: T;
       };
-  dailyCompletions?:
-    | T
-    | {
-        employee?: T;
-        date?: T;
-        id?: T;
-      };
+  completedBy?: T;
+  isDaily?: T;
+  isActive?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3135,6 +3160,23 @@ export interface TaskColumnsSelect<T extends boolean = true> {
   role?: T;
   assignedEmployee?: T;
   color?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "task-completions_select".
+ */
+export interface TaskCompletionsSelect<T extends boolean = true> {
+  task?: T;
+  employee?: T;
+  user?: T;
+  branch?: T;
+  dateString?: T;
+  date?: T;
+  completed?: T;
+  completedAt?: T;
+  notes?: T;
   updatedAt?: T;
   createdAt?: T;
 }
