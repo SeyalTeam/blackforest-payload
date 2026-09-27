@@ -209,19 +209,19 @@ export const TaskCompletions: CollectionConfig = {
               type: 'relationship',
               relationTo: 'tasks',
               required: true,
-              admin: { width: '40%' },
+              admin: { width: '30%' },
             },
             {
               name: 'taskTitle',
               type: 'text',
               label: 'Task Title',
-              admin: { width: '30%' },
+              admin: { width: '25%' },
             },
             {
               name: 'completed',
               type: 'checkbox',
               defaultValue: false,
-              admin: { width: '15%' },
+              admin: { width: '10%' },
             },
             {
               name: 'completedAt',
@@ -233,7 +233,24 @@ export const TaskCompletions: CollectionConfig = {
                 },
               },
             },
+            {
+              name: 'photo',
+              type: 'upload',
+              relationTo: 'media',
+              label: 'Photo Proof',
+              admin: {
+                width: '20%',
+              },
+            },
           ],
+        },
+        {
+          name: 'photoUrl',
+          type: 'text',
+          label: 'Photo URL',
+          admin: {
+            description: 'Direct public URL to proof image',
+          },
         },
         {
           name: 'notes',

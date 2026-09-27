@@ -11,7 +11,7 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
       body = await req.json?.()
     } catch (_e) {}
 
-    const { taskId, completed, notes } = body || {}
+    const { taskId, completed, notes, photo, photoUrl } = body || {}
     let dateString = body?.dateString
 
     if (!taskId) {
@@ -51,16 +51,18 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
       }
     }
 
-    // Fetch task details for title
+    // Fetch task details for title and photo requirement
     let taskTitle = 'Task'
+    let requiresPhoto = false
     try {
       const taskDoc = await req.payload.findByID({
         collection: 'tasks',
         id: taskId,
         depth: 0,
       })
-      if (taskDoc && (taskDoc as any).title) {
-        taskTitle = (taskDoc as any).title
+      if (taskDoc) {
+        if ((taskDoc as any).title) taskTitle = (taskDoc as any).title
+        if ((taskDoc as any).requiresPhoto) requiresPhoto = true
       }
     } catch (_e) {}
 
@@ -84,6 +86,8 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
     let updatedDoc: any = null
     let isTaskCompleted = false
     let taskCompletedAt: string | null = null
+    let savedPhoto: any = null
+    let savedPhotoUrl: string | null = null
 
     const d = new Date()
     const utcOffset = d.getTime() + (5.5 * 60 * 60 * 1000)
@@ -106,23 +110,49 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
         isTaskCompleted = completed !== undefined ? Boolean(completed) : !currentTasks[taskIndex].completed
         taskCompletedAt = isTaskCompleted ? (currentTasks[taskIndex].completedAt || new Date().toISOString()) : null
 
+        // If completing and requires photo, ensure a photo is present or provided
+        const existingPhoto = currentTasks[taskIndex].photo
+        const existingPhotoUrl = currentTasks[taskIndex].photoUrl
+        savedPhoto = photo !== undefined ? photo : (existingPhoto || null)
+        savedPhotoUrl = photoUrl !== undefined ? photoUrl : (existingPhotoUrl || null)
+
+        if (isTaskCompleted && requiresPhoto && !savedPhoto && !savedPhotoUrl) {
+          return Response.json(
+            { success: false, message: 'Photo proof is required before marking this task as completed.' },
+            { status: 400 },
+          )
+        }
+
         currentTasks[taskIndex] = {
           ...currentTasks[taskIndex],
           task: taskId,
           taskTitle,
           completed: isTaskCompleted,
           completedAt: taskCompletedAt,
+          photo: isTaskCompleted ? savedPhoto : null,
+          photoUrl: isTaskCompleted ? savedPhotoUrl : null,
           notes: notes !== undefined ? notes : (currentTasks[taskIndex].notes || ''),
         }
       } else {
         isTaskCompleted = completed !== undefined ? Boolean(completed) : true
         taskCompletedAt = isTaskCompleted ? new Date().toISOString() : null
+        savedPhoto = photo || null
+        savedPhotoUrl = photoUrl || null
+
+        if (isTaskCompleted && requiresPhoto && !savedPhoto && !savedPhotoUrl) {
+          return Response.json(
+            { success: false, message: 'Photo proof is required before marking this task as completed.' },
+            { status: 400 },
+          )
+        }
 
         currentTasks.push({
           task: taskId,
           taskTitle,
           completed: isTaskCompleted,
           completedAt: taskCompletedAt,
+          photo: isTaskCompleted ? savedPhoto : null,
+          photoUrl: isTaskCompleted ? savedPhotoUrl : null,
           notes: notes || '',
         })
       }
@@ -137,6 +167,15 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
     } else {
       isTaskCompleted = completed !== undefined ? Boolean(completed) : true
       taskCompletedAt = isTaskCompleted ? new Date().toISOString() : null
+      savedPhoto = photo || null
+      savedPhotoUrl = photoUrl || null
+
+      if (isTaskCompleted && requiresPhoto && !savedPhoto && !savedPhotoUrl) {
+        return Response.json(
+          { success: false, message: 'Photo proof is required before marking this task as completed.' },
+          { status: 400 },
+        )
+      }
 
       const userBranch = (req.user as any).branch
       const branchId = userBranch
@@ -151,6 +190,8 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
           taskTitle,
           completed: isTaskCompleted,
           completedAt: taskCompletedAt,
+          photo: isTaskCompleted ? savedPhoto : null,
+          photoUrl: isTaskCompleted ? savedPhotoUrl : null,
           notes: notes || '',
         },
       ]
@@ -172,6 +213,8 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
       success: true,
       completed: isTaskCompleted,
       completedAt: taskCompletedAt,
+      photo: isTaskCompleted ? savedPhoto : null,
+      photoUrl: isTaskCompleted ? savedPhotoUrl : null,
       doc: updatedDoc,
     })
   } catch (error: any) {

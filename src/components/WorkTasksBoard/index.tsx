@@ -21,6 +21,7 @@ import {
   Edit2,
   Columns,
   ShieldAlert,
+  Camera,
 } from 'lucide-react'
 import './index.scss'
 
@@ -58,6 +59,7 @@ export type TaskItem = {
   assignedUser?: any
   dueDate?: string
   order?: number
+  requiresPhoto?: boolean
   completedBy?: any[]
   labels?: TaskLabel[]
   checklist?: ChecklistItem[]
@@ -1239,6 +1241,18 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                               </span>
                             </span>
                           )}
+
+                          {/* Photo Proof Required Icon */}
+                          {task.requiresPhoto && (
+                            <span
+                              className="badge-item"
+                              title="Photo proof is required to complete this task"
+                              style={{ color: '#d97706', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                            >
+                              <Camera size={12} />
+                              <span style={{ fontSize: '10px', fontWeight: 600 }}>Photo</span>
+                            </span>
+                          )}
                         </div>
 
                         <div className="card-footer-right">
@@ -1742,6 +1756,50 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                           })
                         }
                       />
+                    </div>
+                  </div>
+
+                  {/* Photo Proof Required Toggle */}
+                  <div className="meta-group">
+                    <span className="meta-title">Photo Proof</span>
+                    <div className="meta-value-chips">
+                      <label
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          cursor: isSuperAdmin ? 'pointer' : 'default',
+                          padding: '4px 8px',
+                          backgroundColor: activeModalCard.requiresPhoto ? '#fef3c7' : '#f3f4f6',
+                          border: activeModalCard.requiresPhoto ? '1px solid #f59e0b' : '1px solid #e5e7eb',
+                          borderRadius: '4px',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={Boolean(activeModalCard.requiresPhoto)}
+                          disabled={!isSuperAdmin}
+                          onChange={(e) =>
+                            setActiveModalCard({
+                              ...activeModalCard,
+                              requiresPhoto: e.target.checked,
+                            })
+                          }
+                        />
+                        <span
+                          style={{
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            color: activeModalCard.requiresPhoto ? '#b45309' : '#4b5563',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <Camera size={13} />
+                          <span>Require Photo</span>
+                        </span>
+                      </label>
                     </div>
                   </div>
                 </div>

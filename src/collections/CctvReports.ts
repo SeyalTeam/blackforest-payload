@@ -26,8 +26,12 @@ const CctvReports: CollectionConfig = {
           data.status = 'pending'
         }
         if (operation === 'update' && req.user) {
-          // If manager message is added/changed, tag manager and update status
-          if (data.managerMessage && data.managerMessage !== originalDoc?.managerMessage) {
+          // If manager message or proof photo is added/changed, tag manager and update status
+          if (
+            (data.managerMessage && data.managerMessage !== originalDoc?.managerMessage) ||
+            (data.managerScreenshot && data.managerScreenshot !== originalDoc?.managerScreenshot) ||
+            (data.proofPhoto && data.proofPhoto !== originalDoc?.proofPhoto)
+          ) {
             data.manager = req.user.id
             data.status = 'mng_replied'
           }
@@ -104,6 +108,20 @@ const CctvReports: CollectionConfig = {
       admin: {
         description: 'Reply from the manager to the watcher',
       }
+    },
+    {
+      name: 'managerScreenshot',
+      label: 'Manager Proof Photo',
+      type: 'upload',
+      relationTo: 'media',
+      required: false,
+    },
+    {
+      name: 'proofPhoto',
+      label: 'Proof Photo',
+      type: 'upload',
+      relationTo: 'media',
+      required: false,
     },
     {
       name: 'manager',

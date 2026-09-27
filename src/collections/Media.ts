@@ -210,37 +210,9 @@ export const Media: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: ({ req: { user } }) =>
-      user?.role === 'superadmin' ||
-      user?.role === 'admin' ||
-      user?.role === 'company' ||
-      user?.role === 'branch' ||
-      user?.role === 'store_keeper' ||
-      user?.role === 'waiter' ||
-      user?.role === 'cashier' ||
-      user?.role === 'chef' ||
-      user?.role === 'supervisor' ||
-      user?.role === 'manager' ||
-      user?.role === 'driver' ||
-      user?.role === 'factory' ||
-      (user?.role as string) === 'watcher' ||
-      user?.role === 'kitchen',
-    update: ({ req: { user } }) =>
-      user?.role === 'superadmin' ||
-      user?.role === 'admin' ||
-      user?.role === 'company' ||
-      user?.role === 'branch' ||
-      user?.role === 'store_keeper' ||
-      user?.role === 'waiter' ||
-      user?.role === 'cashier' ||
-      user?.role === 'chef' ||
-      user?.role === 'supervisor' ||
-      user?.role === 'manager' ||
-      user?.role === 'driver' ||
-      user?.role === 'factory' ||
-      (user?.role as string) === 'watcher' ||
-      user?.role === 'kitchen',
-    delete: ({ req: { user } }) => user?.role === 'superadmin',
+    create: ({ req: { user } }) => Boolean(user),
+    update: ({ req: { user } }) => Boolean(user),
+    delete: ({ req: { user } }) => user?.role === 'superadmin' || user?.role === 'admin',
   },
   fields: [
     {

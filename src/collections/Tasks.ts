@@ -232,6 +232,16 @@ export const Tasks: CollectionConfig = {
       },
     },
     {
+      name: 'requiresPhoto',
+      type: 'checkbox',
+      defaultValue: false,
+      label: 'Requires Photo Proof',
+      admin: {
+        position: 'sidebar',
+        description: 'If checked, the employee must capture and upload a photo from their camera before completing this task.',
+      },
+    },
+    {
       name: 'isActive',
       type: 'checkbox',
       defaultValue: true,

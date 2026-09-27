@@ -165,7 +165,7 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
           ],
         },
         limit: 500,
-        depth: 0,
+        depth: 1,
       })
       completions = completionsRes.docs
     }
@@ -190,12 +190,20 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
 
     const resultTasks = matchedTasks.map((task: any) => {
       const comp = completionMap[task.id]
+      const compPhoto = comp?.photo
+      const compPhotoUrl =
+        comp?.photoUrl ||
+        (typeof compPhoto === 'object' && compPhoto !== null
+          ? compPhoto.url || compPhoto.thumbnailURL
+          : null)
+
       return {
         id: task.id,
         title: task.title,
         description: task.description || '',
         priority: task.priority || 'medium',
         isDaily: task.isDaily !== false,
+        requiresPhoto: Boolean(task.requiresPhoto),
         assignmentType: task.assignmentType || 'role',
         assignedRole: task.assignedRole || null,
         dueDate: task.dueDate || null,
@@ -203,6 +211,8 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
         completed: Boolean(comp?.completed),
         completedAt: comp?.completedAt || null,
         completionId: comp?.id || null,
+        photo: compPhoto ? (typeof compPhoto === 'string' ? compPhoto : compPhoto.id) : null,
+        photoUrl: compPhotoUrl || null,
         notes: comp?.notes || '',
       }
     })

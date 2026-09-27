@@ -4169,9 +4169,9 @@ var init_Media = __esm({
       },
       access: {
         read: () => true,
-        create: ({ req: { user } }) => user?.role === "superadmin" || user?.role === "admin" || user?.role === "company" || user?.role === "branch" || user?.role === "store_keeper" || user?.role === "waiter" || user?.role === "cashier" || user?.role === "chef" || user?.role === "supervisor" || user?.role === "manager" || user?.role === "driver" || user?.role === "factory" || user?.role === "watcher" || user?.role === "kitchen",
-        update: ({ req: { user } }) => user?.role === "superadmin" || user?.role === "admin" || user?.role === "company" || user?.role === "branch" || user?.role === "store_keeper" || user?.role === "waiter" || user?.role === "cashier" || user?.role === "chef" || user?.role === "supervisor" || user?.role === "manager" || user?.role === "driver" || user?.role === "factory" || user?.role === "watcher" || user?.role === "kitchen",
-        delete: ({ req: { user } }) => user?.role === "superadmin"
+        create: ({ req: { user } }) => Boolean(user),
+        update: ({ req: { user } }) => Boolean(user),
+        delete: ({ req: { user } }) => user?.role === "superadmin" || user?.role === "admin"
       },
       fields: [
         {
@@ -5042,6 +5042,16 @@ var init_Tasks = __esm({
           }
         },
         {
+          name: "requiresPhoto",
+          type: "checkbox",
+          defaultValue: false,
+          label: "Requires Photo Proof",
+          admin: {
+            position: "sidebar",
+            description: "If checked, the employee must capture and upload a photo from their camera before completing this task."
+          }
+        },
+        {
           name: "isActive",
           type: "checkbox",
           defaultValue: true,
@@ -5338,19 +5348,19 @@ var init_TaskCompletions = __esm({
                   type: "relationship",
                   relationTo: "tasks",
                   required: true,
-                  admin: { width: "40%" }
+                  admin: { width: "30%" }
                 },
                 {
                   name: "taskTitle",
                   type: "text",
                   label: "Task Title",
-                  admin: { width: "30%" }
+                  admin: { width: "25%" }
                 },
                 {
                   name: "completed",
                   type: "checkbox",
                   defaultValue: false,
-                  admin: { width: "15%" }
+                  admin: { width: "10%" }
                 },
                 {
                   name: "completedAt",
@@ -5361,8 +5371,25 @@ var init_TaskCompletions = __esm({
                       pickerAppearance: "dayAndTime"
                     }
                   }
+                },
+                {
+                  name: "photo",
+                  type: "upload",
+                  relationTo: "media",
+                  label: "Photo Proof",
+                  admin: {
+                    width: "20%"
+                  }
                 }
               ]
+            },
+            {
+              name: "photoUrl",
+              type: "text",
+              label: "Photo URL",
+              admin: {
+                description: "Direct public URL to proof image"
+              }
             },
             {
               name: "notes",
@@ -25357,7 +25384,7 @@ var init_CctvReports = __esm({
               data.status = "pending";
             }
             if (operation === "update" && req.user) {
-              if (data.managerMessage && data.managerMessage !== originalDoc?.managerMessage) {
+              if (data.managerMessage && data.managerMessage !== originalDoc?.managerMessage || data.managerScreenshot && data.managerScreenshot !== originalDoc?.managerScreenshot || data.proofPhoto && data.proofPhoto !== originalDoc?.proofPhoto) {
                 data.manager = req.user.id;
                 data.status = "mng_replied";
               }
@@ -25432,6 +25459,20 @@ var init_CctvReports = __esm({
           admin: {
             description: "Reply from the manager to the watcher"
           }
+        },
+        {
+          name: "managerScreenshot",
+          label: "Manager Proof Photo",
+          type: "upload",
+          relationTo: "media",
+          required: false
+        },
+        {
+          name: "proofPhoto",
+          label: "Proof Photo",
+          type: "upload",
+          relationTo: "media",
+          required: false
         },
         {
           name: "manager",
@@ -36045,7 +36086,7 @@ var init_getMyDailyTasks = __esm({
               ]
             },
             limit: 500,
-            depth: 0
+            depth: 1
           });
           completions = completionsRes.docs;
         }
@@ -36066,12 +36107,15 @@ var init_getMyDailyTasks = __esm({
         });
         const resultTasks = matchedTasks.map((task) => {
           const comp = completionMap[task.id];
+          const compPhoto = comp?.photo;
+          const compPhotoUrl = comp?.photoUrl || (typeof compPhoto === "object" && compPhoto !== null ? compPhoto.url || compPhoto.thumbnailURL : null);
           return {
             id: task.id,
             title: task.title,
             description: task.description || "",
             priority: task.priority || "medium",
             isDaily: task.isDaily !== false,
+            requiresPhoto: Boolean(task.requiresPhoto),
             assignmentType: task.assignmentType || "role",
             assignedRole: task.assignedRole || null,
             dueDate: task.dueDate || null,
@@ -36079,6 +36123,8 @@ var init_getMyDailyTasks = __esm({
             completed: Boolean(comp?.completed),
             completedAt: comp?.completedAt || null,
             completionId: comp?.id || null,
+            photo: compPhoto ? typeof compPhoto === "string" ? compPhoto : compPhoto.id : null,
+            photoUrl: compPhotoUrl || null,
             notes: comp?.notes || ""
           };
         });
@@ -36118,7 +36164,7 @@ var init_toggleDailyTask = __esm({
           body = await req.json?.();
         } catch (_e) {
         }
-        const { taskId, completed, notes } = body || {};
+        const { taskId, completed, notes, photo, photoUrl } = body || {};
         let dateString = body?.dateString;
         if (!taskId) {
           return Response.json({ success: false, message: "Missing taskId" }, { status: 400 });
@@ -36153,14 +36199,16 @@ var init_toggleDailyTask = __esm({
           }
         }
         let taskTitle = "Task";
+        let requiresPhoto = false;
         try {
           const taskDoc = await req.payload.findByID({
             collection: "tasks",
             id: taskId,
             depth: 0
           });
-          if (taskDoc && taskDoc.title) {
-            taskTitle = taskDoc.title;
+          if (taskDoc) {
+            if (taskDoc.title) taskTitle = taskDoc.title;
+            if (taskDoc.requiresPhoto) requiresPhoto = true;
           }
         } catch (_e) {
         }
@@ -36181,6 +36229,8 @@ var init_toggleDailyTask = __esm({
         let updatedDoc = null;
         let isTaskCompleted = false;
         let taskCompletedAt = null;
+        let savedPhoto = null;
+        let savedPhotoUrl = null;
         const d = /* @__PURE__ */ new Date();
         const utcOffset = d.getTime() + 5.5 * 60 * 60 * 1e3;
         const localDate = new Date(utcOffset);
@@ -36196,22 +36246,44 @@ var init_toggleDailyTask = __esm({
           if (taskIndex !== -1) {
             isTaskCompleted = completed !== void 0 ? Boolean(completed) : !currentTasks[taskIndex].completed;
             taskCompletedAt = isTaskCompleted ? currentTasks[taskIndex].completedAt || (/* @__PURE__ */ new Date()).toISOString() : null;
+            const existingPhoto = currentTasks[taskIndex].photo;
+            const existingPhotoUrl = currentTasks[taskIndex].photoUrl;
+            savedPhoto = photo !== void 0 ? photo : existingPhoto || null;
+            savedPhotoUrl = photoUrl !== void 0 ? photoUrl : existingPhotoUrl || null;
+            if (isTaskCompleted && requiresPhoto && !savedPhoto && !savedPhotoUrl) {
+              return Response.json(
+                { success: false, message: "Photo proof is required before marking this task as completed." },
+                { status: 400 }
+              );
+            }
             currentTasks[taskIndex] = {
               ...currentTasks[taskIndex],
               task: taskId,
               taskTitle,
               completed: isTaskCompleted,
               completedAt: taskCompletedAt,
+              photo: isTaskCompleted ? savedPhoto : null,
+              photoUrl: isTaskCompleted ? savedPhotoUrl : null,
               notes: notes !== void 0 ? notes : currentTasks[taskIndex].notes || ""
             };
           } else {
             isTaskCompleted = completed !== void 0 ? Boolean(completed) : true;
             taskCompletedAt = isTaskCompleted ? (/* @__PURE__ */ new Date()).toISOString() : null;
+            savedPhoto = photo || null;
+            savedPhotoUrl = photoUrl || null;
+            if (isTaskCompleted && requiresPhoto && !savedPhoto && !savedPhotoUrl) {
+              return Response.json(
+                { success: false, message: "Photo proof is required before marking this task as completed." },
+                { status: 400 }
+              );
+            }
             currentTasks.push({
               task: taskId,
               taskTitle,
               completed: isTaskCompleted,
               completedAt: taskCompletedAt,
+              photo: isTaskCompleted ? savedPhoto : null,
+              photoUrl: isTaskCompleted ? savedPhotoUrl : null,
               notes: notes || ""
             });
           }
@@ -36225,6 +36297,14 @@ var init_toggleDailyTask = __esm({
         } else {
           isTaskCompleted = completed !== void 0 ? Boolean(completed) : true;
           taskCompletedAt = isTaskCompleted ? (/* @__PURE__ */ new Date()).toISOString() : null;
+          savedPhoto = photo || null;
+          savedPhotoUrl = photoUrl || null;
+          if (isTaskCompleted && requiresPhoto && !savedPhoto && !savedPhotoUrl) {
+            return Response.json(
+              { success: false, message: "Photo proof is required before marking this task as completed." },
+              { status: 400 }
+            );
+          }
           const userBranch = req.user.branch;
           const branchId = userBranch ? typeof userBranch === "string" ? userBranch : userBranch.id : void 0;
           const initialTasks = [
@@ -36233,6 +36313,8 @@ var init_toggleDailyTask = __esm({
               taskTitle,
               completed: isTaskCompleted,
               completedAt: taskCompletedAt,
+              photo: isTaskCompleted ? savedPhoto : null,
+              photoUrl: isTaskCompleted ? savedPhotoUrl : null,
               notes: notes || ""
             }
           ];
@@ -36252,6 +36334,8 @@ var init_toggleDailyTask = __esm({
           success: true,
           completed: isTaskCompleted,
           completedAt: taskCompletedAt,
+          photo: isTaskCompleted ? savedPhoto : null,
+          photoUrl: isTaskCompleted ? savedPhotoUrl : null,
           doc: updatedDoc
         });
       } catch (error) {
