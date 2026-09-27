@@ -145,7 +145,39 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
       return matchesInd || matchesRole
     })
 
-    // Fetch completion logs for this employee or user on dateString
+    // Calculate time windows for frequency evaluation (IST normalized)
+    const [yStr, mStr, dStr] = dateString.split('-')
+    const refYear = parseInt(yStr, 10)
+    const refMonth = parseInt(mStr, 10)
+    const refDay = parseInt(dStr, 10)
+
+    const nowD = new Date()
+    const utcOffset = nowD.getTime() + (5.5 * 60 * 60 * 1000)
+    const nowIst = new Date(utcOffset)
+    const currentHour = String(nowIst.getUTCHours()).padStart(2, '0')
+
+    const currentMonthStr = `${yStr}-${mStr}`
+    const startOfMonthString = `${yStr}-${mStr}-01`
+
+    // Calculate Monday and Sunday of the current week (ISO: Monday = 1, Sunday = 7)
+    const refDate = new Date(Date.UTC(refYear, refMonth - 1, refDay, 12, 0, 0))
+    const dayOfWeek = refDate.getUTCDay() === 0 ? 7 : refDate.getUTCDay()
+    const mondayDate = new Date(refDate.getTime() - ((dayOfWeek - 1) * 24 * 60 * 60 * 1000))
+    const mYear = mondayDate.getUTCFullYear()
+    const mMonth = String(mondayDate.getUTCMonth() + 1).padStart(2, '0')
+    const mDay = String(mondayDate.getUTCDate()).padStart(2, '0')
+    const mondayString = `${mYear}-${mMonth}-${mDay}`
+
+    const sundayDate = new Date(refDate.getTime() + ((7 - dayOfWeek) * 24 * 60 * 60 * 1000))
+    const sYear = sundayDate.getUTCFullYear()
+    const sMonth = String(sundayDate.getUTCMonth() + 1).padStart(2, '0')
+    const sDay = String(sundayDate.getUTCDate()).padStart(2, '0')
+    const sundayString = `${sYear}-${sMonth}-${sDay}`
+
+    // Earliest date needed to check weekly and monthly completions
+    const earliestDateString = mondayString < startOfMonthString ? mondayString : startOfMonthString
+
+    // Fetch completion logs for this employee or user in current period
     let completions: any[] = []
     if (employeeId || req.user.id) {
       const orConditions: any[] = []
@@ -160,39 +192,92 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
         collection: 'task-completions',
         where: {
           and: [
-            { dateString: { equals: dateString } },
+            { dateString: { greater_than_equal: earliestDateString } },
+            { dateString: { less_than_equal: dateString } },
             { or: orConditions },
           ],
         },
-        limit: 500,
+        limit: 100,
         depth: 1,
       })
       completions = completionsRes.docs
     }
 
-    const completionMap: Record<string, any> = {}
-    completions.forEach((c: any) => {
-      // 1. New structure: tasks array inside the single daily document
-      if (Array.isArray(c.tasks)) {
-        c.tasks.forEach((tItem: any) => {
-          const tId = typeof tItem.task === 'string' ? tItem.task : tItem.task?.id
-          if (tId) {
-            completionMap[tId] = tItem
-          }
-        })
-      }
-      // 2. Legacy fallback: single task per doc
-      const singleTaskId = typeof c.task === 'string' ? c.task : c.task?.id
-      if (singleTaskId && !completionMap[singleTaskId]) {
-        completionMap[singleTaskId] = c
-      }
-    })
-
     const resultTasks = matchedTasks.map((task: any) => {
-      const comp = completionMap[task.id]
-      const compPhoto = comp?.photo
+      const taskFreq = (task.frequency || (task.isDaily === false ? 'weekly' : 'daily')).toLowerCase().trim()
+
+      let activeComp: any = null
+      let activeDoc: any = null
+
+      // Search through completions to check if completed in current recurrence period
+      for (const doc of completions) {
+        const docDateStr = doc.dateString || ''
+        const tasksList: any[] = Array.isArray(doc.tasks) ? doc.tasks : []
+
+        // 1. Check inside tasks array
+        for (const tItem of tasksList) {
+          const tId = typeof tItem.task === 'string' ? tItem.task : tItem.task?.id
+          if (tId === task.id && tItem.completed === true) {
+            let isMatch = false
+            if (taskFreq === 'hourly') {
+              if (docDateStr === dateString && tItem.completedAt) {
+                const compDt = new Date(tItem.completedAt)
+                const compIst = new Date(compDt.getTime() + (5.5 * 60 * 60 * 1000))
+                const compHour = String(compIst.getUTCHours()).padStart(2, '0')
+                isMatch = compHour === currentHour
+              }
+            } else if (taskFreq === 'daily') {
+              isMatch = docDateStr === dateString
+            } else if (taskFreq === 'weekly') {
+              isMatch = docDateStr >= mondayString && docDateStr <= sundayString
+            } else if (taskFreq === 'monthly') {
+              isMatch = docDateStr.startsWith(currentMonthStr)
+            } else {
+              isMatch = docDateStr === dateString
+            }
+
+            if (isMatch) {
+              activeComp = tItem
+              activeDoc = doc
+              break
+            }
+          }
+        }
+        if (activeComp) break
+
+        // 2. Legacy fallback: doc has single task
+        const singleTaskId = typeof doc.task === 'string' ? doc.task : doc.task?.id
+        if (singleTaskId === task.id && doc.completed === true) {
+          let isMatch = false
+          if (taskFreq === 'hourly') {
+            if (docDateStr === dateString && doc.completedAt) {
+              const compDt = new Date(doc.completedAt)
+              const compIst = new Date(compDt.getTime() + (5.5 * 60 * 60 * 1000))
+              const compHour = String(compIst.getUTCHours()).padStart(2, '0')
+              isMatch = compHour === currentHour
+            }
+          } else if (taskFreq === 'daily') {
+            isMatch = docDateStr === dateString
+          } else if (taskFreq === 'weekly') {
+            isMatch = docDateStr >= mondayString && docDateStr <= sundayString
+          } else if (taskFreq === 'monthly') {
+            isMatch = docDateStr.startsWith(currentMonthStr)
+          } else {
+            isMatch = docDateStr === dateString
+          }
+
+          if (isMatch) {
+            activeComp = doc
+            activeDoc = doc
+            break
+          }
+        }
+      }
+
+      const isCompleted = activeComp !== null
+      const compPhoto = activeComp?.photo
       const compPhotoUrl =
-        comp?.photoUrl ||
+        activeComp?.photoUrl ||
         (typeof compPhoto === 'object' && compPhoto !== null
           ? compPhoto.url || compPhoto.thumbnailURL
           : null)
@@ -202,18 +287,19 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
         title: task.title,
         description: task.description || '',
         priority: task.priority || 'medium',
-        isDaily: task.isDaily !== false,
+        frequency: taskFreq,
+        isDaily: taskFreq === 'daily',
         requiresPhoto: Boolean(task.requiresPhoto),
         assignmentType: task.assignmentType || 'role',
         assignedRole: task.assignedRole || null,
         dueDate: task.dueDate || null,
         checklist: task.checklist || [],
-        completed: Boolean(comp?.completed),
-        completedAt: comp?.completedAt || null,
-        completionId: comp?.id || null,
+        completed: isCompleted,
+        completedAt: activeComp?.completedAt || null,
+        completionId: activeDoc?.id || null,
         photo: compPhoto ? (typeof compPhoto === 'string' ? compPhoto : compPhoto.id) : null,
         photoUrl: compPhotoUrl || null,
-        notes: comp?.notes || '',
+        notes: activeComp?.notes || '',
       }
     })
 

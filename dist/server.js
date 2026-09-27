@@ -5032,6 +5032,22 @@ var init_Tasks = __esm({
           }
         },
         {
+          name: "frequency",
+          type: "select",
+          label: "Recurrence Frequency",
+          defaultValue: "daily",
+          options: [
+            { label: "Daily", value: "daily" },
+            { label: "Weekly", value: "weekly" },
+            { label: "Monthly", value: "monthly" },
+            { label: "Hourly", value: "hourly" }
+          ],
+          admin: {
+            position: "sidebar",
+            description: "How often this task recurs (Daily, Weekly, Monthly, or Hourly)."
+          }
+        },
+        {
           name: "isDaily",
           type: "checkbox",
           defaultValue: true,
@@ -5348,25 +5364,37 @@ var init_TaskCompletions = __esm({
                   type: "relationship",
                   relationTo: "tasks",
                   required: true,
-                  admin: { width: "30%" }
+                  admin: { width: "28%" }
                 },
                 {
                   name: "taskTitle",
                   type: "text",
                   label: "Task Title",
-                  admin: { width: "25%" }
+                  admin: { width: "20%" }
+                },
+                {
+                  name: "frequency",
+                  type: "select",
+                  options: [
+                    { label: "Daily", value: "daily" },
+                    { label: "Weekly", value: "weekly" },
+                    { label: "Monthly", value: "monthly" },
+                    { label: "Hourly", value: "hourly" }
+                  ],
+                  defaultValue: "daily",
+                  admin: { width: "12%" }
                 },
                 {
                   name: "completed",
                   type: "checkbox",
                   defaultValue: false,
-                  admin: { width: "10%" }
+                  admin: { width: "8%" }
                 },
                 {
                   name: "completedAt",
                   type: "date",
                   admin: {
-                    width: "15%",
+                    width: "16%",
                     date: {
                       pickerAppearance: "dayAndTime"
                     }
@@ -5378,7 +5406,7 @@ var init_TaskCompletions = __esm({
                   relationTo: "media",
                   label: "Photo Proof",
                   admin: {
-                    width: "20%"
+                    width: "16%"
                   }
                 }
               ]
@@ -35975,8 +36003,8 @@ var init_getMyDailyTasks = __esm({
         let dateString = url.searchParams.get("dateString");
         if (!dateString) {
           const d = /* @__PURE__ */ new Date();
-          const utcOffset = d.getTime() + 5.5 * 60 * 60 * 1e3;
-          const localDate = new Date(utcOffset);
+          const utcOffset2 = d.getTime() + 5.5 * 60 * 60 * 1e3;
+          const localDate = new Date(utcOffset2);
           const year = localDate.getUTCFullYear();
           const month = String(localDate.getUTCMonth() + 1).padStart(2, "0");
           const day = String(localDate.getUTCDate()).padStart(2, "0");
@@ -36068,6 +36096,29 @@ var init_getMyDailyTasks = __esm({
           }
           return matchesInd || matchesRole;
         });
+        const [yStr, mStr, dStr] = dateString.split("-");
+        const refYear = parseInt(yStr, 10);
+        const refMonth = parseInt(mStr, 10);
+        const refDay = parseInt(dStr, 10);
+        const nowD = /* @__PURE__ */ new Date();
+        const utcOffset = nowD.getTime() + 5.5 * 60 * 60 * 1e3;
+        const nowIst = new Date(utcOffset);
+        const currentHour = String(nowIst.getUTCHours()).padStart(2, "0");
+        const currentMonthStr = `${yStr}-${mStr}`;
+        const startOfMonthString = `${yStr}-${mStr}-01`;
+        const refDate = new Date(Date.UTC(refYear, refMonth - 1, refDay, 12, 0, 0));
+        const dayOfWeek = refDate.getUTCDay() === 0 ? 7 : refDate.getUTCDay();
+        const mondayDate = new Date(refDate.getTime() - (dayOfWeek - 1) * 24 * 60 * 60 * 1e3);
+        const mYear = mondayDate.getUTCFullYear();
+        const mMonth = String(mondayDate.getUTCMonth() + 1).padStart(2, "0");
+        const mDay = String(mondayDate.getUTCDate()).padStart(2, "0");
+        const mondayString = `${mYear}-${mMonth}-${mDay}`;
+        const sundayDate = new Date(refDate.getTime() + (7 - dayOfWeek) * 24 * 60 * 60 * 1e3);
+        const sYear = sundayDate.getUTCFullYear();
+        const sMonth = String(sundayDate.getUTCMonth() + 1).padStart(2, "0");
+        const sDay = String(sundayDate.getUTCDate()).padStart(2, "0");
+        const sundayString = `${sYear}-${sMonth}-${sDay}`;
+        const earliestDateString = mondayString < startOfMonthString ? mondayString : startOfMonthString;
         let completions = [];
         if (employeeId || req.user.id) {
           const orConditions = [];
@@ -36081,51 +36132,98 @@ var init_getMyDailyTasks = __esm({
             collection: "task-completions",
             where: {
               and: [
-                { dateString: { equals: dateString } },
+                { dateString: { greater_than_equal: earliestDateString } },
+                { dateString: { less_than_equal: dateString } },
                 { or: orConditions }
               ]
             },
-            limit: 500,
+            limit: 100,
             depth: 1
           });
           completions = completionsRes.docs;
         }
-        const completionMap = {};
-        completions.forEach((c) => {
-          if (Array.isArray(c.tasks)) {
-            c.tasks.forEach((tItem) => {
-              const tId = typeof tItem.task === "string" ? tItem.task : tItem.task?.id;
-              if (tId) {
-                completionMap[tId] = tItem;
-              }
-            });
-          }
-          const singleTaskId = typeof c.task === "string" ? c.task : c.task?.id;
-          if (singleTaskId && !completionMap[singleTaskId]) {
-            completionMap[singleTaskId] = c;
-          }
-        });
         const resultTasks = matchedTasks.map((task) => {
-          const comp = completionMap[task.id];
-          const compPhoto = comp?.photo;
-          const compPhotoUrl = comp?.photoUrl || (typeof compPhoto === "object" && compPhoto !== null ? compPhoto.url || compPhoto.thumbnailURL : null);
+          const taskFreq = (task.frequency || (task.isDaily === false ? "weekly" : "daily")).toLowerCase().trim();
+          let activeComp = null;
+          let activeDoc = null;
+          for (const doc of completions) {
+            const docDateStr = doc.dateString || "";
+            const tasksList = Array.isArray(doc.tasks) ? doc.tasks : [];
+            for (const tItem of tasksList) {
+              const tId = typeof tItem.task === "string" ? tItem.task : tItem.task?.id;
+              if (tId === task.id && tItem.completed === true) {
+                let isMatch = false;
+                if (taskFreq === "hourly") {
+                  if (docDateStr === dateString && tItem.completedAt) {
+                    const compDt = new Date(tItem.completedAt);
+                    const compIst = new Date(compDt.getTime() + 5.5 * 60 * 60 * 1e3);
+                    const compHour = String(compIst.getUTCHours()).padStart(2, "0");
+                    isMatch = compHour === currentHour;
+                  }
+                } else if (taskFreq === "daily") {
+                  isMatch = docDateStr === dateString;
+                } else if (taskFreq === "weekly") {
+                  isMatch = docDateStr >= mondayString && docDateStr <= sundayString;
+                } else if (taskFreq === "monthly") {
+                  isMatch = docDateStr.startsWith(currentMonthStr);
+                } else {
+                  isMatch = docDateStr === dateString;
+                }
+                if (isMatch) {
+                  activeComp = tItem;
+                  activeDoc = doc;
+                  break;
+                }
+              }
+            }
+            if (activeComp) break;
+            const singleTaskId = typeof doc.task === "string" ? doc.task : doc.task?.id;
+            if (singleTaskId === task.id && doc.completed === true) {
+              let isMatch = false;
+              if (taskFreq === "hourly") {
+                if (docDateStr === dateString && doc.completedAt) {
+                  const compDt = new Date(doc.completedAt);
+                  const compIst = new Date(compDt.getTime() + 5.5 * 60 * 60 * 1e3);
+                  const compHour = String(compIst.getUTCHours()).padStart(2, "0");
+                  isMatch = compHour === currentHour;
+                }
+              } else if (taskFreq === "daily") {
+                isMatch = docDateStr === dateString;
+              } else if (taskFreq === "weekly") {
+                isMatch = docDateStr >= mondayString && docDateStr <= sundayString;
+              } else if (taskFreq === "monthly") {
+                isMatch = docDateStr.startsWith(currentMonthStr);
+              } else {
+                isMatch = docDateStr === dateString;
+              }
+              if (isMatch) {
+                activeComp = doc;
+                activeDoc = doc;
+                break;
+              }
+            }
+          }
+          const isCompleted = activeComp !== null;
+          const compPhoto = activeComp?.photo;
+          const compPhotoUrl = activeComp?.photoUrl || (typeof compPhoto === "object" && compPhoto !== null ? compPhoto.url || compPhoto.thumbnailURL : null);
           return {
             id: task.id,
             title: task.title,
             description: task.description || "",
             priority: task.priority || "medium",
-            isDaily: task.isDaily !== false,
+            frequency: taskFreq,
+            isDaily: taskFreq === "daily",
             requiresPhoto: Boolean(task.requiresPhoto),
             assignmentType: task.assignmentType || "role",
             assignedRole: task.assignedRole || null,
             dueDate: task.dueDate || null,
             checklist: task.checklist || [],
-            completed: Boolean(comp?.completed),
-            completedAt: comp?.completedAt || null,
-            completionId: comp?.id || null,
+            completed: isCompleted,
+            completedAt: activeComp?.completedAt || null,
+            completionId: activeDoc?.id || null,
             photo: compPhoto ? typeof compPhoto === "string" ? compPhoto : compPhoto.id : null,
             photoUrl: compPhotoUrl || null,
-            notes: comp?.notes || ""
+            notes: activeComp?.notes || ""
           };
         });
         return Response.json({
@@ -36200,6 +36298,7 @@ var init_toggleDailyTask = __esm({
         }
         let taskTitle = "Task";
         let requiresPhoto = false;
+        let taskFrequency = "daily";
         try {
           const taskDoc = await req.payload.findByID({
             collection: "tasks",
@@ -36209,6 +36308,8 @@ var init_toggleDailyTask = __esm({
           if (taskDoc) {
             if (taskDoc.title) taskTitle = taskDoc.title;
             if (taskDoc.requiresPhoto) requiresPhoto = true;
+            if (taskDoc.frequency) taskFrequency = taskDoc.frequency;
+            else if (taskDoc.isDaily === false) taskFrequency = "weekly";
           }
         } catch (_e) {
         }
@@ -36216,6 +36317,16 @@ var init_toggleDailyTask = __esm({
         if (employeeId) {
           userConditions.push({ employee: { equals: employeeId } });
         }
+        const [yStr, mStr, dStr] = dateString.split("-");
+        const refYear = parseInt(yStr, 10);
+        const refMonth = parseInt(mStr, 10);
+        const refDay = parseInt(dStr, 10);
+        const refDate = new Date(Date.UTC(refYear, refMonth - 1, refDay, 12, 0, 0));
+        const dayOfWeek = refDate.getUTCDay() === 0 ? 7 : refDate.getUTCDay();
+        const mondayDate = new Date(refDate.getTime() - (dayOfWeek - 1) * 24 * 60 * 60 * 1e3);
+        const mondayString = `${mondayDate.getUTCFullYear()}-${String(mondayDate.getUTCMonth() + 1).padStart(2, "0")}-${String(mondayDate.getUTCDate()).padStart(2, "0")}`;
+        const startOfMonthString = `${yStr}-${mStr}-01`;
+        const earliestDateString = mondayString < startOfMonthString ? mondayString : startOfMonthString;
         const existing = await req.payload.find({
           collection: "task-completions",
           where: {
@@ -36260,6 +36371,7 @@ var init_toggleDailyTask = __esm({
               ...currentTasks[taskIndex],
               task: taskId,
               taskTitle,
+              frequency: taskFrequency,
               completed: isTaskCompleted,
               completedAt: taskCompletedAt,
               photo: isTaskCompleted ? savedPhoto : null,
@@ -36280,6 +36392,7 @@ var init_toggleDailyTask = __esm({
             currentTasks.push({
               task: taskId,
               taskTitle,
+              frequency: taskFrequency,
               completed: isTaskCompleted,
               completedAt: taskCompletedAt,
               photo: isTaskCompleted ? savedPhoto : null,
@@ -36311,6 +36424,7 @@ var init_toggleDailyTask = __esm({
             {
               task: taskId,
               taskTitle,
+              frequency: taskFrequency,
               completed: isTaskCompleted,
               completedAt: taskCompletedAt,
               photo: isTaskCompleted ? savedPhoto : null,
@@ -36329,6 +36443,41 @@ var init_toggleDailyTask = __esm({
               tasks: initialTasks
             }
           });
+        }
+        if (!isTaskCompleted && (taskFrequency === "weekly" || taskFrequency === "monthly")) {
+          try {
+            const periodDocs = await req.payload.find({
+              collection: "task-completions",
+              where: {
+                and: [
+                  { dateString: { greater_than_equal: earliestDateString } },
+                  { dateString: { not_equals: dateString } },
+                  { or: userConditions }
+                ]
+              },
+              limit: 35
+            });
+            for (const pDoc of periodDocs.docs) {
+              const pTasks = Array.isArray(pDoc.tasks) ? [...pDoc.tasks] : [];
+              let changed = false;
+              for (let i = 0; i < pTasks.length; i++) {
+                const tId = typeof pTasks[i].task === "string" ? pTasks[i].task : pTasks[i].task?.id;
+                if (tId === taskId && pTasks[i].completed) {
+                  pTasks[i].completed = false;
+                  pTasks[i].completedAt = null;
+                  changed = true;
+                }
+              }
+              if (changed) {
+                await req.payload.update({
+                  collection: "task-completions",
+                  id: pDoc.id,
+                  data: { tasks: pTasks }
+                });
+              }
+            }
+          } catch (_e) {
+          }
         }
         return Response.json({
           success: true,

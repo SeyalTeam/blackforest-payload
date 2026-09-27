@@ -51,9 +51,10 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
       }
     }
 
-    // Fetch task details for title and photo requirement
+    // Fetch task details for title, frequency, and photo requirement
     let taskTitle = 'Task'
     let requiresPhoto = false
+    let taskFrequency = 'daily'
     try {
       const taskDoc = await req.payload.findByID({
         collection: 'tasks',
@@ -63,6 +64,8 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
       if (taskDoc) {
         if ((taskDoc as any).title) taskTitle = (taskDoc as any).title
         if ((taskDoc as any).requiresPhoto) requiresPhoto = true
+        if ((taskDoc as any).frequency) taskFrequency = (taskDoc as any).frequency
+        else if ((taskDoc as any).isDaily === false) taskFrequency = 'weekly'
       }
     } catch (_e) {}
 
@@ -70,6 +73,18 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
     if (employeeId) {
       userConditions.push({ employee: { equals: employeeId } })
     }
+
+    // Time window calculation for current period (IST)
+    const [yStr, mStr, dStr] = dateString.split('-')
+    const refYear = parseInt(yStr, 10)
+    const refMonth = parseInt(mStr, 10)
+    const refDay = parseInt(dStr, 10)
+    const refDate = new Date(Date.UTC(refYear, refMonth - 1, refDay, 12, 0, 0))
+    const dayOfWeek = refDate.getUTCDay() === 0 ? 7 : refDate.getUTCDay()
+    const mondayDate = new Date(refDate.getTime() - ((dayOfWeek - 1) * 24 * 60 * 60 * 1000))
+    const mondayString = `${mondayDate.getUTCFullYear()}-${String(mondayDate.getUTCMonth() + 1).padStart(2, '0')}-${String(mondayDate.getUTCDate()).padStart(2, '0')}`
+    const startOfMonthString = `${yStr}-${mStr}-01`
+    const earliestDateString = mondayString < startOfMonthString ? mondayString : startOfMonthString
 
     // Check if daily record already exists for this employee/user on dateString
     const existing = await req.payload.find({
@@ -127,6 +142,7 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
           ...currentTasks[taskIndex],
           task: taskId,
           taskTitle,
+          frequency: taskFrequency,
           completed: isTaskCompleted,
           completedAt: taskCompletedAt,
           photo: isTaskCompleted ? savedPhoto : null,
@@ -149,6 +165,7 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
         currentTasks.push({
           task: taskId,
           taskTitle,
+          frequency: taskFrequency,
           completed: isTaskCompleted,
           completedAt: taskCompletedAt,
           photo: isTaskCompleted ? savedPhoto : null,
@@ -188,6 +205,7 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
         {
           task: taskId,
           taskTitle,
+          frequency: taskFrequency,
           completed: isTaskCompleted,
           completedAt: taskCompletedAt,
           photo: isTaskCompleted ? savedPhoto : null,
@@ -207,6 +225,43 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
           tasks: initialTasks,
         },
       })
+    }
+
+    // If unmarking (isTaskCompleted === false), also unmark in any earlier document within the current recurrence window
+    if (!isTaskCompleted && (taskFrequency === 'weekly' || taskFrequency === 'monthly')) {
+      try {
+        const periodDocs = await req.payload.find({
+          collection: 'task-completions',
+          where: {
+            and: [
+              { dateString: { greater_than_equal: earliestDateString } },
+              { dateString: { not_equals: dateString } },
+              { or: userConditions },
+            ],
+          },
+          limit: 35,
+        })
+
+        for (const pDoc of periodDocs.docs) {
+          const pTasks: any[] = Array.isArray((pDoc as any).tasks) ? [...(pDoc as any).tasks] : []
+          let changed = false
+          for (let i = 0; i < pTasks.length; i++) {
+            const tId = typeof pTasks[i].task === 'string' ? pTasks[i].task : pTasks[i].task?.id
+            if (tId === taskId && pTasks[i].completed) {
+              pTasks[i].completed = false
+              pTasks[i].completedAt = null
+              changed = true
+            }
+          }
+          if (changed) {
+            await req.payload.update({
+              collection: 'task-completions',
+              id: pDoc.id,
+              data: { tasks: pTasks },
+            })
+          }
+        }
+      } catch (_e) {}
     }
 
     return Response.json({

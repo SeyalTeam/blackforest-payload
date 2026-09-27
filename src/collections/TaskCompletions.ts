@@ -209,25 +209,37 @@ export const TaskCompletions: CollectionConfig = {
               type: 'relationship',
               relationTo: 'tasks',
               required: true,
-              admin: { width: '30%' },
+              admin: { width: '28%' },
             },
             {
               name: 'taskTitle',
               type: 'text',
               label: 'Task Title',
-              admin: { width: '25%' },
+              admin: { width: '20%' },
+            },
+            {
+              name: 'frequency',
+              type: 'select',
+              options: [
+                { label: 'Daily', value: 'daily' },
+                { label: 'Weekly', value: 'weekly' },
+                { label: 'Monthly', value: 'monthly' },
+                { label: 'Hourly', value: 'hourly' },
+              ],
+              defaultValue: 'daily',
+              admin: { width: '12%' },
             },
             {
               name: 'completed',
               type: 'checkbox',
               defaultValue: false,
-              admin: { width: '10%' },
+              admin: { width: '8%' },
             },
             {
               name: 'completedAt',
               type: 'date',
               admin: {
-                width: '15%',
+                width: '16%',
                 date: {
                   pickerAppearance: 'dayAndTime',
                 },
@@ -239,7 +251,7 @@ export const TaskCompletions: CollectionConfig = {
               relationTo: 'media',
               label: 'Photo Proof',
               admin: {
-                width: '20%',
+                width: '16%',
               },
             },
           ],

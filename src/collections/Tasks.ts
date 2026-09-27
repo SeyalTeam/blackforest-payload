@@ -222,6 +222,22 @@ export const Tasks: CollectionConfig = {
       },
     },
     {
+      name: 'frequency',
+      type: 'select',
+      label: 'Recurrence Frequency',
+      defaultValue: 'daily',
+      options: [
+        { label: 'Daily', value: 'daily' },
+        { label: 'Weekly', value: 'weekly' },
+        { label: 'Monthly', value: 'monthly' },
+        { label: 'Hourly', value: 'hourly' },
+      ],
+      admin: {
+        position: 'sidebar',
+        description: 'How often this task recurs (Daily, Weekly, Monthly, or Hourly).',
+      },
+    },
+    {
       name: 'isDaily',
       type: 'checkbox',
       defaultValue: true,

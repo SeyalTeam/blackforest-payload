@@ -58,6 +58,7 @@ export type TaskItem = {
   assignedEmployee?: any
   assignedUser?: any
   dueDate?: string
+  frequency?: 'daily' | 'weekly' | 'monthly' | 'hourly'
   order?: number
   requiresPhoto?: boolean
   completedBy?: any[]
@@ -1214,13 +1215,41 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                       {/* Badges & Avatars */}
                       <div className="card-footer-row">
                         <div className="card-badges">
-                          {/* Due Date */}
-                          {dueDateMeta && (
-                            <span className={`badge-item badge-date ${dueDateMeta.statusClass}`}>
-                              <Clock size={11} />
-                              <span>{dueDateMeta.text}</span>
+                          {/* Recurrence Frequency Badge */}
+                          <span
+                            className="badge-item"
+                            title={`Recurrence: ${task.frequency || 'Daily'}`}
+                            style={{
+                              backgroundColor:
+                                task.frequency === 'hourly'
+                                  ? '#e0f2fe'
+                                  : task.frequency === 'weekly'
+                                    ? '#f3e8ff'
+                                    : task.frequency === 'monthly'
+                                      ? '#ffedd5'
+                                      : '#f3f4f6',
+                              color:
+                                task.frequency === 'hourly'
+                                  ? '#0369a1'
+                                  : task.frequency === 'weekly'
+                                    ? '#7e22ce'
+                                    : task.frequency === 'monthly'
+                                      ? '#c2410c'
+                                      : '#374151',
+                              fontWeight: 600,
+                              fontSize: '11px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                            }}
+                          >
+                            <Clock size={11} />
+                            <span>
+                              {task.frequency
+                                ? task.frequency.charAt(0).toUpperCase() + task.frequency.slice(1)
+                                : 'Daily'}
                             </span>
-                          )}
+                          </span>
 
                           {/* Description Icon */}
                           {task.description && (
@@ -1738,24 +1767,26 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                     </div>
                   </div>
 
-                  {/* Due Date */}
+                  {/* Recurrence Frequency (Daily, Weekly, Monthly, Hourly) */}
                   <div className="meta-group">
-                    <span className="meta-title">Due Date</span>
+                    <span className="meta-title">Recurrence</span>
                     <div className="meta-value-chips">
-                      <input
-                        type="date"
-                        style={{ padding: '3px 6px', borderRadius: '4px', border: '1px solid #ccc' }}
-                        value={
-                          activeModalCard.dueDate ? activeModalCard.dueDate.slice(0, 10) : ''
-                        }
+                      <select
+                        style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ccc', fontWeight: 600 }}
+                        value={activeModalCard.frequency || 'daily'}
                         disabled={!isSuperAdmin}
                         onChange={(e) =>
                           setActiveModalCard({
                             ...activeModalCard,
-                            dueDate: e.target.value ? new Date(e.target.value).toISOString() : undefined,
+                            frequency: e.target.value as any,
                           })
                         }
-                      />
+                      >
+                        <option value="daily">🔁 Daily</option>
+                        <option value="weekly">📅 Weekly</option>
+                        <option value="monthly">🗓️ Monthly</option>
+                        <option value="hourly">⏰ Hourly</option>
+                      </select>
                     </div>
                   </div>
 
