@@ -122,12 +122,28 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
       })
 
       if (taskIndex !== -1) {
+        // Check if an existing completion is from an older hour (for hourly frequency)
+        const prevCompletedAt = currentTasks[taskIndex].completedAt
+        let isDifferentHour = false
+        if (taskFrequency === 'hourly' && prevCompletedAt) {
+          const prevDt = new Date(prevCompletedAt)
+          const prevIst = new Date(prevDt.getTime() + (5.5 * 60 * 60 * 1000))
+          const currIst = new Date(new Date().getTime() + (5.5 * 60 * 60 * 1000))
+          isDifferentHour =
+            prevIst.getUTCHours() !== currIst.getUTCHours() ||
+            prevIst.getUTCDate() !== currIst.getUTCDate()
+        }
+
         isTaskCompleted = completed !== undefined ? Boolean(completed) : !currentTasks[taskIndex].completed
-        taskCompletedAt = isTaskCompleted ? (currentTasks[taskIndex].completedAt || new Date().toISOString()) : null
+        taskCompletedAt = isTaskCompleted
+          ? (taskFrequency === 'hourly' || !currentTasks[taskIndex].completed || isDifferentHour
+              ? new Date().toISOString()
+              : (currentTasks[taskIndex].completedAt || new Date().toISOString()))
+          : null
 
         // If completing and requires photo, ensure a photo is present or provided
-        const existingPhoto = currentTasks[taskIndex].photo
-        const existingPhotoUrl = currentTasks[taskIndex].photoUrl
+        const existingPhoto = isDifferentHour ? null : currentTasks[taskIndex].photo
+        const existingPhotoUrl = isDifferentHour ? null : currentTasks[taskIndex].photoUrl
         savedPhoto = photo !== undefined ? photo : (existingPhoto || null)
         savedPhotoUrl = photoUrl !== undefined ? photoUrl : (existingPhotoUrl || null)
 

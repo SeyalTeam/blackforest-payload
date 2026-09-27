@@ -36355,10 +36355,18 @@ var init_toggleDailyTask = __esm({
             return id === taskId;
           });
           if (taskIndex !== -1) {
+            const prevCompletedAt = currentTasks[taskIndex].completedAt;
+            let isDifferentHour = false;
+            if (taskFrequency === "hourly" && prevCompletedAt) {
+              const prevDt = new Date(prevCompletedAt);
+              const prevIst = new Date(prevDt.getTime() + 5.5 * 60 * 60 * 1e3);
+              const currIst = new Date((/* @__PURE__ */ new Date()).getTime() + 5.5 * 60 * 60 * 1e3);
+              isDifferentHour = prevIst.getUTCHours() !== currIst.getUTCHours() || prevIst.getUTCDate() !== currIst.getUTCDate();
+            }
             isTaskCompleted = completed !== void 0 ? Boolean(completed) : !currentTasks[taskIndex].completed;
-            taskCompletedAt = isTaskCompleted ? currentTasks[taskIndex].completedAt || (/* @__PURE__ */ new Date()).toISOString() : null;
-            const existingPhoto = currentTasks[taskIndex].photo;
-            const existingPhotoUrl = currentTasks[taskIndex].photoUrl;
+            taskCompletedAt = isTaskCompleted ? taskFrequency === "hourly" || !currentTasks[taskIndex].completed || isDifferentHour ? (/* @__PURE__ */ new Date()).toISOString() : currentTasks[taskIndex].completedAt || (/* @__PURE__ */ new Date()).toISOString() : null;
+            const existingPhoto = isDifferentHour ? null : currentTasks[taskIndex].photo;
+            const existingPhotoUrl = isDifferentHour ? null : currentTasks[taskIndex].photoUrl;
             savedPhoto = photo !== void 0 ? photo : existingPhoto || null;
             savedPhotoUrl = photoUrl !== void 0 ? photoUrl : existingPhotoUrl || null;
             if (isTaskCompleted && requiresPhoto && !savedPhoto && !savedPhotoUrl) {
