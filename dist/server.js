@@ -966,7 +966,7 @@ var init_appVersionGuard = __esm({
 });
 
 // src/collections/Users.ts
-var getRelationshipID, getRelationshipIDs, canManageChefDetails, Users;
+var getRelationshipID, getRelationshipIDs, canManageChefDetails, cachedMenuSettings, cachedMenuSettingsAt, Users;
 var init_Users = __esm({
   "src/collections/Users.ts"() {
     "use strict";
@@ -1017,6 +1017,8 @@ var init_Users = __esm({
       return value.map((item) => getRelationshipID(item)).filter((id) => Boolean(id));
     };
     canManageChefDetails = (role) => role === "superadmin" || role === "admin" || role === "branch";
+    cachedMenuSettings = null;
+    cachedMenuSettingsAt = 0;
     Users = {
       slug: "users",
       admin: {
@@ -1376,9 +1378,6 @@ var init_Users = __esm({
       access: {
         create: ({ req }) => req.user?.role === "superadmin",
         read: ({ req }) => {
-          console.log("--- USERS READ ACCESS CHECK ---", {
-            user: req.user ? { id: req.user.id, role: req.user.role, email: req.user.email } : null
-          });
           if (!req.user) return false;
           return true;
         },
@@ -1438,10 +1437,15 @@ var init_Users = __esm({
               return doc;
             }
             try {
-              const menuSettings = await req.payload.findGlobal({
-                slug: "menu-settings",
-                depth: 0
-              });
+              const now = Date.now();
+              if (!cachedMenuSettings || now - cachedMenuSettingsAt > 6e4) {
+                cachedMenuSettings = await req.payload.findGlobal({
+                  slug: "menu-settings",
+                  depth: 0
+                });
+                cachedMenuSettingsAt = now;
+              }
+              const menuSettings = cachedMenuSettings;
               const roleConfig = menuSettings?.roleMenus?.find((r) => r.role === doc.role);
               if (roleConfig) {
                 doc.allowedCollections = roleConfig.visibleCollections || [];
@@ -5016,6 +5020,36 @@ var init_Tasks = __esm({
               ]
             }
           ]
+        },
+        {
+          name: "completedBy",
+          type: "relationship",
+          relationTo: "employees",
+          hasMany: true,
+          label: "Completed By (Employees)",
+          admin: {
+            position: "sidebar"
+          }
+        },
+        {
+          name: "isDaily",
+          type: "checkbox",
+          defaultValue: true,
+          label: "Daily Recurring Task",
+          admin: {
+            position: "sidebar",
+            description: "If checked, this task recurs every day on the employee tracker app."
+          }
+        },
+        {
+          name: "isActive",
+          type: "checkbox",
+          defaultValue: true,
+          label: "Is Active",
+          admin: {
+            position: "sidebar",
+            description: "Uncheck to temporarily disable this task from appearing on employee apps."
+          }
         }
       ],
       timestamps: true
@@ -5104,6 +5138,243 @@ var init_TaskColumns = __esm({
       timestamps: true
     };
     TaskColumns_default = TaskColumns;
+  }
+});
+
+// src/collections/TaskCompletions.ts
+var TaskCompletions, TaskCompletions_default;
+var init_TaskCompletions = __esm({
+  "src/collections/TaskCompletions.ts"() {
+    "use strict";
+    TaskCompletions = {
+      slug: "task-completions",
+      admin: {
+        useAsTitle: "title",
+        group: "Work",
+        defaultColumns: ["title", "employeeName", "dateString", "completedCount", "totalCount", "updatedAt"]
+      },
+      access: {
+        read: ({ req: { user } }) => {
+          if (!user) return false;
+          if (["superadmin", "admin", "company", "account"].includes(user.role)) return true;
+          if (user.role === "branch") {
+            return {
+              "user.branch": {
+                equals: user.branch
+              }
+            };
+          }
+          return {
+            user: {
+              equals: user.id
+            }
+          };
+        },
+        create: ({ req: { user } }) => Boolean(user),
+        update: ({ req: { user } }) => Boolean(user),
+        delete: ({ req: { user } }) => user?.role ? ["superadmin", "admin"].includes(user.role) : false
+      },
+      hooks: {
+        beforeValidate: [
+          async ({ data, req }) => {
+            if (!data) return data;
+            if (!data.user && req.user) {
+              data.user = req.user.id;
+            }
+            let resolvedEmpName = data.employeeName || "";
+            if (!data.employee && data.user) {
+              try {
+                const userId = typeof data.user === "string" ? data.user : data.user.id;
+                const userRes = await req.payload.findByID({ collection: "users", id: userId });
+                if (userRes) {
+                  if (userRes.employee) {
+                    const emp = userRes.employee;
+                    data.employee = typeof emp === "string" ? emp : emp.id;
+                  }
+                  if (!resolvedEmpName) {
+                    resolvedEmpName = userRes.name || userRes.email || "";
+                  }
+                }
+              } catch (e) {
+                req.payload.logger.error({ err: e, msg: "Error auto-populating employee in TaskCompletions" });
+              }
+            }
+            if (data.employee) {
+              try {
+                const empId = typeof data.employee === "string" ? data.employee : data.employee.id;
+                const empRes = await req.payload.findByID({ collection: "employees", id: empId });
+                if (empRes) {
+                  resolvedEmpName = empRes.name || resolvedEmpName;
+                  if (!data.branch && empRes.branch) {
+                    const b = empRes.branch;
+                    data.branch = typeof b === "string" ? b : b.id;
+                  }
+                }
+              } catch (_e) {
+              }
+            }
+            if (!resolvedEmpName && req.user) {
+              resolvedEmpName = req.user.name || req.user.email || "Staff";
+            }
+            data.employeeName = resolvedEmpName;
+            if (!data.branch && req.user && req.user.branch) {
+              const b = req.user.branch;
+              data.branch = typeof b === "string" ? b : b.id;
+            }
+            if (!data.dateString) {
+              const d = /* @__PURE__ */ new Date();
+              const utcOffset = d.getTime() + 5.5 * 60 * 60 * 1e3;
+              const localDate = new Date(utcOffset);
+              const year = localDate.getUTCFullYear();
+              const month = String(localDate.getUTCMonth() + 1).padStart(2, "0");
+              const day = String(localDate.getUTCDate()).padStart(2, "0");
+              data.dateString = `${year}-${month}-${day}`;
+            }
+            if (!data.date) {
+              const d = /* @__PURE__ */ new Date();
+              const utcOffset = d.getTime() + 5.5 * 60 * 60 * 1e3;
+              const localDate = new Date(utcOffset);
+              localDate.setUTCHours(0, 0, 0, 0);
+              data.date = new Date(localDate.getTime() - 5.5 * 60 * 60 * 1e3);
+            }
+            const tasksList = Array.isArray(data.tasks) ? data.tasks : [];
+            data.completedCount = tasksList.filter((t) => t.completed).length;
+            data.totalCount = tasksList.length;
+            const roleLabel = req.user?.role ? ` (${req.user.role})` : "";
+            data.title = `${data.employeeName}${roleLabel} - ${data.dateString}`;
+            return data;
+          }
+        ]
+      },
+      fields: [
+        {
+          name: "title",
+          type: "text",
+          admin: {
+            readOnly: true
+          }
+        },
+        {
+          name: "employeeName",
+          type: "text",
+          label: "Employee Name",
+          admin: {
+            position: "sidebar"
+          }
+        },
+        {
+          name: "employee",
+          type: "relationship",
+          relationTo: "employees",
+          required: false,
+          index: true,
+          admin: {
+            position: "sidebar"
+          }
+        },
+        {
+          name: "user",
+          type: "relationship",
+          relationTo: "users",
+          index: true,
+          admin: {
+            position: "sidebar"
+          }
+        },
+        {
+          name: "branch",
+          type: "relationship",
+          relationTo: "branches",
+          index: true,
+          admin: {
+            position: "sidebar"
+          }
+        },
+        {
+          name: "dateString",
+          type: "text",
+          required: true,
+          index: true,
+          admin: {
+            position: "sidebar",
+            description: "Format: YYYY-MM-DD. Timezone independent date log."
+          }
+        },
+        {
+          name: "date",
+          type: "date",
+          required: true,
+          index: true,
+          admin: {
+            position: "sidebar"
+          }
+        },
+        {
+          name: "completedCount",
+          type: "number",
+          defaultValue: 0,
+          admin: {
+            position: "sidebar"
+          }
+        },
+        {
+          name: "totalCount",
+          type: "number",
+          defaultValue: 0,
+          admin: {
+            position: "sidebar"
+          }
+        },
+        {
+          name: "tasks",
+          type: "array",
+          label: "Completed Tasks Today",
+          fields: [
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "task",
+                  type: "relationship",
+                  relationTo: "tasks",
+                  required: true,
+                  admin: { width: "40%" }
+                },
+                {
+                  name: "taskTitle",
+                  type: "text",
+                  label: "Task Title",
+                  admin: { width: "30%" }
+                },
+                {
+                  name: "completed",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: { width: "15%" }
+                },
+                {
+                  name: "completedAt",
+                  type: "date",
+                  admin: {
+                    width: "15%",
+                    date: {
+                      pickerAppearance: "dayAndTime"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              name: "notes",
+              type: "text",
+              label: "Notes / Remarks"
+            }
+          ]
+        }
+      ],
+      timestamps: true
+    };
+    TaskCompletions_default = TaskCompletions;
   }
 });
 
@@ -7997,6 +8268,12 @@ var init_Billings = __esm({
         },
         {
           fields: ["branch", "createdAt", "status"]
+        },
+        {
+          fields: ["createdAt", "status", "branch"]
+        },
+        {
+          fields: ["createdAt", "branch", "status"]
         },
         {
           fields: ["branch", "status", "createdAt"]
@@ -18992,12 +19269,15 @@ var init_inventory2 = __esm({
         branchQuery.and.push({ company: { in: allowedCompanies } });
       }
       if (branchQuery.and.length === 0) delete branchQuery.and;
+      const productPage = args.page || 1;
+      const productLimit = args.limit || 100;
       const [productsResult, branchesResult] = await Promise.all([
         payload.find({
           collection: "products",
           where: query,
-          limit: 1e3,
-          pagination: false
+          limit: productLimit,
+          page: productPage,
+          pagination: true
         }),
         payload.find({
           collection: "branches",
@@ -19007,9 +19287,12 @@ var init_inventory2 = __esm({
         })
       ]);
       const products = productsResult.docs;
+      const totalProducts = productsResult.totalDocs || 0;
       const branches = branchesResult.docs;
       const branchIds = branches.map((item) => item.id);
       const mappedBranchIds = toIndexedIdList(branchIds);
+      const productIds = products.map((item) => item.id);
+      const mappedProductIds = toIndexedIdList(productIds);
       const StockOrderModel = payload.db.collections["stock-orders"];
       const BillingModel = payload.db.collections["billings"];
       const ReturnOrderModel = payload.db.collections["return-orders"];
@@ -19029,7 +19312,7 @@ var init_inventory2 = __esm({
       ];
       addGranularMatch(initialStockPipeline);
       initialStockPipeline.push(
-        { $match: { "items.inStock": { $gt: 0 } } },
+        { $match: { "items.inStock": { $gt: 0 }, "items.product": { $in: mappedProductIds } } },
         {
           $group: {
             _id: {
@@ -19050,7 +19333,7 @@ var init_inventory2 = __esm({
       ];
       addGranularMatch(stockInPipeline, "items.receivedDate");
       stockInPipeline.push(
-        { $match: { "items.receivedQty": { $gt: 0 } } },
+        { $match: { "items.receivedQty": { $gt: 0 }, "items.product": { $in: mappedProductIds } } },
         {
           $group: {
             _id: {
@@ -19073,15 +19356,18 @@ var init_inventory2 = __esm({
         }
       ];
       addGranularMatch(stockOutPipeline);
-      stockOutPipeline.push({
-        $group: {
-          _id: {
-            branch: "$branch",
-            product: "$items.product"
-          },
-          totalSold: { $sum: "$items.quantity" }
+      stockOutPipeline.push(
+        { $match: { "items.product": { $in: mappedProductIds } } },
+        {
+          $group: {
+            _id: {
+              branch: "$branch",
+              product: "$items.product"
+            },
+            totalSold: { $sum: "$items.quantity" }
+          }
         }
-      });
+      );
       const stockOutStats = await BillingModel.aggregate(stockOutPipeline);
       const returnPipeline = [
         {
@@ -19094,15 +19380,18 @@ var init_inventory2 = __esm({
         }
       ];
       addGranularMatch(returnPipeline);
-      returnPipeline.push({
-        $group: {
-          _id: {
-            branch: "$branch",
-            product: "$items.product"
-          },
-          totalReturned: { $sum: "$items.quantity" }
+      returnPipeline.push(
+        { $match: { "items.product": { $in: mappedProductIds } } },
+        {
+          $group: {
+            _id: {
+              branch: "$branch",
+              product: "$items.product"
+            },
+            totalReturned: { $sum: "$items.quantity" }
+          }
         }
-      });
+      );
       const returnStats = await ReturnOrderModel.aggregate(returnPipeline);
       const instockPipeline = [
         {
@@ -19113,9 +19402,9 @@ var init_inventory2 = __esm({
       ];
       addGranularMatch(instockPipeline);
       instockPipeline.push(
-        { $unwind: "$items" },
         {
           $match: {
+            "items.product": { $in: mappedProductIds },
             "items.status": "approved",
             "items.instock": { $gt: 0 }
           }
@@ -19231,7 +19520,8 @@ var init_inventory2 = __esm({
       reportData.sort((a, b) => a.name.localeCompare(b.name));
       return {
         timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-        products: reportData
+        products: reportData,
+        totalProducts
       };
     };
   }
@@ -22250,6 +22540,7 @@ var init_otherProductsInventory = __esm({
       const { payload } = req;
       const branchParam = typeof args.branch === "string" ? args.branch : "";
       const dealerParam = typeof args.dealer === "string" ? args.dealer : "";
+      const categoryParam = typeof args.category === "string" ? args.category : "";
       const productParam = typeof args.product === "string" ? args.product : "";
       const purchaseFrequencyParam = typeof args.purchaseFrequency === "string" ? args.purchaseFrequency : "";
       const { branchIds } = await resolveReportBranchScope(req, branchParam);
@@ -22262,6 +22553,10 @@ var init_otherProductsInventory = __esm({
       if (dealerParam && dealerParam !== "all") {
         selectedDealers = dealerParam.split(",").filter((id) => id.trim().length > 0);
       }
+      let selectedCategories = [];
+      if (categoryParam && categoryParam !== "all") {
+        selectedCategories = categoryParam.split(",").filter((id) => id.trim().length > 0);
+      }
       let selectedProducts = [];
       if (productParam && productParam !== "all") {
         selectedProducts = productParam.split(",").filter((id) => id.trim().length > 0);
@@ -22269,19 +22564,10 @@ var init_otherProductsInventory = __esm({
       const matchQuery = {};
       const exprAnd = [];
       if (selectedBranches.length > 0) {
-        exprAnd.push({
-          $in: [{ $toString: "$branch" }, selectedBranches]
-        });
+        matchQuery.branch = { $in: toIndexedIdList(selectedBranches) };
       }
       if (selectedDealers.length > 0) {
-        exprAnd.push({
-          $in: [{ $toString: "$dealer" }, selectedDealers]
-        });
-      }
-      if (exprAnd.length > 0) {
-        matchQuery.$expr = {
-          $and: exprAnd
-        };
+        matchQuery.dealer = { $in: toIndexedIdList(selectedDealers) };
       }
       const pipeline = [
         {
@@ -22294,9 +22580,7 @@ var init_otherProductsInventory = __esm({
       if (selectedProducts.length > 0) {
         pipeline.push({
           $match: {
-            $expr: {
-              $in: [{ $toString: "$productsList.product" }, selectedProducts]
-            }
+            "productsList.product": { $in: toIndexedIdList(selectedProducts) }
           }
         });
       }
@@ -22352,6 +22636,42 @@ var init_otherProductsInventory = __esm({
           $unwind: {
             path: "$productInfo",
             preserveNullAndEmptyArrays: true
+          }
+        },
+        ...selectedCategories.length > 0 ? [
+          {
+            $match: {
+              $expr: {
+                $in: [{ $toString: "$productInfo.category" }, selectedCategories]
+              }
+            }
+          }
+        ] : [],
+        {
+          $match: {
+            $expr: {
+              $not: {
+                $let: {
+                  vars: {
+                    resetDateObj: {
+                      $first: {
+                        $filter: {
+                          input: { $ifNull: ["$productInfo.otherProductsResetDates", []] },
+                          as: "r",
+                          cond: { $eq: [{ $toString: "$$r.branch" }, { $toString: "$branch" }] }
+                        }
+                      }
+                    }
+                  },
+                  in: {
+                    $and: [
+                      { $ne: ["$$resetDateObj", null] },
+                      { $lte: ["$date", "$$resetDateObj.resetDate"] }
+                    ]
+                  }
+                }
+              }
+            }
           }
         },
         ...purchaseFrequencyParam && purchaseFrequencyParam !== "all" ? [
@@ -22506,17 +22826,71 @@ var init_getOtherProductsInventoryReport = __esm({
         const url = new URL(req.url || "", "http://localhost");
         const branch = url.searchParams.get("branch");
         const dealer = url.searchParams.get("dealer");
+        const category = url.searchParams.get("category");
         const product = url.searchParams.get("product");
         const purchaseFrequency = url.searchParams.get("purchaseFrequency");
         const report = await getOtherProductsInventoryReportData(req, {
           branch,
           dealer,
+          category,
           product,
           purchaseFrequency
         });
         return Response.json(report);
       } catch (error) {
         req.payload.logger.error({ err: error, msg: "Error generating other products inventory report" });
+        return Response.json(
+          { error: error instanceof Error ? error.message : "Internal Server Error" },
+          { status: 500 }
+        );
+      }
+    };
+  }
+});
+
+// src/endpoints/resetOtherProductStock.ts
+var resetOtherProductStockHandler;
+var init_resetOtherProductStock = __esm({
+  "src/endpoints/resetOtherProductStock.ts"() {
+    "use strict";
+    resetOtherProductStockHandler = async (req) => {
+      try {
+        const { branchId, productId } = await req.json();
+        if (!branchId || !productId) {
+          return Response.json({ error: "Branch ID and Product ID are required" }, { status: 400 });
+        }
+        const { payload } = req;
+        const product = await payload.findByID({
+          collection: "products",
+          id: productId,
+          depth: 0
+        });
+        if (!product) {
+          return Response.json({ error: "Product not found" }, { status: 404 });
+        }
+        const existingResets = Array.isArray(product.otherProductsResetDates) ? product.otherProductsResetDates : [];
+        const branchIndex = existingResets.findIndex((r) => {
+          const rBranchId = typeof r.branch === "string" ? r.branch : r.branch?.id || r.branch;
+          return rBranchId === branchId;
+        });
+        if (branchIndex >= 0) {
+          existingResets[branchIndex].resetDate = (/* @__PURE__ */ new Date()).toISOString();
+        } else {
+          existingResets.push({
+            branch: branchId,
+            resetDate: (/* @__PURE__ */ new Date()).toISOString()
+          });
+        }
+        await payload.update({
+          collection: "products",
+          id: productId,
+          data: {
+            otherProductsResetDates: existingResets
+          }
+        });
+        return Response.json({ success: true });
+      } catch (error) {
+        req.payload.logger.error({ err: error, msg: "Error resetting other product stock" });
         return Response.json(
           { error: error instanceof Error ? error.message : "Internal Server Error" },
           { status: 500 }
@@ -32171,7 +32545,9 @@ var init_reportQueries = __esm({
           department: { type: graphQL.GraphQLString },
           category: { type: graphQL.GraphQLString },
           product: { type: graphQL.GraphQLString },
-          branch: { type: graphQL.GraphQLString }
+          branch: { type: graphQL.GraphQLString },
+          page: { type: graphQL.GraphQLInt },
+          limit: { type: graphQL.GraphQLInt }
         }
       });
       const InventoryReportBranchType = new graphQL.GraphQLObjectType({
@@ -32210,6 +32586,7 @@ var init_reportQueries = __esm({
         name: "InventoryReportResult",
         fields: {
           timestamp: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+          totalProducts: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
           products: {
             type: new graphQL.GraphQLNonNull(
               new graphQL.GraphQLList(new graphQL.GraphQLNonNull(InventoryReportProductType))
@@ -35543,6 +35920,354 @@ var init_ManagerClosingReplies = __esm({
   }
 });
 
+// src/endpoints/getMyDailyTasks.ts
+var getMyDailyTasksHandler;
+var init_getMyDailyTasks = __esm({
+  "src/endpoints/getMyDailyTasks.ts"() {
+    "use strict";
+    getMyDailyTasksHandler = async (req) => {
+      if (!req.user) {
+        return Response.json({ success: false, message: "Unauthorized" }, { status: 401 });
+      }
+      try {
+        const url = new URL(req.url);
+        let dateString = url.searchParams.get("dateString");
+        if (!dateString) {
+          const d = /* @__PURE__ */ new Date();
+          const utcOffset = d.getTime() + 5.5 * 60 * 60 * 1e3;
+          const localDate = new Date(utcOffset);
+          const year = localDate.getUTCFullYear();
+          const month = String(localDate.getUTCMonth() + 1).padStart(2, "0");
+          const day = String(localDate.getUTCDate()).padStart(2, "0");
+          dateString = `${year}-${month}-${day}`;
+        }
+        let employeeId = null;
+        let employeeRole = req.user.role || "";
+        let employeeBranch = null;
+        const userEmp = req.user.employee;
+        if (userEmp) {
+          employeeId = typeof userEmp === "string" ? userEmp : userEmp.id;
+        }
+        if (!employeeId) {
+          const empSearch = await req.payload.find({
+            collection: "employees",
+            where: {
+              or: [
+                { phoneNumber: { equals: req.user.phone || req.user.phoneNumber || "__none__" } },
+                { employeeId: { equals: req.user.employeeId || "__none__" } }
+              ]
+            },
+            limit: 1
+          });
+          if (empSearch.docs.length > 0) {
+            employeeId = empSearch.docs[0].id;
+          }
+        }
+        let employeeDoc = null;
+        if (employeeId) {
+          try {
+            employeeDoc = await req.payload.findByID({
+              collection: "employees",
+              id: employeeId,
+              depth: 0
+            });
+            if (employeeDoc) {
+              if (employeeDoc.team) {
+                employeeRole = employeeDoc.team;
+              }
+              if (employeeDoc.branch) {
+                employeeBranch = typeof employeeDoc.branch === "string" ? employeeDoc.branch : employeeDoc.branch.id;
+              }
+            }
+          } catch (_e) {
+          }
+        }
+        if (!employeeBranch && req.user.branch) {
+          const ub = req.user.branch;
+          employeeBranch = typeof ub === "string" ? ub : ub.id;
+        }
+        const normalizedRole = employeeRole.toLowerCase().trim();
+        const userRole = (req.user?.role || "").toLowerCase().trim();
+        const requestedRole = (url.searchParams.get("role") || "").toLowerCase().trim();
+        const taskQuery = await req.payload.find({
+          collection: "tasks",
+          limit: 500,
+          depth: 1
+        });
+        const matchedTasks = taskQuery.docs.filter((task) => {
+          if (task.isActive === false) return false;
+          if (task.branch) {
+            const taskBranchId = typeof task.branch === "string" ? task.branch : task.branch.id;
+            if (employeeBranch && taskBranchId !== employeeBranch) {
+              return false;
+            }
+          }
+          const colRole = typeof task.column === "object" && task.column?.role ? String(task.column.role).toLowerCase().trim() : "";
+          const colTitle = typeof task.column === "object" && task.column?.title ? String(task.column.title).toLowerCase().trim() : "";
+          const assignedRole = task.assignedRole ? String(task.assignedRole).toLowerCase().trim() : "";
+          const taskRole = assignedRole || colRole || colTitle;
+          const tEmp = task.assignedEmployee;
+          const taskEmpId = tEmp ? typeof tEmp === "string" ? tEmp : tEmp.id : null;
+          const tUser = task.assignedUser;
+          const taskUserId = tUser ? typeof tUser === "string" ? tUser : tUser.id : null;
+          const assignmentType = task.assignmentType || "role";
+          const matchesInd = employeeId && taskEmpId === employeeId || req.user.id && taskUserId === req.user.id;
+          const matchesRole = taskRole === "all" || taskRole === normalizedRole || taskRole === userRole || requestedRole && (taskRole === requestedRole || colRole === requestedRole) || userRole === "manager" && (taskRole === "manager" || colRole === "manager" || colTitle === "manager") || userRole === "superadmin" || userRole === "admin";
+          if (assignmentType === "individual") {
+            return matchesInd;
+          }
+          if (assignmentType === "role") {
+            return matchesRole;
+          }
+          if (assignmentType === "both") {
+            return matchesInd || matchesRole;
+          }
+          if (assignmentType === "unassigned") {
+            return true;
+          }
+          return matchesInd || matchesRole;
+        });
+        let completions = [];
+        if (employeeId || req.user.id) {
+          const orConditions = [];
+          if (employeeId) {
+            orConditions.push({ employee: { equals: employeeId } });
+          }
+          if (req.user.id) {
+            orConditions.push({ user: { equals: req.user.id } });
+          }
+          const completionsRes = await req.payload.find({
+            collection: "task-completions",
+            where: {
+              and: [
+                { dateString: { equals: dateString } },
+                { or: orConditions }
+              ]
+            },
+            limit: 500,
+            depth: 0
+          });
+          completions = completionsRes.docs;
+        }
+        const completionMap = {};
+        completions.forEach((c) => {
+          if (Array.isArray(c.tasks)) {
+            c.tasks.forEach((tItem) => {
+              const tId = typeof tItem.task === "string" ? tItem.task : tItem.task?.id;
+              if (tId) {
+                completionMap[tId] = tItem;
+              }
+            });
+          }
+          const singleTaskId = typeof c.task === "string" ? c.task : c.task?.id;
+          if (singleTaskId && !completionMap[singleTaskId]) {
+            completionMap[singleTaskId] = c;
+          }
+        });
+        const resultTasks = matchedTasks.map((task) => {
+          const comp = completionMap[task.id];
+          return {
+            id: task.id,
+            title: task.title,
+            description: task.description || "",
+            priority: task.priority || "medium",
+            isDaily: task.isDaily !== false,
+            assignmentType: task.assignmentType || "role",
+            assignedRole: task.assignedRole || null,
+            dueDate: task.dueDate || null,
+            checklist: task.checklist || [],
+            completed: Boolean(comp?.completed),
+            completedAt: comp?.completedAt || null,
+            completionId: comp?.id || null,
+            notes: comp?.notes || ""
+          };
+        });
+        return Response.json({
+          success: true,
+          dateString,
+          employeeId,
+          employeeRole,
+          tasks: resultTasks
+        });
+      } catch (error) {
+        req.payload.logger.error({
+          err: error,
+          msg: "Error in getMyDailyTasksHandler"
+        });
+        return Response.json(
+          { success: false, message: error.message || "Internal server error" },
+          { status: 500 }
+        );
+      }
+    };
+  }
+});
+
+// src/endpoints/toggleDailyTask.ts
+var toggleDailyTaskHandler;
+var init_toggleDailyTask = __esm({
+  "src/endpoints/toggleDailyTask.ts"() {
+    "use strict";
+    toggleDailyTaskHandler = async (req) => {
+      if (!req.user) {
+        return Response.json({ success: false, message: "Unauthorized" }, { status: 401 });
+      }
+      try {
+        let body = {};
+        try {
+          body = await req.json?.();
+        } catch (_e) {
+        }
+        const { taskId, completed, notes } = body || {};
+        let dateString = body?.dateString;
+        if (!taskId) {
+          return Response.json({ success: false, message: "Missing taskId" }, { status: 400 });
+        }
+        if (!dateString) {
+          const d2 = /* @__PURE__ */ new Date();
+          const utcOffset2 = d2.getTime() + 5.5 * 60 * 60 * 1e3;
+          const localDate2 = new Date(utcOffset2);
+          const year = localDate2.getUTCFullYear();
+          const month = String(localDate2.getUTCMonth() + 1).padStart(2, "0");
+          const day = String(localDate2.getUTCDate()).padStart(2, "0");
+          dateString = `${year}-${month}-${day}`;
+        }
+        let employeeId = null;
+        const userEmp = req.user.employee;
+        if (userEmp) {
+          employeeId = typeof userEmp === "string" ? userEmp : userEmp.id;
+        }
+        if (!employeeId) {
+          const empSearch = await req.payload.find({
+            collection: "employees",
+            where: {
+              or: [
+                { phoneNumber: { equals: req.user.phone || req.user.phoneNumber || "__none__" } },
+                { employeeId: { equals: req.user.employeeId || "__none__" } }
+              ]
+            },
+            limit: 1
+          });
+          if (empSearch.docs.length > 0) {
+            employeeId = empSearch.docs[0].id;
+          }
+        }
+        let taskTitle = "Task";
+        try {
+          const taskDoc = await req.payload.findByID({
+            collection: "tasks",
+            id: taskId,
+            depth: 0
+          });
+          if (taskDoc && taskDoc.title) {
+            taskTitle = taskDoc.title;
+          }
+        } catch (_e) {
+        }
+        const userConditions = [{ user: { equals: req.user.id } }];
+        if (employeeId) {
+          userConditions.push({ employee: { equals: employeeId } });
+        }
+        const existing = await req.payload.find({
+          collection: "task-completions",
+          where: {
+            and: [
+              { dateString: { equals: dateString } },
+              { or: userConditions }
+            ]
+          },
+          limit: 1
+        });
+        let updatedDoc = null;
+        let isTaskCompleted = false;
+        let taskCompletedAt = null;
+        const d = /* @__PURE__ */ new Date();
+        const utcOffset = d.getTime() + 5.5 * 60 * 60 * 1e3;
+        const localDate = new Date(utcOffset);
+        localDate.setUTCHours(0, 0, 0, 0);
+        const dateObj = new Date(localDate.getTime() - 5.5 * 60 * 60 * 1e3);
+        if (existing.docs.length > 0) {
+          const existingDoc = existing.docs[0];
+          const currentTasks = Array.isArray(existingDoc.tasks) ? [...existingDoc.tasks] : [];
+          const taskIndex = currentTasks.findIndex((t) => {
+            const id = typeof t.task === "string" ? t.task : t.task?.id;
+            return id === taskId;
+          });
+          if (taskIndex !== -1) {
+            isTaskCompleted = completed !== void 0 ? Boolean(completed) : !currentTasks[taskIndex].completed;
+            taskCompletedAt = isTaskCompleted ? currentTasks[taskIndex].completedAt || (/* @__PURE__ */ new Date()).toISOString() : null;
+            currentTasks[taskIndex] = {
+              ...currentTasks[taskIndex],
+              task: taskId,
+              taskTitle,
+              completed: isTaskCompleted,
+              completedAt: taskCompletedAt,
+              notes: notes !== void 0 ? notes : currentTasks[taskIndex].notes || ""
+            };
+          } else {
+            isTaskCompleted = completed !== void 0 ? Boolean(completed) : true;
+            taskCompletedAt = isTaskCompleted ? (/* @__PURE__ */ new Date()).toISOString() : null;
+            currentTasks.push({
+              task: taskId,
+              taskTitle,
+              completed: isTaskCompleted,
+              completedAt: taskCompletedAt,
+              notes: notes || ""
+            });
+          }
+          updatedDoc = await req.payload.update({
+            collection: "task-completions",
+            id: existingDoc.id,
+            data: {
+              tasks: currentTasks
+            }
+          });
+        } else {
+          isTaskCompleted = completed !== void 0 ? Boolean(completed) : true;
+          taskCompletedAt = isTaskCompleted ? (/* @__PURE__ */ new Date()).toISOString() : null;
+          const userBranch = req.user.branch;
+          const branchId = userBranch ? typeof userBranch === "string" ? userBranch : userBranch.id : void 0;
+          const initialTasks = [
+            {
+              task: taskId,
+              taskTitle,
+              completed: isTaskCompleted,
+              completedAt: taskCompletedAt,
+              notes: notes || ""
+            }
+          ];
+          updatedDoc = await req.payload.create({
+            collection: "task-completions",
+            data: {
+              employee: employeeId || void 0,
+              user: req.user.id,
+              branch: branchId,
+              dateString,
+              date: dateObj.toISOString(),
+              tasks: initialTasks
+            }
+          });
+        }
+        return Response.json({
+          success: true,
+          completed: isTaskCompleted,
+          completedAt: taskCompletedAt,
+          doc: updatedDoc
+        });
+      } catch (error) {
+        req.payload.logger.error({
+          err: error,
+          msg: "Error in toggleDailyTaskHandler"
+        });
+        return Response.json(
+          { success: false, message: error.message || "Internal server error" },
+          { status: 500 }
+        );
+      }
+    };
+  }
+});
+
 // src/payload.config.ts
 var payload_config_exports = {};
 __export(payload_config_exports, {
@@ -35575,6 +36300,7 @@ var init_payload_config = __esm({
     init_Employees();
     init_Tasks();
     init_TaskColumns();
+    init_TaskCompletions();
     init_Billings();
     init_MessageThreads();
     init_Messages();
@@ -35640,6 +36366,7 @@ var init_payload_config = __esm({
     init_getDealerReport();
     init_DealerReport();
     init_getOtherProductsInventoryReport();
+    init_resetOtherProductStock();
     init_OtherProductsInventoryReport();
     init_getRawMaterialInventoryReport();
     init_RawMaterialInventoryReport();
@@ -35708,6 +36435,8 @@ var init_payload_config = __esm({
     init_BankStatementUpload();
     init_serverUrl();
     init_ManagerClosingReplies();
+    init_getMyDailyTasks();
+    init_toggleDailyTask();
     initLogHook();
     filename = fileURLToPath(import.meta.url);
     dirname = path2.dirname(filename);
@@ -36224,6 +36953,11 @@ var init_payload_config = __esm({
           handler: getOtherProductsInventoryReportHandler
         },
         {
+          path: "/reports/other-products-inventory/reset",
+          method: "post",
+          handler: resetOtherProductStockHandler
+        },
+        {
           path: "/reports/raw-material-inventory",
           method: "get",
           handler: getRawMaterialInventoryReportHandler
@@ -36438,6 +37172,26 @@ var init_payload_config = __esm({
           path: "/branches/toggle-cashdrawer-access",
           method: "post",
           handler: toggleBranchCashDrawerAccessHandler
+        },
+        {
+          path: "/daily-tasks/my-tasks",
+          method: "get",
+          handler: getMyDailyTasksHandler
+        },
+        {
+          path: "/daily-tasks/toggle",
+          method: "post",
+          handler: toggleDailyTaskHandler
+        },
+        {
+          path: "/my-daily-tasks",
+          method: "get",
+          handler: getMyDailyTasksHandler
+        },
+        {
+          path: "/toggle-daily-task",
+          method: "post",
+          handler: toggleDailyTaskHandler
         }
       ],
       globals: [
@@ -36499,6 +37253,7 @@ var init_payload_config = __esm({
         Employees_default,
         Tasks_default,
         TaskColumns_default,
+        TaskCompletions_default,
         MessageThreads,
         MessageAttachments,
         Messages,

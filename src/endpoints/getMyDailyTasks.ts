@@ -171,10 +171,20 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
     }
 
     const completionMap: Record<string, any> = {}
-    completions.forEach((c) => {
-      const tId = typeof c.task === 'string' ? c.task : c.task?.id
-      if (tId) {
-        completionMap[tId] = c
+    completions.forEach((c: any) => {
+      // 1. New structure: tasks array inside the single daily document
+      if (Array.isArray(c.tasks)) {
+        c.tasks.forEach((tItem: any) => {
+          const tId = typeof tItem.task === 'string' ? tItem.task : tItem.task?.id
+          if (tId) {
+            completionMap[tId] = tItem
+          }
+        })
+      }
+      // 2. Legacy fallback: single task per doc
+      const singleTaskId = typeof c.task === 'string' ? c.task : c.task?.id
+      if (singleTaskId && !completionMap[singleTaskId]) {
+        completionMap[singleTaskId] = c
       }
     })
 

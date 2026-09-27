@@ -51,17 +51,29 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
       }
     }
 
+    // Fetch task details for title
+    let taskTitle = 'Task'
+    try {
+      const taskDoc = await req.payload.findByID({
+        collection: 'tasks',
+        id: taskId,
+        depth: 0,
+      })
+      if (taskDoc && (taskDoc as any).title) {
+        taskTitle = (taskDoc as any).title
+      }
+    } catch (_e) {}
+
     const userConditions: any[] = [{ user: { equals: req.user.id } }]
     if (employeeId) {
       userConditions.push({ employee: { equals: employeeId } })
     }
 
-    // Check if task completion record already exists
+    // Check if daily record already exists for this employee/user on dateString
     const existing = await req.payload.find({
       collection: 'task-completions',
       where: {
         and: [
-          { task: { equals: taskId } },
           { dateString: { equals: dateString } },
           { or: userConditions },
         ],
@@ -70,6 +82,9 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
     })
 
     let updatedDoc: any = null
+    let isTaskCompleted = false
+    let taskCompletedAt: string | null = null
+
     const d = new Date()
     const utcOffset = d.getTime() + (5.5 * 60 * 60 * 1000)
     const localDate = new Date(utcOffset)
@@ -78,23 +93,50 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
 
     if (existing.docs.length > 0) {
       const existingDoc = existing.docs[0]
-      const newCompleted = completed !== undefined ? Boolean(completed) : !existingDoc.completed
-      const completedAt = newCompleted
-        ? existingDoc.completedAt || new Date().toISOString()
-        : null
+      const currentTasks: any[] = Array.isArray((existingDoc as any).tasks)
+        ? [...(existingDoc as any).tasks]
+        : []
+
+      const taskIndex = currentTasks.findIndex((t: any) => {
+        const id = typeof t.task === 'string' ? t.task : t.task?.id
+        return id === taskId
+      })
+
+      if (taskIndex !== -1) {
+        isTaskCompleted = completed !== undefined ? Boolean(completed) : !currentTasks[taskIndex].completed
+        taskCompletedAt = isTaskCompleted ? (currentTasks[taskIndex].completedAt || new Date().toISOString()) : null
+
+        currentTasks[taskIndex] = {
+          ...currentTasks[taskIndex],
+          task: taskId,
+          taskTitle,
+          completed: isTaskCompleted,
+          completedAt: taskCompletedAt,
+          notes: notes !== undefined ? notes : (currentTasks[taskIndex].notes || ''),
+        }
+      } else {
+        isTaskCompleted = completed !== undefined ? Boolean(completed) : true
+        taskCompletedAt = isTaskCompleted ? new Date().toISOString() : null
+
+        currentTasks.push({
+          task: taskId,
+          taskTitle,
+          completed: isTaskCompleted,
+          completedAt: taskCompletedAt,
+          notes: notes || '',
+        })
+      }
 
       updatedDoc = await req.payload.update({
         collection: 'task-completions',
         id: existingDoc.id,
         data: {
-          completed: newCompleted,
-          completedAt,
-          notes: notes !== undefined ? notes : existingDoc.notes,
+          tasks: currentTasks,
         },
       })
     } else {
-      const newCompleted = completed !== undefined ? Boolean(completed) : true
-      const completedAt = newCompleted ? new Date().toISOString() : null
+      isTaskCompleted = completed !== undefined ? Boolean(completed) : true
+      taskCompletedAt = isTaskCompleted ? new Date().toISOString() : null
 
       const userBranch = (req.user as any).branch
       const branchId = userBranch
@@ -103,26 +145,33 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
           : userBranch.id
         : undefined
 
+      const initialTasks = [
+        {
+          task: taskId,
+          taskTitle,
+          completed: isTaskCompleted,
+          completedAt: taskCompletedAt,
+          notes: notes || '',
+        },
+      ]
+
       updatedDoc = await req.payload.create({
         collection: 'task-completions',
         data: {
-          task: taskId,
-          employee: employeeId,
+          employee: employeeId || undefined,
           user: req.user.id,
           branch: branchId,
           dateString,
           date: dateObj.toISOString(),
-          completed: newCompleted,
-          completedAt,
-          notes: notes || '',
+          tasks: initialTasks,
         },
       })
     }
 
     return Response.json({
       success: true,
-      completed: Boolean(updatedDoc?.completed),
-      completedAt: updatedDoc?.completedAt || null,
+      completed: isTaskCompleted,
+      completedAt: taskCompletedAt,
       doc: updatedDoc,
     })
   } catch (error: any) {
