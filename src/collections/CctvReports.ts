@@ -26,25 +26,13 @@ const CctvReports: CollectionConfig = {
           data.status = 'pending'
         }
         if (operation === 'update' && req.user) {
-          // If manager message or proof photo is added/changed, tag manager and update status
+          // When manager replies with message or proof photo, tag manager and close report
           if (
             (data.managerMessage && data.managerMessage !== originalDoc?.managerMessage) ||
             (data.proofPhoto && data.proofPhoto !== originalDoc?.proofPhoto)
           ) {
             data.manager = req.user.id
-            data.status = 'mng_replied'
-          }
-          // If staff message is added/changed, tag staff and update status
-          if (data.staffMessage && data.staffMessage !== originalDoc?.staffMessage) {
-            data.staff = req.user.id
-            data.status = 'st_replied'
-          }
-          // If watcher reply message or screenshot is added/changed
-          if (
-            (data.watcherReplyMessage && data.watcherReplyMessage !== originalDoc?.watcherReplyMessage) ||
-            (data.watcherReplyScreenshot && data.watcherReplyScreenshot !== originalDoc?.watcherReplyScreenshot)
-          ) {
-            data.status = 'watcher_replied'
+            data.status = 'closed'
           }
         }
         return data
@@ -68,9 +56,8 @@ const CctvReports: CollectionConfig = {
       required: true,
       options: [
         { label: 'Pending', value: 'pending' },
-        { label: 'Mng Replied', value: 'mng_replied' },
-        { label: 'ST Replied', value: 'st_replied' },
-        { label: 'Watcher Replied', value: 'watcher_replied' },
+        { label: 'Closed', value: 'closed' },
+        { label: 'Closed (Legacy)', value: 'mng_replied' },
       ],
       admin: {
         position: 'sidebar',
@@ -118,43 +105,8 @@ const CctvReports: CollectionConfig = {
       },
     },
     {
-      name: 'watcherReplyMessage',
-      label: 'Watcher Reply',
-      type: 'textarea',
-      admin: {
-        description: 'Reply from the watcher to the manager',
-      },
-    },
-    {
-      name: 'watcherReplyScreenshot',
-      label: 'Watcher Reply Screenshot',
-      type: 'upload',
-      relationTo: 'media',
-      required: false,
-      admin: {
-        description: 'Screenshot uploaded by watcher in follow-up reply',
-      },
-    },
-    {
-      name: 'staffMessage',
-      label: 'Staff Reply',
-      type: 'textarea',
-      admin: {
-        description: 'Reply from the branch staff to the watcher',
-      },
-    },
-    {
-      name: 'staff',
-      label: 'Replied By (Staff)',
-      type: 'relationship',
-      relationTo: 'users',
-      admin: {
-        readOnly: true,
-        position: 'sidebar',
-      },
-    },
-    {
       name: 'createdBy',
+      label: 'Reported By (Watcher)',
       type: 'relationship',
       relationTo: 'users',
       required: false,
