@@ -29,7 +29,6 @@ const CctvReports: CollectionConfig = {
           // If manager message or proof photo is added/changed, tag manager and update status
           if (
             (data.managerMessage && data.managerMessage !== originalDoc?.managerMessage) ||
-            (data.managerScreenshot && data.managerScreenshot !== originalDoc?.managerScreenshot) ||
             (data.proofPhoto && data.proofPhoto !== originalDoc?.proofPhoto)
           ) {
             data.manager = req.user.id
@@ -40,8 +39,11 @@ const CctvReports: CollectionConfig = {
             data.staff = req.user.id
             data.status = 'st_replied'
           }
-          // If watcher reply message is added/changed
-          if (data.watcherReplyMessage && data.watcherReplyMessage !== originalDoc?.watcherReplyMessage) {
+          // If watcher reply message or screenshot is added/changed
+          if (
+            (data.watcherReplyMessage && data.watcherReplyMessage !== originalDoc?.watcherReplyMessage) ||
+            (data.watcherReplyScreenshot && data.watcherReplyScreenshot !== originalDoc?.watcherReplyScreenshot)
+          ) {
             data.status = 'watcher_replied'
           }
         }
@@ -50,21 +52,6 @@ const CctvReports: CollectionConfig = {
     ],
   },
   fields: [
-    {
-      name: 'watcherReplyMessage',
-      label: 'Watcher Reply',
-      type: 'textarea',
-      admin: {
-        description: 'Reply from the watcher to the manager',
-      }
-    },
-    {
-      name: 'watcherReplyScreenshot',
-      label: 'Watcher Reply Screenshot',
-      type: 'upload',
-      relationTo: 'media',
-      required: false,
-    },
     {
       name: 'branch',
       type: 'relationship',
@@ -91,6 +78,7 @@ const CctvReports: CollectionConfig = {
     },
     {
       name: 'screenshot',
+      label: 'Watcher Issue Photo',
       type: 'upload',
       relationTo: 'media',
       required: false,
@@ -107,21 +95,17 @@ const CctvReports: CollectionConfig = {
       type: 'textarea',
       admin: {
         description: 'Reply from the manager to the watcher',
-      }
-    },
-    {
-      name: 'managerScreenshot',
-      label: 'Manager Proof Photo',
-      type: 'upload',
-      relationTo: 'media',
-      required: false,
+      },
     },
     {
       name: 'proofPhoto',
-      label: 'Proof Photo',
+      label: 'Manager Reply Photo / Proof',
       type: 'upload',
       relationTo: 'media',
       required: false,
+      admin: {
+        description: 'Proof photo uploaded by manager when replying',
+      },
     },
     {
       name: 'manager',
@@ -131,7 +115,25 @@ const CctvReports: CollectionConfig = {
       admin: {
         readOnly: true,
         position: 'sidebar',
-      }
+      },
+    },
+    {
+      name: 'watcherReplyMessage',
+      label: 'Watcher Reply',
+      type: 'textarea',
+      admin: {
+        description: 'Reply from the watcher to the manager',
+      },
+    },
+    {
+      name: 'watcherReplyScreenshot',
+      label: 'Watcher Reply Screenshot',
+      type: 'upload',
+      relationTo: 'media',
+      required: false,
+      admin: {
+        description: 'Screenshot uploaded by watcher in follow-up reply',
+      },
     },
     {
       name: 'staffMessage',
@@ -139,7 +141,7 @@ const CctvReports: CollectionConfig = {
       type: 'textarea',
       admin: {
         description: 'Reply from the branch staff to the watcher',
-      }
+      },
     },
     {
       name: 'staff',
@@ -149,7 +151,7 @@ const CctvReports: CollectionConfig = {
       admin: {
         readOnly: true,
         position: 'sidebar',
-      }
+      },
     },
     {
       name: 'createdBy',
