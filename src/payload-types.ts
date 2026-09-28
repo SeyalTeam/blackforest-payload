@@ -1078,9 +1078,17 @@ export interface Task {
     | null;
   completedBy?: (string | Employee)[] | null;
   /**
+   * How often this task recurs (Daily, Weekly, Monthly, or Hourly).
+   */
+  frequency?: ('daily' | 'weekly' | 'monthly' | 'hourly') | null;
+  /**
    * If checked, this task recurs every day on the employee tracker app.
    */
   isDaily?: boolean | null;
+  /**
+   * If checked, the employee must capture and upload a photo from their camera before completing this task.
+   */
+  requiresPhoto?: boolean | null;
   /**
    * Uncheck to temporarily disable this task from appearing on employee apps.
    */
@@ -1126,8 +1134,9 @@ export interface TaskColumn {
  */
 export interface TaskCompletion {
   id: string;
-  task: string | Task;
-  employee: string | Employee;
+  title?: string | null;
+  employeeName?: string | null;
+  employee?: (string | null) | Employee;
   user?: (string | null) | User;
   branch?: (string | null) | Branch;
   /**
@@ -1135,9 +1144,24 @@ export interface TaskCompletion {
    */
   dateString: string;
   date: string;
-  completed?: boolean | null;
-  completedAt?: string | null;
-  notes?: string | null;
+  completedCount?: number | null;
+  totalCount?: number | null;
+  tasks?:
+    | {
+        task: string | Task;
+        taskTitle?: string | null;
+        frequency?: ('daily' | 'weekly' | 'monthly' | 'hourly') | null;
+        completed?: boolean | null;
+        completedAt?: string | null;
+        photo?: (string | null) | Media;
+        /**
+         * Direct public URL to proof image
+         */
+        photoUrl?: string | null;
+        notes?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2458,25 +2482,19 @@ export interface WaiterCall {
  */
 export interface CctvReport {
   id: string;
-  /**
-   * Reply from the watcher to the manager
-   */
-  watcherReplyMessage?: string | null;
-  watcherReplyScreenshot?: (string | null) | Media;
   branch: string | Branch;
-  status: 'pending' | 'mng_replied' | 'st_replied' | 'watcher_replied';
+  status: 'pending' | 'closed' | 'mng_replied';
   screenshot?: (string | null) | Media;
   message: string;
   /**
    * Reply from the manager to the watcher
    */
   managerMessage?: string | null;
-  manager?: (string | null) | User;
   /**
-   * Reply from the branch staff to the watcher
+   * Proof photo uploaded by manager when replying
    */
-  staffMessage?: string | null;
-  staff?: (string | null) | User;
+  proofPhoto?: (string | null) | Media;
+  manager?: (string | null) | User;
   createdBy?: (string | null) | User;
   updatedAt: string;
   createdAt: string;
@@ -3145,7 +3163,9 @@ export interface TasksSelect<T extends boolean = true> {
         id?: T;
       };
   completedBy?: T;
+  frequency?: T;
   isDaily?: T;
+  requiresPhoto?: T;
   isActive?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -3168,15 +3188,28 @@ export interface TaskColumnsSelect<T extends boolean = true> {
  * via the `definition` "task-completions_select".
  */
 export interface TaskCompletionsSelect<T extends boolean = true> {
-  task?: T;
+  title?: T;
+  employeeName?: T;
   employee?: T;
   user?: T;
   branch?: T;
   dateString?: T;
   date?: T;
-  completed?: T;
-  completedAt?: T;
-  notes?: T;
+  completedCount?: T;
+  totalCount?: T;
+  tasks?:
+    | T
+    | {
+        task?: T;
+        taskTitle?: T;
+        frequency?: T;
+        completed?: T;
+        completedAt?: T;
+        photo?: T;
+        photoUrl?: T;
+        notes?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3983,16 +4016,13 @@ export interface WaiterCallsSelect<T extends boolean = true> {
  * via the `definition` "cctv-reports_select".
  */
 export interface CctvReportsSelect<T extends boolean = true> {
-  watcherReplyMessage?: T;
-  watcherReplyScreenshot?: T;
   branch?: T;
   status?: T;
   screenshot?: T;
   message?: T;
   managerMessage?: T;
+  proofPhoto?: T;
   manager?: T;
-  staffMessage?: T;
-  staff?: T;
   createdBy?: T;
   updatedAt?: T;
   createdAt?: T;
