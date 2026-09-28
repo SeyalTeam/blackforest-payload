@@ -951,7 +951,8 @@ export const Users: CollectionConfig = {
                         targetLat,
                         targetLon,
                       )
-                      const allowedRadius = radius || 100
+                      // Add 60m indoor GPS drift tolerance
+                      const allowedRadius = (radius || 100) + 60
 
                       if (distance <= allowedRadius) {
                         isGeoAuthorized = true

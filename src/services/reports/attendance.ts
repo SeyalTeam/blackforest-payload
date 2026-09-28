@@ -317,7 +317,7 @@ export const getAttendanceReportData = async (
 
     for (const g of geofences) {
       const dist = distanceInMeters(lat, lng, g.latitude, g.longitude)
-      const effectiveRadius = g.radius + 30
+      const effectiveRadius = g.radius + 60
       if (dist <= effectiveRadius) {
         if (dist < minDistance) {
           minDistance = dist
