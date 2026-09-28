@@ -1566,7 +1566,7 @@ var init_Users = __esm({
             if (isLoginBlocked) {
               throw new Error("Login blocked by superadmin. Please contact administrator.");
             }
-            if (user.role === "superadmin") return;
+            if (user.role === "superadmin" || user.role === "watcher") return;
             const getRelationshipID12 = (value) => {
               if (!value) return null;
               if (typeof value === "string") return value;
@@ -1789,7 +1789,7 @@ var init_Users = __esm({
                             targetLat,
                             targetLon
                           );
-                          const allowedRadius = radius || 100;
+                          const allowedRadius = (radius || 100) + 60;
                           if (distance <= allowedRadius) {
                             isGeoAuthorized = true;
                             console.log(
@@ -18647,7 +18647,7 @@ var init_attendance = __esm({
         let minDistance = Infinity;
         for (const g of geofences) {
           const dist = distanceInMeters(lat, lng, g.latitude, g.longitude);
-          const effectiveRadius = g.radius + 30;
+          const effectiveRadius = g.radius + 60;
           if (dist <= effectiveRadius) {
             if (dist < minDistance) {
               minDistance = dist;
@@ -25412,16 +25412,9 @@ var init_CctvReports = __esm({
               data.status = "pending";
             }
             if (operation === "update" && req.user) {
-              if (data.managerMessage && data.managerMessage !== originalDoc?.managerMessage || data.managerScreenshot && data.managerScreenshot !== originalDoc?.managerScreenshot || data.proofPhoto && data.proofPhoto !== originalDoc?.proofPhoto) {
+              if (data.managerMessage && data.managerMessage !== originalDoc?.managerMessage || data.proofPhoto && data.proofPhoto !== originalDoc?.proofPhoto) {
                 data.manager = req.user.id;
-                data.status = "mng_replied";
-              }
-              if (data.staffMessage && data.staffMessage !== originalDoc?.staffMessage) {
-                data.staff = req.user.id;
-                data.status = "st_replied";
-              }
-              if (data.watcherReplyMessage && data.watcherReplyMessage !== originalDoc?.watcherReplyMessage) {
-                data.status = "watcher_replied";
+                data.status = "closed";
               }
             }
             return data;
@@ -25429,21 +25422,6 @@ var init_CctvReports = __esm({
         ]
       },
       fields: [
-        {
-          name: "watcherReplyMessage",
-          label: "Watcher Reply",
-          type: "textarea",
-          admin: {
-            description: "Reply from the watcher to the manager"
-          }
-        },
-        {
-          name: "watcherReplyScreenshot",
-          label: "Watcher Reply Screenshot",
-          type: "upload",
-          relationTo: "media",
-          required: false
-        },
         {
           name: "branch",
           type: "relationship",
@@ -25460,9 +25438,8 @@ var init_CctvReports = __esm({
           required: true,
           options: [
             { label: "Pending", value: "pending" },
-            { label: "Mng Replied", value: "mng_replied" },
-            { label: "ST Replied", value: "st_replied" },
-            { label: "Watcher Replied", value: "watcher_replied" }
+            { label: "Closed", value: "closed" },
+            { label: "Closed (Legacy)", value: "mng_replied" }
           ],
           admin: {
             position: "sidebar"
@@ -25470,6 +25447,7 @@ var init_CctvReports = __esm({
         },
         {
           name: "screenshot",
+          label: "Watcher Issue Photo",
           type: "upload",
           relationTo: "media",
           required: false
@@ -25489,18 +25467,14 @@ var init_CctvReports = __esm({
           }
         },
         {
-          name: "managerScreenshot",
-          label: "Manager Proof Photo",
-          type: "upload",
-          relationTo: "media",
-          required: false
-        },
-        {
           name: "proofPhoto",
-          label: "Proof Photo",
+          label: "Manager Reply Photo / Proof",
           type: "upload",
           relationTo: "media",
-          required: false
+          required: false,
+          admin: {
+            description: "Proof photo uploaded by manager when replying"
+          }
         },
         {
           name: "manager",
@@ -25513,25 +25487,8 @@ var init_CctvReports = __esm({
           }
         },
         {
-          name: "staffMessage",
-          label: "Staff Reply",
-          type: "textarea",
-          admin: {
-            description: "Reply from the branch staff to the watcher"
-          }
-        },
-        {
-          name: "staff",
-          label: "Replied By (Staff)",
-          type: "relationship",
-          relationTo: "users",
-          admin: {
-            readOnly: true,
-            position: "sidebar"
-          }
-        },
-        {
           name: "createdBy",
+          label: "Reported By (Watcher)",
           type: "relationship",
           relationTo: "users",
           required: false,

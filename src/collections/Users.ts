@@ -651,7 +651,7 @@ export const Users: CollectionConfig = {
           throw new Error('Login blocked by superadmin. Please contact administrator.')
         }
 
-        if (user.role === 'superadmin') return
+        if (user.role === 'superadmin' || user.role === 'watcher') return
 
         const getRelationshipID = (value: unknown): string | null => {
           if (!value) return null
