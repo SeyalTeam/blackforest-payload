@@ -2,7 +2,8 @@ import type { PayloadHandler } from 'payload'
 
 export const resetOtherProductStockHandler: PayloadHandler = async (req) => {
   try {
-    const { branchId, productId } = await req.json()
+    const body = typeof req.json === 'function' ? await req.json() : {}
+    const { branchId, productId } = body || {}
 
     if (!branchId || !productId) {
       return Response.json({ error: 'Branch ID and Product ID are required' }, { status: 400 })
@@ -15,7 +16,7 @@ export const resetOtherProductStockHandler: PayloadHandler = async (req) => {
       collection: 'products',
       id: productId,
       depth: 0,
-    })
+    }) as any
 
     if (!product) {
       return Response.json({ error: 'Product not found' }, { status: 404 })
@@ -46,7 +47,7 @@ export const resetOtherProductStockHandler: PayloadHandler = async (req) => {
       id: productId,
       data: {
         otherProductsResetDates: existingResets,
-      },
+      } as any,
     })
 
     return Response.json({ success: true })

@@ -24,8 +24,8 @@ dayjs.extend(utc)
 dayjs.extend(timezone)
 
 const BILLING_TIMEZONE = 'Asia/Kolkata'
-const BILLINGS_REST_LIST_MAX_DEPTH = 2
-const BILLINGS_REST_LIST_MAX_DEPTH_PRIVILEGED = 3
+const BILLINGS_REST_LIST_MAX_DEPTH = 1
+const BILLINGS_REST_LIST_MAX_DEPTH_PRIVILEGED = 1
 const BILLINGS_REST_LIST_MAX_LIMIT = 80
 const BILLINGS_REST_LIST_MAX_LIMIT_PRIVILEGED = 120
 const BILLINGS_READ_PRIVILEGED_ROLES = new Set(['superadmin', 'admin', 'company', 'account'])

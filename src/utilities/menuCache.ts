@@ -21,11 +21,11 @@ export const getCachedMenu = async (payload: Payload) => {
     overrideAccess: true,
   })
 
-  // Fetch products with depth: 2 to resolve category and image relationships
+  // Fetch products with depth: 1 to resolve category and image relationships efficiently
   const { docs: products } = await payload.find({
     collection: 'products',
     pagination: false,
-    depth: 2,
+    depth: 1,
     limit: 5000,
     overrideAccess: true,
   })

@@ -114,7 +114,7 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
       // Check if individual match
       const matchesInd =
         (employeeId && taskEmpId === employeeId) ||
-        (req.user.id && taskUserId === req.user.id)
+        (req.user?.id && taskUserId === req.user.id)
 
       // Check if role match
       const matchesRole =

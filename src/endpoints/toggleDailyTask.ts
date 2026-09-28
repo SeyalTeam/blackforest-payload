@@ -238,7 +238,7 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
           branch: branchId,
           dateString,
           date: dateObj.toISOString(),
-          tasks: initialTasks,
+          tasks: initialTasks as any,
         },
       })
     }

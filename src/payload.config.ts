@@ -260,37 +260,25 @@ const wrapCollection = (collection: CollectionConfig): CollectionConfig => {
       update: (args) => {
         const { req } = args
         const user = req?.user
-        console.log('--- WRAP UPDATE ACCESS CHECK ---', {
-          collection: collection.slug,
-          user: user ? { id: user.id, role: user.role } : null,
-          allowedCollections: user ? (user as any).allowedCollections : null,
-        })
         if (!user) return false
         if (user.role === 'superadmin' || user.role === 'admin') return true
 
         const allowedCollections = (user as any).allowedCollections
         if (Array.isArray(allowedCollections)) {
           if (allowedCollections.includes(collection.slug)) {
-            console.log('Allowed by allowedCollections whitelist')
             return true
           }
           const originalUpdate = collection.access?.update
           if (typeof originalUpdate === 'function') {
-            const res = originalUpdate(args)
-            console.log('Allowed by fallback function result:', res)
-            return res
+            return originalUpdate(args)
           }
-          console.log('Blocked by allowedCollections whitelist & no originalUpdate fn')
           return false
         }
 
         const originalUpdate = collection.access?.update
         if (typeof originalUpdate === 'function') {
-          const res = originalUpdate(args)
-          console.log('Allowed by fallback function result (no whitelist):', res)
-          return res
+          return originalUpdate(args)
         }
-        console.log('Blocked: no fallback function (no whitelist)')
         return false
       },
       delete: (args) => {

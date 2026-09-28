@@ -4362,25 +4362,35 @@ export interface BranchGeoSetting {
   locations?:
     | {
         branch: string | Branch;
-        buildingType?:
-          | 'standalone'
-          | 'mall'
-          | 'commercial'
-          | 'kitchen'
-          | 'warehouse'
-          | 'kiosk'
-          | 'custom'
-          | null;
-        shape?: 'circle' | 'square' | 'rectangle' | null;
+        /**
+         * Building category for this location
+         */
+        buildingType?: ('standalone' | 'mall' | 'commercial' | 'kitchen' | 'warehouse' | 'kiosk' | 'custom') | null;
+        /**
+         * Choose shape based on building layout (Circle, Square, or Rectangle)
+         */
+        shape?: ('circle' | 'square' | 'rectangle') | null;
         latitude: number;
         longitude: number;
         /**
-         * Allowed distance in meters
+         * Allowed distance in meters for circular geofence
          */
         radius?: number | null;
+        /**
+         * Length of each side in meters for square boundary
+         */
         squareSize?: number | null;
+        /**
+         * Footprint width in meters
+         */
         rectWidth?: number | null;
+        /**
+         * Footprint length in meters
+         */
         rectLength?: number | null;
+        /**
+         * Rotate boundary to align with building orientation (0° to 360°)
+         */
         rotation?: number | null;
         /**
          * Public IP required for login (optional override)

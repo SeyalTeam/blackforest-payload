@@ -1217,6 +1217,44 @@ export const Users: CollectionConfig = {
               if (categoryIds.some((id) => !allowedCategoryIds.has(id))) {
                 throw new Error('Can assign only categories from selected kitchens')
               }
+
+              // Auto-reassign exclusive categories: remove newly assigned categories from any previous chefs
+              if (categoryIds.length > 0) {
+                const currentUserId =
+                  getRelationshipID((originalDoc as { id?: unknown } | undefined)?.id) ||
+                  getRelationshipID((nextData as { id?: unknown })?.id)
+                try {
+                  const otherChefs = await req.payload.find({
+                    collection: 'users',
+                    where: {
+                      and: [
+                        { role: { equals: 'chef' } },
+                        ...(currentUserId ? [{ id: { not_equals: currentUserId } }] : []),
+                        { categories: { in: categoryIds } },
+                      ],
+                    },
+                    depth: 0,
+                    limit: 100,
+                    pagination: false,
+                    overrideAccess: true,
+                  })
+
+                  for (const otherChef of otherChefs.docs) {
+                    const otherCategories = getRelationshipIDs(otherChef.categories)
+                    const updatedOtherCategories = otherCategories.filter((id) => !categoryIds.includes(id))
+                    await req.payload.update({
+                      collection: 'users',
+                      id: otherChef.id,
+                      data: {
+                        categories: updatedOtherCategories,
+                      },
+                      overrideAccess: true,
+                    })
+                  }
+                } catch (e) {
+                  // Log or ignore errors when updating old chefs
+                }
+              }
             } else if (categoryIds.length > 0) {
               throw new Error('Kitchen is required before assigning chef categories')
             }

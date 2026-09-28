@@ -18,7 +18,12 @@ type IdempotencyModel = {
 }
 
 const getModel = (payload: Payload): IdempotencyModel | null => {
-  const model = payload.db?.collections?.[IDEMPOTENCY_COLLECTION]
+  const collections = (payload.db as any)?.collections || (payload.db as any)?.models || {}
+  const model =
+    collections[IDEMPOTENCY_COLLECTION] ||
+    collections['idempotencyKeys'] ||
+    collections['IdempotencyKeys'] ||
+    (payload.db as any)?.collections?.get?.(IDEMPOTENCY_COLLECTION)
   if (!model || typeof model !== 'object') return null
   return model as unknown as IdempotencyModel
 }
