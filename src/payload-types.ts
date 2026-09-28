@@ -4362,12 +4362,26 @@ export interface BranchGeoSetting {
   locations?:
     | {
         branch: string | Branch;
+        buildingType?:
+          | 'standalone'
+          | 'mall'
+          | 'commercial'
+          | 'kitchen'
+          | 'warehouse'
+          | 'kiosk'
+          | 'custom'
+          | null;
+        shape?: 'circle' | 'square' | 'rectangle' | null;
         latitude: number;
         longitude: number;
         /**
          * Allowed distance in meters
          */
-        radius: number;
+        radius?: number | null;
+        squareSize?: number | null;
+        rectWidth?: number | null;
+        rectLength?: number | null;
+        rotation?: number | null;
         /**
          * Public IP required for login (optional override)
          */
@@ -5999,9 +6013,15 @@ export interface BranchGeoSettingsSelect<T extends boolean = true> {
     | T
     | {
         branch?: T;
+        buildingType?: T;
+        shape?: T;
         latitude?: T;
         longitude?: T;
         radius?: T;
+        squareSize?: T;
+        rectWidth?: T;
+        rectLength?: T;
+        rotation?: T;
         ipAddress?: T;
         printerIp?: T;
         kotPrinters?:

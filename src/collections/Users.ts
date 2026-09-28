@@ -1,6 +1,10 @@
 import type { CollectionConfig, Where } from 'payload'
 import { isIPAllowed } from '../utilities/ipCheck'
-import { getDistanceFromLatLonInMeters } from '../utilities/geo'
+import {
+  getDistanceFromLatLonInMeters,
+  isPointInsideGeofence,
+  getDistanceToGeofence,
+} from '../utilities/geo'
 import type { IpSetting } from '../payload-types'
 import {
   BRANCH_PIN_HEADER,
@@ -945,23 +949,18 @@ export const Users: CollectionConfig = {
                     const userLon = parseFloat(headerLon)
 
                     if (!isNaN(userLat) && !isNaN(userLon)) {
-                      const distance = getDistanceFromLatLonInMeters(
-                        userLat,
-                        userLon,
-                        targetLat,
-                        targetLon,
-                      )
-                      // Add 60m indoor GPS drift tolerance
-                      const allowedRadius = (radius || 100) + 60
+                      // 60m indoor GPS drift tolerance
+                      const isInside = isPointInsideGeofence(userLat, userLon, branchGeo, 60)
+                      const distance = getDistanceToGeofence(userLat, userLon, branchGeo)
 
-                      if (distance <= allowedRadius) {
+                      if (isInside) {
                         isGeoAuthorized = true
                         console.log(
-                          `[Login Success] Authorized by Geo-location for ${user.email}. Distance: ${distance.toFixed(2)}m`,
+                          `[Login Success] Authorized by Geo-location (${branchGeo.shape || 'circle'}) for ${user.email}. Distance: ${distance.toFixed(2)}m`,
                         )
                       } else {
                         console.warn(
-                          `[Login Debug] Geo Check Failed for ${user.email}: Distance ${distance.toFixed(2)}m > ${allowedRadius}m`,
+                          `[Login Debug] Geo Check Failed for ${user.email}: Outside ${branchGeo.shape || 'circle'} geofence. Distance ${distance.toFixed(2)}m`,
                         )
                       }
                     } else {

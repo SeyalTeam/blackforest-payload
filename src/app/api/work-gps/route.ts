@@ -1,41 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
-
-function distanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371000 // Earth's radius in meters
-  const toRad = (d: number) => (d * Math.PI) / 180
-  const dLat = toRad(lat2 - lat1)
-  const dLon = toRad(lon2 - lon1)
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  return Math.round(R * c)
-}
-
-// Generate slight deterministic offset for staff positioned within a circle
-function offsetCoordinates(
-  baseLat: number,
-  baseLng: number,
-  radiusMeters: number,
-  index: number,
-  total: number,
-) {
-  if (total <= 1) {
-    return { lat: baseLat, lng: baseLng }
-  }
-  const angle = (index / total) * 2 * Math.PI
-  const distance = (radiusMeters * 0.45) * (0.4 + (index % 3) * 0.25)
-  // 1 degree latitude ~ 111,320m
-  const latOffset = (distance * Math.cos(angle)) / 111320
-  // 1 degree longitude ~ 111,320m * cos(latitude)
-  const lngOffset = (distance * Math.sin(angle)) / (111320 * Math.cos((baseLat * Math.PI) / 180))
-  return {
-    lat: Number((baseLat + latOffset).toFixed(7)),
-    lng: Number((baseLng + lngOffset).toFixed(7)),
-  }
-}
+import {
+  isPointInsideGeofence,
+  getDistanceToGeofence,
+  computeDispersedGeofencePositions,
+  type GeofenceConfig,
+} from '@/utilities/geo'
 
 export async function GET(req: NextRequest) {
   try {
@@ -64,7 +35,7 @@ export async function GET(req: NextRequest) {
     // Map geo info by branch ID
     const branchGeoMap = new Map<
       string,
-      { latitude: number; longitude: number; radius: number; ipAddress?: string; printerIp?: string }
+      GeofenceConfig & { ipAddress?: string; printerIp?: string }
     >()
 
     geoLocations.forEach((loc: any) => {
@@ -73,7 +44,16 @@ export async function GET(req: NextRequest) {
         branchGeoMap.set(String(bId), {
           latitude: Number(loc.latitude),
           longitude: Number(loc.longitude),
+          shape: loc.shape || 'circle',
+          buildingType: loc.buildingType || 'standalone',
           radius: typeof loc.radius === 'number' && loc.radius > 0 ? Number(loc.radius) : 100,
+          squareSize:
+            typeof loc.squareSize === 'number' && loc.squareSize > 0 ? Number(loc.squareSize) : 50,
+          rectWidth:
+            typeof loc.rectWidth === 'number' && loc.rectWidth > 0 ? Number(loc.rectWidth) : 40,
+          rectLength:
+            typeof loc.rectLength === 'number' && loc.rectLength > 0 ? Number(loc.rectLength) : 60,
+          rotation: typeof loc.rotation === 'number' ? Number(loc.rotation) : 0,
           ipAddress: loc.ipAddress || '',
           printerIp: loc.printerIp || '',
         })
@@ -156,20 +136,25 @@ export async function GET(req: NextRequest) {
       // Check attendance records strictly for people currently live working (punched in today)
       for (const att of attendanceDocs) {
         const u = typeof att.user === 'object' ? att.user : userMap.get(String(att.user))
-        const emp = typeof att.employee === 'object' ? att.employee : (att.employee ? employeeMap.get(String(att.employee)) : null)
+        const emp =
+          typeof att.employee === 'object'
+            ? att.employee
+            : att.employee
+            ? employeeMap.get(String(att.employee))
+            : null
         const personKey = (u?.id || emp?.id || att.id).toString()
         if (processedPersonIds.has(personKey)) continue
 
         const activities = Array.isArray(att.activities) ? att.activities : []
-        
+
         // Find current live active session (status: 'active' and NO punchOut)
-        const liveSession = activities.slice().reverse().find(
-          (a: any) => (a.type === 'session' || !a.type) && a.status === 'active' && !a.punchOut
-        )
+        const liveSession = activities
+          .slice()
+          .reverse()
+          .find((a: any) => (a.type === 'session' || !a.type) && a.status === 'active' && !a.punchOut)
         // If activities are recorded, strictly require an active open session. Otherwise check root status
-        const isLiveActive = activities.length > 0
-          ? !!liveSession
-          : (att.status === 'active' && !att.punchOut)
+        const isLiveActive =
+          activities.length > 0 ? !!liveSession : att.status === 'active' && !att.punchOut
 
         // STRICT: Only show staff who are currently live working (punched in right now)
         if (!isLiveActive) {
@@ -178,7 +163,8 @@ export async function GET(req: NextRequest) {
 
         // Determine user branch association
         const userBranchId = typeof u?.branch === 'object' ? u?.branch?.id : u?.branch
-        const userLastBranchId = typeof u?.lastLoginBranch === 'object' ? u?.lastLoginBranch?.id : u?.lastLoginBranch
+        const userLastBranchId =
+          typeof u?.lastLoginBranch === 'object' ? u?.lastLoginBranch?.id : u?.lastLoginBranch
         const userKitchenBranches = Array.isArray(u?.kitchenBranches)
           ? u.kitchenBranches.map((kb: any) => String(typeof kb === 'object' ? kb.id : kb))
           : []
@@ -187,31 +173,34 @@ export async function GET(req: NextRequest) {
           String(userLastBranchId) === bId ||
           userKitchenBranches.includes(bId)
 
-        const personLat = typeof liveSession?.latitude === 'number'
-          ? liveSession.latitude
-          : (typeof att.location?.latitude === 'number' ? att.location.latitude : null)
+        const personLat =
+          typeof liveSession?.latitude === 'number'
+            ? liveSession.latitude
+            : typeof att.location?.latitude === 'number'
+            ? att.location.latitude
+            : null
 
-        const personLng = typeof liveSession?.longitude === 'number'
-          ? liveSession.longitude
-          : (typeof att.location?.longitude === 'number' ? att.location.longitude : null)
+        const personLng =
+          typeof liveSession?.longitude === 'number'
+            ? liveSession.longitude
+            : typeof att.location?.longitude === 'number'
+            ? att.location.longitude
+            : null
 
         const hasPersonCoords = personLat !== null && personLng !== null
         let distanceMeters: number | null = null
         let isPhysicallyInside = false
 
-        if (hasGps && hasPersonCoords) {
-          distanceMeters = distanceInMeters(personLat, personLng, branchLat, branchLng)
-          if (distanceMeters <= branchRadius) {
-            isPhysicallyInside = true
-          }
+        if (hasGps && hasPersonCoords && geo) {
+          isPhysicallyInside = isPointInsideGeofence(personLat, personLng, geo)
+          distanceMeters = getDistanceToGeofence(personLat, personLng, geo)
         }
 
-        // STRICT: Person belongs to this branch's GPS circle if:
-        // 1. Both branch and person have GPS coords -> MUST be physically inside the circle!
+        // STRICT: Person belongs to this branch's GPS geofence if:
+        // 1. Both branch and person have GPS coords -> MUST be physically inside the geofence!
         // 2. If person has no GPS coords (e.g. desktop/POS punchin) -> MUST be assigned to this branch
-        const isBelongingToThisBranch = (hasGps && hasPersonCoords)
-          ? isPhysicallyInside
-          : isAssignedToThisBranch
+        const isBelongingToThisBranch =
+          hasGps && hasPersonCoords ? isPhysicallyInside : isAssignedToThisBranch
 
         if (!isBelongingToThisBranch) {
           continue
@@ -222,7 +211,11 @@ export async function GET(req: NextRequest) {
         const photoUrl =
           typeof liveSession?.capturedImage === 'object' && liveSession.capturedImage?.url
             ? liveSession.capturedImage.url
-            : (typeof emp?.photo === 'object' ? emp.photo?.url : (typeof u?.photo === 'object' ? u.photo?.url : null))
+            : typeof emp?.photo === 'object'
+            ? emp.photo?.url
+            : typeof u?.photo === 'object'
+            ? u.photo?.url
+            : null
 
         persons.push({
           id: personKey,
@@ -239,22 +232,29 @@ export async function GET(req: NextRequest) {
           punchOut: null,
           latitude: personLat,
           longitude: personLng,
-          distanceMeters: distanceMeters !== null ? Math.round(distanceMeters) : Math.round(branchRadius * 0.3),
+          distanceMeters:
+            distanceMeters !== null
+              ? Math.round(distanceMeters)
+              : Math.round(branchRadius * 0.3),
           ipAddress: liveSession?.ipAddress || att.ipAddress || '',
           device: liveSession?.device || att.device || 'Android Device',
         })
       }
 
-      // Assign visual coordinates within circle for rendering markers on the map
+      // Assign visual coordinates within geofence footprint for rendering markers on the map
+      const dispersedCoords = geo
+        ? computeDispersedGeofencePositions(geo, persons.length)
+        : [[branchLat, branchLng]]
+
       const mappedPersons = persons.map((p, idx) => {
         if (p.latitude && p.longitude) {
           return p
         }
-        const coords = offsetCoordinates(branchLat, branchLng, branchRadius, idx, persons.length)
+        const coords = dispersedCoords[idx] || [branchLat, branchLng]
         return {
           ...p,
-          latitude: coords.lat,
-          longitude: coords.lng,
+          latitude: coords[0],
+          longitude: coords[1],
         }
       })
 
@@ -268,7 +268,13 @@ export async function GET(req: NextRequest) {
         hasGps,
         latitude: branchLat,
         longitude: branchLng,
+        shape: geo?.shape || 'circle',
+        buildingType: geo?.buildingType || 'standalone',
         radius: branchRadius,
+        squareSize: geo?.squareSize ?? 50,
+        rectWidth: geo?.rectWidth ?? 40,
+        rectLength: geo?.rectLength ?? 60,
+        rotation: geo?.rotation ?? 0,
         ipAddress: geo?.ipAddress || branchDoc.ipAddress || '',
         printerIp: geo?.printerIp || branchDoc.printerIp || '',
         personsInsideCount: mappedPersons.filter((p) => p.isInside).length,

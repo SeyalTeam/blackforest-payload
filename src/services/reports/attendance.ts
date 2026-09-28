@@ -3,6 +3,11 @@ import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import { resolveReportBranchScope } from '../../endpoints/reportScope'
+import {
+  isPointInsideGeofence,
+  getDistanceToGeofence,
+  type GeofenceConfig,
+} from '../../utilities/geo'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -254,12 +259,9 @@ export const getAttendanceReportData = async (
     })
   }
 
-  type GeofenceTarget = {
+  type GeofenceTarget = GeofenceConfig & {
     branchId: string
     branchName: string
-    latitude: number
-    longitude: number
-    radius: number
   }
   const geofences: GeofenceTarget[] = []
 
@@ -276,7 +278,13 @@ export const getAttendanceReportData = async (
         branchName: bName,
         latitude: lat,
         longitude: lng,
+        shape: loc.shape || 'circle',
+        buildingType: loc.buildingType || 'standalone',
         radius,
+        squareSize: typeof loc.squareSize === 'number' ? loc.squareSize : 50,
+        rectWidth: typeof loc.rectWidth === 'number' ? loc.rectWidth : 40,
+        rectLength: typeof loc.rectLength === 'number' ? loc.rectLength : 60,
+        rotation: typeof loc.rotation === 'number' ? loc.rotation : 0,
       })
     }
   }
@@ -292,6 +300,7 @@ export const getAttendanceReportData = async (
           branchName: b.name || 'Branch',
           latitude: lat,
           longitude: lng,
+          shape: 'circle',
           radius: 100,
         })
       }
@@ -316,15 +325,15 @@ export const getAttendanceReportData = async (
     let minDistance = Infinity
 
     for (const g of geofences) {
-      const dist = distanceInMeters(lat, lng, g.latitude, g.longitude)
-      const effectiveRadius = g.radius + 60
-      if (dist <= effectiveRadius) {
+      const isInside = isPointInsideGeofence(lat, lng, g, 60)
+      const dist = getDistanceToGeofence(lat, lng, g)
+      if (isInside) {
         if (dist < minDistance) {
           minDistance = dist
           bestMatch = {
             branchId: g.branchId,
             branchName: g.branchName,
-            distance: dist,
+            distance: Math.round(dist),
           }
         }
       }
@@ -332,13 +341,13 @@ export const getAttendanceReportData = async (
 
     if (!bestMatch) {
       for (const g of geofences) {
-        const dist = distanceInMeters(lat, lng, g.latitude, g.longitude)
+        const dist = getDistanceToGeofence(lat, lng, g)
         if (dist <= 300 && dist < minDistance) {
           minDistance = dist
           bestMatch = {
             branchId: g.branchId,
             branchName: g.branchName,
-            distance: dist,
+            distance: Math.round(dist),
           }
         }
       }

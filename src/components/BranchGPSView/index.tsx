@@ -20,7 +20,16 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  Square,
+  RectangleHorizontal,
+  Circle,
 } from 'lucide-react'
+import {
+  getGeofencePolygonCorners,
+  getGeofenceFrontEdgeCenter,
+  computeDispersedGeofencePositions,
+  type GeofenceConfig,
+} from '../../utilities/geo'
 import './index.scss'
 
 export type PersonPresence = {
@@ -53,7 +62,13 @@ export type BranchGPSData = {
   hasGps: boolean
   latitude: number
   longitude: number
+  shape?: 'circle' | 'square' | 'rectangle' | string
+  buildingType?: string
   radius: number
+  squareSize?: number
+  rectWidth?: number
+  rectLength?: number
+  rotation?: number
   ipAddress?: string
   printerIp?: string
   personsInsideCount: number
@@ -145,6 +160,12 @@ export default function BranchGPSView() {
     person: PersonPresence
     branchName: string
     radius: number
+    shape?: string
+    buildingType?: string
+    squareSize?: number
+    rectWidth?: number
+    rectLength?: number
+    rotation?: number
   } | null>(null)
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null)
 
@@ -262,16 +283,48 @@ export default function BranchGPSView() {
       const branchPos: [number, number] = [branch.latitude, branch.longitude]
       bounds.push(branchPos)
 
-      // 4A. Draw Branch GPS Circle (Geofence)
-      const circle = L.circle(branchPos, {
+      // 4A. Draw Branch GPS Geofence (Circle, Square, or Rectangle)
+      const currentShape = (branch.shape || 'circle').toLowerCase()
+      const geofenceConfig: GeofenceConfig = {
+        latitude: branch.latitude,
+        longitude: branch.longitude,
+        shape: currentShape,
         radius: branch.radius || 100,
-        color: branch.personsInsideCount > 0 ? '#10b981' : '#3b82f6',
-        fillColor: branch.personsInsideCount > 0 ? '#10b981' : '#3b82f6',
-        fillOpacity: 0.18,
-        weight: 2,
-        dashArray: '5, 5',
-      })
-      circle.addTo(layerGroup)
+        squareSize: branch.squareSize,
+        rectWidth: branch.rectWidth,
+        rectLength: branch.rectLength,
+        rotation: branch.rotation,
+      }
+
+      if (currentShape === 'circle') {
+        const circle = L.circle(branchPos, {
+          radius: branch.radius || 100,
+          color: branch.personsInsideCount > 0 ? '#10b981' : '#3b82f6',
+          fillColor: branch.personsInsideCount > 0 ? '#10b981' : '#3b82f6',
+          fillOpacity: 0.18,
+          weight: 2,
+          dashArray: '5, 5',
+        })
+        circle.addTo(layerGroup)
+      } else {
+        const corners = getGeofencePolygonCorners(geofenceConfig)
+        const polygon = L.polygon(corners, {
+          color: branch.personsInsideCount > 0 ? '#10b981' : '#3b82f6',
+          fillColor: branch.personsInsideCount > 0 ? '#10b981' : '#3b82f6',
+          fillOpacity: 0.22,
+          weight: 2.5,
+          dashArray: '5, 5',
+        })
+        polygon.addTo(layerGroup)
+
+        const frontCenter = getGeofenceFrontEdgeCenter(geofenceConfig)
+        L.polyline([branchPos, frontCenter], {
+          color: '#ef4444',
+          weight: 2,
+          opacity: 0.75,
+          dashArray: '2, 3',
+        }).addTo(layerGroup)
+      }
 
       // 4B. Branch Center Marker
       const branchHtml = `
@@ -303,11 +356,10 @@ export default function BranchGPSView() {
         map.flyTo(branchPos, 20, { duration: 1.2 })
       })
 
-      // 4C. Disperse Person Markers to avoid stacking in the same building
-      const dispersedCoords = computeDispersedPositions(
-        branchPos,
+      // 4C. Disperse Person Markers within geofence footprint
+      const dispersedCoords = computeDispersedGeofencePositions(
+        geofenceConfig,
         branch.persons.length,
-        branch.radius || 100,
       )
 
       // Draw subtle dashed spider lines connecting building center to each dispersed staff marker
@@ -377,6 +429,12 @@ export default function BranchGPSView() {
             person,
             branchName: branch.name,
             radius: branch.radius,
+            shape: branch.shape,
+            buildingType: branch.buildingType,
+            squareSize: branch.squareSize,
+            rectWidth: branch.rectWidth,
+            rectLength: branch.rectLength,
+            rotation: branch.rotation,
           })
           setHoverPos({
             x: domEvent.clientX + 16,
@@ -637,8 +695,14 @@ export default function BranchGPSView() {
               <div className="hover-geofence-alert">
                 <span className="inside-dot"></span>
                 <span>
-                  Inside {hoveredPerson.branchName} GPS Circle (
-                  {hoveredPerson.person.distanceMeters}m from center)
+                  {hoveredPerson.person.isInside ? 'Inside' : 'Outside'}{' '}
+                  {hoveredPerson.branchName}{' '}
+                  {hoveredPerson.shape === 'square'
+                    ? 'Square Building'
+                    : hoveredPerson.shape === 'rectangle'
+                    ? 'Rectangle Building'
+                    : 'GPS Circle'}{' '}
+                  ({hoveredPerson.person.distanceMeters}m from center)
                 </span>
               </div>
 
@@ -653,9 +717,15 @@ export default function BranchGPSView() {
               <div className="hover-detail-row">
                 <span className="detail-label">
                   <Crosshair size={13} />
-                  <span>Geofence Radius:</span>
+                  <span>Boundary:</span>
                 </span>
-                <span className="detail-value">{hoveredPerson.radius} meters</span>
+                <span className="detail-value">
+                  {hoveredPerson.shape === 'square'
+                    ? `Square ${hoveredPerson.squareSize || 50}m × ${hoveredPerson.squareSize || 50}m (${hoveredPerson.rotation || 0}°)`
+                    : hoveredPerson.shape === 'rectangle'
+                    ? `Rectangle ${hoveredPerson.rectWidth || 40}m × ${hoveredPerson.rectLength || 60}m (${hoveredPerson.rotation || 0}°)`
+                    : `Circle ${hoveredPerson.radius}m radius`}
+                </span>
               </div>
 
               <div className="hover-detail-row">
@@ -740,9 +810,28 @@ export default function BranchGPSView() {
                   </div>
 
                   <div className="branch-meta-line">
-                    <span>
-                      <Crosshair size={12} />
-                      Radius: {branch.radius}m
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      {branch.shape === 'square' ? (
+                        <>
+                          <Square size={12} color="#38bdf8" />
+                          <span>
+                            Square {branch.squareSize || 50}m ({branch.rotation || 0}°)
+                          </span>
+                        </>
+                      ) : branch.shape === 'rectangle' ? (
+                        <>
+                          <RectangleHorizontal size={12} color="#38bdf8" />
+                          <span>
+                            Rect {branch.rectWidth || 40}×{branch.rectLength || 60}m (
+                            {branch.rotation || 0}°)
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <Circle size={12} color="#38bdf8" />
+                          <span>Radius: {branch.radius}m</span>
+                        </>
+                      )}
                     </span>
                     {branch.address && (
                       <span>
@@ -755,7 +844,7 @@ export default function BranchGPSView() {
                   {/* Staff Avatars Tray */}
                   {branch.persons.length > 0 && (
                     <div className="branch-staff-tray">
-                      <div className="staff-tray-title">Staff in Circle</div>
+                      <div className="staff-tray-title">Staff in Geofence</div>
                       <div className="staff-avatars-row">
                         {branch.persons.map((person) => (
                           <div
@@ -771,6 +860,12 @@ export default function BranchGPSView() {
                                 person,
                                 branchName: branch.name,
                                 radius: branch.radius,
+                                shape: branch.shape,
+                                buildingType: branch.buildingType,
+                                squareSize: branch.squareSize,
+                                rectWidth: branch.rectWidth,
+                                rectLength: branch.rectLength,
+                                rotation: branch.rotation,
                               })
                               setHoverPos({
                                 x: e.clientX - 330,

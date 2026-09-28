@@ -35,11 +35,50 @@ export const BranchGeoSettings: GlobalConfig = {
           type: 'row',
           fields: [
             {
+              name: 'buildingType',
+              type: 'select',
+              label: 'Building Type',
+              defaultValue: 'standalone',
+              options: [
+                { label: 'Standalone Building / Outlet', value: 'standalone' },
+                { label: 'Shopping Mall / Complex', value: 'mall' },
+                { label: 'Commercial Shop / Street Outlet', value: 'commercial' },
+                { label: 'Central Kitchen / Bakery', value: 'kitchen' },
+                { label: 'Warehouse / Stock Center', value: 'warehouse' },
+                { label: 'Kiosk / Outdoor Stall', value: 'kiosk' },
+                { label: 'Custom / Other', value: 'custom' },
+              ],
+              admin: {
+                width: '50%',
+                description: 'Building category for this location',
+              },
+            },
+            {
+              name: 'shape',
+              type: 'select',
+              label: 'Geofence Boundary Shape',
+              defaultValue: 'circle',
+              options: [
+                { label: 'Circle (Radial GPS)', value: 'circle' },
+                { label: 'Square (Equal Sides with Rotation)', value: 'square' },
+                { label: 'Rectangle (Length × Width with Rotation)', value: 'rectangle' },
+              ],
+              admin: {
+                width: '50%',
+                description: 'Choose shape based on building layout (Circle, Square, or Rectangle)',
+              },
+            },
+          ],
+        },
+        {
+          type: 'row',
+          fields: [
+            {
               name: 'latitude',
               type: 'number',
               required: true,
               admin: {
-                width: '33%',
+                width: '50%',
               },
             },
             {
@@ -47,18 +86,70 @@ export const BranchGeoSettings: GlobalConfig = {
               type: 'number',
               required: true,
               admin: {
-                width: '33%',
+                width: '50%',
               },
             },
+          ],
+        },
+        {
+          type: 'row',
+          fields: [
             {
               name: 'radius',
               type: 'number',
-              label: 'Radius (meters)',
-              required: true,
+              label: 'Radius (meters, for Circle)',
               defaultValue: 100,
               admin: {
+                width: '50%',
+                description: 'Allowed distance in meters for circular geofence',
+                condition: (data, siblingData) => !siblingData?.shape || siblingData?.shape === 'circle',
+              },
+            },
+            {
+              name: 'squareSize',
+              type: 'number',
+              label: 'Square Side Length (meters)',
+              defaultValue: 50,
+              admin: {
+                width: '50%',
+                description: 'Length of each side in meters for square boundary',
+                condition: (data, siblingData) => siblingData?.shape === 'square',
+              },
+            },
+            {
+              name: 'rectWidth',
+              type: 'number',
+              label: 'Width (meters)',
+              defaultValue: 40,
+              admin: {
                 width: '33%',
-                description: 'Allowed distance in meters',
+                description: 'Footprint width in meters',
+                condition: (data, siblingData) => siblingData?.shape === 'rectangle',
+              },
+            },
+            {
+              name: 'rectLength',
+              type: 'number',
+              label: 'Length (meters)',
+              defaultValue: 60,
+              admin: {
+                width: '33%',
+                description: 'Footprint length in meters',
+                condition: (data, siblingData) => siblingData?.shape === 'rectangle',
+              },
+            },
+            {
+              name: 'rotation',
+              type: 'number',
+              label: 'Rotation (° Clockwise from North)',
+              defaultValue: 0,
+              min: 0,
+              max: 360,
+              admin: {
+                width: '33%',
+                description: 'Rotate boundary to align with building orientation (0° to 360°)',
+                condition: (data, siblingData) =>
+                  siblingData?.shape === 'square' || siblingData?.shape === 'rectangle',
               },
             },
           ],

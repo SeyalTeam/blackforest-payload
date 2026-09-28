@@ -12,6 +12,12 @@ import type {
 
 import { resolveApiTokenForBranch } from "@/lib/api-token";
 import { getPublicServerURL } from "@/utilities/serverUrl";
+import {
+  isPointInsideGeofence,
+  getDistanceToGeofence,
+  getEffectiveRadius,
+  type GeofenceConfig,
+} from "@/utilities/geo";
 
 const NEXT_PUBLIC_SERVER_URL = getPublicServerURL();
 const API_BASE = `http://127.0.0.1:${process.env.PORT || 3000}/api`;
@@ -1714,25 +1720,33 @@ export async function findBranchByCoordinates(
         : toNumber(location.longitude);
     const radiusMeters =
       typeof location.radius === "number" ? location.radius : toNumber(location.radius) || 100;
+    const shape = readText(location.shape, "circle");
+    const squareSize = toNumber(location.squareSize) || 50;
+    const rectWidth = toNumber(location.rectWidth) || 40;
+    const rectLength = toNumber(location.rectLength) || 60;
+    const rotation = toNumber(location.rotation) || 0;
 
-    if (!branchId) continue;
-    if (requiredBranchId && branchId !== requiredBranchId) continue;
-    if (!Number.isFinite(locationLatitude) || !Number.isFinite(locationLongitude)) continue;
+    const geofenceConfig: GeofenceConfig = {
+      latitude: locationLatitude,
+      longitude: locationLongitude,
+      shape,
+      radius: radiusMeters,
+      squareSize,
+      rectWidth,
+      rectLength,
+      rotation,
+    };
 
-    const distanceMeters = distanceInMeters(
-      latitude,
-      longitude,
-      locationLatitude,
-      locationLongitude,
-    );
+    const isInside = isPointInsideGeofence(latitude, longitude, geofenceConfig);
+    const distanceMeters = getDistanceToGeofence(latitude, longitude, geofenceConfig);
 
-    if (distanceMeters <= radiusMeters) {
+    if (isInside) {
       const matchedBranchName = branchName || (await fetchBranchMeta(branchId)).name || "VSeyal";
       return {
         matched: true,
         branchId,
         branchName: matchedBranchName,
-        radiusMeters,
+        radiusMeters: getEffectiveRadius(geofenceConfig),
         distanceMeters: Math.round(distanceMeters),
       };
     }
