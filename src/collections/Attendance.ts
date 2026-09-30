@@ -560,6 +560,17 @@ const Attendance: CollectionConfig = {
             description: 'How the punch-out was triggered — by the employee (manual) or automatically by GPS geofence exit (auto).',
           },
         },
+        {
+          name: 'punchInType',
+          type: 'select',
+          options: [
+            { label: 'Manual', value: 'manual' },
+            { label: 'Auto (Geofence Entry)', value: 'auto' },
+          ],
+          admin: {
+            description: 'How the punch-in was triggered — by the employee (manual) or automatically by GPS geofence entry (auto).',
+          },
+        },
 
         {
           name: 'ipAddress',
