@@ -6,6 +6,7 @@ import { CollectionConfig, APIError, type Payload } from 'payload'
 import { getProductStock, getMultipleProductsStock } from '../utilities/inventory'
 import { updateItemStatus } from '../endpoints/updateItemStatus'
 import { sendWhatsAppBill } from '../utilities/ownchat'
+import { publishBillingRealtimeEvent } from '../realtime/wsGateway'
 
 import { getItemPreparationTime } from '../endpoints/getItemPreparationTime'
 import {
@@ -3222,11 +3223,36 @@ const Billings: CollectionConfig = {
       },
     ],
     afterChange: [
-      async ({ doc, req, operation }) => {
+      async ({ doc, previousDoc, req, operation }) => {
         if (!doc) return
 
         const hookStartedAt = Date.now()
         const billID = getDocLikeID(doc)
+
+        // Broadcast Real-time WebSocket Event for new orders or status updates
+        try {
+          const branchID = getRelationshipID(doc.branch)
+          if (branchID && doc.id) {
+            const isCreate = operation === 'create'
+            const isStatusChanged = isCreate || (previousDoc && previousDoc.status !== doc.status)
+
+            if (isStatusChanged) {
+              const nextSeq = ((doc as any).realtimeSeq || 0) + 1
+              publishBillingRealtimeEvent({
+                eventId: `${doc.id}:order:${doc.status || 'ordered'}:seq${nextSeq}`,
+                eventType: isCreate ? 'billing_item_status_changed' : 'billing_status_changed',
+                seq: nextSeq,
+                branchId: branchID,
+                billingId: String(doc.id),
+                statusAfter: doc.status || 'ordered',
+                statusBefore: previousDoc?.status || null,
+                timestamp: new Date().toISOString(),
+              })
+            }
+          }
+        } catch (rtErr) {
+          console.error('[Billings afterChange] Failed publishing realtime WebSocket event:', rtErr)
+        }
 
         const runPostChangeProcessing = async () => {
           const requestContext = (req as any).context as Record<string, unknown> | undefined
