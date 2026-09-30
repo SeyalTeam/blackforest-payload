@@ -23,6 +23,20 @@ const Attendance: CollectionConfig = {
             req.payload.logger.error({ err: e, msg: 'Error auto-populating employee from user' });
           }
         }
+
+        // Auto-populate loginBranch from user.lastLoginBranch on create (snapshot at punch-in time)
+        if (operation === 'create' && !data.loginBranch && data.user) {
+          try {
+            const userId = typeof data.user === 'string' ? data.user : data.user.id;
+            const userRes = await req.payload.findByID({ collection: 'users', id: userId, depth: 0 });
+            const lastLoginBranch = (userRes as any)?.lastLoginBranch;
+            if (lastLoginBranch) {
+              data.loginBranch = typeof lastLoginBranch === 'string' ? lastLoginBranch : (lastLoginBranch as any)?.id || lastLoginBranch;
+            }
+          } catch (e) {
+            req.payload.logger.error({ err: e, msg: 'Error auto-populating loginBranch from user.lastLoginBranch' });
+          }
+        }
         
         // Requirement: Enforce selfie before closing session (punch-out) UNLESS it's an auto punch-out
         if (data.activities && Array.isArray(data.activities)) {
@@ -406,6 +420,16 @@ const Attendance: CollectionConfig = {
       index: true,
       admin: {
         description: 'The employee matched via face recognition',
+      },
+    },
+    {
+      name: 'loginBranch',
+      type: 'relationship',
+      relationTo: 'branches',
+      index: true,
+      admin: {
+        description: 'The branch the user was logged into when this attendance was created (snapshotted from user.lastLoginBranch at first punch-in). Immutable after creation.',
+        readOnly: true,
       },
     },
     {
