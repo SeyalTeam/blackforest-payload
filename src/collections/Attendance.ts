@@ -1,22 +1,4 @@
 import type { CollectionConfig } from 'payload'
-import { getDistanceFromLatLonInMeters } from '../utilities/geo'
-
-const getRelationshipID = (value: unknown): string | null => {
-  if (!value) return null
-  if (typeof value === 'string') return value.trim()
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-  if (typeof value === 'object' && value !== null) {
-    if ('id' in value && (value as { id?: unknown }).id != null) {
-      const id = (value as { id?: unknown }).id
-      if (typeof id === 'string' || typeof id === 'number') return String(id).trim()
-    }
-    if ('_id' in value && (value as { _id?: unknown })._id != null) {
-      const id = (value as { _id?: unknown })._id
-      if (typeof id === 'string' || typeof id === 'number') return String(id).trim()
-    }
-  }
-  return null
-}
 
 const Attendance: CollectionConfig = {
   slug: 'attendance',
@@ -42,78 +24,7 @@ const Attendance: CollectionConfig = {
           }
         }
 
-        // Auto-update loginBranch and user.lastLoginBranch from latest session GPS coordinates
-        if (data.activities && Array.isArray(data.activities) && data.user) {
-          const latestSessionWithGps = [...data.activities]
-            .reverse()
-            .find((a: any) => a.type === 'session' && a.latitude != null && a.longitude != null)
-          if (latestSessionWithGps) {
-            const lat =
-              typeof latestSessionWithGps.latitude === 'number'
-                ? latestSessionWithGps.latitude
-                : parseFloat(latestSessionWithGps.latitude)
-            const lng =
-              typeof latestSessionWithGps.longitude === 'number'
-                ? latestSessionWithGps.longitude
-                : parseFloat(latestSessionWithGps.longitude)
-            if (!isNaN(lat) && !isNaN(lng)) {
-              try {
-                const geoSettingsResult = await req.payload.findGlobal({
-                  slug: 'branch-geo-settings' as any,
-                })
-                const geoSettings = geoSettingsResult as any
-                const locations = geoSettings?.locations as any[]
-                if (locations && Array.isArray(locations)) {
-                  let matchedBranchId: string | null = null
-                  let minDistance = Infinity
-                  for (const loc of locations) {
-                    const bLat =
-                      typeof loc.latitude === 'number'
-                        ? loc.latitude
-                        : parseFloat(loc.latitude)
-                    const bLng =
-                      typeof loc.longitude === 'number'
-                        ? loc.longitude
-                        : parseFloat(loc.longitude)
-                    const radius =
-                      (typeof loc.radius === 'number'
-                        ? loc.radius
-                        : parseFloat(loc.radius)) || 100
-                    const effectiveRadius = radius + 60.0
-                    if (!isNaN(bLat) && !isNaN(bLng)) {
-                      const dist = getDistanceFromLatLonInMeters(lat, lng, bLat, bLng)
-                      if (dist <= effectiveRadius && dist < minDistance) {
-                        minDistance = dist
-                        const locBranchId =
-                          getRelationshipID(loc.branch) ||
-                          getRelationshipID(loc.branchId)
-                        if (locBranchId) matchedBranchId = locBranchId
-                      }
-                    }
-                  }
-                  if (matchedBranchId) {
-                    data.loginBranch = matchedBranchId
-                    const userId =
-                      typeof data.user === 'string' ? data.user : data.user.id
-                    await req.payload.update({
-                      collection: 'users',
-                      id: userId,
-                      data: { lastLoginBranch: matchedBranchId } as any,
-                      overrideAccess: true,
-                    })
-                  }
-                }
-              } catch (err) {
-                req.payload.logger.error({
-                  err,
-                  msg: 'Error updating lastLoginBranch from session GPS',
-                })
-              }
-            }
-          }
-        }
-
-        // Auto-populate loginBranch from user.lastLoginBranch on create if not already matched
+        // Auto-populate loginBranch from user.lastLoginBranch on create (snapshot at punch-in time)
         if (operation === 'create' && !data.loginBranch && data.user) {
           try {
             const userId = typeof data.user === 'string' ? data.user : data.user.id;
@@ -121,6 +32,12 @@ const Attendance: CollectionConfig = {
             const lastLoginBranch = (userRes as any)?.lastLoginBranch;
             if (lastLoginBranch) {
               data.loginBranch = typeof lastLoginBranch === 'string' ? lastLoginBranch : (lastLoginBranch as any)?.id || lastLoginBranch;
+            } else {
+              // Fallback for chefs/kitchen staff who use kitchenBranches instead of branch
+              const kitchenBranches = (userRes as any)?.kitchenBranches;
+              if (Array.isArray(kitchenBranches) && kitchenBranches.length === 1) {
+                data.loginBranch = typeof kitchenBranches[0] === 'string' ? kitchenBranches[0] : (kitchenBranches[0] as any)?.id || kitchenBranches[0];
+              }
             }
           } catch (e) {
             req.payload.logger.error({ err: e, msg: 'Error auto-populating loginBranch from user.lastLoginBranch' });

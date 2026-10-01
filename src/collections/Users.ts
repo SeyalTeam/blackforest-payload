@@ -612,6 +612,13 @@ export const Users: CollectionConfig = {
           const userBranchId = getRelationshipID((user as { branch?: unknown }).branch)
           if (userBranchId) return userBranchId
 
+          // Fallback for chefs/kitchen staff who have a specific kitchenBranches setup
+          const kitchenBranches = (user as { kitchenBranches?: unknown }).kitchenBranches
+          if (Array.isArray(kitchenBranches) && kitchenBranches.length === 1) {
+            const kbId = getRelationshipID(kitchenBranches[0])
+            if (kbId) return kbId
+          }
+
           let headerPin: string | null = null
           let legacyPin: string | null = null
           if (req.headers && typeof req.headers.get === 'function') {
