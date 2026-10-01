@@ -533,9 +533,6 @@ export const Users: CollectionConfig = {
             return reqResolvedBranch.trim()
           }
 
-          const userBranchId = getRelationshipID((user as { branch?: unknown }).branch)
-          if (userBranchId) return userBranchId
-
           const requestBody = (req as { body?: unknown } | undefined)?.body
           const bodyBranchId =
             requestBody && typeof requestBody === 'object' && requestBody !== null
@@ -562,6 +559,58 @@ export const Users: CollectionConfig = {
               // Ignore invalid explicit branch id and continue fallback resolution.
             }
           }
+
+          // Check GPS coordinates from request headers or body (e.g. Flutter app sends x-latitude, x-longitude)
+          let latStr: string | null = null
+          let lngStr: string | null = null
+          if (req.headers && typeof req.headers.get === 'function') {
+            latStr = req.headers.get('x-latitude') || req.headers.get('x-lat')
+            lngStr = req.headers.get('x-longitude') || req.headers.get('x-lng')
+          }
+          if (!latStr && requestBody && typeof requestBody === 'object' && requestBody !== null) {
+            latStr = (requestBody as any).latitude?.toString() || (requestBody as any).lat?.toString() || null
+            lngStr = (requestBody as any).longitude?.toString() || (requestBody as any).lng?.toString() || null
+          }
+
+          if (latStr && lngStr) {
+            const lat = parseFloat(latStr)
+            const lng = parseFloat(lngStr)
+            if (!isNaN(lat) && !isNaN(lng)) {
+              try {
+                const geoSettingsResult = await req.payload.findGlobal({ slug: 'branch-geo-settings' as any })
+                const geoSettings = geoSettingsResult as any
+                const locations = geoSettings?.locations as any[]
+                if (locations && Array.isArray(locations)) {
+                  let matchedBranchId: string | null = null
+                  let minDistance = Infinity
+                  for (const loc of locations) {
+                    const bLat = typeof loc.latitude === 'number' ? loc.latitude : parseFloat(loc.latitude)
+                    const bLng = typeof loc.longitude === 'number' ? loc.longitude : parseFloat(loc.longitude)
+                    const radius = (typeof loc.radius === 'number' ? loc.radius : parseFloat(loc.radius)) || 100
+                    const effectiveRadius = radius + 60.0 // 60m buffer tolerance for indoor GPS drift
+                    if (!isNaN(bLat) && !isNaN(bLng)) {
+                      const dist = getDistanceFromLatLonInMeters(lat, lng, bLat, bLng)
+                      if (dist <= effectiveRadius && dist < minDistance) {
+                        minDistance = dist
+                        const locBranchId = getRelationshipID(loc.branch) || getRelationshipID(loc.branchId)
+                        if (locBranchId) matchedBranchId = locBranchId
+                      }
+                    }
+                  }
+                  if (matchedBranchId) {
+                    console.log(`[Login Branch] GPS matched branch ID: ${matchedBranchId} (distance: ${minDistance.toFixed(1)}m)`)
+                    return matchedBranchId
+                  }
+                }
+              } catch (err) {
+                console.error('[Login Branch] Error matching GPS to branch:', err)
+              }
+            }
+          }
+
+          // Fallback to assigned user.branch
+          const userBranchId = getRelationshipID((user as { branch?: unknown }).branch)
+          if (userBranchId) return userBranchId
 
           let headerPin: string | null = null
           let legacyPin: string | null = null
