@@ -139,6 +139,26 @@ const Attendance: CollectionConfig = {
             photo: a.capturedImage,
           }));
 
+          // Update the User's lastLoginBranch to match the attendance branch, 
+          // so the user profile stays perfectly in sync with where they just punched in.
+          if (doc.loginBranch) {
+            const userId = typeof doc.user === 'string' ? doc.user : doc.user?.id;
+            const branchId = typeof doc.loginBranch === 'string' ? doc.loginBranch : doc.loginBranch?.id;
+            if (userId && branchId) {
+              // We catch errors silently to prevent blocking attendance saves
+              try {
+                await req.payload.update({
+                  collection: 'users',
+                  id: userId,
+                  data: { lastLoginBranch: branchId },
+                  overrideAccess: true,
+                });
+              } catch (e) {
+                req.payload.logger.error({ err: e, msg: 'Failed to sync lastLoginBranch from Attendance to User' });
+              }
+            }
+          }
+
           const existingPunchIn = await req.payload.find({
             collection: 'punchin',
             where: {
