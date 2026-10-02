@@ -85,18 +85,22 @@ const ReturnOrders: CollectionConfig = {
 
           const prefix = `${branchCode}-RET-${formattedDate}`
 
-          const { totalDocs: existingCount } = await req.payload.count({
-            collection: 'return-orders',
-            where: {
-              returnNumber: {
-                greater_than_equal: `${prefix}-000`,
-                less_than_equal: `${prefix}-999`,
-              },
-            },
-          })
+          let seq = 1
+          let returnNumberCandidate = `${prefix}-${seq.toString().padStart(3, '0')}`
 
-          const seq = (existingCount + 1).toString().padStart(3, '0')
-          data.returnNumber = `${prefix}-${seq}`
+          while (true) {
+            const exists = await req.payload.find({
+              collection: 'return-orders',
+              where: { returnNumber: { equals: returnNumberCandidate } },
+              limit: 1,
+            })
+            if (exists.docs.length === 0) {
+              break
+            }
+            seq++
+            returnNumberCandidate = `${prefix}-${seq.toString().padStart(3, '0')}`
+          }
+          data.returnNumber = returnNumberCandidate
 
           // Auto-set company from branch
           if (data.branch) {

@@ -83,17 +83,22 @@ const StockOrders: CollectionConfig = {
           }
 
           const prefix = `${abbr}-STC-${dateStr}-`
-          const { totalDocs: existingCount } = await req.payload.count({
-            collection: 'stock-orders',
-            where: {
-              invoiceNumber: {
-                greater_than_equal: `${prefix}01`,
-                less_than_equal: `${prefix}99`,
-              },
-            },
-          })
-          const seq = (existingCount + 1).toString().padStart(2, '0')
-          data.invoiceNumber = `${prefix}${seq}`
+          let seq = 1
+          let invoiceNumberCandidate = `${prefix}${seq.toString().padStart(2, '0')}`
+
+          while (true) {
+            const exists = await req.payload.find({
+              collection: 'stock-orders',
+              where: { invoiceNumber: { equals: invoiceNumberCandidate } },
+              limit: 1,
+            })
+            if (exists.docs.length === 0) {
+              break
+            }
+            seq++
+            invoiceNumberCandidate = `${prefix}${seq.toString().padStart(2, '0')}`
+          }
+          data.invoiceNumber = invoiceNumberCandidate
 
           // Status forced to 'ordered' at end of hook
         }
