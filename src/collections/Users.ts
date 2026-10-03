@@ -477,6 +477,75 @@ export const Users: CollectionConfig = {
     },
     delete: ({ req }) => req.user?.role === 'superadmin',
   },
+  endpoints: [
+    {
+      path: '/login-phone',
+      method: 'post',
+      handler: async (req, res, next) => {
+        try {
+          const body = req.body || {}
+          const phoneNumber = body.phoneNumber
+          const password = body.password
+
+          if (!phoneNumber || !password) {
+            return res.status(400).json({ message: 'Phone number and password are required' })
+          }
+
+          // 1. Find employee by phone number
+          const { docs: employees } = await req.payload.find({
+            collection: 'employees',
+            where: {
+              phoneNumber: {
+                equals: phoneNumber,
+              },
+            },
+            depth: 0,
+            overrideAccess: true,
+          })
+
+          if (!employees || employees.length === 0) {
+            return res.status(401).json({ message: 'email or password provided is incorrect' })
+          }
+
+          const employeeId = employees[0].id
+
+          // 2. Find user by employee ID
+          const { docs: users } = await req.payload.find({
+            collection: 'users',
+            where: {
+              employee: {
+                equals: employeeId,
+              },
+            },
+            depth: 0,
+            overrideAccess: true,
+          })
+
+          if (!users || users.length === 0) {
+            return res.status(401).json({ message: 'email or password provided is incorrect' })
+          }
+
+          const user = users[0]
+
+          // 3. Login using standard payload auth (generates token, calls hooks, etc.)
+          const loginResult = await req.payload.login({
+            collection: 'users',
+            data: {
+              email: user.email,
+              password: password,
+            },
+            req,
+            res,
+          })
+
+          return res.status(200).json(loginResult)
+        } catch (error) {
+          console.error('[Login-Phone Error]', error)
+          return res.status(401).json({ message: 'email or password provided is incorrect' })
+        }
+      },
+    },
+  ],
   hooks: {
     beforeValidate: [
       async ({ data }) => {
