@@ -1,16 +1,7 @@
 import { NextRequest } from "next/server";
 import { resolveApiTokenForBranch } from "@/lib/api-token";
 import { getPublicServerURL } from "@/utilities/serverUrl";
-
-
-function corsHeaders() {
-  const origin = process.env.FRONTEND_URL || "http://localhost:3001";
-  return {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization",
-  };
-}
+import { corsHeaders } from "@/utilities/cors";
 const NEXT_PUBLIC_SERVER_URL = getPublicServerURL();
 const API_BASE = `${NEXT_PUBLIC_SERVER_URL}/api`;
 
@@ -109,13 +100,13 @@ export async function GET(request: NextRequest) {
   try {
     const branchId = request.nextUrl.searchParams.get("branchId")?.trim() ?? "";
     if (!branchId) {
-      return Response.json(defaultConfig, { headers: corsHeaders() });
+      return Response.json(defaultConfig, { headers: corsHeaders(request) });
     }
 
     const token = resolveApiTokenForBranch(branchId);
 
     if (!token) {
-      return Response.json(defaultConfig, { headers: corsHeaders() });
+      return Response.json(defaultConfig, { headers: corsHeaders(request) });
     }
 
     const response = await fetch(
@@ -130,7 +121,7 @@ export async function GET(request: NextRequest) {
     );
 
     if (!response.ok) {
-      return Response.json(defaultConfig, { headers: corsHeaders() });
+      return Response.json(defaultConfig, { headers: corsHeaders(request) });
     }
 
     const decoded = (await response.json()) as Record<string, unknown>;
@@ -197,12 +188,12 @@ export async function GET(request: NextRequest) {
       ),
     };
 
-    return Response.json(config, { headers: corsHeaders() });
+    return Response.json(config, { headers: corsHeaders(request) });
   } catch {
-    return Response.json(defaultConfig, { headers: corsHeaders() });
+    return Response.json(defaultConfig, { headers: corsHeaders(request) });
   }
 }
 
-export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: corsHeaders() });
+export async function OPTIONS(request: NextRequest) {
+  return new Response(null, { status: 204, headers: corsHeaders(request) });
 }

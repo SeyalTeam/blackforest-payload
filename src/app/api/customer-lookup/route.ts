@@ -1,1 +1,1 @@
-export { GET } from "../billing/customer-lookup/route";
+export { GET, OPTIONS } from "../billing/customer-lookup/route";

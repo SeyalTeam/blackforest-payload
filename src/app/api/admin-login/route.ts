@@ -5,18 +5,9 @@ import {
   fetchCurrentUser,
   readResponseMessage,
 } from "@/lib/admin-auth";
+import { corsHeaders } from "@/utilities/cors";
 
 export const runtime = "nodejs";
-
-function corsHeaders() {
-  const origin = process.env.FRONTEND_URL || "http://localhost:3001";
-  return {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization",
-    "Access-Control-Allow-Credentials": "true",
-  };
-}
 
 function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -35,7 +26,7 @@ export async function POST(request: NextRequest) {
     if (!usernameOrEmail || !password) {
       return NextResponse.json(
         { message: "Enter username/email and password." },
-        { status: 400, headers: corsHeaders() },
+        { status: 400, headers: corsHeaders(request, "POST,OPTIONS") },
       );
     }
 
@@ -54,7 +45,7 @@ export async function POST(request: NextRequest) {
     if (!loginResponse.ok) {
       return NextResponse.json(
         { message: await readResponseMessage(loginResponse) },
-        { status: loginResponse.status, headers: corsHeaders() },
+        { status: loginResponse.status, headers: corsHeaders(request, "POST,OPTIONS") },
       );
     }
 
@@ -68,7 +59,7 @@ export async function POST(request: NextRequest) {
     if (!sessionToken) {
       return NextResponse.json(
         { message: "Login succeeded but token was missing." },
-        { status: 500, headers: corsHeaders() },
+        { status: 500, headers: corsHeaders(request, "POST,OPTIONS") },
       );
     }
 
@@ -76,13 +67,13 @@ export async function POST(request: NextRequest) {
     if (!me.ok || !me.isSuperAdmin) {
       return NextResponse.json(
         { message: "Only superadmin is allowed for admin mode." },
-        { status: 403, headers: corsHeaders() },
+        { status: 403, headers: corsHeaders(request, "POST,OPTIONS") },
       );
     }
 
     const response = NextResponse.json(
       { ok: true, token: sessionToken },
-      { headers: corsHeaders() },
+      { headers: corsHeaders(request, "POST,OPTIONS") },
     );
     response.cookies.set({
       name: COOKIE_ADMIN_TOKEN_KEY,
@@ -97,10 +88,10 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to login";
-    return NextResponse.json({ message }, { status: 500, headers: corsHeaders() });
+    return NextResponse.json({ message }, { status: 500, headers: corsHeaders(request, "POST,OPTIONS") });
   }
 }
 
-export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: corsHeaders() });
+export async function OPTIONS(request: NextRequest) {
+  return new Response(null, { status: 204, headers: corsHeaders(request, "POST,OPTIONS") });
 }

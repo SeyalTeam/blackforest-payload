@@ -1,16 +1,7 @@
 import { NextRequest } from "next/server";
 import { COOKIE_ADMIN_TOKEN_KEY } from "@/components/frontend/branch-session";
 import { API_BASE, fetchCurrentUser, readResponseMessage } from "@/lib/admin-auth";
-
-
-function corsHeaders() {
-  const origin = process.env.FRONTEND_URL || "http://localhost:3001";
-  return {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization",
-  };
-}
+import { corsHeaders } from "@/utilities/cors";
 type DynamicMap = Record<string, unknown>;
 
 export const runtime = "nodejs";
@@ -151,7 +142,7 @@ export async function POST(request: NextRequest) {
 
     const branchId = toTrimmedText(body.branchId);
     if (!branchId) {
-      return Response.json({ message: "Branch id is required" }, { status: 400, headers: { ...corsHeaders(), ...corsHeaders() } });
+      return Response.json({ message: "Branch id is required" }, { status: 400, headers: corsHeaders(request, "POST,OPTIONS") });
     }
 
     const orderedCategoryIds = (Array.isArray(body.orderedCategoryIds)
@@ -292,10 +283,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to update favorite category order";
-    return Response.json({ message }, { status: 500, headers: { ...corsHeaders(), ...corsHeaders() } });
+    return Response.json({ message }, { status: 500, headers: corsHeaders(request, "POST,OPTIONS") });
   }
 }
 
-export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: corsHeaders() });
+export async function OPTIONS(request: NextRequest) {
+  return new Response(null, { status: 204, headers: corsHeaders(request, "POST,OPTIONS") });
 }

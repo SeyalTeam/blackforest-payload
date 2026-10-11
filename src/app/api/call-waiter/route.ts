@@ -3,15 +3,7 @@ import { resolveApiTokenForBranch } from "@/lib/api-token";
 import { getPayload } from "payload";
 import configPromise from "@payload-config";
 import { callWaiterHandler } from "@/endpoints/callWaiter";
-
-function corsHeaders() {
-  const origin = process.env.FRONTEND_URL || "http://localhost:3001";
-  return {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization",
-  };
-}
+import { corsHeaders } from "@/utilities/cors";
 
 function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -33,7 +25,7 @@ export async function POST(request: NextRequest) {
     if (!branchId) {
       return Response.json(
         { ok: false, message: "Branch id is required" },
-        { status: 400, headers: corsHeaders() },
+        { status: 400, headers: corsHeaders(request, "POST,OPTIONS") },
       );
     }
 
@@ -45,7 +37,7 @@ export async function POST(request: NextRequest) {
           message:
             "Waiter call is not enabled yet. Add BLACKFOREST_BRANCH_API_TOKENS or BLACKFOREST_API_TOKEN in so the website can alert billing.",
         },
-        { status: 503, headers: corsHeaders() },
+        { status: 503, headers: corsHeaders(request, "POST,OPTIONS") },
       );
     }
 
@@ -58,17 +50,17 @@ export async function POST(request: NextRequest) {
 
     const response = await callWaiterHandler(payloadReq);
     // Add CORS headers to the response from the handler
-    const corsHead = corsHeaders();
+    const corsHead = corsHeaders(request, "POST,OPTIONS");
     for (const [key, value] of Object.entries(corsHead)) {
       response.headers.set(key, value);
     }
     return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to call waiter";
-    return Response.json({ ok: false, message }, { status: 500, headers: corsHeaders() });
+    return Response.json({ ok: false, message }, { status: 500, headers: corsHeaders(request, "POST,OPTIONS") });
   }
 }
 
-export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: corsHeaders() });
+export async function OPTIONS(request: NextRequest) {
+  return new Response(null, { status: 204, headers: corsHeaders(request, "POST,OPTIONS") });
 }

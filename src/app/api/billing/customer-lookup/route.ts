@@ -2,16 +2,7 @@ import { NextRequest } from "next/server";
 import { COOKIE_ADMIN_TOKEN_KEY } from "@/components/frontend/branch-session";
 import { resolveApiTokenForBranch } from "@/lib/api-token";
 import { getPublicServerURL } from "@/utilities/serverUrl";
-
-
-function corsHeaders() {
-  const origin = process.env.FRONTEND_URL || "http://localhost:3001";
-  return {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization",
-  };
-}
+import { corsHeaders } from "@/utilities/cors";
 const NEXT_PUBLIC_SERVER_URL = getPublicServerURL();
 const API_BASE = `${NEXT_PUBLIC_SERVER_URL}/api`;
 const DEFAULT_LIMIT = 15;
@@ -61,7 +52,7 @@ export async function GET(request: NextRequest) {
     const limit = readLimit(request.nextUrl.searchParams.get("limit"));
 
     if (!phoneNumber) {
-      return Response.json({ message: "phoneNumber is required" }, { status: 400, headers: { ...corsHeaders(), ...corsHeaders() } });
+      return Response.json({ message: "phoneNumber is required" }, { status: 400, headers: corsHeaders(request) });
     }
 
     const query = new URLSearchParams({
@@ -100,13 +91,13 @@ export async function GET(request: NextRequest) {
     });
 
     const payload = await readJsonPayload(upstreamResponse);
-    return Response.json(payload, { status: upstreamResponse.status, headers: { ...corsHeaders(), ...corsHeaders() } });
+    return Response.json(payload, { status: upstreamResponse.status, headers: corsHeaders(request) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to fetch customer details";
-    return Response.json({ message }, { status: 500, headers: { ...corsHeaders(), ...corsHeaders() } });
+    return Response.json({ message }, { status: 500, headers: corsHeaders(request) });
   }
 }
 
-export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: corsHeaders() });
+export async function OPTIONS(request: NextRequest) {
+  return new Response(null, { status: 204, headers: corsHeaders(request) });
 }

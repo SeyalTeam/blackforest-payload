@@ -1,6 +1,7 @@
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { NextRequest, NextResponse } from 'next/server'
+import { corsHeaders } from '@/utilities/cors'
 
 export const POST = async (req: NextRequest) => {
   const payload = await getPayload({ config: configPromise })
@@ -11,7 +12,7 @@ export const POST = async (req: NextRequest) => {
   if (!bill || !product || !rating) {
     return NextResponse.json(
       { errors: [{ message: 'Bill, Product, and Rating are required' }] },
-      { status: 400 },
+      { status: 400, headers: corsHeaders(req, 'POST,OPTIONS') },
     )
   }
 
@@ -64,7 +65,7 @@ export const POST = async (req: NextRequest) => {
         },
       })
 
-      return NextResponse.json(updatedReview, { status: 200 })
+      return NextResponse.json(updatedReview, { status: 200, headers: corsHeaders(req, 'POST,OPTIONS') })
     } else {
       // 3. If not exists, create new document with items array
       const review = await payload.create({
@@ -84,13 +85,13 @@ export const POST = async (req: NextRequest) => {
         },
       })
 
-      return NextResponse.json(review, { status: 201 })
+      return NextResponse.json(review, { status: 201, headers: corsHeaders(req, 'POST,OPTIONS') })
     }
   } catch (error) {
     console.error('Error creating/updating review:', error)
     return NextResponse.json(
       { errors: [{ message: 'Failed to create/update review' }] },
-      { status: 500 },
+      { status: 500, headers: corsHeaders(req, 'POST,OPTIONS') },
     )
   }
 }
@@ -126,9 +127,16 @@ export const GET = async (req: NextRequest) => {
       limit: 100, // Reasonable default limit
     })
 
-    return NextResponse.json(reviews, { status: 200 })
+    return NextResponse.json(reviews, { status: 200, headers: corsHeaders(req, 'GET,OPTIONS') })
   } catch (error) {
     console.error('Error fetching reviews:', error)
-    return NextResponse.json({ errors: [{ message: 'Failed to fetch reviews' }] }, { status: 500 })
+    return NextResponse.json(
+      { errors: [{ message: 'Failed to fetch reviews' }] },
+      { status: 500, headers: corsHeaders(req, 'GET,OPTIONS') }
+    )
   }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return new Response(null, { status: 204, headers: corsHeaders(request, 'GET,POST,OPTIONS') })
 }

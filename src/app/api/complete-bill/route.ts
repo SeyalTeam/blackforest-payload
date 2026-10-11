@@ -2,18 +2,10 @@ import { NextRequest } from "next/server";
 import { BILLING_DISABLED_MESSAGE, BILLING_ENABLED } from "@/lib/billing-config";
 import { resolveApiTokenForBranch } from "@/lib/api-token";
 import { getPublicServerURL } from "@/utilities/serverUrl";
+import { corsHeaders } from "@/utilities/cors";
 
 const NEXT_PUBLIC_SERVER_URL = getPublicServerURL();
 const API_BASE = `${NEXT_PUBLIC_SERVER_URL}/api`;
-
-function corsHeaders() {
-  const origin = process.env.FRONTEND_URL || "http://localhost:3001";
-  return {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization",
-  };
-}
 
 function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -45,7 +37,7 @@ export async function POST(request: NextRequest) {
     if (!BILLING_ENABLED) {
       return Response.json(
         { message: BILLING_DISABLED_MESSAGE },
-        { status: 503, headers: corsHeaders() },
+        { status: 503, headers: corsHeaders(request, "POST,OPTIONS") },
       );
     }
 
@@ -64,13 +56,13 @@ export async function POST(request: NextRequest) {
     if (!billId) {
       return Response.json(
         { message: "Bill id is required" },
-        { status: 400, headers: corsHeaders() },
+        { status: 400, headers: corsHeaders(request, "POST,OPTIONS") },
       );
     }
     if (!paymentMethod) {
       return Response.json(
         { message: "Select a payment method" },
-        { status: 400, headers: corsHeaders() },
+        { status: 400, headers: corsHeaders(request, "POST,OPTIONS") },
       );
     }
 
@@ -81,7 +73,7 @@ export async function POST(request: NextRequest) {
           message:
             "Billing is not enabled yet. Add BLACKFOREST_BRANCH_API_TOKENS or BLACKFOREST_API_TOKEN in so the website can complete bills.",
         },
-        { status: 503, headers: corsHeaders() },
+        { status: 503, headers: corsHeaders(request, "POST,OPTIONS") },
       );
     }
 
@@ -101,7 +93,7 @@ export async function POST(request: NextRequest) {
 
     if (!writeResponse.ok) {
       const message = await readResponseMessage(writeResponse);
-      return Response.json({ message }, { status: writeResponse.status, headers: corsHeaders() });
+      return Response.json({ message }, { status: writeResponse.status, headers: corsHeaders(request, "POST,OPTIONS") });
     }
 
     const payload = (await writeResponse.json()) as Record<string, unknown>;
@@ -113,14 +105,14 @@ export async function POST(request: NextRequest) {
         paymentMethod,
         status: "completed",
       },
-      { headers: corsHeaders() },
+      { headers: corsHeaders(request, "POST,OPTIONS") },
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to complete bill";
-    return Response.json({ message }, { status: 500, headers: corsHeaders() });
+    return Response.json({ message }, { status: 500, headers: corsHeaders(request, "POST,OPTIONS") });
   }
 }
 
-export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: corsHeaders() });
+export async function OPTIONS(request: NextRequest) {
+  return new Response(null, { status: 204, headers: corsHeaders(request, "POST,OPTIONS") });
 }

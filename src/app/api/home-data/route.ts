@@ -1,14 +1,6 @@
 import { NextRequest } from "next/server";
 import { getHomePageData } from "@/lib/home-data";
-
-function corsHeaders() {
-  const origin = process.env.FRONTEND_URL || "http://localhost:3001";
-  return {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "GET,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization",
-  };
-}
+import { corsHeaders } from "@/utilities/cors";
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +9,7 @@ export async function GET(request: NextRequest) {
     return Response.json(payload, {
       headers: {
         "Cache-Control": "public, max-age=5, stale-while-revalidate=30",
-        ...corsHeaders(),
+        ...corsHeaders(request),
       },
     });
   } catch (error) {
@@ -28,13 +20,13 @@ export async function GET(request: NextRequest) {
         status: 500,
         headers: {
           "Cache-Control": "no-store",
-          ...corsHeaders(),
+          ...corsHeaders(request),
         },
       },
     );
   }
 }
 
-export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: corsHeaders() });
+export async function OPTIONS(request: NextRequest) {
+  return new Response(null, { status: 204, headers: corsHeaders(request) });
 }

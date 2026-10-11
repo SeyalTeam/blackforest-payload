@@ -1,14 +1,6 @@
 import { NextRequest } from "next/server";
 import { findBranchByCoordinates } from "@/lib/home-data";
-
-function corsHeaders() {
-  const origin = process.env.FRONTEND_URL || "http://localhost:3001";
-  return {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "GET,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization",
-  };
-}
+import { corsHeaders } from "@/utilities/cors";
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,12 +11,12 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
       return Response.json(
         { message: "Latitude and longitude are required" },
-        { status: 400, headers: corsHeaders() },
+        { status: 400, headers: corsHeaders(request) },
       );
     }
 
     const payload = await findBranchByCoordinates(latitude, longitude, branchId);
-    return Response.json(payload, { headers: corsHeaders() });
+    return Response.json(payload, { headers: corsHeaders(request) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to resolve branch";
     console.error("branch-from-location failed", {
@@ -33,10 +25,10 @@ export async function GET(request: NextRequest) {
       lng: request.nextUrl.searchParams.get("lng"),
       branchId: request.nextUrl.searchParams.get("branchId"),
     });
-    return Response.json({ message }, { status: 500, headers: corsHeaders() });
+    return Response.json({ message }, { status: 500, headers: corsHeaders(request) });
   }
 }
 
-export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: corsHeaders() });
+export async function OPTIONS(request: NextRequest) {
+  return new Response(null, { status: 204, headers: corsHeaders(request) });
 }

@@ -1,17 +1,9 @@
 import { NextRequest } from "next/server";
 import { getPayload } from "payload";
 import configPromise from "@payload-config";
+import { corsHeaders } from "@/utilities/cors";
 
 export const runtime = "nodejs";
-
-function corsHeaders() {
-  const origin = process.env.FRONTEND_URL || "http://localhost:3001";
-  return {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "GET,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization",
-  };
-}
 
 function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -27,7 +19,7 @@ export async function GET(request: NextRequest) {
     if (!queryKeys.length) {
       return Response.json(
         { message: "Query filters are required" },
-        { status: 400, headers: corsHeaders() },
+        { status: 400, headers: corsHeaders(request) },
       );
     }
 
@@ -80,13 +72,13 @@ export async function GET(request: NextRequest) {
       overrideAccess: true,
     });
 
-    return Response.json(results, { headers: corsHeaders() });
+    return Response.json(results, { headers: corsHeaders(request) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to fetch customer details";
-    return Response.json({ message }, { status: 500, headers: corsHeaders() });
+    return Response.json({ message }, { status: 500, headers: corsHeaders(request) });
   }
 }
 
-export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: corsHeaders() });
+export async function OPTIONS(request: NextRequest) {
+  return new Response(null, { status: 204, headers: corsHeaders(request) });
 }
