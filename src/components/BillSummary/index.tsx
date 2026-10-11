@@ -9,8 +9,8 @@ import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import Select, { StylesConfig } from 'react-select'
 import dayjs from 'dayjs'
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
+import utc from 'dayjs/plugin/utc.js'
+import timezone from 'dayjs/plugin/timezone.js'
 import {
   BarChart,
   Bar,

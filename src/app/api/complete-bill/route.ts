@@ -6,6 +6,15 @@ import { getPublicServerURL } from "@/utilities/serverUrl";
 const NEXT_PUBLIC_SERVER_URL = getPublicServerURL();
 const API_BASE = `${NEXT_PUBLIC_SERVER_URL}/api`;
 
+function corsHeaders() {
+  const origin = process.env.FRONTEND_URL || "http://localhost:3001";
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "POST,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization",
+  };
+}
+
 function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -34,7 +43,10 @@ async function readResponseMessage(response: Response) {
 export async function POST(request: NextRequest) {
   try {
     if (!BILLING_ENABLED) {
-      return Response.json({ message: BILLING_DISABLED_MESSAGE }, { status: 503 });
+      return Response.json(
+        { message: BILLING_DISABLED_MESSAGE },
+        { status: 503, headers: corsHeaders() },
+      );
     }
 
     const body = (await request.json()) as {
@@ -50,10 +62,16 @@ export async function POST(request: NextRequest) {
     const upiBankTransactionId = toTrimmedText(body.upiBankTransactionId);
 
     if (!billId) {
-      return Response.json({ message: "Bill id is required" }, { status: 400 });
+      return Response.json(
+        { message: "Bill id is required" },
+        { status: 400, headers: corsHeaders() },
+      );
     }
     if (!paymentMethod) {
-      return Response.json({ message: "Select a payment method" }, { status: 400 });
+      return Response.json(
+        { message: "Select a payment method" },
+        { status: 400, headers: corsHeaders() },
+      );
     }
 
     const token = resolveApiTokenForBranch(branchId);
@@ -63,7 +81,7 @@ export async function POST(request: NextRequest) {
           message:
             "Billing is not enabled yet. Add BLACKFOREST_BRANCH_API_TOKENS or BLACKFOREST_API_TOKEN in so the website can complete bills.",
         },
-        { status: 503 },
+        { status: 503, headers: corsHeaders() },
       );
     }
 
@@ -83,19 +101,26 @@ export async function POST(request: NextRequest) {
 
     if (!writeResponse.ok) {
       const message = await readResponseMessage(writeResponse);
-      return Response.json({ message }, { status: writeResponse.status });
+      return Response.json({ message }, { status: writeResponse.status, headers: corsHeaders() });
     }
 
     const payload = (await writeResponse.json()) as Record<string, unknown>;
-    return Response.json({
-      ok: true,
-      billId: toTrimmedText(payload.id) || billId,
-      invoiceNumber: toTrimmedText(payload.invoiceNumber),
-      paymentMethod,
-      status: "completed",
-    });
+    return Response.json(
+      {
+        ok: true,
+        billId: toTrimmedText(payload.id) || billId,
+        invoiceNumber: toTrimmedText(payload.invoiceNumber),
+        paymentMethod,
+        status: "completed",
+      },
+      { headers: corsHeaders() },
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to complete bill";
-    return Response.json({ message }, { status: 500 });
+    return Response.json({ message }, { status: 500, headers: corsHeaders() });
   }
+}
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: corsHeaders() });
 }

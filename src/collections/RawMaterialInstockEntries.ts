@@ -1,7 +1,7 @@
 import { CollectionConfig } from 'payload'
 import dayjs from 'dayjs'
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
+import utc from 'dayjs/plugin/utc.js'
+import timezone from 'dayjs/plugin/timezone.js'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -130,22 +130,17 @@ const RawMaterialInstockEntries: CollectionConfig = {
           const dateStr = date.format('YYMMDD')
           const prefix = `${abbr}-RMINS-${dateStr}-`
 
-          let seq = 1
-          let invoiceNumberCandidate = `${prefix}${seq.toString().padStart(2, '0')}`
-
-          while (true) {
-            const exists = await req.payload.find({
-              collection: 'raw-material-instock-entries',
-              where: { invoiceNumber: { equals: invoiceNumberCandidate } },
-              limit: 1,
-            })
-            if (exists.docs.length === 0) {
-              break
-            }
-            seq++
-            invoiceNumberCandidate = `${prefix}${seq.toString().padStart(2, '0')}`
-          }
-          data.invoiceNumber = invoiceNumberCandidate
+          const { totalDocs: existingCount } = await req.payload.count({
+            collection: 'raw-material-instock-entries',
+            where: {
+              invoiceNumber: {
+                greater_than_equal: `${prefix}01`,
+                less_than_equal: `${prefix}9999`,
+              },
+            },
+          })
+          const seq = (existingCount + 1).toString().padStart(2, '0')
+          data.invoiceNumber = `${prefix}${seq}`
         }
 
         // Process items

@@ -601,6 +601,8 @@ export default buildConfig({
   // ✅ ADD CORS + CSRF HERE
   cors: [
     'http://localhost:3000',
+    'http://localhost:3001', // standalone frontend (dev)
+    process.env.FRONTEND_URL || '',
     'http://localhost:4200',
     'http://localhost:5173',
     'http://localhost:8080',
@@ -615,11 +617,14 @@ export default buildConfig({
     'https://dev-blacforest.vseyal.com',
     'https://dev1-blacforest.vseyal.com',
     'https://superadmin.theblackforestcakes.com',
+    'https://theblackforestcakes.com',
     'http://192.168.29.173:3000', // Local Network IP
   ].filter(Boolean) as string[],
 
   csrf: [
     'http://localhost:3000',
+    'http://localhost:3001', // standalone frontend (dev)
+    process.env.FRONTEND_URL || '',
     'http://localhost:4200',
     'http://localhost:5173',
     'http://localhost:8080',
@@ -634,6 +639,7 @@ export default buildConfig({
     'https://dev-blacforest.vseyal.com',
     'https://dev1-blacforest.vseyal.com',
     'https://superadmin.theblackforestcakes.com',
+    'https://theblackforestcakes.com',
     'http://192.168.29.173:3000', // Local Network IP
   ].filter(Boolean) as string[],
 

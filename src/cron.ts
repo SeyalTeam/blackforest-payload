@@ -1,17 +1,20 @@
 import type { Payload } from 'payload'
 
 export function startCronJobs(payload: Payload) {
+  // Run a cleanup immediately on server boot to catch any missed jobs
+  runNightlyJob(payload).catch(console.error)
+  
   scheduleNextNightlyJob(payload)
 }
 
 function scheduleNextNightlyJob(payload: Payload) {
   const now = new Date()
-  const next2AM = new Date()
-  next2AM.setHours(2, 0, 0, 0)
-  if (now.getTime() >= next2AM.getTime()) {
-    next2AM.setDate(next2AM.getDate() + 1)
+  const nextMidnight = new Date()
+  nextMidnight.setHours(0, 1, 0, 0) // 12:01 AM
+  if (now.getTime() >= nextMidnight.getTime()) {
+    nextMidnight.setDate(nextMidnight.getDate() + 1)
   }
-  const delay = next2AM.getTime() - now.getTime()
+  const delay = nextMidnight.getTime() - now.getTime()
   
   setTimeout(async () => {
     await runNightlyJob(payload)
@@ -43,32 +46,47 @@ async function runNightlyJob(payload: Payload) {
       
       for (const doc of result.docs) {
         let needsUpdate = false
-        const updatedActivities = (doc.activities || []).map((act: any) => {
-          if (act.status === 'active') {
-            needsUpdate = true
-            const punchOut = new Date(new Date(doc.date).getTime() + 24 * 60 * 60 * 1000 - 1)
-            
-            let durationSeconds = 0
-            if (act.punchIn) {
-               durationSeconds = Math.floor((punchOut.getTime() - new Date(act.punchIn).getTime()) / 1000)
+        const updateData: any = {}
+        
+        // Handle modern activities array
+        if (doc.activities && doc.activities.length > 0) {
+          const updatedActivities = doc.activities.map((act: any) => {
+            if (act.status === 'active') {
+              needsUpdate = true
+              const punchOut = new Date(new Date(doc.date).getTime() + 24 * 60 * 60 * 1000 - 1)
+              
+              let durationSeconds = 0
+              if (act.punchIn) {
+                 durationSeconds = Math.floor((punchOut.getTime() - new Date(act.punchIn).getTime()) / 1000)
+              }
+              
+              return {
+                ...act,
+                status: 'closed',
+                punchOut: punchOut.toISOString(),
+                durationSeconds: durationSeconds > 0 ? durationSeconds : 0,
+                punchOutType: 'auto',
+              }
             }
-            
-            return {
-              ...act,
-              status: 'closed',
-              punchOut: punchOut.toISOString(),
-              durationSeconds: durationSeconds > 0 ? durationSeconds : 0,
-              punchOutType: 'auto',
-            }
-          }
-          return act
-        })
+            return act
+          })
+          if (needsUpdate) updateData.activities = updatedActivities
+        }
+        
+        // Handle legacy root fields
+        if (doc.status === 'active' && !doc.punchOut) {
+          needsUpdate = true
+          const punchOut = new Date(new Date(doc.date).getTime() + 24 * 60 * 60 * 1000 - 1)
+          updateData.status = 'closed'
+          updateData.punchOut = punchOut.toISOString()
+          updateData.punchOutType = 'auto'
+        }
         
         if (needsUpdate) {
           await payload.update({
             collection: 'attendance',
             id: doc.id,
-            data: { activities: updatedActivities },
+            data: updateData,
           })
           console.log(`[cron] Auto-closed sessions for attendance doc ${doc.id}`)
         }

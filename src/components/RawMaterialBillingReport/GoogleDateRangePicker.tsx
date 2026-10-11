@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import dayjs from 'dayjs'
-import quarterOfYear from 'dayjs/plugin/quarterOfYear'
+import quarterOfYear from 'dayjs/plugin/quarterOfYear.js'
 import './GoogleDateRangePicker.scss'
 
 dayjs.extend(quarterOfYear)

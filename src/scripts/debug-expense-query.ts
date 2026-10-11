@@ -1,8 +1,8 @@
 import config from '@payload-config'
 import { getPayload } from 'payload'
 import dayjs from 'dayjs'
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
+import utc from 'dayjs/plugin/utc.js'
+import timezone from 'dayjs/plugin/timezone.js'
 import dotenv from 'dotenv'
 import path from 'path'
 

@@ -5,6 +5,15 @@ import { getPayload } from "payload";
 import configPromise from "@payload-config";
 import { getPublicServerURL } from "@/utilities/serverUrl";
 
+
+function corsHeaders() {
+  const origin = process.env.FRONTEND_URL || "http://localhost:3001";
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization",
+  };
+}
 const NEXT_PUBLIC_SERVER_URL = getPublicServerURL();
 const API_BASE = `${NEXT_PUBLIC_SERVER_URL}/api`;
 const ACTIVE_BILL_STATUSES = "pending,ordered,confirmed,prepared,delivered";
@@ -269,7 +278,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!billId) {
-      return Response.json({ message: "Bill not found" }, { status: 404 });
+      return Response.json({ message: "Bill not found" }, { status: 404, headers: { ...corsHeaders(), ...corsHeaders() } });
     }
 
     let payloadDoc: Record<string, unknown> | null = null;
@@ -294,7 +303,7 @@ export async function GET(request: NextRequest) {
         cache: "no-store",
       });
       if (!response.ok) {
-        return Response.json({ message: "Unable to load bill" }, { status: response.status });
+        return Response.json({ message: "Unable to load bill" }, { status: response.status, headers: { ...corsHeaders(), ...corsHeaders() } });
       }
       payloadDoc = (await response.json()) as Record<string, unknown>;
     }
@@ -380,9 +389,13 @@ export async function GET(request: NextRequest) {
       items: parseItems(payloadDoc.items, toTrimmedText(payloadDoc.createdAt), productPrepMap),
     };
 
-    return Response.json(summary);
+    return Response.json(summary, { headers: corsHeaders() });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load bill";
-    return Response.json({ message }, { status: 500 });
+    return Response.json({ message }, { status: 500, headers: { ...corsHeaders(), ...corsHeaders() } });
   }
+}
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: corsHeaders() });
 }

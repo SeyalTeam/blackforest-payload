@@ -1,7 +1,7 @@
 import type { PayloadRequest } from 'payload'
 import dayjs from 'dayjs'
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
+import utc from 'dayjs/plugin/utc.js'
+import timezone from 'dayjs/plugin/timezone.js'
 import { resolveReportBranchScope } from '../../endpoints/reportScope'
 import {
   isPointInsideGeofence,
@@ -18,6 +18,7 @@ export type AttendanceReportActivity = {
   type: 'session' | 'break'
   punchIn: string
   punchOut?: string
+  punchOutType?: 'manual' | 'auto'
   status: 'active' | 'closed'
   durationSeconds: number
   durationFormatted: string
@@ -38,8 +39,13 @@ export type AttendanceReportItem = {
   userName: string
   userEmail: string
   userRole: string
+  employeeObjectId?: string
   employeeId?: string
   employeeName: string
+  employeeSalary?: number
+  employeeWorkingHours?: number
+  employeeLoginTime?: string
+  employeeLogoutTime?: string
   employeeTeam?: string
   employeePhone?: string
   employeePhotoUrl?: string
@@ -51,6 +57,8 @@ export type AttendanceReportItem = {
   lastPunchOut?: string
   totalWorkSeconds: number
   totalWorkFormatted: string
+  extraSeconds: number
+  extraHoursFormatted?: string
   totalBreakSeconds: number
   totalBreakFormatted: string
   sessionCount: number
@@ -684,9 +692,14 @@ export const getAttendanceReportData = async (
     const userName = toNonEmptyString(doc.employeeDetails?.name || doc.userDetails?.name || doc.userDetails?.email || 'Unknown')
     const userEmail = toNonEmptyString(doc.userDetails?.email || '')
     const userRole = toNonEmptyString(doc.userDetails?.role || 'staff')
+    const employeeObjectId = doc.resolvedEmployeeId ? String(doc.resolvedEmployeeId) : undefined
 
     const employeeId = toNonEmptyString(doc.employeeDetails?.employeeId || '')
     const employeeName = toNonEmptyString(doc.employeeDetails?.name || userName)
+    const employeeSalary = typeof doc.employeeDetails?.salary === 'number' ? doc.employeeDetails.salary : undefined
+    const employeeLoginTime = toNonEmptyString(doc.employeeDetails?.loginTime || '')
+    const employeeLogoutTime = toNonEmptyString(doc.employeeDetails?.logoutTime || '')
+    const employeeWorkingHours = typeof doc.employeeDetails?.workingHours === 'number' ? doc.employeeDetails.workingHours : undefined
     const employeeTeam = toNonEmptyString(doc.employeeDetails?.team || userRole)
     const employeePhone = toNonEmptyString(doc.employeeDetails?.phoneNumber || '')
     
@@ -746,6 +759,7 @@ export const getAttendanceReportData = async (
         status: isAct ? 'active' : 'closed',
         durationSeconds: dur,
         durationFormatted: formatSecondsToReadable(dur),
+        punchOutType: doc.punchOutType,
         ipAddress: toNonEmptyString(doc.ipAddress),
         device: toNonEmptyString(doc.device),
         capturedImageUrl,
@@ -793,6 +807,7 @@ export const getAttendanceReportData = async (
           status: isAct ? 'active' : 'closed',
           durationSeconds: dur,
           durationFormatted: formatSecondsToReadable(dur),
+          punchOutType: act.punchOutType,
           ipAddress: toNonEmptyString(act.ipAddress),
           device: toNonEmptyString(act.device),
           capturedImageUrl,
@@ -879,11 +894,43 @@ export const getAttendanceReportData = async (
       if (!matchesBranch) continue
     }
 
+    const hasAutoPunchOut = activities.some((a: any) => a.punchOutType === 'auto')
+
+    let baseShiftSeconds = 12 * 3600 // default fallback
+    if (employeeWorkingHours && employeeWorkingHours > 0) {
+      baseShiftSeconds = employeeWorkingHours * 3600
+    } else if (employeeLoginTime && employeeLogoutTime) {
+      const loginTimeStr = employeeLoginTime.replace('_', ':')
+      const logoutTimeStr = employeeLogoutTime.replace('_', ':')
+      const [inH, inM] = loginTimeStr.split(':').map(Number)
+      const [outH, outM] = logoutTimeStr.split(':').map(Number)
+      if (!isNaN(inH) && !isNaN(outH)) {
+        let shiftSeconds = (outH * 3600 + (outM || 0) * 60) - (inH * 3600 + (inM || 0) * 60)
+        if (shiftSeconds < 0) shiftSeconds += 24 * 3600
+        baseShiftSeconds = shiftSeconds
+      }
+    }
+
+    if (hasAutoPunchOut && recordWorkSeconds > baseShiftSeconds) {
+      // If the system auto-punched them out, they do not get any extra hours
+      recordWorkSeconds = baseShiftSeconds
+    }
+
+    let extraSeconds = 0
+    if (recordWorkSeconds > baseShiftSeconds) {
+      extraSeconds = recordWorkSeconds - baseShiftSeconds
+    }
+
     const item: AttendanceReportItem = {
       id,
       date: dateIso,
+      employeeSalary,
+      employeeWorkingHours,
+      employeeLoginTime,
+      employeeLogoutTime,
       dateString: dateStr,
       userId,
+      employeeObjectId,
       userName,
       userEmail,
       userRole,
@@ -900,6 +947,8 @@ export const getAttendanceReportData = async (
       lastPunchOut: hasActiveSession ? undefined : lastPunchOut,
       totalWorkSeconds: recordWorkSeconds,
       totalWorkFormatted: formatSecondsToReadable(recordWorkSeconds),
+      extraSeconds: extraSeconds > 0 ? extraSeconds : 0,
+      extraHoursFormatted: extraSeconds > 0 ? formatSecondsToReadable(extraSeconds) : '-',
       totalBreakSeconds: recordBreakSeconds,
       totalBreakFormatted: formatSecondsToReadable(recordBreakSeconds),
       sessionCount,

@@ -5,8 +5,8 @@ import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import Select, { components, OptionProps, ValueContainerProps } from 'react-select'
 import dayjs from 'dayjs'
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
+import utc from 'dayjs/plugin/utc.js'
+import timezone from 'dayjs/plugin/timezone.js'
 import './index.scss'
 
 dayjs.extend(utc)
@@ -30,6 +30,34 @@ export type AttendanceActivity = {
   branchName?: string
 }
 
+export type AggregatedItem = {
+  isAggregated: true
+  id: string
+  employeeName: string
+  employeeIdStr: string
+  employeePhotoUrl?: string
+  employeeSalary?: number
+  userRole: string
+  employeeTeam: string
+  branchName: string
+  daysPresent: number
+  daysLeave: number
+  leaveDatesFormatted: string
+  salaryAmount: number
+  extraHoursFormatted: string
+  branchCombined: string
+  avgFirstInFormatted: string
+  avgLastOutFormatted: string
+  totalSessions: number
+  totalBreakSeconds: number
+  totalBreakFormatted: string
+  totalWorkSeconds: number
+  totalWorkFormatted: string
+  avgWorkSeconds: number
+  avgWorkFormatted: string
+  originalItems: AttendanceItem[]
+}
+
 export type AttendanceItem = {
   id: string
   date: string
@@ -38,11 +66,16 @@ export type AttendanceItem = {
   userName: string
   userEmail: string
   userRole: string
+  employeeObjectId?: string
   employeeId?: string
   employeeName: string
   employeeTeam?: string
   employeePhone?: string
   employeePhotoUrl?: string
+  employeeSalary?: number
+  employeeWorkingHours?: number
+  employeeLoginTime?: string
+  employeeLogoutTime?: string
   branchId?: string
   branchName: string
   loginBranchId?: string
@@ -121,11 +154,16 @@ const ATTENDANCE_REPORT_QUERY = `
         userName
         userEmail
         userRole
+        employeeObjectId
         employeeId
         employeeName
         employeeTeam
         employeePhone
         employeePhotoUrl
+        employeeSalary
+        employeeWorkingHours
+        employeeLoginTime
+        employeeLogoutTime
         branchId
         branchName
         loginBranchId
@@ -134,6 +172,8 @@ const ATTENDANCE_REPORT_QUERY = `
         lastPunchOut
         totalWorkSeconds
         totalWorkFormatted
+        extraSeconds
+        extraHoursFormatted
         totalBreakSeconds
         totalBreakFormatted
         sessionCount
@@ -242,6 +282,36 @@ const toLocalDateStr = (d: Date) => {
   return `${year}-${month}-${day}`
 }
 
+const formatSeconds = (seconds: number): string => {
+  const safeSeconds = Math.max(0, Math.floor(seconds))
+  const hours = Math.floor(safeSeconds / 3600)
+  const minutes = Math.floor((safeSeconds % 3600) / 60)
+  const remainingSecs = safeSeconds % 60
+  if (hours > 0) return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
+  if (minutes > 0) return `${minutes}m ${remainingSecs}s`
+  return `${remainingSecs}s`
+}
+
+const getAverageTime = (isoStrings: string[]) => {
+  if (isoStrings.length === 0) return '--'
+  let totalMinutes = 0
+  let count = 0
+  for (const iso of isoStrings) {
+    if (iso) {
+      const d = dayjs.utc(iso).tz('Asia/Kolkata')
+      totalMinutes += d.hour() * 60 + d.minute()
+      count++
+    }
+  }
+  if (count === 0) return '--'
+  const avg = Math.floor(totalMinutes / count)
+  const h = Math.floor(avg / 60)
+  const m = avg % 60
+  const period = h >= 12 ? 'PM' : 'AM'
+  const displayH = h % 12 || 12
+  return `${displayH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} ${period}`
+}
+
 const AttendanceReport: React.FC = () => {
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()])
   const [startDate, endDate] = dateRange
@@ -253,18 +323,194 @@ const AttendanceReport: React.FC = () => {
 
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([])
   const [selectedBranch, setSelectedBranch] = useState<string[]>(['all'])
-
   const [selectedRoles, setSelectedRoles] = useState<string[]>(['all'])
   const [activeRoleFilter, setActiveRoleFilter] = useState<string>('all')
-
   const [employees, setEmployees] = useState<{ id: string; name: string; team?: string }[]>([])
   const [selectedEmployee, setSelectedEmployee] = useState<string[]>(['all'])
-
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
   const [showExportMenu, setShowExportMenu] = useState(false)
-
   const [selectedItemForModal, setSelectedItemForModal] = useState<AttendanceItem | null>(null)
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
+
+  const { displayItems, isAggregatedView } = useMemo(() => {
+    if (!data) return { displayItems: [], isAggregatedView: false }
+    const startStr = startDate ? toLocalDateStr(startDate) : ''
+    const endStr = endDate ? toLocalDateStr(endDate) : ''
+    const isMulti = startStr && endStr && startStr !== endStr
+    const isSingleEmployeeSelected = selectedEmployee.length === 1 && selectedEmployee[0] !== 'all'
+
+    if (!isMulti || isSingleEmployeeSelected) {
+      let items = data.items
+      if (isSingleEmployeeSelected) {
+        const empId = selectedEmployee[0]
+        items = items.filter(item => item.employeeObjectId === empId || item.userId === empId)
+      }
+      return { displayItems: items, isAggregatedView: false }
+    }
+
+    const rangeDates = []
+    if (startDate && endDate) {
+      const current = new Date(startDate)
+      current.setHours(0, 0, 0, 0)
+      const end = new Date(endDate)
+      end.setHours(23, 59, 59, 999)
+      const now = new Date()
+      const effectiveEnd = end > now ? now : end
+      while (current <= effectiveEnd) {
+        // Exclude Sundays (0 = Sunday) from leave calculations if needed, but for now we count all valid working days up to today.
+        if (current.getDay() !== 0) {
+          rangeDates.push(toLocalDateStr(current))
+        }
+        current.setDate(current.getDate() + 1)
+      }
+    }
+
+    const grouped: Record<string, AggregatedItem & { totalShiftSeconds: number; totalExtraSeconds: number }> = {}
+    data.items.forEach(item => {
+      const key = item.employeeId || item.userId || item.employeeName
+      if (!grouped[key]) {
+        grouped[key] = {
+          isAggregated: true,
+          id: key,
+          employeeName: item.employeeName,
+          employeeIdStr: item.employeeId || '',
+          employeePhotoUrl: item.employeePhotoUrl,
+          employeeSalary: item.employeeSalary || 0,
+          employeeWorkingHours: item.employeeWorkingHours || 12,
+          userRole: item.userRole,
+          employeeTeam: item.employeeTeam || '',
+          branchName: item.branchName,
+          daysPresent: 0,
+          daysLeave: 0,
+          leaveDatesFormatted: '',
+          salaryAmount: 0,
+          extraHoursFormatted: '',
+          totalExtraSeconds: 0,
+          totalShiftSeconds: 0,
+          branchCombined: '',
+          avgFirstInFormatted: '',
+          avgLastOutFormatted: '',
+          totalSessions: 0,
+          totalBreakSeconds: 0,
+          totalBreakFormatted: '',
+          totalWorkSeconds: 0,
+          totalWorkFormatted: '',
+          avgWorkSeconds: 0,
+          avgWorkFormatted: '',
+          originalItems: [],
+        }
+      }
+      const g = grouped[key]
+      g.daysPresent++
+      g.totalSessions += item.sessionCount
+      g.totalBreakSeconds += item.totalBreakSeconds || 0
+      g.totalWorkSeconds += item.totalWorkSeconds || 0
+      g.totalExtraSeconds += item.extraSeconds || 0
+      g.originalItems.push(item)
+      if (item.employeeSalary && g.employeeSalary === 0) g.employeeSalary = item.employeeSalary
+      
+      if (item.employeeWorkingHours && item.employeeWorkingHours > 0) {
+        g.totalShiftSeconds += item.employeeWorkingHours * 3600
+      } else if (item.employeeLoginTime && item.employeeLogoutTime) {
+        const loginTimeStr = item.employeeLoginTime.replace('_', ':')
+        const logoutTimeStr = item.employeeLogoutTime.replace('_', ':')
+        
+        const [inH, inM] = loginTimeStr.split(':').map(Number)
+        const [outH, outM] = logoutTimeStr.split(':').map(Number)
+        
+        if (!isNaN(inH) && !isNaN(outH)) {
+          let shiftSeconds = (outH * 3600 + (outM || 0) * 60) - (inH * 3600 + (inM || 0) * 60)
+          if (shiftSeconds < 0) shiftSeconds += 24 * 3600 // Handle night shifts crossing midnight
+          
+          g.totalShiftSeconds += shiftSeconds
+        }
+      }
+    })
+
+    const aggregatedList = Object.values(grouped).map(g => {
+
+      const firstIns = g.originalItems.map(i => i.firstPunchIn).filter(Boolean) as string[]
+      const lastOuts = g.originalItems.map(i => i.lastPunchOut).filter(Boolean) as string[]
+      const avgWork = g.daysPresent > 0 ? g.totalWorkSeconds / g.daysPresent : 0
+
+      const presentDates = new Set(g.originalItems.map(i => i.dateString))
+      const leaveDateStrings = rangeDates.filter(d => !presentDates.has(d))
+      const leaveDaysNumbers = leaveDateStrings.map(d => parseInt(d.split('-')[2], 10))
+      const leaveDatesFormatted = leaveDaysNumbers.length > 0 ? leaveDaysNumbers.join(',') : 'None'
+      const daysLeave = leaveDateStrings.length
+
+      const baseSalary = g.employeeSalary || 0
+      // User explicitly requested: "BASED ON PRESNT CALCULATE SALARY"
+      const salaryAmount = Math.round((baseSalary / 30) * g.daysPresent)
+
+      const branchSet = new Set<string>()
+      g.originalItems.forEach(i => {
+        if (i.branchName) {
+          const abbrev = i.branchName.substring(0, 3).toUpperCase()
+          branchSet.add(abbrev)
+        }
+      })
+      const branchCombined = Array.from(branchSet).join(',')
+
+      return {
+        ...g,
+        daysLeave,
+        leaveDatesFormatted,
+        salaryAmount,
+        branchCombined,
+        extraHoursFormatted: g.totalExtraSeconds > 0 ? formatSeconds(g.totalExtraSeconds) : '-',
+        avgFirstInFormatted: getAverageTime(firstIns),
+        avgLastOutFormatted: getAverageTime(lastOuts),
+        totalBreakFormatted: formatSeconds(g.totalBreakSeconds),
+        totalWorkFormatted: formatSeconds(g.totalWorkSeconds),
+        avgWorkSeconds: avgWork,
+        avgWorkFormatted: formatSeconds(avgWork)
+      }
+    })
+
+    aggregatedList.sort((a,b) => b.totalWorkSeconds - a.totalWorkSeconds)
+    return { displayItems: aggregatedList, isAggregatedView: true }
+  }, [data, startDate, endDate, selectedEmployee])
+
+  const calcTotals = useMemo(() => {
+    let totPresent = 0
+    let totLeave = 0
+    let totSalary = 0
+    let totExtraSec = 0
+    let totBreakSec = 0
+    let totWorkSec = 0
+    let totActive = 0
+    
+    displayItems.forEach((item: any) => {
+      if (isAggregatedView) {
+        totPresent += (item.daysPresent || 0)
+        totLeave += (item.daysLeave || 0)
+        totSalary += (item.salaryAmount || 0)
+        totExtraSec += (item.totalExtraSeconds || 0)
+        totBreakSec += (item.totalBreakSeconds || 0)
+        totWorkSec += (item.totalWorkSeconds || 0)
+      } else {
+        const dutySec = (item.employeeWorkingHours || 12) * 3600
+        const ws = item.totalWorkSeconds || 0
+        if (ws > dutySec) {
+          totExtraSec += (ws - dutySec)
+        }
+        totBreakSec += (item.totalBreakSeconds || 0)
+        totWorkSec += ws
+        if (item.status === 'active') totActive++
+      }
+    })
+
+    return {
+      totPresent,
+      totLeave,
+      totSalary,
+      totExtraFormatted: totExtraSec > 0 ? formatSeconds(totExtraSec) : '-',
+      totBreakFormatted: formatSeconds(totBreakSec),
+      totWorkFormatted: formatSeconds(totWorkSec),
+      totActive,
+    }
+  }, [displayItems, isAggregatedView])
 
   const roleOptions: SelectOption[] = [
     { value: 'all', label: 'All Roles' },
@@ -511,60 +757,78 @@ const AttendanceReport: React.FC = () => {
   }
 
   const handleExportCsv = () => {
-    if (!data || data.items.length === 0) return
+    if (!displayItems || displayItems.length === 0) return
 
     const csvRows: string[] = []
-    const headers = [
-      'S.NO',
-      'DATE',
-      'EMPLOYEE ID',
-      'EMPLOYEE NAME',
-      'ROLE',
-      'BRANCH',
-      'FIRST IN',
-      'LAST OUT',
-      'SESSIONS',
-      'BREAK TIME',
-      'TOTAL WORK HOURS',
-      'STATUS',
+    const headers = isAggregatedView ? [
+      'S.NO', 'EMPLOYEE NAME (ID)', 'BRANCH', 'PRESENT', 'LEAVE', 'SALARY AMOUNT', 'DUTY HRS', 'TOTAL WORK HOURS', 'EXTRA HOURS',
+      'AVG FIRST IN', 'AVG LAST OUT', 'TOTAL SESSIONS', 'TOTAL BREAK TIME', 'AVG WORK/DAY'
+    ] : [
+      'S.NO', 'EMPLOYEE NAME (ID)', 'ROLE', 'BRANCH',
+      'FIRST IN', 'LAST OUT', 'SESSIONS', 'BREAK TIME', 'DUTY HRS', 'TOTAL WORK HOURS', 'EXTRA HOURS', 'STATUS'
     ]
     csvRows.push(headers.join(','))
 
-    data.items.forEach((item, index) => {
-      csvRows.push(
-        [
-          index + 1,
-          `"${item.dateString}"`,
-          `"${item.employeeId || ''}"`,
-          `"${item.employeeName.replace(/"/g, '""')}"`,
-          `"${(item.employeeTeam || item.userRole || '').toUpperCase()}"`,
-          `"${item.branchName.replace(/"/g, '""')}"`,
-          `"${formatTime(item.firstPunchIn)}"`,
-          `"${formatTime(item.lastPunchOut)}"`,
-          item.sessionCount,
-          `"${item.totalBreakFormatted}"`,
-          `"${item.totalWorkFormatted}"`,
-          `"${item.status.toUpperCase()}"`,
-        ].join(','),
-      )
+    displayItems.forEach((item: any, index: number) => {
+      const empNameId = (item.employeeIdStr || item.employeeId) 
+        ? `${item.employeeName} (${item.employeeIdStr || item.employeeId})` 
+        : item.employeeName
+
+      if (isAggregatedView) {
+        csvRows.push(
+          [
+            index + 1,
+            `"${empNameId.replace(/"/g, '""')}"`,
+            `"${item.branchCombined}"`,
+            item.daysPresent,
+            item.daysLeave,
+            item.salaryAmount,
+            `"${item.employeeWorkingHours || 12}h"`,
+            `"${item.totalWorkFormatted}"`,
+            `"${item.extraHoursFormatted}"`,
+            `"${item.avgFirstInFormatted}"`,
+            `"${item.avgLastOutFormatted}"`,
+            item.totalSessions,
+            `"${item.totalBreakFormatted}"`,
+            `"${item.avgWorkFormatted}"`,
+          ].join(',')
+        )
+      } else {
+        csvRows.push(
+          [
+            index + 1,
+            `"${empNameId.replace(/"/g, '""')}"`,
+            `"${(item.employeeTeam || item.userRole || '').toUpperCase()}"`,
+            `"${(item.branchName || '').substring(0, 3).toUpperCase()}"`,
+            `"${formatTime(item.firstPunchIn)}"`,
+            `"${formatTime(item.lastPunchOut)}"`,
+            item.sessionCount,
+            `"${item.totalBreakFormatted}"`,
+            `"${item.employeeWorkingHours ? item.employeeWorkingHours + 'h' : '-'}"`,
+            `"${item.totalWorkFormatted}"`,
+            `"${item.extraHoursFormatted || '-'}"`,
+            `"${item.status.toUpperCase()}"`,
+          ].join(',')
+        )
+      }
     })
 
     // Totals row
     csvRows.push(
       [
         '',
-        '"TOTAL"',
+        '"OVERALL TOTAL"',
         '',
-        `"${data.totals.uniqueEmployees} Unique Staff"`,
-        '',
-        '',
+        `"${data?.totals.uniqueEmployees || 0} Unique Staff"`,
         '',
         '',
         '',
-        `"${data.totals.totalBreakFormatted}"`,
-        `"${data.totals.totalWorkFormatted}"`,
-        `"${data.totals.currentlyActive} Active Now"`,
-      ].join(','),
+        '',
+        '',
+        `"${data?.totals.totalBreakFormatted || ''}"`,
+        `"${data?.totals.totalWorkFormatted || ''}"`,
+        `"${data?.totals.currentlyActive || 0} Active Now"`,
+      ].join(',')
     )
 
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
@@ -572,6 +836,110 @@ const AttendanceReport: React.FC = () => {
     const a = document.createElement('a')
     a.href = url
     a.download = `attendance_report_${startDate ? toLocalDateStr(startDate) : ''}_to_${
+      endDate ? toLocalDateStr(endDate) : ''
+    }.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    setShowExportMenu(false)
+  }
+
+  const handleExportRoleBasedCsv = () => {
+    if (!displayItems || displayItems.length === 0) return
+
+    const csvRows: string[] = []
+    const headers = isAggregatedView ? [
+      'S.NO', 'EMPLOYEE NAME (ID)', 'BRANCH', 'PRESENT', 'LEAVE', 'SALARY AMOUNT', 'DUTY HRS', 'TOTAL WORK HOURS', 'EXTRA HOURS',
+      'AVG FIRST IN', 'AVG LAST OUT', 'TOTAL SESSIONS', 'TOTAL BREAK TIME', 'AVG WORK/DAY'
+    ] : [
+      'S.NO', 'EMPLOYEE NAME (ID)', 'ROLE', 'BRANCH',
+      'FIRST IN', 'LAST OUT', 'SESSIONS', 'BREAK TIME', 'DUTY HRS', 'TOTAL WORK HOURS', 'EXTRA HOURS', 'STATUS'
+    ]
+
+    // Group items by role
+    const itemsByRole: Record<string, any[]> = {}
+    displayItems.forEach((item: any) => {
+      const role = (item.employeeTeam || item.userRole || 'Unknown').toUpperCase()
+      if (!itemsByRole[role]) {
+        itemsByRole[role] = []
+      }
+      itemsByRole[role].push(item)
+    })
+
+    Object.keys(itemsByRole).sort().forEach((role) => {
+      csvRows.push(`"ROLE: ${role}"`)
+      csvRows.push(headers.join(','))
+      
+      itemsByRole[role].forEach((item: any, index: number) => {
+        const empNameId = (item.employeeIdStr || item.employeeId) 
+          ? `${item.employeeName} (${item.employeeIdStr || item.employeeId})` 
+          : item.employeeName
+
+        if (isAggregatedView) {
+          csvRows.push(
+            [
+              index + 1,
+              `"${empNameId.replace(/"/g, '""')}"`,
+              `"${item.branchCombined}"`,
+              item.daysPresent,
+              item.daysLeave,
+              item.salaryAmount,
+              `"${item.employeeWorkingHours || 12}h"`,
+              `"${item.totalWorkFormatted}"`,
+              `"${item.extraHoursFormatted}"`,
+              `"${item.avgFirstInFormatted}"`,
+              `"${item.avgLastOutFormatted}"`,
+              item.totalSessions,
+              `"${item.totalBreakFormatted}"`,
+              `"${item.avgWorkFormatted}"`,
+            ].join(',')
+          )
+        } else {
+          csvRows.push(
+            [
+              index + 1,
+              `"${empNameId.replace(/"/g, '""')}"`,
+              `"${role}"`,
+              `"${(item.branchName || '').substring(0, 3).toUpperCase()}"`,
+              `"${formatTime(item.firstPunchIn)}"`,
+              `"${formatTime(item.lastPunchOut)}"`,
+              item.sessionCount,
+              `"${item.totalBreakFormatted}"`,
+              `"${item.employeeWorkingHours ? item.employeeWorkingHours + 'h' : '-'}"`,
+              `"${item.totalWorkFormatted}"`,
+              `"${item.extraHoursFormatted || '-'}"`,
+              `"${item.status.toUpperCase()}"`,
+            ].join(',')
+          )
+        }
+      })
+      csvRows.push('')
+    })
+
+    // Totals row
+    csvRows.push(
+      [
+        '',
+        '"OVERALL TOTAL"',
+        '',
+        `"${data?.totals.uniqueEmployees || 0} Unique Staff"`,
+        '',
+        '',
+        '',
+        '',
+        '',
+        `"${data?.totals.totalBreakFormatted || ''}"`,
+        `"${data?.totals.totalWorkFormatted || ''}"`,
+        `"${data?.totals.currentlyActive || 0} Active Now"`,
+      ].join(',')
+    )
+
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `attendance_report_role_based_${startDate ? toLocalDateStr(startDate) : ''}_to_${
       endDate ? toLocalDateStr(endDate) : ''
     }.csv`
     document.body.appendChild(a)
@@ -625,6 +993,61 @@ const AttendanceReport: React.FC = () => {
     },
   )
   CustomInput.displayName = 'CustomInput'
+
+  const handleForcePunchOut = async () => {
+    if (!selectedItemForModal || selectedItemForModal.status !== 'active') return
+    if (!window.confirm(`Are you sure you want to force punch out ${selectedItemForModal.employeeName}?`)) return
+    
+    try {
+      // First fetch the latest doc to get the full activities array
+      const res = await fetch(`/api/attendance/${selectedItemForModal.id}`)
+      if (!res.ok) throw new Error('Failed to fetch doc')
+      const doc = await res.json()
+      
+      let updateData: any = {}
+      if (doc.activities && doc.activities.length > 0) {
+        let needsUpdate = false
+        const updatedActivities = doc.activities.map((act: any) => {
+          if (act.status === 'active') {
+            needsUpdate = true
+            const punchOut = new Date()
+            let dur = 0
+            if (act.punchIn) {
+               dur = Math.floor((punchOut.getTime() - new Date(act.punchIn).getTime())/1000)
+            }
+            return {
+              ...act,
+              status: 'closed',
+              punchOut: punchOut.toISOString(),
+              durationSeconds: dur,
+              punchOutType: 'auto'
+            }
+          }
+          return act
+        })
+        if (needsUpdate) updateData.activities = updatedActivities
+      }
+      
+      if (doc.status === 'active' && !doc.punchOut) {
+        updateData.status = 'closed'
+        updateData.punchOut = new Date().toISOString()
+      }
+      
+      const updateRes = await fetch(`/api/attendance/${selectedItemForModal.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData)
+      })
+      if (!updateRes.ok) throw new Error('Failed to patch doc')
+      
+      alert('Punched out successfully!')
+      setSelectedItemForModal(null)
+      fetchReport()
+    } catch (e) {
+      console.error(e)
+      alert('Failed to force punch out. Check console for details.')
+    }
+  }
 
   return (
     <div className="attendance-report-container">
@@ -791,6 +1214,7 @@ const AttendanceReport: React.FC = () => {
               {showExportMenu && (
                 <div className="export-menu">
                   <button onClick={handleExportCsv}>Excel (CSV)</button>
+                  <button onClick={handleExportRoleBasedCsv}>Role Based (CSV)</button>
                 </div>
               )}
             </div>
@@ -920,25 +1344,46 @@ const AttendanceReport: React.FC = () => {
             <thead>
               <tr>
                 <th style={{ width: '50px' }}>S.NO</th>
-                <th>DATE</th>
-                <th>EMPLOYEE</th>
-                <th>ROLE</th>
-                <th>BRANCH</th>
-                <th className="text-center">FIRST IN</th>
-                <th className="text-center">LAST OUT</th>
-                <th className="text-center">BREAKS</th>
-                <th className="text-center">WORK HOURS</th>
-                <th className="text-center">STATUS</th>
-                <th className="text-center">ACTIONS</th>
+                {isAggregatedView ? (
+                  <>
+                    <th>EMPLOYEE (ID)</th>
+                    <th>BRANCH</th>
+                    <th>PRESENT</th>
+                    <th>LEAVE</th>
+                    <th>SALARY</th>
+                    <th className="text-center">DUTY HRS</th>
+                    <th className="text-center">TOTAL WORK</th>
+                    <th className="text-center">EXTRA HOURS</th>
+                    <th className="text-center">AVG FIRST IN</th>
+                    <th className="text-center">AVG LAST OUT</th>
+                    <th className="text-center">TOTAL SESSIONS</th>
+                    <th className="text-center">TOTAL BREAK</th>
+                    <th className="text-center">AVG WORK/DAY</th>
+                  </>
+                ) : (
+                  <>
+                    <th style={{ width: '200px' }}>EMPLOYEE (ID)</th>
+                    <th style={{ width: '100px' }}>ROLE</th>
+                    <th style={{ width: '90px' }}>BRANCH</th>
+                    <th className="text-center">FIRST IN</th>
+                    <th className="text-center">LAST OUT</th>
+                    <th className="text-center">BREAKS</th>
+                    <th className="text-center">DUTY HRS</th>
+                    <th className="text-center">WORK HOURS</th>
+                    <th className="text-center">EXTRA HOURS</th>
+                    <th className="text-center">STATUS</th>
+                    <th className="text-center">ACTIONS</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
-              {data.items.length > 0 ? (
-                data.items.map((item, idx) => {
+              {displayItems.length > 0 ? (
+                displayItems.map((item: any, idx: number) => {
                   const roleClass = `role-${(item.employeeTeam || item.userRole || 'other').toLowerCase()}`
                   const initials = item.employeeName
                     .split(' ')
-                    .map((n) => n[0])
+                    .map((n: string) => n[0])
                     .slice(0, 2)
                     .join('')
                     .toUpperCase()
@@ -946,78 +1391,126 @@ const AttendanceReport: React.FC = () => {
                   return (
                     <tr
                       key={item.id || idx}
-                      className="clickable-row"
-                      onClick={() => setSelectedItemForModal(item)}
+                      className={!isAggregatedView ? "clickable-row" : ""}
+                      onClick={() => !isAggregatedView && setSelectedItemForModal(item)}
                     >
                       <td>{idx + 1}</td>
-                      <td>{formatDate(item.date)}</td>
-                      <td>
-                        <div className="employee-cell">
-                          {item.employeePhotoUrl ? (
-                            <img src={item.employeePhotoUrl} alt={item.employeeName} className="avatar-thumb" />
-                          ) : (
-                            <div className="avatar-thumb">{initials}</div>
-                          )}
-                          <div className="employee-meta">
-                            <span className="emp-name">{item.employeeName}</span>
-                            {item.employeeId && <span className="emp-id">{item.employeeId}</span>}
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`role-badge ${roleClass}`}>
-                          {item.employeeTeam || item.userRole || 'STAFF'}
-                        </span>
-                      </td>
-                      <td>
-                        <strong style={{ color: 'var(--theme-text-secondary)', display: 'block' }}>
-                          {item.branchName}
-                        </strong>
-                        {item.loginBranchName && item.loginBranchName !== item.branchName && (
-                          <span style={{ fontSize: '0.75rem', color: '#9ca3af', display: 'block', marginTop: '2px' }}>
-                            Login: {item.loginBranchName}
-                          </span>
-                        )}
-                      </td>
-                      <td className="text-center">{formatTime(item.firstPunchIn)}</td>
-                      <td className="text-center">
-                        {item.status === 'active' ? (
-                          <span style={{ color: '#10b981', fontWeight: 600 }}>Active Now</span>
-                        ) : (
-                          formatTime(item.lastPunchOut)
-                        )}
-                      </td>
-                      <td className="text-center" style={{ color: 'var(--theme-text-secondary)' }}>
-                        {item.totalBreakFormatted}
-                      </td>
-                      <td className="text-center work-hours-cell">{item.totalWorkFormatted}</td>
-                      <td className="text-center">
-                        <span className={`status-pill ${item.status}`}>
-                          <span className="dot" />
-                          {item.status === 'active'
-                            ? 'Clocked In'
-                            : item.status === 'on_break'
-                              ? 'On Break'
-                              : 'Clocked Out'}
-                        </span>
-                      </td>
-                      <td className="text-center" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          className="view-btn"
-                          onClick={() => setSelectedItemForModal(item)}
-                          title="View Attendance Timeline"
-                          type="button"
-                        >
-                          <span>Timeline</span>
-                          <span>→</span>
-                        </button>
-                      </td>
+                      {isAggregatedView ? (
+                        <>
+                          <td>
+                            <div className="employee-cell">
+                              <div className="employee-meta">
+                                <span className="emp-name">{item.employeeName}</span>
+                                {(item.employeeId || item.employeeIdStr) && <span className="emp-id">{item.employeeId || item.employeeIdStr}</span>}
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <strong style={{ color: 'var(--theme-text-secondary)', display: 'block' }}>
+                              {item.branchCombined}
+                            </strong>
+                          </td>
+                          <td>
+                            <strong style={{ color: 'var(--theme-success-600)' }}>{item.daysPresent}</strong>
+                          </td>
+                          <td>
+                            <strong style={{ color: 'var(--theme-danger-600)' }}>{item.daysLeave}</strong>
+                          </td>
+                          <td>
+                            <strong style={{ color: 'var(--theme-text-primary)' }}>₹{item.salaryAmount}</strong>
+                          </td>
+                          <td className="text-center">
+                            <strong style={{ color: 'var(--theme-text-primary)' }}>{item.employeeWorkingHours || 12}h</strong>
+                          </td>
+                          <td className="text-center work-hours-cell">
+                            <strong style={{ color: 'var(--theme-success-600)' }}>
+                              {item.totalWorkFormatted}
+                            </strong>
+                          </td>
+                          <td className="text-center">
+                            <strong style={{ color: 'var(--theme-warning-700)' }}>{item.extraHoursFormatted}</strong>
+                          </td>
+                          <td className="text-center">{item.avgFirstInFormatted}</td>
+                          <td className="text-center">{item.avgLastOutFormatted}</td>
+                          <td className="text-center">{item.totalSessions}</td>
+                          <td className="text-center work-hours-cell" style={{ color: 'var(--theme-warning-700)' }}>
+                            {item.totalBreakFormatted}
+                          </td>
+                          <td className="text-center">
+                            <span style={{ fontWeight: 600, color: 'var(--theme-primary-600)' }}>
+                              {item.avgWorkFormatted}
+                            </span>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td>
+                            <div className="employee-cell">
+                              <div className="employee-meta">
+                                <span className="emp-name">{item.employeeName}</span>
+                                {(item.employeeId || item.employeeIdStr) && <span className="emp-id">{item.employeeId || item.employeeIdStr}</span>}
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`role-badge ${roleClass}`}>
+                              {item.employeeTeam || item.userRole || 'STAFF'}
+                            </span>
+                          </td>
+                          <td>
+                            <strong style={{ color: 'var(--theme-text-secondary)', display: 'block' }}>
+                              {(item.branchName || '').substring(0, 3).toUpperCase()}
+                            </strong>
+                          </td>
+                          <td className="text-center">{formatTime(item.firstPunchIn)}</td>
+                          <td className="text-center">
+                            {item.status === 'active' ? (
+                              <span style={{ color: '#10b981', fontWeight: 600 }}>Active Now</span>
+                            ) : (
+                              formatTime(item.lastPunchOut)
+                            )}
+                          </td>
+                          <td className="text-center" style={{ color: 'var(--theme-text-secondary)' }}>
+                            {item.totalBreakFormatted}
+                          </td>
+                          <td className="text-center" style={{ fontWeight: 500, color: 'var(--theme-primary-600)' }}>
+                            {item.employeeWorkingHours ? `${item.employeeWorkingHours}h` : '-'}
+                          </td>
+                          <td className="text-center work-hours-cell">{item.totalWorkFormatted}</td>
+                          <td className="text-center">
+                            <span style={{ fontWeight: 600, color: 'var(--theme-error-600)' }}>
+                              {item.extraHoursFormatted || '-'}
+                            </span>
+                          </td>
+                          <td className="text-center">
+                            <span className={`status-pill ${item.status}`}>
+                              <span className="dot" />
+                              {item.status === 'active'
+                                ? 'Clocked In'
+                                : item.status === 'on_break'
+                                  ? 'On Break'
+                                  : 'Clocked Out'}
+                            </span>
+                          </td>
+                          <td className="text-center" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              className="view-btn"
+                              onClick={() => setSelectedItemForModal(item)}
+                              title="View Attendance Timeline"
+                              type="button"
+                            >
+                              <span>Timeline</span>
+                              <span>→</span>
+                            </button>
+                          </td>
+                        </>
+                      )}
                     </tr>
                   )
                 })
               ) : (
                 <tr>
-                  <td colSpan={11} className="no-data">
+                  <td colSpan={13} className="no-data">
                     No attendance records found for the selected criteria.
                   </td>
                 </tr>
@@ -1025,19 +1518,30 @@ const AttendanceReport: React.FC = () => {
             </tbody>
             {data.items.length > 0 && (
               <tfoot>
-                <tr>
-                  <td colSpan={2}>TOTAL</td>
-                  <td>{data.totals.uniqueEmployees} Unique Employees</td>
-                  <td colSpan={4}></td>
-                  <td className="text-center">{data.totals.totalBreakFormatted}</td>
-                  <td className="text-center work-hours-cell" style={{ color: '#56cfe1' }}>
-                    {data.totals.totalWorkFormatted}
-                  </td>
-                  <td className="text-center">
-                    <span style={{ color: '#10b981' }}>{data.totals.currentlyActive} Active</span>
-                  </td>
-                  <td></td>
-                </tr>
+                {isAggregatedView ? (
+                  <tr>
+                    <td colSpan={3} style={{ textAlign: 'right', paddingRight: '1rem' }}><strong>TOTAL ({displayItems.length} Employees)</strong></td>
+                    <td><strong>{calcTotals.totPresent}</strong></td>
+                    <td><strong>{calcTotals.totLeave}</strong></td>
+                    <td><strong>₹{calcTotals.totSalary}</strong></td>
+                    <td></td>
+                    <td className="text-center work-hours-cell" style={{ color: 'var(--theme-success-600)' }}><strong>{calcTotals.totWorkFormatted}</strong></td>
+                    <td className="text-center"><strong style={{ color: 'var(--theme-warning-700)' }}>{calcTotals.totExtraFormatted}</strong></td>
+                    <td colSpan={3}></td>
+                    <td className="text-center work-hours-cell" style={{ color: 'var(--theme-text-secondary)' }}><strong>{calcTotals.totBreakFormatted}</strong></td>
+                    <td></td>
+                  </tr>
+                ) : (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'right', paddingRight: '1rem' }}><strong>TOTAL ({displayItems.length} Records)</strong></td>
+                    <td className="text-center" style={{ color: 'var(--theme-text-secondary)' }}><strong>{calcTotals.totBreakFormatted}</strong></td>
+                    <td></td>
+                    <td className="text-center work-hours-cell" style={{ color: 'var(--theme-success-600)' }}><strong>{calcTotals.totWorkFormatted}</strong></td>
+                    <td className="text-center"><strong style={{ color: 'var(--theme-error-600)' }}>{calcTotals.totExtraFormatted}</strong></td>
+                    <td className="text-center"><strong style={{ color: '#10b981' }}>{calcTotals.totActive} Active</strong></td>
+                    <td></td>
+                  </tr>
+                )}
               </tfoot>
             )}
           </table>
@@ -1058,7 +1562,26 @@ const AttendanceReport: React.FC = () => {
                   />
                 )}
                 <div className="header-text">
-                  <h3>{selectedItemForModal.employeeName}</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <h3 style={{ margin: 0 }}>{selectedItemForModal.employeeName}</h3>
+                    {selectedItemForModal.status === 'active' && (
+                      <button 
+                        onClick={handleForcePunchOut}
+                        style={{
+                          background: 'var(--theme-error-600)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '4px 8px',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Force Punch Out
+                      </button>
+                    )}
+                  </div>
                   <div className="header-sub">
                     {selectedItemForModal.employeeId ? `${selectedItemForModal.employeeId} • ` : ''}
                     {(selectedItemForModal.employeeTeam || selectedItemForModal.userRole || '').toUpperCase()} •{' '}

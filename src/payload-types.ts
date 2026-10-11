@@ -2263,6 +2263,10 @@ export interface Attendance {
    */
   employee?: (string | null) | Employee;
   /**
+   * The branch the user was logged into when this attendance was created (snapshotted from user.lastLoginBranch at first punch-in). Immutable after creation.
+   */
+  loginBranch?: (string | null) | Branch;
+  /**
    * The local date this log represents (normalized to midnight)
    */
   date: string;
@@ -2298,6 +2302,10 @@ export interface Attendance {
          * How the punch-out was triggered — by the employee (manual) or automatically by GPS geofence exit (auto).
          */
         punchOutType?: ('manual' | 'auto') | null;
+        /**
+         * How the punch-in was triggered — by the employee (manual) or automatically by GPS geofence entry (auto).
+         */
+        punchInType?: ('manual' | 'auto') | null;
         ipAddress?: string | null;
         device?: string | null;
         /**
@@ -3857,6 +3865,7 @@ export interface KitchensSelect<T extends boolean = true> {
 export interface AttendanceSelect<T extends boolean = true> {
   user?: T;
   employee?: T;
+  loginBranch?: T;
   date?: T;
   dateString?: T;
   isLate?: T;
@@ -3873,6 +3882,7 @@ export interface AttendanceSelect<T extends boolean = true> {
         durationSeconds?: T;
         breakDurationSeconds?: T;
         punchOutType?: T;
+        punchInType?: T;
         ipAddress?: T;
         device?: T;
         capturedImage?: T;

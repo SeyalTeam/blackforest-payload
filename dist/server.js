@@ -862,21 +862,99 @@ var init_ipCheck = __esm({
 });
 
 // src/utilities/geo.ts
+function deg2rad(deg) {
+  return deg * (Math.PI / 180);
+}
 function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
-  const R = 6371;
   const dLat = deg2rad(lat2 - lat1);
   const dLon = deg2rad(lon2 - lon1);
   const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const d = R * c;
-  return d * 1e3;
+  return Math.round(EARTH_RADIUS_METERS * c);
 }
-function deg2rad(deg) {
-  return deg * (Math.PI / 180);
+function isPointInsideGeofence(pointLat, pointLng, geofence, toleranceMeters = 0) {
+  if (typeof pointLat !== "number" || typeof pointLng !== "number" || !Number.isFinite(pointLat) || !Number.isFinite(pointLng) || !Number.isFinite(geofence.latitude) || !Number.isFinite(geofence.longitude)) {
+    return false;
+  }
+  const shape = (geofence.shape || "circle").toLowerCase();
+  if (shape === "circle") {
+    const radius = Number(geofence.radius) || 100;
+    const dist = getDistanceFromLatLonInMeters(
+      pointLat,
+      pointLng,
+      geofence.latitude,
+      geofence.longitude
+    );
+    return dist <= radius + toleranceMeters;
+  }
+  const centerLat = Number(geofence.latitude);
+  const centerLng = Number(geofence.longitude);
+  const rotationDeg = Number(geofence.rotation) || 0;
+  let width = 40;
+  let length = 60;
+  if (shape === "square") {
+    const side = Number(geofence.squareSize) || 50;
+    width = side;
+    length = side;
+  } else {
+    width = Number(geofence.rectWidth) || 40;
+    length = Number(geofence.rectLength) || 60;
+  }
+  const theta = deg2rad(rotationDeg);
+  const cosT = Math.cos(theta);
+  const sinT = Math.sin(theta);
+  const dy = deg2rad(pointLat - centerLat) * EARTH_RADIUS_METERS;
+  const dx = deg2rad(pointLng - centerLng) * EARTH_RADIUS_METERS * Math.cos(deg2rad(centerLat));
+  const u = dx * cosT - dy * sinT;
+  const v = dx * sinT + dy * cosT;
+  const maxU = width / 2 + toleranceMeters;
+  const maxV = length / 2 + toleranceMeters;
+  return Math.abs(u) <= maxU && Math.abs(v) <= maxV;
 }
+function getDistanceToGeofence(pointLat, pointLng, geofence) {
+  if (typeof pointLat !== "number" || typeof pointLng !== "number" || !Number.isFinite(pointLat) || !Number.isFinite(pointLng) || !Number.isFinite(geofence.latitude) || !Number.isFinite(geofence.longitude)) {
+    return Infinity;
+  }
+  const shape = (geofence.shape || "circle").toLowerCase();
+  if (shape === "circle") {
+    const radius = Number(geofence.radius) || 100;
+    const dist = getDistanceFromLatLonInMeters(
+      pointLat,
+      pointLng,
+      geofence.latitude,
+      geofence.longitude
+    );
+    return Math.max(0, dist - radius);
+  }
+  const centerLat = Number(geofence.latitude);
+  const centerLng = Number(geofence.longitude);
+  const rotationDeg = Number(geofence.rotation) || 0;
+  let width = 40;
+  let length = 60;
+  if (shape === "square") {
+    const side = Number(geofence.squareSize) || 50;
+    width = side;
+    length = side;
+  } else {
+    width = Number(geofence.rectWidth) || 40;
+    length = Number(geofence.rectLength) || 60;
+  }
+  const theta = deg2rad(rotationDeg);
+  const cosT = Math.cos(theta);
+  const sinT = Math.sin(theta);
+  const dy = deg2rad(pointLat - centerLat) * EARTH_RADIUS_METERS;
+  const dx = deg2rad(pointLng - centerLng) * EARTH_RADIUS_METERS * Math.cos(deg2rad(centerLat));
+  const u = dx * cosT - dy * sinT;
+  const v = dx * sinT + dy * cosT;
+  const du = Math.max(0, Math.abs(u) - width / 2);
+  const dv = Math.max(0, Math.abs(v) - length / 2);
+  return Math.round(Math.sqrt(du * du + dv * dv));
+}
+var EARTH_RADIUS_METERS;
 var init_geo = __esm({
   "src/utilities/geo.ts"() {
     "use strict";
+    EARTH_RADIUS_METERS = 6371e3;
   }
 });
 
@@ -1472,8 +1550,6 @@ var init_Users = __esm({
               if (typeof reqResolvedBranch === "string" && reqResolvedBranch.trim().length > 0) {
                 return reqResolvedBranch.trim();
               }
-              const userBranchId = getRelationshipID(user.branch);
-              if (userBranchId) return userBranchId;
               const requestBody = req?.body;
               const bodyBranchId = requestBody && typeof requestBody === "object" && requestBody !== null ? getRelationshipID(requestBody.branchId) || getRelationshipID(requestBody.branch) : null;
               const headerBranchId = req.headers && typeof req.headers.get === "function" ? getRelationshipID(req.headers.get("x-branch-id")) || getRelationshipID(req.headers.get("x-branch")) : null;
@@ -1490,6 +1566,53 @@ var init_Users = __esm({
                 } catch (_error) {
                 }
               }
+              let latStr = null;
+              let lngStr = null;
+              if (req.headers && typeof req.headers.get === "function") {
+                latStr = req.headers.get("x-latitude") || req.headers.get("x-lat");
+                lngStr = req.headers.get("x-longitude") || req.headers.get("x-lng");
+              }
+              if (!latStr && requestBody && typeof requestBody === "object" && requestBody !== null) {
+                latStr = requestBody.latitude?.toString() || requestBody.lat?.toString() || null;
+                lngStr = requestBody.longitude?.toString() || requestBody.lng?.toString() || null;
+              }
+              if (latStr && lngStr) {
+                const lat = parseFloat(latStr);
+                const lng = parseFloat(lngStr);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                  try {
+                    const geoSettingsResult = await req.payload.findGlobal({ slug: "branch-geo-settings" });
+                    const geoSettings = geoSettingsResult;
+                    const locations = geoSettings?.locations;
+                    if (locations && Array.isArray(locations)) {
+                      let matchedBranchId = null;
+                      let minDistance = Infinity;
+                      for (const loc of locations) {
+                        const bLat = typeof loc.latitude === "number" ? loc.latitude : parseFloat(loc.latitude);
+                        const bLng = typeof loc.longitude === "number" ? loc.longitude : parseFloat(loc.longitude);
+                        const radius = (typeof loc.radius === "number" ? loc.radius : parseFloat(loc.radius)) || 100;
+                        const effectiveRadius = radius + 60;
+                        if (!isNaN(bLat) && !isNaN(bLng)) {
+                          const dist = getDistanceFromLatLonInMeters(lat, lng, bLat, bLng);
+                          if (dist <= effectiveRadius && dist < minDistance) {
+                            minDistance = dist;
+                            const locBranchId = getRelationshipID(loc.branch) || getRelationshipID(loc.branchId);
+                            if (locBranchId) matchedBranchId = locBranchId;
+                          }
+                        }
+                      }
+                      if (matchedBranchId) {
+                        console.log(`[Login Branch] GPS matched branch ID: ${matchedBranchId} (distance: ${minDistance.toFixed(1)}m)`);
+                        return matchedBranchId;
+                      }
+                    }
+                  } catch (err) {
+                    console.error("[Login Branch] Error matching GPS to branch:", err);
+                  }
+                }
+              }
+              const userBranchId = getRelationshipID(user.branch);
+              if (userBranchId) return userBranchId;
               let headerPin = null;
               let legacyPin = null;
               if (req.headers && typeof req.headers.get === "function") {
@@ -1783,21 +1906,16 @@ var init_Users = __esm({
                         const userLat = parseFloat(headerLat);
                         const userLon = parseFloat(headerLon);
                         if (!isNaN(userLat) && !isNaN(userLon)) {
-                          const distance = getDistanceFromLatLonInMeters(
-                            userLat,
-                            userLon,
-                            targetLat,
-                            targetLon
-                          );
-                          const allowedRadius = (radius || 100) + 60;
-                          if (distance <= allowedRadius) {
+                          const isInside = isPointInsideGeofence(userLat, userLon, branchGeo, 60);
+                          const distance = getDistanceToGeofence(userLat, userLon, branchGeo);
+                          if (isInside) {
                             isGeoAuthorized = true;
                             console.log(
-                              `[Login Success] Authorized by Geo-location for ${user.email}. Distance: ${distance.toFixed(2)}m`
+                              `[Login Success] Authorized by Geo-location (${branchGeo.shape || "circle"}) for ${user.email}. Distance: ${distance.toFixed(2)}m`
                             );
                           } else {
                             console.warn(
-                              `[Login Debug] Geo Check Failed for ${user.email}: Distance ${distance.toFixed(2)}m > ${allowedRadius}m`
+                              `[Login Debug] Geo Check Failed for ${user.email}: Outside ${branchGeo.shape || "circle"} geofence. Distance ${distance.toFixed(2)}m`
                             );
                           }
                         } else {
@@ -1964,6 +2082,38 @@ var init_Users = __esm({
                   });
                   if (categoryIds.some((id) => !allowedCategoryIds.has(id))) {
                     throw new Error("Can assign only categories from selected kitchens");
+                  }
+                  if (categoryIds.length > 0) {
+                    const currentUserId = getRelationshipID(originalDoc?.id) || getRelationshipID(nextData?.id);
+                    try {
+                      const otherChefs = await req.payload.find({
+                        collection: "users",
+                        where: {
+                          and: [
+                            { role: { equals: "chef" } },
+                            ...currentUserId ? [{ id: { not_equals: currentUserId } }] : [],
+                            { categories: { in: categoryIds } }
+                          ]
+                        },
+                        depth: 0,
+                        limit: 100,
+                        pagination: false,
+                        overrideAccess: true
+                      });
+                      for (const otherChef of otherChefs.docs) {
+                        const otherCategories = getRelationshipIDs(otherChef.categories);
+                        const updatedOtherCategories = otherCategories.filter((id) => !categoryIds.includes(id));
+                        await req.payload.update({
+                          collection: "users",
+                          id: otherChef.id,
+                          data: {
+                            categories: updatedOtherCategories
+                          },
+                          overrideAccess: true
+                        });
+                      }
+                    } catch (e) {
+                    }
                   }
                 } else if (categoryIds.length > 0) {
                   throw new Error("Kitchen is required before assigning chef categories");
@@ -2488,7 +2638,7 @@ var init_menuCache = __esm({
       const { docs: products } = await payload.find({
         collection: "products",
         pagination: false,
-        depth: 2,
+        depth: 1,
         limit: 5e3,
         overrideAccess: true
       });
@@ -6839,14 +6989,15 @@ var init_Billings = __esm({
     init_inventory();
     init_updateItemStatus();
     init_ownchat();
+    init_wsGateway();
     init_getItemPreparationTime();
     init_customerRewards();
     init_mongoRetry();
     dayjs2.extend(utc2);
     dayjs2.extend(timezone2);
     BILLING_TIMEZONE2 = "Asia/Kolkata";
-    BILLINGS_REST_LIST_MAX_DEPTH = 2;
-    BILLINGS_REST_LIST_MAX_DEPTH_PRIVILEGED = 3;
+    BILLINGS_REST_LIST_MAX_DEPTH = 1;
+    BILLINGS_REST_LIST_MAX_DEPTH_PRIVILEGED = 1;
     BILLINGS_REST_LIST_MAX_LIMIT = 80;
     BILLINGS_REST_LIST_MAX_LIMIT_PRIVILEGED = 120;
     BILLINGS_READ_PRIVILEGED_ROLES = /* @__PURE__ */ new Set(["superadmin", "admin", "company", "account"]);
@@ -9101,10 +9252,32 @@ var init_Billings = __esm({
           }
         ],
         afterChange: [
-          async ({ doc, req, operation }) => {
+          async ({ doc, previousDoc, req, operation }) => {
             if (!doc) return;
             const hookStartedAt = Date.now();
             const billID = getDocLikeID(doc);
+            try {
+              const branchID = getRelationshipID4(doc.branch);
+              if (branchID && doc.id) {
+                const isCreate = operation === "create";
+                const isStatusChanged = isCreate || previousDoc && previousDoc.status !== doc.status;
+                if (isStatusChanged) {
+                  const nextSeq = (doc.realtimeSeq || 0) + 1;
+                  publishBillingRealtimeEvent({
+                    eventId: `${doc.id}:order:${doc.status || "ordered"}:seq${nextSeq}`,
+                    eventType: isCreate ? "billing_item_status_changed" : "billing_status_changed",
+                    seq: nextSeq,
+                    branchId: branchID,
+                    billingId: String(doc.id),
+                    statusAfter: doc.status || "ordered",
+                    statusBefore: previousDoc?.status || null,
+                    timestamp: (/* @__PURE__ */ new Date()).toISOString()
+                  });
+                }
+              }
+            } catch (rtErr) {
+              console.error("[Billings afterChange] Failed publishing realtime WebSocket event:", rtErr);
+            }
             const runPostChangeProcessing = async () => {
               const requestContext = req.context;
               const skipCustomerRewardProcessing = Boolean(requestContext?.skipCustomerRewardProcessing);
@@ -18481,20 +18654,12 @@ var init_AttendanceReport = __esm({
 import dayjs13 from "dayjs";
 import utc13 from "dayjs/plugin/utc";
 import timezone13 from "dayjs/plugin/timezone";
-function distanceInMeters(lat1, lon1, lat2, lon2) {
-  const R = 6371e3;
-  const toRad = (d) => d * Math.PI / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c);
-}
 var toNumber3, toNonEmptyString2, formatSecondsToReadable, toDayBoundary7, getMediaUrl, getAttendanceReportData;
 var init_attendance = __esm({
   "src/services/reports/attendance.ts"() {
     "use strict";
     init_reportScope();
+    init_geo();
     dayjs13.extend(utc13);
     dayjs13.extend(timezone13);
     dayjs13.tz.setDefault("Asia/Kolkata");
@@ -18619,7 +18784,13 @@ var init_attendance = __esm({
             branchName: bName,
             latitude: lat,
             longitude: lng,
-            radius
+            shape: loc.shape || "circle",
+            buildingType: loc.buildingType || "standalone",
+            radius,
+            squareSize: typeof loc.squareSize === "number" ? loc.squareSize : 50,
+            rectWidth: typeof loc.rectWidth === "number" ? loc.rectWidth : 40,
+            rectLength: typeof loc.rectLength === "number" ? loc.rectLength : 60,
+            rotation: typeof loc.rotation === "number" ? loc.rotation : 0
           });
         }
       }
@@ -18634,6 +18805,7 @@ var init_attendance = __esm({
               branchName: b.name || "Branch",
               latitude: lat,
               longitude: lng,
+              shape: "circle",
               radius: 100
             });
           }
@@ -18646,28 +18818,28 @@ var init_attendance = __esm({
         let bestMatch = null;
         let minDistance = Infinity;
         for (const g of geofences) {
-          const dist = distanceInMeters(lat, lng, g.latitude, g.longitude);
-          const effectiveRadius = g.radius + 60;
-          if (dist <= effectiveRadius) {
+          const isInside = isPointInsideGeofence(lat, lng, g, 60);
+          const dist = getDistanceToGeofence(lat, lng, g);
+          if (isInside) {
             if (dist < minDistance) {
               minDistance = dist;
               bestMatch = {
                 branchId: g.branchId,
                 branchName: g.branchName,
-                distance: dist
+                distance: Math.round(dist)
               };
             }
           }
         }
         if (!bestMatch) {
           for (const g of geofences) {
-            const dist = distanceInMeters(lat, lng, g.latitude, g.longitude);
+            const dist = getDistanceToGeofence(lat, lng, g);
             if (dist <= 300 && dist < minDistance) {
               minDistance = dist;
               bestMatch = {
                 branchId: g.branchId,
                 branchName: g.branchName,
-                distance: dist
+                distance: Math.round(dist)
               };
             }
           }
@@ -22910,7 +23082,8 @@ var init_resetOtherProductStock = __esm({
     "use strict";
     resetOtherProductStockHandler = async (req) => {
       try {
-        const { branchId, productId } = await req.json();
+        const body = typeof req.json === "function" ? await req.json() : {};
+        const { branchId, productId } = body || {};
         if (!branchId || !productId) {
           return Response.json({ error: "Branch ID and Product ID are required" }, { status: 400 });
         }
@@ -24202,11 +24375,50 @@ var init_BranchGeoSettings = __esm({
               type: "row",
               fields: [
                 {
+                  name: "buildingType",
+                  type: "select",
+                  label: "Building Type",
+                  defaultValue: "standalone",
+                  options: [
+                    { label: "Standalone Building / Outlet", value: "standalone" },
+                    { label: "Shopping Mall / Complex", value: "mall" },
+                    { label: "Commercial Shop / Street Outlet", value: "commercial" },
+                    { label: "Central Kitchen / Bakery", value: "kitchen" },
+                    { label: "Warehouse / Stock Center", value: "warehouse" },
+                    { label: "Kiosk / Outdoor Stall", value: "kiosk" },
+                    { label: "Custom / Other", value: "custom" }
+                  ],
+                  admin: {
+                    width: "50%",
+                    description: "Building category for this location"
+                  }
+                },
+                {
+                  name: "shape",
+                  type: "select",
+                  label: "Geofence Boundary Shape",
+                  defaultValue: "circle",
+                  options: [
+                    { label: "Circle (Radial GPS)", value: "circle" },
+                    { label: "Square (Equal Sides with Rotation)", value: "square" },
+                    { label: "Rectangle (Length \xD7 Width with Rotation)", value: "rectangle" }
+                  ],
+                  admin: {
+                    width: "50%",
+                    description: "Choose shape based on building layout (Circle, Square, or Rectangle)"
+                  }
+                }
+              ]
+            },
+            {
+              type: "row",
+              fields: [
+                {
                   name: "latitude",
                   type: "number",
                   required: true,
                   admin: {
-                    width: "33%"
+                    width: "50%"
                   }
                 },
                 {
@@ -24214,18 +24426,69 @@ var init_BranchGeoSettings = __esm({
                   type: "number",
                   required: true,
                   admin: {
-                    width: "33%"
+                    width: "50%"
                   }
-                },
+                }
+              ]
+            },
+            {
+              type: "row",
+              fields: [
                 {
                   name: "radius",
                   type: "number",
-                  label: "Radius (meters)",
-                  required: true,
+                  label: "Radius (meters, for Circle)",
                   defaultValue: 100,
                   admin: {
+                    width: "50%",
+                    description: "Allowed distance in meters for circular geofence",
+                    condition: (data, siblingData) => !siblingData?.shape || siblingData?.shape === "circle"
+                  }
+                },
+                {
+                  name: "squareSize",
+                  type: "number",
+                  label: "Square Side Length (meters)",
+                  defaultValue: 50,
+                  admin: {
+                    width: "50%",
+                    description: "Length of each side in meters for square boundary",
+                    condition: (data, siblingData) => siblingData?.shape === "square"
+                  }
+                },
+                {
+                  name: "rectWidth",
+                  type: "number",
+                  label: "Width (meters)",
+                  defaultValue: 40,
+                  admin: {
                     width: "33%",
-                    description: "Allowed distance in meters"
+                    description: "Footprint width in meters",
+                    condition: (data, siblingData) => siblingData?.shape === "rectangle"
+                  }
+                },
+                {
+                  name: "rectLength",
+                  type: "number",
+                  label: "Length (meters)",
+                  defaultValue: 60,
+                  admin: {
+                    width: "33%",
+                    description: "Footprint length in meters",
+                    condition: (data, siblingData) => siblingData?.shape === "rectangle"
+                  }
+                },
+                {
+                  name: "rotation",
+                  type: "number",
+                  label: "Rotation (\xB0 Clockwise from North)",
+                  defaultValue: 0,
+                  min: 0,
+                  max: 360,
+                  admin: {
+                    width: "33%",
+                    description: "Rotate boundary to align with building orientation (0\xB0 to 360\xB0)",
+                    condition: (data, siblingData) => siblingData?.shape === "square" || siblingData?.shape === "rectangle"
                   }
                 }
               ]
@@ -24731,6 +24994,18 @@ var init_Attendance = __esm({
                 req.payload.logger.error({ err: e, msg: "Error auto-populating employee from user" });
               }
             }
+            if (operation === "create" && !data.loginBranch && data.user) {
+              try {
+                const userId = typeof data.user === "string" ? data.user : data.user.id;
+                const userRes = await req.payload.findByID({ collection: "users", id: userId, depth: 0 });
+                const lastLoginBranch = userRes?.lastLoginBranch;
+                if (lastLoginBranch) {
+                  data.loginBranch = typeof lastLoginBranch === "string" ? lastLoginBranch : lastLoginBranch?.id || lastLoginBranch;
+                }
+              } catch (e) {
+                req.payload.logger.error({ err: e, msg: "Error auto-populating loginBranch from user.lastLoginBranch" });
+              }
+            }
             if (data.activities && Array.isArray(data.activities)) {
               for (const activity of data.activities) {
                 if (activity.type === "session" && activity.punchOut && !activity.capturedImage && activity.punchOutType !== "auto") {
@@ -25073,6 +25348,16 @@ var init_Attendance = __esm({
           }
         },
         {
+          name: "loginBranch",
+          type: "relationship",
+          relationTo: "branches",
+          index: true,
+          admin: {
+            description: "The branch the user was logged into when this attendance was created (snapshotted from user.lastLoginBranch at first punch-in). Immutable after creation.",
+            readOnly: true
+          }
+        },
+        {
           name: "date",
           type: "date",
           required: true,
@@ -25196,6 +25481,17 @@ var init_Attendance = __esm({
               ],
               admin: {
                 description: "How the punch-out was triggered \u2014 by the employee (manual) or automatically by GPS geofence exit (auto)."
+              }
+            },
+            {
+              name: "punchInType",
+              type: "select",
+              options: [
+                { label: "Manual", value: "manual" },
+                { label: "Auto (Geofence Entry)", value: "auto" }
+              ],
+              admin: {
+                description: "How the punch-in was triggered \u2014 by the employee (manual) or automatically by GPS geofence entry (auto)."
               }
             },
             {
@@ -33802,7 +34098,8 @@ var init_idempotencyRetention = __esm({
     TTL_INDEX_NAME = "idempotency_expires_at_ttl";
     cleanupTimer = null;
     getModel = (payload) => {
-      const model = payload.db?.collections?.[IDEMPOTENCY_COLLECTION];
+      const collections = payload.db?.collections || payload.db?.models || {};
+      const model = collections[IDEMPOTENCY_COLLECTION] || collections["idempotencyKeys"] || collections["IdempotencyKeys"] || payload.db?.collections?.get?.(IDEMPOTENCY_COLLECTION);
       if (!model || typeof model !== "object") return null;
       return model;
     };
@@ -36037,7 +36334,7 @@ var init_getMyDailyTasks = __esm({
           const tUser = task.assignedUser;
           const taskUserId = tUser ? typeof tUser === "string" ? tUser : tUser.id : null;
           const assignmentType = task.assignmentType || "role";
-          const matchesInd = employeeId && taskEmpId === employeeId || req.user.id && taskUserId === req.user.id;
+          const matchesInd = employeeId && taskEmpId === employeeId || req.user?.id && taskUserId === req.user.id;
           const matchesRole = taskRole === "all" || taskRole === normalizedRole || taskRole === userRole || requestedRole && (taskRole === requestedRole || colRole === requestedRole) || userRole === "manager" && (taskRole === "manager" || colRole === "manager" || colTitle === "manager") || userRole === "superadmin" || userRole === "admin";
           if (assignmentType === "individual") {
             return matchesInd;
@@ -36719,35 +37016,23 @@ var init_payload_config = __esm({
           update: (args) => {
             const { req } = args;
             const user = req?.user;
-            console.log("--- WRAP UPDATE ACCESS CHECK ---", {
-              collection: collection.slug,
-              user: user ? { id: user.id, role: user.role } : null,
-              allowedCollections: user ? user.allowedCollections : null
-            });
             if (!user) return false;
             if (user.role === "superadmin" || user.role === "admin") return true;
             const allowedCollections = user.allowedCollections;
             if (Array.isArray(allowedCollections)) {
               if (allowedCollections.includes(collection.slug)) {
-                console.log("Allowed by allowedCollections whitelist");
                 return true;
               }
               const originalUpdate2 = collection.access?.update;
               if (typeof originalUpdate2 === "function") {
-                const res = originalUpdate2(args);
-                console.log("Allowed by fallback function result:", res);
-                return res;
+                return originalUpdate2(args);
               }
-              console.log("Blocked by allowedCollections whitelist & no originalUpdate fn");
               return false;
             }
             const originalUpdate = collection.access?.update;
             if (typeof originalUpdate === "function") {
-              const res = originalUpdate(args);
-              console.log("Allowed by fallback function result (no whitelist):", res);
-              return res;
+              return originalUpdate(args);
             }
-            console.log("Blocked: no fallback function (no whitelist)");
             return false;
           },
           delete: (args) => {

@@ -2,8 +2,8 @@
 import { CollectionConfig } from 'payload'
 import type { Where as _Where } from 'payload' // Import Where type
 import dayjs from 'dayjs'
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone' // Assume installed: npm i dayjs @types/dayjs
+import utc from 'dayjs/plugin/utc.js'
+import timezone from 'dayjs/plugin/timezone.js' // Assume installed: npm i dayjs @types/dayjs
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -85,22 +85,18 @@ const ReturnOrders: CollectionConfig = {
 
           const prefix = `${branchCode}-RET-${formattedDate}`
 
-          let seq = 1
-          let returnNumberCandidate = `${prefix}-${seq.toString().padStart(3, '0')}`
+          const { totalDocs: existingCount } = await req.payload.count({
+            collection: 'return-orders',
+            where: {
+              returnNumber: {
+                greater_than_equal: `${prefix}-000`,
+                less_than_equal: `${prefix}-999`,
+              },
+            },
+          })
 
-          while (true) {
-            const exists = await req.payload.find({
-              collection: 'return-orders',
-              where: { returnNumber: { equals: returnNumberCandidate } },
-              limit: 1,
-            })
-            if (exists.docs.length === 0) {
-              break
-            }
-            seq++
-            returnNumberCandidate = `${prefix}-${seq.toString().padStart(3, '0')}`
-          }
-          data.returnNumber = returnNumberCandidate
+          const seq = (existingCount + 1).toString().padStart(3, '0')
+          data.returnNumber = `${prefix}-${seq}`
 
           // Auto-set company from branch
           if (data.branch) {

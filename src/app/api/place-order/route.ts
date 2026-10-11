@@ -4,6 +4,15 @@ import { getPayload } from "payload";
 import configPromise from "@payload-config";
 import { getPublicServerURL } from "@/utilities/serverUrl";
 
+function corsHeaders() {
+  const origin = process.env.FRONTEND_URL || "http://localhost:3001";
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "POST,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization",
+  };
+}
+
 const NEXT_PUBLIC_SERVER_URL = getPublicServerURL();
 const API_BASE = `${NEXT_PUBLIC_SERVER_URL}/api`;
 const SHARED_TABLE_SECTION = "Shared Tables";
@@ -644,11 +653,11 @@ export async function POST(request: NextRequest) {
     const incomingItems = Array.isArray(body.items) ? body.items : [];
 
     if (!branchId) {
-      return Response.json({ message: "Branch id is required" }, { status: 400 });
+      return Response.json({ message: "Branch id is required" }, { status: 400, headers: corsHeaders() });
     }
 
     if (!tableNumberInput) {
-      return Response.json({ message: "Table number is required" }, { status: 400 });
+      return Response.json({ message: "Table number is required" }, { status: 400, headers: corsHeaders() });
     }
 
     const payload = await getPayload({ config: configPromise });
@@ -706,7 +715,7 @@ export async function POST(request: NextRequest) {
       .filter((item): item is Record<string, unknown> => item !== null);
 
     if (billingItems.length === 0) {
-      return Response.json({ message: "At least one valid item is required" }, { status: 400 });
+      return Response.json({ message: "At least one valid item is required" }, { status: 400, headers: corsHeaders() });
     }
 
     let existingBill: Record<string, unknown> | null = null;
@@ -956,9 +965,14 @@ export async function POST(request: NextRequest) {
       tableNumber,
       section: sectionName,
       useShared: resolvedTarget.useShared,
-    });
+    },
+    { headers: corsHeaders() });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to place order";
-    return Response.json({ message }, { status: 500 });
+    return Response.json({ message }, { status: 500, headers: corsHeaders() });
   }
+}
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: corsHeaders() });
 }

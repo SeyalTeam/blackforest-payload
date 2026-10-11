@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
+import utc from 'dayjs/plugin/utc.js'
+import timezone from 'dayjs/plugin/timezone.js'
 import type { PipelineStage } from 'mongoose'
 import { CollectionConfig, APIError, type Payload } from 'payload'
 import { getProductStock, getMultipleProductsStock } from '../utilities/inventory'
@@ -2562,7 +2562,8 @@ const Billings: CollectionConfig = {
               })
               .filter((row) => row.additionalQtyNeeded > 0)
 
-            if (stockChecks.length > 0) {
+            const enforceStrictStock = process.env.ENABLE_STRICT_STOCK_CHECK === 'true';
+            if (enforceStrictStock && stockChecks.length > 0) {
               const productIDsToCheck = stockChecks.map((s) => s.productID)
               const stockMap = await getMultipleProductsStock(
                 req.payload,

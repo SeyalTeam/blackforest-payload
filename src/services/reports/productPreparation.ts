@@ -1,8 +1,8 @@
 import type { PayloadRequest } from 'payload'
 import mongoose, { type PipelineStage } from 'mongoose'
 import dayjs, { type Dayjs } from 'dayjs'
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
+import utc from 'dayjs/plugin/utc.js'
+import timezone from 'dayjs/plugin/timezone.js'
 import { resolveReportBranchScope } from '../../endpoints/reportScope'
 
 dayjs.extend(utc)

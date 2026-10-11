@@ -4,6 +4,15 @@ import configPromise from "@payload-config";
 
 export const runtime = "nodejs";
 
+function corsHeaders() {
+  const origin = process.env.FRONTEND_URL || "http://localhost:3001";
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization",
+  };
+}
+
 function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -16,7 +25,10 @@ export async function GET(request: NextRequest) {
     // Exclude branchId check for required filters
     const queryKeys = [...searchParams.keys()].filter((k) => k !== "branchId");
     if (!queryKeys.length) {
-      return Response.json({ message: "Query filters are required" }, { status: 400 });
+      return Response.json(
+        { message: "Query filters are required" },
+        { status: 400, headers: corsHeaders() },
+      );
     }
 
     const limitParam = searchParams.get("limit");
@@ -68,9 +80,13 @@ export async function GET(request: NextRequest) {
       overrideAccess: true,
     });
 
-    return Response.json(results);
+    return Response.json(results, { headers: corsHeaders() });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to fetch customer details";
-    return Response.json({ message }, { status: 500 });
+    return Response.json({ message }, { status: 500, headers: corsHeaders() });
   }
+}
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: corsHeaders() });
 }

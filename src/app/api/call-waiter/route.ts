@@ -4,6 +4,15 @@ import { getPayload } from "payload";
 import configPromise from "@payload-config";
 import { callWaiterHandler } from "@/endpoints/callWaiter";
 
+function corsHeaders() {
+  const origin = process.env.FRONTEND_URL || "http://localhost:3001";
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "POST,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization",
+  };
+}
+
 function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -22,7 +31,10 @@ export async function POST(request: NextRequest) {
 
     const branchId = toTrimmedText(body?.branchId);
     if (!branchId) {
-      return Response.json({ ok: false, message: "Branch id is required" }, { status: 400 });
+      return Response.json(
+        { ok: false, message: "Branch id is required" },
+        { status: 400, headers: corsHeaders() },
+      );
     }
 
     const token = resolveApiTokenForBranch(branchId);
@@ -33,7 +45,7 @@ export async function POST(request: NextRequest) {
           message:
             "Waiter call is not enabled yet. Add BLACKFOREST_BRANCH_API_TOKENS or BLACKFOREST_API_TOKEN in so the website can alert billing.",
         },
-        { status: 503 },
+        { status: 503, headers: corsHeaders() },
       );
     }
 
@@ -45,9 +57,18 @@ export async function POST(request: NextRequest) {
     payloadReq.json = async () => body;
 
     const response = await callWaiterHandler(payloadReq);
+    // Add CORS headers to the response from the handler
+    const corsHead = corsHeaders();
+    for (const [key, value] of Object.entries(corsHead)) {
+      response.headers.set(key, value);
+    }
     return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to call waiter";
-    return Response.json({ ok: false, message }, { status: 500 });
+    return Response.json({ ok: false, message }, { status: 500, headers: corsHeaders() });
   }
+}
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: corsHeaders() });
 }
