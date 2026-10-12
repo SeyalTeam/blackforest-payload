@@ -60,7 +60,7 @@ var init_logBuffer = __esm({
 // src/realtime/wsGateway.ts
 import { randomUUID } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
-var parsePositiveInteger, WS_ENDPOINT_PATH, KOT_TOPIC, HEARTBEAT_PING_MS, HEARTBEAT_TIMEOUT_MS, REPLAY_RETENTION_MS, MAX_CONNECTIONS_PER_USER, MAX_TOTAL_CONNECTIONS, MAX_PAYLOAD_BYTES, INCLUDE_ITEM_SNAPSHOT, BRANCH_SCOPED_ROLES, realtimeState, parseRelationshipID, parseRelationshipIDs, parseJSONMessage, normalizeBearerToken, decodeJWTExpiryMs, readHeaderValue, toHeaderObject, nowISO, closeSocket, encodeJSON, ensurePayloadSize, sendServerMessage, sendSystemMessage, removeConnection, pruneEventBuffers, matchesSubscription, canAccessBranch, canAccessKitchen, scheduleTokenExpiry, startHeartbeatLoop, resolveAllowedBranchIDs, resolveAllowedKitchenIDs, authenticateRequest, validateKitchenSubscription, sendSubscriptionNack, sendUnsubscribeNack, handleReplay, handleSubscribe, handleUnsubscribe, registerConnection, enforceConnectionLimits, bootSocket, rejectUpgrade, isRealtimePath, createRealtimeGateway, publishBillingRealtimeEvent, getRealtimeEndpointPath;
+var parsePositiveInteger, WS_ENDPOINT_PATH, KOT_TOPIC, HEARTBEAT_PING_MS, HEARTBEAT_TIMEOUT_MS, REPLAY_RETENTION_MS, MAX_CONNECTIONS_PER_USER, MAX_TOTAL_CONNECTIONS, MAX_PAYLOAD_BYTES, INCLUDE_ITEM_SNAPSHOT, BRANCH_SCOPED_ROLES, realtimeState, parseRelationshipID, parseRelationshipIDs, parseJSONMessage, normalizeBearerToken, decodeJWTExpiryMs, readHeaderValue, toHeaderObject, nowISO, closeSocket, encodeJSON, ensurePayloadSize, sendServerMessage, sendSystemMessage, removeConnection, pruneEventBuffers, matchesSubscription, canAccessBranch, canAccessKitchen, scheduleTokenExpiry, startHeartbeatLoop, resolveAllowedBranchIDs, resolveAllowedKitchenIDs, authenticateRequest, validateKitchenSubscription, sendSubscriptionNack, sendUnsubscribeNack, handleReplay, handleSubscribe, handleUnsubscribe, registerConnection, enforceConnectionLimits, bootSocket, rejectUpgrade, isRealtimePath, createRealtimeGateway, publishBillingRealtimeEvent, publishChatRealtimeEvent, terminateUserSession, getRealtimeEndpointPath;
 var init_wsGateway = __esm({
   "src/realtime/wsGateway.ts"() {
     "use strict";
@@ -813,6 +813,73 @@ var init_wsGateway = __esm({
       }
       return storedEvent;
     };
+    publishChatRealtimeEvent = (input) => {
+      const event = {
+        eventType: "chat_message_received",
+        messageId: input.messageId,
+        threadId: input.threadId,
+        senderId: input.senderId,
+        senderName: input.senderName || null,
+        senderRole: input.senderRole || null,
+        text: input.text,
+        messageType: input.messageType || "text",
+        createdAt: input.createdAt || nowISO(),
+        recipientAudience: input.recipientAudience,
+        recipientUserId: input.recipientUserId || null,
+        timestamp: nowISO()
+      };
+      const safePayload = ensurePayloadSize(event);
+      if (!safePayload) return;
+      if (input.recipientUserId) {
+        const connIDs = realtimeState.connectionsByUserID.get(input.recipientUserId);
+        if (connIDs) {
+          for (const connID of connIDs) {
+            const connection = realtimeState.connections.get(connID);
+            if (connection) {
+              sendServerMessage(connection, safePayload);
+            }
+          }
+        }
+      }
+      if (input.recipientAudience === "admins") {
+        for (const connection of realtimeState.connections.values()) {
+          if (connection.role === "admin" || connection.role === "superadmin") {
+            sendServerMessage(connection, safePayload);
+          }
+        }
+      }
+      if (input.senderId) {
+        const connIDs = realtimeState.connectionsByUserID.get(input.senderId);
+        if (connIDs) {
+          for (const connID of connIDs) {
+            const connection = realtimeState.connections.get(connID);
+            if (connection) {
+              sendServerMessage(connection, safePayload);
+            }
+          }
+        }
+      }
+    };
+    terminateUserSession = (userId, reason, eventType = "session_terminated") => {
+      const normalizedUserId = userId?.trim();
+      if (!normalizedUserId) return;
+      const connectionIDs = realtimeState.connectionsByUserID.get(normalizedUserId);
+      if (!connectionIDs || connectionIDs.size === 0) return;
+      for (const connectionID of Array.from(connectionIDs)) {
+        const connection = realtimeState.connections.get(connectionID);
+        if (connection) {
+          sendSystemMessage(connection, {
+            eventType,
+            error_code: eventType,
+            message: reason,
+            reason
+          });
+          setTimeout(() => {
+            closeSocket(connection.socket, 4401, reason);
+          }, 100);
+        }
+      }
+    };
     getRealtimeEndpointPath = () => WS_ENDPOINT_PATH;
   }
 });
@@ -1051,6 +1118,7 @@ var init_Users = __esm({
     init_ipCheck();
     init_geo();
     init_branchPins();
+    init_wsGateway();
     getRelationshipID = (value) => {
       if (!value) return null;
       if (typeof value === "string") return value.trim();
@@ -1499,6 +1567,63 @@ var init_Users = __esm({
         },
         delete: ({ req }) => req.user?.role === "superadmin"
       },
+      endpoints: [
+        {
+          path: "/login-phone",
+          method: "post",
+          handler: async (req, res, next2) => {
+            try {
+              const body = req.body || {};
+              const phoneNumber = body.phoneNumber;
+              const password = body.password;
+              if (!phoneNumber || !password) {
+                return res.status(400).json({ message: "Phone number and password are required" });
+              }
+              const { docs: employees } = await req.payload.find({
+                collection: "employees",
+                where: {
+                  phoneNumber: {
+                    equals: phoneNumber
+                  }
+                },
+                depth: 0,
+                overrideAccess: true
+              });
+              if (!employees || employees.length === 0) {
+                return res.status(401).json({ message: "email or password provided is incorrect" });
+              }
+              const employeeId = employees[0].id;
+              const { docs: users } = await req.payload.find({
+                collection: "users",
+                where: {
+                  employee: {
+                    equals: employeeId
+                  }
+                },
+                depth: 0,
+                overrideAccess: true
+              });
+              if (!users || users.length === 0) {
+                return res.status(401).json({ message: "email or password provided is incorrect" });
+              }
+              const user = users[0];
+              const loginResult = await req.payload.login({
+                collection: "users",
+                data: {
+                  email: user.email,
+                  password
+                },
+                req,
+                res
+              });
+              return res.status(200).json(loginResult);
+            } catch (error) {
+              console.error("[Login-Phone Error]", error);
+              return res.status(401).json({ message: "email or password provided is incorrect" });
+            }
+          }
+        }
+      ],
       hooks: {
         beforeValidate: [
           async ({ data }) => {
@@ -1613,6 +1738,11 @@ var init_Users = __esm({
               }
               const userBranchId = getRelationshipID(user.branch);
               if (userBranchId) return userBranchId;
+              const kitchenBranches = user.kitchenBranches;
+              if (Array.isArray(kitchenBranches) && kitchenBranches.length === 1) {
+                const kbId = getRelationshipID(kitchenBranches[0]);
+                if (kbId) return kbId;
+              }
               let headerPin = null;
               let legacyPin = null;
               if (req.headers && typeof req.headers.get === "function") {
@@ -1656,6 +1786,15 @@ var init_Users = __esm({
                   // Cast to any to bypass type check until types are regenerated
                   overrideAccess: true
                 });
+              }
+              try {
+                terminateUserSession(
+                  String(user.id),
+                  "Logged in on another device.",
+                  "session_conflict"
+                );
+              } catch (e) {
+                console.error("[Users afterLogin] Error terminating previous user sessions:", e);
               }
             }
             const longSessionRoles = ["superadmin", "admin", "company", "factory", "account"];
@@ -2194,6 +2333,29 @@ var init_Users = __esm({
                 } catch (err) {
                   console.error("Error synchronizing chef categories in afterChange:", err);
                 }
+              }
+            }
+            if (doc && doc.id) {
+              try {
+                const isBlocked = doc.loginBlocked === true || doc.loginblocked === true || doc.status === "inactive";
+                const isForceLogout = Boolean(
+                  doc.forceLogoutAllDevices || doc.forceLogout || doc.forcelogout || doc.forceLogoutAll || doc.forcelogot
+                );
+                if (isBlocked) {
+                  terminateUserSession(
+                    String(doc.id),
+                    "Login blocked by superadmin. Please contact administrator.",
+                    "account_blocked"
+                  );
+                } else if (isForceLogout) {
+                  terminateUserSession(
+                    String(doc.id),
+                    "Your session was ended by admin.",
+                    "session_terminated"
+                  );
+                }
+              } catch (err) {
+                console.error("[Users afterChange] Error terminating user session:", err);
               }
             }
             return doc;
@@ -6288,8 +6450,8 @@ var init_ownchat = __esm({
 
 // src/endpoints/getItemPreparationTime.ts
 import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
-import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc.js";
+import timezone from "dayjs/plugin/timezone.js";
 var BILLING_TIMEZONE, toId, parseTimeLikeValue, parsePreparingTimeValue, getItemPreparationTime;
 var init_getItemPreparationTime = __esm({
   "src/endpoints/getItemPreparationTime.ts"() {
@@ -6979,8 +7141,8 @@ var init_mongoRetry = __esm({
 
 // src/collections/Billings.ts
 import dayjs2 from "dayjs";
-import utc2 from "dayjs/plugin/utc";
-import timezone2 from "dayjs/plugin/timezone";
+import utc2 from "dayjs/plugin/utc.js";
+import timezone2 from "dayjs/plugin/timezone.js";
 import { APIError } from "payload";
 var BILLING_TIMEZONE2, BILLINGS_REST_LIST_MAX_DEPTH, BILLINGS_REST_LIST_MAX_DEPTH_PRIVILEGED, BILLINGS_REST_LIST_MAX_LIMIT, BILLINGS_REST_LIST_MAX_LIMIT_PRIVILEGED, BILLINGS_READ_PRIVILEGED_ROLES, BILLINGS_ASYNC_POST_PROCESSING_ENABLED, BILLINGS_HOOK_WARN_MS, getBillingDateStamp, getNextBillingSequence, toSafeNonNegativeNumber, toMoneyValue, toPaiseValue, fromPaiseValue, isBillingFinalizedStatus, roundToNearestRupee, getRoundOffAmount, normalizeBillingItemStatus, areAllBillingItemsCancelled, deriveBillStatusFromItems, wait, toNonNegativeInteger, isPayloadNotFoundError, isRetryableBillingFlagError, scheduleDeferredBillingFlagUpdate, extractBillIDs, getBillingRequestContext, getRelationshipID4, getDocLikeID, logBillingHookDuration, getPositiveNumericValue, getNumericValue, clampPercentage, getGSTRateFromProduct, computeBillingGSTBreakdown, normalizePhoneNumber, normalizeCustomerName, isMongoDuplicateKeyError, upsertBillingCustomerDirectory, getQuantityByProduct, hasTableOrderValue, parseSimpleTableNumberForLookup, normalizeSectionNameForLookup, normalizeTableNumberForLookup, parseConfiguredTableRange, resolveConfiguredTableNumbersFromSection, parseOfflineTablesToArrayOfStrings, resolveTableSelection, assertTableExistsInBranchConfiguration, isTableOrderBill, getBranchIDFromBillingData, shouldShowCustomerDetailsForTableOrders, isOfferAllowedByOrderType, getDeterministicPercentFromSeed, isDeterministicRandomSelection, getDeterministicIndexFromSeed, isTotalPercentageOfferAvailableNow, isCustomerEntryPercentageOfferAvailableNow, clearPriceOfferMetadata, buildSingleOfferBaseItems, hasProductToProductOfferApplied, hasProductPriceOfferApplied, hasRandomProductOfferApplied, hasAmountBasedFreeOfferApplied, hasAnyItemLevelOfferApplied, getProductNameMap, buildRuleKey, buildPriceOfferRuleKey, buildAmountBasedFreeOfferRuleKey, getCustomerUsageCount, canApplyRuleWithinLimits, computeRewardSnapshotFromCompletedHistory, markBillingProcessingFlags, applyProductToProductOffers, applyProductPriceOffers, applyAmountBasedFreeProductOffer, applyRandomCustomerProductOffer, applyConfiguredItemOffers, Billings, Billings_default;
 var init_Billings = __esm({
@@ -8754,7 +8916,8 @@ var init_Billings = __esm({
                       existingQty
                     };
                   }).filter((row) => row.additionalQtyNeeded > 0);
-                  if (stockChecks.length > 0) {
+                  const enforceStrictStock = process.env.ENABLE_STRICT_STOCK_CHECK === "true";
+                  if (enforceStrictStock && stockChecks.length > 0) {
                     const productIDsToCheck = stockChecks.map((s) => s.productID);
                     const stockMap = await getMultipleProductsStock(
                       req.payload,
@@ -8951,7 +9114,7 @@ var init_Billings = __esm({
                   }
                 }
               }
-              if (data.notes && data.items && Array.isArray(data.items)) {
+              if (operation === "create" && data.notes && data.items && Array.isArray(data.items)) {
                 data.items = data.items.map((item) => {
                   if (!item.notes && data.notes.startsWith(item.name + ":")) {
                     const parts = data.notes.split(":");
@@ -10914,6 +11077,7 @@ var init_Messages = __esm({
   "src/collections/Messages.ts"() {
     "use strict";
     init_messaging();
+    init_wsGateway();
     resolveAttachmentMessageType = (attachment) => {
       if (attachment?.attachmentType === "image" || attachment?.attachmentType === "video") {
         return attachment.attachmentType;
@@ -11047,6 +11211,24 @@ var init_Messages = __esm({
         },
         overrideAccess: true
       });
+      try {
+        const senderName = req.user?.name || req.user?.username || req.user?.email || (doc.senderRole === "admin" ? "Admin" : "Staff");
+        const staffUserID = normalizeRelationshipID(doc.staffUser);
+        publishChatRealtimeEvent({
+          messageId: normalizeRelationshipID(doc.id),
+          threadId: normalizeRelationshipID(doc.thread),
+          senderId: normalizeRelationshipID(doc.senderUser),
+          senderName,
+          senderRole: doc.senderRole,
+          text: doc.text || "",
+          messageType: doc.messageType || "text",
+          createdAt,
+          recipientUserId: doc.recipientAudience === "staff" ? staffUserID : null,
+          recipientAudience: doc.recipientAudience
+        });
+      } catch (err) {
+        console.error("[Messages] Failed to publish chat realtime event:", err);
+      }
       return doc;
     };
     Messages = {
@@ -11610,8 +11792,8 @@ var init_MessageAttachments = __esm({
 
 // src/collections/ReturnOrder.ts
 import dayjs3 from "dayjs";
-import utc3 from "dayjs/plugin/utc";
-import timezone3 from "dayjs/plugin/timezone";
+import utc3 from "dayjs/plugin/utc.js";
+import timezone3 from "dayjs/plugin/timezone.js";
 var ReturnOrders, ReturnOrder_default;
 var init_ReturnOrder = __esm({
   "src/collections/ReturnOrder.ts"() {
@@ -12435,8 +12617,8 @@ var init_Expenses = __esm({
 
 // src/collections/StockOrders.ts
 import dayjs4 from "dayjs";
-import utc4 from "dayjs/plugin/utc";
-import timezone4 from "dayjs/plugin/timezone";
+import utc4 from "dayjs/plugin/utc.js";
+import timezone4 from "dayjs/plugin/timezone.js";
 var StockOrders, StockOrders_default;
 var init_StockOrders = __esm({
   "src/collections/StockOrders.ts"() {
@@ -13452,8 +13634,8 @@ var init_RawMaterialBillings = __esm({
 
 // src/collections/RawMaterialInstockEntries.ts
 import dayjs5 from "dayjs";
-import utc5 from "dayjs/plugin/utc";
-import timezone5 from "dayjs/plugin/timezone";
+import utc5 from "dayjs/plugin/utc.js";
+import timezone5 from "dayjs/plugin/timezone.js";
 var RawMaterialInstockEntries, RawMaterialInstockEntries_default;
 var init_RawMaterialInstockEntries = __esm({
   "src/collections/RawMaterialInstockEntries.ts"() {
@@ -14579,8 +14761,8 @@ var init_reportScope = __esm({
 
 // src/services/reports/branchBilling.ts
 import dayjs6 from "dayjs";
-import utc6 from "dayjs/plugin/utc";
-import timezone6 from "dayjs/plugin/timezone";
+import utc6 from "dayjs/plugin/utc.js";
+import timezone6 from "dayjs/plugin/timezone.js";
 var toDayBoundary, getBranchBillingReportData;
 var init_branchBilling = __esm({
   "src/services/reports/branchBilling.ts"() {
@@ -15480,8 +15662,8 @@ var init_getBranchBillingReport = __esm({
 
 // src/endpoints/getTallyExport.ts
 import dayjs7 from "dayjs";
-import utc7 from "dayjs/plugin/utc";
-import timezone7 from "dayjs/plugin/timezone";
+import utc7 from "dayjs/plugin/utc.js";
+import timezone7 from "dayjs/plugin/timezone.js";
 var toDayBoundary2, getTallyExportHandler;
 var init_getTallyExport = __esm({
   "src/endpoints/getTallyExport.ts"() {
@@ -15624,8 +15806,8 @@ var init_getTallyExport = __esm({
 
 // src/endpoints/getAccountsBillsReport.ts
 import dayjs8 from "dayjs";
-import utc8 from "dayjs/plugin/utc";
-import timezone8 from "dayjs/plugin/timezone";
+import utc8 from "dayjs/plugin/utc.js";
+import timezone8 from "dayjs/plugin/timezone.js";
 var BILLING_TIMEZONE3, toDayBoundary3, getAccountsBillsReportHandler;
 var init_getAccountsBillsReport = __esm({
   "src/endpoints/getAccountsBillsReport.ts"() {
@@ -15908,8 +16090,8 @@ var init_updateBillTransactionId = __esm({
 
 // src/services/reports/categoryWise.ts
 import dayjs9 from "dayjs";
-import utc9 from "dayjs/plugin/utc";
-import timezone9 from "dayjs/plugin/timezone";
+import utc9 from "dayjs/plugin/utc.js";
+import timezone9 from "dayjs/plugin/timezone.js";
 import mongoose2 from "mongoose";
 var toDayBoundary4, getCategoryWiseReportData;
 var init_categoryWise = __esm({
@@ -16564,8 +16746,8 @@ var init_createPaymentSession = __esm({
 // src/services/reports/productWise.ts
 import mongoose3 from "mongoose";
 import dayjs10 from "dayjs";
-import utc10 from "dayjs/plugin/utc";
-import timezone10 from "dayjs/plugin/timezone";
+import utc10 from "dayjs/plugin/utc.js";
+import timezone10 from "dayjs/plugin/timezone.js";
 var toId3, parseTimeLikeValue2, parsePreparingTimeValue2, parseToDayjs, resolveItemPreparationMinutes, toDayBoundary5, getProductWiseReportData;
 var init_productWise = __esm({
   "src/services/reports/productWise.ts"() {
@@ -17043,8 +17225,8 @@ var init_getProductWiseReport = __esm({
 // src/services/reports/productPreparation.ts
 import mongoose4 from "mongoose";
 import dayjs11 from "dayjs";
-import utc11 from "dayjs/plugin/utc";
-import timezone11 from "dayjs/plugin/timezone";
+import utc11 from "dayjs/plugin/utc.js";
+import timezone11 from "dayjs/plugin/timezone.js";
 var parseDateParam, toId4, parseToDayjs2, parseTimeLikeValue3, parsePreparingTimeValue3, parseAmountValue, parseStatusParam, getPreparationStatus, resolveItemPreparationMinutes2, resolveBillNumber, getProductPreparationBillDetailsData;
 var init_productPreparation = __esm({
   "src/services/reports/productPreparation.ts"() {
@@ -18037,8 +18219,8 @@ var init_getClosingEntryReport = __esm({
 
 // src/services/reports/waiterWise.ts
 import dayjs12 from "dayjs";
-import utc12 from "dayjs/plugin/utc";
-import timezone12 from "dayjs/plugin/timezone";
+import utc12 from "dayjs/plugin/utc.js";
+import timezone12 from "dayjs/plugin/timezone.js";
 var toDayBoundary6, toNumber2, toInteger2, toIsoString, parseHourParam, getWaiterWiseBillingReportData;
 var init_waiterWise = __esm({
   "src/services/reports/waiterWise.ts"() {
@@ -18652,8 +18834,8 @@ var init_AttendanceReport = __esm({
 
 // src/services/reports/attendance.ts
 import dayjs13 from "dayjs";
-import utc13 from "dayjs/plugin/utc";
-import timezone13 from "dayjs/plugin/timezone";
+import utc13 from "dayjs/plugin/utc.js";
+import timezone13 from "dayjs/plugin/timezone.js";
 var toNumber3, toNonEmptyString2, formatSecondsToReadable, toDayBoundary7, getMediaUrl, getAttendanceReportData;
 var init_attendance = __esm({
   "src/services/reports/attendance.ts"() {
@@ -19123,8 +19305,13 @@ var init_attendance = __esm({
         const userName = toNonEmptyString2(doc.employeeDetails?.name || doc.userDetails?.name || doc.userDetails?.email || "Unknown");
         const userEmail = toNonEmptyString2(doc.userDetails?.email || "");
         const userRole = toNonEmptyString2(doc.userDetails?.role || "staff");
+        const employeeObjectId = doc.resolvedEmployeeId ? String(doc.resolvedEmployeeId) : void 0;
         const employeeId = toNonEmptyString2(doc.employeeDetails?.employeeId || "");
         const employeeName = toNonEmptyString2(doc.employeeDetails?.name || userName);
+        const employeeSalary = typeof doc.employeeDetails?.salary === "number" ? doc.employeeDetails.salary : void 0;
+        const employeeLoginTime = toNonEmptyString2(doc.employeeDetails?.loginTime || "");
+        const employeeLogoutTime = toNonEmptyString2(doc.employeeDetails?.logoutTime || "");
+        const employeeWorkingHours = typeof doc.employeeDetails?.workingHours === "number" ? doc.employeeDetails.workingHours : void 0;
         const employeeTeam = toNonEmptyString2(doc.employeeDetails?.team || userRole);
         const employeePhone = toNonEmptyString2(doc.employeeDetails?.phoneNumber || "");
         const employeePhotoUrl = resolveImage(doc.employeeDetails?.photo);
@@ -19168,6 +19355,7 @@ var init_attendance = __esm({
             status: isAct ? "active" : "closed",
             durationSeconds: dur,
             durationFormatted: formatSecondsToReadable(dur),
+            punchOutType: doc.punchOutType,
             ipAddress: toNonEmptyString2(doc.ipAddress),
             device: toNonEmptyString2(doc.device),
             capturedImageUrl,
@@ -19210,6 +19398,7 @@ var init_attendance = __esm({
               status: isAct ? "active" : "closed",
               durationSeconds: dur,
               durationFormatted: formatSecondsToReadable(dur),
+              punchOutType: act.punchOutType,
               ipAddress: toNonEmptyString2(act.ipAddress),
               device: toNonEmptyString2(act.device),
               capturedImageUrl,
@@ -19278,11 +19467,38 @@ var init_attendance = __esm({
           const matchesBranch = branchIds.some((bId) => associatedBranchIds.has(String(bId)));
           if (!matchesBranch) continue;
         }
+        const hasAutoPunchOut = activities.some((a) => a.punchOutType === "auto");
+        let baseShiftSeconds = 12 * 3600;
+        if (employeeWorkingHours && employeeWorkingHours > 0) {
+          baseShiftSeconds = employeeWorkingHours * 3600;
+        } else if (employeeLoginTime && employeeLogoutTime) {
+          const loginTimeStr = employeeLoginTime.replace("_", ":");
+          const logoutTimeStr = employeeLogoutTime.replace("_", ":");
+          const [inH, inM] = loginTimeStr.split(":").map(Number);
+          const [outH, outM] = logoutTimeStr.split(":").map(Number);
+          if (!isNaN(inH) && !isNaN(outH)) {
+            let shiftSeconds = outH * 3600 + (outM || 0) * 60 - (inH * 3600 + (inM || 0) * 60);
+            if (shiftSeconds < 0) shiftSeconds += 24 * 3600;
+            baseShiftSeconds = shiftSeconds;
+          }
+        }
+        if (hasAutoPunchOut && recordWorkSeconds > baseShiftSeconds) {
+          recordWorkSeconds = baseShiftSeconds;
+        }
+        let extraSeconds = 0;
+        if (recordWorkSeconds > baseShiftSeconds) {
+          extraSeconds = recordWorkSeconds - baseShiftSeconds;
+        }
         const item = {
           id,
           date: dateIso,
+          employeeSalary,
+          employeeWorkingHours,
+          employeeLoginTime,
+          employeeLogoutTime,
           dateString: dateStr,
           userId,
+          employeeObjectId,
           userName,
           userEmail,
           userRole,
@@ -19299,6 +19515,8 @@ var init_attendance = __esm({
           lastPunchOut: hasActiveSession ? void 0 : lastPunchOut,
           totalWorkSeconds: recordWorkSeconds,
           totalWorkFormatted: formatSecondsToReadable(recordWorkSeconds),
+          extraSeconds: extraSeconds > 0 ? extraSeconds : 0,
+          extraHoursFormatted: extraSeconds > 0 ? formatSecondsToReadable(extraSeconds) : "-",
           totalBreakSeconds: recordBreakSeconds,
           totalBreakFormatted: formatSecondsToReadable(recordBreakSeconds),
           sessionCount,
@@ -19813,8 +20031,8 @@ var init_StockOrderReport = __esm({
 
 // src/services/reports/stockOrder.ts
 import dayjs14 from "dayjs";
-import utc14 from "dayjs/plugin/utc";
-import timezone14 from "dayjs/plugin/timezone";
+import utc14 from "dayjs/plugin/utc.js";
+import timezone14 from "dayjs/plugin/timezone.js";
 var getStockOrderReportData;
 var init_stockOrder = __esm({
   "src/services/reports/stockOrder.ts"() {
@@ -20249,8 +20467,8 @@ var init_getStockOrderReport = __esm({
 // src/endpoints/getAfterstockCustomerReport.ts
 import mongoose5 from "mongoose";
 import dayjs15 from "dayjs";
-import utc15 from "dayjs/plugin/utc";
-import timezone15 from "dayjs/plugin/timezone";
+import utc15 from "dayjs/plugin/utc.js";
+import timezone15 from "dayjs/plugin/timezone.js";
 var getAfterstockCustomerReportHandler;
 var init_getAfterstockCustomerReport = __esm({
   "src/endpoints/getAfterstockCustomerReport.ts"() {
@@ -20585,8 +20803,8 @@ var init_AfterstockCustomerReport = __esm({
 
 // src/endpoints/getReviewReport.ts
 import dayjs16 from "dayjs";
-import utc16 from "dayjs/plugin/utc";
-import timezone16 from "dayjs/plugin/timezone";
+import utc16 from "dayjs/plugin/utc.js";
+import timezone16 from "dayjs/plugin/timezone.js";
 var getReviewReportHandler;
 var init_getReviewReport = __esm({
   "src/endpoints/getReviewReport.ts"() {
@@ -21281,8 +21499,8 @@ var init_BillingCustomers = __esm({
 
 // src/collections/InstockEntries.ts
 import dayjs17 from "dayjs";
-import utc17 from "dayjs/plugin/utc";
-import timezone17 from "dayjs/plugin/timezone";
+import utc17 from "dayjs/plugin/utc.js";
+import timezone17 from "dayjs/plugin/timezone.js";
 var InstockEntries, InstockEntries_default;
 var init_InstockEntries = __esm({
   "src/collections/InstockEntries.ts"() {
@@ -21498,8 +21716,8 @@ var init_InstockEntries = __esm({
 
 // src/endpoints/getInstockEntryReport.ts
 import dayjs18 from "dayjs";
-import utc18 from "dayjs/plugin/utc";
-import timezone18 from "dayjs/plugin/timezone";
+import utc18 from "dayjs/plugin/utc.js";
+import timezone18 from "dayjs/plugin/timezone.js";
 var getInstockEntryReportHandler;
 var init_getInstockEntryReport = __esm({
   "src/endpoints/getInstockEntryReport.ts"() {
@@ -21805,8 +22023,8 @@ var init_InstockEntryReport = __esm({
 
 // src/endpoints/getDashboardStats.ts
 import dayjs19 from "dayjs";
-import utc19 from "dayjs/plugin/utc";
-import timezone19 from "dayjs/plugin/timezone";
+import utc19 from "dayjs/plugin/utc.js";
+import timezone19 from "dayjs/plugin/timezone.js";
 import mongoose6 from "mongoose";
 var getDashboardStatsHandler;
 var init_getDashboardStats = __esm({
@@ -21967,8 +22185,8 @@ var init_getDashboardStats = __esm({
 
 // src/services/reports/expense.ts
 import dayjs20 from "dayjs";
-import utc20 from "dayjs/plugin/utc";
-import timezone20 from "dayjs/plugin/timezone";
+import utc20 from "dayjs/plugin/utc.js";
+import timezone20 from "dayjs/plugin/timezone.js";
 var ALL_CATEGORIES, toNumber5, toInteger3, toDateString2, toNonEmptyString3, getExpenseReportData;
 var init_expense = __esm({
   "src/services/reports/expense.ts"() {
@@ -22242,8 +22460,8 @@ var init_ExpenseReport = __esm({
 // src/services/reports/dealer.ts
 import mongoose7 from "mongoose";
 import dayjs21 from "dayjs";
-import utc21 from "dayjs/plugin/utc";
-import timezone21 from "dayjs/plugin/timezone";
+import utc21 from "dayjs/plugin/utc.js";
+import timezone21 from "dayjs/plugin/timezone.js";
 function resolveMediaUrl(filename2, prefix) {
   if (!filename2) return void 0;
   const publicURL = process.env.NEXT_PUBLIC_S3_PUBLIC_URL || process.env.S3_PUBLIC_URL;
@@ -22730,8 +22948,8 @@ var init_DealerReport = __esm({
 
 // src/services/reports/otherProductsInventory.ts
 import dayjs22 from "dayjs";
-import utc22 from "dayjs/plugin/utc";
-import timezone22 from "dayjs/plugin/timezone";
+import utc22 from "dayjs/plugin/utc.js";
+import timezone22 from "dayjs/plugin/timezone.js";
 var toNumber7, toDateString4, toNonEmptyString5, getOtherProductsInventoryReportData;
 var init_otherProductsInventory = __esm({
   "src/services/reports/otherProductsInventory.ts"() {
@@ -23498,8 +23716,8 @@ var init_RawMaterialInventoryReport = __esm({
 
 // src/services/reports/rawMaterialBilling.ts
 import dayjs23 from "dayjs";
-import utc23 from "dayjs/plugin/utc";
-import timezone23 from "dayjs/plugin/timezone";
+import utc23 from "dayjs/plugin/utc.js";
+import timezone23 from "dayjs/plugin/timezone.js";
 var toNumber9, toInteger5, toDateString5, toNonEmptyString7, getRawMaterialBillingReportData;
 var init_rawMaterialBilling = __esm({
   "src/services/reports/rawMaterialBilling.ts"() {
@@ -23995,8 +24213,8 @@ var init_RawMaterialBillingReport = __esm({
 
 // src/services/reports/returnOrder.ts
 import dayjs24 from "dayjs";
-import utc24 from "dayjs/plugin/utc";
-import timezone24 from "dayjs/plugin/timezone";
+import utc24 from "dayjs/plugin/utc.js";
+import timezone24 from "dayjs/plugin/timezone.js";
 var toNumber10, toInteger6, toDateString6, toNonEmptyString8, getReturnOrderReportData;
 var init_returnOrder = __esm({
   "src/services/reports/returnOrder.ts"() {
@@ -25001,6 +25219,11 @@ var init_Attendance = __esm({
                 const lastLoginBranch = userRes?.lastLoginBranch;
                 if (lastLoginBranch) {
                   data.loginBranch = typeof lastLoginBranch === "string" ? lastLoginBranch : lastLoginBranch?.id || lastLoginBranch;
+                } else {
+                  const kitchenBranches = userRes?.kitchenBranches;
+                  if (Array.isArray(kitchenBranches) && kitchenBranches.length === 1) {
+                    data.loginBranch = typeof kitchenBranches[0] === "string" ? kitchenBranches[0] : kitchenBranches[0]?.id || kitchenBranches[0];
+                  }
                 }
               } catch (e) {
                 req.payload.logger.error({ err: e, msg: "Error auto-populating loginBranch from user.lastLoginBranch" });
@@ -25089,6 +25312,22 @@ var init_Attendance = __esm({
                 punchOut: a.punchOut,
                 photo: a.capturedImage
               }));
+              if (doc.loginBranch) {
+                const userId = typeof doc.user === "string" ? doc.user : doc.user?.id;
+                const branchId = typeof doc.loginBranch === "string" ? doc.loginBranch : doc.loginBranch?.id;
+                if (userId && branchId) {
+                  try {
+                    await req.payload.update({
+                      collection: "users",
+                      id: userId,
+                      data: { lastLoginBranch: branchId },
+                      overrideAccess: true
+                    });
+                  } catch (e) {
+                    req.payload.logger.error({ err: e, msg: "Failed to sync lastLoginBranch from Attendance to User" });
+                  }
+                }
+              }
               const existingPunchIn = await req.payload.find({
                 collection: "punchin",
                 where: {
@@ -26394,8 +26633,8 @@ var init_WorkGPS = __esm({
 
 // src/endpoints/createWidgetOrder.ts
 import dayjs25 from "dayjs";
-import utc25 from "dayjs/plugin/utc";
-import timezone25 from "dayjs/plugin/timezone";
+import utc25 from "dayjs/plugin/utc.js";
+import timezone25 from "dayjs/plugin/timezone.js";
 var createWidgetOrderHandler;
 var init_createWidgetOrder = __esm({
   "src/endpoints/createWidgetOrder.ts"() {
@@ -26694,8 +26933,8 @@ var init_getTableCustomerDetailsVisibility = __esm({
 
 // src/endpoints/getLiveTableStatus.ts
 import dayjs26 from "dayjs";
-import utc26 from "dayjs/plugin/utc";
-import timezone26 from "dayjs/plugin/timezone";
+import utc26 from "dayjs/plugin/utc.js";
+import timezone26 from "dayjs/plugin/timezone.js";
 var ACTIVE_BILLING_STATUSES, LIVE_TABLE_TIMEZONE, BRANCH_SCOPED_ROLES2, getRelationshipID6, normalizeSectionName, parseSimpleTableNumber, extractNumericTableIndex, normalizeTableIdentifier, toTableLabel, parseConfiguredTableRange2, resolveConfiguredTables, parseOfflineTablesToArrayOfStrings2, toKotLabel, toElapsedSeconds, toMoneyNumber, getBillingTotalAmount, getBranchNameFromRelation, buildBranchWhere, resolveBranchScope, ensureBranch, ensureSection, ensureTable, compareTables, areAllItemsCancelled, normalizeItemStatus, getNonCancelledStatuses, deriveLiveTableState, getActiveTimerStart, responseCache, CACHE_TTL_MS, getLiveTableStatusHandler;
 var init_getLiveTableStatus = __esm({
   "src/endpoints/getLiveTableStatus.ts"() {
@@ -28198,8 +28437,8 @@ var init_getBillingMenu = __esm({
 
 // src/endpoints/aiAssistant.ts
 import dayjs27 from "dayjs";
-import utc27 from "dayjs/plugin/utc";
-import timezone27 from "dayjs/plugin/timezone";
+import utc27 from "dayjs/plugin/utc.js";
+import timezone27 from "dayjs/plugin/timezone.js";
 import axios2 from "axios";
 var aiAssistantHandler;
 var init_aiAssistant = __esm({
@@ -31226,8 +31465,8 @@ var init_tableRedirect = __esm({
 
 // src/endpoints/callWaiter.ts
 import dayjs28 from "dayjs";
-import utc28 from "dayjs/plugin/utc";
-import timezone28 from "dayjs/plugin/timezone";
+import utc28 from "dayjs/plugin/utc.js";
+import timezone28 from "dayjs/plugin/timezone.js";
 var ACTIVE_BILL_STATUSES, CLOSED_BILL_STATUSES, BILLING_TIMEZONE4, toText5, getRelationshipId, extractNumericTableIndex2, normalizeSectionName2, normalizeTableNumber, isActiveStatus, isClosedStatus, parseBody, getLatestActiveBillByTable, callWaiterHandler;
 var init_callWaiter = __esm({
   "src/endpoints/callWaiter.ts"() {
@@ -31478,8 +31717,8 @@ ${signalLine}` : signalLine;
 
 // src/endpoints/ackWaiterCall.ts
 import dayjs29 from "dayjs";
-import utc29 from "dayjs/plugin/utc";
-import timezone29 from "dayjs/plugin/timezone";
+import utc29 from "dayjs/plugin/utc.js";
+import timezone29 from "dayjs/plugin/timezone.js";
 var ACTIVE_BILL_STATUSES2, CLOSED_BILL_STATUSES2, BRANCH_SCOPED_ROLES4, BILLING_TIMEZONE5, SOS_PREFIX, ACK_PREFIX, SOS_NOTE_REGEX, toText6, getRelationshipId2, toNoteToken, parseBody2, getHeaderValue, getActorFromUser, getSignalLines, parseSignalLine, ackWaiterCallHandler;
 var init_ackWaiterCall = __esm({
   "src/endpoints/ackWaiterCall.ts"() {
@@ -32379,8 +32618,8 @@ var init_StockAlerts = __esm({
 
 // src/services/reports/timeWise.ts
 import dayjs30 from "dayjs";
-import utc30 from "dayjs/plugin/utc";
-import timezone30 from "dayjs/plugin/timezone";
+import utc30 from "dayjs/plugin/utc.js";
+import timezone30 from "dayjs/plugin/timezone.js";
 var toDayBoundary8, getTimeWiseReportData;
 var init_timeWise = __esm({
   "src/services/reports/timeWise.ts"() {
@@ -33772,8 +34011,13 @@ var init_reportQueries = __esm({
                             userName: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
                             userEmail: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
                             userRole: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                            employeeObjectId: { type: graphQL.GraphQLString },
                             employeeId: { type: graphQL.GraphQLString },
                             employeeName: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                            employeeSalary: { type: graphQL.GraphQLFloat },
+                            employeeWorkingHours: { type: graphQL.GraphQLFloat },
+                            employeeLoginTime: { type: graphQL.GraphQLString },
+                            employeeLogoutTime: { type: graphQL.GraphQLString },
                             employeeTeam: { type: graphQL.GraphQLString },
                             employeePhone: { type: graphQL.GraphQLString },
                             employeePhotoUrl: { type: graphQL.GraphQLString },
@@ -33785,6 +34029,8 @@ var init_reportQueries = __esm({
                             lastPunchOut: { type: graphQL.GraphQLString },
                             totalWorkSeconds: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
                             totalWorkFormatted: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+                            extraSeconds: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                            extraHoursFormatted: { type: graphQL.GraphQLString },
                             totalBreakSeconds: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
                             totalBreakFormatted: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
                             sessionCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
@@ -37288,6 +37534,9 @@ var init_payload_config = __esm({
       // ✅ ADD CORS + CSRF HERE
       cors: [
         "http://localhost:3000",
+        "http://localhost:3001",
+        // standalone frontend (dev)
+        process.env.FRONTEND_URL || "",
         "http://localhost:4200",
         "http://localhost:5173",
         "http://localhost:8080",
@@ -37304,11 +37553,15 @@ var init_payload_config = __esm({
         "https://dev-blacforest.vseyal.com",
         "https://dev1-blacforest.vseyal.com",
         "https://superadmin.theblackforestcakes.com",
+        "https://theblackforestcakes.com",
         "http://192.168.29.173:3000"
         // Local Network IP
       ].filter(Boolean),
       csrf: [
         "http://localhost:3000",
+        "http://localhost:3001",
+        // standalone frontend (dev)
+        process.env.FRONTEND_URL || "",
         "http://localhost:4200",
         "http://localhost:5173",
         "http://localhost:8080",
@@ -37324,6 +37577,7 @@ var init_payload_config = __esm({
         "https://dev-blacforest.vseyal.com",
         "https://dev1-blacforest.vseyal.com",
         "https://superadmin.theblackforestcakes.com",
+        "https://theblackforestcakes.com",
         "http://192.168.29.173:3000"
         // Local Network IP
       ].filter(Boolean),
@@ -37817,16 +38071,17 @@ __export(cron_exports, {
   startCronJobs: () => startCronJobs
 });
 function startCronJobs(payload) {
+  runNightlyJob(payload).catch(console.error);
   scheduleNextNightlyJob(payload);
 }
 function scheduleNextNightlyJob(payload) {
   const now = /* @__PURE__ */ new Date();
-  const next2AM = /* @__PURE__ */ new Date();
-  next2AM.setHours(2, 0, 0, 0);
-  if (now.getTime() >= next2AM.getTime()) {
-    next2AM.setDate(next2AM.getDate() + 1);
+  const nextMidnight = /* @__PURE__ */ new Date();
+  nextMidnight.setHours(0, 1, 0, 0);
+  if (now.getTime() >= nextMidnight.getTime()) {
+    nextMidnight.setDate(nextMidnight.getDate() + 1);
   }
-  const delay2 = next2AM.getTime() - now.getTime();
+  const delay2 = nextMidnight.getTime() - now.getTime();
   setTimeout(async () => {
     await runNightlyJob(payload);
     scheduleNextNightlyJob(payload);
@@ -37853,29 +38108,40 @@ async function runNightlyJob(payload) {
       });
       for (const doc of result.docs) {
         let needsUpdate = false;
-        const updatedActivities = (doc.activities || []).map((act) => {
-          if (act.status === "active") {
-            needsUpdate = true;
-            const punchOut = new Date(new Date(doc.date).getTime() + 24 * 60 * 60 * 1e3 - 1);
-            let durationSeconds = 0;
-            if (act.punchIn) {
-              durationSeconds = Math.floor((punchOut.getTime() - new Date(act.punchIn).getTime()) / 1e3);
+        const updateData = {};
+        if (doc.activities && doc.activities.length > 0) {
+          const updatedActivities = doc.activities.map((act) => {
+            if (act.status === "active") {
+              needsUpdate = true;
+              const punchOut = new Date(new Date(doc.date).getTime() + 24 * 60 * 60 * 1e3 - 1);
+              let durationSeconds = 0;
+              if (act.punchIn) {
+                durationSeconds = Math.floor((punchOut.getTime() - new Date(act.punchIn).getTime()) / 1e3);
+              }
+              return {
+                ...act,
+                status: "closed",
+                punchOut: punchOut.toISOString(),
+                durationSeconds: durationSeconds > 0 ? durationSeconds : 0,
+                punchOutType: "auto"
+              };
             }
-            return {
-              ...act,
-              status: "closed",
-              punchOut: punchOut.toISOString(),
-              durationSeconds: durationSeconds > 0 ? durationSeconds : 0,
-              punchOutType: "auto"
-            };
-          }
-          return act;
-        });
+            return act;
+          });
+          if (needsUpdate) updateData.activities = updatedActivities;
+        }
+        if (doc.status === "active" && !doc.punchOut) {
+          needsUpdate = true;
+          const punchOut = new Date(new Date(doc.date).getTime() + 24 * 60 * 60 * 1e3 - 1);
+          updateData.status = "closed";
+          updateData.punchOut = punchOut.toISOString();
+          updateData.punchOutType = "auto";
+        }
         if (needsUpdate) {
           await payload.update({
             collection: "attendance",
             id: doc.id,
-            data: { activities: updatedActivities }
+            data: updateData
           });
           console.log(`[cron] Auto-closed sessions for attendance doc ${doc.id}`);
         }

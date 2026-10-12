@@ -6,6 +6,7 @@ import {
   isAdminMessagingUser,
   normalizeRelationshipID,
 } from '../utilities/messaging'
+import { publishChatRealtimeEvent } from '../realtime/wsGateway'
 
 type MessageType = 'text' | 'image' | 'video'
 
@@ -187,6 +188,30 @@ const createInitialReceiptAndUpdateThread = async ({ doc, operation, req }: any)
     },
     overrideAccess: true,
   })
+
+  try {
+    const senderName =
+      req.user?.name ||
+      req.user?.username ||
+      req.user?.email ||
+      (doc.senderRole === 'admin' ? 'Admin' : 'Staff')
+    const staffUserID = normalizeRelationshipID(doc.staffUser)
+    publishChatRealtimeEvent({
+      messageId: normalizeRelationshipID(doc.id) as string,
+      threadId: normalizeRelationshipID(doc.thread) as string,
+      senderId: normalizeRelationshipID(doc.senderUser) as string,
+      senderName,
+      senderRole: doc.senderRole,
+      text: doc.text || '',
+      messageType: doc.messageType || 'text',
+      createdAt,
+      recipientUserId:
+        doc.recipientAudience === 'staff' ? (staffUserID as string) : null,
+      recipientAudience: doc.recipientAudience,
+    })
+  } catch (err) {
+    console.error('[Messages] Failed to publish chat realtime event:', err)
+  }
 
   return doc
 }

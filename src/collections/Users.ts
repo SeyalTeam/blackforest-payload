@@ -12,6 +12,7 @@ import {
   isValidBranchPin,
   normalizeBranchPin,
 } from '../utilities/branchPins'
+import { terminateUserSession } from '../realtime/wsGateway'
 
 const getRelationshipID = (value: unknown): string | null => {
   if (!value) return null
@@ -737,6 +738,17 @@ export const Users: CollectionConfig = {
               data: updateData as any, // Cast to any to bypass type check until types are regenerated
               overrideAccess: true,
             })
+          }
+
+          // Terminate any previous active connections on other devices for this user
+          try {
+            terminateUserSession(
+              String(user.id),
+              'Logged in on another device.',
+              'session_conflict',
+            )
+          } catch (e) {
+            console.error('[Users afterLogin] Error terminating previous user sessions:', e)
           }
         }
 
@@ -1498,6 +1510,40 @@ export const Users: CollectionConfig = {
             }
           }
         }
+
+        // Real-time Session Revocation for Blocked or Force-Logged-Out Users
+        if (doc && doc.id) {
+          try {
+            const isBlocked =
+              doc.loginBlocked === true ||
+              doc.loginblocked === true ||
+              doc.status === 'inactive'
+            const isForceLogout = Boolean(
+              doc.forceLogoutAllDevices ||
+              doc.forceLogout ||
+              doc.forcelogout ||
+              doc.forceLogoutAll ||
+              doc.forcelogot
+            )
+
+            if (isBlocked) {
+              terminateUserSession(
+                String(doc.id),
+                'Login blocked by superadmin. Please contact administrator.',
+                'account_blocked',
+              )
+            } else if (isForceLogout) {
+              terminateUserSession(
+                String(doc.id),
+                'Your session was ended by admin.',
+                'session_terminated',
+              )
+            }
+          } catch (err) {
+            console.error('[Users afterChange] Error terminating user session:', err)
+          }
+        }
+
         return doc
       },
     ],

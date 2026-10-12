@@ -52,6 +52,19 @@ export type BillingRealtimePublishInput = {
   timestamp?: string
 }
 
+export type ChatRealtimePublishInput = {
+  createdAt?: string
+  messageId: string
+  messageType?: 'text' | 'image' | 'video'
+  recipientAudience: 'admins' | 'staff'
+  recipientUserId?: string | null
+  senderId: string
+  senderName?: string | null
+  senderRole?: string | null
+  text: string
+  threadId: string
+}
+
 type BillingRealtimeEvent = {
   billingId: string
   branchId: string
@@ -1069,6 +1082,88 @@ export const publishBillingRealtimeEvent = (
   }
 
   return storedEvent
+}
+
+export const publishChatRealtimeEvent = (input: ChatRealtimePublishInput): void => {
+  const event = {
+    eventType: 'chat_message_received',
+    messageId: input.messageId,
+    threadId: input.threadId,
+    senderId: input.senderId,
+    senderName: input.senderName || null,
+    senderRole: input.senderRole || null,
+    text: input.text,
+    messageType: input.messageType || 'text',
+    createdAt: input.createdAt || nowISO(),
+    recipientAudience: input.recipientAudience,
+    recipientUserId: input.recipientUserId || null,
+    timestamp: nowISO(),
+  }
+
+  const safePayload = ensurePayloadSize(event)
+  if (!safePayload) return
+
+  // 1. Target specific recipient staff user if defined
+  if (input.recipientUserId) {
+    const connIDs = realtimeState.connectionsByUserID.get(input.recipientUserId)
+    if (connIDs) {
+      for (const connID of connIDs) {
+        const connection = realtimeState.connections.get(connID)
+        if (connection) {
+          sendServerMessage(connection, safePayload)
+        }
+      }
+    }
+  }
+
+  // 2. Target admin connections if recipientAudience is 'admins'
+  if (input.recipientAudience === 'admins') {
+    for (const connection of realtimeState.connections.values()) {
+      if (connection.role === 'admin' || connection.role === 'superadmin') {
+        sendServerMessage(connection, safePayload)
+      }
+    }
+  }
+
+  // 3. Also notify sender's other connected devices so their conversation syncs live
+  if (input.senderId) {
+    const connIDs = realtimeState.connectionsByUserID.get(input.senderId)
+    if (connIDs) {
+      for (const connID of connIDs) {
+        const connection = realtimeState.connections.get(connID)
+        if (connection) {
+          sendServerMessage(connection, safePayload)
+        }
+      }
+    }
+  }
+}
+
+export const terminateUserSession = (
+  userId: string,
+  reason: string,
+  eventType = 'session_terminated',
+): void => {
+  const normalizedUserId = userId?.trim()
+  if (!normalizedUserId) return
+
+  const connectionIDs = realtimeState.connectionsByUserID.get(normalizedUserId)
+  if (!connectionIDs || connectionIDs.size === 0) return
+
+  for (const connectionID of Array.from(connectionIDs)) {
+    const connection = realtimeState.connections.get(connectionID)
+    if (connection) {
+      sendSystemMessage(connection, {
+        eventType,
+        error_code: eventType,
+        message: reason,
+        reason,
+      })
+      setTimeout(() => {
+        closeSocket(connection.socket, 4401, reason)
+      }, 100)
+    }
+  }
 }
 
 export const getRealtimeEndpointPath = (): string => WS_ENDPOINT_PATH
