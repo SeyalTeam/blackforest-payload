@@ -29,7 +29,7 @@ export function corsHeaders(
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": methods,
-    "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Requested-With",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Requested-With,x-app-secret,x-app-key,x-blackforest-key",
     "Access-Control-Allow-Credentials": "true",
     "Vary": "Origin",
   };
