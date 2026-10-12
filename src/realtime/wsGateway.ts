@@ -34,6 +34,7 @@ type BillingRealtimeEventType =
   | 'billing_item_status_changed'
   | 'billing_item_preparing_time_changed'
   | 'billing_status_changed'
+  | 'waiter_call_received'
 
 export type BillingRealtimePublishInput = {
   billingId: string

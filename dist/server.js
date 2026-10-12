@@ -31471,6 +31471,7 @@ var ACTIVE_BILL_STATUSES, CLOSED_BILL_STATUSES, BILLING_TIMEZONE4, toText5, getR
 var init_callWaiter = __esm({
   "src/endpoints/callWaiter.ts"() {
     "use strict";
+    init_wsGateway();
     dayjs28.extend(utc28);
     dayjs28.extend(timezone28);
     ACTIVE_BILL_STATUSES = ["ordered", "prepared", "confirmed", "delivered"];
@@ -31697,6 +31698,22 @@ ${signalLine}` : signalLine;
           },
           overrideAccess: true
         });
+        try {
+          publishBillingRealtimeEvent({
+            eventId: `${matchedBill.id}:waiter-call:${Date.now()}`,
+            eventType: "waiter_call_received",
+            seq: 1,
+            branchId,
+            billingId: String(matchedBill.id),
+            statusAfter: "waiter_calling",
+            timestamp: (/* @__PURE__ */ new Date()).toISOString()
+          });
+        } catch (wsErr) {
+          req.payload.logger.error({
+            msg: "Failed to publish realtime waiter call event",
+            err: wsErr
+          });
+        }
         return Response.json({
           ok: true,
           billId: String(matchedBill.id),

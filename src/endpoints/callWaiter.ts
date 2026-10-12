@@ -2,6 +2,7 @@ import type { PayloadHandler } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc.js'
 import timezone from 'dayjs/plugin/timezone.js'
+import { publishBillingRealtimeEvent } from '../realtime/wsGateway'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -308,6 +309,23 @@ export const callWaiterHandler: PayloadHandler = async (req): Promise<Response> 
       },
       overrideAccess: true,
     })
+
+    try {
+      publishBillingRealtimeEvent({
+        eventId: `${matchedBill.id}:waiter-call:${Date.now()}`,
+        eventType: 'waiter_call_received',
+        seq: 1,
+        branchId,
+        billingId: String(matchedBill.id),
+        statusAfter: 'waiter_calling',
+        timestamp: new Date().toISOString(),
+      })
+    } catch (wsErr) {
+      req.payload.logger.error({
+        msg: 'Failed to publish realtime waiter call event',
+        err: wsErr,
+      })
+    }
 
     return Response.json({
       ok: true,
