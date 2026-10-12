@@ -181,10 +181,16 @@ function parseItems(
             )
           : "";
 
+      const deliveredAt = readText(
+        item.deliveredAt,
+        item.deliveredTime,
+      );
+
       const gst = toTrimmedText(item.gst) || toTrimmedText((product?.defaultPriceDetails as any)?.gst) || "";
 
       return {
         id: toTrimmedText(item.id) || productId || crypto.randomUUID(),
+        productId: productId || toTrimmedText(item.id),
         name: toTrimmedText(item.name) || toTrimmedText(product?.name) || "Unknown item",
         quantity: Math.max(1, toFiniteNumber(item.quantity) || 1),
         subtotal: toFiniteNumber(item.subtotal),
@@ -196,6 +202,7 @@ function parseItems(
         preparationTimeUpdatedAt,
         orderedAt,
         preparedAt,
+        deliveredAt,
       } as BillSummaryItem;
     })
     .filter((item): item is BillSummaryItem => item !== null);
