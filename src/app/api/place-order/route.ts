@@ -477,6 +477,11 @@ function buildBillingItem(item: IncomingOrderItem) {
     payload.notes = note;
     payload.note = note;
     payload.instructions = note;
+  } else {
+    payload.specialNote = "";
+    payload.notes = "";
+    payload.note = "";
+    payload.instructions = "";
   }
 
   return payload;

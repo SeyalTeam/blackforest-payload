@@ -2830,8 +2830,8 @@ const Billings: CollectionConfig = {
           }
         }
 
-        // 📝 Distribute root notes to items if applicable (e.g. "Product: Note")
-        if (data.notes && data.items && Array.isArray(data.items)) {
+        // 📝 Distribute root notes to items if applicable (e.g. "Product: Note") ONLY on initial creation
+        if (operation === 'create' && data.notes && data.items && Array.isArray(data.items)) {
           data.items = data.items.map((item: any) => {
             if (!item.notes && data.notes.startsWith(item.name + ':')) {
               const parts = data.notes.split(':')
