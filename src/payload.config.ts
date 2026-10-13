@@ -996,6 +996,26 @@ export default buildConfig({
       handler: completeWorkHandler,
     },
     {
+      path: '/start-work',
+      method: 'post',
+      handler: startWorkHandler,
+    },
+    {
+      path: '/complete-work',
+      method: 'post',
+      handler: completeWorkHandler,
+    },
+    {
+      path: '/daily-tasks/start-work',
+      method: 'post',
+      handler: startWorkHandler,
+    },
+    {
+      path: '/daily-tasks/complete-work',
+      method: 'post',
+      handler: completeWorkHandler,
+    },
+    {
       path: '/my-daily-tasks',
       method: 'get',
       handler: getMyDailyTasksHandler,

@@ -37104,7 +37104,7 @@ var init_getMyDailyTasks = __esm({
           if (employeeId) {
             attConditions.push({ employee: { equals: employeeId } });
           }
-          const attSearch = await req.payload.find({
+          let attSearch = await req.payload.find({
             collection: "attendance",
             where: {
               and: [
@@ -37114,6 +37114,20 @@ var init_getMyDailyTasks = __esm({
             },
             limit: 1
           });
+          if (attSearch.docs.length === 0) {
+            const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1e3).toISOString();
+            attSearch = await req.payload.find({
+              collection: "attendance",
+              where: {
+                and: [
+                  { createdAt: { greater_than_equal: oneDayAgo } },
+                  { or: attConditions }
+                ]
+              },
+              sort: "-createdAt",
+              limit: 1
+            });
+          }
           if (attSearch.docs.length > 0) {
             const doc = attSearch.docs[0];
             workStatus = doc.workStatus || "not_started";
@@ -37491,7 +37505,7 @@ var init_startWork = __esm({
         if (employeeId) {
           userConditions.push({ employee: { equals: employeeId } });
         }
-        const attSearch = await req.payload.find({
+        let attSearch = await req.payload.find({
           collection: "attendance",
           where: {
             and: [
@@ -37501,6 +37515,20 @@ var init_startWork = __esm({
           },
           limit: 1
         });
+        if (attSearch.docs.length === 0) {
+          const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1e3).toISOString();
+          attSearch = await req.payload.find({
+            collection: "attendance",
+            where: {
+              and: [
+                { createdAt: { greater_than_equal: oneDayAgo } },
+                { or: userConditions }
+              ]
+            },
+            sort: "-createdAt",
+            limit: 1
+          });
+        }
         if (attSearch.docs.length === 0) {
           return Response.json({
             success: false,
@@ -37590,7 +37618,7 @@ var init_completeWork = __esm({
         if (employeeId) {
           userConditions.push({ employee: { equals: employeeId } });
         }
-        const attSearch = await req.payload.find({
+        let attSearch = await req.payload.find({
           collection: "attendance",
           where: {
             and: [
@@ -37600,6 +37628,26 @@ var init_completeWork = __esm({
           },
           limit: 1
         });
+        if (attSearch.docs.length === 0) {
+          const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1e3).toISOString();
+          attSearch = await req.payload.find({
+            collection: "attendance",
+            where: {
+              and: [
+                { createdAt: { greater_than_equal: oneDayAgo } },
+                { or: userConditions }
+              ]
+            },
+            sort: "-createdAt",
+            limit: 1
+          });
+        }
+        if (attSearch.docs.length === 0) {
+          return Response.json({
+            success: false,
+            message: "No attendance record found for today. Please punch in attendance first."
+          }, { status: 400 });
+        }
         const nowIso = (/* @__PURE__ */ new Date()).toISOString();
         let workDurationMinutes = 0;
         let workStartTime = nowIso;
@@ -38590,6 +38638,26 @@ var init_payload_config = __esm({
         },
         {
           path: "/attendance/complete-work",
+          method: "post",
+          handler: completeWorkHandler
+        },
+        {
+          path: "/start-work",
+          method: "post",
+          handler: startWorkHandler
+        },
+        {
+          path: "/complete-work",
+          method: "post",
+          handler: completeWorkHandler
+        },
+        {
+          path: "/daily-tasks/start-work",
+          method: "post",
+          handler: startWorkHandler
+        },
+        {
+          path: "/daily-tasks/complete-work",
           method: "post",
           handler: completeWorkHandler
         },

@@ -51,7 +51,7 @@ export const startWorkHandler: PayloadHandler = async (req): Promise<Response> =
     }
 
     // Find today's attendance document
-    const attSearch = await req.payload.find({
+    let attSearch = await req.payload.find({
       collection: 'attendance',
       where: {
         and: [
@@ -61,6 +61,22 @@ export const startWorkHandler: PayloadHandler = async (req): Promise<Response> =
       },
       limit: 1,
     })
+
+    if (attSearch.docs.length === 0) {
+      // Fallback: look for attendance record for this user/employee created in the last 24 hours
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+      attSearch = await req.payload.find({
+        collection: 'attendance',
+        where: {
+          and: [
+            { createdAt: { greater_than_equal: oneDayAgo } },
+            { or: userConditions },
+          ],
+        },
+        sort: '-createdAt',
+        limit: 1,
+      })
+    }
 
     if (attSearch.docs.length === 0) {
       return Response.json({

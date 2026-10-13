@@ -344,7 +344,7 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
       if (employeeId) {
         attConditions.push({ employee: { equals: employeeId } })
       }
-      const attSearch = await req.payload.find({
+      let attSearch = await req.payload.find({
         collection: 'attendance',
         where: {
           and: [
@@ -354,6 +354,20 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
         },
         limit: 1,
       })
+      if (attSearch.docs.length === 0) {
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+        attSearch = await req.payload.find({
+          collection: 'attendance',
+          where: {
+            and: [
+              { createdAt: { greater_than_equal: oneDayAgo } },
+              { or: attConditions },
+            ],
+          },
+          sort: '-createdAt',
+          limit: 1,
+        })
+      }
       if (attSearch.docs.length > 0) {
         const doc: any = attSearch.docs[0]
         workStatus = doc.workStatus || 'not_started'
