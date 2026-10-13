@@ -308,7 +308,7 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
       const resolvedIcon =
         task.icon === 'custom' && task.customIcon
           ? task.customIcon
-          : (task.icon || null)
+          : (task.icon || task.customIcon || null)
 
       return {
         id: task.id,

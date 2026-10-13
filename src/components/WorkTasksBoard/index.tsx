@@ -22,6 +22,7 @@ import {
   Columns,
   ShieldAlert,
   Camera,
+  Smile,
 } from 'lucide-react'
 import './index.scss'
 
@@ -51,6 +52,9 @@ export type TaskItem = {
   title: string
   description?: string
   column?: any // string ID or TaskColumn object
+  icon?: string
+  customIcon?: string
+  yesText?: string
   status?: 'backlog' | 'todo' | 'in_progress' | 'review' | 'done'
   priority?: 'low' | 'medium' | 'high' | 'urgent'
   assignmentType?: 'role' | 'individual' | 'both'
@@ -67,6 +71,56 @@ export type TaskItem = {
   createdAt?: string
   updatedAt?: string
 }
+
+export const resolveCardEmoji = (icon?: string): string => {
+  if (!icon) return ''
+  const trimmed = icon.trim()
+  const map: Record<string, string> = {
+    smile: '😊',
+    brain: '🧠',
+    cleaning: '🧹',
+    settings: '⚙️',
+    complaint: '💬',
+    team: '👥',
+    checklist: '📋',
+    hygiene: '🧼',
+    cash: '💰',
+    inventory: '📦',
+    time: '⏰',
+    uniform: '⭐',
+    food: '🍲',
+    cake: '🎂',
+  }
+  return map[trimmed] || trimmed
+}
+
+export const EMOJI_CATEGORIES: { name: string; icon: string; emojis: string[] }[] = [
+  {
+    name: 'Tasks',
+    icon: '📋',
+    emojis: ['📋', '📝', '✅', '🎯', '⭐', '⏰', '📅', '🔔', '💡', '🚀', '💬', '👔', '👥', '📊', '📌'],
+  },
+  {
+    name: 'Cleaning',
+    icon: '🧹',
+    emojis: ['🧹', '🧼', '🧽', '🧺', '🪣', '🗑️', '🧤', '🚿', '🪟', '🧴', '🔧', '🔨', '⚙️', '🦺', '🥾'],
+  },
+  {
+    name: 'Food & Bakery',
+    icon: '🍲',
+    emojis: ['🍲', '🎂', '🥪', '☕', '🍕', '🍔', '🍳', '🔪', '🥖', '🥗', '🧃', '🥤', '🍽️', '🥐', '🧁'],
+  },
+  {
+    name: 'Cash & Store',
+    icon: '💰',
+    emojis: ['💰', '💵', '💳', '📦', '🛒', '🚚', '🛵', '🚗', '⛽', '🏪', '📱', '🧾', '🏷️', '🔒', '🔑'],
+  },
+  {
+    name: 'People & Mood',
+    icon: '😊',
+    emojis: ['😊', '🧠', '👍', '💪', '🙌', '👏', '🤝', '🏃', '👨‍🍳', '👩‍🍳', '🛎️', '🛡️', '⚠️', '🚨', '🛑'],
+  },
+]
 
 export type EmployeeOption = {
   id: string
@@ -149,6 +203,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
   // Active modal card state for detail view
   const [activeModalCard, setActiveModalCard] = useState<TaskItem | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [selectedEmojiCat, setSelectedEmojiCat] = useState<string>('all')
 
   // New checklist item input inside modal
   const [newChecklistText, setNewChecklistText] = useState('')
@@ -736,6 +791,9 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
       if (typeof dataToSave.assignedUser === 'object' && dataToSave.assignedUser !== null) {
         dataToSave.assignedUser = dataToSave.assignedUser.id
       }
+      dataToSave.icon = activeModalCard.icon || ''
+      dataToSave.customIcon = activeModalCard.customIcon || ''
+      dataToSave.yesText = activeModalCard.yesText || ''
 
       if (id.startsWith('new-')) {
         // Create new card from modal
@@ -875,6 +933,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                   priority: 'medium',
                   assignmentType: 'role',
                   assignedRole: 'kitchen',
+                  icon: '',
                   labels: [],
                 }
                 setActiveModalCard(newCard)
@@ -1210,6 +1269,11 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                             title="Mark as Done for this Employee"
                             style={{ marginTop: '2px', cursor: 'pointer', transform: 'scale(1.2)' }}
                           />
+                        )}
+                        {task.icon && (
+                          <span style={{ fontSize: '18px', lineHeight: 1, flexShrink: 0 }}>
+                            {resolveCardEmoji(task.icon)}
+                          </span>
                         )}
                         <span>{task.title}</span>
                       </div>
@@ -1564,6 +1628,239 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
             <div className="modal-body">
               {/* Left Main Content */}
               <div className="modal-main-content">
+                {/* Task Icon / Emoji Picker (Mobile App Display) */}
+                <div
+                  className="modal-section"
+                  style={{
+                    marginBottom: '16px',
+                    background: '#f8fafc',
+                    padding: '12px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '8px',
+                    }}
+                  >
+                    <span
+                      className="section-label"
+                      style={{
+                        margin: 0,
+                        fontWeight: 700,
+                        fontSize: '13px',
+                        color: '#1e293b',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <Smile size={16} />
+                      <span>Task Icon (Mobile App Display)</span>
+                    </span>
+                    {activeModalCard.icon && isSuperAdmin && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setActiveModalCard({ ...activeModalCard, icon: '' })
+                        }
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#ef4444',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          padding: '2px 6px',
+                        }}
+                      >
+                        Clear Icon ✕
+                      </button>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      marginBottom: '10px',
+                    }}
+                  >
+                    {/* Large Preview Circle matching Mobile App style */}
+                    <div
+                      style={{
+                        width: '46px',
+                        height: '46px',
+                        borderRadius: '50%',
+                        backgroundColor: activeModalCard.icon ? '#EEF2FF' : '#F1F5F9',
+                        border: activeModalCard.icon
+                          ? '2px solid #6366F1'
+                          : '1px dashed #94A3B8',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '26px',
+                        flexShrink: 0,
+                        boxShadow: activeModalCard.icon
+                          ? '0 2px 4px rgba(99, 102, 241, 0.15)'
+                          : 'none',
+                      }}
+                      title="Task Icon Preview as shown in employee app"
+                    >
+                      {resolveCardEmoji(activeModalCard.icon) || '📋'}
+                    </div>
+
+                    {/* Direct text/keyboard input so user can type/paste from phone keyboard */}
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="text"
+                        placeholder="Type or paste emoji from your keyboard (e.g. 🧹, 🍲, 🎂, 🎯, 💡)..."
+                        value={activeModalCard.icon || ''}
+                        disabled={!isSuperAdmin}
+                        onChange={(e) =>
+                          setActiveModalCard({
+                            ...activeModalCard,
+                            icon: e.target.value,
+                          })
+                        }
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '14px',
+                          fontWeight: 500,
+                          backgroundColor: isSuperAdmin ? '#fff' : '#f8fafc',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Mobile-keyboard style Emoji Palette */}
+                  {isSuperAdmin && (
+                    <div
+                      style={{
+                        background: '#fff',
+                        borderRadius: '6px',
+                        border: '1px solid #e2e8f0',
+                        padding: '8px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: '4px',
+                          overflowX: 'auto',
+                          paddingBottom: '6px',
+                          borderBottom: '1px solid #f1f5f9',
+                          marginBottom: '6px',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setSelectedEmojiCat('all')}
+                          style={{
+                            padding: '3px 8px',
+                            fontSize: '11px',
+                            fontWeight: selectedEmojiCat === 'all' ? 700 : 500,
+                            borderRadius: '4px',
+                            border: 'none',
+                            background:
+                              selectedEmojiCat === 'all' ? '#2563eb' : '#f1f5f9',
+                            color: selectedEmojiCat === 'all' ? '#fff' : '#475569',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          All
+                        </button>
+                        {EMOJI_CATEGORIES.map((cat) => (
+                          <button
+                            key={cat.name}
+                            type="button"
+                            onClick={() => setSelectedEmojiCat(cat.name)}
+                            style={{
+                              padding: '3px 8px',
+                              fontSize: '11px',
+                              fontWeight: selectedEmojiCat === cat.name ? 700 : 500,
+                              borderRadius: '4px',
+                              border: 'none',
+                              background:
+                                selectedEmojiCat === cat.name ? '#2563eb' : '#f1f5f9',
+                              color:
+                                selectedEmojiCat === cat.name ? '#fff' : '#475569',
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {cat.icon} {cat.name}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Grid of Emojis like mobile emoji keyboard */}
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fill, minmax(36px, 1fr))',
+                          gap: '4px',
+                          maxHeight: '130px',
+                          overflowY: 'auto',
+                          padding: '2px',
+                        }}
+                      >
+                        {(selectedEmojiCat === 'all'
+                          ? EMOJI_CATEGORIES.flatMap((c) => c.emojis)
+                          : EMOJI_CATEGORIES.find((c) => c.name === selectedEmojiCat)
+                              ?.emojis || []
+                        ).map((emoji, idx) => {
+                          const isSelected = activeModalCard.icon === emoji
+                          return (
+                            <button
+                              key={`${emoji}-${idx}`}
+                              type="button"
+                              onClick={() =>
+                                setActiveModalCard({
+                                  ...activeModalCard,
+                                  icon: emoji,
+                                })
+                              }
+                              style={{
+                                fontSize: '20px',
+                                lineHeight: '1',
+                                padding: '6px 4px',
+                                borderRadius: '6px',
+                                border: isSelected
+                                  ? '2px solid #2563eb'
+                                  : '1px solid transparent',
+                                backgroundColor: isSelected ? '#eff6ff' : 'transparent',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                              }}
+                              title={emoji}
+                              onMouseEnter={(e) => {
+                                if (!isSelected)
+                                  e.currentTarget.style.backgroundColor = '#f1f5f9'
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!isSelected)
+                                  e.currentTarget.style.backgroundColor = 'transparent'
+                              }}
+                            >
+                              {emoji}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Meta Grid (Column, Members, Role, Due Date) */}
                 <div className="modal-meta-grid">
                   {/* Column List Selector */}
