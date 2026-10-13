@@ -98,14 +98,16 @@ const DEFAULT_ROLES = [
 ]
 
 const LABEL_PRESETS: { text: string; color: TaskLabel['color'] }[] = [
-  { text: 'Achieved!', color: 'green' },
-  { text: 'Up Next', color: 'yellow' },
-  { text: 'At Risk', color: 'orange' },
-  { text: 'Missed (for now)', color: 'red' },
-  { text: 'In Progress', color: 'purple' },
-  { text: 'On Track', color: 'blue' },
-  { text: 'Trello Tips', color: 'cyan' },
-  { text: 'Planning', color: 'pink' },
+  { text: 'Routine', color: 'green' },
+  { text: 'Task', color: 'blue' },
+  { text: 'Urgent', color: 'red' },
+  { text: 'Rarely', color: 'yellow' },
+  { text: 'manager', color: 'purple' },
+  { text: 'waiter', color: 'orange' },
+  { text: 'chef', color: 'cyan' },
+  { text: 'driver', color: 'pink' },
+  { text: 'supervisor', color: 'blue' },
+  { text: 'MD', color: 'purple' },
 ]
 
 type WorkTasksBoardProps = {
