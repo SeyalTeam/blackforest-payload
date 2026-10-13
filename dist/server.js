@@ -37092,7 +37092,8 @@ var init_getMyDailyTasks = __esm({
             completionId: activeDoc?.id || null,
             photo: compPhoto ? typeof compPhoto === "string" ? compPhoto : compPhoto.id : null,
             photoUrl: compPhotoUrl || null,
-            notes: activeComp?.notes || ""
+            notes: activeComp?.notes || "",
+            labels: task.labels || []
           };
         });
         let workStatus = "not_started";

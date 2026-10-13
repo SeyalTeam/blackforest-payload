@@ -331,6 +331,7 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
         photo: compPhoto ? (typeof compPhoto === 'string' ? compPhoto : compPhoto.id) : null,
         photoUrl: compPhotoUrl || null,
         notes: activeComp?.notes || '',
+        labels: task.labels || [],
       }
     })
 
