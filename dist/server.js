@@ -1110,65 +1110,6 @@ var init_appVersionGuard = __esm({
   }
 });
 
-// src/utilities/apiKeyGuard.ts
-var apiKeyGuard_exports = {};
-__export(apiKeyGuard_exports, {
-  enforceBillingApiKey: () => enforceBillingApiKey,
-  fetchApiKeySettings: () => fetchApiKeySettings
-});
-var API_KEY_HEADER, BILLING_APP_SETTINGS_SLUG, CACHE_TTL_MS, cachedSettings, fetchApiKeySettings, enforceBillingApiKey;
-var init_apiKeyGuard = __esm({
-  "src/utilities/apiKeyGuard.ts"() {
-    "use strict";
-    API_KEY_HEADER = "x-api-key";
-    BILLING_APP_SETTINGS_SLUG = "billing-app-settings";
-    CACHE_TTL_MS = 2e4;
-    cachedSettings = null;
-    fetchApiKeySettings = async (req) => {
-      const now = Date.now();
-      if (cachedSettings && now - cachedSettings.cachedAt < CACHE_TTL_MS) {
-        return cachedSettings;
-      }
-      try {
-        const settings = await req.payload.findGlobal({
-          slug: BILLING_APP_SETTINGS_SLUG,
-          overrideAccess: true
-        });
-        const resolved = {
-          apiKey: settings?.apiKey?.trim() || "bf_live_app_key_2026",
-          enabled: settings?.enabled !== false,
-          blockedMessage: settings?.blockedMessage?.trim() || "Unauthorized Billing App: Invalid or missing API Key. Please configure the correct API Key in settings.",
-          cachedAt: now
-        };
-        cachedSettings = resolved;
-        return resolved;
-      } catch (err) {
-        console.error("[apiKeyGuard] Failed to fetch BillingAppSettings:", err);
-        return {
-          apiKey: "bf_live_app_key_2026",
-          enabled: true,
-          blockedMessage: "Unauthorized Billing App: Invalid or missing API Key. Please configure the correct API Key in settings."
-        };
-      }
-    };
-    enforceBillingApiKey = async (req) => {
-      const { apiKey, enabled, blockedMessage } = await fetchApiKeySettings(req);
-      if (!enabled) return null;
-      const clientKey = (req.headers.get(API_KEY_HEADER) || req.headers.get("x-api-key") || req.headers.get("X-Api-Key"))?.trim();
-      if (!clientKey || clientKey !== apiKey) {
-        return Response.json(
-          {
-            error: "invalid_api_key",
-            message: blockedMessage
-          },
-          { status: 401 }
-        );
-      }
-      return null;
-    };
-  }
-});
-
 // src/collections/Users.ts
 var getRelationshipID, getRelationshipIDs, canManageChefDetails, cachedMenuSettings, cachedMenuSettingsAt, Users;
 var init_Users = __esm({
@@ -1880,23 +1821,6 @@ var init_Users = __esm({
               } catch (_) {
               }
               throw new Error(message);
-            }
-            const isFromAdminPanel = req.headers?.get?.("referer")?.includes("/admin") || user.role === "superadmin";
-            const hasMobileHeader = Boolean(
-              req.headers?.get?.("x-app-version") || req.headers?.get?.("x-api-key") || req.headers?.get?.("x-private-ip")
-            );
-            if (hasMobileHeader || !isFromAdminPanel) {
-              const { enforceBillingApiKey: enforceBillingApiKey2 } = await Promise.resolve().then(() => (init_apiKeyGuard(), apiKeyGuard_exports));
-              const apiKeyBlock = await enforceBillingApiKey2(req);
-              if (apiKeyBlock) {
-                let message = "Unauthorized Billing App: Invalid or missing API Key.";
-                try {
-                  const body = await apiKeyBlock.clone().json();
-                  if (body?.message) message = body.message;
-                } catch (_) {
-                }
-                throw new Error(message);
-              }
             }
             const isLoginBlocked = Boolean(
               user.loginBlocked
@@ -5221,7 +5145,7 @@ var init_Tasks = __esm({
       admin: {
         useAsTitle: "title",
         group: "Work",
-        defaultColumns: ["title", "status", "assignedRole", "priority", "dueDate", "createdAt"]
+        defaultColumns: ["title", "icon", "status", "assignedRole", "priority", "dueDate", "createdAt"]
       },
       access: {
         read: () => true,
@@ -5235,6 +5159,31 @@ var init_Tasks = __esm({
           type: "text",
           required: true,
           label: "Task Title"
+        },
+        {
+          name: "icon",
+          type: "text",
+          label: "Task Icon / Emoji",
+          admin: {
+            description: "Emoji or icon (e.g. \u{1F9F9}, \u{1F4CB}, \u{1F372}, \u{1F382}, \u{1F3AF}, \u23F0) displayed next to the task on the employee mobile app. Type or choose from dashboard palette / mobile keyboard."
+          }
+        },
+        {
+          name: "customIcon",
+          type: "text",
+          label: "Custom Emoji or Icon Text",
+          admin: {
+            condition: (data) => data?.icon === "custom",
+            description: "Enter any emoji (e.g. \u{1F3AF}, \u{1F4A1}, \u2615, \u{1F44D}) to show as the task icon."
+          }
+        },
+        {
+          name: "yesText",
+          type: "text",
+          label: "Yes Button Label (Optional)",
+          admin: {
+            description: `Custom text for Yes button (e.g. "Yes, I'm Ready", "Yes", "Done"). Defaults to "Yes, I'm Ready" or "Yes".`
+          }
         },
         {
           name: "column",
@@ -5359,9 +5308,21 @@ var init_Tasks = __esm({
               fields: [
                 {
                   name: "text",
-                  type: "text",
+                  type: "select",
                   required: true,
                   label: "Label Text",
+                  options: [
+                    { label: "Routine", value: "Routine" },
+                    { label: "Task", value: "Task" },
+                    { label: "Urgent", value: "Urgent" },
+                    { label: "Rarely", value: "Rarely" },
+                    { label: "manager", value: "manager" },
+                    { label: "waiter", value: "waiter" },
+                    { label: "chef", value: "chef" },
+                    { label: "driver", value: "driver" },
+                    { label: "supervisor", value: "supervisor" },
+                    { label: "MD", value: "MD" }
+                  ],
                   admin: { width: "60%" }
                 },
                 {
@@ -5370,14 +5331,14 @@ var init_Tasks = __esm({
                   label: "Color",
                   defaultValue: "green",
                   options: [
-                    { label: "Green (Achieved)", value: "green" },
-                    { label: "Yellow (Up Next)", value: "yellow" },
-                    { label: "Orange (At Risk)", value: "orange" },
-                    { label: "Red (Missed)", value: "red" },
-                    { label: "Purple (In Progress)", value: "purple" },
-                    { label: "Blue (On Track)", value: "blue" },
-                    { label: "Cyan (Trello Tips)", value: "cyan" },
-                    { label: "Pink (Planning)", value: "pink" }
+                    { label: "Green", value: "green" },
+                    { label: "Yellow", value: "yellow" },
+                    { label: "Orange", value: "orange" },
+                    { label: "Red", value: "red" },
+                    { label: "Purple", value: "purple" },
+                    { label: "Blue", value: "blue" },
+                    { label: "Cyan", value: "cyan" },
+                    { label: "Pink", value: "pink" }
                   ],
                   admin: { width: "40%" }
                 }
@@ -5652,7 +5613,7 @@ var init_TaskCompletions = __esm({
               data.date = new Date(localDate.getTime() - 5.5 * 60 * 60 * 1e3);
             }
             const tasksList = Array.isArray(data.tasks) ? data.tasks : [];
-            data.completedCount = tasksList.filter((t) => t.completed).length;
+            data.completedCount = tasksList.filter((t) => t.completed || t.status === "yes" || t.status === "no_complaint").length;
             data.totalCount = tasksList.length;
             const roleLabel = req.user?.role ? ` (${req.user.role})` : "";
             data.title = `${data.employeeName}${roleLabel} - ${data.dateString}`;
@@ -5771,6 +5732,16 @@ var init_TaskCompletions = __esm({
                   ],
                   defaultValue: "daily",
                   admin: { width: "12%" }
+                },
+                {
+                  name: "status",
+                  type: "select",
+                  options: [
+                    { label: "Yes (Done)", value: "yes" },
+                    { label: "No (Not Done)", value: "no" },
+                    { label: "No Complaint", value: "no_complaint" }
+                  ],
+                  admin: { width: "10%" }
                 },
                 {
                   name: "completed",
@@ -11902,8 +11873,14 @@ var init_ReturnOrder = __esm({
             }
             if (operation === "create") {
               if (!req.user) throw new Error("Unauthorized");
-              if (!data.branch && req.user.branch) {
-                data.branch = typeof req.user.branch === "string" ? req.user.branch : req.user.branch.id;
+              if (!data.branch) {
+                const lastLoginBranch = req.user?.lastLoginBranch;
+                const lastLoginBranchId = typeof lastLoginBranch === "string" ? lastLoginBranch : lastLoginBranch?.id;
+                if (lastLoginBranchId) {
+                  data.branch = lastLoginBranchId;
+                } else if (req.user?.branch) {
+                  data.branch = typeof req.user.branch === "string" ? req.user.branch : req.user.branch.id;
+                }
               }
               const date = dayjs3().tz("Asia/Kolkata");
               const formattedDate = date.format("YYYYMMDD");
@@ -12728,10 +12705,32 @@ var init_StockOrders = __esm({
             }
             if (operation === "create") {
               if (!req.user) throw new Error("Unauthorized");
-              if (["branch", "waiter", "cashier"].includes(req.user.role)) {
+              if (!data.branch) {
+                if (req.user.role === "branch" && req.user.branch) {
+                  data.branch = typeof req.user.branch === "string" ? req.user.branch : req.user.branch.id;
+                } else if (["waiter", "cashier"].includes(req.user.role)) {
+                  const lastLoginBranch = req.user?.lastLoginBranch;
+                  const lastLoginBranchId = typeof lastLoginBranch === "string" ? lastLoginBranch : lastLoginBranch?.id;
+                  if (lastLoginBranchId) {
+                    data.branch = lastLoginBranchId;
+                  } else if (req.user.branch) {
+                    data.branch = typeof req.user.branch === "string" ? req.user.branch : req.user.branch.id;
+                  }
+                }
+              }
+              if (req.user.role === "branch") {
                 const userBranchId = typeof req.user.branch === "string" ? req.user.branch : req.user.branch?.id;
                 const dataBranchId = typeof data.branch === "string" ? data.branch : data?.branch?.id;
                 if (!userBranchId || userBranchId !== dataBranchId) {
+                  throw new Error("Unauthorized branch");
+                }
+              } else if (["waiter", "cashier"].includes(req.user.role)) {
+                const userBranchId = typeof req.user.branch === "string" ? req.user.branch : req.user.branch?.id;
+                const lastLoginBranch = req.user?.lastLoginBranch;
+                const lastLoginBranchId = typeof lastLoginBranch === "string" ? lastLoginBranch : lastLoginBranch?.id;
+                const dataBranchId = typeof data.branch === "string" ? data.branch : data?.branch?.id;
+                const isAllowed = dataBranchId && (dataBranchId === lastLoginBranchId || dataBranchId === userBranchId || !userBranchId && !lastLoginBranchId);
+                if (!isAllowed && (lastLoginBranchId || userBranchId)) {
                   throw new Error("Unauthorized branch");
                 }
               }
@@ -13338,6 +13337,14 @@ var init_DealerBillings = __esm({
             if (operation === "create") {
               if (req.user?.role === "branch" && req.user.branch) {
                 data.branch = typeof req.user.branch === "string" ? req.user.branch : req.user.branch.id;
+              } else if (!data.branch && ["waiter", "cashier"].includes(req.user?.role)) {
+                const lastLoginBranch = req.user?.lastLoginBranch;
+                const lastLoginBranchId = typeof lastLoginBranch === "string" ? lastLoginBranch : lastLoginBranch?.id;
+                if (lastLoginBranchId) {
+                  data.branch = lastLoginBranchId;
+                } else if (req.user?.branch) {
+                  data.branch = typeof req.user.branch === "string" ? req.user.branch : req.user.branch.id;
+                }
               }
             }
             let photosArray = [];
@@ -21609,10 +21616,32 @@ var init_InstockEntries = __esm({
             }
             if (operation === "create") {
               if (!req.user) throw new Error("Unauthorized");
-              if (["branch", "waiter", "cashier"].includes(req.user.role)) {
+              if (!data.branch) {
+                if (req.user.role === "branch" && req.user.branch) {
+                  data.branch = typeof req.user.branch === "string" ? req.user.branch : req.user.branch.id;
+                } else if (["waiter", "cashier"].includes(req.user.role)) {
+                  const lastLoginBranch = req.user?.lastLoginBranch;
+                  const lastLoginBranchId = typeof lastLoginBranch === "string" ? lastLoginBranch : lastLoginBranch?.id;
+                  if (lastLoginBranchId) {
+                    data.branch = lastLoginBranchId;
+                  } else if (req.user.branch) {
+                    data.branch = typeof req.user.branch === "string" ? req.user.branch : req.user.branch.id;
+                  }
+                }
+              }
+              if (req.user.role === "branch") {
                 const userBranchId = typeof req.user.branch === "string" ? req.user.branch : req.user.branch?.id;
                 const dataBranchId = typeof data.branch === "string" ? data.branch : data?.branch?.id;
                 if (!userBranchId || userBranchId !== dataBranchId) {
+                  throw new Error("Unauthorized branch");
+                }
+              } else if (["waiter", "cashier"].includes(req.user.role)) {
+                const userBranchId = typeof req.user.branch === "string" ? req.user.branch : req.user.branch?.id;
+                const lastLoginBranch = req.user?.lastLoginBranch;
+                const lastLoginBranchId = typeof lastLoginBranch === "string" ? lastLoginBranch : lastLoginBranch?.id;
+                const dataBranchId = typeof data.branch === "string" ? data.branch : data?.branch?.id;
+                const isAllowed = dataBranchId && (dataBranchId === lastLoginBranchId || dataBranchId === userBranchId || !userBranchId && !lastLoginBranchId);
+                if (!isAllowed && (lastLoginBranchId || userBranchId)) {
                   throw new Error("Unauthorized branch");
                 }
               }
@@ -25611,6 +25640,15 @@ var init_Attendance = __esm({
                 }
               }
             }
+            if (data.workStartTime && data.workCompletedTime) {
+              try {
+                const startMs = new Date(data.workStartTime).getTime();
+                const endMs = new Date(data.workCompletedTime).getTime();
+                const diffMinutes = Math.round((endMs - startMs) / (1e3 * 60));
+                data.workDurationMinutes = diffMinutes > 0 ? diffMinutes : 0;
+              } catch (_e) {
+              }
+            }
             return data;
           }
         ]
@@ -25726,6 +25764,50 @@ var init_Attendance = __esm({
           ],
           admin: {
             description: "Auto-calculated: full_day if all sessions are closed, half_day if any session has no punch-out. Can also be set manually."
+          }
+        },
+        {
+          name: "workStatus",
+          type: "select",
+          defaultValue: "not_started",
+          options: [
+            { label: "Not Started", value: "not_started" },
+            { label: "In Progress", value: "in_progress" },
+            { label: "Completed", value: "completed" }
+          ],
+          admin: {
+            description: "Official daily work status: whether employee started and completed their daily work tasks."
+          }
+        },
+        {
+          name: "workStartTime",
+          type: "date",
+          timezone: true,
+          admin: {
+            description: 'Timestamp when employee tapped "Start My Work" in the mobile app.',
+            date: {
+              pickerAppearance: "dayAndTime",
+              displayFormat: "yyyy-MM-dd HH:mm:ss"
+            }
+          }
+        },
+        {
+          name: "workCompletedTime",
+          type: "date",
+          timezone: true,
+          admin: {
+            description: 'Timestamp when employee tapped "COMPLETE MY WORK" in the mobile app.',
+            date: {
+              pickerAppearance: "dayAndTime",
+              displayFormat: "yyyy-MM-dd HH:mm:ss"
+            }
+          }
+        },
+        {
+          name: "workDurationMinutes",
+          type: "number",
+          admin: {
+            description: "Calculated duration between work start and work completion in minutes."
           }
         },
         {
@@ -27011,7 +27093,7 @@ var init_getTableCustomerDetailsVisibility = __esm({
 import dayjs26 from "dayjs";
 import utc26 from "dayjs/plugin/utc.js";
 import timezone26 from "dayjs/plugin/timezone.js";
-var ACTIVE_BILLING_STATUSES, LIVE_TABLE_TIMEZONE, BRANCH_SCOPED_ROLES2, getRelationshipID6, normalizeSectionName, parseSimpleTableNumber, extractNumericTableIndex, normalizeTableIdentifier, toTableLabel, parseConfiguredTableRange2, resolveConfiguredTables, parseOfflineTablesToArrayOfStrings2, toKotLabel, toElapsedSeconds, toMoneyNumber, getBillingTotalAmount, getBranchNameFromRelation, buildBranchWhere, resolveBranchScope, ensureBranch, ensureSection, ensureTable, compareTables, areAllItemsCancelled, normalizeItemStatus, getNonCancelledStatuses, deriveLiveTableState, getActiveTimerStart, responseCache, CACHE_TTL_MS2, getLiveTableStatusHandler;
+var ACTIVE_BILLING_STATUSES, LIVE_TABLE_TIMEZONE, BRANCH_SCOPED_ROLES2, getRelationshipID6, normalizeSectionName, parseSimpleTableNumber, extractNumericTableIndex, normalizeTableIdentifier, toTableLabel, parseConfiguredTableRange2, resolveConfiguredTables, parseOfflineTablesToArrayOfStrings2, toKotLabel, toElapsedSeconds, toMoneyNumber, getBillingTotalAmount, getBranchNameFromRelation, buildBranchWhere, resolveBranchScope, ensureBranch, ensureSection, ensureTable, compareTables, areAllItemsCancelled, normalizeItemStatus, getNonCancelledStatuses, deriveLiveTableState, getActiveTimerStart, responseCache, CACHE_TTL_MS, getLiveTableStatusHandler;
 var init_getLiveTableStatus = __esm({
   "src/endpoints/getLiveTableStatus.ts"() {
     "use strict";
@@ -27372,7 +27454,7 @@ var init_getLiveTableStatus = __esm({
       return createdAt;
     };
     responseCache = /* @__PURE__ */ new Map();
-    CACHE_TTL_MS2 = 1500;
+    CACHE_TTL_MS = 1500;
     getLiveTableStatusHandler = async (req) => {
       try {
         const requestURL = new URL(req.url || "http://localhost");
@@ -27384,7 +27466,7 @@ var init_getLiveTableStatus = __esm({
         const now = Date.now();
         const bypassCache = requestURL.searchParams.get("refresh") === "true";
         const cached = responseCache.get(cacheKey);
-        if (!bypassCache && cached && now - cached.timestamp < CACHE_TTL_MS2) {
+        if (!bypassCache && cached && now - cached.timestamp < CACHE_TTL_MS) {
           return Response.json({
             generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
             branches: cached.branches
@@ -34598,6 +34680,193 @@ var init_WaiterCalls = __esm({
   }
 });
 
+// src/collections/ReportCardRules.ts
+var ReportCardRules, ReportCardRules_default;
+var init_ReportCardRules = __esm({
+  "src/collections/ReportCardRules.ts"() {
+    "use strict";
+    ReportCardRules = {
+      slug: "report-card-rules",
+      labels: {
+        singular: "Report Card Rule & FAQ",
+        plural: "Report Card Rules & FAQs"
+      },
+      admin: {
+        group: "Settings",
+        useAsTitle: "title",
+        defaultColumns: ["title", "role", "category", "maxMarks", "weightage", "enabled", "order", "updatedAt"]
+      },
+      access: {
+        read: () => true,
+        create: ({ req: { user } }) => Boolean(user && ["superadmin", "admin"].includes(user.role)),
+        update: ({ req: { user } }) => Boolean(user && ["superadmin", "admin"].includes(user.role)),
+        delete: ({ req: { user } }) => Boolean(user && ["superadmin", "admin"].includes(user.role))
+      },
+      fields: [
+        {
+          name: "title",
+          type: "text",
+          required: true,
+          label: "Rule / FAQ Title",
+          admin: {
+            description: 'Descriptive title for this performance rule or FAQ topic (e.g. "Table Call Response Speed SLA").'
+          }
+        },
+        {
+          name: "enabled",
+          type: "checkbox",
+          label: "Rule Active (Switch Toggle On / Off)",
+          defaultValue: true,
+          admin: {
+            description: "Switch toggle ON to activate this rule in progress card calculations and show in FAQ. Toggle OFF to disable."
+          }
+        },
+        {
+          type: "row",
+          fields: [
+            {
+              name: "role",
+              type: "select",
+              required: true,
+              defaultValue: "waiter",
+              admin: {
+                width: "50%",
+                description: "The job role this rule applies to."
+              },
+              options: [
+                { label: "All Roles (General)", value: "all" },
+                { label: "Waiter", value: "waiter" },
+                { label: "Cashier", value: "cashier" },
+                { label: "Chef", value: "chef" },
+                { label: "Kitchen Staff", value: "kitchen" },
+                { label: "Store Keeper", value: "store_keeper" },
+                { label: "Branch Manager", value: "manager" },
+                { label: "Supervisor", value: "supervisor" },
+                { label: "Driver", value: "driver" },
+                { label: "Delivery Staff", value: "delivery" },
+                { label: "Watcher (CCTV)", value: "watcher" },
+                { label: "Accountant", value: "account" }
+              ]
+            },
+            {
+              name: "category",
+              type: "select",
+              required: true,
+              defaultValue: "call_speed",
+              admin: {
+                width: "50%",
+                description: "The functional pillar for evaluation."
+              },
+              options: [
+                { label: "\u{1F6A8} Table Call Speed SLA", value: "call_speed" },
+                { label: "\u23F0 Attendance & Punctuality", value: "attendance" },
+                { label: "\u{1F4CB} Daily Task Checklist", value: "tasks" },
+                { label: "\u{1F37D}\uFE0F Table Service & Billing Accuracy", value: "billing" },
+                { label: "\u2B50 Grooming, Hygiene & Cleanliness", value: "hygiene" },
+                { label: "\u{1F4AC} Customer Feedback & Reviews", value: "reviews" },
+                { label: "\u2139\uFE0F General Guidelines & Policy", value: "general" }
+              ]
+            }
+          ]
+        },
+        {
+          type: "row",
+          fields: [
+            {
+              name: "maxMarks",
+              type: "number",
+              label: "Max Marks (Out of 100)",
+              defaultValue: 100,
+              min: 0,
+              max: 100,
+              required: true,
+              admin: {
+                width: "34%",
+                description: "Maximum achievable score for this metric (standard: 100)."
+              }
+            },
+            {
+              name: "weightage",
+              type: "number",
+              label: "Weightage in Total Score (%)",
+              defaultValue: 20,
+              min: 0,
+              max: 100,
+              admin: {
+                width: "33%",
+                description: "Percentage contribution to overall score (e.g. 30%)."
+              }
+            },
+            {
+              name: "order",
+              type: "number",
+              label: "Display Order / Priority",
+              defaultValue: 1,
+              admin: {
+                width: "33%",
+                description: "Sort order in dashboard report cards and FAQ lists."
+              }
+            }
+          ]
+        },
+        {
+          type: "collapsible",
+          label: "Rule Details & Evaluation Criteria",
+          admin: {
+            initCollapsed: false
+          },
+          fields: [
+            {
+              name: "ruleDetails",
+              type: "textarea",
+              required: true,
+              label: "Rule Specification & Criteria",
+              admin: {
+                description: "Detailed explanation of the rule, SLA standards, and how marks are calculated."
+              }
+            },
+            {
+              name: "deductionRules",
+              type: "textarea",
+              label: "Deductions & Penalties",
+              admin: {
+                description: "Points deducted for delays, misses, order errors, or late punch-ins."
+              }
+            }
+          ]
+        },
+        {
+          type: "collapsible",
+          label: "FAQ Details (Staff View)",
+          admin: {
+            initCollapsed: false
+          },
+          fields: [
+            {
+              name: "faqQuestion",
+              type: "text",
+              label: "FAQ Question",
+              admin: {
+                description: 'The question shown to employees in their progress card modal (e.g. "How is my Table Call Response score calculated?").'
+              }
+            },
+            {
+              name: "faqAnswer",
+              type: "textarea",
+              label: "FAQ Answer & Tips",
+              admin: {
+                description: "Helpful guidance and explanation for employees to understand and improve their score."
+              }
+            }
+          ]
+        }
+      ],
+      timestamps: true
+    };
+    ReportCardRules_default = ReportCardRules;
+  }
+});
+
 // src/graphql/readQueries.ts
 var DEFAULT_PRODUCTS_PAGE_SIZE, DEFAULT_CATEGORIES_PAGE_SIZE, DEFAULT_CUSTOMER_LOOKUP_BILL_LIMIT, DEFAULT_REVIEWS_PAGE_SIZE, MAX_PRODUCTS_PAGE_SIZE, MAX_CATEGORIES_PAGE_SIZE, MAX_CUSTOMER_LOOKUP_BILL_LIMIT, MAX_REVIEWS_PAGE_SIZE, BRANCH_SCOPED_ROLES6, toText8, toNumber11, toInt, toId7, encodePageCursor, decodePageCursor, toPhoneDigits2, buildPhoneCandidates2, buildWhereOrEquals, clampNullableBoolean, getRelationshipId3, getAuthenticatedUser, resolveEffectiveBranchScope, getWidgetSettingForBranch, parseCustomerLookupBillSummary, readGraphQLQueries;
 var init_readQueries = __esm({
@@ -36744,7 +37013,8 @@ var init_getMyDailyTasks = __esm({
             const tasksList = Array.isArray(doc.tasks) ? doc.tasks : [];
             for (const tItem of tasksList) {
               const tId = typeof tItem.task === "string" ? tItem.task : tItem.task?.id;
-              if (tId === task.id && tItem.completed === true) {
+              const hasAnswer = tItem.status === "yes" || tItem.status === "no" || tItem.status === "no_complaint" || tItem.completed === true || tItem.completedAt && tItem.completed !== void 0;
+              if (tId === task.id && hasAnswer) {
                 let isMatch = false;
                 if (taskFreq === "hourly") {
                   if (docDateStr === dateString && tItem.completedAt) {
@@ -36771,7 +37041,8 @@ var init_getMyDailyTasks = __esm({
             }
             if (activeComp) break;
             const singleTaskId = typeof doc.task === "string" ? doc.task : doc.task?.id;
-            if (singleTaskId === task.id && doc.completed === true) {
+            const docHasAnswer = doc.status === "yes" || doc.status === "no" || doc.status === "no_complaint" || doc.completed === true || doc.completedAt && doc.completed !== void 0;
+            if (singleTaskId === task.id && docHasAnswer) {
               let isMatch = false;
               if (taskFreq === "hourly") {
                 if (docDateStr === dateString && doc.completedAt) {
@@ -36796,13 +37067,17 @@ var init_getMyDailyTasks = __esm({
               }
             }
           }
-          const isCompleted = activeComp !== null;
+          const compStatus = activeComp?.status || (activeComp ? activeComp.completed === true ? "yes" : activeComp.completedAt ? "no" : null : null);
+          const isCompleted = activeComp !== null && (activeComp.completed === true || compStatus === "yes" || compStatus === "no_complaint");
           const compPhoto = activeComp?.photo;
           const compPhotoUrl = activeComp?.photoUrl || (typeof compPhoto === "object" && compPhoto !== null ? compPhoto.url || compPhoto.thumbnailURL : null);
+          const resolvedIcon = task.icon === "custom" && task.customIcon ? task.customIcon : task.icon || task.customIcon || null;
           return {
             id: task.id,
             title: task.title,
             description: task.description || "",
+            icon: resolvedIcon,
+            yesText: task.yesText || null,
             priority: task.priority || "medium",
             frequency: taskFreq,
             isDaily: taskFreq === "daily",
@@ -36812,6 +37087,7 @@ var init_getMyDailyTasks = __esm({
             dueDate: task.dueDate || null,
             checklist: task.checklist || [],
             completed: isCompleted,
+            status: compStatus,
             completedAt: activeComp?.completedAt || null,
             completionId: activeDoc?.id || null,
             photo: compPhoto ? typeof compPhoto === "string" ? compPhoto : compPhoto.id : null,
@@ -36819,11 +37095,40 @@ var init_getMyDailyTasks = __esm({
             notes: activeComp?.notes || ""
           };
         });
+        let workStatus = "not_started";
+        let workStartTime = null;
+        let workCompletedTime = null;
+        try {
+          const attConditions = [{ user: { equals: req.user.id } }];
+          if (employeeId) {
+            attConditions.push({ employee: { equals: employeeId } });
+          }
+          const attSearch = await req.payload.find({
+            collection: "attendance",
+            where: {
+              and: [
+                { dateString: { equals: dateString } },
+                { or: attConditions }
+              ]
+            },
+            limit: 1
+          });
+          if (attSearch.docs.length > 0) {
+            const doc = attSearch.docs[0];
+            workStatus = doc.workStatus || "not_started";
+            workStartTime = doc.workStartTime || null;
+            workCompletedTime = doc.workCompletedTime || null;
+          }
+        } catch (_attErr) {
+        }
         return Response.json({
           success: true,
           dateString,
           employeeId,
           employeeRole,
+          workStatus,
+          workStartTime,
+          workCompletedTime,
           tasks: resultTasks
         });
       } catch (error) {
@@ -36855,7 +37160,7 @@ var init_toggleDailyTask = __esm({
           body = await req.json?.();
         } catch (_e) {
         }
-        const { taskId, completed, notes, photo, photoUrl } = body || {};
+        const { taskId, completed, status, notes, photo, photoUrl } = body || {};
         let dateString = body?.dateString;
         if (!taskId) {
           return Response.json({ success: false, message: "Missing taskId" }, { status: 400 });
@@ -36956,8 +37261,18 @@ var init_toggleDailyTask = __esm({
               const currIst = new Date((/* @__PURE__ */ new Date()).getTime() + 5.5 * 60 * 60 * 1e3);
               isDifferentHour = prevIst.getUTCHours() !== currIst.getUTCHours() || prevIst.getUTCDate() !== currIst.getUTCDate();
             }
-            isTaskCompleted = completed !== void 0 ? Boolean(completed) : !currentTasks[taskIndex].completed;
-            taskCompletedAt = isTaskCompleted ? taskFrequency === "hourly" || !currentTasks[taskIndex].completed || isDifferentHour ? (/* @__PURE__ */ new Date()).toISOString() : currentTasks[taskIndex].completedAt || (/* @__PURE__ */ new Date()).toISOString() : null;
+            let taskStatus2 = "yes";
+            if (status === "yes" || status === "no" || status === "no_complaint") {
+              taskStatus2 = status;
+              isTaskCompleted = status === "yes" || status === "no_complaint";
+            } else if (completed !== void 0) {
+              isTaskCompleted = Boolean(completed);
+              taskStatus2 = isTaskCompleted ? "yes" : "no";
+            } else {
+              isTaskCompleted = !currentTasks[taskIndex].completed;
+              taskStatus2 = isTaskCompleted ? "yes" : "no";
+            }
+            taskCompletedAt = isTaskCompleted ? taskFrequency === "hourly" || !currentTasks[taskIndex].completed || isDifferentHour ? (/* @__PURE__ */ new Date()).toISOString() : currentTasks[taskIndex].completedAt || (/* @__PURE__ */ new Date()).toISOString() : taskStatus2 === "no" ? (/* @__PURE__ */ new Date()).toISOString() : null;
             const existingPhoto = isDifferentHour ? null : currentTasks[taskIndex].photo;
             const existingPhotoUrl = isDifferentHour ? null : currentTasks[taskIndex].photoUrl;
             savedPhoto = photo !== void 0 ? photo : existingPhoto || null;
@@ -36973,6 +37288,7 @@ var init_toggleDailyTask = __esm({
               task: taskId,
               taskTitle,
               frequency: taskFrequency,
+              status: taskStatus2,
               completed: isTaskCompleted,
               completedAt: taskCompletedAt,
               photo: isTaskCompleted ? savedPhoto : null,
@@ -36980,8 +37296,18 @@ var init_toggleDailyTask = __esm({
               notes: notes !== void 0 ? notes : currentTasks[taskIndex].notes || ""
             };
           } else {
-            isTaskCompleted = completed !== void 0 ? Boolean(completed) : true;
-            taskCompletedAt = isTaskCompleted ? (/* @__PURE__ */ new Date()).toISOString() : null;
+            let taskStatus2 = "yes";
+            if (status === "yes" || status === "no" || status === "no_complaint") {
+              taskStatus2 = status;
+              isTaskCompleted = status === "yes" || status === "no_complaint";
+            } else if (completed !== void 0) {
+              isTaskCompleted = Boolean(completed);
+              taskStatus2 = isTaskCompleted ? "yes" : "no";
+            } else {
+              isTaskCompleted = true;
+              taskStatus2 = "yes";
+            }
+            taskCompletedAt = (/* @__PURE__ */ new Date()).toISOString();
             savedPhoto = photo || null;
             savedPhotoUrl = photoUrl || null;
             if (isTaskCompleted && requiresPhoto && !savedPhoto && !savedPhotoUrl) {
@@ -36994,6 +37320,7 @@ var init_toggleDailyTask = __esm({
               task: taskId,
               taskTitle,
               frequency: taskFrequency,
+              status: taskStatus2,
               completed: isTaskCompleted,
               completedAt: taskCompletedAt,
               photo: isTaskCompleted ? savedPhoto : null,
@@ -37009,8 +37336,18 @@ var init_toggleDailyTask = __esm({
             }
           });
         } else {
-          isTaskCompleted = completed !== void 0 ? Boolean(completed) : true;
-          taskCompletedAt = isTaskCompleted ? (/* @__PURE__ */ new Date()).toISOString() : null;
+          let taskStatus2 = "yes";
+          if (status === "yes" || status === "no" || status === "no_complaint") {
+            taskStatus2 = status;
+            isTaskCompleted = status === "yes" || status === "no_complaint";
+          } else if (completed !== void 0) {
+            isTaskCompleted = Boolean(completed);
+            taskStatus2 = isTaskCompleted ? "yes" : "no";
+          } else {
+            isTaskCompleted = true;
+            taskStatus2 = "yes";
+          }
+          taskCompletedAt = (/* @__PURE__ */ new Date()).toISOString();
           savedPhoto = photo || null;
           savedPhotoUrl = photoUrl || null;
           if (isTaskCompleted && requiresPhoto && !savedPhoto && !savedPhotoUrl) {
@@ -37026,6 +37363,7 @@ var init_toggleDailyTask = __esm({
               task: taskId,
               taskTitle,
               frequency: taskFrequency,
+              status: taskStatus2,
               completed: isTaskCompleted,
               completedAt: taskCompletedAt,
               photo: isTaskCompleted ? savedPhoto : null,
@@ -37082,6 +37420,7 @@ var init_toggleDailyTask = __esm({
         }
         return Response.json({
           success: true,
+          status: taskStatus,
           completed: isTaskCompleted,
           completedAt: taskCompletedAt,
           photo: isTaskCompleted ? savedPhoto : null,
@@ -37102,117 +37441,229 @@ var init_toggleDailyTask = __esm({
   }
 });
 
-// src/globals/BillingAppSettings.ts
-var canManageSettings, BillingAppSettings;
-var init_BillingAppSettings = __esm({
-  "src/globals/BillingAppSettings.ts"() {
+// src/endpoints/startWork.ts
+var startWorkHandler;
+var init_startWork = __esm({
+  "src/endpoints/startWork.ts"() {
     "use strict";
-    canManageSettings = (role) => ["superadmin", "admin"].includes(role || "");
-    BillingAppSettings = {
-      slug: "billing-app-settings",
-      label: "Billing App API Key",
-      admin: {
-        group: "Settings",
-        description: "Configure the secret API Key for the Blackforest Billing mobile app. Mobile devices without this exact API key will be blocked from logging in or performing operations."
-      },
-      access: {
-        read: () => true,
-        update: ({ req }) => canManageSettings(req.user?.role)
-      },
-      fields: [
-        {
-          name: "apiKey",
-          label: "Billing App API Key",
-          type: "text",
-          required: true,
-          defaultValue: "bf_live_app_key_2026",
-          admin: {
-            description: "Every Blackforest Billing mobile device must have this exact API key configured. You can change this key anytime to revoke access to lost or untrusted devices.",
-            placeholder: "e.g. bf_live_app_key_2026"
-          }
-        },
-        {
-          name: "enabled",
-          label: "Enforce API Key Validation",
-          type: "checkbox",
-          defaultValue: true,
-          admin: {
-            description: "When checked, requests from the mobile app without this valid API key will be blocked immediately."
-          }
-        },
-        {
-          name: "blockedMessage",
-          label: "Blocked Error Message",
-          type: "text",
-          defaultValue: "Unauthorized Billing App: Invalid or missing API Key. Please configure the correct API Key in settings.",
-          admin: {
-            description: "Message displayed on mobile devices when their configured API key does not match this setting."
+    startWorkHandler = async (req) => {
+      if (!req.user) {
+        return Response.json({ success: false, message: "Unauthorized" }, { status: 401 });
+      }
+      try {
+        let body = {};
+        try {
+          body = await req.json?.();
+        } catch (_e) {
+        }
+        let dateString = body?.dateString;
+        if (!dateString) {
+          const d = /* @__PURE__ */ new Date();
+          const utcOffset = d.getTime() + 5.5 * 60 * 60 * 1e3;
+          const localDate = new Date(utcOffset);
+          const year = localDate.getUTCFullYear();
+          const month = String(localDate.getUTCMonth() + 1).padStart(2, "0");
+          const day = String(localDate.getUTCDate()).padStart(2, "0");
+          dateString = `${year}-${month}-${day}`;
+        }
+        let employeeId = null;
+        const userEmp = req.user.employee;
+        if (userEmp) {
+          employeeId = typeof userEmp === "string" ? userEmp : userEmp.id;
+        }
+        if (!employeeId) {
+          const empSearch = await req.payload.find({
+            collection: "employees",
+            where: {
+              or: [
+                { phoneNumber: { equals: req.user.phone || req.user.phoneNumber || "__none__" } },
+                { employeeId: { equals: req.user.employeeId || "__none__" } }
+              ]
+            },
+            limit: 1
+          });
+          if (empSearch.docs.length > 0) {
+            employeeId = empSearch.docs[0].id;
           }
         }
-      ]
+        const userConditions = [{ user: { equals: req.user.id } }];
+        if (employeeId) {
+          userConditions.push({ employee: { equals: employeeId } });
+        }
+        const attSearch = await req.payload.find({
+          collection: "attendance",
+          where: {
+            and: [
+              { dateString: { equals: dateString } },
+              { or: userConditions }
+            ]
+          },
+          limit: 1
+        });
+        if (attSearch.docs.length === 0) {
+          return Response.json({
+            success: false,
+            message: "No attendance record found for today. Please punch in attendance before starting work."
+          }, { status: 400 });
+        }
+        const attDoc = attSearch.docs[0];
+        const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+        const currentStartTime = attDoc.workStartTime || nowIso;
+        const updated = await req.payload.update({
+          collection: "attendance",
+          id: attDoc.id,
+          data: {
+            workStatus: "in_progress",
+            workStartTime: currentStartTime
+          },
+          overrideAccess: true
+        });
+        return Response.json({
+          success: true,
+          message: "Work officially started!",
+          workStatus: "in_progress",
+          workStartTime: currentStartTime,
+          attendanceId: attDoc.id,
+          dateString
+        });
+      } catch (error) {
+        req.payload.logger.error({
+          err: error,
+          msg: "Error in startWorkHandler"
+        });
+        return Response.json(
+          { success: false, message: error.message || "Internal server error" },
+          { status: 500 }
+        );
+      }
     };
   }
 });
 
-// src/endpoints/verifyBillingApiKey.ts
-var verifyBillingApiKeyHandler;
-var init_verifyBillingApiKey = __esm({
-  "src/endpoints/verifyBillingApiKey.ts"() {
+// src/endpoints/completeWork.ts
+var completeWorkHandler;
+var init_completeWork = __esm({
+  "src/endpoints/completeWork.ts"() {
     "use strict";
-    init_apiKeyGuard();
-    verifyBillingApiKeyHandler = async (req) => {
-      const { apiKey: serverKey, enabled } = await fetchApiKeySettings(req);
-      let clientKey = (req.headers.get("x-api-key") || req.headers.get("X-Api-Key"))?.trim();
-      if (!clientKey) {
+    completeWorkHandler = async (req) => {
+      if (!req.user) {
+        return Response.json({ success: false, message: "Unauthorized" }, { status: 401 });
+      }
+      try {
+        let body = {};
         try {
-          const body = await req.json?.();
-          if (body?.apiKey) {
-            clientKey = body.apiKey.trim();
+          body = await req.json?.();
+        } catch (_e) {
+        }
+        let dateString = body?.dateString;
+        if (!dateString) {
+          const d = /* @__PURE__ */ new Date();
+          const utcOffset = d.getTime() + 5.5 * 60 * 60 * 1e3;
+          const localDate = new Date(utcOffset);
+          const year = localDate.getUTCFullYear();
+          const month = String(localDate.getUTCMonth() + 1).padStart(2, "0");
+          const day = String(localDate.getUTCDate()).padStart(2, "0");
+          dateString = `${year}-${month}-${day}`;
+        }
+        let employeeId = null;
+        const userEmp = req.user.employee;
+        if (userEmp) {
+          employeeId = typeof userEmp === "string" ? userEmp : userEmp.id;
+        }
+        if (!employeeId) {
+          const empSearch = await req.payload.find({
+            collection: "employees",
+            where: {
+              or: [
+                { phoneNumber: { equals: req.user.phone || req.user.phoneNumber || "__none__" } },
+                { employeeId: { equals: req.user.employeeId || "__none__" } }
+              ]
+            },
+            limit: 1
+          });
+          if (empSearch.docs.length > 0) {
+            employeeId = empSearch.docs[0].id;
           }
-        } catch (_) {
         }
-      }
-      if (!clientKey && req.url) {
-        const parsedUrl = new URL(req.url, "http://localhost");
-        const queryKey = parsedUrl.searchParams.get("apiKey")?.trim();
-        if (queryKey) {
-          clientKey = queryKey;
+        const userConditions = [{ user: { equals: req.user.id } }];
+        if (employeeId) {
+          userConditions.push({ employee: { equals: employeeId } });
         }
-      }
-      if (!enabled) {
-        return Response.json({
-          ok: true,
-          valid: true,
-          enforced: false,
-          message: "API Key validation is currently disabled in Dashboard settings."
+        const attSearch = await req.payload.find({
+          collection: "attendance",
+          where: {
+            and: [
+              { dateString: { equals: dateString } },
+              { or: userConditions }
+            ]
+          },
+          limit: 1
         });
-      }
-      if (!clientKey) {
+        const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+        let workDurationMinutes = 0;
+        let workStartTime = nowIso;
+        let attendanceId = null;
+        if (attSearch.docs.length > 0) {
+          const attDoc = attSearch.docs[0];
+          attendanceId = attDoc.id;
+          workStartTime = attDoc.workStartTime || nowIso;
+          const startMs = new Date(workStartTime).getTime();
+          const endMs = new Date(nowIso).getTime();
+          workDurationMinutes = Math.max(0, Math.round((endMs - startMs) / (1e3 * 60)));
+          await req.payload.update({
+            collection: "attendance",
+            id: attDoc.id,
+            data: {
+              workStatus: "completed",
+              workCompletedTime: nowIso,
+              workDurationMinutes
+            },
+            overrideAccess: true
+          });
+        }
+        try {
+          const compSearch = await req.payload.find({
+            collection: "task-completions",
+            where: {
+              and: [
+                { dateString: { equals: dateString } },
+                { or: userConditions }
+              ]
+            },
+            limit: 1
+          });
+          if (compSearch.docs.length > 0) {
+            await req.payload.update({
+              collection: "task-completions",
+              id: compSearch.docs[0].id,
+              data: {
+                notes: compSearch.docs[0].notes || `Work completed at ${nowIso}`
+              },
+              overrideAccess: true
+            });
+          }
+        } catch (_compErr) {
+        }
+        return Response.json({
+          success: true,
+          message: "Work officially completed and recorded in Attendance!",
+          workStatus: "completed",
+          workStartTime,
+          workCompletedTime: nowIso,
+          workDurationMinutes,
+          attendanceId,
+          dateString
+        });
+      } catch (error) {
+        req.payload.logger.error({
+          err: error,
+          msg: "Error in completeWorkHandler"
+        });
         return Response.json(
-          {
-            ok: false,
-            valid: false,
-            message: "No API key provided. Please provide an API key."
-          },
-          { status: 400 }
+          { success: false, message: error.message || "Internal server error" },
+          { status: 500 }
         );
       }
-      if (clientKey !== serverKey) {
-        return Response.json(
-          {
-            ok: false,
-            valid: false,
-            message: "Invalid API Key. Please check the key configured in Dashboard Settings."
-          },
-          { status: 401 }
-        );
-      }
-      return Response.json({
-        ok: true,
-        valid: true,
-        enforced: true,
-        message: "Billing App API Key verified successfully."
-      });
     };
   }
 });
@@ -37365,6 +37816,7 @@ var init_payload_config = __esm({
     init_getIdempotencyMetrics();
     init_idempotencyRetention();
     init_WaiterCalls();
+    init_ReportCardRules();
     init_readQueries();
     init_TimeWiseReport();
     init_getTimeWiseReport();
@@ -37386,8 +37838,8 @@ var init_payload_config = __esm({
     init_ManagerClosingReplies();
     init_getMyDailyTasks();
     init_toggleDailyTask();
-    init_BillingAppSettings();
-    init_verifyBillingApiKey();
+    init_startWork();
+    init_completeWork();
     initLogHook();
     filename = fileURLToPath(import.meta.url);
     dirname = path2.dirname(filename);
@@ -38131,6 +38583,16 @@ var init_payload_config = __esm({
           handler: toggleDailyTaskHandler
         },
         {
+          path: "/attendance/start-work",
+          method: "post",
+          handler: startWorkHandler
+        },
+        {
+          path: "/attendance/complete-work",
+          method: "post",
+          handler: completeWorkHandler
+        },
+        {
           path: "/my-daily-tasks",
           method: "get",
           handler: getMyDailyTasksHandler
@@ -38139,20 +38601,9 @@ var init_payload_config = __esm({
           path: "/toggle-daily-task",
           method: "post",
           handler: toggleDailyTaskHandler
-        },
-        {
-          path: "/billing-app/verify-key",
-          method: "post",
-          handler: verifyBillingApiKeyHandler
-        },
-        {
-          path: "/billing-app/verify-key",
-          method: "get",
-          handler: verifyBillingApiKeyHandler
         }
       ],
       globals: [
-        BillingAppSettings,
         PaymentSettings,
         IPSettings,
         JarvisGlobal,
@@ -38240,7 +38691,8 @@ var init_payload_config = __esm({
         StockAlerts,
         IdempotencyKeys_default,
         WaiterCalls_default,
-        CctvReports_default
+        CctvReports_default,
+        ReportCardRules_default
       ].map(wrapCollection),
       editor: lexicalEditor(),
       secret: process.env.PAYLOAD_SECRET || "",
