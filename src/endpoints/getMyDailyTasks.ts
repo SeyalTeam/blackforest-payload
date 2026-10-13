@@ -305,10 +305,17 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
           ? compPhoto.url || compPhoto.thumbnailURL
           : null)
 
+      const resolvedIcon =
+        task.icon === 'custom' && task.customIcon
+          ? task.customIcon
+          : (task.icon || null)
+
       return {
         id: task.id,
         title: task.title,
         description: task.description || '',
+        icon: resolvedIcon,
+        yesText: task.yesText || null,
         priority: task.priority || 'medium',
         frequency: taskFreq,
         isDaily: taskFreq === 'daily',

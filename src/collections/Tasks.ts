@@ -23,7 +23,7 @@ export const Tasks: CollectionConfig = {
   admin: {
     useAsTitle: 'title',
     group: 'Work',
-    defaultColumns: ['title', 'status', 'assignedRole', 'priority', 'dueDate', 'createdAt'],
+    defaultColumns: ['title', 'icon', 'status', 'assignedRole', 'priority', 'dueDate', 'createdAt'],
   },
   access: {
     read: () => true,
@@ -37,6 +37,49 @@ export const Tasks: CollectionConfig = {
       type: 'text',
       required: true,
       label: 'Task Title',
+    },
+    {
+      name: 'icon',
+      type: 'select',
+      label: 'Task Icon',
+      defaultValue: 'smile',
+      options: [
+        { label: '😊 Smile / Ready to Work', value: 'smile' },
+        { label: '🧠 Brain / Mind / Mental Health', value: 'brain' },
+        { label: '🧹 Cleaning / Maintenance', value: 'cleaning' },
+        { label: '⚙️ Equipment / Machinery', value: 'settings' },
+        { label: '💬 Customer Complaints', value: 'complaint' },
+        { label: '👥 Team Support', value: 'team' },
+        { label: '📋 Checklist / Audit', value: 'checklist' },
+        { label: '🧼 Hygiene / Food Safety', value: 'hygiene' },
+        { label: '💰 Cash / Billing', value: 'cash' },
+        { label: '📦 Stock / Inventory', value: 'inventory' },
+        { label: '⏰ Attendance / Punctuality', value: 'time' },
+        { label: '⭐ Uniform / Grooming', value: 'uniform' },
+        { label: '🍲 Kitchen / Cooking', value: 'food' },
+        { label: '🎂 Cake / Bakery', value: 'cake' },
+        { label: '✨ Custom Emoji / Other', value: 'custom' },
+      ],
+      admin: {
+        description: 'Icon displayed next to the task on the employee mobile app.',
+      },
+    },
+    {
+      name: 'customIcon',
+      type: 'text',
+      label: 'Custom Emoji or Icon Text',
+      admin: {
+        condition: (data) => data?.icon === 'custom',
+        description: 'Enter any emoji (e.g. 🎯, 💡, ☕, 👍) to show as the task icon.',
+      },
+    },
+    {
+      name: 'yesText',
+      type: 'text',
+      label: 'Yes Button Label (Optional)',
+      admin: {
+        description: 'Custom text for Yes button (e.g. "Yes, I\'m Ready", "Yes", "Done"). Defaults to "Yes, I\'m Ready" or "Yes".',
+      },
     },
     {
       name: 'column',
