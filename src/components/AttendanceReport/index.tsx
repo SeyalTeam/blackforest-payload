@@ -1004,7 +1004,7 @@ const AttendanceReport: React.FC = () => {
       if (!res.ok) throw new Error('Failed to fetch doc')
       const doc = await res.json()
       
-      let updateData: any = {}
+      const updateData: any = {}
       if (doc.activities && doc.activities.length > 0) {
         let needsUpdate = false
         const updatedActivities = doc.activities.map((act: any) => {
