@@ -396,6 +396,16 @@ const Attendance: CollectionConfig = {
           }
         }
 
+        // Calculate workDurationMinutes if both workStartTime and workCompletedTime exist
+        if (data.workStartTime && data.workCompletedTime) {
+          try {
+            const startMs = new Date(data.workStartTime).getTime()
+            const endMs = new Date(data.workCompletedTime).getTime()
+            const diffMinutes = Math.round((endMs - startMs) / (1000 * 60))
+            data.workDurationMinutes = diffMinutes > 0 ? diffMinutes : 0
+          } catch (_e) {}
+        }
+
         return data;
       },
     ],
@@ -513,6 +523,50 @@ const Attendance: CollectionConfig = {
       ],
       admin: {
         description: 'Auto-calculated: full_day if all sessions are closed, half_day if any session has no punch-out. Can also be set manually.',
+      },
+    },
+    {
+      name: 'workStatus',
+      type: 'select',
+      defaultValue: 'not_started',
+      options: [
+        { label: 'Not Started', value: 'not_started' },
+        { label: 'In Progress', value: 'in_progress' },
+        { label: 'Completed', value: 'completed' },
+      ],
+      admin: {
+        description: 'Official daily work status: whether employee started and completed their daily work tasks.',
+      },
+    },
+    {
+      name: 'workStartTime',
+      type: 'date',
+      timezone: true,
+      admin: {
+        description: 'Timestamp when employee tapped "Start My Work" in the mobile app.',
+        date: {
+          pickerAppearance: 'dayAndTime',
+          displayFormat: 'yyyy-MM-dd HH:mm:ss',
+        },
+      },
+    },
+    {
+      name: 'workCompletedTime',
+      type: 'date',
+      timezone: true,
+      admin: {
+        description: 'Timestamp when employee tapped "COMPLETE MY WORK" in the mobile app.',
+        date: {
+          pickerAppearance: 'dayAndTime',
+          displayFormat: 'yyyy-MM-dd HH:mm:ss',
+        },
+      },
+    },
+    {
+      name: 'workDurationMinutes',
+      type: 'number',
+      admin: {
+        description: 'Calculated duration between work start and work completion in minutes.',
       },
     },
 

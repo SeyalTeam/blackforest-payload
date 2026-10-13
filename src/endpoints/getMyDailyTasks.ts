@@ -334,11 +334,41 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
       }
     })
 
+    let workStatus = 'not_started'
+    let workStartTime: string | null = null
+    let workCompletedTime: string | null = null
+
+    try {
+      const attConditions: any[] = [{ user: { equals: req.user.id } }]
+      if (employeeId) {
+        attConditions.push({ employee: { equals: employeeId } })
+      }
+      const attSearch = await req.payload.find({
+        collection: 'attendance',
+        where: {
+          and: [
+            { dateString: { equals: dateString } },
+            { or: attConditions },
+          ],
+        },
+        limit: 1,
+      })
+      if (attSearch.docs.length > 0) {
+        const doc: any = attSearch.docs[0]
+        workStatus = doc.workStatus || 'not_started'
+        workStartTime = doc.workStartTime || null
+        workCompletedTime = doc.workCompletedTime || null
+      }
+    } catch (_attErr) {}
+
     return Response.json({
       success: true,
       dateString,
       employeeId,
       employeeRole,
+      workStatus,
+      workStartTime,
+      workCompletedTime,
       tasks: resultTasks,
     })
   } catch (error: any) {

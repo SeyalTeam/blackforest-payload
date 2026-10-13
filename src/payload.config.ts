@@ -143,6 +143,7 @@ import IdempotencyKeys from './collections/IdempotencyKeys'
 import { getIdempotencyMetricsHandler } from './endpoints/getIdempotencyMetrics'
 import { setupIdempotencyRetention } from './utilities/idempotencyRetention'
 import WaiterCalls from './collections/WaiterCalls'
+import ReportCardRules from './collections/ReportCardRules'
 import { readGraphQLQueries } from './graphql/readQueries'
 import { TimeWiseReportGlobal } from './globals/TimeWiseReport'
 import { getTimeWiseReportHandler } from './endpoints/getTimeWiseReport'
@@ -164,6 +165,8 @@ import { getPublicServerURL } from './utilities/serverUrl'
 import ManagerClosingReplies from './collections/ManagerClosingReplies'
 import { getMyDailyTasksHandler } from './endpoints/getMyDailyTasks'
 import { toggleDailyTaskHandler } from './endpoints/toggleDailyTask'
+import { startWorkHandler } from './endpoints/startWork'
+import { completeWorkHandler } from './endpoints/completeWork'
 
 
 // Path helpers
@@ -983,6 +986,16 @@ export default buildConfig({
       handler: toggleDailyTaskHandler,
     },
     {
+      path: '/attendance/start-work',
+      method: 'post',
+      handler: startWorkHandler,
+    },
+    {
+      path: '/attendance/complete-work',
+      method: 'post',
+      handler: completeWorkHandler,
+    },
+    {
       path: '/my-daily-tasks',
       method: 'get',
       handler: getMyDailyTasksHandler,
@@ -1084,6 +1097,7 @@ export default buildConfig({
     IdempotencyKeys,
     WaiterCalls,
     CctvReports,
+    ReportCardRules,
   ].map(wrapCollection),
 
 
