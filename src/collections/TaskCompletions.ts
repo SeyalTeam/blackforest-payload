@@ -106,7 +106,7 @@ export const TaskCompletions: CollectionConfig = {
 
         // Calculate completed count and total count
         const tasksList: any[] = Array.isArray(data.tasks) ? data.tasks : []
-        data.completedCount = tasksList.filter((t: any) => t.completed).length
+        data.completedCount = tasksList.filter((t: any) => t.completed || t.status === 'yes' || t.status === 'no_complaint').length
         data.totalCount = tasksList.length
 
         // Compute title: e.g. "Karthik (Manager) - 2026-09-27"
@@ -228,6 +228,16 @@ export const TaskCompletions: CollectionConfig = {
               ],
               defaultValue: 'daily',
               admin: { width: '12%' },
+            },
+            {
+              name: 'status',
+              type: 'select',
+              options: [
+                { label: 'Yes (Done)', value: 'yes' },
+                { label: 'No (Not Done)', value: 'no' },
+                { label: 'No Complaint', value: 'no_complaint' },
+              ],
+              admin: { width: '10%' },
             },
             {
               name: 'completed',

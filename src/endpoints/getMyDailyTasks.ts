@@ -217,7 +217,13 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
         // 1. Check inside tasks array
         for (const tItem of tasksList) {
           const tId = typeof tItem.task === 'string' ? tItem.task : tItem.task?.id
-          if (tId === task.id && tItem.completed === true) {
+          const hasAnswer =
+            tItem.status === 'yes' ||
+            tItem.status === 'no' ||
+            tItem.status === 'no_complaint' ||
+            tItem.completed === true ||
+            (tItem.completedAt && tItem.completed !== undefined)
+          if (tId === task.id && hasAnswer) {
             let isMatch = false
             if (taskFreq === 'hourly') {
               if (docDateStr === dateString && tItem.completedAt) {
@@ -247,7 +253,13 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
 
         // 2. Legacy fallback: doc has single task
         const singleTaskId = typeof doc.task === 'string' ? doc.task : doc.task?.id
-        if (singleTaskId === task.id && doc.completed === true) {
+        const docHasAnswer =
+          doc.status === 'yes' ||
+          doc.status === 'no' ||
+          doc.status === 'no_complaint' ||
+          doc.completed === true ||
+          (doc.completedAt && doc.completed !== undefined)
+        if (singleTaskId === task.id && docHasAnswer) {
           let isMatch = false
           if (taskFreq === 'hourly') {
             if (docDateStr === dateString && doc.completedAt) {
@@ -274,7 +286,18 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
         }
       }
 
-      const isCompleted = activeComp !== null
+      const compStatus =
+        activeComp?.status ||
+        (activeComp
+          ? activeComp.completed === true
+            ? 'yes'
+            : activeComp.completedAt
+              ? 'no'
+              : null
+          : null)
+      const isCompleted =
+        activeComp !== null &&
+        (activeComp.completed === true || compStatus === 'yes' || compStatus === 'no_complaint')
       const compPhoto = activeComp?.photo
       const compPhotoUrl =
         activeComp?.photoUrl ||
@@ -295,6 +318,7 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
         dueDate: task.dueDate || null,
         checklist: task.checklist || [],
         completed: isCompleted,
+        status: compStatus,
         completedAt: activeComp?.completedAt || null,
         completionId: activeDoc?.id || null,
         photo: compPhoto ? (typeof compPhoto === 'string' ? compPhoto : compPhoto.id) : null,

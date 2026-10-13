@@ -11,7 +11,7 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
       body = await req.json?.()
     } catch (_e) {}
 
-    const { taskId, completed, notes, photo, photoUrl } = body || {}
+    const { taskId, completed, status, notes, photo, photoUrl } = body || {}
     let dateString = body?.dateString
 
     if (!taskId) {
@@ -134,12 +134,23 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
             prevIst.getUTCDate() !== currIst.getUTCDate()
         }
 
-        isTaskCompleted = completed !== undefined ? Boolean(completed) : !currentTasks[taskIndex].completed
+        let taskStatus: string = 'yes'
+        if (status === 'yes' || status === 'no' || status === 'no_complaint') {
+          taskStatus = status
+          isTaskCompleted = status === 'yes' || status === 'no_complaint'
+        } else if (completed !== undefined) {
+          isTaskCompleted = Boolean(completed)
+          taskStatus = isTaskCompleted ? 'yes' : 'no'
+        } else {
+          isTaskCompleted = !currentTasks[taskIndex].completed
+          taskStatus = isTaskCompleted ? 'yes' : 'no'
+        }
+
         taskCompletedAt = isTaskCompleted
           ? (taskFrequency === 'hourly' || !currentTasks[taskIndex].completed || isDifferentHour
               ? new Date().toISOString()
               : (currentTasks[taskIndex].completedAt || new Date().toISOString()))
-          : null
+          : (taskStatus === 'no' ? (new Date().toISOString()) : null)
 
         // If completing and requires photo, ensure a photo is present or provided
         const existingPhoto = isDifferentHour ? null : currentTasks[taskIndex].photo
@@ -159,6 +170,7 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
           task: taskId,
           taskTitle,
           frequency: taskFrequency,
+          status: taskStatus,
           completed: isTaskCompleted,
           completedAt: taskCompletedAt,
           photo: isTaskCompleted ? savedPhoto : null,
@@ -166,8 +178,19 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
           notes: notes !== undefined ? notes : (currentTasks[taskIndex].notes || ''),
         }
       } else {
-        isTaskCompleted = completed !== undefined ? Boolean(completed) : true
-        taskCompletedAt = isTaskCompleted ? new Date().toISOString() : null
+        let taskStatus: string = 'yes'
+        if (status === 'yes' || status === 'no' || status === 'no_complaint') {
+          taskStatus = status
+          isTaskCompleted = status === 'yes' || status === 'no_complaint'
+        } else if (completed !== undefined) {
+          isTaskCompleted = Boolean(completed)
+          taskStatus = isTaskCompleted ? 'yes' : 'no'
+        } else {
+          isTaskCompleted = true
+          taskStatus = 'yes'
+        }
+
+        taskCompletedAt = new Date().toISOString()
         savedPhoto = photo || null
         savedPhotoUrl = photoUrl || null
 
@@ -182,6 +205,7 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
           task: taskId,
           taskTitle,
           frequency: taskFrequency,
+          status: taskStatus,
           completed: isTaskCompleted,
           completedAt: taskCompletedAt,
           photo: isTaskCompleted ? savedPhoto : null,
@@ -198,8 +222,19 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
         },
       })
     } else {
-      isTaskCompleted = completed !== undefined ? Boolean(completed) : true
-      taskCompletedAt = isTaskCompleted ? new Date().toISOString() : null
+      let taskStatus: string = 'yes'
+      if (status === 'yes' || status === 'no' || status === 'no_complaint') {
+        taskStatus = status
+        isTaskCompleted = status === 'yes' || status === 'no_complaint'
+      } else if (completed !== undefined) {
+        isTaskCompleted = Boolean(completed)
+        taskStatus = isTaskCompleted ? 'yes' : 'no'
+      } else {
+        isTaskCompleted = true
+        taskStatus = 'yes'
+      }
+
+      taskCompletedAt = new Date().toISOString()
       savedPhoto = photo || null
       savedPhotoUrl = photoUrl || null
 
@@ -222,6 +257,7 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
           task: taskId,
           taskTitle,
           frequency: taskFrequency,
+          status: taskStatus,
           completed: isTaskCompleted,
           completedAt: taskCompletedAt,
           photo: isTaskCompleted ? savedPhoto : null,
@@ -282,6 +318,7 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
 
     return Response.json({
       success: true,
+      status: taskStatus,
       completed: isTaskCompleted,
       completedAt: taskCompletedAt,
       photo: isTaskCompleted ? savedPhoto : null,
