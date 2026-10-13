@@ -207,6 +207,15 @@ const DealerBillings: CollectionConfig = {
         if (operation === 'create') {
           if (req.user?.role === 'branch' && req.user.branch) {
             data.branch = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
+          } else if (!data.branch && ['waiter', 'cashier'].includes(req.user?.role)) {
+            const lastLoginBranch = (req.user as any)?.lastLoginBranch
+            const lastLoginBranchId =
+              typeof lastLoginBranch === 'string' ? lastLoginBranch : lastLoginBranch?.id
+            if (lastLoginBranchId) {
+              data.branch = lastLoginBranchId
+            } else if (req.user?.branch) {
+              data.branch = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
+            }
           }
         }
         // Normalize productsPhoto into an array of ID strings

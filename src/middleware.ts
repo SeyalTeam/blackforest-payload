@@ -76,9 +76,8 @@ export function middleware(request: NextRequest) {
       if (!hasAppKey) {
         return NextResponse.json(
           {
-            error: "Forbidden: Invalid or missing Blackforest App Key.",
-            message:
-              "Login is restricted to authorized Blackforest applications. Please provide a valid App Key.",
+            error: "Forbidden: Unauthorized application.",
+            message: "Login is restricted to authorized Blackforest applications.",
           },
           {
             status: 403,
@@ -89,9 +88,8 @@ export function middleware(request: NextRequest) {
     } else if (!hasAppKey && !hasBearer) {
       return NextResponse.json(
         {
-          error: "Forbidden: Invalid or missing Blackforest App Key.",
-          message:
-            "This endpoint is restricted to authorized Blackforest applications. Please provide a valid App Key.",
+          error: "Forbidden: Unauthorized application.",
+          message: "This endpoint is restricted to authorized Blackforest applications.",
         },
         {
           status: 403,

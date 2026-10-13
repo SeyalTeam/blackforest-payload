@@ -38,12 +38,43 @@ const StockOrders: CollectionConfig = {
         if (operation === 'create') {
           if (!req.user) throw new Error('Unauthorized')
 
+          // Auto-populate branch if missing
+          if (!data.branch) {
+            if (req.user.role === 'branch' && req.user.branch) {
+              data.branch = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
+            } else if (['waiter', 'cashier'].includes(req.user.role)) {
+              const lastLoginBranch = (req.user as any)?.lastLoginBranch
+              const lastLoginBranchId =
+                typeof lastLoginBranch === 'string' ? lastLoginBranch : lastLoginBranch?.id
+              if (lastLoginBranchId) {
+                data.branch = lastLoginBranchId
+              } else if (req.user.branch) {
+                data.branch = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
+              }
+            }
+          }
+
           // Validate branch matches user's branch
-          if (['branch', 'waiter', 'cashier'].includes(req.user.role)) {
+          if (req.user.role === 'branch') {
             const userBranchId =
               typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
             const dataBranchId = typeof data.branch === 'string' ? data.branch : data?.branch?.id
             if (!userBranchId || userBranchId !== dataBranchId) {
+              throw new Error('Unauthorized branch')
+            }
+          } else if (['waiter', 'cashier'].includes(req.user.role)) {
+            const userBranchId =
+              typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
+            const lastLoginBranch = (req.user as any)?.lastLoginBranch
+            const lastLoginBranchId =
+              typeof lastLoginBranch === 'string' ? lastLoginBranch : lastLoginBranch?.id
+            const dataBranchId = typeof data.branch === 'string' ? data.branch : data?.branch?.id
+            const isAllowed =
+              dataBranchId &&
+              (dataBranchId === lastLoginBranchId ||
+                dataBranchId === userBranchId ||
+                (!userBranchId && !lastLoginBranchId))
+            if (!isAllowed && (lastLoginBranchId || userBranchId)) {
               throw new Error('Unauthorized branch')
             }
           }

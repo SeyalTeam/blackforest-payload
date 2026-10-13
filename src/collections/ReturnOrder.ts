@@ -36,8 +36,15 @@ const ReturnOrders: CollectionConfig = {
           if (!req.user) throw new Error('Unauthorized')
 
           // Auto-populate branch if missing
-          if (!data.branch && req.user.branch) {
-            data.branch = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
+          if (!data.branch) {
+            const lastLoginBranch = (req.user as any)?.lastLoginBranch
+            const lastLoginBranchId =
+              typeof lastLoginBranch === 'string' ? lastLoginBranch : lastLoginBranch?.id
+            if (lastLoginBranchId) {
+              data.branch = lastLoginBranchId
+            } else if (req.user?.branch) {
+              data.branch = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
+            }
           }
 
           // Temporarily disable branch validation to bypass mismatch error

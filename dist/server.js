@@ -1110,6 +1110,65 @@ var init_appVersionGuard = __esm({
   }
 });
 
+// src/utilities/apiKeyGuard.ts
+var apiKeyGuard_exports = {};
+__export(apiKeyGuard_exports, {
+  enforceBillingApiKey: () => enforceBillingApiKey,
+  fetchApiKeySettings: () => fetchApiKeySettings
+});
+var API_KEY_HEADER, BILLING_APP_SETTINGS_SLUG, CACHE_TTL_MS, cachedSettings, fetchApiKeySettings, enforceBillingApiKey;
+var init_apiKeyGuard = __esm({
+  "src/utilities/apiKeyGuard.ts"() {
+    "use strict";
+    API_KEY_HEADER = "x-api-key";
+    BILLING_APP_SETTINGS_SLUG = "billing-app-settings";
+    CACHE_TTL_MS = 2e4;
+    cachedSettings = null;
+    fetchApiKeySettings = async (req) => {
+      const now = Date.now();
+      if (cachedSettings && now - cachedSettings.cachedAt < CACHE_TTL_MS) {
+        return cachedSettings;
+      }
+      try {
+        const settings = await req.payload.findGlobal({
+          slug: BILLING_APP_SETTINGS_SLUG,
+          overrideAccess: true
+        });
+        const resolved = {
+          apiKey: settings?.apiKey?.trim() || "bf_live_app_key_2026",
+          enabled: settings?.enabled !== false,
+          blockedMessage: settings?.blockedMessage?.trim() || "Unauthorized Billing App: Invalid or missing API Key. Please configure the correct API Key in settings.",
+          cachedAt: now
+        };
+        cachedSettings = resolved;
+        return resolved;
+      } catch (err) {
+        console.error("[apiKeyGuard] Failed to fetch BillingAppSettings:", err);
+        return {
+          apiKey: "bf_live_app_key_2026",
+          enabled: true,
+          blockedMessage: "Unauthorized Billing App: Invalid or missing API Key. Please configure the correct API Key in settings."
+        };
+      }
+    };
+    enforceBillingApiKey = async (req) => {
+      const { apiKey, enabled, blockedMessage } = await fetchApiKeySettings(req);
+      if (!enabled) return null;
+      const clientKey = (req.headers.get(API_KEY_HEADER) || req.headers.get("x-api-key") || req.headers.get("X-Api-Key"))?.trim();
+      if (!clientKey || clientKey !== apiKey) {
+        return Response.json(
+          {
+            error: "invalid_api_key",
+            message: blockedMessage
+          },
+          { status: 401 }
+        );
+      }
+      return null;
+    };
+  }
+});
+
 // src/collections/Users.ts
 var getRelationshipID, getRelationshipIDs, canManageChefDetails, cachedMenuSettings, cachedMenuSettingsAt, Users;
 var init_Users = __esm({
@@ -1821,6 +1880,23 @@ var init_Users = __esm({
               } catch (_) {
               }
               throw new Error(message);
+            }
+            const isFromAdminPanel = req.headers?.get?.("referer")?.includes("/admin") || user.role === "superadmin";
+            const hasMobileHeader = Boolean(
+              req.headers?.get?.("x-app-version") || req.headers?.get?.("x-api-key") || req.headers?.get?.("x-private-ip")
+            );
+            if (hasMobileHeader || !isFromAdminPanel) {
+              const { enforceBillingApiKey: enforceBillingApiKey2 } = await Promise.resolve().then(() => (init_apiKeyGuard(), apiKeyGuard_exports));
+              const apiKeyBlock = await enforceBillingApiKey2(req);
+              if (apiKeyBlock) {
+                let message = "Unauthorized Billing App: Invalid or missing API Key.";
+                try {
+                  const body = await apiKeyBlock.clone().json();
+                  if (body?.message) message = body.message;
+                } catch (_) {
+                }
+                throw new Error(message);
+              }
             }
             const isLoginBlocked = Boolean(
               user.loginBlocked
@@ -26935,7 +27011,7 @@ var init_getTableCustomerDetailsVisibility = __esm({
 import dayjs26 from "dayjs";
 import utc26 from "dayjs/plugin/utc.js";
 import timezone26 from "dayjs/plugin/timezone.js";
-var ACTIVE_BILLING_STATUSES, LIVE_TABLE_TIMEZONE, BRANCH_SCOPED_ROLES2, getRelationshipID6, normalizeSectionName, parseSimpleTableNumber, extractNumericTableIndex, normalizeTableIdentifier, toTableLabel, parseConfiguredTableRange2, resolveConfiguredTables, parseOfflineTablesToArrayOfStrings2, toKotLabel, toElapsedSeconds, toMoneyNumber, getBillingTotalAmount, getBranchNameFromRelation, buildBranchWhere, resolveBranchScope, ensureBranch, ensureSection, ensureTable, compareTables, areAllItemsCancelled, normalizeItemStatus, getNonCancelledStatuses, deriveLiveTableState, getActiveTimerStart, responseCache, CACHE_TTL_MS, getLiveTableStatusHandler;
+var ACTIVE_BILLING_STATUSES, LIVE_TABLE_TIMEZONE, BRANCH_SCOPED_ROLES2, getRelationshipID6, normalizeSectionName, parseSimpleTableNumber, extractNumericTableIndex, normalizeTableIdentifier, toTableLabel, parseConfiguredTableRange2, resolveConfiguredTables, parseOfflineTablesToArrayOfStrings2, toKotLabel, toElapsedSeconds, toMoneyNumber, getBillingTotalAmount, getBranchNameFromRelation, buildBranchWhere, resolveBranchScope, ensureBranch, ensureSection, ensureTable, compareTables, areAllItemsCancelled, normalizeItemStatus, getNonCancelledStatuses, deriveLiveTableState, getActiveTimerStart, responseCache, CACHE_TTL_MS2, getLiveTableStatusHandler;
 var init_getLiveTableStatus = __esm({
   "src/endpoints/getLiveTableStatus.ts"() {
     "use strict";
@@ -27296,7 +27372,7 @@ var init_getLiveTableStatus = __esm({
       return createdAt;
     };
     responseCache = /* @__PURE__ */ new Map();
-    CACHE_TTL_MS = 1500;
+    CACHE_TTL_MS2 = 1500;
     getLiveTableStatusHandler = async (req) => {
       try {
         const requestURL = new URL(req.url || "http://localhost");
@@ -27308,7 +27384,7 @@ var init_getLiveTableStatus = __esm({
         const now = Date.now();
         const bypassCache = requestURL.searchParams.get("refresh") === "true";
         const cached = responseCache.get(cacheKey);
-        if (!bypassCache && cached && now - cached.timestamp < CACHE_TTL_MS) {
+        if (!bypassCache && cached && now - cached.timestamp < CACHE_TTL_MS2) {
           return Response.json({
             generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
             branches: cached.branches
@@ -37026,6 +37102,121 @@ var init_toggleDailyTask = __esm({
   }
 });
 
+// src/globals/BillingAppSettings.ts
+var canManageSettings, BillingAppSettings;
+var init_BillingAppSettings = __esm({
+  "src/globals/BillingAppSettings.ts"() {
+    "use strict";
+    canManageSettings = (role) => ["superadmin", "admin"].includes(role || "");
+    BillingAppSettings = {
+      slug: "billing-app-settings",
+      label: "Billing App API Key",
+      admin: {
+        group: "Settings",
+        description: "Configure the secret API Key for the Blackforest Billing mobile app. Mobile devices without this exact API key will be blocked from logging in or performing operations."
+      },
+      access: {
+        read: () => true,
+        update: ({ req }) => canManageSettings(req.user?.role)
+      },
+      fields: [
+        {
+          name: "apiKey",
+          label: "Billing App API Key",
+          type: "text",
+          required: true,
+          defaultValue: "bf_live_app_key_2026",
+          admin: {
+            description: "Every Blackforest Billing mobile device must have this exact API key configured. You can change this key anytime to revoke access to lost or untrusted devices.",
+            placeholder: "e.g. bf_live_app_key_2026"
+          }
+        },
+        {
+          name: "enabled",
+          label: "Enforce API Key Validation",
+          type: "checkbox",
+          defaultValue: true,
+          admin: {
+            description: "When checked, requests from the mobile app without this valid API key will be blocked immediately."
+          }
+        },
+        {
+          name: "blockedMessage",
+          label: "Blocked Error Message",
+          type: "text",
+          defaultValue: "Unauthorized Billing App: Invalid or missing API Key. Please configure the correct API Key in settings.",
+          admin: {
+            description: "Message displayed on mobile devices when their configured API key does not match this setting."
+          }
+        }
+      ]
+    };
+  }
+});
+
+// src/endpoints/verifyBillingApiKey.ts
+var verifyBillingApiKeyHandler;
+var init_verifyBillingApiKey = __esm({
+  "src/endpoints/verifyBillingApiKey.ts"() {
+    "use strict";
+    init_apiKeyGuard();
+    verifyBillingApiKeyHandler = async (req) => {
+      const { apiKey: serverKey, enabled } = await fetchApiKeySettings(req);
+      let clientKey = (req.headers.get("x-api-key") || req.headers.get("X-Api-Key"))?.trim();
+      if (!clientKey) {
+        try {
+          const body = await req.json?.();
+          if (body?.apiKey) {
+            clientKey = body.apiKey.trim();
+          }
+        } catch (_) {
+        }
+      }
+      if (!clientKey && req.url) {
+        const parsedUrl = new URL(req.url, "http://localhost");
+        const queryKey = parsedUrl.searchParams.get("apiKey")?.trim();
+        if (queryKey) {
+          clientKey = queryKey;
+        }
+      }
+      if (!enabled) {
+        return Response.json({
+          ok: true,
+          valid: true,
+          enforced: false,
+          message: "API Key validation is currently disabled in Dashboard settings."
+        });
+      }
+      if (!clientKey) {
+        return Response.json(
+          {
+            ok: false,
+            valid: false,
+            message: "No API key provided. Please provide an API key."
+          },
+          { status: 400 }
+        );
+      }
+      if (clientKey !== serverKey) {
+        return Response.json(
+          {
+            ok: false,
+            valid: false,
+            message: "Invalid API Key. Please check the key configured in Dashboard Settings."
+          },
+          { status: 401 }
+        );
+      }
+      return Response.json({
+        ok: true,
+        valid: true,
+        enforced: true,
+        message: "Billing App API Key verified successfully."
+      });
+    };
+  }
+});
+
 // src/payload.config.ts
 var payload_config_exports = {};
 __export(payload_config_exports, {
@@ -37195,6 +37386,8 @@ var init_payload_config = __esm({
     init_ManagerClosingReplies();
     init_getMyDailyTasks();
     init_toggleDailyTask();
+    init_BillingAppSettings();
+    init_verifyBillingApiKey();
     initLogHook();
     filename = fileURLToPath(import.meta.url);
     dirname = path2.dirname(filename);
@@ -37946,9 +38139,20 @@ var init_payload_config = __esm({
           path: "/toggle-daily-task",
           method: "post",
           handler: toggleDailyTaskHandler
+        },
+        {
+          path: "/billing-app/verify-key",
+          method: "post",
+          handler: verifyBillingApiKeyHandler
+        },
+        {
+          path: "/billing-app/verify-key",
+          method: "get",
+          handler: verifyBillingApiKeyHandler
         }
       ],
       globals: [
+        BillingAppSettings,
         PaymentSettings,
         IPSettings,
         JarvisGlobal,
