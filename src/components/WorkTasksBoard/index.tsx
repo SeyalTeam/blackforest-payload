@@ -9,7 +9,6 @@ import {
   MoreHorizontal,
   X,
   Clock,
-  Paperclip,
   AlignLeft,
   CheckSquare,
   Zap,
@@ -20,7 +19,6 @@ import {
   RefreshCw,
   Edit2,
   Columns,
-  ShieldAlert,
   Camera,
   Smile,
 } from 'lucide-react'
