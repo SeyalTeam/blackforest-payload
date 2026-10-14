@@ -23,6 +23,7 @@ import ReturnOrder from './collections/ReturnOrder'
 import ClosingEntries from './collections/ClosingEntries'
 import Expenses from './collections/Expenses'
 import StockOrders from './collections/StockOrders'
+import Cakes from './collections/Cakes'
 import Reviews from './collections/Reviews'
 import Customers from './collections/Customers'
 import BillingCustomers from './collections/BillingCustomers'
@@ -68,6 +69,7 @@ export default buildConfig({
     Tables,
     Attendance,
     StockOrders,
+    Cakes,
     Expenses,
     ReturnOrder,
     Dealers,

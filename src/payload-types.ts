@@ -112,6 +112,7 @@ export interface Config {
     'idempotency-keys': IdempotencyKey;
     'waiter-calls': WaiterCall;
     'cctv-reports': CctvReport;
+    'report-card-rules': ReportCardRule;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -163,6 +164,7 @@ export interface Config {
     'idempotency-keys': IdempotencyKeysSelect<false> | IdempotencyKeysSelect<true>;
     'waiter-calls': WaiterCallsSelect<false> | WaiterCallsSelect<true>;
     'cctv-reports': CctvReportsSelect<false> | CctvReportsSelect<true>;
+    'report-card-rules': ReportCardRulesSelect<false> | ReportCardRulesSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -1033,6 +1035,18 @@ export interface RawMaterialDealer {
 export interface Task {
   id: string;
   title: string;
+  /**
+   * Emoji or icon (e.g. 🧹, 📋, 🍲, 🎂, 🎯, ⏰) displayed next to the task on the employee mobile app. Type or choose from dashboard palette / mobile keyboard.
+   */
+  icon?: string | null;
+  /**
+   * Enter any emoji (e.g. 🎯, 💡, ☕, 👍) to show as the task icon.
+   */
+  customIcon?: string | null;
+  /**
+   * Custom text for Yes button (e.g. "Yes, I'm Ready", "Yes", "Done"). Defaults to "Yes, I'm Ready" or "Yes".
+   */
+  yesText?: string | null;
   column?: (string | null) | TaskColumn;
   description?: string | null;
   status: 'backlog' | 'todo' | 'in_progress' | 'review' | 'done';
@@ -1064,7 +1078,7 @@ export interface Task {
   order?: number | null;
   labels?:
     | {
-        text: string;
+        text: 'Routine' | 'Task' | 'Urgent' | 'Rarely' | 'manager' | 'waiter' | 'chef' | 'driver' | 'supervisor' | 'MD';
         color?: ('green' | 'yellow' | 'orange' | 'red' | 'purple' | 'blue' | 'cyan' | 'pink') | null;
         id?: string | null;
       }[]
@@ -1151,6 +1165,7 @@ export interface TaskCompletion {
         task: string | Task;
         taskTitle?: string | null;
         frequency?: ('daily' | 'weekly' | 'monthly' | 'hourly') | null;
+        status?: ('yes' | 'no' | 'no_complaint') | null;
         completed?: boolean | null;
         completedAt?: string | null;
         photo?: (string | null) | Media;
@@ -1518,16 +1533,40 @@ export interface Expense {
 export interface Cake {
   id: string;
   kotNumber: string;
+  /**
+   * Original Order ID from blackforest-cakes backend
+   */
+  legacyOrderId?: string | null;
+  branch?: (string | null) | Branch;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  customerEmail?: string | null;
+  deliveryType?: ('shop' | 'home') | null;
+  deliveryAddress?: string | null;
   cakePrice: number;
-  paymentMethod: 'cash' | 'card' | 'upi' | 'cashfree' | 'other';
-  paymentType: 'advance' | 'full';
   paymentAmount: number;
   pendingAmount?: number | null;
-  deliveryDate: string;
-  kotPhoto: string | Media;
-  cakePhoto: string | Media;
+  paymentMethod?: ('cash' | 'card' | 'upi' | 'cashfree' | 'other') | null;
+  paymentType?: ('advance' | 'full') | null;
   status: 'paid' | 'pending';
-  branch: string | Branch;
+  orderStatus?: ('pending' | 'prepared' | 'ready' | 'picked' | 'delivered' | 'cancelled') | null;
+  deliveryDate?: string | null;
+  flavour?: string | null;
+  weight?: string | null;
+  creamType?: string | null;
+  cakeModel?: string | null;
+  alteration?: string | null;
+  /**
+   * Custom message or name to write on the cake
+   */
+  wordings?: string | null;
+  specialCare?: string | null;
+  kotPhoto?: (string | null) | Media;
+  cakePhoto?: (string | null) | Media;
+  /**
+   * Direct URL or filename of uploaded order receipt/photo
+   */
+  orderDoc?: string | null;
   paymentHistory?:
     | {
         amount: number;
@@ -1537,11 +1576,11 @@ export interface Cake {
       }[]
     | null;
   /**
-   * ID of the cashier who created/submitted the cake order.
+   * ID of the cashier/staff who took the order.
    */
   cashierId?: string | null;
   /**
-   * Name of the cashier who created/submitted the cake order.
+   * Name of the cashier/staff who took the order.
    */
   cashierName?: string | null;
   updatedAt: string;
@@ -2282,6 +2321,24 @@ export interface Attendance {
    * Auto-calculated: full_day if all sessions are closed, half_day if any session has no punch-out. Can also be set manually.
    */
   dayType?: ('full_day' | 'half_day' | 'week_off' | 'on_leave' | 'holiday') | null;
+  /**
+   * Official daily work status: whether employee started and completed their daily work tasks.
+   */
+  workStatus?: ('not_started' | 'in_progress' | 'completed') | null;
+  /**
+   * Timestamp when employee tapped "Start My Work" in the mobile app.
+   */
+  workStartTime?: string | null;
+  workStartTime_tz?: SupportedTimezones;
+  /**
+   * Timestamp when employee tapped "COMPLETE MY WORK" in the mobile app.
+   */
+  workCompletedTime?: string | null;
+  workCompletedTime_tz?: SupportedTimezones;
+  /**
+   * Calculated duration between work start and work completion in minutes.
+   */
+  workDurationMinutes?: number | null;
   activities?:
     | {
         type: 'session' | 'break';
@@ -2509,6 +2566,71 @@ export interface CctvReport {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "report-card-rules".
+ */
+export interface ReportCardRule {
+  id: string;
+  /**
+   * Descriptive title for this performance rule or FAQ topic (e.g. "Table Call Response Speed SLA").
+   */
+  title: string;
+  /**
+   * Switch toggle ON to activate this rule in progress card calculations and show in FAQ. Toggle OFF to disable.
+   */
+  enabled?: boolean | null;
+  /**
+   * The job role this rule applies to.
+   */
+  role:
+    | 'all'
+    | 'waiter'
+    | 'cashier'
+    | 'chef'
+    | 'kitchen'
+    | 'store_keeper'
+    | 'manager'
+    | 'supervisor'
+    | 'driver'
+    | 'delivery'
+    | 'watcher'
+    | 'account';
+  /**
+   * The functional pillar for evaluation.
+   */
+  category: 'call_speed' | 'attendance' | 'tasks' | 'billing' | 'hygiene' | 'reviews' | 'general';
+  /**
+   * Maximum achievable score for this metric (standard: 100).
+   */
+  maxMarks: number;
+  /**
+   * Percentage contribution to overall score (e.g. 30%).
+   */
+  weightage?: number | null;
+  /**
+   * Sort order in dashboard report cards and FAQ lists.
+   */
+  order?: number | null;
+  /**
+   * Detailed explanation of the rule, SLA standards, and how marks are calculated.
+   */
+  ruleDetails: string;
+  /**
+   * Points deducted for delays, misses, order errors, or late punch-ins.
+   */
+  deductionRules?: string | null;
+  /**
+   * The question shown to employees in their progress card modal (e.g. "How is my Table Call Response score calculated?").
+   */
+  faqQuestion?: string | null;
+  /**
+   * Helpful guidance and explanation for employees to understand and improve their score.
+   */
+  faqAnswer?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -2693,6 +2815,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'cctv-reports';
         value: string | CctvReport;
+      } | null)
+    | ({
+        relationTo: 'report-card-rules';
+        value: string | ReportCardRule;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -3145,6 +3271,9 @@ export interface EmployeesSelect<T extends boolean = true> {
  */
 export interface TasksSelect<T extends boolean = true> {
   title?: T;
+  icon?: T;
+  customIcon?: T;
+  yesText?: T;
   column?: T;
   description?: T;
   status?: T;
@@ -3211,6 +3340,7 @@ export interface TaskCompletionsSelect<T extends boolean = true> {
         task?: T;
         taskTitle?: T;
         frequency?: T;
+        status?: T;
         completed?: T;
         completedAt?: T;
         photo?: T;
@@ -3496,16 +3626,31 @@ export interface ExpensesSelect<T extends boolean = true> {
  */
 export interface CakesSelect<T extends boolean = true> {
   kotNumber?: T;
+  legacyOrderId?: T;
+  branch?: T;
+  customerName?: T;
+  customerPhone?: T;
+  customerEmail?: T;
+  deliveryType?: T;
+  deliveryAddress?: T;
   cakePrice?: T;
-  paymentMethod?: T;
-  paymentType?: T;
   paymentAmount?: T;
   pendingAmount?: T;
+  paymentMethod?: T;
+  paymentType?: T;
+  status?: T;
+  orderStatus?: T;
   deliveryDate?: T;
+  flavour?: T;
+  weight?: T;
+  creamType?: T;
+  cakeModel?: T;
+  alteration?: T;
+  wordings?: T;
+  specialCare?: T;
   kotPhoto?: T;
   cakePhoto?: T;
-  status?: T;
-  branch?: T;
+  orderDoc?: T;
   paymentHistory?:
     | T
     | {
@@ -3870,6 +4015,12 @@ export interface AttendanceSelect<T extends boolean = true> {
   dateString?: T;
   isLate?: T;
   dayType?: T;
+  workStatus?: T;
+  workStartTime?: T;
+  workStartTime_tz?: T;
+  workCompletedTime?: T;
+  workCompletedTime_tz?: T;
+  workDurationMinutes?: T;
   activities?:
     | T
     | {
@@ -4034,6 +4185,25 @@ export interface CctvReportsSelect<T extends boolean = true> {
   proofPhoto?: T;
   manager?: T;
   createdBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "report-card-rules_select".
+ */
+export interface ReportCardRulesSelect<T extends boolean = true> {
+  title?: T;
+  enabled?: T;
+  role?: T;
+  category?: T;
+  maxMarks?: T;
+  weightage?: T;
+  order?: T;
+  ruleDetails?: T;
+  deductionRules?: T;
+  faqQuestion?: T;
+  faqAnswer?: T;
   updatedAt?: T;
   createdAt?: T;
 }

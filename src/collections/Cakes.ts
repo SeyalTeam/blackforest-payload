@@ -4,6 +4,18 @@ const Cakes: CollectionConfig = {
   slug: 'cakes',
   admin: {
     useAsTitle: 'kotNumber',
+    defaultColumns: [
+      'kotNumber',
+      'customerName',
+      'customerPhone',
+      'cakePrice',
+      'paymentAmount',
+      'pendingAmount',
+      'status',
+      'orderStatus',
+      'deliveryDate',
+      'branch',
+    ],
   },
   access: {
     read: () => true,
@@ -16,82 +28,248 @@ const Cakes: CollectionConfig = {
       name: 'kotNumber',
       type: 'text',
       required: true,
+      index: true,
+      label: 'Order / KOT Number',
     },
     {
-      name: 'cakePrice',
-      type: 'number',
-      required: true,
-    },
-    {
-      name: 'paymentMethod',
-      type: 'select',
-      options: [
-        { label: 'Cash', value: 'cash' },
-        { label: 'Card', value: 'card' },
-        { label: 'UPI', value: 'upi' },
-        { label: 'Cashfree', value: 'cashfree' },
-        { label: 'Other', value: 'other' },
-      ],
-      required: true,
-    },
-    {
-      name: 'paymentType',
-      type: 'select',
-      options: [
-        { label: 'Advance', value: 'advance' },
-        { label: 'Full', value: 'full' },
-      ],
-      required: true,
-    },
-    {
-      name: 'paymentAmount',
-      type: 'number',
-      required: true,
-    },
-    {
-      name: 'pendingAmount',
-      type: 'number',
+      name: 'legacyOrderId',
+      type: 'text',
+      index: true,
       admin: {
-        readOnly: true,
+        description: 'Original Order ID from blackforest-cakes backend',
+        position: 'sidebar',
       },
-    },
-    {
-      name: 'deliveryDate',
-      type: 'date',
-      required: true,
-      admin: {
-        date: {
-          pickerAppearance: 'dayAndTime',
-        },
-      },
-    },
-    {
-      name: 'kotPhoto',
-      type: 'relationship',
-      relationTo: 'media',
-      required: true,
-    },
-    {
-      name: 'cakePhoto',
-      type: 'relationship',
-      relationTo: 'media',
-      required: true,
-    },
-    {
-      name: 'status',
-      type: 'select',
-      options: [
-        { label: 'Paid', value: 'paid' },
-        { label: 'Pending', value: 'pending' },
-      ],
-      required: true,
-      defaultValue: 'pending',
     },
     {
       name: 'branch',
       type: 'relationship',
       relationTo: 'branches',
-      required: true,
+      index: true,
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'customerName',
+          type: 'text',
+          label: 'Customer Name',
+          admin: { width: '50%' },
+        },
+        {
+          name: 'customerPhone',
+          type: 'text',
+          label: 'Customer Phone',
+          admin: { width: '50%' },
+        },
+      ],
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'customerEmail',
+          type: 'text',
+          label: 'Customer Email',
+          admin: { width: '50%' },
+        },
+        {
+          name: 'deliveryType',
+          type: 'select',
+          label: 'Delivery Type',
+          options: [
+            { label: 'Shop Pickup', value: 'shop' },
+            { label: 'Home Delivery', value: 'home' },
+          ],
+          defaultValue: 'shop',
+          admin: { width: '50%' },
+        },
+      ],
+    },
+    {
+      name: 'deliveryAddress',
+      type: 'textarea',
+      label: 'Delivery Address',
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'cakePrice',
+          type: 'number',
+          label: 'Total Amount (₹)',
+          required: true,
+          defaultValue: 0,
+          admin: { width: '33%' },
+        },
+        {
+          name: 'paymentAmount',
+          type: 'number',
+          label: 'Paid / Advance Amount (₹)',
+          required: true,
+          defaultValue: 0,
+          admin: { width: '33%' },
+        },
+        {
+          name: 'pendingAmount',
+          type: 'number',
+          label: 'Balance Amount (₹)',
+          admin: {
+            readOnly: true,
+            width: '34%',
+          },
+        },
+      ],
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'paymentMethod',
+          type: 'select',
+          options: [
+            { label: 'Cash', value: 'cash' },
+            { label: 'Card', value: 'card' },
+            { label: 'UPI', value: 'upi' },
+            { label: 'Cashfree', value: 'cashfree' },
+            { label: 'Other', value: 'other' },
+          ],
+          defaultValue: 'cash',
+          admin: { width: '33%' },
+        },
+        {
+          name: 'paymentType',
+          type: 'select',
+          options: [
+            { label: 'Advance', value: 'advance' },
+            { label: 'Full', value: 'full' },
+          ],
+          defaultValue: 'advance',
+          admin: { width: '33%' },
+        },
+        {
+          name: 'status',
+          type: 'select',
+          label: 'Payment Status',
+          options: [
+            { label: 'Paid', value: 'paid' },
+            { label: 'Pending', value: 'pending' },
+          ],
+          required: true,
+          defaultValue: 'pending',
+          admin: { width: '34%' },
+        },
+      ],
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'orderStatus',
+          type: 'select',
+          label: 'Order Lifecycle Status',
+          options: [
+            { label: 'Ordered / Pending', value: 'pending' },
+            { label: 'Prepared', value: 'prepared' },
+            { label: 'Ready', value: 'ready' },
+            { label: 'Picked', value: 'picked' },
+            { label: 'Delivered', value: 'delivered' },
+            { label: 'Cancelled', value: 'cancelled' },
+          ],
+          defaultValue: 'pending',
+          admin: { width: '50%' },
+        },
+        {
+          name: 'deliveryDate',
+          type: 'date',
+          label: 'Delivery Date & Time',
+          admin: {
+            date: {
+              pickerAppearance: 'dayAndTime',
+            },
+            width: '50%',
+          },
+        },
+      ],
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'flavour',
+          type: 'text',
+          label: 'Flavour',
+          admin: { width: '33%' },
+        },
+        {
+          name: 'weight',
+          type: 'text',
+          label: 'Weight (e.g. 1 Kg)',
+          admin: { width: '33%' },
+        },
+        {
+          name: 'creamType',
+          type: 'text',
+          label: 'Cream Type',
+          admin: { width: '34%' },
+        },
+      ],
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'cakeModel',
+          type: 'text',
+          label: 'Cake Model / Design Name',
+          admin: { width: '50%' },
+        },
+        {
+          name: 'alteration',
+          type: 'text',
+          label: 'Alteration Details',
+          admin: { width: '50%' },
+        },
+      ],
+    },
+    {
+      name: 'wordings',
+      type: 'textarea',
+      label: 'Message on Cake (Wordings)',
+      admin: {
+        description: 'Custom message or name to write on the cake',
+      },
+    },
+    {
+      name: 'specialCare',
+      type: 'textarea',
+      label: 'Special Baking & Handling Instructions',
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'kotPhoto',
+          type: 'relationship',
+          relationTo: 'media',
+          required: false,
+          admin: { width: '50%' },
+        },
+        {
+          name: 'cakePhoto',
+          type: 'relationship',
+          relationTo: 'media',
+          required: false,
+          admin: { width: '50%' },
+        },
+      ],
+    },
+    {
+      name: 'orderDoc',
+      type: 'text',
+      label: 'Order Document / Photo URL',
+      admin: {
+        description: 'Direct URL or filename of uploaded order receipt/photo',
+      },
     },
     {
       name: 'paymentHistory',
@@ -125,13 +303,13 @@ const Cakes: CollectionConfig = {
       name: 'cashierId',
       type: 'text',
       index: true,
-      admin: { description: 'ID of the cashier who created/submitted the cake order.' },
+      admin: { description: 'ID of the cashier/staff who took the order.' },
     },
     {
       name: 'cashierName',
       type: 'text',
       index: true,
-      admin: { description: 'Name of the cashier who created/submitted the cake order.' },
+      admin: { description: 'Name of the cashier/staff who took the order.' },
     },
   ],
   hooks: {

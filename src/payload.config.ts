@@ -239,7 +239,13 @@ const wrapCollection = (collection: CollectionConfig): CollectionConfig => {
       create: (args) => {
         const { req } = args
         const user = req?.user
-        if (!user) return false
+        if (!user) {
+          const originalCreate = collection.access?.create
+          if (typeof originalCreate === 'function') {
+            return originalCreate(args)
+          }
+          return false
+        }
         if (user.role === 'superadmin' || user.role === 'admin') return true
 
         const allowedCollections = (user as any).allowedCollections
@@ -263,7 +269,13 @@ const wrapCollection = (collection: CollectionConfig): CollectionConfig => {
       update: (args) => {
         const { req } = args
         const user = req?.user
-        if (!user) return false
+        if (!user) {
+          const originalUpdate = collection.access?.update
+          if (typeof originalUpdate === 'function') {
+            return originalUpdate(args)
+          }
+          return false
+        }
         if (user.role === 'superadmin' || user.role === 'admin') return true
 
         const allowedCollections = (user as any).allowedCollections
@@ -287,7 +299,13 @@ const wrapCollection = (collection: CollectionConfig): CollectionConfig => {
       delete: (args) => {
         const { req } = args
         const user = req?.user
-        if (!user) return false
+        if (!user) {
+          const originalDelete = collection.access?.delete
+          if (typeof originalDelete === 'function') {
+            return originalDelete(args)
+          }
+          return false
+        }
         if (user.role === 'superadmin' || user.role === 'admin') return true
 
         const originalDelete = collection.access?.delete
