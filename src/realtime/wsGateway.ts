@@ -871,6 +871,86 @@ const enforceConnectionLimits = (userID: string): { ok: true } | { ok: false; re
   return { ok: true }
 }
 
+const handleCallSignal = (connection: ConnectionState, value: Record<string, unknown>): void => {
+  const targetUserId =
+    typeof value.targetUserId === 'string'
+      ? value.targetUserId.trim()
+      : typeof value.recipientUserId === 'string'
+        ? value.recipientUserId.trim()
+        : ''
+  const callId = typeof value.callId === 'string' ? value.callId.trim() : ''
+  const signalType = typeof value.signalType === 'string' ? value.signalType.trim() : ''
+
+  if (!targetUserId || !signalType) {
+    sendSystemMessage(connection, {
+      eventType: 'call_signal_nack',
+      error_code: 'invalid_call_signal',
+      message: 'targetUserId and signalType are required.',
+    })
+    return
+  }
+
+  const senderName =
+    typeof connection.user?.name === 'string' && connection.user.name.trim().length > 0
+      ? connection.user.name.trim()
+      : typeof connection.user?.email === 'string'
+        ? connection.user.email
+        : 'Admin'
+
+  const eventPayload: Record<string, unknown> = {
+    eventType: 'call_signal',
+    callId,
+    signalType,
+    senderId: connection.userID,
+    senderName,
+    senderRole: connection.role,
+    targetUserId,
+    timestamp: nowISO(),
+  }
+
+  if (value.sdp !== undefined) eventPayload.sdp = value.sdp
+  if (value.candidate !== undefined) eventPayload.candidate = value.candidate
+  if (value.reason !== undefined) eventPayload.reason = value.reason
+  if (value.data !== undefined) eventPayload.data = value.data
+
+  const targetConnIDs = realtimeState.connectionsByUserID.get(targetUserId)
+  if (!targetConnIDs || targetConnIDs.size === 0) {
+    if (signalType === 'offer') {
+      sendServerMessage(connection, {
+        eventType: 'call_signal',
+        callId,
+        signalType: 'user_offline',
+        senderId: 'system',
+        targetUserId,
+        message: 'The user is currently offline or unreachable.',
+        timestamp: nowISO(),
+      })
+    }
+    return
+  }
+
+  let sent = false
+  for (const connID of targetConnIDs) {
+    const targetConn = realtimeState.connections.get(connID)
+    if (targetConn && targetConn.socket.readyState === WebSocket.OPEN) {
+      sendServerMessage(targetConn, eventPayload)
+      sent = true
+    }
+  }
+
+  if (!sent && signalType === 'offer') {
+    sendServerMessage(connection, {
+      eventType: 'call_signal',
+      callId,
+      signalType: 'user_offline',
+      senderId: 'system',
+      targetUserId,
+      message: 'The user is currently offline or unreachable.',
+      timestamp: nowISO(),
+    })
+  }
+}
+
 const bootSocket = (socket: WebSocket, context: AuthenticatedUserContext): void => {
   const connection = registerConnection(socket, context)
 
@@ -912,7 +992,13 @@ const bootSocket = (socket: WebSocket, context: AuthenticatedUserContext): void 
       return
     }
 
-    const action = typeof parsed.value.action === 'string' ? parsed.value.action.trim() : ''
+    const rawAction = parsed.value.action ?? parsed.value.type ?? parsed.value.eventType
+    const action = typeof rawAction === 'string' ? rawAction.trim() : ''
+
+    if (action === 'call_signal') {
+      handleCallSignal(connection, parsed.value)
+      return
+    }
 
     if (action === 'subscribe') {
       void handleSubscribe(connection, parsed.value)
@@ -934,7 +1020,7 @@ const bootSocket = (socket: WebSocket, context: AuthenticatedUserContext): void 
     sendSystemMessage(connection, {
       eventType: 'message_nack',
       error_code: 'unsupported_action',
-      message: 'Supported actions: subscribe, unsubscribe, ping.',
+      message: 'Supported actions: subscribe, unsubscribe, ping, call_signal.',
     })
   })
 }
