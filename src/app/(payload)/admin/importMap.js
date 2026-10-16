@@ -14,6 +14,7 @@ import { default as default_8a4cc2be73f160763ed425d4819cb1e7 } from '../../../co
 import { default as default_20a99712a7f6df2c7d826602eae357af } from '../../../components/ChefReport/index.tsx'
 import { default as default_7397014835f53864fd04e60a81829907 } from '../../../components/ClosingEntryReport/index.tsx'
 import { default as default_bf85980ee3af56c75543fe343ccb1155 } from '../../../components/WaiterWiseBillingReport/index.tsx'
+import { default as default_7cc7f7bb5afc5ce5b754698eeb18c29b } from '../../../components/ReportCard/index.tsx'
 import { default as default_d9da05f5f6d8dd69800c744713ad1632 } from '../../../components/AttendanceReport/index.tsx'
 import { default as default_7c4eca9b024572db8dabeb53bf36c0e7 } from '../../../components/InventoryReport/index.tsx'
 import { default as default_f6297d9a270bdbbca7736c61f9f4f1e9 } from '../../../components/StockOrderReport/index.tsx'
@@ -34,6 +35,7 @@ import { default as default_d4c0194fffb8d598abc8dcbf5bd68b64 } from '../../../co
 import { default as default_5e6a0e56c42edcb4e104ac5a24108eec } from '../../../components/WorkTasksBoard/index.tsx'
 import { default as default_3005347841fa10396ea6b3f07ad955e3 } from '../../../components/BranchGPSView/index.tsx'
 import { default as default_b07b651643e9d499f934280c75fe9e9c } from '../../../components/MessageChat/index.tsx'
+import { KotTimeRowLabel as KotTimeRowLabel_58da7ac8fde1c469974277b2989eced7 } from '../../../components/KotTimeRowLabel/index.tsx'
 import { S3ClientUploadHandler as S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24 } from '@payloadcms/storage-s3/client'
 
 export const importMap = {
@@ -53,6 +55,7 @@ export const importMap = {
   "/components/ChefReport/index.tsx#default": default_20a99712a7f6df2c7d826602eae357af,
   "/components/ClosingEntryReport/index.tsx#default": default_7397014835f53864fd04e60a81829907,
   "/components/WaiterWiseBillingReport/index.tsx#default": default_bf85980ee3af56c75543fe343ccb1155,
+  "/components/ReportCard/index.tsx#default": default_7cc7f7bb5afc5ce5b754698eeb18c29b,
   "/components/AttendanceReport/index.tsx#default": default_d9da05f5f6d8dd69800c744713ad1632,
   "/components/InventoryReport/index.tsx#default": default_7c4eca9b024572db8dabeb53bf36c0e7,
   "/components/StockOrderReport/index.tsx#default": default_f6297d9a270bdbbca7736c61f9f4f1e9,
@@ -73,5 +76,6 @@ export const importMap = {
   "/components/WorkTasksBoard/index.tsx#default": default_5e6a0e56c42edcb4e104ac5a24108eec,
   "/components/BranchGPSView/index.tsx#default": default_3005347841fa10396ea6b3f07ad955e3,
   "/components/MessageChat/index.tsx#default": default_b07b651643e9d499f934280c75fe9e9c,
+  "/components/KotTimeRowLabel/index.tsx#KotTimeRowLabel": KotTimeRowLabel_58da7ac8fde1c469974277b2989eced7,
   "@payloadcms/storage-s3/client#S3ClientUploadHandler": S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24
 }

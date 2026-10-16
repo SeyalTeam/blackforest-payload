@@ -18,7 +18,7 @@ export const getReportBranchesHandler: PayloadHandler = async (
         }
       : undefined,
     sort: 'name',
-    depth: 0,
+    depth: 1,
     limit: 1000,
     pagination: false,
   })

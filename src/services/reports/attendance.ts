@@ -547,7 +547,8 @@ export const getAttendanceReportData = async (
         !trimmed.startsWith('http://') &&
         !trimmed.startsWith('https://') &&
         !trimmed.startsWith('/api/') &&
-        !trimmed.startsWith('data:')
+        !trimmed.startsWith('data:') &&
+        /^[0-9a-fA-F]{24}$/.test(trimmed)
       ) {
         mediaIdSet.add(trimmed)
       }
@@ -555,7 +556,7 @@ export const getAttendanceReportData = async (
       const rec = val as { id?: unknown; _id?: unknown; url?: unknown; filename?: unknown }
       if (!rec.url && !rec.filename) {
         const idStr = toNonEmptyString(rec.id || rec._id)
-        if (idStr) mediaIdSet.add(idStr)
+        if (idStr && /^[0-9a-fA-F]{24}$/.test(idStr)) mediaIdSet.add(idStr)
       }
     }
   }
@@ -627,15 +628,17 @@ export const getAttendanceReportData = async (
           })
           .filter(Boolean)
 
-        const mediaDocs = await MediaModel.find({
-          $or: [{ _id: { $in: objectIds } }, { _id: { $in: missingIds } }],
-        }).lean()
+        if (objectIds.length > 0) {
+          const mediaDocs = await MediaModel.find({
+            _id: { $in: objectIds },
+          }).lean()
 
-        for (const m of mediaDocs as any[]) {
-          const idStr = String(m._id || m.id)
-          const url = getMediaUrl(m)
-          if (url) {
-            mediaMap.set(idStr, url)
+          for (const m of mediaDocs as any[]) {
+            const idStr = String(m._id || m.id)
+            const url = getMediaUrl(m)
+            if (url) {
+              mediaMap.set(idStr, url)
+            }
           }
         }
       } catch (dbErr) {

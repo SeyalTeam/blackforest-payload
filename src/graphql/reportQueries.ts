@@ -92,6 +92,7 @@ type ProductPreparationBillDetailsFilter = {
   kitchenId?: null | string
   productId?: null | string
   startDate?: null | string
+  stationType?: null | string
   status?: null | string
 }
 
@@ -717,6 +718,7 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       kitchenId: { type: graphQL.GraphQLString },
       status: { type: graphQL.GraphQLString },
       orderType: { type: graphQL.GraphQLString },
+      stationType: { type: graphQL.GraphQLString },
     },
   })
 
@@ -749,6 +751,13 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       waiterName: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       quantity: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       status: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+      chefStatus: { type: graphQL.GraphQLString },
+      supervisorConfirmingTime: { type: graphQL.GraphQLFloat },
+      supervisorStandardTime: { type: graphQL.GraphQLFloat },
+      supervisorStatus: { type: graphQL.GraphQLString },
+      waiterDeliverTime: { type: graphQL.GraphQLFloat },
+      waiterStandardTime: { type: graphQL.GraphQLFloat },
+      waiterStatus: { type: graphQL.GraphQLString },
     },
   })
 

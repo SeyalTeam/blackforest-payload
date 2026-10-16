@@ -67,6 +67,7 @@ import { getClosingEntryReportHandler } from './endpoints/getClosingEntryReport'
 import { getWaiterWiseBillingReportHandler } from './endpoints/getWaiterWiseBillingReport'
 import { ClosingEntryReportGlobal } from './globals/ClosingEntryReport'
 import { WaiterWiseBillingReportGlobal } from './globals/WaiterWiseBillingReport'
+import { ReportCardGlobal } from './globals/ReportCard'
 import { AttendanceReportGlobal } from './globals/AttendanceReport'
 import { getAttendanceReportHandler } from './endpoints/getAttendanceReport'
 import { InventoryReportGlobal } from './globals/InventoryReport'
@@ -167,6 +168,9 @@ import { getMyDailyTasksHandler } from './endpoints/getMyDailyTasks'
 import { toggleDailyTaskHandler } from './endpoints/toggleDailyTask'
 import { startWorkHandler } from './endpoints/startWork'
 import { completeWorkHandler } from './endpoints/completeWork'
+import { KotTimeGlobal } from './globals/KotTime'
+import { getKotTimeHandler } from './endpoints/getKotTime'
+import { getReportCardDataHandler } from './endpoints/getReportCardData'
 
 
 // Path helpers
@@ -1001,6 +1005,16 @@ export default buildConfig({
       method: 'post',
       handler: toggleDailyTaskHandler,
     },
+    {
+      path: '/kot-time',
+      method: 'get',
+      handler: getKotTimeHandler,
+    },
+    {
+      path: '/reports/report-card-data',
+      method: 'get',
+      handler: getReportCardDataHandler,
+    },
   ],
 
   globals: [
@@ -1020,6 +1034,7 @@ export default buildConfig({
     ChefReportGlobal,
     ClosingEntryReportGlobal,
     WaiterWiseBillingReportGlobal,
+    ReportCardGlobal,
     AttendanceReportGlobal,
     InventoryReportGlobal,
     StockOrderReportGlobal,
@@ -1044,6 +1059,7 @@ export default buildConfig({
     WorkGPSGlobal,
     MenuSettingsGlobal,
     MessagesChatGlobal,
+    KotTimeGlobal,
   ].map(wrapGlobal),
 
   // Collections

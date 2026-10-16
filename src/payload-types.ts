@@ -189,6 +189,7 @@ export interface Config {
     'chef-report': ChefReport;
     'closing-entry-report': ClosingEntryReport;
     'waiter-wise-billing-report': WaiterWiseBillingReport;
+    'report-card': ReportCard;
     'attendance-report': AttendanceReport;
     'inventory-report': InventoryReport;
     'stock-order-report': StockOrderReport;
@@ -213,6 +214,7 @@ export interface Config {
     'work-gps': WorkGp;
     'menu-settings': MenuSetting;
     'messages-chat': MessagesChat;
+    'kot-time': KotTime;
   };
   globalsSelect: {
     'payment-settings': PaymentSettingsSelect<false> | PaymentSettingsSelect<true>;
@@ -231,6 +233,7 @@ export interface Config {
     'chef-report': ChefReportSelect<false> | ChefReportSelect<true>;
     'closing-entry-report': ClosingEntryReportSelect<false> | ClosingEntryReportSelect<true>;
     'waiter-wise-billing-report': WaiterWiseBillingReportSelect<false> | WaiterWiseBillingReportSelect<true>;
+    'report-card': ReportCardSelect<false> | ReportCardSelect<true>;
     'attendance-report': AttendanceReportSelect<false> | AttendanceReportSelect<true>;
     'inventory-report': InventoryReportSelect<false> | InventoryReportSelect<true>;
     'stock-order-report': StockOrderReportSelect<false> | StockOrderReportSelect<true>;
@@ -255,6 +258,7 @@ export interface Config {
     'work-gps': WorkGpsSelect<false> | WorkGpsSelect<true>;
     'menu-settings': MenuSettingsSelect<false> | MenuSettingsSelect<true>;
     'messages-chat': MessagesChatSelect<false> | MessagesChatSelect<true>;
+    'kot-time': KotTimeSelect<false> | KotTimeSelect<true>;
   };
   locale: null;
   user: User & {
@@ -441,6 +445,14 @@ export interface Product {
    * Preparation time in minutes.
    */
   preparationTime?: number | null;
+  /**
+   * Optional supervisor confirming time in minutes.
+   */
+  supervisorConfirmingTime?: number | null;
+  /**
+   * Optional waiter deliver time in minutes.
+   */
+  waiterDeliverTime?: number | null;
   /**
    * Target or standard stock level to maintain.
    */
@@ -1533,40 +1545,16 @@ export interface Expense {
 export interface Cake {
   id: string;
   kotNumber: string;
-  /**
-   * Original Order ID from blackforest-cakes backend
-   */
-  legacyOrderId?: string | null;
-  branch?: (string | null) | Branch;
-  customerName?: string | null;
-  customerPhone?: string | null;
-  customerEmail?: string | null;
-  deliveryType?: ('shop' | 'home') | null;
-  deliveryAddress?: string | null;
   cakePrice: number;
+  paymentMethod: 'cash' | 'card' | 'upi' | 'cashfree' | 'other';
+  paymentType: 'advance' | 'full';
   paymentAmount: number;
   pendingAmount?: number | null;
-  paymentMethod?: ('cash' | 'card' | 'upi' | 'cashfree' | 'other') | null;
-  paymentType?: ('advance' | 'full') | null;
+  deliveryDate: string;
+  kotPhoto: string | Media;
+  cakePhoto: string | Media;
   status: 'paid' | 'pending';
-  orderStatus?: ('pending' | 'prepared' | 'ready' | 'picked' | 'delivered' | 'cancelled') | null;
-  deliveryDate?: string | null;
-  flavour?: string | null;
-  weight?: string | null;
-  creamType?: string | null;
-  cakeModel?: string | null;
-  alteration?: string | null;
-  /**
-   * Custom message or name to write on the cake
-   */
-  wordings?: string | null;
-  specialCare?: string | null;
-  kotPhoto?: (string | null) | Media;
-  cakePhoto?: (string | null) | Media;
-  /**
-   * Direct URL or filename of uploaded order receipt/photo
-   */
-  orderDoc?: string | null;
+  branch: string | Branch;
   paymentHistory?:
     | {
         amount: number;
@@ -1576,11 +1564,11 @@ export interface Cake {
       }[]
     | null;
   /**
-   * ID of the cashier/staff who took the order.
+   * ID of the cashier who created/submitted the cake order.
    */
   cashierId?: string | null;
   /**
-   * Name of the cashier/staff who took the order.
+   * Name of the cashier who created/submitted the cake order.
    */
   cashierName?: string | null;
   updatedAt: string;
@@ -2571,17 +2559,17 @@ export interface CctvReport {
 export interface ReportCardRule {
   id: string;
   /**
-   * Descriptive title for this performance rule or FAQ topic (e.g. "Table Call Response Speed SLA").
+   * Descriptive title for this performance rule (e.g. "KOT Timing SLA").
    */
   title: string;
   /**
-   * Switch toggle ON to activate this rule in progress card calculations and show in FAQ. Toggle OFF to disable.
+   * Switch toggle ON to activate this rule in progress card calculations. Toggle OFF to disable.
    */
   enabled?: boolean | null;
   /**
-   * The job role this rule applies to.
+   * Select one or more job roles this rule applies to.
    */
-  role:
+  roles: (
     | 'all'
     | 'waiter'
     | 'cashier'
@@ -2593,39 +2581,32 @@ export interface ReportCardRule {
     | 'driver'
     | 'delivery'
     | 'watcher'
-    | 'account';
+    | 'account'
+  )[];
+  role?:
+    | (
+        | 'all'
+        | 'waiter'
+        | 'cashier'
+        | 'chef'
+        | 'kitchen'
+        | 'store_keeper'
+        | 'manager'
+        | 'supervisor'
+        | 'driver'
+        | 'delivery'
+        | 'watcher'
+        | 'account'
+      )
+    | null;
   /**
    * The functional pillar for evaluation.
    */
-  category: 'call_speed' | 'attendance' | 'tasks' | 'billing' | 'hygiene' | 'reviews' | 'general';
+  category: 'kot_time' | 'call_speed' | 'attendance' | 'tasks' | 'billing' | 'hygiene' | 'reviews' | 'general';
   /**
-   * Maximum achievable score for this metric (standard: 100).
+   * Maximum achievable score for this metric (e.g. 100).
    */
   maxMarks: number;
-  /**
-   * Percentage contribution to overall score (e.g. 30%).
-   */
-  weightage?: number | null;
-  /**
-   * Sort order in dashboard report cards and FAQ lists.
-   */
-  order?: number | null;
-  /**
-   * Detailed explanation of the rule, SLA standards, and how marks are calculated.
-   */
-  ruleDetails: string;
-  /**
-   * Points deducted for delays, misses, order errors, or late punch-ins.
-   */
-  deductionRules?: string | null;
-  /**
-   * The question shown to employees in their progress card modal (e.g. "How is my Table Call Response score calculated?").
-   */
-  faqQuestion?: string | null;
-  /**
-   * Helpful guidance and explanation for employees to understand and improve their score.
-   */
-  faqAnswer?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -3018,6 +2999,8 @@ export interface ProductsSelect<T extends boolean = true> {
   company?: T;
   expiryDays?: T;
   preparationTime?: T;
+  supervisorConfirmingTime?: T;
+  waiterDeliverTime?: T;
   standardStockLevel?: T;
   minimumStockLevel?: T;
   maximumStockLevel?: T;
@@ -3626,31 +3609,16 @@ export interface ExpensesSelect<T extends boolean = true> {
  */
 export interface CakesSelect<T extends boolean = true> {
   kotNumber?: T;
-  legacyOrderId?: T;
-  branch?: T;
-  customerName?: T;
-  customerPhone?: T;
-  customerEmail?: T;
-  deliveryType?: T;
-  deliveryAddress?: T;
   cakePrice?: T;
-  paymentAmount?: T;
-  pendingAmount?: T;
   paymentMethod?: T;
   paymentType?: T;
-  status?: T;
-  orderStatus?: T;
+  paymentAmount?: T;
+  pendingAmount?: T;
   deliveryDate?: T;
-  flavour?: T;
-  weight?: T;
-  creamType?: T;
-  cakeModel?: T;
-  alteration?: T;
-  wordings?: T;
-  specialCare?: T;
   kotPhoto?: T;
   cakePhoto?: T;
-  orderDoc?: T;
+  status?: T;
+  branch?: T;
   paymentHistory?:
     | T
     | {
@@ -4195,15 +4163,10 @@ export interface CctvReportsSelect<T extends boolean = true> {
 export interface ReportCardRulesSelect<T extends boolean = true> {
   title?: T;
   enabled?: T;
+  roles?: T;
   role?: T;
   category?: T;
   maxMarks?: T;
-  weightage?: T;
-  order?: T;
-  ruleDetails?: T;
-  deductionRules?: T;
-  faqQuestion?: T;
-  faqAnswer?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -4412,6 +4375,15 @@ export interface ClosingEntryReport {
  * via the `definition` "waiter-wise-billing-report".
  */
 export interface WaiterWiseBillingReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "report-card".
+ */
+export interface ReportCard {
   id: string;
   updatedAt?: string | null;
   createdAt?: string | null;
@@ -5894,6 +5866,7 @@ export interface MenuSetting {
               | 'app-download-settings'
               | 'app-version-settings'
               | 'work-gps'
+              | 'kot-time'
             )[]
           | null;
         id?: string | null;
@@ -5908,6 +5881,46 @@ export interface MenuSetting {
  */
 export interface MessagesChat {
   id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * Configure standard KOT timings: Supervisor confirming time and Waiter deliver time per branch.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "kot-time".
+ */
+export interface KotTime {
+  id: string;
+  /**
+   * Add a branch to configure Supervisor confirming time and Waiter deliver time.
+   */
+  branches?:
+    | {
+        /**
+         * Select branch to configure KOT timings.
+         */
+        branch: string | Branch;
+        branchName?: string | null;
+        /**
+         * Time unit filter (Minutes or Seconds)
+         */
+        supervisorUnit: 'minutes' | 'seconds';
+        /**
+         * Supervisor confirming time
+         */
+        supervisorTime: number;
+        /**
+         * Time unit filter (Minutes or Seconds)
+         */
+        waiterUnit: 'minutes' | 'seconds';
+        /**
+         * Waiter deliver time
+         */
+        waiterTime: number;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -6073,6 +6086,15 @@ export interface ClosingEntryReportSelect<T extends boolean = true> {
  * via the `definition` "waiter-wise-billing-report_select".
  */
 export interface WaiterWiseBillingReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "report-card_select".
+ */
+export interface ReportCardSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
@@ -6614,6 +6636,26 @@ export interface MenuSettingsSelect<T extends boolean = true> {
  * via the `definition` "messages-chat_select".
  */
 export interface MessagesChatSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "kot-time_select".
+ */
+export interface KotTimeSelect<T extends boolean = true> {
+  branches?:
+    | T
+    | {
+        branch?: T;
+        branchName?: T;
+        supervisorUnit?: T;
+        supervisorTime?: T;
+        waiterUnit?: T;
+        waiterTime?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

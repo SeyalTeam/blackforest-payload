@@ -120,6 +120,7 @@ export const MenuSettingsGlobal: GlobalConfig = {
             { label: 'App Download Settings', value: 'app-download-settings' },
             { label: 'App Version Settings', value: 'app-version-settings' },
             { label: 'Work GPS', value: 'work-gps' },
+            { label: 'KOT Time', value: 'kot-time' },
           ],
         },
       ],

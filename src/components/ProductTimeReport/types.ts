@@ -49,6 +49,13 @@ export type BillPreparationDetail = {
   waiterName: string
   quantity: number
   status: PreparationStatus
+  chefStatus?: PreparationStatus
+  supervisorConfirmingTime?: number | null
+  supervisorStandardTime?: number | null
+  supervisorStatus?: PreparationStatus
+  waiterDeliverTime?: number | null
+  waiterStandardTime?: number | null
+  waiterStatus?: PreparationStatus
 }
 
 export type BillItem = {

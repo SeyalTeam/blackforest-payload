@@ -71,7 +71,7 @@ export const getPreparationStatus = (
   // A missing or non-positive configured baseline should not be treated as exceeded.
   if (baseline <= 0) return 'neutral'
   if (actual > baseline) return 'exceeded'
-  if (actual < baseline) return 'lower'
+  if (actual <= baseline) return 'lower'
   return 'neutral'
 }
 
@@ -242,3 +242,47 @@ export const getQuarterDates = (date: Date) => {
     end: new Date(year, endMonth + 1, 0),
   }
 }
+
+export const formatRailwayTime = (value: unknown): string => {
+  if (value == null) return '--'
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed || trimmed === '--') return '--'
+    if (/^\d{2}:\d{2}:\d{2}$/.test(trimmed)) return trimmed
+
+    const timeMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
+    if (timeMatch) {
+      const h = timeMatch[1].padStart(2, '0')
+      const m = timeMatch[2].padStart(2, '0')
+      const s = (timeMatch[3] || '00').padStart(2, '0')
+      return `${h}:${m}:${s}`
+    }
+
+    const d = new Date(trimmed)
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleTimeString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      })
+    }
+
+    return trimmed
+  }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toLocaleTimeString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+  }
+
+  return '--'
+}
+

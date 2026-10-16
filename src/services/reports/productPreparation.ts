@@ -4,6 +4,7 @@ import dayjs, { type Dayjs } from 'dayjs'
 import utc from 'dayjs/plugin/utc.js'
 import timezone from 'dayjs/plugin/timezone.js'
 import { resolveReportBranchScope } from '../../endpoints/reportScope'
+import { getAllKotTimeConfigs, DEFAULT_TIMINGS } from '../../lib/kot-time'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -12,6 +13,7 @@ dayjs.tz.setDefault('Asia/Kolkata')
 type RawPreparationItem = {
   billCreatedAt: unknown
   billingId: unknown
+  branchId: unknown
   chefName: unknown
   confirmedByName: unknown
   deliveredByName: unknown
@@ -27,6 +29,8 @@ type RawPreparationItem = {
   productId: unknown
   productName: unknown
   productStandardPreparationTime: unknown
+  supervisorConfirmingTime?: unknown
+  waiterDeliverTime?: unknown
   quantity: unknown
   subtotal: unknown
 }
@@ -36,6 +40,9 @@ export type ProductPreparationStatusFilter =
   | 'all'
   | ProductPreparationStatus
   | 'chef_preparing_time'
+  | 'supervisor_exceeded'
+  | 'waiter_exceeded'
+  | 'chef_exceeded'
 
 export type ProductPreparationBillDetail = {
   amount: null | number
@@ -56,6 +63,13 @@ export type ProductPreparationBillDetail = {
   productStandardPreparationTime: null | number
   quantity: number
   status: ProductPreparationStatus
+  chefStatus: ProductPreparationStatus
+  supervisorConfirmingTime: null | number
+  supervisorStandardTime: null | number
+  supervisorStatus: ProductPreparationStatus
+  waiterDeliverTime: null | number
+  waiterStandardTime: null | number
+  waiterStatus: ProductPreparationStatus
 }
 
 export type ProductPreparationAvailableChef = {
@@ -81,6 +95,7 @@ type ProductPreparationBillDetailsArgs = {
   orderType?: null | string
   productId?: null | string
   startDate?: null | string
+  stationType?: null | string
   status?: null | string
 }
 
@@ -172,6 +187,31 @@ const parseTimeLikeValue = (value: unknown, fallbackDate: Dayjs | null): Dayjs |
     .millisecond(0)
 }
 
+const formatRailwayTime = (value: unknown, fallbackDate: Dayjs | null = null): string => {
+  if (value == null) return '--'
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed || trimmed === '--') return '--'
+    if (/^\d{2}:\d{2}:\d{2}$/.test(trimmed)) return trimmed
+
+    const timeOnlyMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
+    if (timeOnlyMatch) {
+      const h = timeOnlyMatch[1].padStart(2, '0')
+      const m = timeOnlyMatch[2].padStart(2, '0')
+      const s = (timeOnlyMatch[3] || '00').padStart(2, '0')
+      return `${h}:${m}:${s}`
+    }
+  }
+
+  const parsed = parseTimeLikeValue(value, fallbackDate)
+  if (parsed && parsed.isValid()) {
+    return parsed.format('HH:mm:ss')
+  }
+
+  return '--'
+}
+
 const parsePreparingTimeValue = (value: unknown): null | number => {
   if (value == null) return null
   if (typeof value === 'string' && value.trim().length === 0) return null
@@ -195,6 +235,9 @@ const parseAmountValue = (value: unknown): null | number => {
 const parseStatusParam = (value: unknown): ProductPreparationStatusFilter => {
   if (typeof value !== 'string') return 'all'
   const normalized = value.trim().toLowerCase()
+  if (normalized === 'supervisor_exceeded' || normalized.includes('supervisor')) return 'supervisor_exceeded'
+  if (normalized === 'waiter_exceeded' || normalized.includes('waiter')) return 'waiter_exceeded'
+  if (normalized === 'chef_exceeded') return 'chef_exceeded'
   if (normalized === 'exceeded' || normalized.includes('exceed')) return 'exceeded'
   if (normalized === 'lower' || normalized.includes('lower') || normalized.includes('green')) return 'lower'
   if (normalized === 'neutral' || normalized.includes('neutral')) return 'neutral'
@@ -216,8 +259,77 @@ const getPreparationStatus = (
   if (!Number.isFinite(actual) || !Number.isFinite(baseline)) return 'neutral'
   if (baseline <= 0) return 'neutral'
   if (actual > baseline) return 'exceeded'
-  if (actual < baseline) return 'lower'
+  if (actual <= baseline) return 'lower'
   return 'neutral'
+}
+
+const getDurationMinutes = (start: dayjs.Dayjs, end: dayjs.Dayjs): number => {
+  let diff = end.diff(start, 'minute', true)
+  if (diff < 0) {
+    // If start is late evening (>= 18:00) and end is early morning (<= 06:00), it rolled over midnight
+    if (start.hour() >= 18 && end.hour() <= 6) {
+      diff = end.add(1, 'day').diff(start, 'minute', true)
+    } else {
+      // Clock jitter / recorded at almost identical second
+      diff = 0
+    }
+  }
+  return Math.max(0, Number(diff.toFixed(2)))
+}
+
+const resolveSupervisorConfirmingMinutes = (row: RawPreparationItem): null | number => {
+  if (!row.confirmedAt || typeof row.confirmedAt !== 'string' || row.confirmedAt.trim() === '' || row.confirmedAt.trim() === '--') {
+    return null
+  }
+  const fallbackDate = parseToDayjs(row.billCreatedAt) ?? dayjs().tz('Asia/Kolkata')
+  const orderedAt = parseTimeLikeValue(row.orderedAt, fallbackDate) || fallbackDate
+  const preparedAt = parseTimeLikeValue(row.preparedAt, fallbackDate)
+  const confirmedAt = parseTimeLikeValue(row.confirmedAt, fallbackDate)
+
+  if (!confirmedAt) return null
+
+  // If chef finished preparing before supervisor confirmed, supervisor confirming duration is preparedAt -> confirmedAt.
+  // Otherwise (or if there is no preparedAt, e.g. counter products), duration is orderedAt -> confirmedAt.
+  const start = preparedAt && preparedAt.isBefore(confirmedAt) ? preparedAt : orderedAt
+  return getDurationMinutes(start, confirmedAt)
+}
+
+const resolveWaiterDeliverMinutes = (row: RawPreparationItem): null | number => {
+  if (!row.deliveredAt || typeof row.deliveredAt !== 'string' || row.deliveredAt.trim() === '' || row.deliveredAt.trim() === '--') {
+    return null
+  }
+  const fallbackDate = parseToDayjs(row.billCreatedAt) ?? dayjs().tz('Asia/Kolkata')
+  const preparedAt = parseTimeLikeValue(row.preparedAt, fallbackDate)
+  const confirmedAt = parseTimeLikeValue(row.confirmedAt, fallbackDate)
+  const orderedAt = parseTimeLikeValue(row.orderedAt, fallbackDate)
+  const deliveredAt = parseTimeLikeValue(row.deliveredAt, fallbackDate)
+
+  if (!deliveredAt) return null
+
+  // Food is ready for waiter delivery only after both preparation and confirmation have occurred.
+  // Whichever occurred latest before delivery is when waiter delivery begins.
+  let readyTime: dayjs.Dayjs | null = null
+  if (preparedAt && confirmedAt) {
+    readyTime = confirmedAt.isAfter(preparedAt) ? confirmedAt : preparedAt
+  } else if (confirmedAt) {
+    readyTime = confirmedAt
+  } else if (preparedAt) {
+    readyTime = preparedAt
+  } else {
+    readyTime = orderedAt
+  }
+
+  if (readyTime) {
+    return getDurationMinutes(readyTime, deliveredAt)
+  }
+  return null
+}
+
+const resolveChefActualMinutes = (row: RawPreparationItem): null | number => {
+  const preparingTime = parsePreparingTimeValue(row.preparingTime)
+  if (preparingTime != null) return preparingTime
+
+  return resolveItemPreparationMinutes(row)
 }
 
 const resolveItemPreparationMinutes = (row: RawPreparationItem): null | number => {
@@ -227,9 +339,7 @@ const resolveItemPreparationMinutes = (row: RawPreparationItem): null | number =
   const preparedAt = parseTimeLikeValue(row.preparedAt, fallbackDate)
 
   if (orderedAt && preparedAt) {
-    const adjustedPreparedAt = preparedAt.isBefore(orderedAt) ? preparedAt.add(1, 'day') : preparedAt
-    const diffMinutes = adjustedPreparedAt.diff(orderedAt, 'minute', true)
-    return Math.max(0, Number(diffMinutes.toFixed(2)))
+    return getDurationMinutes(orderedAt, preparedAt)
   }
 
   const preparingTime = parsePreparingTimeValue(row.preparingTime)
@@ -353,58 +463,73 @@ export const getProductPreparationBillDetailsData = async (
     matchQuery.$expr = hasTableOrderReferenceExpression
   }
 
+  const stationType =
+    typeof args.stationType === 'string' && args.stationType.trim().toLowerCase() === 'counter'
+      ? 'counter'
+      : 'kitchen'
+
   let finalCategoryIds: string[] = []
   let resolvedBranchIds: string[] = branchIds || []
 
-  if (kitchenId && mongoose.Types.ObjectId.isValid(kitchenId)) {
-    const kitchenRes = await payload.findByID({
-      collection: 'kitchens',
-      id: kitchenId,
-      depth: 0,
-    })
+  if (stationType === 'kitchen') {
+    if (kitchenId && mongoose.Types.ObjectId.isValid(kitchenId)) {
+      const kitchenRes = await payload.findByID({
+        collection: 'kitchens',
+        id: kitchenId,
+        depth: 0,
+      })
 
-    if (kitchenRes) {
-      const kitchenBranchIds = (Array.isArray(kitchenRes.branches) ? kitchenRes.branches : [])
-        .map((b) => (typeof b === 'object' ? b.id : b))
-        .filter(Boolean) as string[]
+      if (kitchenRes) {
+        const kitchenBranchIds = (Array.isArray(kitchenRes.branches) ? kitchenRes.branches : [])
+          .map((b) => (typeof b === 'object' ? b.id : b))
+          .filter(Boolean) as string[]
 
-      if (resolvedBranchIds.length > 0) {
-        resolvedBranchIds = resolvedBranchIds.filter((id) => kitchenBranchIds.includes(id))
-        if (resolvedBranchIds.length === 0) {
-          resolvedBranchIds = ['000000000000000000000000']
+        if (resolvedBranchIds.length > 0) {
+          resolvedBranchIds = resolvedBranchIds.filter((id) => kitchenBranchIds.includes(id))
+          if (resolvedBranchIds.length === 0) {
+            resolvedBranchIds = ['000000000000000000000000']
+          }
+        } else {
+          resolvedBranchIds = kitchenBranchIds
+        }
+
+        const kitchenCategoryIds = (Array.isArray(kitchenRes.categories) ? kitchenRes.categories : [])
+          .map((c) => (typeof c === 'object' ? c.id : c))
+          .filter(Boolean) as string[]
+
+        const requestedCategoryIds =
+          categoryParam && categoryParam !== 'all'
+            ? categoryParam
+                .split(',')
+                .map((id) => id.trim())
+                .filter((id) => mongoose.Types.ObjectId.isValid(id))
+            : []
+
+        if (requestedCategoryIds.length > 0) {
+          finalCategoryIds = requestedCategoryIds.filter((id) => kitchenCategoryIds.includes(id))
+          if (finalCategoryIds.length === 0) {
+            finalCategoryIds = ['000000000000000000000000']
+          }
+        } else {
+          finalCategoryIds = kitchenCategoryIds
         }
       } else {
-        resolvedBranchIds = kitchenBranchIds
+        resolvedBranchIds = ['000000000000000000000000']
       }
-
-      const kitchenCategoryIds = (Array.isArray(kitchenRes.categories) ? kitchenRes.categories : [])
-        .map((c) => (typeof c === 'object' ? c.id : c))
-        .filter(Boolean) as string[]
-
-      const requestedCategoryIds =
-        categoryParam && categoryParam !== 'all'
-          ? categoryParam
-              .split(',')
-              .map((id) => id.trim())
-              .filter((id) => mongoose.Types.ObjectId.isValid(id))
-          : []
-
-      if (requestedCategoryIds.length > 0) {
-        finalCategoryIds = requestedCategoryIds.filter((id) => kitchenCategoryIds.includes(id))
-        if (finalCategoryIds.length === 0) {
-          finalCategoryIds = ['000000000000000000000000']
-        }
-      } else {
-        finalCategoryIds = kitchenCategoryIds
-      }
-    } else {
-      resolvedBranchIds = ['000000000000000000000000']
+    } else if (categoryParam && categoryParam !== 'all') {
+      finalCategoryIds = categoryParam
+        .split(',')
+        .map((id) => id.trim())
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
     }
-  } else if (categoryParam && categoryParam !== 'all') {
-    finalCategoryIds = categoryParam
-      .split(',')
-      .map((id) => id.trim())
-      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+  } else {
+    // For counter, kitchenId is not required; if categoryParam is passed, filter by requested categories
+    if (categoryParam && categoryParam !== 'all') {
+      finalCategoryIds = categoryParam
+        .split(',')
+        .map((id) => id.trim())
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    }
   }
 
   if (resolvedBranchIds.length > 0) {
@@ -529,9 +654,10 @@ export const getProductPreparationBillDetailsData = async (
     const { docs: products } = await req.payload.find({
       collection: 'products',
       where: { id: { in: Array.from(tableProductIds) } },
-      limit: 5000,
+      limit: 10000,
       pagination: false,
       depth: 0,
+      overrideAccess: true,
     })
     products.forEach((p: any) => {
       const catId = typeof p.category === 'object' ? p.category?.id : p.category
@@ -539,6 +665,8 @@ export const getProductPreparationBillDetailsData = async (
       tableProductMap.set(String(p.id), {
         name: p.name || '',
         preparationTime: p.preparationTime,
+        supervisorConfirmingTime: p.supervisorConfirmingTime,
+        waiterDeliverTime: p.waiterDeliverTime,
         category: catId,
         categoryName: catData?.name || 'Uncategorized',
         departmentId: catData?.departmentId,
@@ -548,6 +676,7 @@ export const getProductPreparationBillDetailsData = async (
   }
 
   const tableUserMap = new Map<string, string>()
+  const chefUserIds = new Set<string>()
   if (tableUserIds.size > 0) {
     const { docs: users } = await req.payload.find({
       collection: 'users',
@@ -558,8 +687,13 @@ export const getProductPreparationBillDetailsData = async (
     })
     users.forEach((u: any) => {
       tableUserMap.set(String(u.id), u.name || '')
+      if (u.role === 'chef' || u.role === 'kitchen') {
+        chefUserIds.add(String(u.id))
+      }
     })
   }
+
+  const kotTimeConfigs = await getAllKotTimeConfigs(req.payload)
 
   const activeChefsMap = new Map<string, string>()
   const rows: RawPreparationItem[] = []
@@ -578,7 +712,7 @@ export const getProductPreparationBillDetailsData = async (
       // 2. Filter by category
       if (finalCategoryIds.length > 0) {
         if (!pDetails?.category || !finalCategoryIds.includes(String(pDetails.category))) return
-      } else if (kitchenId || (categoryParam && categoryParam !== 'all')) {
+      } else if (stationType === 'kitchen' && (kitchenId || (categoryParam && categoryParam !== 'all'))) {
         return
       }
 
@@ -587,8 +721,23 @@ export const getProductPreparationBillDetailsData = async (
         if (String(pDetails?.departmentId) !== departmentParam) return
       }
 
-      // Track active chefs (before chef ID filter)
+      if (!pDetails) return
+
+      const prodPrepTime = pDetails.preparationTime != null ? Number(pDetails.preparationTime) : null
+      const hasProductPrepTime = prodPrepTime != null && Number.isFinite(prodPrepTime) && prodPrepTime > 0
+
+      // Station Type filter: Kitchen vs Counter
+      // - Kitchen products: All products having preparation time (preparationTime > 0)
+      // - Counter products: All products NOT having preparation time (preparationTime is empty, null, or 0)
+      if (stationType === 'counter') {
+        if (hasProductPrepTime) return
+      } else {
+        if (!hasProductPrepTime) return
+      }
+
       const preparedBy = item.preparedBy ? String(item.preparedBy) : ''
+
+      // Track active chefs (before chef ID filter)
       if (preparedBy) {
         const chefName = tableUserMap.get(preparedBy) || ''
         activeChefsMap.set(preparedBy, chefName)
@@ -600,9 +749,15 @@ export const getProductPreparationBillDetailsData = async (
       }
 
       const chefDetailsName = preparedBy ? tableUserMap.get(preparedBy) : undefined
+      const resolvedDeliveredByName = item.deliveredBy
+        ? tableUserMap.get(String(item.deliveredBy)) || ''
+        : b.createdBy
+          ? tableUserMap.get(String(b.createdBy)) || ''
+          : ''
 
       rows.push({
         billingId: String(b._id),
+        branchId: toId(b.branch),
         invoiceNumber: b.invoiceNumber,
         kotNumber: b.kotNumber,
         billCreatedAt: b.createdAt,
@@ -614,12 +769,14 @@ export const getProductPreparationBillDetailsData = async (
         subtotal: item.subtotal,
         productName: pDetails?.name || '',
         productStandardPreparationTime: pDetails?.preparationTime,
+        supervisorConfirmingTime: pDetails?.supervisorConfirmingTime,
+        waiterDeliverTime: pDetails?.waiterDeliverTime,
         chefName: chefDetailsName || '',
         confirmedByName: item.confirmedBy ? tableUserMap.get(String(item.confirmedBy)) || '' : '',
-        deliveredByName: item.deliveredBy ? tableUserMap.get(String(item.deliveredBy)) || '' : '',
+        deliveredByName: resolvedDeliveredByName,
         confirmedAt: item.confirmedAt || '',
         deliveredAt: item.deliveredAt || '',
-        waiterName: b.createdBy ? tableUserMap.get(String(b.createdBy)) || '' : '',
+        waiterName: b.createdBy ? tableUserMap.get(String(b.createdBy)) || '' : resolvedDeliveredByName,
         quantity: item.quantity,
       })
     })
@@ -632,8 +789,22 @@ export const getProductPreparationBillDetailsData = async (
 
   const details = rows
     .map((row) => {
+      const branchIdStr = String(row.branchId || (branchParam !== 'all' ? branchParam : '') || '')
+      const branchConfig = kotTimeConfigs.get(branchIdStr)
+      const supervisorStandardTime =
+        row.supervisorConfirmingTime != null && Number(row.supervisorConfirmingTime) > 0
+          ? Number(row.supervisorConfirmingTime)
+          : (branchConfig?.supervisor?.timeInMinutes ?? DEFAULT_TIMINGS.supervisor.timeInMinutes)
+
+      const waiterStandardTime =
+        row.waiterDeliverTime != null && Number(row.waiterDeliverTime) > 0
+          ? Number(row.waiterDeliverTime)
+          : (branchConfig?.waiter?.timeInMinutes ?? DEFAULT_TIMINGS.waiter.timeInMinutes)
+
+      const supervisorConfirmingTime = resolveSupervisorConfirmingMinutes(row)
+      const waiterDeliverTime = resolveWaiterDeliverMinutes(row)
       const prep = resolveItemPreparationMinutes(row)
-      const chefTime = parsePreparingTimeValue(row.preparingTime)
+      const chefActual = resolveChefActualMinutes(row) ?? prep
       const quantity =
         typeof row.quantity === 'number' && Number.isFinite(row.quantity) && row.quantity > 0
           ? row.quantity
@@ -643,31 +814,87 @@ export const getProductPreparationBillDetailsData = async (
         configuredPerUnit != null && configuredPerUnit > 0 ? configuredPerUnit * quantity : null
       const amount = parseAmountValue(row.finalLineTotal) ?? parseAmountValue(row.subtotal) ?? null
 
+      // Standard KOT time shared by supervisor and waiter:
+      const sharedKotTime = (supervisorStandardTime || 0) + (waiterStandardTime || 0)
+      const chefStandardPreparationTime =
+        configuredPerUnit != null && configuredPerUnit > 0
+          ? (configuredPerUnit > sharedKotTime
+              ? Number((configuredPerUnit - sharedKotTime).toFixed(2))
+              : configuredPerUnit)
+          : null
+      const chefTotalTarget =
+        totalStandardTime != null && totalStandardTime > 0
+          ? (totalStandardTime > sharedKotTime
+              ? Number((totalStandardTime - sharedKotTime).toFixed(2))
+              : totalStandardTime)
+          : null
+
+      const manualChefTime = parsePreparingTimeValue(row.preparingTime)
+      const chefTime = chefStandardPreparationTime ?? manualChefTime
+
+      const supervisorStatus: ProductPreparationStatus =
+        supervisorConfirmingTime != null && supervisorStandardTime != null && supervisorStandardTime > 0
+          ? supervisorConfirmingTime > supervisorStandardTime
+            ? 'exceeded'
+            : 'lower'
+          : 'neutral'
+
+      const waiterStatus: ProductPreparationStatus =
+        waiterDeliverTime != null && waiterStandardTime != null && waiterStandardTime > 0
+          ? waiterDeliverTime > waiterStandardTime
+            ? 'exceeded'
+            : 'lower'
+          : 'neutral'
+
+      const chefStatus: ProductPreparationStatus = getPreparationStatus(
+        prep,
+        chefTime ?? configuredPerUnit,
+      )
+
+      let overallStatus: ProductPreparationStatus = 'neutral'
+      if (chefStatus === 'exceeded' || supervisorStatus === 'exceeded' || waiterStatus === 'exceeded') {
+        overallStatus = 'exceeded'
+      } else if (chefStatus === 'lower' || supervisorStatus === 'lower' || waiterStatus === 'lower') {
+        overallStatus = 'lower'
+      }
+
+      const fallbackBillDate = parseToDayjs(row.billCreatedAt)
+
       return {
         amount,
         billNumber: resolveBillNumber(row),
         billingId: toId(row.billingId) || '',
         chefName: typeof row.chefName === 'string' ? row.chefName : '--',
         confirmedByName: typeof row.confirmedByName === 'string' ? row.confirmedByName : '--',
-        deliveredByName: typeof row.deliveredByName === 'string' ? row.deliveredByName : '--',
-        confirmedAt: typeof row.confirmedAt === 'string' ? row.confirmedAt : '--',
-        deliveredAt: typeof row.deliveredAt === 'string' ? row.deliveredAt : '--',
-        waiterName: typeof row.waiterName === 'string' ? row.waiterName : '--',
+        deliveredByName: typeof row.deliveredByName === 'string' && row.deliveredByName ? row.deliveredByName : '--',
+        confirmedAt: formatRailwayTime(row.confirmedAt, fallbackBillDate),
+        deliveredAt: formatRailwayTime(row.deliveredAt, fallbackBillDate),
+        waiterName: typeof row.waiterName === 'string' && row.waiterName ? row.waiterName : '--',
         chefPreparationTime: chefTime != null && Number.isFinite(chefTime) ? chefTime : null,
-        createdAt: parseToDayjs(row.billCreatedAt),
-        orderedAt: typeof row.orderedAt === 'string' ? row.orderedAt : '--',
-        preparedAt: typeof row.preparedAt === 'string' ? row.preparedAt : '--',
+        createdAt: fallbackBillDate,
+        orderedAt: formatRailwayTime(row.orderedAt, fallbackBillDate),
+        preparedAt: formatRailwayTime(row.preparedAt, fallbackBillDate),
         preparationTime: prep != null && Number.isFinite(prep) ? prep : null,
         productId: toId(row.productId) || '',
         productName: typeof row.productName === 'string' ? row.productName : '--',
         productStandardPreparationTime: configuredPerUnit,
         quantity,
-        status: getPreparationStatus(prep, totalStandardTime),
+        status: overallStatus,
+        chefStatus,
+        supervisorConfirmingTime,
+        supervisorStandardTime,
+        supervisorStatus,
+        waiterDeliverTime,
+        waiterStandardTime,
+        waiterStatus,
       }
     })
     .filter((item) => {
       if (selectedStatus === 'all') return true
       if (selectedStatus === 'chef_preparing_time') return item.chefPreparationTime != null
+      if (selectedStatus === 'supervisor_exceeded') return item.supervisorStatus === 'exceeded'
+      if (selectedStatus === 'waiter_exceeded') return item.waiterStatus === 'exceeded'
+      if (selectedStatus === 'chef_exceeded') return item.chefStatus === 'exceeded'
       return item.status === selectedStatus
     })
     .sort((a, b) => {
@@ -701,6 +928,13 @@ export const getProductPreparationBillDetailsData = async (
       productStandardPreparationTime: item.productStandardPreparationTime,
       quantity: item.quantity,
       status: item.status,
+      chefStatus: item.chefStatus,
+      supervisorConfirmingTime: item.supervisorConfirmingTime,
+      supervisorStandardTime: item.supervisorStandardTime,
+      supervisorStatus: item.supervisorStatus,
+      waiterDeliverTime: item.waiterDeliverTime,
+      waiterStandardTime: item.waiterStandardTime,
+      waiterStatus: item.waiterStatus,
     }))
 
   return {

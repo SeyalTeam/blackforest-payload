@@ -237,6 +237,24 @@ const Products: CollectionConfig = {
       },
     },
     {
+      name: 'supervisorConfirmingTime',
+      type: 'number',
+      label: 'Supervisor Confirming Time',
+      admin: {
+        position: 'sidebar',
+        description: 'Optional supervisor confirming time in minutes.',
+      },
+    },
+    {
+      name: 'waiterDeliverTime',
+      type: 'number',
+      label: 'Waiter Deliver Time',
+      admin: {
+        position: 'sidebar',
+        description: 'Optional waiter deliver time in minutes.',
+      },
+    },
+    {
       name: 'standardStockLevel',
       type: 'number',
       label: 'Standard Stock Level',

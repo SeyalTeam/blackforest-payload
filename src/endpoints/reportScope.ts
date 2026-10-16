@@ -103,7 +103,7 @@ export const resolveReportBranchScope = async (
       pagination: false,
     })
 
-    const allowedBranchIds = companyBranches.map((branch) => branch.id)
+    const allowedBranchIds = companyBranches.map((branch) => String(branch.id))
 
     if (requestedBranchIds.length > 0) {
       return { branchIds: requestedBranchIds.filter((id) => allowedBranchIds.includes(id)) }
@@ -140,7 +140,7 @@ export const resolveReportBranchScope = async (
     pagination: false,
   })
 
-  const allowedBranchIds = companyBranches.map((branch) => branch.id)
+  const allowedBranchIds = companyBranches.map((branch) => String(branch.id))
 
   // Company user with explicit branch filter: enforce branch ownership.
   if (requestedBranchIds.length > 0) {
