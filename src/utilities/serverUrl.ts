@@ -35,21 +35,17 @@ const normalizeAbsoluteURL = (value?: string | null): string => {
 }
 
 export const getPublicServerURL = (): string => {
-  if (process.env.PAYLOAD_PUBLIC_SERVER_URL) {
-    return normalizeAbsoluteURL(process.env.PAYLOAD_PUBLIC_SERVER_URL)
+  const envUrl = process.env.PAYLOAD_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_SERVER_URL
+  if (envUrl) {
+    try {
+      const normalized = normalizeAbsoluteURL(envUrl)
+      if (normalized && isLocalHostname(new URL(normalized).hostname)) {
+        return normalized
+      }
+    } catch (_err) {
+      // ignore
+    }
   }
 
-  if (process.env.NEXT_PUBLIC_SERVER_URL) {
-    return normalizeAbsoluteURL(process.env.NEXT_PUBLIC_SERVER_URL)
-  }
-
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-  }
-
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`
-  }
-
-  return 'http://localhost:3000'
+  return 'https://admin.theblackforestcakes.com'
 }

@@ -8,14 +8,15 @@ export function corsHeaders(
       : null;
 
   const allowedOrigins = [
-    "https://theblackforestcakes.com",
+    "https://admin.theblackforestcakes.com",
     "https://superadmin.theblackforestcakes.com",
+    "https://theblackforestcakes.com",
     "http://localhost:3001",
     "http://localhost:3000",
     process.env.FRONTEND_URL,
   ].filter(Boolean) as string[];
 
-  let origin = process.env.FRONTEND_URL || "https://theblackforestcakes.com";
+  let origin = process.env.FRONTEND_URL || "https://admin.theblackforestcakes.com";
   if (
     incomingOrigin &&
     (allowedOrigins.includes(incomingOrigin) ||
@@ -29,7 +30,7 @@ export function corsHeaders(
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": methods,
-    "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Requested-With,x-app-secret,x-app-key,x-blackforest-key",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Requested-With,x-app-secret,x-app-key,x-blackforest-key,idempotency-key,Accept",
     "Access-Control-Allow-Credentials": "true",
     "Vary": "Origin",
   };

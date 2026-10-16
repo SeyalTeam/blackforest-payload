@@ -60,7 +60,7 @@ var init_logBuffer = __esm({
 // src/realtime/wsGateway.ts
 import { randomUUID } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
-var parsePositiveInteger, WS_ENDPOINT_PATH, KOT_TOPIC, HEARTBEAT_PING_MS, HEARTBEAT_TIMEOUT_MS, REPLAY_RETENTION_MS, MAX_CONNECTIONS_PER_USER, MAX_TOTAL_CONNECTIONS, MAX_PAYLOAD_BYTES, INCLUDE_ITEM_SNAPSHOT, BRANCH_SCOPED_ROLES, realtimeState, parseRelationshipID, parseRelationshipIDs, parseJSONMessage, normalizeBearerToken, decodeJWTExpiryMs, readHeaderValue, toHeaderObject, nowISO, closeSocket, encodeJSON, ensurePayloadSize, sendServerMessage, sendSystemMessage, removeConnection, pruneEventBuffers, matchesSubscription, canAccessBranch, canAccessKitchen, scheduleTokenExpiry, startHeartbeatLoop, resolveAllowedBranchIDs, resolveAllowedKitchenIDs, authenticateRequest, validateKitchenSubscription, sendSubscriptionNack, sendUnsubscribeNack, handleReplay, handleSubscribe, handleUnsubscribe, registerConnection, enforceConnectionLimits, bootSocket, rejectUpgrade, isRealtimePath, createRealtimeGateway, publishBillingRealtimeEvent, publishChatRealtimeEvent, terminateUserSession, getRealtimeEndpointPath;
+var parsePositiveInteger, WS_ENDPOINT_PATH, KOT_TOPIC, HEARTBEAT_PING_MS, HEARTBEAT_TIMEOUT_MS, REPLAY_RETENTION_MS, MAX_CONNECTIONS_PER_USER, MAX_TOTAL_CONNECTIONS, MAX_PAYLOAD_BYTES, INCLUDE_ITEM_SNAPSHOT, BRANCH_SCOPED_ROLES, realtimeState, parseRelationshipID, parseRelationshipIDs, parseJSONMessage, normalizeBearerToken, decodeJWTExpiryMs, readHeaderValue, toHeaderObject, nowISO, closeSocket, encodeJSON, ensurePayloadSize, sendServerMessage, sendSystemMessage, removeConnection, pruneEventBuffers, matchesSubscription, canAccessBranch, canAccessKitchen, scheduleTokenExpiry, startHeartbeatLoop, resolveAllowedBranchIDs, resolveAllowedKitchenIDs, authenticateRequest, validateKitchenSubscription, sendSubscriptionNack, sendUnsubscribeNack, handleReplay, handleSubscribe, handleUnsubscribe, registerConnection, enforceConnectionLimits, handleCallSignal, bootSocket, rejectUpgrade, isRealtimePath, createRealtimeGateway, publishBillingRealtimeEvent, publishChatRealtimeEvent, terminateUserSession, getRealtimeEndpointPath;
 var init_wsGateway = __esm({
   "src/realtime/wsGateway.ts"() {
     "use strict";
@@ -648,6 +648,68 @@ var init_wsGateway = __esm({
       }
       return { ok: true };
     };
+    handleCallSignal = (connection, value) => {
+      const targetUserId = typeof value.targetUserId === "string" ? value.targetUserId.trim() : typeof value.recipientUserId === "string" ? value.recipientUserId.trim() : "";
+      const callId = typeof value.callId === "string" ? value.callId.trim() : "";
+      const signalType = typeof value.signalType === "string" ? value.signalType.trim() : "";
+      if (!targetUserId || !signalType) {
+        sendSystemMessage(connection, {
+          eventType: "call_signal_nack",
+          error_code: "invalid_call_signal",
+          message: "targetUserId and signalType are required."
+        });
+        return;
+      }
+      const senderName = typeof connection.user?.name === "string" && connection.user.name.trim().length > 0 ? connection.user.name.trim() : typeof connection.user?.email === "string" ? connection.user.email : "Admin";
+      const eventPayload = {
+        eventType: "call_signal",
+        callId,
+        signalType,
+        senderId: connection.userID,
+        senderName,
+        senderRole: connection.role,
+        targetUserId,
+        timestamp: nowISO()
+      };
+      if (value.sdp !== void 0) eventPayload.sdp = value.sdp;
+      if (value.candidate !== void 0) eventPayload.candidate = value.candidate;
+      if (value.reason !== void 0) eventPayload.reason = value.reason;
+      if (value.data !== void 0) eventPayload.data = value.data;
+      const targetConnIDs = realtimeState.connectionsByUserID.get(targetUserId);
+      if (!targetConnIDs || targetConnIDs.size === 0) {
+        if (signalType === "offer") {
+          sendServerMessage(connection, {
+            eventType: "call_signal",
+            callId,
+            signalType: "user_offline",
+            senderId: "system",
+            targetUserId,
+            message: "The user is currently offline or unreachable.",
+            timestamp: nowISO()
+          });
+        }
+        return;
+      }
+      let sent = false;
+      for (const connID of targetConnIDs) {
+        const targetConn = realtimeState.connections.get(connID);
+        if (targetConn && targetConn.socket.readyState === WebSocket.OPEN) {
+          sendServerMessage(targetConn, eventPayload);
+          sent = true;
+        }
+      }
+      if (!sent && signalType === "offer") {
+        sendServerMessage(connection, {
+          eventType: "call_signal",
+          callId,
+          signalType: "user_offline",
+          senderId: "system",
+          targetUserId,
+          message: "The user is currently offline or unreachable.",
+          timestamp: nowISO()
+        });
+      }
+    };
     bootSocket = (socket, context) => {
       const connection = registerConnection(socket, context);
       sendSystemMessage(connection, {
@@ -682,7 +744,12 @@ var init_wsGateway = __esm({
           });
           return;
         }
-        const action = typeof parsed.value.action === "string" ? parsed.value.action.trim() : "";
+        const rawAction = parsed.value.action ?? parsed.value.type ?? parsed.value.eventType;
+        const action = typeof rawAction === "string" ? rawAction.trim() : "";
+        if (action === "call_signal") {
+          handleCallSignal(connection, parsed.value);
+          return;
+        }
         if (action === "subscribe") {
           void handleSubscribe(connection, parsed.value);
           return;
@@ -700,7 +767,7 @@ var init_wsGateway = __esm({
         sendSystemMessage(connection, {
           eventType: "message_nack",
           error_code: "unsupported_action",
-          message: "Supported actions: subscribe, unsubscribe, ping."
+          message: "Supported actions: subscribe, unsubscribe, ping, call_signal."
         });
       });
     };
@@ -6387,19 +6454,17 @@ var init_serverUrl = __esm({
       }
     };
     getPublicServerURL = () => {
-      if (process.env.PAYLOAD_PUBLIC_SERVER_URL) {
-        return normalizeAbsoluteURL(process.env.PAYLOAD_PUBLIC_SERVER_URL);
+      const envUrl = process.env.PAYLOAD_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_SERVER_URL;
+      if (envUrl) {
+        try {
+          const normalized = normalizeAbsoluteURL(envUrl);
+          if (normalized && isLocalHostname(new URL(normalized).hostname)) {
+            return normalized;
+          }
+        } catch (_err) {
+        }
       }
-      if (process.env.NEXT_PUBLIC_SERVER_URL) {
-        return normalizeAbsoluteURL(process.env.NEXT_PUBLIC_SERVER_URL);
-      }
-      if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-        return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-      }
-      if (process.env.VERCEL_URL) {
-        return `https://${process.env.VERCEL_URL}`;
-      }
-      return "http://localhost:3000";
+      return "https://admin.theblackforestcakes.com";
     };
   }
 });
@@ -36352,7 +36417,7 @@ var init_cashfreeCreateOrder = __esm({
           customer_email: customerEmail || "customer@example.com"
         },
         order_meta: {
-          return_url: "https://blackforest.vseyal.com/payment-result?order_id={order_id}"
+          return_url: "https://admin.theblackforestcakes.com/payment-result?order_id={order_id}"
         },
         order_note: billId ? `Bill ${billId}` : "Direct order"
       };
@@ -38242,55 +38307,26 @@ var init_payload_config = __esm({
           ], */
         }
       },
-      // ✅ ADD CORS + CSRF HERE
+      // ✅ Clean CORS + CSRF
       cors: [
         "http://localhost:3000",
         "http://localhost:3001",
         // standalone frontend (dev)
-        process.env.FRONTEND_URL || "",
-        "http://localhost:4200",
-        "http://localhost:5173",
-        "http://localhost:8080",
-        "http://localhost:5000",
-        "http://localhost:64781",
-        // flutter web port
         "http://127.0.0.1",
-        "http://127.0.0.1:5500",
-        "https://blackforest.vseyal.com",
-        // your domain
-        "https://blackforest1.vseyal.com",
-        "https://blackforest2.vseyal.com",
-        "https://blackforest3.vseyal.com",
-        "https://dev-blacforest.vseyal.com",
-        "https://dev1-blacforest.vseyal.com",
+        process.env.FRONTEND_URL || "",
+        "https://admin.theblackforestcakes.com",
         "https://superadmin.theblackforestcakes.com",
-        "https://theblackforestcakes.com",
-        "http://192.168.29.173:3000"
-        // Local Network IP
+        "https://theblackforestcakes.com"
       ].filter(Boolean),
       csrf: [
         "http://localhost:3000",
         "http://localhost:3001",
         // standalone frontend (dev)
-        process.env.FRONTEND_URL || "",
-        "http://localhost:4200",
-        "http://localhost:5173",
-        "http://localhost:8080",
-        "http://localhost:5000",
-        "http://localhost:64781",
-        // flutter web
         "http://127.0.0.1",
-        "http://127.0.0.1:5500",
-        "https://blackforest.vseyal.com",
-        "https://blackforest1.vseyal.com",
-        "https://blackforest2.vseyal.com",
-        "https://blackforest3.vseyal.com",
-        "https://dev-blacforest.vseyal.com",
-        "https://dev1-blacforest.vseyal.com",
+        process.env.FRONTEND_URL || "",
+        "https://admin.theblackforestcakes.com",
         "https://superadmin.theblackforestcakes.com",
-        "https://theblackforestcakes.com",
-        "http://192.168.29.173:3000"
-        // Local Network IP
+        "https://theblackforestcakes.com"
       ].filter(Boolean),
       graphQL: {
         queries: (graphQL) => ({

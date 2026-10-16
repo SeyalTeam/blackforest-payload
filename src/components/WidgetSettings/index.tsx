@@ -5167,7 +5167,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                             type="url"
                             value={newBillingAPIDomainURL}
                             onChange={(e) => setNewBillingAPIDomainURL(e.target.value)}
-                            placeholder="https://blackforest.vseyal.com"
+                            placeholder="https://admin.theblackforestcakes.com"
                           />
                         </div>
                         <div

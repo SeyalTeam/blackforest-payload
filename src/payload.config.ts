@@ -239,13 +239,7 @@ const wrapCollection = (collection: CollectionConfig): CollectionConfig => {
       create: (args) => {
         const { req } = args
         const user = req?.user
-        if (!user) {
-          const originalCreate = collection.access?.create
-          if (typeof originalCreate === 'function') {
-            return originalCreate(args)
-          }
-          return false
-        }
+        if (!user) return false
         if (user.role === 'superadmin' || user.role === 'admin') return true
 
         const allowedCollections = (user as any).allowedCollections
@@ -269,13 +263,7 @@ const wrapCollection = (collection: CollectionConfig): CollectionConfig => {
       update: (args) => {
         const { req } = args
         const user = req?.user
-        if (!user) {
-          const originalUpdate = collection.access?.update
-          if (typeof originalUpdate === 'function') {
-            return originalUpdate(args)
-          }
-          return false
-        }
+        if (!user) return false
         if (user.role === 'superadmin' || user.role === 'admin') return true
 
         const allowedCollections = (user as any).allowedCollections
@@ -299,13 +287,7 @@ const wrapCollection = (collection: CollectionConfig): CollectionConfig => {
       delete: (args) => {
         const { req } = args
         const user = req?.user
-        if (!user) {
-          const originalDelete = collection.access?.delete
-          if (typeof originalDelete === 'function') {
-            return originalDelete(args)
-          }
-          return false
-        }
+        if (!user) return false
         if (user.role === 'superadmin' || user.role === 'admin') return true
 
         const originalDelete = collection.access?.delete
@@ -619,49 +601,25 @@ export default buildConfig({
     },
   },
 
-  // ✅ ADD CORS + CSRF HERE
+  // ✅ Clean CORS + CSRF
   cors: [
     'http://localhost:3000',
     'http://localhost:3001', // standalone frontend (dev)
-    process.env.FRONTEND_URL || '',
-    'http://localhost:4200',
-    'http://localhost:5173',
-    'http://localhost:8080',
-    'http://localhost:5000',
-    'http://localhost:64781', // flutter web port
     'http://127.0.0.1',
-    'http://127.0.0.1:5500',
-    'https://blackforest.vseyal.com', // your domain
-    'https://blackforest1.vseyal.com',
-    'https://blackforest2.vseyal.com',
-    'https://blackforest3.vseyal.com',
-    'https://dev-blacforest.vseyal.com',
-    'https://dev1-blacforest.vseyal.com',
+    process.env.FRONTEND_URL || '',
+    'https://admin.theblackforestcakes.com',
     'https://superadmin.theblackforestcakes.com',
     'https://theblackforestcakes.com',
-    'http://192.168.29.173:3000', // Local Network IP
   ].filter(Boolean) as string[],
 
   csrf: [
     'http://localhost:3000',
     'http://localhost:3001', // standalone frontend (dev)
-    process.env.FRONTEND_URL || '',
-    'http://localhost:4200',
-    'http://localhost:5173',
-    'http://localhost:8080',
-    'http://localhost:5000',
-    'http://localhost:64781', // flutter web
     'http://127.0.0.1',
-    'http://127.0.0.1:5500',
-    'https://blackforest.vseyal.com',
-    'https://blackforest1.vseyal.com',
-    'https://blackforest2.vseyal.com',
-    'https://blackforest3.vseyal.com',
-    'https://dev-blacforest.vseyal.com',
-    'https://dev1-blacforest.vseyal.com',
+    process.env.FRONTEND_URL || '',
+    'https://admin.theblackforestcakes.com',
     'https://superadmin.theblackforestcakes.com',
     'https://theblackforestcakes.com',
-    'http://192.168.29.173:3000', // Local Network IP
   ].filter(Boolean) as string[],
 
   graphQL: {

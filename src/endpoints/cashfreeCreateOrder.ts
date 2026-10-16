@@ -52,7 +52,7 @@ export const cashfreeCreateOrderHandler: PayloadHandler = async (req): Promise<R
       customer_email: customerEmail || 'customer@example.com',
     },
     order_meta: {
-      return_url: 'https://blackforest.vseyal.com/payment-result?order_id={order_id}',
+      return_url: 'https://admin.theblackforestcakes.com/payment-result?order_id={order_id}',
     },
     order_note: billId ? `Bill ${billId}` : 'Direct order',
   }

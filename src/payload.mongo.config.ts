@@ -23,7 +23,6 @@ import ReturnOrder from './collections/ReturnOrder'
 import ClosingEntries from './collections/ClosingEntries'
 import Expenses from './collections/Expenses'
 import StockOrders from './collections/StockOrders'
-import Cakes from './collections/Cakes'
 import Reviews from './collections/Reviews'
 import Customers from './collections/Customers'
 import BillingCustomers from './collections/BillingCustomers'
@@ -69,7 +68,6 @@ export default buildConfig({
     Tables,
     Attendance,
     StockOrders,
-    Cakes,
     Expenses,
     ReturnOrder,
     Dealers,
@@ -104,4 +102,23 @@ export default buildConfig({
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
   },
+  serverURL: 'https://admin.theblackforestcakes.com',
+  cors: [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://127.0.0.1',
+    process.env.FRONTEND_URL || '',
+    'https://admin.theblackforestcakes.com',
+    'https://superadmin.theblackforestcakes.com',
+    'https://theblackforestcakes.com',
+  ].filter(Boolean) as string[],
+  csrf: [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://127.0.0.1',
+    process.env.FRONTEND_URL || '',
+    'https://admin.theblackforestcakes.com',
+    'https://superadmin.theblackforestcakes.com',
+    'https://theblackforestcakes.com',
+  ].filter(Boolean) as string[],
 })

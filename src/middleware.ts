@@ -49,10 +49,35 @@ export function middleware(request: NextRequest) {
       return handleOptions(request);
     }
 
-    // 2. Allow Payload Admin panel internal requests (has admin cookie or referer)
+    // 2. Allow Payload Admin panel internal / trusted admin requests
     const hasAdminToken = request.cookies.has("payload-token");
     const referer = request.headers.get("referer") || "";
-    if (hasAdminToken || referer.includes("/admin")) {
+    const origin = request.headers.get("origin") || "";
+
+    const isTrustedAdminOrigin =
+      origin.includes("theblackforestcakes.com") ||
+      origin.includes("localhost") ||
+      origin.includes("127.0.0.1");
+
+    const isTrustedAdminReferer =
+      referer.includes("theblackforestcakes.com") ||
+      referer.includes("/admin") ||
+      referer.includes("localhost") ||
+      referer.includes("127.0.0.1");
+
+    const isPayloadInternalEndpoint =
+      pathname.startsWith("/api/payload-preferences") ||
+      pathname === "/api/users/me" ||
+      pathname.startsWith("/api/users/me/") ||
+      pathname.startsWith("/api/graphql") ||
+      pathname.startsWith("/api/access");
+
+    if (
+      hasAdminToken ||
+      isPayloadInternalEndpoint ||
+      isTrustedAdminOrigin ||
+      isTrustedAdminReferer
+    ) {
       return NextResponse.next();
     }
 

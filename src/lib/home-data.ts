@@ -651,9 +651,9 @@ function normalizeImageUrl(value: unknown): string | null {
   if (text.startsWith("data:image/")) return text;
   if (text.startsWith("http://") || text.startsWith("https://")) return text;
   if (text.startsWith("//")) return `https:${text}`;
-  if (text.startsWith("/")) return `https://blackforest.vseyal.com${text}`;
-  if (text.startsWith("blackforest.vseyal.com")) return `https://${text}`;
-  if (text.startsWith("blackforest.vseyal.com")) return `https://${text.replace("blackforest.vseyal.com", "blackforest.vseyal.com")}`;
+  if (text.startsWith("/")) return `https://admin.theblackforestcakes.com${text}`;
+  if (text.startsWith("admin.theblackforestcakes.com")) return `https://${text}`;
+  if (text.startsWith("blackforest.vseyal.com")) return `https://${text.replace("blackforest.vseyal.com", "admin.theblackforestcakes.com")}`;
   const lower = text.toLowerCase();
   const looksLikeFile =
     lower.endsWith(".png") ||
@@ -670,7 +670,7 @@ function normalizeImageUrl(value: unknown): string | null {
     text.startsWith("api/") ||
     looksLikeFile
   ) {
-    return `https://blackforest.vseyal.com/${text}`;
+    return `https://admin.theblackforestcakes.com/${text}`;
   }
   return null;
 }
