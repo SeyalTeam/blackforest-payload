@@ -4734,6 +4734,16 @@ export interface WidgetSetting {
       }[]
     | null;
   /**
+   * Branch-wise control to allow billing even when product stock is zero (skips zero-stock block).
+   */
+  skipZeroStockBillingByBranch?:
+    | {
+        branch: string | Branch;
+        skipZeroStockBilling?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
    * Branch-wise control for category delay time (minutes) before showing products.
    */
   categoryDelayByBranch?:
@@ -6385,6 +6395,13 @@ export interface WidgetSettingsSelect<T extends boolean = true> {
     | {
         branch?: T;
         skipInstockApproval?: T;
+        id?: T;
+      };
+  skipZeroStockBillingByBranch?:
+    | T
+    | {
+        branch?: T;
+        skipZeroStockBilling?: T;
         id?: T;
       };
   categoryDelayByBranch?:

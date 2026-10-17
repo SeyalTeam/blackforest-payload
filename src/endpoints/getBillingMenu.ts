@@ -294,6 +294,27 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
       req.payload.logger.error({ err, msg: 'Error computing live stock in getBillingMenu' })
     }
 
+    let isZeroStockBillingSkipped = false
+    try {
+      const widgetSettings = await req.payload.findGlobal({
+        slug: 'widget-settings',
+        depth: 0,
+      })
+      const skipRows = (widgetSettings as any)?.skipZeroStockBillingByBranch
+      if (Array.isArray(skipRows)) {
+        const branchRow = skipRows.find((r: any) => {
+          const rBranchId =
+            typeof r.branch === 'object' && r.branch !== null ? r.branch.id : r.branch
+          return String(rBranchId) === String(branchID)
+        })
+        if (branchRow && branchRow.skipZeroStockBilling === true) {
+          isZeroStockBillingSkipped = true
+        }
+      }
+    } catch (err) {
+      req.payload.logger.error({ err, msg: 'Error checking skip zero stock billing settings in getBillingMenu' })
+    }
+
     const products = filteredDocs
       .map((doc) => {
         const id = toText(doc.id).trim()
@@ -320,7 +341,8 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
           upc: toText(doc.upc).trim() || null,
           categoryId: getRelationshipID(doc.category) || null,
           isAvailable: doc.isAvailable !== false,
-          isOutOfStock: doc.isOutOfStock === true || currentStock <= 0,
+          isOutOfStock: isZeroStockBillingSkipped ? doc.isOutOfStock === true : doc.isOutOfStock === true || currentStock <= 0,
+          allowZeroStockBilling: isZeroStockBillingSkipped,
           stock: currentStock,
           price,
           defaultPriceDetails: doc.defaultPriceDetails,
@@ -338,6 +360,7 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
       {
         mode,
         branchId: branchID,
+        allowZeroStockBilling: isZeroStockBillingSkipped,
         categoryId: categoryID,
         count: products.length,
         products,

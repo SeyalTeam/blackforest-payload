@@ -34,6 +34,7 @@ import {
   Anchor,
   PhoneCall,
   Lock,
+  ShoppingCart,
 } from 'lucide-react'
 import Select, { type FormatOptionLabelMeta, type GroupBase } from 'react-select'
 import DatePicker from 'react-datepicker'
@@ -138,6 +139,12 @@ type SkipInstockApprovalRow = {
   skipInstockApproval?: boolean | null
 }
 
+type SkipZeroStockBillingRow = {
+  id?: string
+  branch?: string | { id?: string; name?: string } | null
+  skipZeroStockBilling?: boolean | null
+}
+
 type CategoryDelayRow = {
   id?: string
   branch?: string | { id?: string; name?: string } | null
@@ -162,6 +169,7 @@ type WidgetSettingsGlobal = {
   skipDeliverByBranch?: SkipDeliverRow[] | null
   skipConfirmByBranch?: SkipConfirmRow[] | null
   skipInstockApprovalByBranch?: SkipInstockApprovalRow[] | null
+  skipZeroStockBillingByBranch?: SkipZeroStockBillingRow[] | null
   categoryDelayByBranch?: CategoryDelayRow[] | null
   entireBillBlockingByBranch?: EntireBillBlockingRow[] | null
 }
@@ -222,6 +230,7 @@ type WidgetKey =
   | 'deliver-skip'
   | 'confirm-skip'
   | 'instock-approval-skip'
+  | 'zero-stock-billing-skip'
   | 'category-delay'
   | 'entire-bill-blocking'
   | 'closing-entry-access'
@@ -598,6 +607,19 @@ const WidgetSettings: React.FC<any> = (props) => {
   const [removingInstockApprovalSkipBranchID, setRemovingInstockApprovalSkipBranchID] = useState<
     string | null
   >(null)
+
+  const [skipZeroStockBillingByBranch, setSkipZeroStockBillingByBranch] = useState<
+    SkipZeroStockBillingRow[]
+  >([])
+  const [selectedSkipZeroStockBranches, setSelectedSkipZeroStockBranches] = useState<Option[]>([])
+  const [zeroStockBillingSkipVisibility, setZeroStockBillingSkipVisibility] = useState<Option>({
+    value: 'enabled',
+    label: 'Enabled (Allow Billing on Zero Stock)',
+  })
+  const [savingZeroStockBillingSkipSetting, setSavingZeroStockBillingSkipSetting] = useState(false)
+  const [removingZeroStockBillingBranchID, setRemovingZeroStockBillingBranchID] = useState<
+    string | null
+  >(null)
   const [allWaitersMap, setAllWaitersMap] = useState<Map<string, string>>(new Map())
 
   const [entireBillBlockingByBranch, setEntireBillBlockingByBranch] = useState<EntireBillBlockingRow[]>([])
@@ -781,6 +803,10 @@ const WidgetSettings: React.FC<any> = (props) => {
     [branchOptions],
   )
   const instockBranchOptions = useMemo(
+    () => [{ value: 'all', label: 'All' }, ...branchOptions],
+    [branchOptions],
+  )
+  const zeroStockBranchOptions = useMemo(
     () => [{ value: 'all', label: 'All' }, ...branchOptions],
     [branchOptions],
   )
@@ -1023,6 +1049,30 @@ const WidgetSettings: React.FC<any> = (props) => {
       .sort((a, b) => a.branchName.localeCompare(b.branchName))
   }, [skipInstockApprovalByBranch, branchNameByID])
 
+  const configuredZeroStockBillingSkipRows = useMemo(() => {
+    return skipZeroStockBillingByBranch
+      .map((row) => {
+        const branchID = getRelationshipID(row.branch)
+        if (!branchID) return null
+
+        return {
+          branchID,
+          branchName: branchNameByID.get(branchID) || branchID,
+          skipZeroStockBilling: row.skipZeroStockBilling === true,
+        }
+      })
+      .filter(
+        (
+          row,
+        ): row is {
+          branchID: string
+          branchName: string
+          skipZeroStockBilling: boolean
+        } => row !== null,
+      )
+      .sort((a, b) => a.branchName.localeCompare(b.branchName))
+  }, [skipZeroStockBillingByBranch, branchNameByID])
+
   const configuredCategoryDelayRows = useMemo(() => {
     return categoryDelayByBranch
       .map((row) => {
@@ -1147,6 +1197,7 @@ const WidgetSettings: React.FC<any> = (props) => {
             setSkipDeliverByBranch(settingsJSON.skipDeliverByBranch || [])
             setSkipConfirmByBranch(settingsJSON.skipConfirmByBranch || [])
             setSkipInstockApprovalByBranch(settingsJSON.skipInstockApprovalByBranch || [])
+            setSkipZeroStockBillingByBranch(settingsJSON.skipZeroStockBillingByBranch || [])
             setCategoryDelayByBranch(settingsJSON.categoryDelayByBranch || [])
             setEntireBillBlockingByBranch(settingsJSON.entireBillBlockingByBranch || [])
           } catch (e: any) {
@@ -2478,6 +2529,86 @@ const WidgetSettings: React.FC<any> = (props) => {
     }
   }
 
+  const saveZeroStockBillingSkipSetting = async () => {
+    if (selectedSkipZeroStockBranches.length === 0) {
+      alert('Please select at least one branch')
+      return
+    }
+
+    setSavingZeroStockBillingSkipSetting(true)
+    try {
+      const isSkipEnabled = zeroStockBillingSkipVisibility.value === 'enabled'
+      const hasAll =
+        selectedSkipZeroStockBranches.some((b) => b.value === 'all') ||
+        (branchOptions.length > 0 && selectedSkipZeroStockBranches.length === branchOptions.length)
+      const selectedBranchIDs = hasAll
+        ? branchOptions.map((b) => b.value)
+        : selectedSkipZeroStockBranches.filter((b) => b.value !== 'all').map((b) => b.value)
+
+      const normalizedRows = skipZeroStockBillingByBranch.map((row) => ({
+        ...row,
+        branch: getRelationshipID(row.branch) || row.branch,
+      }))
+
+      const dedupedRows = normalizedRows.filter(
+        (row) => !selectedBranchIDs.includes(getRelationshipID(row.branch) || String(row.branch)),
+      )
+
+      selectedBranchIDs.forEach((branchID) => {
+        const existingRow = normalizedRows.find(
+          (row) => (getRelationshipID(row.branch) || row.branch) === branchID,
+        )
+        dedupedRows.push({
+          ...(existingRow?.id ? { id: existingRow.id } : {}),
+          branch: branchID,
+          skipZeroStockBilling: isSkipEnabled,
+        })
+      })
+
+      const persistedSettings = await persistWidgetSettings({
+        skipZeroStockBillingByBranch: dedupedRows,
+      })
+      setSkipZeroStockBillingByBranch(persistedSettings.skipZeroStockBillingByBranch || dedupedRows)
+      setSelectedSkipZeroStockBranches([])
+      alert(`Zero Stock Billing setting updated for ${selectedBranchIDs.length} branch(es)`)
+    } catch (error) {
+      console.error('Failed to save zero stock billing skip setting:', error)
+      alert('Failed to save zero stock billing skip setting')
+    } finally {
+      setSavingZeroStockBillingSkipSetting(false)
+    }
+  }
+
+  const removeZeroStockBillingConfiguredBranch = async (
+    branchID: string,
+    branchName: string,
+  ) => {
+    if (!confirm(`Remove "${branchName}" from configured branches?`)) {
+      return
+    }
+
+    setRemovingZeroStockBillingBranchID(branchID)
+    try {
+      const nextRows = skipZeroStockBillingByBranch
+        .map((row) => ({
+          ...row,
+          branch: getRelationshipID(row.branch) || row.branch,
+        }))
+        .filter((row) => (getRelationshipID(row.branch) || row.branch) !== branchID)
+
+      const persistedSettings = await persistWidgetSettings({
+        skipZeroStockBillingByBranch: nextRows,
+      })
+      setSkipZeroStockBillingByBranch(persistedSettings.skipZeroStockBillingByBranch || nextRows)
+      alert('Branch removed from configured list')
+    } catch (error) {
+      console.error('Failed to remove branch from configured list:', error)
+      alert('Failed to remove branch')
+    } finally {
+      setRemovingZeroStockBillingBranchID(null)
+    }
+  }
+
   useEffect(() => {
     if (!selectedCategoryDelayBranch) {
       setCategoryDelayMinutes({ value: '1', label: '1 Minute' })
@@ -3227,6 +3358,14 @@ const WidgetSettings: React.FC<any> = (props) => {
           >
             <Package className="tile-icon" size={48} />
             <span className="tile-label">Instock Entry Approval</span>
+          </button>
+          <button
+            type="button"
+            className={`tile ${activeWidget === 'zero-stock-billing-skip' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('zero-stock-billing-skip')}
+          >
+            <ShoppingCart className="tile-icon" size={48} />
+            <span className="tile-label">Zero Stock Billing</span>
           </button>
 
           <div className="tiles-group-title">Delay</div>
@@ -4217,6 +4356,182 @@ const WidgetSettings: React.FC<any> = (props) => {
                         ? `(All ${branchOptions.length} Branches Selected)`
                         : selectedSkipInstockBranches.length > 0
                           ? `(${selectedSkipInstockBranches.length} Selected)`
+                          : ''}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeWidget === 'zero-stock-billing-skip' && (
+            <div className="widget-modal">
+              <div className="modal-header">
+                <h2>Zero Stock Billing Skip Setting</h2>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="modal-body">
+                <div className="form-group">
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: 6,
+                    }}
+                  >
+                    <label style={{ margin: 0 }}>
+                      <MapPin size={14} style={{ marginRight: 4 }} /> Choose Branch (Single or Multiple)
+                    </label>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ padding: '2px 8px', fontSize: '11px', height: 'auto', minHeight: 'unset' }}
+                        onClick={() => setSelectedSkipZeroStockBranches(branchOptions)}
+                      >
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ padding: '2px 8px', fontSize: '11px', height: 'auto', minHeight: 'unset' }}
+                        onClick={() => setSelectedSkipZeroStockBranches([])}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                  <Select
+                    isMulti
+                    options={zeroStockBranchOptions}
+                    value={
+                      branchOptions.length > 0 && selectedSkipZeroStockBranches.length === branchOptions.length
+                        ? [{ value: 'all', label: 'All' }, ...selectedSkipZeroStockBranches]
+                        : selectedSkipZeroStockBranches
+                    }
+                    onChange={(selected) => {
+                      const options = (selected ? (selected as Option[]) : [])
+                      const hasAll = options.some((opt) => opt.value === 'all')
+                      const isAllCurrentlySelected =
+                        branchOptions.length > 0 && selectedSkipZeroStockBranches.length === branchOptions.length
+
+                      if (hasAll && !isAllCurrentlySelected) {
+                        setSelectedSkipZeroStockBranches(branchOptions)
+                        return
+                      }
+
+                      if (!hasAll && isAllCurrentlySelected) {
+                        setSelectedSkipZeroStockBranches([])
+                        return
+                      }
+
+                      const filtered = options.filter((opt) => opt.value !== 'all')
+                      if (filtered.length === branchOptions.length && branchOptions.length > 0) {
+                        setSelectedSkipZeroStockBranches(branchOptions)
+                      } else {
+                        setSelectedSkipZeroStockBranches(filtered)
+                      }
+                    }}
+                    styles={customSelectStyles}
+                    placeholder="Select Branches or choose All..."
+                    isLoading={loading}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                  />
+                  <small style={{ display: 'block', marginTop: 4, color: 'var(--theme-text-secondary, #888)' }}>
+                    Choose &quot;All&quot; to select all branches, or select single / multiple individual branches.
+                  </small>
+                </div>
+
+                <div className="form-group" style={{ marginTop: 16 }}>
+                  <label>
+                    <ListFilter size={14} style={{ marginRight: 4 }} /> Zero Stock Billing Behavior
+                  </label>
+                  <Select
+                    options={[
+                      { value: 'enabled', label: 'Enabled (Allow Billing on Zero Stock)' },
+                      { value: 'disabled', label: 'Disabled (Block Billing on Zero Stock)' },
+                    ]}
+                    value={zeroStockBillingSkipVisibility}
+                    onChange={(option) =>
+                      setZeroStockBillingSkipVisibility((option as Option) || { value: 'enabled', label: 'Enabled (Allow Billing on Zero Stock)' })
+                    }
+                    styles={customSelectStyles}
+                    isSearchable={false}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                  />
+                  <small style={{ display: 'block', marginTop: 4, color: 'var(--theme-text-secondary, #888)' }}>
+                    When enabled, cashiers can bill products even if in-stock count is 0. If disabled or unconfigured, billing is strictly blocked when product count is zero or out of stock.
+                  </small>
+                </div>
+
+                <div className="configured-settings" style={{ marginTop: 24 }}>
+                  <h3>Configured Branches ({configuredZeroStockBillingSkipRows.length})</h3>
+                  {configuredZeroStockBillingSkipRows.length === 0 ? (
+                    <p className="empty-state">No branch-specific setting saved yet. All branches block billing when product is zero by default.</p>
+                  ) : (
+                    <div className="configured-list">
+                      {configuredZeroStockBillingSkipRows.map((row) => (
+                        <div className="configured-row" key={row.branchID}>
+                          <span className="branch-name">{row.branchName}</span>
+                          <div className="row-controls">
+                            <div className="status-group">
+                              <span
+                                className={
+                                  row.skipZeroStockBilling
+                                    ? 'status-badge status-enabled'
+                                    : 'status-badge status-disabled'
+                                }
+                              >
+                                Zero Stock Billing: {row.skipZeroStockBilling ? 'Allowed' : 'Blocked (Strict)'}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              className="remove-row-btn"
+                              onClick={() =>
+                                removeZeroStockBillingConfiguredBranch(row.branchID, row.branchName)
+                              }
+                              disabled={Boolean(removingZeroStockBillingBranchID)}
+                              title="Remove Setting"
+                            >
+                              {removingZeroStockBillingBranchID === row.branchID ? (
+                                <Loader2 className="animate-spin" size={14} />
+                              ) : (
+                                <Trash2 size={14} />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setActiveWidget(null)}>
+                  Close
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={saveZeroStockBillingSkipSetting}
+                  disabled={savingZeroStockBillingSkipSetting || selectedSkipZeroStockBranches.length === 0}
+                >
+                  {savingZeroStockBillingSkipSetting ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Loader2 className="animate-spin" size={16} /> Saving...
+                    </span>
+                  ) : (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Save size={16} /> Save Setting{' '}
+                      {branchOptions.length > 0 && selectedSkipZeroStockBranches.length === branchOptions.length
+                        ? `(All ${branchOptions.length} Branches Selected)`
+                        : selectedSkipZeroStockBranches.length > 0
+                          ? `(${selectedSkipZeroStockBranches.length} Selected)`
                           : ''}
                     </span>
                   )}

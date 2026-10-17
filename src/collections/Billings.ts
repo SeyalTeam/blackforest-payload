@@ -2579,24 +2579,50 @@ const Billings: CollectionConfig = {
 
             const enforceStrictStock = process.env.ENABLE_STRICT_STOCK_CHECK !== 'false';
             if (enforceStrictStock && stockChecks.length > 0) {
-              const productIDsToCheck = stockChecks.map((s) => s.productID)
-              const stockMap = await getMultipleProductsStock(
-                req.payload,
-                productIDsToCheck,
-                branchId,
-              )
-              const stockRows = stockChecks.map((row) => ({
-                ...row,
-                currentStock: stockMap.get(row.productID) || 0,
-              }))
+              let isZeroStockBillingSkipped = false
+              try {
+                const widgetSettings = await req.payload.findGlobal({
+                  slug: 'widget-settings',
+                  depth: 0,
+                })
+                const skipRows = (widgetSettings as any)?.skipZeroStockBillingByBranch
+                if (Array.isArray(skipRows)) {
+                  const branchRow = skipRows.find((r: any) => {
+                    const rBranchId =
+                      typeof r.branch === 'object' && r.branch !== null ? r.branch.id : r.branch
+                    return String(rBranchId) === String(branchId)
+                  })
+                  if (branchRow && branchRow.skipZeroStockBilling === true) {
+                    isZeroStockBillingSkipped = true
+                  }
+                }
+              } catch (err) {
+                req.payload.logger.error(
+                  `[Billings Hook] Error checking skip zero stock billing settings:`,
+                  err,
+                )
+              }
 
-              for (const row of stockRows) {
-                if (row.currentStock <= 0 || row.additionalQtyNeeded > row.currentStock) {
-                  const pName = productNameByID.get(row.productID) || row.productID
-                  throw new APIError(
-                    `Cannot bill "${pName}". Out of stock (Current stock: ${row.currentStock}, Requested: ${row.requestedQty}${operation === 'update' ? `, Additional: ${row.additionalQtyNeeded}` : ''}).`,
-                    400,
-                  )
+              if (!isZeroStockBillingSkipped) {
+                const productIDsToCheck = stockChecks.map((s) => s.productID)
+                const stockMap = await getMultipleProductsStock(
+                  req.payload,
+                  productIDsToCheck,
+                  branchId,
+                )
+                const stockRows = stockChecks.map((row) => ({
+                  ...row,
+                  currentStock: stockMap.get(row.productID) || 0,
+                }))
+
+                for (const row of stockRows) {
+                  if (row.currentStock <= 0 || row.additionalQtyNeeded > row.currentStock) {
+                    const pName = productNameByID.get(row.productID) || row.productID
+                    throw new APIError(
+                      `Cannot bill "${pName}". Out of stock (Current stock: ${row.currentStock}, Requested: ${row.requestedQty}${operation === 'update' ? `, Additional: ${row.additionalQtyNeeded}` : ''}).`,
+                      400,
+                    )
+                  }
                 }
               }
             }

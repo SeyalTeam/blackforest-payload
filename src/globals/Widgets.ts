@@ -374,6 +374,29 @@ export const WidgetSettingsGlobal: GlobalConfig = {
       ],
     },
     {
+      name: 'skipZeroStockBillingByBranch',
+      label: 'Skip Zero Stock Billing by Branch',
+      type: 'array',
+      admin: {
+        description:
+          'Branch-wise control to allow billing even when product stock is zero (skips zero-stock block).',
+      },
+      fields: [
+        {
+          name: 'branch',
+          type: 'relationship',
+          relationTo: 'branches',
+          required: true,
+        },
+        {
+          name: 'skipZeroStockBilling',
+          label: 'Allow Billing on Zero Stock',
+          type: 'checkbox',
+          defaultValue: false,
+        },
+      ],
+    },
+    {
       name: 'categoryDelayByBranch',
       label: 'Category Delay by Branch',
       type: 'array',
