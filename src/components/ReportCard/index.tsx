@@ -664,11 +664,15 @@ export default function ReportCardDashboard() {
       }
     })
 
+    const totalScore = Number(
+      ruleScores.reduce((sum, r) => sum + (r.score ?? 0), 0).toFixed(1)
+    )
+    const totalMaxMarks = ruleScores.reduce((sum, r) => sum + (r.maxMarks ?? 100), 0)
     const totalAvg = Math.round(
-      ruleScores.reduce((sum, r) => sum + r.score, 0) / ruleScores.length
+      totalMaxMarks > 0 ? (totalScore / totalMaxMarks) * 100 : 0
     )
 
-    return { ruleScores, totalAvg }
+    return { ruleScores, totalScore, totalMaxMarks, totalAvg }
   }, [currentEmployee, roleRules, reportData])
 
   // ---------------------------------------------------------------------------
@@ -829,6 +833,10 @@ export default function ReportCardDashboard() {
       const rawOverall =
         ruleScores.reduce((sum, r) => sum + r.score, 0) / ruleScores.length
       const overallScore = Number(rawOverall.toFixed(2))
+      const totalScore = Number(
+        ruleScores.reduce((sum, r) => sum + r.score, 0).toFixed(1)
+      )
+      const totalMaxMarks = ruleScores.length * 100
 
       let grade = 'Grade B'
       let gradeClass = 'grade-b'
@@ -854,6 +862,8 @@ export default function ReportCardDashboard() {
         companyName,
         ruleScores,
         overallScore,
+        totalScore,
+        totalMaxMarks,
         grade,
         gradeClass,
         gradeTag,
@@ -1520,8 +1530,11 @@ export default function ReportCardDashboard() {
                       <td className="text-center">
                         <div className="total-score-box">
                           <span className="score-number">
-                            {item.overallScore} <span>/ 100</span>
+                            {item.totalScore} <span>/ {item.totalMaxMarks}</span>
                           </span>
+                          <div style={{ fontSize: '0.78rem', color: '#6b7280', fontWeight: 700, marginTop: '2px' }}>
+                            {item.overallScore}%
+                          </div>
                           <div className="bar-track">
                             <div
                               className={`bar-prog ${
@@ -1624,8 +1637,11 @@ export default function ReportCardDashboard() {
             <div className="score-metric">
               <span className="label">Monthly Overall Score</span>
               <div className="value-wrap">
-                <span className="score-num">{calculatedScores.totalAvg}</span>
-                <span className="score-total">/ 100</span>
+                <span className="score-num">{calculatedScores.totalScore}</span>
+                <span className="score-total">/ {calculatedScores.totalMaxMarks}</span>
+                <span style={{ fontSize: '0.95rem', color: '#6b7280', marginLeft: '0.5rem', fontWeight: 700 }}>
+                  ({calculatedScores.totalAvg}%)
+                </span>
               </div>
               <div className="score-progress-bar">
                 <div
@@ -1640,7 +1656,7 @@ export default function ReportCardDashboard() {
                 {gradeInfo.grade} — {gradeInfo.tag}
               </div>
               <span className="grade-tagline">
-                Based on {calculatedScores.ruleScores.length} active evaluation rules
+                Total: {calculatedScores.totalScore} / {calculatedScores.totalMaxMarks} marks across {calculatedScores.ruleScores.length} active evaluation rules
               </span>
             </div>
           </div>
@@ -1649,7 +1665,7 @@ export default function ReportCardDashboard() {
           <div className="rules-breakdown-section">
             <div className="section-heading">
               <h3>Rule-by-Rule Performance</h3>
-              <span className="subtitle">Each metric scored out of 100 max marks</span>
+              <span className="subtitle">Total: {calculatedScores.totalScore} / {calculatedScores.totalMaxMarks} marks (Each metric scored out of {calculatedScores.ruleScores[0]?.maxMarks || 100} max marks)</span>
             </div>
 
             <div className="rules-grid">
@@ -1769,7 +1785,7 @@ export default function ReportCardDashboard() {
                       </div>
 
                       <div className="score-val">
-                        {rule.score} <span className="denom">/ 100</span>
+                        {rule.score} <span className="denom">/ {rule.maxMarks || 100}</span>
                       </div>
 
                       <div className={`status-pill ${statusPillClass}`}>

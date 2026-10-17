@@ -99,6 +99,8 @@ export type PeerRankItem = {
   employeeId: string
   name: string
   score: number
+  totalScore?: number
+  totalMaxMarks?: number
   grade: string
   gradeTag: string
   isCurrent: boolean
@@ -130,6 +132,8 @@ export type EmployeeReportCardData = {
   rule4Billing: Rule4BillingResult
   rule5KotTime: Rule5KotTimeResult
   overallScore: number
+  totalScore?: number
+  totalMaxMarks?: number
   grade: string
   gradeTag: string
   recommendation: string
@@ -1236,6 +1240,11 @@ export async function calculateReportCardData(
     })
   }
 
+  const totalScore = Number(
+    rulesList.reduce((sum, r) => sum + (r.score || 0), 0).toFixed(1)
+  )
+  const totalMaxMarks = rulesList.reduce((sum, r) => sum + (r.maxMarks || 100), 0)
+
   // ---------------------------------------------------------------------------
   // Classroom Ranking / Peer Leaderboard Calculation (Branch, Company, Overall)
   // ---------------------------------------------------------------------------
@@ -1507,17 +1516,26 @@ export async function calculateReportCardData(
         if (b.isCurrent) return 1
         return a.name.localeCompare(b.name)
       })
-      const list: PeerRankItem[] = sorted.map((item, idx) => ({
-        rank: idx + 1,
-        employeeId: item.employeeId,
-        name: item.name,
-        score: item.score,
-        grade: item.grade,
-        gradeTag: item.gradeTag,
-        isCurrent: item.isCurrent,
-        branchName: item.branchName,
-        companyName: item.companyName,
-      }))
+      const list: PeerRankItem[] = sorted.map((item, idx) => {
+        const pMaxMarks = totalMaxMarks > 0 ? totalMaxMarks : 500
+        const pTotalScore = item.isCurrent
+          ? totalScore
+          : Number(((item.score / 100) * pMaxMarks).toFixed(1))
+
+        return {
+          rank: idx + 1,
+          employeeId: item.employeeId,
+          name: item.name,
+          score: item.score,
+          totalScore: pTotalScore,
+          totalMaxMarks: pMaxMarks,
+          grade: item.grade,
+          gradeTag: item.gradeTag,
+          isCurrent: item.isCurrent,
+          branchName: item.branchName,
+          companyName: item.companyName,
+        }
+      })
       const cur = list.find((item) => item.isCurrent)
       const userRank = cur ? cur.rank : 1
       return { list, userRank, totalRanked: list.length }
@@ -1568,6 +1586,8 @@ export async function calculateReportCardData(
         employeeId: String(employeeId),
         name: employeeName,
         score: overallScore,
+        totalScore,
+        totalMaxMarks,
         grade,
         gradeTag,
         isCurrent: true,
@@ -1620,6 +1640,8 @@ export async function calculateReportCardData(
     rule4Billing: rule4Result,
     rule5KotTime: rule5Result,
     overallScore,
+    totalScore,
+    totalMaxMarks,
     grade,
     gradeTag,
     recommendation,
