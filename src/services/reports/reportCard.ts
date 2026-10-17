@@ -83,6 +83,46 @@ export type Rule5KotTimeResult = {
   ratingLabel: string
 }
 
+export type Rule6TableBillingResult = {
+  ruleId?: string
+  ruleTitle: string
+  score: number // Out of 100
+  maxMarks?: number
+  marks?: number
+  totalBills: number
+  totalRevenue: number
+  branchTotalRevenue: number
+  branchBenchmarkRevenue: number
+  companyTotalRevenue: number
+  overallTotalRevenue: number
+  branchSharePercent: number
+  companySharePercent: number
+  overallSharePercent: number
+  achievementPercent: number
+  alertTag: string
+  ratingLabel: string
+}
+
+export type Rule7CounterBillingResult = {
+  ruleId?: string
+  ruleTitle: string
+  score: number // Out of 100
+  maxMarks?: number
+  marks?: number
+  totalBills: number
+  totalRevenue: number
+  branchTotalRevenue: number
+  branchBenchmarkRevenue: number
+  companyTotalRevenue: number
+  overallTotalRevenue: number
+  branchSharePercent: number
+  companySharePercent: number
+  overallSharePercent: number
+  achievementPercent: number
+  alertTag: string
+  ratingLabel: string
+}
+
 export type RuleSummaryItem = {
   id: string
   title: string
@@ -131,6 +171,8 @@ export type EmployeeReportCardData = {
   rule3Tasks: Rule3TasksResult
   rule4Billing: Rule4BillingResult
   rule5KotTime: Rule5KotTimeResult
+  rule6TableBilling?: Rule6TableBillingResult
+  rule7CounterBilling?: Rule7CounterBillingResult
   overallScore: number
   totalScore?: number
   totalMaxMarks?: number
@@ -800,14 +842,25 @@ export async function calculateReportCardData(
   let productAccuracyPercent = 100
   let rule4Score = 100
 
-  if (resolvedUserId) {
+  let billDocs: any[] = []
+
+  if (resolvedUserId || employeeId) {
     try {
+      const userMatchOrs: any[] = []
+      if (resolvedUserId) {
+        userMatchOrs.push({ createdBy: { equals: resolvedUserId } })
+        userMatchOrs.push({ cashierId: { equals: String(resolvedUserId) } })
+      }
+      if (employeeId) {
+        userMatchOrs.push({ cashierId: { equals: String(employeeId) } })
+      }
+
       const billingsRes = await req.payload.find({
         collection: 'billings',
         where: {
           and: [
             {
-              createdBy: { equals: resolvedUserId },
+              or: userMatchOrs,
             },
             {
               createdAt: { greater_than_equal: startDate.toISOString() },
@@ -822,7 +875,7 @@ export async function calculateReportCardData(
         overrideAccess: true,
       })
 
-      const billDocs = billingsRes.docs || []
+      billDocs = billingsRes.docs || []
       totalBills = billDocs.length
 
       for (const bill of billDocs as any[]) {
