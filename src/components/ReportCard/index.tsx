@@ -534,6 +534,39 @@ export default function ReportCardDashboard() {
             category: 'kot_time',
             maxMarks: 100,
           },
+          {
+            id: 'def-6',
+            title: '🍽️ Table Order Billing & Revenue',
+            enabled: true,
+            roles: ['waiter'],
+            role: 'waiter',
+            category: 'billing_table',
+            maxMarks: 100,
+          },
+        ]
+      }
+
+      if (employeeRole === 'cashier') {
+        return [
+          ...universalRules,
+          {
+            id: 'def-4',
+            title: '🍽️ Table Service & Billing Accuracy',
+            enabled: true,
+            roles: ['cashier', 'waiter'],
+            role: 'cashier',
+            category: 'billing',
+            maxMarks: 100,
+          },
+          {
+            id: 'def-7',
+            title: '🛍️ Counter Bill (Non-Table KOT) Revenue',
+            enabled: true,
+            roles: ['cashier', 'waiter'],
+            role: 'cashier',
+            category: 'billing_counter',
+            maxMarks: 100,
+          },
         ]
       }
 
@@ -595,6 +628,8 @@ export default function ReportCardDashboard() {
           tasksDetails: null,
           billingDetails: null,
           kotTimeDetails: null,
+          billingTableDetails: null,
+          billingCounterDetails: null,
         }
       }
 
@@ -608,6 +643,8 @@ export default function ReportCardDashboard() {
           tasksDetails: null,
           billingDetails: null,
           kotTimeDetails: null,
+          billingTableDetails: null,
+          billingCounterDetails: null,
         }
       }
 
@@ -621,6 +658,8 @@ export default function ReportCardDashboard() {
           tasksDetails: reportData.rule3Tasks,
           billingDetails: null,
           kotTimeDetails: null,
+          billingTableDetails: null,
+          billingCounterDetails: null,
         }
       }
 
@@ -634,6 +673,8 @@ export default function ReportCardDashboard() {
           tasksDetails: null,
           billingDetails: reportData.rule4Billing,
           kotTimeDetails: null,
+          billingTableDetails: null,
+          billingCounterDetails: null,
         }
       }
 
@@ -647,6 +688,38 @@ export default function ReportCardDashboard() {
           tasksDetails: null,
           billingDetails: null,
           kotTimeDetails: reportData.rule5KotTime,
+          billingTableDetails: null,
+          billingCounterDetails: null,
+        }
+      }
+
+      // Use real Rule 6 Table Billing data if category is billing_table
+      if (rule.category === 'billing_table' && reportData?.rule6TableBilling) {
+        return {
+          ...rule,
+          score: reportData.rule6TableBilling.score,
+          callSpeedDetails: null,
+          attendanceDetails: null,
+          tasksDetails: null,
+          billingDetails: null,
+          kotTimeDetails: null,
+          billingTableDetails: reportData.rule6TableBilling,
+          billingCounterDetails: null,
+        }
+      }
+
+      // Use real Rule 7 Counter Billing data if category is billing_counter
+      if (rule.category === 'billing_counter' && reportData?.rule7CounterBilling) {
+        return {
+          ...rule,
+          score: reportData.rule7CounterBilling.score,
+          callSpeedDetails: null,
+          attendanceDetails: null,
+          tasksDetails: null,
+          billingDetails: null,
+          kotTimeDetails: null,
+          billingTableDetails: null,
+          billingCounterDetails: reportData.rule7CounterBilling,
         }
       }
 
@@ -661,6 +734,8 @@ export default function ReportCardDashboard() {
         tasksDetails: null,
         billingDetails: null,
         kotTimeDetails: null,
+        billingTableDetails: null,
+        billingCounterDetails: null,
       }
     })
 
@@ -779,6 +854,12 @@ export default function ReportCardDashboard() {
         (Math.min(99.6, Math.max(72, 92 + ((empSeed * 11) % 15) - 5)) + ((empSeed % 80) / 100)).toFixed(2)
       )
       const kotTimeScore = Math.min(100, Math.max(70, 90 + ((empSeed * 13) % 17) - 6))
+      const tableBillingScore = Number(
+        (Math.min(100, Math.max(75, 93 + ((empSeed * 17) % 15) - 5)) + ((empSeed % 70) / 100)).toFixed(2)
+      )
+      const counterBillingScore = Number(
+        (Math.min(100, Math.max(70, 90 + ((empSeed * 19) % 17) - 6)) + ((empSeed % 60) / 100)).toFixed(2)
+      )
 
       let ruleScores: { key: string; label: string; score: number }[] = []
 
@@ -789,6 +870,14 @@ export default function ReportCardDashboard() {
           { key: 'tasks', label: 'Tasks', score: tasksScore },
           { key: 'billing', label: 'Billing Acc', score: billingScore },
           { key: 'kot_time', label: 'KOT Delivery', score: kotTimeScore },
+          { key: 'billing_table', label: 'Table Sales', score: tableBillingScore },
+        ]
+      } else if (empRole === 'cashier') {
+        ruleScores = [
+          { key: 'attendance', label: 'Attendance', score: attendanceScore },
+          { key: 'tasks', label: 'Tasks', score: tasksScore },
+          { key: 'billing', label: 'Billing Acc', score: billingScore },
+          { key: 'billing_counter', label: 'Counter Sales', score: counterBillingScore },
         ]
       } else if (empRole === 'chef') {
         ruleScores = [
@@ -826,6 +915,10 @@ export default function ReportCardDashboard() {
             return { ...r, score: empRealData.rule4Billing.score }
           if (r.key === 'kot_time' && empRealData.rule5KotTime)
             return { ...r, score: empRealData.rule5KotTime.score }
+          if (r.key === 'billing_table' && empRealData.rule6TableBilling)
+            return { ...r, score: empRealData.rule6TableBilling.score }
+          if (r.key === 'billing_counter' && empRealData.rule7CounterBilling)
+            return { ...r, score: empRealData.rule7CounterBilling.score }
           return r
         })
       }
@@ -1249,6 +1342,14 @@ export default function ReportCardDashboard() {
                       <th className="text-center">Tasks</th>
                       <th className="text-center">Billing</th>
                       <th className="text-center">KOT Time</th>
+                      <th className="text-center">Table Sales</th>
+                    </>
+                  ) : selectedRole === 'cashier' ? (
+                    <>
+                      <th className="text-center">Attendance</th>
+                      <th className="text-center">Tasks</th>
+                      <th className="text-center">Billing</th>
+                      <th className="text-center">Counter Sales</th>
                     </>
                   ) : selectedRole === 'chef' ? (
                     <>
@@ -1279,7 +1380,9 @@ export default function ReportCardDashboard() {
                     <td
                       colSpan={
                         selectedRole === 'waiter'
-                          ? 10
+                          ? 11
+                          : selectedRole === 'cashier'
+                          ? 9
                           : selectedRole === 'chef' || selectedRole === 'supervisor'
                           ? 8
                           : 7
@@ -1416,6 +1519,74 @@ export default function ReportCardDashboard() {
                               }`}
                             >
                               {item.ruleScores[4]?.score ?? '—'}
+                            </span>
+                          </td>
+                          <td className="text-center">
+                            <span
+                              className={`score-pill-cell ${
+                                (item.ruleScores[5]?.score ?? 0) >= 90
+                                  ? 'high'
+                                  : (item.ruleScores[5]?.score ?? 0) >= 80
+                                  ? 'med'
+                                  : 'low'
+                              }`}
+                            >
+                              {item.ruleScores[5]?.score ?? '—'}
+                            </span>
+                          </td>
+                        </>
+                      ) : selectedRole === 'cashier' ? (
+                        <>
+                          <td className="text-center">
+                            <span
+                              className={`score-pill-cell ${
+                                (item.ruleScores[0]?.score ?? 0) >= 90
+                                  ? 'high'
+                                  : (item.ruleScores[0]?.score ?? 0) >= 80
+                                  ? 'med'
+                                  : 'low'
+                              }`}
+                            >
+                              {item.ruleScores[0]?.score ?? '—'}
+                            </span>
+                          </td>
+                          <td className="text-center">
+                            <span
+                              className={`score-pill-cell ${
+                                (item.ruleScores[1]?.score ?? 0) >= 90
+                                  ? 'high'
+                                  : (item.ruleScores[1]?.score ?? 0) >= 80
+                                  ? 'med'
+                                  : 'low'
+                              }`}
+                            >
+                              {item.ruleScores[1]?.score ?? '—'}
+                            </span>
+                          </td>
+                          <td className="text-center">
+                            <span
+                              className={`score-pill-cell ${
+                                (item.ruleScores[2]?.score ?? 0) >= 90
+                                  ? 'high'
+                                  : (item.ruleScores[2]?.score ?? 0) >= 80
+                                  ? 'med'
+                                  : 'low'
+                              }`}
+                            >
+                              {item.ruleScores[2]?.score ?? '—'}
+                            </span>
+                          </td>
+                          <td className="text-center">
+                            <span
+                              className={`score-pill-cell ${
+                                (item.ruleScores[3]?.score ?? 0) >= 90
+                                  ? 'high'
+                                  : (item.ruleScores[3]?.score ?? 0) >= 80
+                                  ? 'med'
+                                  : 'low'
+                              }`}
+                            >
+                              {item.ruleScores[3]?.score ?? '—'}
                             </span>
                           </td>
                         </>
@@ -1778,6 +1949,64 @@ export default function ReportCardDashboard() {
                           ⏱️ KOT Timing: {rule.kotTimeDetails.onTimeCount} / {rule.kotTimeDetails.totalItems} on-time (
                           {rule.kotTimeDetails.onTimeRatePercent}%, avg {rule.kotTimeDetails.avgDurationSeconds}s vs {rule.kotTimeDetails.targetDurationSeconds}s SLA)
                         </span>
+                      )}
+                      {rule.billingTableDetails && (
+                        <div
+                          style={{
+                            marginTop: '0.45rem',
+                            fontSize: '0.82rem',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.25rem',
+                          }}
+                        >
+                          <div style={{ color: '#047857', fontWeight: 600 }}>
+                            🍽️ Table Sales: ₹{rule.billingTableDetails.totalRevenue.toLocaleString('en-IN')} across {rule.billingTableDetails.totalBills} bills • Benchmark: ₹{rule.billingTableDetails.branchBenchmarkRevenue.toLocaleString('en-IN')} ({rule.billingTableDetails.achievementPercent}% achieved)
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', fontSize: '0.75rem', marginTop: '0.1rem' }}>
+                            <span style={{ backgroundColor: '#ecfdf5', color: '#065f46', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #a7f3d0' }}>
+                              🏢 Branch: {rule.billingTableDetails.branchSharePercent}% of ₹{rule.billingTableDetails.branchTotalRevenue.toLocaleString('en-IN')}
+                            </span>
+                            <span style={{ backgroundColor: '#eff6ff', color: '#1e40af', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #bfdbfe' }}>
+                              🏛️ Company: {rule.billingTableDetails.companySharePercent}% of ₹{rule.billingTableDetails.companyTotalRevenue.toLocaleString('en-IN')}
+                            </span>
+                            <span style={{ backgroundColor: '#f5f3ff', color: '#5b21b6', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #ddd6fe' }}>
+                              🌐 Overall: {rule.billingTableDetails.overallSharePercent}% of ₹{rule.billingTableDetails.overallTotalRevenue.toLocaleString('en-IN')}
+                            </span>
+                            <span style={{ fontWeight: 600, padding: '0.15rem 0.45rem', borderRadius: '4px', backgroundColor: '#fef3c7', color: '#92400e' }}>
+                              {rule.billingTableDetails.alertTag}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      {rule.billingCounterDetails && (
+                        <div
+                          style={{
+                            marginTop: '0.45rem',
+                            fontSize: '0.82rem',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.25rem',
+                          }}
+                        >
+                          <div style={{ color: '#6d28d9', fontWeight: 600 }}>
+                            🛍️ Counter Sales: ₹{rule.billingCounterDetails.totalRevenue.toLocaleString('en-IN')} across {rule.billingCounterDetails.totalBills} bills • Benchmark: ₹{rule.billingCounterDetails.branchBenchmarkRevenue.toLocaleString('en-IN')} ({rule.billingCounterDetails.achievementPercent}% achieved)
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', fontSize: '0.75rem', marginTop: '0.1rem' }}>
+                            <span style={{ backgroundColor: '#f5f3ff', color: '#5b21b6', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #ddd6fe' }}>
+                              🏢 Branch: {rule.billingCounterDetails.branchSharePercent}% of ₹{rule.billingCounterDetails.branchTotalRevenue.toLocaleString('en-IN')}
+                            </span>
+                            <span style={{ backgroundColor: '#eff6ff', color: '#1e40af', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #bfdbfe' }}>
+                              🏛️ Company: {rule.billingCounterDetails.companySharePercent}% of ₹{rule.billingCounterDetails.companyTotalRevenue.toLocaleString('en-IN')}
+                            </span>
+                            <span style={{ backgroundColor: '#fdf2f8', color: '#9d174d', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #fbcfe8' }}>
+                              🌐 Overall: {rule.billingCounterDetails.overallSharePercent}% of ₹{rule.billingCounterDetails.overallTotalRevenue.toLocaleString('en-IN')}
+                            </span>
+                            <span style={{ fontWeight: 600, padding: '0.15rem 0.45rem', borderRadius: '4px', backgroundColor: '#fef3c7', color: '#92400e' }}>
+                              {rule.billingCounterDetails.alertTag}
+                            </span>
+                          </div>
+                        </div>
                       )}
                     </div>
 

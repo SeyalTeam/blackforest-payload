@@ -43,6 +43,22 @@ const WAITER_RULES_SEED = [
     category: 'kot_time',
     maxMarks: 100,
   },
+  {
+    title: '🍽️ Table Order Billing & Revenue SLA',
+    enabled: true,
+    roles: ['waiter'],
+    role: 'waiter',
+    category: 'billing_table',
+    maxMarks: 100,
+  },
+  {
+    title: '🛍️ Counter Bill (Non-Table KOT) Revenue SLA',
+    enabled: true,
+    roles: ['cashier', 'waiter'],
+    role: 'cashier',
+    category: 'billing_counter',
+    maxMarks: 100,
+  },
 ]
 
 export const seedWaiterReportCardRules = async () => {
