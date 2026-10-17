@@ -384,21 +384,31 @@ export const getInventoryReportData = async (
       return {
         id: branchDoc.id,
         name: branchDoc.name,
-        instock: inventory,
+        initial: 0,
+        instock: stats.instock || 0,
         inventory,
+        received: stats.received || 0,
+        returned: stats.returned || 0,
+        sold: stats.sold || 0,
         value,
       }
     })
 
     const totalValue = branchDetails.reduce((sum, branchData) => sum + branchData.value, 0)
+    const totalSold = branchDetails.reduce((sum, branchData) => sum + branchData.sold, 0)
+    const totalReturned = branchDetails.reduce((sum, branchData) => sum + branchData.returned, 0)
+    const totalReceived = branchDetails.reduce((sum, branchData) => sum + branchData.received, 0)
+    const totalInstock = branchDetails.reduce((sum, branchData) => sum + branchData.instock, 0)
 
     return {
       id: productId,
       name: item.name,
-      instock: totalInventory,
-      totalInstock: totalInventory,
       totalInventory,
       totalValue,
+      totalSold,
+      totalReturned,
+      totalReceived,
+      totalInstock,
       branches: branchDetails,
     }
   })
