@@ -99,6 +99,7 @@ const paymentMethodOptions = [
   { value: 'cash', label: 'Cash' },
   { value: 'upi', label: 'UPI' },
   { value: 'card', label: 'Card' },
+  { value: 'cfree', label: 'Complementary (C-Free)' },
 ]
 
 const verificationStatusOptions = [

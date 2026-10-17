@@ -2411,6 +2411,21 @@ const Billings: CollectionConfig = {
           data.status = 'prepared'
         }
 
+        if (
+          (data as any).isComplementary === true ||
+          (data as any).complementary === true ||
+          (data as any).cfree === true ||
+          data.paymentMethod === 'cfree' ||
+          data.paymentMethod === 'complementary'
+        ) {
+          ;(data as any).isComplementary = true
+          ;(data as any).complementary = true
+          ;(data as any).cfree = true
+          if (!data.paymentMethod) {
+            data.paymentMethod = 'cfree'
+          }
+        }
+
         if (operation === 'update' && data.status === 'settled') {
           const previousStatus = typeof originalDoc?.status === 'string' ? originalDoc.status : null
           const nextPaymentMethod =
@@ -4625,6 +4640,8 @@ const Billings: CollectionConfig = {
             { label: 'Card', value: 'card' },
             { label: 'UPI', value: 'upi' },
             { label: 'Cashfree', value: 'cashfree' },
+            { label: 'Complementary (C-Free)', value: 'cfree' },
+            { label: 'Complementary', value: 'complementary' },
             { label: 'Other', value: 'other' },
           ],
         },
@@ -4719,6 +4736,38 @@ const Billings: CollectionConfig = {
       defaultValue: false,
       admin: {
         readOnly: true,
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'isComplementary',
+      label: 'Is Complementary',
+      type: 'checkbox',
+      defaultValue: false,
+      index: true,
+      admin: {
+        position: 'sidebar',
+        description: 'Whether this bill is a complimentary bill (C-Free).',
+      },
+    },
+    {
+      name: 'complementary',
+      label: 'Complementary',
+      type: 'checkbox',
+      defaultValue: false,
+      index: true,
+      admin: {
+        position: 'sidebar',
+        description: 'Alias for complementary bill.',
+      },
+    },
+    {
+      name: 'cfree',
+      label: 'C-Free',
+      type: 'checkbox',
+      defaultValue: false,
+      index: true,
+      admin: {
         position: 'sidebar',
       },
     },

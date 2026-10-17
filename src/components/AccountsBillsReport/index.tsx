@@ -121,6 +121,7 @@ const paymentMethodOptions: PaymentMethodOption[] = [
   { value: 'cash', label: 'Cash' },
   { value: 'card', label: 'Card' },
   { value: 'cashfree', label: 'Cashfree' },
+  { value: 'cfree', label: 'Complementary (C-Free)' },
   { value: 'other', label: 'Other' },
 ]
 

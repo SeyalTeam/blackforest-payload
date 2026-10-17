@@ -1407,7 +1407,7 @@ export interface Billing {
   totalGSTAmount?: number | null;
   branch: string | Branch;
   createdBy: string | User;
-  paymentMethod?: ('cash' | 'card' | 'upi' | 'cashfree' | 'other') | null;
+  paymentMethod?: ('cash' | 'card' | 'upi' | 'cashfree' | 'cfree' | 'complementary' | 'other') | null;
   /**
    * Apply configured offer if customer has required points. Offer can be used only once before earning again.
    */
@@ -1430,6 +1430,9 @@ export interface Billing {
   customerOfferApplied?: boolean | null;
   customerOfferDiscount?: number | null;
   isQrOrder?: boolean | null;
+  isComplementary?: boolean | null;
+  complementary?: boolean | null;
+  cfree?: boolean | null;
   customerEntryPercentageOfferApplied?: boolean | null;
   customerEntryPercentageOfferDiscount?: number | null;
   totalPercentageOfferApplied?: boolean | null;
@@ -3490,6 +3493,9 @@ export interface BillingsSelect<T extends boolean = true> {
   customerOfferApplied?: T;
   customerOfferDiscount?: T;
   isQrOrder?: T;
+  isComplementary?: T;
+  complementary?: T;
+  cfree?: T;
   customerEntryPercentageOfferApplied?: T;
   customerEntryPercentageOfferDiscount?: T;
   totalPercentageOfferApplied?: T;
