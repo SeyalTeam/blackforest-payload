@@ -124,6 +124,45 @@ const InstockEntries: CollectionConfig = {
           data.invoiceNumber = `${prefix}${seq}`
         }
 
+        // Check if skipInstockApproval is enabled for this branch
+        let isApprovalSkipped = false
+        let branchId: string | null = null
+        if (typeof data.branch === 'string') {
+          branchId = data.branch
+        } else if (typeof data.branch === 'object' && data.branch !== null && 'id' in data.branch) {
+          branchId = data.branch.id
+        } else if (_originalDoc?.branch) {
+          branchId =
+            typeof _originalDoc.branch === 'object' && _originalDoc.branch !== null
+              ? _originalDoc.branch.id
+              : _originalDoc.branch
+        }
+
+        if (branchId) {
+          try {
+            const widgetSettings = await req.payload.findGlobal({
+              slug: 'widget-settings',
+              depth: 0,
+            })
+            const skipRows = (widgetSettings as any)?.skipInstockApprovalByBranch
+            if (Array.isArray(skipRows)) {
+              const branchRow = skipRows.find((r: any) => {
+                const rBranchId =
+                  typeof r.branch === 'object' && r.branch !== null ? r.branch.id : r.branch
+                return String(rBranchId) === String(branchId)
+              })
+              if (branchRow && branchRow.skipInstockApproval === true) {
+                isApprovalSkipped = true
+              }
+            }
+          } catch (err) {
+            req.payload.logger.error(
+              `[InstockEntries Hook] Error checking skip approval settings:`,
+              err,
+            )
+          }
+        }
+
         // Process items
         if (data.items && data.items.length > 0) {
           for (let i = 0; i < data.items.length; i++) {
@@ -144,9 +183,11 @@ const InstockEntries: CollectionConfig = {
               console.warn(`[InstockEntries Hook] Product with ID ${productId} not found:`, error)
             }
 
-            // Force status to 'waiting' on create
+            // Set item status based on skip approval setting
             if (operation === 'create') {
-              item.status = 'waiting'
+              item.status = isApprovalSkipped ? 'approved' : 'waiting'
+            } else if (operation === 'update' && !item.status) {
+              item.status = isApprovalSkipped ? 'approved' : 'waiting'
             }
 
             // Auto-populate dealer from product if not provided
@@ -167,9 +208,12 @@ const InstockEntries: CollectionConfig = {
           }
         }
 
-        // Force status to 'waiting' on create
+        // Set doc status based on skip approval setting
         if (operation === 'create') {
-          data.status = 'waiting'
+          data.status = isApprovalSkipped ? 'approved' : 'waiting'
+        } else if (operation === 'update' && data.items && data.items.length > 0) {
+          const allApproved = data.items.every((it: any) => it.status === 'approved')
+          data.status = allApproved ? 'approved' : 'waiting'
         }
 
         return data

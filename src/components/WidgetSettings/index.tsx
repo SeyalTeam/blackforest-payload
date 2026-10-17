@@ -132,6 +132,12 @@ type SkipConfirmRow = {
   waiters?: Array<string | { id?: string }> | null
 }
 
+type SkipInstockApprovalRow = {
+  id?: string
+  branch?: string | { id?: string; name?: string } | null
+  skipInstockApproval?: boolean | null
+}
+
 type CategoryDelayRow = {
   id?: string
   branch?: string | { id?: string; name?: string } | null
@@ -155,6 +161,7 @@ type WidgetSettingsGlobal = {
   appAPIDomains?: AppAPIDomainProfileRow[] | null
   skipDeliverByBranch?: SkipDeliverRow[] | null
   skipConfirmByBranch?: SkipConfirmRow[] | null
+  skipInstockApprovalByBranch?: SkipInstockApprovalRow[] | null
   categoryDelayByBranch?: CategoryDelayRow[] | null
   entireBillBlockingByBranch?: EntireBillBlockingRow[] | null
 }
@@ -214,6 +221,7 @@ type WidgetKey =
   | 'app-downloads'
   | 'deliver-skip'
   | 'confirm-skip'
+  | 'instock-approval-skip'
   | 'category-delay'
   | 'entire-bill-blocking'
   | 'closing-entry-access'
@@ -578,6 +586,18 @@ const WidgetSettings: React.FC<any> = (props) => {
     label: 'All Waiters',
   })
   const [skipConfirmSelectedWaiters, setSkipConfirmSelectedWaiters] = useState<Option[]>([])
+  const [skipInstockApprovalByBranch, setSkipInstockApprovalByBranch] = useState<
+    SkipInstockApprovalRow[]
+  >([])
+  const [selectedSkipInstockBranches, setSelectedSkipInstockBranches] = useState<Option[]>([])
+  const [instockApprovalSkipVisibility, setInstockApprovalSkipVisibility] = useState<Option>({
+    value: 'enabled',
+    label: 'Enabled (Auto-Approve)',
+  })
+  const [savingInstockApprovalSkipSetting, setSavingInstockApprovalSkipSetting] = useState(false)
+  const [removingInstockApprovalSkipBranchID, setRemovingInstockApprovalSkipBranchID] = useState<
+    string | null
+  >(null)
   const [allWaitersMap, setAllWaitersMap] = useState<Map<string, string>>(new Map())
 
   const [entireBillBlockingByBranch, setEntireBillBlockingByBranch] = useState<EntireBillBlockingRow[]>([])
@@ -758,6 +778,10 @@ const WidgetSettings: React.FC<any> = (props) => {
   )
   const liveTableBranchOptions = useMemo(
     () => [{ value: 'all', label: 'All Branches' }, ...branchOptions],
+    [branchOptions],
+  )
+  const instockBranchOptions = useMemo(
+    () => [{ value: 'all', label: 'All' }, ...branchOptions],
     [branchOptions],
   )
   const tableQRDomainOptions = useMemo(
@@ -975,6 +999,30 @@ const WidgetSettings: React.FC<any> = (props) => {
       .sort((a, b) => a.branchName.localeCompare(b.branchName))
   }, [skipConfirmByBranch, branchNameByID, allWaitersMap])
 
+  const configuredInstockApprovalSkipRows = useMemo(() => {
+    return skipInstockApprovalByBranch
+      .map((row) => {
+        const branchID = getRelationshipID(row.branch)
+        if (!branchID) return null
+
+        return {
+          branchID,
+          branchName: branchNameByID.get(branchID) || branchID,
+          skipInstockApproval: row.skipInstockApproval === true,
+        }
+      })
+      .filter(
+        (
+          row,
+        ): row is {
+          branchID: string
+          branchName: string
+          skipInstockApproval: boolean
+        } => row !== null,
+      )
+      .sort((a, b) => a.branchName.localeCompare(b.branchName))
+  }, [skipInstockApprovalByBranch, branchNameByID])
+
   const configuredCategoryDelayRows = useMemo(() => {
     return categoryDelayByBranch
       .map((row) => {
@@ -1098,6 +1146,7 @@ const WidgetSettings: React.FC<any> = (props) => {
             setAppAPIDomains(settingsJSON.appAPIDomains || [])
             setSkipDeliverByBranch(settingsJSON.skipDeliverByBranch || [])
             setSkipConfirmByBranch(settingsJSON.skipConfirmByBranch || [])
+            setSkipInstockApprovalByBranch(settingsJSON.skipInstockApprovalByBranch || [])
             setCategoryDelayByBranch(settingsJSON.categoryDelayByBranch || [])
             setEntireBillBlockingByBranch(settingsJSON.entireBillBlockingByBranch || [])
           } catch (e: any) {
@@ -2349,6 +2398,86 @@ const WidgetSettings: React.FC<any> = (props) => {
     }
   }
 
+  const saveInstockApprovalSkipSetting = async () => {
+    if (selectedSkipInstockBranches.length === 0) {
+      alert('Please select at least one branch')
+      return
+    }
+
+    setSavingInstockApprovalSkipSetting(true)
+    try {
+      const isSkipEnabled = instockApprovalSkipVisibility.value === 'enabled'
+      const hasAll =
+        selectedSkipInstockBranches.some((b) => b.value === 'all') ||
+        (branchOptions.length > 0 && selectedSkipInstockBranches.length === branchOptions.length)
+      const selectedBranchIDs = hasAll
+        ? branchOptions.map((b) => b.value)
+        : selectedSkipInstockBranches.filter((b) => b.value !== 'all').map((b) => b.value)
+
+      const normalizedRows = skipInstockApprovalByBranch.map((row) => ({
+        ...row,
+        branch: getRelationshipID(row.branch) || row.branch,
+      }))
+
+      const dedupedRows = normalizedRows.filter(
+        (row) => !selectedBranchIDs.includes(getRelationshipID(row.branch) || (row.branch as string)),
+      )
+
+      selectedBranchIDs.forEach((branchID) => {
+        const existingRow = normalizedRows.find(
+          (row) => (getRelationshipID(row.branch) || row.branch) === branchID,
+        )
+        dedupedRows.push({
+          ...(existingRow?.id ? { id: existingRow.id } : {}),
+          branch: branchID,
+          skipInstockApproval: isSkipEnabled,
+        })
+      })
+
+      const persistedSettings = await persistWidgetSettings({
+        skipInstockApprovalByBranch: dedupedRows,
+      })
+      setSkipInstockApprovalByBranch(persistedSettings.skipInstockApprovalByBranch || dedupedRows)
+      setSelectedSkipInstockBranches([])
+      alert(`Instock Entry Approval setting updated for ${selectedBranchIDs.length} branch(es)`)
+    } catch (error) {
+      console.error('Failed to save instock approval skip setting:', error)
+      alert('Failed to save instock approval skip setting')
+    } finally {
+      setSavingInstockApprovalSkipSetting(false)
+    }
+  }
+
+  const removeInstockApprovalSkipConfiguredBranch = async (
+    branchID: string,
+    branchName: string,
+  ) => {
+    if (!confirm(`Remove "${branchName}" from configured branches?`)) {
+      return
+    }
+
+    setRemovingInstockApprovalSkipBranchID(branchID)
+    try {
+      const nextRows = skipInstockApprovalByBranch
+        .map((row) => ({
+          ...row,
+          branch: getRelationshipID(row.branch) || row.branch,
+        }))
+        .filter((row) => (getRelationshipID(row.branch) || row.branch) !== branchID)
+
+      const persistedSettings = await persistWidgetSettings({
+        skipInstockApprovalByBranch: nextRows,
+      })
+      setSkipInstockApprovalByBranch(persistedSettings.skipInstockApprovalByBranch || nextRows)
+      alert('Branch removed from configured list')
+    } catch (error) {
+      console.error('Failed to remove branch from configured list:', error)
+      alert('Failed to remove branch')
+    } finally {
+      setRemovingInstockApprovalSkipBranchID(null)
+    }
+  }
+
   useEffect(() => {
     if (!selectedCategoryDelayBranch) {
       setCategoryDelayMinutes({ value: '1', label: '1 Minute' })
@@ -3090,6 +3219,14 @@ const WidgetSettings: React.FC<any> = (props) => {
           >
             <CheckSquare className="tile-icon" size={48} />
             <span className="tile-label">Confirm</span>
+          </button>
+          <button
+            type="button"
+            className={`tile ${activeWidget === 'instock-approval-skip' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('instock-approval-skip')}
+          >
+            <Package className="tile-icon" size={48} />
+            <span className="tile-label">Instock Entry Approval</span>
           </button>
 
           <div className="tiles-group-title">Delay</div>
@@ -3902,6 +4039,185 @@ const WidgetSettings: React.FC<any> = (props) => {
                   ) : (
                     <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Save size={16} /> Save Setting
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeWidget === 'instock-approval-skip' && (
+            <div className="widget-modal">
+              <div className="modal-header">
+                <h2>Instock Entry Approval Skip Setting</h2>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="modal-body">
+                <div className="form-group">
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: 6,
+                    }}
+                  >
+                    <label style={{ margin: 0 }}>
+                      <MapPin size={14} style={{ marginRight: 4 }} /> Choose Branch (Single or Multiple)
+                    </label>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ padding: '2px 8px', fontSize: '11px', height: 'auto', minHeight: 'unset' }}
+                        onClick={() => setSelectedSkipInstockBranches(branchOptions)}
+                      >
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ padding: '2px 8px', fontSize: '11px', height: 'auto', minHeight: 'unset' }}
+                        onClick={() => setSelectedSkipInstockBranches([])}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                  <Select
+                    isMulti
+                    options={instockBranchOptions}
+                    value={
+                      branchOptions.length > 0 && selectedSkipInstockBranches.length === branchOptions.length
+                        ? [{ value: 'all', label: 'All' }, ...selectedSkipInstockBranches]
+                        : selectedSkipInstockBranches
+                    }
+                    onChange={(selected) => {
+                      const options = (selected ? (selected as Option[]) : [])
+                      const hasAll = options.some((opt) => opt.value === 'all')
+                      const isAllCurrentlySelected =
+                        branchOptions.length > 0 && selectedSkipInstockBranches.length === branchOptions.length
+
+                      if (hasAll && !isAllCurrentlySelected) {
+                        // User chose "All" -> select all branches!
+                        setSelectedSkipInstockBranches(branchOptions)
+                        return
+                      }
+
+                      if (!hasAll && isAllCurrentlySelected) {
+                        // User unselected "All"
+                        setSelectedSkipInstockBranches([])
+                        return
+                      }
+
+                      // Individual selection/deselection
+                      const filtered = options.filter((opt) => opt.value !== 'all')
+                      if (filtered.length === branchOptions.length && branchOptions.length > 0) {
+                        setSelectedSkipInstockBranches(branchOptions)
+                      } else {
+                        setSelectedSkipInstockBranches(filtered)
+                      }
+                    }}
+                    styles={customSelectStyles}
+                    placeholder="Select Branches or choose All..."
+                    isLoading={loading}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                  />
+                  <small style={{ display: 'block', marginTop: 4, color: 'var(--theme-text-secondary, #888)' }}>
+                    Choose &quot;All&quot; to select all branches, or select single / multiple individual branches.
+                  </small>
+                </div>
+
+                <div className="form-group" style={{ marginTop: 16 }}>
+                  <label>
+                    <ListFilter size={14} style={{ marginRight: 4 }} /> Instock Entry Approval Skip
+                  </label>
+                  <Select
+                    options={[
+                      { value: 'enabled', label: 'Enabled (Auto-Approve Instock Entry)' },
+                      { value: 'disabled', label: 'Disabled (Requires Manual Approval in Report)' },
+                    ]}
+                    value={instockApprovalSkipVisibility}
+                    onChange={(option) =>
+                      setInstockApprovalSkipVisibility((option as Option) || visibilityOptions[0])
+                    }
+                    styles={customSelectStyles}
+                    isSearchable={false}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                  />
+                  <small style={{ display: 'block', marginTop: 4, color: 'var(--theme-text-secondary, #888)' }}>
+                    When enabled, products updated/submitted in blackforest_app and branch app are stored with status &apos;approved&apos;. If disabled or unconfigured, they are stored as &apos;waiting&apos; and need manual approval in Instock Entry Report.
+                  </small>
+                </div>
+
+                <div className="configured-settings" style={{ marginTop: 24 }}>
+                  <h3>Configured Branches ({configuredInstockApprovalSkipRows.length})</h3>
+                  {configuredInstockApprovalSkipRows.length === 0 ? (
+                    <p className="empty-state">No branch-specific setting saved yet. All branches require manual approval in Instock Entry Report by default.</p>
+                  ) : (
+                    <div className="configured-list">
+                      {configuredInstockApprovalSkipRows.map((row) => (
+                        <div className="configured-row" key={row.branchID}>
+                          <span className="branch-name">{row.branchName}</span>
+                          <div className="row-controls">
+                            <div className="status-group">
+                              <span
+                                className={
+                                  row.skipInstockApproval
+                                    ? 'status-badge status-enabled'
+                                    : 'status-badge status-disabled'
+                                }
+                              >
+                                Skip Approval: {row.skipInstockApproval ? 'Enabled (Auto-Approved)' : 'Disabled (Waiting)'}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              className="remove-row-btn"
+                              onClick={() =>
+                                removeInstockApprovalSkipConfiguredBranch(row.branchID, row.branchName)
+                              }
+                              disabled={Boolean(removingInstockApprovalSkipBranchID)}
+                              title="Remove Setting"
+                            >
+                              {removingInstockApprovalSkipBranchID === row.branchID ? (
+                                <Loader2 className="animate-spin" size={14} />
+                              ) : (
+                                <Trash2 size={14} />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setActiveWidget(null)}>
+                  Close
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={saveInstockApprovalSkipSetting}
+                  disabled={savingInstockApprovalSkipSetting || selectedSkipInstockBranches.length === 0}
+                >
+                  {savingInstockApprovalSkipSetting ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Loader2 className="animate-spin" size={16} /> Saving...
+                    </span>
+                  ) : (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Save size={16} /> Save Setting{' '}
+                      {branchOptions.length > 0 && selectedSkipInstockBranches.length === branchOptions.length
+                        ? `(All ${branchOptions.length} Branches Selected)`
+                        : selectedSkipInstockBranches.length > 0
+                          ? `(${selectedSkipInstockBranches.length} Selected)`
+                          : ''}
                     </span>
                   )}
                 </button>

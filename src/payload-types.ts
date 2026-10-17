@@ -1430,7 +1430,13 @@ export interface Billing {
   customerOfferApplied?: boolean | null;
   customerOfferDiscount?: number | null;
   isQrOrder?: boolean | null;
+  /**
+   * Whether this bill is a complimentary bill (C-Free).
+   */
   isComplementary?: boolean | null;
+  /**
+   * Alias for complementary bill.
+   */
   complementary?: boolean | null;
   cfree?: boolean | null;
   customerEntryPercentageOfferApplied?: boolean | null;
@@ -2605,7 +2611,21 @@ export interface ReportCardRule {
   /**
    * The functional pillar for evaluation.
    */
-  category: 'kot_time' | 'call_speed' | 'attendance' | 'tasks' | 'billing' | 'hygiene' | 'reviews' | 'general';
+  category:
+    | 'kot_time'
+    | 'call_speed'
+    | 'attendance'
+    | 'tasks'
+    | 'billing'
+    | 'billing_table'
+    | 'billing_counter'
+    | 'hygiene'
+    | 'reviews'
+    | 'general';
+  /**
+   * Optional fixed ₹ sales quota for this rule. If left empty, benchmark defaults to Branch Average Sales per staff.
+   */
+  monthlySalesTarget?: number | null;
   /**
    * Maximum achievable score for this metric (e.g. 100). The formula below scales dynamically to this value.
    */
@@ -4172,6 +4192,7 @@ export interface ReportCardRulesSelect<T extends boolean = true> {
   roles?: T;
   role?: T;
   category?: T;
+  monthlySalesTarget?: T;
   maxMarks?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -4699,6 +4720,16 @@ export interface WidgetSetting {
         skipConfirm?: boolean | null;
         waiterSelectionType: 'all' | 'particular';
         waiters?: (string | User)[] | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Branch-wise control for skipping instock entry approval (auto-approving instock entries).
+   */
+  skipInstockApprovalByBranch?:
+    | {
+        branch: string | Branch;
+        skipInstockApproval?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -6347,6 +6378,13 @@ export interface WidgetSettingsSelect<T extends boolean = true> {
         skipConfirm?: T;
         waiterSelectionType?: T;
         waiters?: T;
+        id?: T;
+      };
+  skipInstockApprovalByBranch?:
+    | T
+    | {
+        branch?: T;
+        skipInstockApproval?: T;
         id?: T;
       };
   categoryDelayByBranch?:

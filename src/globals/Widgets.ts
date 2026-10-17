@@ -351,6 +351,29 @@ export const WidgetSettingsGlobal: GlobalConfig = {
       ],
     },
     {
+      name: 'skipInstockApprovalByBranch',
+      label: 'Skip Instock Approval by Branch',
+      type: 'array',
+      admin: {
+        description:
+          'Branch-wise control for skipping instock entry approval (auto-approving instock entries).',
+      },
+      fields: [
+        {
+          name: 'branch',
+          type: 'relationship',
+          relationTo: 'branches',
+          required: true,
+        },
+        {
+          name: 'skipInstockApproval',
+          label: 'Skip Instock Approval',
+          type: 'checkbox',
+          defaultValue: false,
+        },
+      ],
+    },
+    {
       name: 'categoryDelayByBranch',
       label: 'Category Delay by Branch',
       type: 'array',
