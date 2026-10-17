@@ -893,12 +893,18 @@ export default function ReportCardDashboard() {
     const avgScore = Math.round(
       classroomRankings.reduce((sum, item) => sum + item.overallScore, 0) / total
     )
+    const avgTotalScore = Number(
+      (classroomRankings.reduce((sum, item) => sum + item.totalScore, 0) / total).toFixed(1)
+    )
+    const totalMaxMarks = classroomRankings[0]?.totalMaxMarks || 500
     const starPerformers = classroomRankings.filter((item) => item.overallScore >= 90).length
     const topper = classroomRankings[0]
 
     return {
       total,
       avgScore,
+      avgTotalScore,
+      totalMaxMarks,
       starPerformers,
       topper,
     }
@@ -1147,21 +1153,6 @@ export default function ReportCardDashboard() {
         /* 3. Classroom Rank Card & Leaderboard View (Rank 1, 2, 3...)          */
         /* -------------------------------------------------------------------- */
         <div className="rank-card-view">
-          {/* Header Banner */}
-          <div className="rank-card-header">
-            <div className="header-info">
-              <h2>
-                <span>🏆 {rankingScopeText.title}</span>
-              </h2>
-              <p className="scope-subtitle">{rankingScopeText.subtitle}</p>
-            </div>
-            <div className="header-meta">
-              <span className="meta-pill">🏢 {rankingScopeText.scopeLocation}</span>
-              <span className="meta-pill">📅 {formattedMonthLabel}</span>
-              <span className="meta-pill">👥 {classroomRankings.length} Ranked</span>
-            </div>
-          </div>
-
           {/* Top 3 Podium (Gold 🥇, Silver 🥈, Bronze 🥉) */}
           {classroomRankings.length >= 2 && (
             <div className="podium-grid">
@@ -1185,7 +1176,17 @@ export default function ReportCardDashboard() {
                     </div>
                     <div className="podium-score-row">
                       <div className="score-val">
-                        {item.overallScore} <span>/ 100</span>
+                        {item.totalScore} <span>/ {item.totalMaxMarks}</span>
+                        <span
+                          style={{
+                            fontSize: '0.82rem',
+                            color: 'var(--theme-text-secondary, #9ca3af)',
+                            fontWeight: 600,
+                            marginLeft: '6px',
+                          }}
+                        >
+                          ({item.overallScore}%)
+                        </span>
                       </div>
                       <button
                         type="button"
@@ -1211,13 +1212,17 @@ export default function ReportCardDashboard() {
               </div>
               <div className="mini-kpi">
                 <span className="kpi-lbl">Class Average</span>
-                <span className="kpi-val">{classStats.avgScore} / 100</span>
-                <span className="kpi-note">Overall monthly marks</span>
+                <span className="kpi-val">
+                  {classStats.avgTotalScore} / {classStats.totalMaxMarks}
+                </span>
+                <span className="kpi-note">{classStats.avgScore}% overall avg marks</span>
               </div>
               <div className="mini-kpi">
                 <span className="kpi-lbl">🥇 Class Topper</span>
                 <span className="kpi-val">{classStats.topper?.emp.name || '—'}</span>
-                <span className="kpi-note">{classStats.topper?.overallScore}/100 • Rank #1</span>
+                <span className="kpi-note">
+                  {classStats.topper?.totalScore} / {classStats.topper?.totalMaxMarks} ({classStats.topper?.overallScore}%) • Rank #1
+                </span>
               </div>
               <div className="mini-kpi">
                 <span className="kpi-lbl">Star Performers (A+)</span>
@@ -1597,7 +1602,7 @@ export default function ReportCardDashboard() {
             {employeeRankInfo && (
               <div className="rank-badge-pill">
                 🏆 Classroom Standing: <strong>Rank #{employeeRankInfo.rank}</strong> of{' '}
-                {filteredEmployees.length} ({employeeRankInfo.overallScore}/100)
+                {filteredEmployees.length} ({employeeRankInfo.totalScore} / {employeeRankInfo.totalMaxMarks} • {employeeRankInfo.overallScore}%)
               </div>
             )}
           </div>

@@ -1351,12 +1351,41 @@ export async function calculateReportCardData(
       }
     }
 
+    // Query recent attendances (last 30 days) to accurately resolve each waiter's actual branch
+    const branchByEmpFromAttendance = new Map<string, { branchId: string; branchName?: string; companyName?: string }>()
+    try {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      const attRes = await req.payload.find({
+        collection: 'attendance',
+        where: {
+          and: [
+            { dateString: { greater_than_equal: thirtyDaysAgo } },
+            { loginBranch: { exists: true } },
+          ],
+        },
+        limit: 1000,
+        depth: 2,
+        overrideAccess: true,
+      })
+      for (const att of (attRes.docs || [])) {
+        const empId = att.employee ? String(typeof att.employee === 'string' ? att.employee : (att.employee as any).id || (att.employee as any)._id) : ''
+        const bObj = typeof att.loginBranch === 'object' ? att.loginBranch : null
+        const bId = bObj ? String(bObj.id || (bObj as any)._id) : String(att.loginBranch || '')
+        const bName = bObj?.name || ''
+        const cObj = bObj && typeof bObj.company === 'object' ? bObj.company : null
+        const cName = cObj?.name || ''
+        if (empId && bId && !branchByEmpFromAttendance.has(empId)) {
+          branchByEmpFromAttendance.set(empId, { branchId: bId, branchName: bName, companyName: cName })
+        }
+      }
+    } catch (_attErr) {}
+
     const scoredPeers: (PeerRankItem & { branchId?: string; companyId?: string; isCompanyPeer?: boolean })[] = []
     const seenEmpIds = new Set<string>()
 
-    // Dedicated active waiters assigned to VSeyal branch
+    // Dedicated active waiters assigned to VSeyal branch (strictly active waiters at VSeyal)
     const vseyalWaiters = new Set([
-      'muthu', 'muthuram', 'infant', 'siva', 'thirumaaran', 'jeeva', 'manikandan', 'castro'
+      'thirumaaran', 'thirumaran', 'castro'
     ])
 
     for (const e of activeWaiterEmployees) {
@@ -1399,12 +1428,20 @@ export async function calculateReportCardData(
       let pCompanyName = resolvedCompanyName || 'BlackForest Cakes'
       let pCompanyId: string | undefined = resolvedCompanyId || undefined
 
+      // 1. Recent attendance punch-in record
+      const attBranch = branchByEmpFromAttendance.get(empId)
+      if (attBranch) {
+        pBranchId = attBranch.branchId
+        pBranchName = attBranch.branchName || pBranchName
+        if (attBranch.companyName) pCompanyName = attBranch.companyName
+      }
+
       if (isCurrent) {
         pBranchName = resolvedBranchName || 'VSeyal'
         pBranchId = resolvedBranchId || undefined
         pCompanyName = resolvedCompanyName || 'BlackForest Cakes'
         pCompanyId = resolvedCompanyId || undefined
-      } else if (linkedUser?.branch) {
+      } else if (!pBranchId && linkedUser?.branch) {
         const bObj = typeof linkedUser.branch === 'object' ? linkedUser.branch : null
         pBranchId = bObj ? String(bObj.id || (bObj as any)._id) : String(linkedUser.branch)
         pBranchName = bObj?.name || ''
