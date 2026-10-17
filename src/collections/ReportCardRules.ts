@@ -133,7 +133,17 @@ export const ReportCardRules: CollectionConfig = {
       max: 100,
       required: true,
       admin: {
-        description: 'Maximum achievable score for this metric (e.g. 100).',
+        description:
+          'Maximum achievable score for this metric (e.g. 100). The formula below scales dynamically to this value.',
+      },
+    },
+    {
+      name: 'formulaDetails',
+      type: 'ui',
+      admin: {
+        components: {
+          Field: '/components/ReportCardRuleFormula/index.tsx#default',
+        },
       },
     },
   ],

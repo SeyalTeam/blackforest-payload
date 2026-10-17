@@ -2604,7 +2604,7 @@ export interface ReportCardRule {
    */
   category: 'kot_time' | 'call_speed' | 'attendance' | 'tasks' | 'billing' | 'hygiene' | 'reviews' | 'general';
   /**
-   * Maximum achievable score for this metric (e.g. 100).
+   * Maximum achievable score for this metric (e.g. 100). The formula below scales dynamically to this value.
    */
   maxMarks: number;
   updatedAt: string;

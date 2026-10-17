@@ -224,6 +224,7 @@ export default function ReportCardDashboard() {
   const [loadingMetadata, setLoadingMetadata] = useState<boolean>(true)
   const [loadingReport, setLoadingReport] = useState<boolean>(false)
   const [reportData, setReportData] = useState<any>(null)
+  const [allReportsMap, setAllReportsMap] = useState<Record<string, any>>({})
 
   // ---------------------------------------------------------------------------
   // Fetch Initial Metadata (Companies, Branches, Employees, Users, Rules)
@@ -391,8 +392,37 @@ export default function ReportCardDashboard() {
   // Fetch Real Report Card Data from API for Selected Employee & Month
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (!selectedEmployeeId || selectedEmployeeId === 'all') {
+    if (!selectedEmployeeId) {
       setReportData(null)
+      return
+    }
+
+    if (selectedEmployeeId === 'all') {
+      setReportData(null)
+      if (filteredEmployees.length === 0) return
+
+      const fetchAllReports = async () => {
+        try {
+          setLoadingReport(true)
+          const empIds = filteredEmployees.map((e) => getId(e.id)).filter(Boolean).join(',')
+          const uId = currentUser?.id || ''
+          const res = await fetch(
+            `/api/reports/report-card-data?employeeId=all&month=${selectedMonth}&role=${selectedRole}&branch=${selectedBranch}&company=${selectedCompany}&employeeIds=${empIds}&userId=${uId}`
+          )
+          if (res.ok) {
+            const json = await res.json()
+            if (json.dataByEmployeeId) {
+              setAllReportsMap((prev) => ({ ...prev, ...json.dataByEmployeeId }))
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching all employees report card data:', err)
+        } finally {
+          setLoadingReport(false)
+        }
+      }
+
+      fetchAllReports()
       return
     }
 
@@ -406,6 +436,7 @@ export default function ReportCardDashboard() {
         if (res.ok) {
           const json = await res.json()
           setReportData(json)
+          setAllReportsMap((prev) => ({ ...prev, [selectedEmployeeId]: json }))
         }
       } catch (err) {
         console.error('Error fetching report card data:', err)
@@ -415,7 +446,16 @@ export default function ReportCardDashboard() {
     }
 
     fetchReportData()
-  }, [selectedEmployeeId, selectedMonth, employeeRole, currentUser])
+  }, [
+    selectedEmployeeId,
+    selectedMonth,
+    employeeRole,
+    currentUser,
+    selectedRole,
+    selectedBranch,
+    selectedCompany,
+    filteredEmployees,
+  ])
 
   // Formatted Month Label (e.g. October 2026)
   const formattedMonthLabel = useMemo(() => {
@@ -721,16 +761,19 @@ export default function ReportCardDashboard() {
       const empRole = (emp.team || 'waiter').toLowerCase()
       const branchName = getBranchName(emp)
       const companyName = getCompanyName(emp)
+      const empIdStr = getId(emp.id)
 
-      // Deterministic evaluation score seeded by employee ID
-      const empSeed = (emp.id || 'emp')
+      // Fallback evaluation score seeded by employee ID (with realistic decimals)
+      const empSeed = (empIdStr || 'emp')
         .split('')
         .reduce((acc, char) => acc + char.charCodeAt(0), 0)
 
       const callSpeedScore = Math.min(100, Math.max(68, 88 + ((empSeed * 3) % 21) - 8))
       const attendanceScore = Math.min(100, Math.max(70, 91 + ((empSeed * 7) % 17) - 6))
       const tasksScore = Math.min(100, Math.max(65, 89 + ((empSeed * 5) % 19) - 7))
-      const billingScore = Math.min(100, Math.max(72, 93 + ((empSeed * 11) % 15) - 5))
+      const billingScore = Number(
+        (Math.min(99.6, Math.max(72, 92 + ((empSeed * 11) % 15) - 5)) + ((empSeed % 80) / 100)).toFixed(2)
+      )
       const kotTimeScore = Math.min(100, Math.max(70, 90 + ((empSeed * 13) % 17) - 6))
 
       let ruleScores: { key: string; label: string; score: number }[] = []
@@ -762,34 +805,43 @@ export default function ReportCardDashboard() {
         ]
       }
 
-      // If this is currently the active employee with fetched reportData, use real scores
-      if (emp.id === selectedEmployeeId && reportData) {
+      // If we have real fetched report data for this employee, apply exact scores!
+      const empRealData =
+        allReportsMap[empIdStr] ||
+        (empIdStr === selectedEmployeeId && reportData ? reportData : null)
+
+      if (empRealData) {
         ruleScores = ruleScores.map((r) => {
-          if (r.key === 'call_speed' && reportData.rule1CallSpeed) return { ...r, score: reportData.rule1CallSpeed.score }
-          if (r.key === 'attendance' && reportData.rule2Attendance) return { ...r, score: reportData.rule2Attendance.score }
-          if (r.key === 'tasks' && reportData.rule3Tasks) return { ...r, score: reportData.rule3Tasks.score }
-          if (r.key === 'billing' && reportData.rule4Billing) return { ...r, score: reportData.rule4Billing.score }
-          if (r.key === 'kot_time' && reportData.rule5KotTime) return { ...r, score: reportData.rule5KotTime.score }
+          if (r.key === 'call_speed' && empRealData.rule1CallSpeed)
+            return { ...r, score: empRealData.rule1CallSpeed.score }
+          if (r.key === 'attendance' && empRealData.rule2Attendance)
+            return { ...r, score: empRealData.rule2Attendance.score }
+          if (r.key === 'tasks' && empRealData.rule3Tasks)
+            return { ...r, score: empRealData.rule3Tasks.score }
+          if (r.key === 'billing' && empRealData.rule4Billing)
+            return { ...r, score: empRealData.rule4Billing.score }
+          if (r.key === 'kot_time' && empRealData.rule5KotTime)
+            return { ...r, score: empRealData.rule5KotTime.score }
           return r
         })
       }
 
-      const overallScore = Math.round(
+      const rawOverall =
         ruleScores.reduce((sum, r) => sum + r.score, 0) / ruleScores.length
-      )
+      const overallScore = Number(rawOverall.toFixed(2))
 
       let grade = 'Grade B'
       let gradeClass = 'grade-b'
       let gradeTag = 'Average'
-      if (overallScore >= 90) {
+      if (rawOverall >= 90) {
         grade = 'Grade A+'
         gradeClass = 'grade-a-plus'
         gradeTag = '🌟 Star Performer'
-      } else if (overallScore >= 80) {
+      } else if (rawOverall >= 80) {
         grade = 'Grade A'
         gradeClass = 'grade-a'
         gradeTag = '✅ Target Met'
-      } else if (overallScore < 65) {
+      } else if (rawOverall < 65) {
         grade = 'Grade C'
         gradeClass = 'grade-c'
         gradeTag = '🚨 Needs Attention'
@@ -816,7 +868,14 @@ export default function ReportCardDashboard() {
       ...item,
       rank: index + 1,
     }))
-  }, [filteredEmployees, getBranchName, getCompanyName, selectedEmployeeId, reportData])
+  }, [
+    filteredEmployees,
+    getBranchName,
+    getCompanyName,
+    selectedEmployeeId,
+    reportData,
+    allReportsMap,
+  ])
 
   const classStats = useMemo(() => {
     if (classroomRankings.length === 0) return null

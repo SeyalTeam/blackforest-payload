@@ -61,11 +61,58 @@ export const getReportCardDataHandler: PayloadHandler = async (
       )
     }
 
+    const period = typeof req.query.period === 'string' ? req.query.period : undefined
+
     if (employeeId === 'all') {
+      let targetEmployeeIds: string[] = []
+      if (typeof req.query.employeeIds === 'string' && req.query.employeeIds.trim()) {
+        targetEmployeeIds = req.query.employeeIds
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean)
+      } else {
+        const whereClause: any = {}
+        if (role && role !== 'all') {
+          whereClause.team = { equals: role }
+        }
+        if (typeof req.query.branch === 'string' && req.query.branch !== 'all') {
+          whereClause.branch = { equals: req.query.branch }
+        }
+        const empsRes = await req.payload.find({
+          collection: 'employees',
+          where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
+          limit: 100,
+          depth: 0,
+          overrideAccess: true,
+        })
+        targetEmployeeIds = (empsRes.docs || []).map((e) => String(e.id))
+      }
+
+      const idsToCompute = targetEmployeeIds.slice(0, 50)
+      const dataByEmployeeId: Record<string, any> = {}
+
+      await Promise.all(
+        idsToCompute.map(async (empId) => {
+          try {
+            const empData = await calculateReportCardData(req, {
+              employeeId: empId,
+              month,
+              role,
+              period,
+            })
+            dataByEmployeeId[String(empId)] = empData
+          } catch (_e) {
+            // Ignore failure for individual employee
+          }
+        }),
+      )
+
       return Response.json({
         isAll: true,
         month,
         role,
+        period,
+        dataByEmployeeId,
       })
     }
 
@@ -74,6 +121,7 @@ export const getReportCardDataHandler: PayloadHandler = async (
       userId,
       month,
       role,
+      period,
     })
 
     return Response.json(data)
