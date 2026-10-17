@@ -39532,7 +39532,8 @@ async function calculateReportCardData(req, params) {
       rule1Result.score,
       rule4Result.score,
       rule5Result.score,
-      rule6Result.score
+      rule6Result.score,
+      rule7Result.score
     );
   } else if (isCashier) {
     activeRuleScores.push(
@@ -39997,7 +39998,7 @@ async function calculateReportCardData(req, params) {
         return a.name.localeCompare(b.name);
       });
       const list = sorted.map((item, idx) => {
-        const pMaxMarks = totalMaxMarks > 0 ? totalMaxMarks : 500;
+        const pMaxMarks = totalMaxMarks > 0 ? totalMaxMarks : 700;
         const pTotalScore = item.isCurrent ? totalScore : Number((item.score / 100 * pMaxMarks).toFixed(1));
         return {
           rank: idx + 1,

@@ -1607,7 +1607,7 @@ export async function calculateReportCardData(
   }
 
   // Active Rule Scores depending on role:
-  // - Waiter: Rule 1 (Call Speed), Rule 2 (Attendance), Rule 3 (Tasks), Rule 4 (Billing), Rule 5 (KOT Delivery), Rule 6 (Table Sales)
+  // - Waiter: Rule 1 (Call Speed), Rule 2 (Attendance), Rule 3 (Tasks), Rule 4 (Billing), Rule 5 (KOT Delivery), Rule 6 (Table Sales), Rule 7 (Counter Sales)
   // - Cashier: Rule 2 (Attendance), Rule 3 (Tasks), Rule 4 (Billing), Rule 7 (Counter Sales)
   // - Chef: Rule 2 (Attendance), Rule 3 (Tasks), Rule 5 (KOT Prep Time)
   // - Supervisor: Rule 2 (Attendance), Rule 3 (Tasks), Rule 5 (KOT Confirm Time)
@@ -1619,6 +1619,7 @@ export async function calculateReportCardData(
       rule4Result.score,
       rule5Result.score,
       rule6Result.score,
+      rule7Result.score,
     )
   } else if (isCashier) {
     activeRuleScores.push(
@@ -2157,7 +2158,7 @@ export async function calculateReportCardData(
         return a.name.localeCompare(b.name)
       })
       const list: PeerRankItem[] = sorted.map((item, idx) => {
-        const pMaxMarks = totalMaxMarks > 0 ? totalMaxMarks : 500
+        const pMaxMarks = totalMaxMarks > 0 ? totalMaxMarks : 700
         const pTotalScore = item.isCurrent
           ? totalScore
           : Number(((item.score / 100) * pMaxMarks).toFixed(1))
