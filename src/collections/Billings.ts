@@ -2577,7 +2577,7 @@ const Billings: CollectionConfig = {
               })
               .filter((row) => row.additionalQtyNeeded > 0)
 
-            const enforceStrictStock = process.env.ENABLE_STRICT_STOCK_CHECK === 'true';
+            const enforceStrictStock = process.env.ENABLE_STRICT_STOCK_CHECK !== 'false';
             if (enforceStrictStock && stockChecks.length > 0) {
               const productIDsToCheck = stockChecks.map((s) => s.productID)
               const stockMap = await getMultipleProductsStock(
@@ -2591,14 +2591,12 @@ const Billings: CollectionConfig = {
               }))
 
               for (const row of stockRows) {
-                if (row.additionalQtyNeeded > row.currentStock) {
-                  console.log(
-                    `[Inventory] WARNING: ${productNameByID.get(row.productID) || row.productID} (${row.requestedQty} needed, ${row.currentStock} available). Proceeding due to override.`,
+                if (row.currentStock <= 0 || row.additionalQtyNeeded > row.currentStock) {
+                  const pName = productNameByID.get(row.productID) || row.productID
+                  throw new APIError(
+                    `Cannot bill "${pName}". Out of stock (Current stock: ${row.currentStock}, Requested: ${row.requestedQty}${operation === 'update' ? `, Additional: ${row.additionalQtyNeeded}` : ''}).`,
+                    400,
                   )
-                  // throw new APIError(
-                  //   `Insufficient stock for ${productNameByID.get(row.productID) || row.productID}. Current stock: ${row.currentStock}, Requested: ${row.requestedQty}${operation === 'update' ? ` (Additional: ${row.additionalQtyNeeded})` : ''}`,
-                  //   400,
-                  // )
                 }
               }
             }

@@ -1,5 +1,6 @@
 import type { PayloadHandler, Where } from 'payload'
 import { getCachedMenu } from '../utilities/menuCache'
+import { getMultipleProductsStock } from '../utilities/inventory'
 
 type CategoryDoc = {
   id?: string | number
@@ -261,7 +262,7 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
 
     const query = (url.searchParams.get('q') || '').trim().toLowerCase()
 
-    const products = cachedProducts
+    const filteredDocs = cachedProducts
       .filter((doc) => {
         const inactiveBranches = Array.isArray(doc.inactiveBranches) ? doc.inactiveBranches : []
         const isInactive = inactiveBranches.some((b: any) => {
@@ -284,8 +285,19 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
 
         return true
       })
+
+    const productIds = filteredDocs.map((doc) => toText(doc.id).trim()).filter((id) => id.length > 0)
+    let stockMap = new Map<string, number>()
+    try {
+      stockMap = await getMultipleProductsStock(req.payload, productIds, String(branchID))
+    } catch (err) {
+      req.payload.logger.error({ err, msg: 'Error computing live stock in getBillingMenu' })
+    }
+
+    const products = filteredDocs
       .map((doc) => {
         const id = toText(doc.id).trim()
+        const currentStock = stockMap.get(id) ?? 0
         const price =
           typeof doc.defaultPriceDetails?.price === 'number' &&
           Number.isFinite(doc.defaultPriceDetails.price)
@@ -308,7 +320,8 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
           upc: toText(doc.upc).trim() || null,
           categoryId: getRelationshipID(doc.category) || null,
           isAvailable: doc.isAvailable !== false,
-          isOutOfStock: doc.isOutOfStock === true,
+          isOutOfStock: doc.isOutOfStock === true || currentStock <= 0,
+          stock: currentStock,
           price,
           defaultPriceDetails: doc.defaultPriceDetails,
           branchOverrides: doc.branchOverrides,

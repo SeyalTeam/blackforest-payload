@@ -196,31 +196,6 @@ export const getInventoryReportData = async (
     throw new Error('Inventory report collections not found')
   }
 
-  const initialStockPipeline: any[] = [
-    {
-      $match: {
-        $and: [
-          { branch: { $in: mappedBranchIds } },
-          { notes: 'INITIAL STOCK' },
-        ],
-      },
-    },
-  ]
-  addGranularMatch(initialStockPipeline)
-  initialStockPipeline.push(
-    { $match: { 'items.inStock': { $gt: 0 }, 'items.product': { $in: mappedProductIds } } },
-    {
-      $group: {
-        _id: {
-          branch: '$branch',
-          product: '$items.product',
-        },
-        totalInStock: { $sum: '$items.inStock' },
-      },
-    },
-  )
-  const initialStockStats = await StockOrderModel.aggregate(initialStockPipeline)
-
   const stockInPipeline: any[] = [
     {
       $match: {
@@ -305,8 +280,11 @@ export const getInventoryReportData = async (
     {
       $match: {
         'items.product': { $in: mappedProductIds },
-        'items.status': 'approved',
         'items.instock': { $gt: 0 },
+        $or: [
+          { 'items.status': 'approved' },
+          { status: 'approved' },
+        ],
       },
     },
     {
@@ -365,27 +343,15 @@ export const getInventoryReportData = async (
     })
   }
 
-  processMetric(initialStockStats, 'initial', 'totalInStock', 1)
+  // Strictly: Stock Order receivedQty + Approved Instock Entries - Billings Sold - Returns
   processMetric(stockInStats, 'received', 'totalReceived', 1)
+  processMetric(instockStats, 'instock', 'totalInstock', 1)
   processMetric(stockOutStats, 'sold', 'totalSold', -1)
   processMetric(returnStats, 'returned', 'totalReturned', -1)
-  processMetric(instockStats, 'instock', 'totalInstock', 1)
 
   const reportData = Object.entries(inventoryMap).map(([productId, item]) => {
     const totalInventory = Object.values(item.branches).reduce((sum, branchData) => {
       return sum + branchData.inventory
-    }, 0)
-    const totalSold = Object.values(item.branches).reduce((sum, branchData) => {
-      return sum + branchData.sold
-    }, 0)
-    const totalReturned = Object.values(item.branches).reduce((sum, branchData) => {
-      return sum + branchData.returned
-    }, 0)
-    const totalReceived = Object.values(item.branches).reduce((sum, branchData) => {
-      return sum + branchData.received
-    }, 0)
-    const totalInstock = Object.values(item.branches).reduce((sum, branchData) => {
-      return sum + branchData.instock
     }, 0)
 
     const branchDetails = branches.map((branchDoc) => {
@@ -418,13 +384,9 @@ export const getInventoryReportData = async (
       return {
         id: branchDoc.id,
         name: branchDoc.name,
+        instock: inventory,
         inventory,
         value,
-        sold: stats.sold,
-        returned: stats.returned,
-        received: stats.received,
-        instock: stats.instock,
-        initial: stats.initial,
       }
     })
 
@@ -433,12 +395,10 @@ export const getInventoryReportData = async (
     return {
       id: productId,
       name: item.name,
+      instock: totalInventory,
+      totalInstock: totalInventory,
       totalInventory,
       totalValue,
-      totalSold,
-      totalReturned,
-      totalReceived,
-      totalInstock,
       branches: branchDetails,
     }
   })

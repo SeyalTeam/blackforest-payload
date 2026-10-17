@@ -138,28 +138,7 @@ export const getMultipleProductsStock = async (
 
   const branchObjectId = new ObjectId(branchId)
 
-  // 1. Initial Stock
-  const initialStockPipeline: any[] = [
-    {
-      $match: {
-        branch: branchObjectId,
-        notes: 'INITIAL STOCK',
-      },
-    },
-  ]
-  addOptimizedGranularMatch(initialStockPipeline, branch)
-  initialStockPipeline.push(
-    { $match: { ...productMatch, 'items.inStock': { $gt: 0 } } },
-    {
-      $group: {
-        _id: '$items.product',
-        total: { $sum: '$items.inStock' },
-      },
-    },
-  )
-  const initialStocks = await aggregateStock('stock-orders', initialStockPipeline, 'total')
-
-  // 2. Stock In (Received)
+  // 1. Stock In (Received from Stock Orders) - ADD
   const stockInPipeline: any[] = [
     {
       $match: {
@@ -179,7 +158,36 @@ export const getMultipleProductsStock = async (
   )
   const stockIns = await aggregateStock('stock-orders', stockInPipeline, 'total')
 
-  // 3. Stock Out (Sold)
+  // 2. Instock Entries (Approved) - ADD
+  const instockPipeline: any[] = [
+    {
+      $match: {
+        branch: branchObjectId,
+      },
+    },
+  ]
+  addOptimizedGranularMatch(instockPipeline, branch)
+  instockPipeline.push(
+    {
+      $match: {
+        ...productMatch,
+        'items.instock': { $gt: 0 },
+        $or: [
+          { 'items.status': 'approved' },
+          { status: 'approved' },
+        ],
+      },
+    },
+    {
+      $group: {
+        _id: '$items.product',
+        total: { $sum: '$items.instock' },
+      },
+    },
+  )
+  const instockAddeds = await aggregateStock('instock-entries', instockPipeline, 'total')
+
+  // 3. Stock Out (Sold in Billings) - DEDUCT
   const stockOutPipeline: any[] = [
     {
       $match: {
@@ -200,7 +208,7 @@ export const getMultipleProductsStock = async (
   )
   const stockOuts = await aggregateStock('billings', stockOutPipeline, 'total')
 
-  // 4. Returns
+  // 4. Returns (Return Orders) - DEDUCT
   const returnPipeline: any[] = [
     {
       $match: {
@@ -221,28 +229,8 @@ export const getMultipleProductsStock = async (
   )
   const returns = await aggregateStock('return-orders', returnPipeline, 'total')
 
-  // 5. Instock Entries
-  const instockPipeline: any[] = [
-    {
-      $match: {
-        branch: branchObjectId,
-        status: 'approved',
-      },
-    },
-  ]
-  addOptimizedGranularMatch(instockPipeline, branch)
-  instockPipeline.push(
-    { $match: { ...productMatch, 'items.instock': { $gt: 0 } } },
-    {
-      $group: {
-        _id: '$items.product',
-        total: { $sum: '$items.instock' },
-      },
-    },
-  )
-  const instockAddeds = await aggregateStock('instock-entries', instockPipeline, 'total')
-
-  // Merge all totals into the map
+  // Merge totals into the map:
+  // Strictly: Stock Order receivedQty + Approved Instock Entries - Billings Sold - Returns
   const updateMap = (results: any[], sign: number) => {
     results.forEach((r) => {
       const pid = r._id.toString()
@@ -250,7 +238,6 @@ export const getMultipleProductsStock = async (
     })
   }
 
-  updateMap(initialStocks, 1)
   updateMap(stockIns, 1)
   updateMap(instockAddeds, 1)
   updateMap(stockOuts, -1)
