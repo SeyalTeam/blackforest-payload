@@ -486,28 +486,19 @@ export async function calculateReportCardData(
     rule1Score = Number(rawCallScore.toFixed(2))
     avgResponseSeconds = Math.round(totalDurationSec / (totalCalls - missedCount || 1))
   } else {
-    const hash = (employeeId || 'waiter')
-      .split('')
-      .reduce((a, b) => a + b.charCodeAt(0), 0)
-    rule1Score = 91 + (hash % 8)
-    avgResponseSeconds = 22 + (hash % 6)
-    if (period === 'today') {
-      totalCalls = 6 + (hash % 3)
-      under30sCount = totalCalls > 1 ? totalCalls - 1 : totalCalls
-      under60sCount = 1
-    } else if (period === 'week') {
-      totalCalls = 22 + (hash % 6)
-      under30sCount = totalCalls - 2
-      under60sCount = 2
-    } else {
-      totalCalls = 85 + (hash % 20)
-      under30sCount = totalCalls - 6
-      under60sCount = 6
-    }
+    rule1Score = 0
+    avgResponseSeconds = 0
+    under30sCount = 0
+    under60sCount = 0
+    under120sCount = 0
+    under180sCount = 0
+    delayedCount = 0
+    missedCount = 0
   }
 
   let ratingLabel1 = '🟢 Excellent (< 30s)'
-  if (rule1Score < 60) ratingLabel1 = '🔴 Critical Delay (> 2m)'
+  if (totalCalls === 0) ratingLabel1 = '⚪ No Calls Received'
+  else if (rule1Score < 60) ratingLabel1 = '🔴 Critical Delay (> 2m)'
   else if (rule1Score < 80) ratingLabel1 = '🟡 Acceptable (1-2m)'
   else if (rule1Score < 90) ratingLabel1 = '🔵 Good (30-60s)'
 
@@ -653,40 +644,16 @@ export async function calculateReportCardData(
     rule2Score = Math.min(100, Math.max(0, Number(rawAttendancePoints.toFixed(2))))
     avgLateMinutes = lateDays > 0 ? Math.round(totalLateMinutes / lateDays) : 0
   } else {
-    // Realistic deterministic demo benchmark when no attendance recorded yet
-    const hash = (employeeId || 'emp')
-      .split('')
-      .reduce((a, b) => a + b.charCodeAt(0), 0)
-    if (period === 'today') {
-      presentDays = 1
-      onTimeDays = 1
-      lateDays = 0
-      totalLateMinutes = 0
-      avgLateMinutes = 0
-      attendanceRatePercent = 100
-      rule2Score = 98
-    } else if (period === 'week') {
-      presentDays = 5 + (hash % 2)
-      onTimeDays = presentDays
-      lateDays = 0
-      totalLateMinutes = 0
-      avgLateMinutes = 0
-      attendanceRatePercent = Math.round((presentDays / 6) * 100)
-      rule2Score = 96
-    } else {
-      presentDays = 24 + (hash % 3)
-      onTimeDays = presentDays - 2
-      lateDays = 2
-      late1to15Days = 2
-      totalLateMinutes = 14
-      avgLateMinutes = 7
-      attendanceRatePercent = Math.min(100, Math.round((presentDays / 26) * 100))
-      rule2Score = 95
-    }
+    rule2Score = 0
+    attendanceRatePercent = 0
+    avgLateMinutes = 0
+    onTimeDays = 0
+    lateDays = 0
   }
 
   let ratingLabel2 = '🟢 Perfect / On-Time'
-  if (rule2Score < 70) ratingLabel2 = '🔴 Frequent Late Arrivals'
+  if (presentDays === 0) ratingLabel2 = '🔴 Absent / No Punch In'
+  else if (rule2Score < 70) ratingLabel2 = '🔴 Frequent Late Arrivals'
   else if (rule2Score < 85) ratingLabel2 = '🟡 Occasional Late'
   else if (rule2Score < 95) ratingLabel2 = '🔵 Highly Punctual'
 
@@ -771,44 +738,19 @@ export async function calculateReportCardData(
     completionRatePercent = Math.min(100, Math.max(0, Number(rawCompletionRate.toFixed(2))))
     rule3Score = completionRatePercent
   } else {
-    // Deterministic realistic benchmark for demo when tasks haven't been punched in
-    const hash = (employeeId || 'emp')
-      .split('')
-      .reduce((a, b) => a + b.charCodeAt(0), 0)
-    if (period === 'today') {
-      checklistDays = 1
-      totalAssigned = 10
-      totalCompleted = 10
-      totalMissed = 0
-      completionRatePercent = 100
-      rule3Score = 100
-      perfectDays = 1
-    } else if (period === 'week') {
-      checklistDays = 5
-      totalAssigned = 45
-      totalCompleted = 43 + (hash % 3)
-      if (totalCompleted > totalAssigned) totalCompleted = totalAssigned
-      totalMissed = totalAssigned - totalCompleted
-      completionRatePercent = Math.round((totalCompleted / totalAssigned) * 100)
-      rule3Score = completionRatePercent
-      perfectDays = 4
-    } else {
-      checklistDays = 24
-      totalAssigned = 150
-      totalCompleted = 142 + (hash % 6) // e.g. 142 - 147
-      if (totalCompleted > totalAssigned) totalCompleted = totalAssigned
-      totalMissed = totalAssigned - totalCompleted
-      completionRatePercent = Math.round((totalCompleted / totalAssigned) * 100)
-      rule3Score = completionRatePercent
-      perfectDays = 22
-    }
+    totalAssigned = 0
+    totalCompleted = 0
+    totalMissed = 0
+    completionRatePercent = 0
+    rule3Score = 0
+    checklistDays = 0
+    perfectDays = 0
   }
 
   let ratingLabel3 = '🟢 Exemplary Floor Readiness'
-  if (rule3Score < 60) ratingLabel3 = '🔴 Critical Task Gaps'
+  if (totalAssigned === 0) ratingLabel3 = '⚪ No Checklist Tasks'
+  else if (rule3Score < 60) ratingLabel3 = '🔴 Critical Task Gaps'
   else if (rule3Score < 75) ratingLabel3 = '🟠 Needs Supervision'
-  else if (rule3Score < 90) ratingLabel3 = '🟡 Average Compliance'
-  else if (rule3Score < 98) ratingLabel3 = '🔵 High Checklist Discipline'
   else if (rule3Score < 90) ratingLabel3 = '🟡 Average Compliance'
   else if (rule3Score < 100) ratingLabel3 = '🔵 High Checklist Discipline'
 
@@ -910,45 +852,18 @@ export async function calculateReportCardData(
     productAccuracyPercent = Math.min(100, Math.max(0, Number(rawAccuracy.toFixed(2))))
     rule4Score = productAccuracyPercent
   } else {
-    // Realistic deterministic demo benchmark when no live bills punched yet for waiter
-    const hash = (employeeId || 'emp')
-      .split('')
-      .reduce((a, b) => a + b.charCodeAt(0), 0)
-    if (period === 'today') {
-      totalBills = 8 + (hash % 3)
-      cancelledBills = 0
-      totalProducts = 30 + (hash % 6)
-      cancelledProducts = 0
-      servedProducts = totalProducts
-      productAccuracyPercent = 100
-      rule4Score = 100
-    } else if (period === 'week') {
-      totalBills = 42 + (hash % 8)
-      cancelledBills = 1
-      totalProducts = 120 + (hash % 20)
-      cancelledProducts = 1
-      servedProducts = totalProducts - cancelledProducts
-      productAccuracyPercent = Math.min(
-        100,
-        Math.max(0, Number(((servedProducts / totalProducts) * 100).toFixed(2))),
-      )
-      rule4Score = productAccuracyPercent
-    } else {
-      totalBills = 88 + (hash % 15) // e.g. 88 - 102 bills
-      cancelledBills = 1
-      totalProducts = 320 + (hash % 40) // e.g. 320 - 360 products
-      cancelledProducts = 7 + (hash % 4) // e.g. 7 - 10 cancelled products
-      servedProducts = totalProducts - cancelledProducts
-      productAccuracyPercent = Math.min(
-        100,
-        Math.max(0, Number(((servedProducts / totalProducts) * 100).toFixed(2))),
-      )
-      rule4Score = productAccuracyPercent
-    }
+    productAccuracyPercent = 0
+    rule4Score = 0
+    totalBills = 0
+    cancelledBills = 0
+    totalProducts = 0
+    servedProducts = 0
+    cancelledProducts = 0
   }
 
   let ratingLabel4 = '🟢 Flawless Order Accuracy'
-  if (rule4Score < 60) ratingLabel4 = '🔴 High Cancellation Rate'
+  if (totalProducts === 0) ratingLabel4 = '⚪ No Orders Billed'
+  else if (rule4Score < 60) ratingLabel4 = '🔴 High Cancellation Rate'
   else if (rule4Score < 75) ratingLabel4 = '🟠 Frequent Item Voids'
   else if (rule4Score < 90) ratingLabel4 = '🟡 Average Adjustments'
   else if (rule4Score < 98) ratingLabel4 = '🔵 High Billing Precision'
@@ -1127,92 +1042,17 @@ export async function calculateReportCardData(
     onTimeRatePercent = Math.min(100, Math.max(0, Number(rawOnTimeRate.toFixed(2))))
     rule5Score = onTimeRatePercent
   } else {
-    // Deterministic realistic demo benchmark when no live KOT timestamps recorded yet
-    const hash = (employeeId || 'emp')
-      .split('')
-      .reduce((a, b) => a + b.charCodeAt(0), 0)
-
-    if (isChef) {
-      if (period === 'today') {
-        totalKotItems = 16 + (hash % 6)
-        onTimeKotCount = totalKotItems - 1
-        delayedKotCount = 1
-        avgDurationSeconds = 680
-        onTimeRatePercent = Math.round((onTimeKotCount / totalKotItems) * 100)
-        rule5Score = 94
-      } else if (period === 'week') {
-        totalKotItems = 65 + (hash % 15)
-        onTimeKotCount = totalKotItems - 3
-        delayedKotCount = 3
-        avgDurationSeconds = 700
-        onTimeRatePercent = Math.round((onTimeKotCount / totalKotItems) * 100)
-        rule5Score = 93
-      } else {
-        totalKotItems = 160 + (hash % 30) // 160-190 items
-        onTimeKotCount = Math.round(totalKotItems * 0.94)
-        delayedKotCount = totalKotItems - onTimeKotCount
-        avgDurationSeconds = 720 // 12 mins avg vs 15 mins target
-        onTimeRatePercent = 94
-        rule5Score = 92
-      }
-    } else if (isSupervisor) {
-      if (period === 'today') {
-        totalKotItems = 18 + (hash % 6)
-        onTimeKotCount = totalKotItems
-        delayedKotCount = 0
-        avgDurationSeconds = 70
-        onTimeRatePercent = 100
-        rule5Score = 98
-      } else if (period === 'week') {
-        totalKotItems = 75 + (hash % 15)
-        onTimeKotCount = totalKotItems - 2
-        delayedKotCount = 2
-        avgDurationSeconds = 72
-        onTimeRatePercent = Math.round((onTimeKotCount / totalKotItems) * 100)
-        rule5Score = 97
-      } else {
-        totalKotItems = 210 + (hash % 40) // 210-250 items
-        onTimeKotCount = Math.round(totalKotItems * 0.96)
-        delayedKotCount = totalKotItems - onTimeKotCount
-        avgDurationSeconds = 75 // 1m 15s avg vs 2m target
-        onTimeRatePercent = 96
-        rule5Score = 96
-      }
-    } else if (isWaiter) {
-      if (period === 'today') {
-        totalKotItems = 15 + (hash % 5)
-        onTimeKotCount = totalKotItems - 1
-        delayedKotCount = 1
-        avgDurationSeconds = 210
-        onTimeRatePercent = Math.round((onTimeKotCount / totalKotItems) * 100)
-        rule5Score = 95
-      } else if (period === 'week') {
-        totalKotItems = 60 + (hash % 15)
-        onTimeKotCount = totalKotItems - 3
-        delayedKotCount = 3
-        avgDurationSeconds = 220
-        onTimeRatePercent = Math.round((onTimeKotCount / totalKotItems) * 100)
-        rule5Score = 95
-      } else {
-        totalKotItems = 180 + (hash % 35) // 180-215 items
-        onTimeKotCount = Math.round(totalKotItems * 0.95)
-        delayedKotCount = totalKotItems - onTimeKotCount
-        avgDurationSeconds = 220 // 3m 40s avg vs 5m target
-        onTimeRatePercent = 95
-        rule5Score = 95
-      }
-    } else {
-      totalKotItems = period === 'today' ? 12 : period === 'week' ? 45 : 100
-      onTimeKotCount = totalKotItems > 1 ? totalKotItems - 1 : totalKotItems
-      delayedKotCount = totalKotItems - onTimeKotCount
-      avgDurationSeconds = 300
-      onTimeRatePercent = 95
-      rule5Score = 95
-    }
+    avgDurationSeconds = 0
+    onTimeRatePercent = 0
+    rule5Score = 0
+    totalKotItems = 0
+    onTimeKotCount = 0
+    delayedKotCount = 0
   }
 
   let ratingLabel5 = '🌟 Fast & Exceptional SLA'
-  if (rule5Score < 60) ratingLabel5 = '🔴 High KOT Delay'
+  if (totalKotItems === 0) ratingLabel5 = '⚪ No KOT Deliveries'
+  else if (rule5Score < 60) ratingLabel5 = '🔴 High KOT Delay'
   else if (rule5Score < 75) ratingLabel5 = '🟠 Needs Speed Improvement'
   else if (rule5Score < 90) ratingLabel5 = '🟡 Average KOT Speed'
   else if (rule5Score < 100) ratingLabel5 = '🟢 High On-Time Discipline'
@@ -1452,27 +1292,13 @@ export async function calculateReportCardData(
     activeCounterStaffCount = 2
   }
 
-  // Realistic fallback demo values when no live production bills are recorded in DB yet
-  if (branchTableRevenue === 0) {
-    const periodScale = period === 'today' ? 0.033 : period === 'week' ? 0.23 : 1.0
-    branchTableRevenue = Math.round(480000 * periodScale)
-    branchTableBills = Math.round(520 * periodScale)
-    companyTableRevenue = Math.round(2150000 * periodScale)
-    overallTableRevenue = Math.round(5580000 * periodScale)
-  }
-  if (branchCounterRevenue === 0) {
-    const periodScale = period === 'today' ? 0.033 : period === 'week' ? 0.23 : 1.0
-    branchCounterRevenue = Math.round(320000 * periodScale)
-    branchCounterBills = Math.round(440 * periodScale)
-    companyCounterRevenue = Math.round(1450000 * periodScale)
-    overallCounterRevenue = Math.round(3800000 * periodScale)
-  }
-
-  // If employee has 0 bills in period, keep real 0 revenue and 0 bills (do not synthesize fake bills)
+  // Use real branch aggregates from database (do not synthesize demo values)
 
   // Fetch configured rules for billing_table and billing_counter
   const tableConfigRule = getConfiguredRule('billing_table')
   const counterConfigRule = getConfiguredRule('billing_counter')
+
+  const periodScale = period === 'today' ? (1 / 30) : period === 'week' ? (7 / 30) : 1.0
 
   // Table Benchmark calculation
   const tableConfiguredTarget =
@@ -1481,11 +1307,11 @@ export async function calculateReportCardData(
       : 0
   const branchTableBenchmarkRevenue =
     tableConfiguredTarget > 0
-      ? tableConfiguredTarget
-      : Math.max(1000, Math.round(branchTableRevenue / Math.max(1, activeTableStaffCount)))
+      ? Math.round(tableConfiguredTarget * periodScale)
+      : Math.round(branchTableRevenue / Math.max(1, activeTableStaffCount))
 
   const rawTableAchievement =
-    branchTableBenchmarkRevenue > 0 ? (empTableRevenue / branchTableBenchmarkRevenue) * 100 : 100
+    branchTableBenchmarkRevenue > 0 && empTableRevenue > 0 ? (empTableRevenue / branchTableBenchmarkRevenue) * 100 : 0
   const tableAchievementPercent = Number(rawTableAchievement.toFixed(2))
   const rule6Score = Math.min(100, Math.max(0, tableAchievementPercent))
 
@@ -1542,11 +1368,11 @@ export async function calculateReportCardData(
       : 0
   const branchCounterBenchmarkRevenue =
     counterConfiguredTarget > 0
-      ? counterConfiguredTarget
-      : Math.max(1000, Math.round(branchCounterRevenue / Math.max(1, activeCounterStaffCount)))
+      ? Math.round(counterConfiguredTarget * periodScale)
+      : Math.round(branchCounterRevenue / Math.max(1, activeCounterStaffCount))
 
   const rawCounterAchievement =
-    branchCounterBenchmarkRevenue > 0 ? (empCounterRevenue / branchCounterBenchmarkRevenue) * 100 : 100
+    branchCounterBenchmarkRevenue > 0 && empCounterRevenue > 0 ? (empCounterRevenue / branchCounterBenchmarkRevenue) * 100 : 0
   const counterAchievementPercent = Number(rawCounterAchievement.toFixed(2))
   const rule7Score = Math.min(100, Math.max(0, counterAchievementPercent))
 

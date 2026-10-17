@@ -38628,25 +38628,18 @@ async function calculateReportCardData(req, params) {
     rule1Score = Number(rawCallScore.toFixed(2));
     avgResponseSeconds = Math.round(totalDurationSec / (totalCalls - missedCount || 1));
   } else {
-    const hash = (employeeId || "waiter").split("").reduce((a, b) => a + b.charCodeAt(0), 0);
-    rule1Score = 91 + hash % 8;
-    avgResponseSeconds = 22 + hash % 6;
-    if (period === "today") {
-      totalCalls = 6 + hash % 3;
-      under30sCount = totalCalls > 1 ? totalCalls - 1 : totalCalls;
-      under60sCount = 1;
-    } else if (period === "week") {
-      totalCalls = 22 + hash % 6;
-      under30sCount = totalCalls - 2;
-      under60sCount = 2;
-    } else {
-      totalCalls = 85 + hash % 20;
-      under30sCount = totalCalls - 6;
-      under60sCount = 6;
-    }
+    rule1Score = 0;
+    avgResponseSeconds = 0;
+    under30sCount = 0;
+    under60sCount = 0;
+    under120sCount = 0;
+    under180sCount = 0;
+    delayedCount = 0;
+    missedCount = 0;
   }
   let ratingLabel1 = "\u{1F7E2} Excellent (< 30s)";
-  if (rule1Score < 60) ratingLabel1 = "\u{1F534} Critical Delay (> 2m)";
+  if (totalCalls === 0) ratingLabel1 = "\u26AA No Calls Received";
+  else if (rule1Score < 60) ratingLabel1 = "\u{1F534} Critical Delay (> 2m)";
   else if (rule1Score < 80) ratingLabel1 = "\u{1F7E1} Acceptable (1-2m)";
   else if (rule1Score < 90) ratingLabel1 = "\u{1F535} Good (30-60s)";
   const rule1Result = {
@@ -38771,36 +38764,15 @@ async function calculateReportCardData(req, params) {
     rule2Score = Math.min(100, Math.max(0, Number(rawAttendancePoints.toFixed(2))));
     avgLateMinutes = lateDays > 0 ? Math.round(totalLateMinutes / lateDays) : 0;
   } else {
-    const hash = (employeeId || "emp").split("").reduce((a, b) => a + b.charCodeAt(0), 0);
-    if (period === "today") {
-      presentDays = 1;
-      onTimeDays = 1;
-      lateDays = 0;
-      totalLateMinutes = 0;
-      avgLateMinutes = 0;
-      attendanceRatePercent = 100;
-      rule2Score = 98;
-    } else if (period === "week") {
-      presentDays = 5 + hash % 2;
-      onTimeDays = presentDays;
-      lateDays = 0;
-      totalLateMinutes = 0;
-      avgLateMinutes = 0;
-      attendanceRatePercent = Math.round(presentDays / 6 * 100);
-      rule2Score = 96;
-    } else {
-      presentDays = 24 + hash % 3;
-      onTimeDays = presentDays - 2;
-      lateDays = 2;
-      late1to15Days = 2;
-      totalLateMinutes = 14;
-      avgLateMinutes = 7;
-      attendanceRatePercent = Math.min(100, Math.round(presentDays / 26 * 100));
-      rule2Score = 95;
-    }
+    rule2Score = 0;
+    attendanceRatePercent = 0;
+    avgLateMinutes = 0;
+    onTimeDays = 0;
+    lateDays = 0;
   }
   let ratingLabel2 = "\u{1F7E2} Perfect / On-Time";
-  if (rule2Score < 70) ratingLabel2 = "\u{1F534} Frequent Late Arrivals";
+  if (presentDays === 0) ratingLabel2 = "\u{1F534} Absent / No Punch In";
+  else if (rule2Score < 70) ratingLabel2 = "\u{1F534} Frequent Late Arrivals";
   else if (rule2Score < 85) ratingLabel2 = "\u{1F7E1} Occasional Late";
   else if (rule2Score < 95) ratingLabel2 = "\u{1F535} Highly Punctual";
   const rule2Result = {
@@ -38866,40 +38838,18 @@ async function calculateReportCardData(req, params) {
     completionRatePercent = Math.min(100, Math.max(0, Number(rawCompletionRate.toFixed(2))));
     rule3Score = completionRatePercent;
   } else {
-    const hash = (employeeId || "emp").split("").reduce((a, b) => a + b.charCodeAt(0), 0);
-    if (period === "today") {
-      checklistDays = 1;
-      totalAssigned = 10;
-      totalCompleted = 10;
-      totalMissed = 0;
-      completionRatePercent = 100;
-      rule3Score = 100;
-      perfectDays = 1;
-    } else if (period === "week") {
-      checklistDays = 5;
-      totalAssigned = 45;
-      totalCompleted = 43 + hash % 3;
-      if (totalCompleted > totalAssigned) totalCompleted = totalAssigned;
-      totalMissed = totalAssigned - totalCompleted;
-      completionRatePercent = Math.round(totalCompleted / totalAssigned * 100);
-      rule3Score = completionRatePercent;
-      perfectDays = 4;
-    } else {
-      checklistDays = 24;
-      totalAssigned = 150;
-      totalCompleted = 142 + hash % 6;
-      if (totalCompleted > totalAssigned) totalCompleted = totalAssigned;
-      totalMissed = totalAssigned - totalCompleted;
-      completionRatePercent = Math.round(totalCompleted / totalAssigned * 100);
-      rule3Score = completionRatePercent;
-      perfectDays = 22;
-    }
+    totalAssigned = 0;
+    totalCompleted = 0;
+    totalMissed = 0;
+    completionRatePercent = 0;
+    rule3Score = 0;
+    checklistDays = 0;
+    perfectDays = 0;
   }
   let ratingLabel3 = "\u{1F7E2} Exemplary Floor Readiness";
-  if (rule3Score < 60) ratingLabel3 = "\u{1F534} Critical Task Gaps";
+  if (totalAssigned === 0) ratingLabel3 = "\u26AA No Checklist Tasks";
+  else if (rule3Score < 60) ratingLabel3 = "\u{1F534} Critical Task Gaps";
   else if (rule3Score < 75) ratingLabel3 = "\u{1F7E0} Needs Supervision";
-  else if (rule3Score < 90) ratingLabel3 = "\u{1F7E1} Average Compliance";
-  else if (rule3Score < 98) ratingLabel3 = "\u{1F535} High Checklist Discipline";
   else if (rule3Score < 90) ratingLabel3 = "\u{1F7E1} Average Compliance";
   else if (rule3Score < 100) ratingLabel3 = "\u{1F535} High Checklist Discipline";
   const rule3Result = {
@@ -38983,41 +38933,17 @@ async function calculateReportCardData(req, params) {
     productAccuracyPercent = Math.min(100, Math.max(0, Number(rawAccuracy.toFixed(2))));
     rule4Score = productAccuracyPercent;
   } else {
-    const hash = (employeeId || "emp").split("").reduce((a, b) => a + b.charCodeAt(0), 0);
-    if (period === "today") {
-      totalBills = 8 + hash % 3;
-      cancelledBills = 0;
-      totalProducts = 30 + hash % 6;
-      cancelledProducts = 0;
-      servedProducts = totalProducts;
-      productAccuracyPercent = 100;
-      rule4Score = 100;
-    } else if (period === "week") {
-      totalBills = 42 + hash % 8;
-      cancelledBills = 1;
-      totalProducts = 120 + hash % 20;
-      cancelledProducts = 1;
-      servedProducts = totalProducts - cancelledProducts;
-      productAccuracyPercent = Math.min(
-        100,
-        Math.max(0, Number((servedProducts / totalProducts * 100).toFixed(2)))
-      );
-      rule4Score = productAccuracyPercent;
-    } else {
-      totalBills = 88 + hash % 15;
-      cancelledBills = 1;
-      totalProducts = 320 + hash % 40;
-      cancelledProducts = 7 + hash % 4;
-      servedProducts = totalProducts - cancelledProducts;
-      productAccuracyPercent = Math.min(
-        100,
-        Math.max(0, Number((servedProducts / totalProducts * 100).toFixed(2)))
-      );
-      rule4Score = productAccuracyPercent;
-    }
+    productAccuracyPercent = 0;
+    rule4Score = 0;
+    totalBills = 0;
+    cancelledBills = 0;
+    totalProducts = 0;
+    servedProducts = 0;
+    cancelledProducts = 0;
   }
   let ratingLabel4 = "\u{1F7E2} Flawless Order Accuracy";
-  if (rule4Score < 60) ratingLabel4 = "\u{1F534} High Cancellation Rate";
+  if (totalProducts === 0) ratingLabel4 = "\u26AA No Orders Billed";
+  else if (rule4Score < 60) ratingLabel4 = "\u{1F534} High Cancellation Rate";
   else if (rule4Score < 75) ratingLabel4 = "\u{1F7E0} Frequent Item Voids";
   else if (rule4Score < 90) ratingLabel4 = "\u{1F7E1} Average Adjustments";
   else if (rule4Score < 98) ratingLabel4 = "\u{1F535} High Billing Precision";
@@ -39151,87 +39077,16 @@ async function calculateReportCardData(req, params) {
     onTimeRatePercent = Math.min(100, Math.max(0, Number(rawOnTimeRate.toFixed(2))));
     rule5Score = onTimeRatePercent;
   } else {
-    const hash = (employeeId || "emp").split("").reduce((a, b) => a + b.charCodeAt(0), 0);
-    if (isChef) {
-      if (period === "today") {
-        totalKotItems = 16 + hash % 6;
-        onTimeKotCount = totalKotItems - 1;
-        delayedKotCount = 1;
-        avgDurationSeconds = 680;
-        onTimeRatePercent = Math.round(onTimeKotCount / totalKotItems * 100);
-        rule5Score = 94;
-      } else if (period === "week") {
-        totalKotItems = 65 + hash % 15;
-        onTimeKotCount = totalKotItems - 3;
-        delayedKotCount = 3;
-        avgDurationSeconds = 700;
-        onTimeRatePercent = Math.round(onTimeKotCount / totalKotItems * 100);
-        rule5Score = 93;
-      } else {
-        totalKotItems = 160 + hash % 30;
-        onTimeKotCount = Math.round(totalKotItems * 0.94);
-        delayedKotCount = totalKotItems - onTimeKotCount;
-        avgDurationSeconds = 720;
-        onTimeRatePercent = 94;
-        rule5Score = 92;
-      }
-    } else if (isSupervisor) {
-      if (period === "today") {
-        totalKotItems = 18 + hash % 6;
-        onTimeKotCount = totalKotItems;
-        delayedKotCount = 0;
-        avgDurationSeconds = 70;
-        onTimeRatePercent = 100;
-        rule5Score = 98;
-      } else if (period === "week") {
-        totalKotItems = 75 + hash % 15;
-        onTimeKotCount = totalKotItems - 2;
-        delayedKotCount = 2;
-        avgDurationSeconds = 72;
-        onTimeRatePercent = Math.round(onTimeKotCount / totalKotItems * 100);
-        rule5Score = 97;
-      } else {
-        totalKotItems = 210 + hash % 40;
-        onTimeKotCount = Math.round(totalKotItems * 0.96);
-        delayedKotCount = totalKotItems - onTimeKotCount;
-        avgDurationSeconds = 75;
-        onTimeRatePercent = 96;
-        rule5Score = 96;
-      }
-    } else if (isWaiter) {
-      if (period === "today") {
-        totalKotItems = 15 + hash % 5;
-        onTimeKotCount = totalKotItems - 1;
-        delayedKotCount = 1;
-        avgDurationSeconds = 210;
-        onTimeRatePercent = Math.round(onTimeKotCount / totalKotItems * 100);
-        rule5Score = 95;
-      } else if (period === "week") {
-        totalKotItems = 60 + hash % 15;
-        onTimeKotCount = totalKotItems - 3;
-        delayedKotCount = 3;
-        avgDurationSeconds = 220;
-        onTimeRatePercent = Math.round(onTimeKotCount / totalKotItems * 100);
-        rule5Score = 95;
-      } else {
-        totalKotItems = 180 + hash % 35;
-        onTimeKotCount = Math.round(totalKotItems * 0.95);
-        delayedKotCount = totalKotItems - onTimeKotCount;
-        avgDurationSeconds = 220;
-        onTimeRatePercent = 95;
-        rule5Score = 95;
-      }
-    } else {
-      totalKotItems = period === "today" ? 12 : period === "week" ? 45 : 100;
-      onTimeKotCount = totalKotItems > 1 ? totalKotItems - 1 : totalKotItems;
-      delayedKotCount = totalKotItems - onTimeKotCount;
-      avgDurationSeconds = 300;
-      onTimeRatePercent = 95;
-      rule5Score = 95;
-    }
+    avgDurationSeconds = 0;
+    onTimeRatePercent = 0;
+    rule5Score = 0;
+    totalKotItems = 0;
+    onTimeKotCount = 0;
+    delayedKotCount = 0;
   }
   let ratingLabel5 = "\u{1F31F} Fast & Exceptional SLA";
-  if (rule5Score < 60) ratingLabel5 = "\u{1F534} High KOT Delay";
+  if (totalKotItems === 0) ratingLabel5 = "\u26AA No KOT Deliveries";
+  else if (rule5Score < 60) ratingLabel5 = "\u{1F534} High KOT Delay";
   else if (rule5Score < 75) ratingLabel5 = "\u{1F7E0} Needs Speed Improvement";
   else if (rule5Score < 90) ratingLabel5 = "\u{1F7E1} Average KOT Speed";
   else if (rule5Score < 100) ratingLabel5 = "\u{1F7E2} High On-Time Discipline";
@@ -39414,25 +39269,12 @@ async function calculateReportCardData(req, params) {
     activeTableStaffCount = 4;
     activeCounterStaffCount = 2;
   }
-  if (branchTableRevenue === 0) {
-    const periodScale = period === "today" ? 0.033 : period === "week" ? 0.23 : 1;
-    branchTableRevenue = Math.round(48e4 * periodScale);
-    branchTableBills = Math.round(520 * periodScale);
-    companyTableRevenue = Math.round(215e4 * periodScale);
-    overallTableRevenue = Math.round(558e4 * periodScale);
-  }
-  if (branchCounterRevenue === 0) {
-    const periodScale = period === "today" ? 0.033 : period === "week" ? 0.23 : 1;
-    branchCounterRevenue = Math.round(32e4 * periodScale);
-    branchCounterBills = Math.round(440 * periodScale);
-    companyCounterRevenue = Math.round(145e4 * periodScale);
-    overallCounterRevenue = Math.round(38e5 * periodScale);
-  }
   const tableConfigRule = getConfiguredRule("billing_table");
   const counterConfigRule = getConfiguredRule("billing_counter");
+  const periodScale = period === "today" ? 1 / 30 : period === "week" ? 7 / 30 : 1;
   const tableConfiguredTarget = typeof tableConfigRule?.monthlySalesTarget === "number" && tableConfigRule.monthlySalesTarget > 0 ? tableConfigRule.monthlySalesTarget : 0;
-  const branchTableBenchmarkRevenue = tableConfiguredTarget > 0 ? tableConfiguredTarget : Math.max(1e3, Math.round(branchTableRevenue / Math.max(1, activeTableStaffCount)));
-  const rawTableAchievement = branchTableBenchmarkRevenue > 0 ? empTableRevenue / branchTableBenchmarkRevenue * 100 : 100;
+  const branchTableBenchmarkRevenue = tableConfiguredTarget > 0 ? Math.round(tableConfiguredTarget * periodScale) : Math.round(branchTableRevenue / Math.max(1, activeTableStaffCount));
+  const rawTableAchievement = branchTableBenchmarkRevenue > 0 && empTableRevenue > 0 ? empTableRevenue / branchTableBenchmarkRevenue * 100 : 0;
   const tableAchievementPercent = Number(rawTableAchievement.toFixed(2));
   const rule6Score = Math.min(100, Math.max(0, tableAchievementPercent));
   const tableBranchShare = branchTableRevenue > 0 ? Number((empTableRevenue / branchTableRevenue * 100).toFixed(2)) : 0;
@@ -39476,8 +39318,8 @@ async function calculateReportCardData(req, params) {
     ratingLabel: tableRatingLabel
   };
   const counterConfiguredTarget = typeof counterConfigRule?.monthlySalesTarget === "number" && counterConfigRule.monthlySalesTarget > 0 ? counterConfigRule.monthlySalesTarget : 0;
-  const branchCounterBenchmarkRevenue = counterConfiguredTarget > 0 ? counterConfiguredTarget : Math.max(1e3, Math.round(branchCounterRevenue / Math.max(1, activeCounterStaffCount)));
-  const rawCounterAchievement = branchCounterBenchmarkRevenue > 0 ? empCounterRevenue / branchCounterBenchmarkRevenue * 100 : 100;
+  const branchCounterBenchmarkRevenue = counterConfiguredTarget > 0 ? Math.round(counterConfiguredTarget * periodScale) : Math.round(branchCounterRevenue / Math.max(1, activeCounterStaffCount));
+  const rawCounterAchievement = branchCounterBenchmarkRevenue > 0 && empCounterRevenue > 0 ? empCounterRevenue / branchCounterBenchmarkRevenue * 100 : 0;
   const counterAchievementPercent = Number(rawCounterAchievement.toFixed(2));
   const rule7Score = Math.min(100, Math.max(0, counterAchievementPercent));
   const counterBranchShare = branchCounterRevenue > 0 ? Number((empCounterRevenue / branchCounterRevenue * 100).toFixed(2)) : 0;
