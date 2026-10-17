@@ -1468,23 +1468,7 @@ export async function calculateReportCardData(
     overallCounterRevenue = Math.round(3800000 * periodScale)
   }
 
-  if (empTableRevenue === 0 && empTableBills === 0 && isWaiter) {
-    const hash = (employeeId || 'emp')
-      .split('')
-      .reduce((a, b) => a + b.charCodeAt(0), 0)
-    const shareFactor = 0.22 + ((hash % 8) / 100) // 22% - 29% share
-    empTableRevenue = Math.round(branchTableRevenue * shareFactor)
-    empTableBills = Math.round(branchTableBills * shareFactor)
-  }
-
-  if (empCounterRevenue === 0 && empCounterBills === 0 && isCashier) {
-    const hash = (employeeId || 'emp')
-      .split('')
-      .reduce((a, b) => a + b.charCodeAt(0), 0)
-    const shareFactor = 0.44 + ((hash % 10) / 100) // 44% - 53% share
-    empCounterRevenue = Math.round(branchCounterRevenue * shareFactor)
-    empCounterBills = Math.round(branchCounterBills * shareFactor)
-  }
+  // If employee has 0 bills in period, keep real 0 revenue and 0 bills (do not synthesize fake bills)
 
   // Fetch configured rules for billing_table and billing_counter
   const tableConfigRule = getConfiguredRule('billing_table')
@@ -1526,6 +1510,9 @@ export async function calculateReportCardData(
   } else if (tableAchievementPercent >= 65) {
     tableAlertTag = '🟠 Under Benchmark Alert'
     tableRatingLabel = '🟠 Under Benchmark Alert (Sales lag)'
+  } else if (empTableBills === 0) {
+    tableAlertTag = '🔴 No Table Orders'
+    tableRatingLabel = '🔴 No Table Orders Billed'
   } else {
     tableAlertTag = '🔴 Critical Shortfall Alert'
     tableRatingLabel = '🔴 Critical Shortfall Alert (Severe sales lag)'
@@ -1584,6 +1571,9 @@ export async function calculateReportCardData(
   } else if (counterAchievementPercent >= 65) {
     counterAlertTag = '🟠 Below Counter Target'
     counterRatingLabel = '🟠 Below Counter Target (Moderate order volume)'
+  } else if (empCounterBills === 0) {
+    counterAlertTag = '🔴 No Counter Bills'
+    counterRatingLabel = '🔴 No Counter Bills Punched'
   } else {
     counterAlertTag = '🔴 Critical Counter Shortfall'
     counterRatingLabel = '🔴 Critical Counter Shortfall (Major deficit)'

@@ -39428,18 +39428,6 @@ async function calculateReportCardData(req, params) {
     companyCounterRevenue = Math.round(145e4 * periodScale);
     overallCounterRevenue = Math.round(38e5 * periodScale);
   }
-  if (empTableRevenue === 0 && empTableBills === 0 && isWaiter) {
-    const hash = (employeeId || "emp").split("").reduce((a, b) => a + b.charCodeAt(0), 0);
-    const shareFactor = 0.22 + hash % 8 / 100;
-    empTableRevenue = Math.round(branchTableRevenue * shareFactor);
-    empTableBills = Math.round(branchTableBills * shareFactor);
-  }
-  if (empCounterRevenue === 0 && empCounterBills === 0 && isCashier) {
-    const hash = (employeeId || "emp").split("").reduce((a, b) => a + b.charCodeAt(0), 0);
-    const shareFactor = 0.44 + hash % 10 / 100;
-    empCounterRevenue = Math.round(branchCounterRevenue * shareFactor);
-    empCounterBills = Math.round(branchCounterBills * shareFactor);
-  }
   const tableConfigRule = getConfiguredRule("billing_table");
   const counterConfigRule = getConfiguredRule("billing_counter");
   const tableConfiguredTarget = typeof tableConfigRule?.monthlySalesTarget === "number" && tableConfigRule.monthlySalesTarget > 0 ? tableConfigRule.monthlySalesTarget : 0;
@@ -39464,6 +39452,9 @@ async function calculateReportCardData(req, params) {
   } else if (tableAchievementPercent >= 65) {
     tableAlertTag = "\u{1F7E0} Under Benchmark Alert";
     tableRatingLabel = "\u{1F7E0} Under Benchmark Alert (Sales lag)";
+  } else if (empTableBills === 0) {
+    tableAlertTag = "\u{1F534} No Table Orders";
+    tableRatingLabel = "\u{1F534} No Table Orders Billed";
   } else {
     tableAlertTag = "\u{1F534} Critical Shortfall Alert";
     tableRatingLabel = "\u{1F534} Critical Shortfall Alert (Severe sales lag)";
@@ -39506,6 +39497,9 @@ async function calculateReportCardData(req, params) {
   } else if (counterAchievementPercent >= 65) {
     counterAlertTag = "\u{1F7E0} Below Counter Target";
     counterRatingLabel = "\u{1F7E0} Below Counter Target (Moderate order volume)";
+  } else if (empCounterBills === 0) {
+    counterAlertTag = "\u{1F534} No Counter Bills";
+    counterRatingLabel = "\u{1F534} No Counter Bills Punched";
   } else {
     counterAlertTag = "\u{1F534} Critical Counter Shortfall";
     counterRatingLabel = "\u{1F534} Critical Counter Shortfall (Major deficit)";
