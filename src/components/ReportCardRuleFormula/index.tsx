@@ -10,6 +10,8 @@ type CategoryKey =
   | 'attendance'
   | 'tasks'
   | 'billing'
+  | 'billing_table'
+  | 'billing_counter'
   | 'hygiene'
   | 'reviews'
   | 'general'
@@ -390,6 +392,149 @@ const CATEGORY_CONFIGS: Record<CategoryKey, CategoryConfig> = {
       return {
         scenario: `3,186.75 items ordered. 13 cancelled across 2 voided bills and single voids. Total served = 3,173.75 items.`,
         calculation: `Exact Accuracy = (3,173.75 / 3,186.75) × 100 = 99.59%\nMarks = (${exactAccuracy} / 100) × ${maxMarks} = ${marks} Marks`,
+        finalMarks: marks,
+      }
+    },
+  },
+  billing_table: {
+    key: 'billing_table',
+    icon: '🍽️',
+    title: 'Table Order Billing & Revenue SLA',
+    description:
+      'Evaluates payment revenue collected from dine-in table orders (bills with tableNumber) compared to Branch, Company, and Overall sales benchmarks.',
+    formulaDisplay:
+      'Branch Benchmark = Branch Total Table Billing / Active Floor Staff\nAchievement % = (Employee Table Billing / Branch Benchmark) × 100\nMarks = min(Max Marks, (Achievement % / 100) × Max Marks)',
+    formulaExplanation:
+      'Evaluates all active paid/settled dine-in table bills punched or served by the employee. Performance is benchmarked against the branch average per active staff (or fixed target quota if set). Exact unrounded score is awarded.',
+    metricLabel: 'Table Sales Achievement vs Benchmark (%)',
+    tiers: [
+      {
+        threshold: '≥ 105.0% of Benchmark',
+        score: 100,
+        rating: '🌟 Star Contributor',
+        color: '#10b981',
+        note: 'Superb table sales (+5% or more above branch peer average)',
+      },
+      {
+        threshold: '95.0% – 104.99% of Benchmark',
+        score: 95,
+        rating: '🟢 Target Met',
+        color: '#22c55e',
+        note: 'Balanced branch contribution meeting expected quota',
+      },
+      {
+        threshold: '80.0% – 94.99% of Benchmark',
+        score: 85,
+        rating: '🟡 Fair Contribution',
+        color: '#eab308',
+        note: 'Slightly below branch average sales per staff',
+      },
+      {
+        threshold: '65.0% – 79.99% of Benchmark',
+        score: 70,
+        rating: '🟠 Under Benchmark Alert',
+        color: '#f97316',
+        note: 'Noticeable shortfall in table revenue generation',
+      },
+      {
+        threshold: '< 65.0% of Benchmark',
+        score: 50,
+        rating: '🔴 Critical Shortfall Alert',
+        color: '#ef4444',
+        note: 'Severe sales lag requiring floor assignment review',
+      },
+    ],
+    roleNotes: [
+      {
+        role: 'Waiter / Floor Staff',
+        badge: '🍽️ Dine-in Service',
+        slaTarget: '100% of Branch Average per Staff',
+        criteria:
+          'Evaluates bills where tableDetails.tableNumber is present and non-empty. Excludes cancelled bills.',
+      },
+    ],
+    example: (maxMarks: number) => {
+      const branchTotal = 480000
+      const activeStaff = 4
+      const benchmark = branchTotal / activeStaff // 120,000
+      const empSales = 134500
+      const achievementRate = Number(((empSales / benchmark) * 100).toFixed(2)) // 112.08%
+      const exactScore = Math.min(100, achievementRate)
+      const marks = Number(((exactScore / 100) * maxMarks).toFixed(2))
+      return {
+        scenario: `Branch Table Sales = ₹4,80,000 across 4 waiters (Benchmark = ₹1,20,000). Waiter generated ₹1,34,500 across 185 tables.`,
+        calculation: `Branch Benchmark = ₹4,80,000 / 4 = ₹1,20,000\nAchievement % = (₹1,34,500 / ₹1,20,000) × 100 = 112.08% → Capped at 100%\nMarks = (100 / 100) × ${maxMarks} = ${marks} Marks (🌟 Star Contributor)`,
+        finalMarks: marks,
+      }
+    },
+  },
+  billing_counter: {
+    key: 'billing_counter',
+    icon: '🛍️',
+    title: 'Counter Bill (Non-Table KOT) Revenue SLA',
+    description:
+      'Evaluates payment revenue collected from takeaway, parcel, and counter walk-in orders (bills without tableNumber with KOT) against Branch, Company, and Overall benchmarks.',
+    formulaDisplay:
+      'Branch Benchmark = Branch Total Counter Billing / Active Counter Staff\nAchievement % = (Employee Counter Billing / Branch Benchmark) × 100\nMarks = min(Max Marks, (Achievement % / 100) × Max Marks)',
+    formulaExplanation:
+      'Evaluates all active paid/settled counter orders (takeaway/parcel bills with kotNumber and no table assigned). Performance is benchmarked against the branch counter average per staff. Exact unrounded score is awarded.',
+    metricLabel: 'Counter Sales Achievement vs Benchmark (%)',
+    tiers: [
+      {
+        threshold: '≥ 105.0% of Benchmark',
+        score: 100,
+        rating: '🌟 Star Contributor',
+        color: '#10b981',
+        note: 'Outstanding counter sales speed and order upselling',
+      },
+      {
+        threshold: '95.0% – 104.99% of Benchmark',
+        score: 95,
+        rating: '🟢 Target Met',
+        color: '#22c55e',
+        note: 'Solid counter billing throughput meeting branch target',
+      },
+      {
+        threshold: '80.0% – 94.99% of Benchmark',
+        score: 85,
+        rating: '🟡 Fair Contribution',
+        color: '#eab308',
+        note: 'Moderate counter bill volume',
+      },
+      {
+        threshold: '65.0% – 79.99% of Benchmark',
+        score: 70,
+        rating: '🟠 Below Counter Target',
+        color: '#f97316',
+        note: 'Low order volume or slow counter billing processing',
+      },
+      {
+        threshold: '< 65.0% of Benchmark',
+        score: 50,
+        rating: '🔴 Critical Counter Shortfall',
+        color: '#ef4444',
+        note: 'Substantial shortfall in counter billing collection',
+      },
+    ],
+    roleNotes: [
+      {
+        role: 'Cashier / Counter Staff',
+        badge: '🛍️ Counter & Takeaway',
+        slaTarget: '100% of Branch Counter Average',
+        criteria:
+          'Evaluates bills where tableDetails.tableNumber is empty and kotNumber is present. Excludes cancelled bills.',
+      },
+    ],
+    example: (maxMarks: number) => {
+      const branchTotal = 320000
+      const activeStaff = 2
+      const benchmark = branchTotal / activeStaff // 160,000
+      const empSales = 142800
+      const achievementRate = Number(((empSales / benchmark) * 100).toFixed(2)) // 89.25%
+      const marks = Number(((achievementRate / 100) * maxMarks).toFixed(2))
+      return {
+        scenario: `Branch Counter Sales = ₹3,20,000 across 2 cashiers (Benchmark = ₹1,60,000). Cashier generated ₹1,42,800 across 210 counter bills.`,
+        calculation: `Branch Benchmark = ₹3,20,000 / 2 = ₹1,60,000\nAchievement % = (₹1,42,800 / ₹1,60,000) × 100 = 89.25%\nMarks = (89.25 / 100) × ${maxMarks} = ${marks} Marks (⚠️ Below Branch Average -10.75%)`,
         finalMarks: marks,
       }
     },

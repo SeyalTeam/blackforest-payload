@@ -117,12 +117,25 @@ export const ReportCardRules: CollectionConfig = {
             { label: '⏰ Attendance & Punctuality', value: 'attendance' },
             { label: '📋 Daily Task Checklist', value: 'tasks' },
             { label: '🍽️ Table Service & Billing Accuracy', value: 'billing' },
+            { label: '🍽️ Table Order Billing & Revenue', value: 'billing_table' },
+            { label: '🛍️ Counter / Non-Table KOT Billing', value: 'billing_counter' },
             { label: '⭐ Grooming, Hygiene & Cleanliness', value: 'hygiene' },
             { label: '💬 Customer Feedback & Reviews', value: 'reviews' },
             { label: 'ℹ️ General Guidelines & Policy', value: 'general' },
           ],
         },
       ],
+    },
+    {
+      name: 'monthlySalesTarget',
+      type: 'number',
+      label: 'Monthly Sales Target (₹) (Optional)',
+      min: 0,
+      admin: {
+        description:
+          'Optional fixed ₹ sales quota for this rule. If left empty, benchmark defaults to Branch Average Sales per staff.',
+        condition: (data) => ['billing_table', 'billing_counter'].includes(data?.category),
+      },
     },
     {
       name: 'maxMarks',
