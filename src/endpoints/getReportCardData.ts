@@ -62,6 +62,14 @@ export const getReportCardDataHandler: PayloadHandler = async (
     }
 
     const period = typeof req.query.period === 'string' ? req.query.period : undefined
+    const branchId =
+      typeof req.query.branch === 'string'
+        ? req.query.branch
+        : typeof req.query.branchId === 'string'
+          ? req.query.branchId
+          : null
+    const branchName =
+      typeof req.query.branchName === 'string' ? req.query.branchName : null
 
     if (employeeId === 'all') {
       let targetEmployeeIds: string[] = []
@@ -119,6 +127,8 @@ export const getReportCardDataHandler: PayloadHandler = async (
     const data = await calculateReportCardData(req, {
       employeeId,
       userId,
+      branchId,
+      branchName,
       month,
       role,
       period,
