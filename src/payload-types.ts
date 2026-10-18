@@ -595,7 +595,7 @@ export interface Dealer {
   companyName: string;
   address: string;
   phoneNumber: string;
-  email: string;
+  email?: string | null;
   isGSTRegistered?: boolean | null;
   gst?: string | null;
   pan?: string | null;
@@ -1013,7 +1013,7 @@ export interface RawMaterialDealer {
   companyName: string;
   address: string;
   phoneNumber: string;
-  email: string;
+  email?: string | null;
   isGSTRegistered?: boolean | null;
   gst?: string | null;
   pan?: string | null;

@@ -58,7 +58,7 @@ const RawMaterialDealers: CollectionConfig = {
       name: 'email',
       type: 'email',
       label: 'Email',
-      required: true,
+      required: false,
     },
     // GST Registration Flag
     {
@@ -253,6 +253,10 @@ const RawMaterialDealers: CollectionConfig = {
         if (operation === 'create' || operation === 'update') {
           const nextData = data as Record<string, unknown>
           const currentDoc = (originalDoc || {}) as Record<string, unknown>
+
+          if (nextData.email !== undefined) {
+            nextData.email = normalizeText(nextData.email)
+          }
 
           const isGSTRegistered =
             typeof nextData.isGSTRegistered === 'boolean'

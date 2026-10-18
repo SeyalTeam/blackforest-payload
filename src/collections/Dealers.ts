@@ -58,14 +58,14 @@ const Dealers: CollectionConfig = {
       name: 'email',
       type: 'email',
       label: 'Email',
-      required: true,
+      required: false,
     },
     // GST Registration Flag
     {
       name: 'isGSTRegistered',
       type: 'checkbox',
       label: 'Is GST Registered?',
-      defaultValue: true,
+      defaultValue: false,
     },
     // Conditional Compliance Fields
     {
@@ -176,7 +176,7 @@ const Dealers: CollectionConfig = {
       name: 'hasBankAccount',
       type: 'checkbox',
       label: 'Has Bank Account?',
-      defaultValue: true,
+      defaultValue: false,
       admin: {
         position: 'sidebar',
       },
@@ -245,29 +245,27 @@ const Dealers: CollectionConfig = {
           const nextData = data as Record<string, unknown>
           const currentDoc = (originalDoc || {}) as Record<string, unknown>
 
+          // Normalize email if provided (or clear if empty)
+          if (nextData.email !== undefined) {
+            nextData.email = normalizeText(nextData.email)
+          }
+
+          // GST & Compliance Handling
+          const incomingGST = nextData.gst !== undefined ? nextData.gst : currentDoc.gst
+          const normalizedGST = normalizeUpperText(incomingGST)
+          const incomingPAN = nextData.pan !== undefined ? nextData.pan : currentDoc.pan
+          const normalizedPAN = normalizeUpperText(incomingPAN)
+          const incomingFSSAI = nextData.fssai !== undefined ? nextData.fssai : currentDoc.fssai
+          const normalizedFSSAI = normalizeText(incomingFSSAI)
+
           const isGSTRegistered =
             typeof nextData.isGSTRegistered === 'boolean'
               ? nextData.isGSTRegistered
               : typeof currentDoc.isGSTRegistered === 'boolean'
                 ? (currentDoc.isGSTRegistered as boolean)
-                : true
+                : Boolean(normalizedGST)
 
-          const hasBankAccount =
-            typeof nextData.hasBankAccount === 'boolean'
-              ? nextData.hasBankAccount
-              : typeof currentDoc.hasBankAccount === 'boolean'
-                ? (currentDoc.hasBankAccount as boolean)
-                : true
-
-          nextData.isGSTRegistered = isGSTRegistered
-          nextData.hasBankAccount = hasBankAccount
-
-          if (isGSTRegistered) {
-            const normalizedGST = normalizeUpperText(nextData.gst ?? currentDoc.gst)
-            const normalizedPAN = normalizeUpperText(nextData.pan ?? currentDoc.pan)
-            const normalizedFSSAI = normalizeText(nextData.fssai ?? currentDoc.fssai)
-
-            if (!normalizedGST) throw new Error('GST is required for registered dealers')
+          if (isGSTRegistered && normalizedGST) {
             if (!gstRegex.test(normalizedGST)) {
               throw new Error('Invalid GST format')
             }
@@ -298,14 +296,17 @@ const Dealers: CollectionConfig = {
               throw new Error('A dealer with this GST already exists')
             }
 
+            nextData.isGSTRegistered = true
             nextData.gst = normalizedGST
             nextData.fssai = normalizedFSSAI
           } else {
+            nextData.isGSTRegistered = false
             nextData.gst = null
             nextData.pan = null
             nextData.fssai = null
           }
 
+          // Bank Details Handling
           const incomingBankDetails = nextData.bankDetails
           const currentBankDetails = currentDoc.bankDetails
           const mergedBankDetails =
@@ -324,16 +325,28 @@ const Dealers: CollectionConfig = {
                     : {}) as Record<string, unknown>),
                 }
 
-          if (hasBankAccount) {
-            const normalizedBankName = normalizeText(mergedBankDetails?.bankName)
-            const normalizedAccountNumber = normalizeText(mergedBankDetails?.accountNumber)
-            const normalizedIfscCode = normalizeUpperText(mergedBankDetails?.ifscCode)
-            const normalizedBranch = normalizeText(mergedBankDetails?.branch)
+          const normalizedBankName = normalizeText(mergedBankDetails?.bankName)
+          const normalizedAccountNumber = normalizeText(mergedBankDetails?.accountNumber)
+          const normalizedIfscCode = normalizeUpperText(mergedBankDetails?.ifscCode)
+          const normalizedBranch = normalizeText(mergedBankDetails?.branch)
 
+          const hasAnyBankDetail = Boolean(
+            normalizedBankName || normalizedAccountNumber || normalizedIfscCode || normalizedBranch,
+          )
+
+          const hasBankAccount =
+            typeof nextData.hasBankAccount === 'boolean'
+              ? nextData.hasBankAccount
+              : typeof currentDoc.hasBankAccount === 'boolean'
+                ? (currentDoc.hasBankAccount as boolean)
+                : hasAnyBankDetail
+
+          if (hasBankAccount && hasAnyBankDetail) {
             if (!normalizedBankName) throw new Error('Bank Name is required')
             if (!normalizedAccountNumber) throw new Error('Account Number is required')
             if (!normalizedIfscCode) throw new Error('IFSC Code is required')
 
+            nextData.hasBankAccount = true
             nextData.bankDetails = {
               bankName: normalizedBankName,
               accountNumber: normalizedAccountNumber,
@@ -342,15 +355,13 @@ const Dealers: CollectionConfig = {
             }
             nextData.preferredPaymentMethod = null
           } else {
-            const preferredPaymentMethod = normalizeText(
-              nextData.preferredPaymentMethod ?? currentDoc.preferredPaymentMethod ?? 'cash',
-            )
+            const preferredPaymentMethod =
+              normalizeText(
+                nextData.preferredPaymentMethod ?? currentDoc.preferredPaymentMethod ?? 'cash',
+              ) || 'cash'
 
+            nextData.hasBankAccount = false
             nextData.bankDetails = {}
-            if (!preferredPaymentMethod) {
-              throw new Error('Preferred Payment Method is required for non-bank dealers')
-            }
-
             nextData.preferredPaymentMethod = preferredPaymentMethod
           }
         }
