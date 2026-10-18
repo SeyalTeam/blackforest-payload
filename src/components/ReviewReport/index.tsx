@@ -7,6 +7,7 @@ import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 
 import { approveReview } from '@/app/actions/approveReview'
+import { updateReviewStatus } from '@/app/actions/updateReviewStatus'
 import { getBill } from '@/app/actions/getBill'
 import BillReceipt, { BillData } from '@/components/BillReceipt'
 
@@ -17,11 +18,13 @@ type ReviewStat = {
   billNumber: string
   billId: string
   productName: string
+  rating?: number
   reviewMessage: string
   chefReply: string
   reviewId: string
   itemId: string
   status: string
+  reviewStatus?: string
 }
 
 type ReportData = {
@@ -251,6 +254,48 @@ const ReviewReport: React.FC = () => {
     }
   }
 
+  const handleReviewStatusChange = async (
+    e: React.MouseEvent | React.ChangeEvent<HTMLSelectElement>,
+    stat: ReviewStat,
+    newStatus: 'positive' | 'negative' | 'pending',
+  ) => {
+    e.stopPropagation()
+    const previousStatus = stat.reviewStatus || 'pending'
+    if (previousStatus === newStatus) return
+
+    // Optimistic Update
+    if (data) {
+      const updatedStats = data.stats.map((s) => {
+        if (s.sNo === stat.sNo) {
+          return { ...s, reviewStatus: newStatus }
+        }
+        return s
+      })
+      setData({ ...data, stats: updatedStats })
+    }
+
+    try {
+      const result = await updateReviewStatus(stat.reviewId, stat.itemId, newStatus)
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update review status')
+      }
+    } catch (error: any) {
+      console.error('Failed to update review status', error)
+      alert(`Failed to update review status: ${error.message}`)
+
+      // Revert Optimistic Update
+      if (data) {
+        const revertedStats = data.stats.map((s) => {
+          if (s.sNo === stat.sNo) {
+            return { ...s, reviewStatus: previousStatus }
+          }
+          return s
+        })
+        setData({ ...data, stats: revertedStats })
+      }
+    }
+  }
+
   const handleBillClick = async (e: React.MouseEvent, billId: string) => {
     e.stopPropagation() // Prevent opening the review detail modal
     setLoadingBill(true)
@@ -277,9 +322,11 @@ const ReviewReport: React.FC = () => {
         'PHONE NUMBER',
         'BILL NUMBER',
         'PRODUCT NAME',
+        'RATING',
         'REVIEW MESSAGE',
         'CHEF REPLY',
-        'STATUS',
+        'CHEF STATUS',
+        'REVIEW STATUS',
       ].join(','),
     )
     data.stats.forEach((row) => {
@@ -290,9 +337,11 @@ const ReviewReport: React.FC = () => {
           `"${row.phoneNumber}"`,
           `"${row.billNumber}"`,
           `"${row.productName}"`,
+          row.rating ? `${row.rating} Stars` : 'N/A',
           `"${row.reviewMessage.replace(/"/g, '""')}"`, // Escape quotes
           `"${(row.chefReply || '').replace(/"/g, '""')}"`,
           `"${row.status}"`,
+          `"${row.reviewStatus || 'pending'}"`,
         ].join(','),
       )
     })
@@ -444,9 +493,11 @@ const ReviewReport: React.FC = () => {
                 <th>PHONE NUMBER</th>
                 <th>BILL NUMBER</th>
                 <th>PRODUCT NAME</th>
-                <th style={{ width: '20%' }}>REVIEW MESSAGE</th>
-                <th style={{ width: '20%' }}>CHEF REPLY</th>
-                <th>STATUS</th>
+                <th>RATING</th>
+                <th style={{ width: '18%' }}>REVIEW MESSAGE</th>
+                <th style={{ width: '18%' }}>CHEF REPLY</th>
+                <th>CHEF STATUS</th>
+                <th style={{ minWidth: '170px' }}>REVIEW STATUS</th>
               </tr>
             </thead>
             <tbody>
@@ -476,6 +527,23 @@ const ReviewReport: React.FC = () => {
                     {row.billNumber}
                   </td>
                   <td>{row.productName}</td>
+                  <td>
+                    {row.rating ? (
+                      <span
+                        style={{
+                          color: '#f59e0b',
+                          fontWeight: 700,
+                          fontSize: '0.88rem',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {'★'.repeat(row.rating)}
+                        {'☆'.repeat(Math.max(0, 5 - row.rating))} ({row.rating})
+                      </span>
+                    ) : (
+                      <span style={{ color: '#9ca3af' }}>-</span>
+                    )}
+                  </td>
                   <td
                     style={{
                       maxWidth: '150px',
@@ -484,7 +552,7 @@ const ReviewReport: React.FC = () => {
                       textOverflow: 'ellipsis',
                     }}
                   >
-                    {row.reviewMessage}
+                    {row.reviewMessage || '-'}
                   </td>
                   <td
                     style={{
@@ -524,6 +592,54 @@ const ReviewReport: React.FC = () => {
                     >
                       {row.status}
                     </span>
+                  </td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <div style={{ display: 'inline-flex', gap: '5px', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={(e) => handleReviewStatusChange(e, row, 'positive')}
+                        style={{
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          border:
+                            row.reviewStatus === 'positive'
+                              ? '1px solid #16a34a'
+                              : '1px solid #d1d5db',
+                          backgroundColor:
+                            row.reviewStatus === 'positive' ? '#dcfce7' : '#ffffff',
+                          color: row.reviewStatus === 'positive' ? '#15803d' : '#4b5563',
+                          fontWeight: row.reviewStatus === 'positive' ? 700 : 500,
+                          fontSize: '0.78rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                        title="Mark as Positive"
+                      >
+                        👍 Positive
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => handleReviewStatusChange(e, row, 'negative')}
+                        style={{
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          border:
+                            row.reviewStatus === 'negative'
+                              ? '1px solid #dc2626'
+                              : '1px solid #d1d5db',
+                          backgroundColor:
+                            row.reviewStatus === 'negative' ? '#fee2e2' : '#ffffff',
+                          color: row.reviewStatus === 'negative' ? '#b91c1c' : '#4b5563',
+                          fontWeight: row.reviewStatus === 'negative' ? 700 : 500,
+                          fontSize: '0.78rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                        title="Mark as Negative"
+                      >
+                        👎 Negative
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

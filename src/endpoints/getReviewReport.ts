@@ -95,11 +95,13 @@ export const getReviewReportHandler: PayloadHandler = async (
           billNumber,
           billId: typeof review.bill === 'object' ? review.bill?.id : (review.bill as string),
           productName,
-          reviewMessage: item.feedback,
+          rating: item.rating ?? 0,
+          reviewMessage: item.feedback || '',
           chefReply: item.chefReply || '',
           reviewId: review.id,
           itemId: item.id,
-          status: item.status,
+          status: item.status || 'waiting',
+          reviewStatus: item.reviewStatus || 'pending',
           reviewDate: review.createdAt,
         })
       })

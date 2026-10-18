@@ -65,7 +65,7 @@ const Reviews: CollectionConfig = {
         {
           name: 'feedback',
           type: 'textarea',
-          required: true,
+          required: false,
         },
         {
           name: 'chefReply',
@@ -96,7 +96,23 @@ const Reviews: CollectionConfig = {
             { label: 'Waiting (Auto)', value: 'waiting' },
             { label: 'Replied (Auto)', value: 'replied' },
             { label: 'Approved', value: 'approved' },
+            { label: 'Positive', value: 'positive' },
+            { label: 'Negative', value: 'negative' },
           ],
+        },
+        {
+          name: 'reviewStatus',
+          label: 'Review Status (Sentiment)',
+          type: 'select',
+          defaultValue: 'pending',
+          options: [
+            { label: 'Pending', value: 'pending' },
+            { label: 'Positive', value: 'positive' },
+            { label: 'Negative', value: 'negative' },
+          ],
+          admin: {
+            description: 'Admin team classification: positive or negative review',
+          },
         },
       ],
     },
