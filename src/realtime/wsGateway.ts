@@ -983,6 +983,15 @@ const handleCallSignal = (connection: ConnectionState, value: Record<string, unk
     return
   }
 
+  if (connection.userID === targetUserId) {
+    sendSystemMessage(connection, {
+      eventType: 'call_signal_nack',
+      error_code: 'cannot_call_self',
+      message: 'Cannot place a call to yourself.',
+    })
+    return
+  }
+
   const senderName =
     typeof connection.user?.name === 'string' && connection.user.name.trim().length > 0
       ? connection.user.name.trim()
@@ -1059,7 +1068,8 @@ const handleCallSignal = (connection: ConnectionState, value: Record<string, unk
         callId,
         signalType: 'user_offline',
         senderId: 'system',
-        targetUserId,
+        targetUserId: connection.userID,
+        offlineUserId: targetUserId,
         message: 'The user is currently offline or unreachable.',
         timestamp: nowISO(),
       })
@@ -1092,7 +1102,8 @@ const handleCallSignal = (connection: ConnectionState, value: Record<string, unk
       callId,
       signalType: 'user_offline',
       senderId: 'system',
-      targetUserId,
+      targetUserId: connection.userID,
+      offlineUserId: targetUserId,
       message: 'The user is currently offline or unreachable.',
       timestamp: nowISO(),
     })
