@@ -6,6 +6,42 @@ import timezone from 'dayjs/plugin/timezone.js'
 dayjs.extend(utc)
 dayjs.extend(timezone)
 
+const getRelationshipID = (value: unknown): string | null => {
+  if (!value) return null
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  if (typeof value === 'object' && value !== null) {
+    if ('id' in value && (value as { id?: unknown }).id != null) {
+      const id = (value as { id?: unknown }).id
+      if (typeof id === 'string' || typeof id === 'number') return String(id).trim()
+      if (typeof id === 'object') {
+        const nestedId = getRelationshipID(id)
+        if (nestedId) return nestedId
+      }
+    }
+    if ('_id' in value && (value as { _id?: unknown })._id != null) {
+      const id = (value as { _id?: unknown })._id
+      if (typeof id === 'string' || typeof id === 'number') return String(id).trim()
+      if (id && typeof (id as any).toString === 'function') {
+        const str = (id as any).toString()
+        if (str && str !== '[object Object]') return str
+      }
+    }
+    if ('value' in value && (value as { value?: unknown }).value != null) {
+      const resolved = getRelationshipID((value as { value?: unknown }).value)
+      if (resolved) return resolved
+    }
+    if (typeof (value as any).toHexString === 'function') {
+      return (value as any).toHexString()
+    }
+    if (typeof (value as any).toString === 'function') {
+      const str = (value as any).toString()
+      if (str && str !== '[object Object]') return str
+    }
+  }
+  return null
+}
+
 const InstockEntries: CollectionConfig = {
   slug: 'instock-entries',
   admin: {
@@ -14,9 +50,17 @@ const InstockEntries: CollectionConfig = {
   access: {
     read: () => true,
     create: ({ req: { user } }) =>
-      user?.role != null && ['branch', 'waiter', 'superadmin', 'cashier'].includes(user.role),
+      Boolean(
+        user?.role != null &&
+          ['superadmin', 'admin', 'branch', 'waiter', 'cashier', 'supervisor', 'manager', 'company'].includes(
+            user.role,
+          ),
+      ),
     update: ({ req: { user } }) =>
-      user?.role != null && ['superadmin', 'supervisor', 'branch', 'cashier'].includes(user.role),
+      Boolean(
+        user?.role != null &&
+          ['superadmin', 'admin', 'supervisor', 'branch', 'cashier', 'manager', 'company'].includes(user.role),
+      ),
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   hooks: {
@@ -24,7 +68,7 @@ const InstockEntries: CollectionConfig = {
       async ({ data, req, operation, originalDoc: _originalDoc }) => {
         if (!data.cashierId && req.user) {
           const emp = (req.user as any)?.employee
-          const empId = typeof emp === 'object' && emp !== null ? (emp.id || emp._id) : emp
+          const empId = getRelationshipID(emp) || req.user.id
           data.cashierId = empId ? String(empId) : String(req.user.id)
         }
         if (!data.cashierName && req.user) {
@@ -32,111 +76,105 @@ const InstockEntries: CollectionConfig = {
           const empName = typeof emp === 'object' && emp !== null ? emp.name : null
           data.cashierName = empName || req.user.name || (req.user as any).username || ''
         }
+        if (!data.createdBy && req.user) {
+          data.createdBy = req.user.id
+        }
         if (operation === 'create') {
           if (!req.user) throw new Error('Unauthorized')
 
           // Auto-populate branch if missing
-          if (!data.branch) {
-            if (req.user.role === 'branch' && req.user.branch) {
-              data.branch = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
-            } else if (['waiter', 'cashier'].includes(req.user.role)) {
-              const lastLoginBranch = (req.user as any)?.lastLoginBranch
-              const lastLoginBranchId =
-                typeof lastLoginBranch === 'string' ? lastLoginBranch : lastLoginBranch?.id
-              if (lastLoginBranchId) {
-                data.branch = lastLoginBranchId
-              } else if (req.user.branch) {
-                data.branch = typeof req.user.branch === 'string' ? req.user.branch : req.user.branch.id
-              }
-            }
-          }
+          let branchId =
+            getRelationshipID(data.branch) ||
+            getRelationshipID((req.user as any)?.lastLoginBranch) ||
+            getRelationshipID(req.user?.branch)
 
-          // Validate branch matches user's branch
-          if (req.user.role === 'branch') {
-            const userBranchId =
-              typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
-            const dataBranchId = typeof data.branch === 'string' ? data.branch : data?.branch?.id
-            if (!userBranchId || userBranchId !== dataBranchId) {
-              throw new Error('Unauthorized branch')
-            }
-          } else if (['waiter', 'cashier'].includes(req.user.role)) {
-            const userBranchId =
-              typeof req.user.branch === 'string' ? req.user.branch : req.user.branch?.id
-            const lastLoginBranch = (req.user as any)?.lastLoginBranch
-            const lastLoginBranchId =
-              typeof lastLoginBranch === 'string' ? lastLoginBranch : lastLoginBranch?.id
-            const dataBranchId = typeof data.branch === 'string' ? data.branch : data?.branch?.id
-            const isAllowed =
-              dataBranchId &&
-              (dataBranchId === lastLoginBranchId ||
-                dataBranchId === userBranchId ||
-                (!userBranchId && !lastLoginBranchId))
-            if (!isAllowed && (lastLoginBranchId || userBranchId)) {
-              throw new Error('Unauthorized branch')
-            }
+          if (!branchId) {
+            throw new Error('Branch is required')
           }
+          data.branch = branchId
 
           // Auto-generate invoice number
           const date = dayjs().tz('Asia/Kolkata')
           const dateStr = date.format('YYMMDD')
 
-          let branchId: string
-          if (typeof data.branch === 'string') {
-            branchId = data.branch
-          } else if (
-            typeof data.branch === 'object' &&
-            data.branch !== null &&
-            'id' in data.branch
-          ) {
-            branchId = data.branch.id
-          } else {
-            throw new Error('Invalid branch')
+          let branchDoc = null
+          try {
+            branchDoc = await req.payload.findByID({
+              collection: 'branches',
+              id: branchId,
+              depth: 0,
+            })
+          } catch (err) {
+            console.error('[InstockEntries hook] Error finding branch:', err)
           }
 
-          const branch = await req.payload.findByID({
-            collection: 'branches',
-            id: branchId,
-            depth: 0,
-          })
-          const abbr = (branch.name || '').substring(0, 3).toUpperCase()
+          const abbr = ((branchDoc?.name || 'BRN') as string).substring(0, 3).toUpperCase()
 
-          if (branch?.company) {
-            let companyToSet = branch.company
-            if (typeof companyToSet === 'object' && companyToSet !== null && 'id' in companyToSet) {
-              companyToSet = companyToSet.id
-            }
-            if (typeof companyToSet === 'string') {
-              data.company = companyToSet
-            }
+          // Robust company resolution: branch -> user -> existing data -> fallback to any company
+          let resolvedCompanyId =
+            getRelationshipID(data.company) ||
+            getRelationshipID(branchDoc?.company) ||
+            getRelationshipID(req.user?.company)
+
+          if (!resolvedCompanyId) {
+            try {
+              const compRes = await req.payload.find({
+                collection: 'companies',
+                limit: 1,
+                depth: 0,
+                overrideAccess: true,
+              })
+              if (compRes.docs?.[0]?.id) {
+                resolvedCompanyId = String(compRes.docs[0].id)
+              }
+            } catch (_) {}
+          }
+
+          if (resolvedCompanyId) {
+            data.company = resolvedCompanyId
           }
 
           const prefix = `${abbr}-INS-${dateStr}-`
-          const { totalDocs: existingCount } = await req.payload.count({
-            collection: 'instock-entries',
-            where: {
-              invoiceNumber: {
-                greater_than_equal: `${prefix}01`,
-                less_than_equal: `${prefix}99`,
+          let seq = 1
+          try {
+            const { totalDocs: existingCount } = await req.payload.count({
+              collection: 'instock-entries',
+              where: {
+                invoiceNumber: {
+                  greater_than_equal: `${prefix}01`,
+                  less_than_equal: `${prefix}99`,
+                },
               },
-            },
-          })
-          const seq = (existingCount + 1).toString().padStart(2, '0')
-          data.invoiceNumber = `${prefix}${seq}`
+            })
+            seq = existingCount + 1
+          } catch (_) {}
+
+          for (let attempt = 0; attempt < 25; attempt++) {
+            const candidate = `${prefix}${(seq + attempt).toString().padStart(2, '0')}`
+            const exists = await req.payload.find({
+              collection: 'instock-entries',
+              where: { invoiceNumber: { equals: candidate } },
+              limit: 1,
+              depth: 0,
+              overrideAccess: true,
+            })
+            if (!exists?.docs?.length) {
+              data.invoiceNumber = candidate
+              break
+            }
+          }
+          if (!data.invoiceNumber) {
+            data.invoiceNumber = `${prefix}${seq.toString().padStart(2, '0')}-${Date.now().toString().slice(-4)}`
+          }
         }
 
         // Check if skipInstockApproval is enabled for this branch
         let isApprovalSkipped = false
-        let branchId: string | null = null
-        if (typeof data.branch === 'string') {
-          branchId = data.branch
-        } else if (typeof data.branch === 'object' && data.branch !== null && 'id' in data.branch) {
-          branchId = data.branch.id
-        } else if (_originalDoc?.branch) {
-          branchId =
-            typeof _originalDoc.branch === 'object' && _originalDoc.branch !== null
-              ? _originalDoc.branch.id
-              : _originalDoc.branch
-        }
+        const branchId =
+          getRelationshipID(data.branch) ||
+          getRelationshipID(_originalDoc?.branch) ||
+          getRelationshipID((req.user as any)?.lastLoginBranch) ||
+          getRelationshipID(req.user?.branch)
 
         if (branchId) {
           try {
@@ -147,8 +185,7 @@ const InstockEntries: CollectionConfig = {
             const skipRows = (widgetSettings as any)?.skipInstockApprovalByBranch
             if (Array.isArray(skipRows)) {
               const branchRow = skipRows.find((r: any) => {
-                const rBranchId =
-                  typeof r.branch === 'object' && r.branch !== null ? r.branch.id : r.branch
+                const rBranchId = getRelationshipID(r.branch)
                 return String(rBranchId) === String(branchId)
               })
               if (branchRow && branchRow.skipInstockApproval === true) {
@@ -169,8 +206,9 @@ const InstockEntries: CollectionConfig = {
             const item = data.items[i]
             if (!item.product) continue
 
-            const productId = typeof item.product === 'string' ? item.product : item.product?.id
-            if (!productId) throw new Error('Invalid product')
+            const productId = getRelationshipID(item.product)
+            if (!productId) continue
+            item.product = productId
 
             let product = null
             try {
@@ -195,11 +233,9 @@ const InstockEntries: CollectionConfig = {
               let productDealerId = ''
               if (Array.isArray(product.dealer) && product.dealer.length > 0) {
                 const firstDealer = product.dealer[0]
-                productDealerId = typeof firstDealer === 'string' ? firstDealer : (firstDealer as any).id
-              } else if (typeof product.dealer === 'string') {
-                productDealerId = product.dealer
-              } else if (typeof product.dealer === 'object' && (product.dealer as any).id) {
-                productDealerId = (product.dealer as any).id
+                productDealerId = getRelationshipID(firstDealer) || ''
+              } else {
+                productDealerId = getRelationshipID(product.dealer) || ''
               }
               if (productDealerId) {
                 item.dealer = productDealerId
