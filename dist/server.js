@@ -60,7 +60,7 @@ var init_logBuffer = __esm({
 // src/realtime/wsGateway.ts
 import { randomUUID } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
-var parsePositiveInteger, WS_ENDPOINT_PATH, KOT_TOPIC, HEARTBEAT_PING_MS, HEARTBEAT_TIMEOUT_MS, REPLAY_RETENTION_MS, MAX_CONNECTIONS_PER_USER, MAX_TOTAL_CONNECTIONS, MAX_PAYLOAD_BYTES, INCLUDE_ITEM_SNAPSHOT, BRANCH_SCOPED_ROLES, realtimeState, parseRelationshipID, parseRelationshipIDs, parseJSONMessage, normalizeBearerToken, decodeJWTExpiryMs, readHeaderValue, toHeaderObject, nowISO, closeSocket, encodeJSON, ensurePayloadSize, sendServerMessage, sendSystemMessage, removeConnection, pruneEventBuffers, matchesSubscription, canAccessBranch, canAccessKitchen, scheduleTokenExpiry, startHeartbeatLoop, resolveAllowedBranchIDs, resolveAllowedKitchenIDs, authenticateRequest, validateKitchenSubscription, sendSubscriptionNack, sendUnsubscribeNack, handleReplay, handleSubscribe, handleUnsubscribe, registerConnection, enforceConnectionLimits, handleCallSignal, bootSocket, rejectUpgrade, isRealtimePath, createRealtimeGateway, publishBillingRealtimeEvent, publishChatRealtimeEvent, terminateUserSession, getRealtimeEndpointPath;
+var parsePositiveInteger, WS_ENDPOINT_PATH, KOT_TOPIC, HEARTBEAT_PING_MS, HEARTBEAT_TIMEOUT_MS, REPLAY_RETENTION_MS, MAX_CONNECTIONS_PER_USER, MAX_TOTAL_CONNECTIONS, MAX_PAYLOAD_BYTES, INCLUDE_ITEM_SNAPSHOT, BRANCH_SCOPED_ROLES, realtimeState, WORKER_ID, BUS_COLLECTION, ACTIVE_CONNS_COLLECTION, getMongoDb, publishToBus, busChangeStream, isClusterInitialized, deliverBusCallSignal, deliverBusChatEvent, deliverBusBillingEvent, deliverBusSessionTermination, startBusListener, initCrossWorkerCluster, parseRelationshipID, parseRelationshipIDs, parseJSONMessage, normalizeBearerToken, decodeJWTExpiryMs, readHeaderValue, toHeaderObject, nowISO, closeSocket, encodeJSON, ensurePayloadSize, sendServerMessage, sendSystemMessage, removeConnection, pruneEventBuffers, matchesSubscription, canAccessBranch, canAccessKitchen, scheduleTokenExpiry, startHeartbeatLoop, resolveAllowedBranchIDs, resolveAllowedKitchenIDs, authenticateRequest, validateKitchenSubscription, sendSubscriptionNack, sendUnsubscribeNack, handleReplay, handleSubscribe, handleUnsubscribe, registerConnection, enforceConnectionLimits, isMongoId, recordCallEventToDb, handleCallSignal, bootSocket, rejectUpgrade, isRealtimePath, createRealtimeGateway, publishBillingRealtimeEvent, publishChatRealtimeEvent, terminateUserSession, getRealtimeEndpointPath;
 var init_wsGateway = __esm({
   "src/realtime/wsGateway.ts"() {
     "use strict";
@@ -96,10 +96,161 @@ var init_wsGateway = __esm({
       evictedEventIDs: /* @__PURE__ */ new Map(),
       heartbeatTimer: null
     };
+    WORKER_ID = randomUUID();
+    BUS_COLLECTION = "realtime_bus";
+    ACTIVE_CONNS_COLLECTION = "active_connections";
+    getMongoDb = () => {
+      const payload = realtimeState.payload;
+      if (!payload) return null;
+      return payload.db?.connection?.db || payload.db?.dbs?.[payload.db?.defaultDB]?.connection?.db || payload.db?.collections?.["users"]?.collection?.conn?.db || null;
+    };
+    publishToBus = (msg) => {
+      const db = getMongoDb();
+      if (!db) return;
+      db.collection(BUS_COLLECTION).insertOne({
+        ...msg,
+        fromWorkerId: WORKER_ID,
+        createdAt: /* @__PURE__ */ new Date()
+      }).catch((err) => {
+        console.warn("[wsGateway] Failed to insert bus event:", err?.message || err);
+      });
+    };
+    busChangeStream = null;
+    isClusterInitialized = false;
+    deliverBusCallSignal = (payload, targetUserId) => {
+      if (!targetUserId) return;
+      const targetConnIDs = realtimeState.connectionsByUserID.get(targetUserId);
+      if (!targetConnIDs || targetConnIDs.size === 0) return;
+      for (const connID of targetConnIDs) {
+        const targetConn = realtimeState.connections.get(connID);
+        if (targetConn && targetConn.socket.readyState === WebSocket.OPEN) {
+          sendServerMessage(targetConn, payload);
+        }
+      }
+    };
+    deliverBusChatEvent = (safePayload, recipientAudience, recipientUserId, senderId) => {
+      if (recipientUserId) {
+        const connIDs = realtimeState.connectionsByUserID.get(recipientUserId);
+        if (connIDs) {
+          for (const connID of connIDs) {
+            const connection = realtimeState.connections.get(connID);
+            if (connection) sendServerMessage(connection, safePayload);
+          }
+        }
+      }
+      if (recipientAudience === "admins") {
+        for (const connection of realtimeState.connections.values()) {
+          if (connection.role === "admin" || connection.role === "superadmin") {
+            sendServerMessage(connection, safePayload);
+          }
+        }
+      }
+      if (senderId) {
+        const connIDs = realtimeState.connectionsByUserID.get(senderId);
+        if (connIDs) {
+          for (const connID of connIDs) {
+            const connection = realtimeState.connections.get(connID);
+            if (connection) sendServerMessage(connection, safePayload);
+          }
+        }
+      }
+    };
+    deliverBusBillingEvent = (storedEvent) => {
+      for (const connection of realtimeState.connections.values()) {
+        if (!matchesSubscription(storedEvent, connection.subscription)) continue;
+        sendServerMessage(connection, storedEvent);
+      }
+    };
+    deliverBusSessionTermination = (userId, reason) => {
+      const connectionIDs = realtimeState.connectionsByUserID.get(userId);
+      if (!connectionIDs || connectionIDs.size === 0) return;
+      for (const connectionID of Array.from(connectionIDs)) {
+        const connection = realtimeState.connections.get(connectionID);
+        if (connection) {
+          sendSystemMessage(connection, {
+            eventType: "session_terminated",
+            error_code: "session_terminated",
+            message: reason,
+            reason
+          });
+          setTimeout(() => {
+            closeSocket(connection.socket, 4401, reason);
+          }, 100);
+        }
+      }
+    };
+    startBusListener = (db) => {
+      try {
+        const busColl = db.collection(BUS_COLLECTION);
+        busChangeStream = busColl.watch([{ $match: { operationType: "insert" } }]);
+        busChangeStream.on("change", (change) => {
+          try {
+            const doc = change.fullDocument;
+            if (!doc || doc.fromWorkerId === WORKER_ID) return;
+            if (doc.channel === "call_signal") {
+              deliverBusCallSignal(doc.payload, doc.targetUserId);
+            } else if (doc.channel === "chat") {
+              deliverBusChatEvent(doc.payload, doc.recipientAudience, doc.recipientUserId, doc.senderId);
+            } else if (doc.channel === "billing") {
+              deliverBusBillingEvent(doc.payload);
+            } else if (doc.channel === "session_terminate") {
+              deliverBusSessionTermination(
+                doc.targetUserId || doc.payload?.userId,
+                doc.payload?.reason || "Session terminated"
+              );
+            }
+          } catch (err) {
+            console.error("[wsGateway] Error handling bus change event:", err);
+          }
+        });
+        busChangeStream.on("error", (err) => {
+          console.warn("[wsGateway] Bus change stream error, reconnecting in 2s:", err?.message || err);
+          try {
+            busChangeStream?.close();
+          } catch {
+          }
+          setTimeout(() => startBusListener(db), 2e3);
+        });
+        busChangeStream.on("close", () => {
+          setTimeout(() => startBusListener(db), 2e3);
+        });
+      } catch (err) {
+        console.warn("[wsGateway] Change stream watch failed, retrying in 5s:", err?.message || err);
+        setTimeout(() => startBusListener(db), 5e3);
+      }
+    };
+    initCrossWorkerCluster = async () => {
+      if (isClusterInitialized) return;
+      const db = getMongoDb();
+      if (!db) {
+        setTimeout(initCrossWorkerCluster, 1e3);
+        return;
+      }
+      isClusterInitialized = true;
+      try {
+        await db.collection(ACTIVE_CONNS_COLLECTION).createIndex({ userId: 1 }).catch(() => {
+        });
+        await db.collection(ACTIVE_CONNS_COLLECTION).createIndex({ connectionId: 1 }, { unique: true }).catch(() => {
+        });
+        await db.collection(ACTIVE_CONNS_COLLECTION).createIndex({ workerId: 1 }).catch(() => {
+        });
+        await db.collection(BUS_COLLECTION).createIndex({ createdAt: 1 }, { expireAfterSeconds: 60 }).catch(() => {
+        });
+        await db.collection(ACTIVE_CONNS_COLLECTION).deleteMany({ workerId: WORKER_ID }).catch(() => {
+        });
+        startBusListener(db);
+      } catch (err) {
+        console.error("[wsGateway] initCrossWorkerCluster error:", err?.message || err);
+      }
+    };
     parseRelationshipID = (value) => {
       if (typeof value === "string" && value.trim().length > 0) return value.trim();
       if (typeof value === "number" && Number.isFinite(value)) return String(value);
       if (value && typeof value === "object") {
+        if (typeof value.toHexString === "function") {
+          const hex = value.toHexString();
+          if (typeof hex === "string" && hex.trim().length > 0) return hex.trim();
+        }
         if ("id" in value) {
           const id = value.id;
           if (typeof id === "string" && id.trim().length > 0) return id.trim();
@@ -109,6 +260,12 @@ var init_wsGateway = __esm({
           const id = value._id;
           if (typeof id === "string" && id.trim().length > 0) return id.trim();
           if (typeof id === "number" && Number.isFinite(id)) return String(id);
+        }
+        if (typeof value.toString === "function") {
+          const str = value.toString();
+          if (typeof str === "string" && str.trim().length > 0 && str !== "[object Object]") {
+            return str.trim();
+          }
         }
       }
       return null;
@@ -240,6 +397,11 @@ var init_wsGateway = __esm({
       if (connectionSet.size === 0) {
         realtimeState.connectionsByUserID.delete(connection.userID);
       }
+      const db = getMongoDb();
+      if (db) {
+        db.collection(ACTIVE_CONNS_COLLECTION).deleteOne({ connectionId: connectionID }).catch(() => {
+        });
+      }
     };
     pruneEventBuffers = (nowMs) => {
       const cutoff = nowMs - REPLAY_RETENTION_MS;
@@ -300,6 +462,18 @@ var init_wsGateway = __esm({
       realtimeState.heartbeatTimer = setInterval(() => {
         const nowMs = Date.now();
         pruneEventBuffers(nowMs);
+        const db = getMongoDb();
+        if (db) {
+          db.collection(ACTIVE_CONNS_COLLECTION).updateMany(
+            { workerId: WORKER_ID },
+            { $set: { lastHeartbeat: /* @__PURE__ */ new Date() } }
+          ).catch(() => {
+          });
+          db.collection(ACTIVE_CONNS_COLLECTION).deleteMany({
+            lastHeartbeat: { $lt: new Date(Date.now() - 12e4) }
+          }).catch(() => {
+          });
+        }
         for (const connection of realtimeState.connections.values()) {
           if (nowMs - connection.lastPongAtMs > HEARTBEAT_TIMEOUT_MS) {
             sendSystemMessage(connection, {
@@ -630,6 +804,18 @@ var init_wsGateway = __esm({
       const userConnections = realtimeState.connectionsByUserID.get(context.userID) || /* @__PURE__ */ new Set();
       userConnections.add(connectionID);
       realtimeState.connectionsByUserID.set(context.userID, userConnections);
+      const db = getMongoDb();
+      if (db) {
+        db.collection(ACTIVE_CONNS_COLLECTION).insertOne({
+          connectionId: connectionID,
+          userId: context.userID,
+          role: context.role,
+          workerId: WORKER_ID,
+          createdAt: /* @__PURE__ */ new Date(),
+          lastHeartbeat: /* @__PURE__ */ new Date()
+        }).catch(() => {
+        });
+      }
       return connection;
     };
     enforceConnectionLimits = (userID) => {
@@ -648,7 +834,81 @@ var init_wsGateway = __esm({
       }
       return { ok: true };
     };
-    handleCallSignal = (connection, value) => {
+    isMongoId = (id) => typeof id === "string" && /^[0-9a-fA-F]{24}$/.test(id.trim());
+    recordCallEventToDb = async (params) => {
+      const payload = realtimeState.payload;
+      if (!payload || !params.callId) return;
+      try {
+        const existing = await payload.find({
+          collection: "call-logs",
+          where: { callId: { equals: params.callId } },
+          limit: 1,
+          overrideAccess: true
+        });
+        const now = nowISO();
+        if (existing.docs.length > 0) {
+          const doc = existing.docs[0];
+          const updateData = {};
+          if (params.signalType === "answer") {
+            updateData.status = "connected";
+          } else if (params.signalType === "rejected" || params.signalType === "declined") {
+            updateData.status = "declined";
+            updateData.endedAt = now;
+          } else if (params.signalType === "busy") {
+            updateData.status = "busy";
+            updateData.endedAt = now;
+          } else if (params.signalType === "user_offline") {
+            updateData.status = "offline";
+            updateData.endedAt = now;
+          } else if (params.signalType === "end" || params.signalType === "hangup") {
+            if (doc.status === "connected") {
+              updateData.status = "connected";
+            }
+            updateData.endedAt = now;
+            if (typeof params.durationSeconds === "number" && params.durationSeconds > 0) {
+              updateData.durationSeconds = Math.max(doc.durationSeconds || 0, params.durationSeconds);
+            }
+          }
+          if (Object.keys(updateData).length > 0) {
+            await payload.update({
+              collection: "call-logs",
+              id: doc.id,
+              data: updateData,
+              overrideAccess: true
+            });
+          }
+        } else {
+          let initialStatus = "missed";
+          if (params.signalType === "answer") initialStatus = "connected";
+          else if (params.signalType === "rejected" || params.signalType === "declined") initialStatus = "declined";
+          else if (params.signalType === "busy") initialStatus = "busy";
+          else if (params.signalType === "user_offline") initialStatus = "offline";
+          await payload.create({
+            collection: "call-logs",
+            data: {
+              callId: params.callId,
+              callerUserId: params.callerUserId,
+              ...isMongoId(params.callerUserId) ? { callerUser: params.callerUserId } : {},
+              callerName: params.callerName,
+              callerRole: params.callerRole,
+              receiverUserId: params.targetUserId,
+              ...isMongoId(params.targetUserId) ? { receiverUser: params.targetUserId } : {},
+              receiverName: params.targetUserName || "Staff",
+              receiverRole: params.targetUserRole || "staff",
+              callType: "voice",
+              direction: "outgoing",
+              status: initialStatus,
+              durationSeconds: params.durationSeconds || 0,
+              startedAt: now
+            },
+            overrideAccess: true
+          });
+        }
+      } catch (err) {
+        payload.logger.error({ msg: "Failed to record call log in database", err });
+      }
+    };
+    handleCallSignal = async (connection, value) => {
       const targetUserId = typeof value.targetUserId === "string" ? value.targetUserId.trim() : typeof value.recipientUserId === "string" ? value.recipientUserId.trim() : "";
       const callId = typeof value.callId === "string" ? value.callId.trim() : "";
       const signalType = typeof value.signalType === "string" ? value.signalType.trim() : "";
@@ -657,6 +917,14 @@ var init_wsGateway = __esm({
           eventType: "call_signal_nack",
           error_code: "invalid_call_signal",
           message: "targetUserId and signalType are required."
+        });
+        return;
+      }
+      if (connection.userID === targetUserId) {
+        sendSystemMessage(connection, {
+          eventType: "call_signal_nack",
+          error_code: "cannot_call_self",
+          message: "Cannot place a call to yourself."
         });
         return;
       }
@@ -676,38 +944,97 @@ var init_wsGateway = __esm({
       if (value.reason !== void 0) eventPayload.reason = value.reason;
       if (value.data !== void 0) eventPayload.data = value.data;
       const targetConnIDs = realtimeState.connectionsByUserID.get(targetUserId);
-      if (!targetConnIDs || targetConnIDs.size === 0) {
-        if (signalType === "offer") {
+      let targetUserName;
+      let targetUserRole;
+      if (targetConnIDs && targetConnIDs.size > 0) {
+        for (const connID of targetConnIDs) {
+          const conn = realtimeState.connections.get(connID);
+          if (conn?.user?.name && typeof conn.user.name === "string") {
+            targetUserName = conn.user.name.trim();
+          }
+          if (conn?.role && typeof conn.role === "string") {
+            targetUserRole = conn.role.trim();
+          }
+          if (targetUserName) break;
+        }
+      }
+      if (!targetUserName && realtimeState.payload && isMongoId(targetUserId)) {
+        try {
+          const userDoc = await realtimeState.payload.findByID({
+            collection: "users",
+            id: targetUserId,
+            depth: 0,
+            overrideAccess: true
+          });
+          if (userDoc && typeof userDoc === "object") {
+            if (typeof userDoc.name === "string") targetUserName = userDoc.name.trim();
+            if (typeof userDoc.role === "string") targetUserRole = userDoc.role.trim();
+          }
+        } catch {
+        }
+      }
+      const durationSec = typeof value.durationSeconds === "number" ? value.durationSeconds : typeof value.duration === "number" ? value.duration : void 0;
+      void recordCallEventToDb({
+        callId,
+        signalType,
+        callerUserId: connection.userID,
+        callerName: senderName,
+        callerRole: connection.role,
+        targetUserId,
+        targetUserName,
+        targetUserRole,
+        durationSeconds: durationSec
+      });
+      let sentLocally = false;
+      if (targetConnIDs && targetConnIDs.size > 0) {
+        for (const connID of targetConnIDs) {
+          const targetConn = realtimeState.connections.get(connID);
+          if (targetConn && targetConn.socket.readyState === WebSocket.OPEN) {
+            sendServerMessage(targetConn, eventPayload);
+            sentLocally = true;
+          }
+        }
+      }
+      publishToBus({
+        channel: "call_signal",
+        targetUserId,
+        payload: eventPayload
+      });
+      if (!sentLocally && signalType === "offer") {
+        const db = getMongoDb();
+        let isOnlineInCluster = false;
+        if (db) {
+          try {
+            const count = await db.collection(ACTIVE_CONNS_COLLECTION).countDocuments({
+              userId: targetUserId
+            });
+            isOnlineInCluster = count > 0;
+          } catch {
+            isOnlineInCluster = true;
+          }
+        }
+        if (!isOnlineInCluster) {
+          void recordCallEventToDb({
+            callId,
+            signalType: "user_offline",
+            callerUserId: connection.userID,
+            callerName: senderName,
+            callerRole: connection.role,
+            targetUserId,
+            targetUserName,
+            targetUserRole
+          });
           sendServerMessage(connection, {
             eventType: "call_signal",
             callId,
             signalType: "user_offline",
             senderId: "system",
-            targetUserId,
+            targetUserId: connection.userID,
+            offlineUserId: targetUserId,
             message: "The user is currently offline or unreachable.",
             timestamp: nowISO()
           });
         }
-        return;
-      }
-      let sent = false;
-      for (const connID of targetConnIDs) {
-        const targetConn = realtimeState.connections.get(connID);
-        if (targetConn && targetConn.socket.readyState === WebSocket.OPEN) {
-          sendServerMessage(targetConn, eventPayload);
-          sent = true;
-        }
-      }
-      if (!sent && signalType === "offer") {
-        sendServerMessage(connection, {
-          eventType: "call_signal",
-          callId,
-          signalType: "user_offline",
-          senderId: "system",
-          targetUserId,
-          message: "The user is currently offline or unreachable.",
-          timestamp: nowISO()
-        });
       }
     };
     bootSocket = (socket, context) => {
@@ -747,7 +1074,7 @@ var init_wsGateway = __esm({
         const rawAction = parsed.value.action ?? parsed.value.type ?? parsed.value.eventType;
         const action = typeof rawAction === "string" ? rawAction.trim() : "";
         if (action === "call_signal") {
-          handleCallSignal(connection, parsed.value);
+          void handleCallSignal(connection, parsed.value);
           return;
         }
         if (action === "subscribe") {
@@ -797,6 +1124,7 @@ var init_wsGateway = __esm({
     createRealtimeGateway = (payload) => {
       realtimeState.payload = payload;
       startHeartbeatLoop();
+      void initCrossWorkerCluster();
       return {
         endpointPath: WS_ENDPOINT_PATH,
         handleUpgrade: async (request, socket, head) => {
@@ -878,6 +1206,10 @@ var init_wsGateway = __esm({
         if (!matchesSubscription(storedEvent, connection.subscription)) continue;
         sendServerMessage(connection, storedEvent);
       }
+      publishToBus({
+        channel: "billing",
+        payload: storedEvent
+      });
       return storedEvent;
     };
     publishChatRealtimeEvent = (input) => {
@@ -926,27 +1258,47 @@ var init_wsGateway = __esm({
           }
         }
       }
+      publishToBus({
+        channel: "chat",
+        recipientAudience: input.recipientAudience,
+        recipientUserId: input.recipientUserId || null,
+        senderId: input.senderId,
+        payload: safePayload
+      });
     };
     terminateUserSession = (userId, reason, eventType = "session_terminated") => {
       const normalizedUserId = userId?.trim();
       if (!normalizedUserId) return;
       const connectionIDs = realtimeState.connectionsByUserID.get(normalizedUserId);
-      if (!connectionIDs || connectionIDs.size === 0) return;
-      for (const connectionID of Array.from(connectionIDs)) {
-        const connection = realtimeState.connections.get(connectionID);
-        if (connection) {
-          sendSystemMessage(connection, {
-            eventType,
-            error_code: eventType,
-            message: reason,
-            reason
-          });
-          setTimeout(() => {
-            closeSocket(connection.socket, 4401, reason);
-          }, 100);
+      if (connectionIDs && connectionIDs.size > 0) {
+        for (const connectionID of Array.from(connectionIDs)) {
+          const connection = realtimeState.connections.get(connectionID);
+          if (connection) {
+            sendSystemMessage(connection, {
+              eventType,
+              error_code: eventType,
+              message: reason,
+              reason
+            });
+            setTimeout(() => {
+              closeSocket(connection.socket, 4401, reason);
+            }, 100);
+          }
         }
       }
+      publishToBus({
+        channel: "session_terminate",
+        targetUserId: normalizedUserId,
+        payload: { userId: normalizedUserId, reason, eventType }
+      });
     };
+    process.on("beforeExit", () => {
+      const db = getMongoDb();
+      if (db) {
+        db.collection(ACTIVE_CONNS_COLLECTION).deleteMany({ workerId: WORKER_ID }).catch(() => {
+        });
+      }
+    });
     getRealtimeEndpointPath = () => WS_ENDPOINT_PATH;
   }
 });
@@ -1896,7 +2248,7 @@ var init_Users = __esm({
               throw new Error("Login blocked by superadmin. Please contact administrator.");
             }
             if (user.role === "superadmin" || user.role === "watcher") return;
-            const getRelationshipID12 = (value) => {
+            const getRelationshipID14 = (value) => {
               if (!value) return null;
               if (typeof value === "string") return value;
               if (typeof value === "object" && value !== null && "id" in value) {
@@ -1966,7 +2318,7 @@ var init_Users = __esm({
               user.branch = branchID;
               setResolvedLoginBranchContext(branchID);
             };
-            const existingUserBranchID = getRelationshipID12(user.branch);
+            const existingUserBranchID = getRelationshipID14(user.branch);
             if (existingUserBranchID) {
               setResolvedLoginBranchContext(existingUserBranchID);
             }
@@ -1978,7 +2330,7 @@ var init_Users = __esm({
                     throw new Error("Invalid Branch PIN.");
                   }
                 } else {
-                  const userBranchID = getRelationshipID12(user.branch);
+                  const userBranchID = getRelationshipID14(user.branch);
                   const enforceBranchMatch = strictBranchAssignmentRoles.includes(user.role);
                   if (enforceBranchMatch && userBranchID && userBranchID !== matchedBranch.id) {
                     throw new Error("Branch PIN does not match your assigned branch.");
@@ -2154,7 +2506,7 @@ var init_Users = __esm({
               try {
                 const matchedBranch = await resolveBranchByPin();
                 if (matchedBranch) {
-                  const userBranchID = getRelationshipID12(user.branch);
+                  const userBranchID = getRelationshipID14(user.branch);
                   const enforceBranchMatch = strictBranchAssignmentRoles.includes(user.role);
                   if (enforceBranchMatch && userBranchID && userBranchID !== matchedBranch.id) {
                     console.warn(
@@ -4177,7 +4529,7 @@ var init_RawMaterialDealers = __esm({
           name: "email",
           type: "email",
           label: "Email",
-          required: true
+          required: false
         },
         // GST Registration Flag
         {
@@ -4379,6 +4731,9 @@ var init_RawMaterialDealers = __esm({
             if (operation === "create" || operation === "update") {
               const nextData = data;
               const currentDoc = originalDoc || {};
+              if (nextData.email !== void 0) {
+                nextData.email = normalizeText(nextData.email);
+              }
               const isGSTRegistered = typeof nextData.isGSTRegistered === "boolean" ? nextData.isGSTRegistered : typeof currentDoc.isGSTRegistered === "boolean" ? currentDoc.isGSTRegistered : true;
               const hasBankAccount = typeof nextData.hasBankAccount === "boolean" ? nextData.hasBankAccount : typeof currentDoc.hasBankAccount === "boolean" ? currentDoc.hasBankAccount : true;
               nextData.isGSTRegistered = isGSTRegistered;
@@ -4667,14 +5022,14 @@ var init_Dealers = __esm({
           name: "email",
           type: "email",
           label: "Email",
-          required: true
+          required: false
         },
         // GST Registration Flag
         {
           name: "isGSTRegistered",
           type: "checkbox",
           label: "Is GST Registered?",
-          defaultValue: true
+          defaultValue: false
         },
         // Conditional Compliance Fields
         {
@@ -4789,7 +5144,7 @@ var init_Dealers = __esm({
           name: "hasBankAccount",
           type: "checkbox",
           label: "Has Bank Account?",
-          defaultValue: true,
+          defaultValue: false,
           admin: {
             position: "sidebar"
           }
@@ -4859,15 +5214,17 @@ var init_Dealers = __esm({
             if (operation === "create" || operation === "update") {
               const nextData = data;
               const currentDoc = originalDoc || {};
-              const isGSTRegistered = typeof nextData.isGSTRegistered === "boolean" ? nextData.isGSTRegistered : typeof currentDoc.isGSTRegistered === "boolean" ? currentDoc.isGSTRegistered : true;
-              const hasBankAccount = typeof nextData.hasBankAccount === "boolean" ? nextData.hasBankAccount : typeof currentDoc.hasBankAccount === "boolean" ? currentDoc.hasBankAccount : true;
-              nextData.isGSTRegistered = isGSTRegistered;
-              nextData.hasBankAccount = hasBankAccount;
-              if (isGSTRegistered) {
-                const normalizedGST = normalizeUpperText2(nextData.gst ?? currentDoc.gst);
-                const normalizedPAN = normalizeUpperText2(nextData.pan ?? currentDoc.pan);
-                const normalizedFSSAI = normalizeText2(nextData.fssai ?? currentDoc.fssai);
-                if (!normalizedGST) throw new Error("GST is required for registered dealers");
+              if (nextData.email !== void 0) {
+                nextData.email = normalizeText2(nextData.email);
+              }
+              const incomingGST = nextData.gst !== void 0 ? nextData.gst : currentDoc.gst;
+              const normalizedGST = normalizeUpperText2(incomingGST);
+              const incomingPAN = nextData.pan !== void 0 ? nextData.pan : currentDoc.pan;
+              const normalizedPAN = normalizeUpperText2(incomingPAN);
+              const incomingFSSAI = nextData.fssai !== void 0 ? nextData.fssai : currentDoc.fssai;
+              const normalizedFSSAI = normalizeText2(incomingFSSAI);
+              const isGSTRegistered = typeof nextData.isGSTRegistered === "boolean" ? nextData.isGSTRegistered : typeof currentDoc.isGSTRegistered === "boolean" ? currentDoc.isGSTRegistered : Boolean(normalizedGST);
+              if (isGSTRegistered && normalizedGST) {
                 if (!gstRegex2.test(normalizedGST)) {
                   throw new Error("Invalid GST format");
                 }
@@ -4892,9 +5249,11 @@ var init_Dealers = __esm({
                 if (existingDealerWithSameGST.docs.length > 0) {
                   throw new Error("A dealer with this GST already exists");
                 }
+                nextData.isGSTRegistered = true;
                 nextData.gst = normalizedGST;
                 nextData.fssai = normalizedFSSAI;
               } else {
+                nextData.isGSTRegistered = false;
                 nextData.gst = null;
                 nextData.pan = null;
                 nextData.fssai = null;
@@ -4905,14 +5264,19 @@ var init_Dealers = __esm({
                 ...currentBankDetails && typeof currentBankDetails === "object" && !Array.isArray(currentBankDetails) ? currentBankDetails : {},
                 ...incomingBankDetails && typeof incomingBankDetails === "object" && !Array.isArray(incomingBankDetails) ? incomingBankDetails : {}
               };
-              if (hasBankAccount) {
-                const normalizedBankName = normalizeText2(mergedBankDetails?.bankName);
-                const normalizedAccountNumber = normalizeText2(mergedBankDetails?.accountNumber);
-                const normalizedIfscCode = normalizeUpperText2(mergedBankDetails?.ifscCode);
-                const normalizedBranch = normalizeText2(mergedBankDetails?.branch);
+              const normalizedBankName = normalizeText2(mergedBankDetails?.bankName);
+              const normalizedAccountNumber = normalizeText2(mergedBankDetails?.accountNumber);
+              const normalizedIfscCode = normalizeUpperText2(mergedBankDetails?.ifscCode);
+              const normalizedBranch = normalizeText2(mergedBankDetails?.branch);
+              const hasAnyBankDetail = Boolean(
+                normalizedBankName || normalizedAccountNumber || normalizedIfscCode || normalizedBranch
+              );
+              const hasBankAccount = typeof nextData.hasBankAccount === "boolean" ? nextData.hasBankAccount : typeof currentDoc.hasBankAccount === "boolean" ? currentDoc.hasBankAccount : hasAnyBankDetail;
+              if (hasBankAccount && hasAnyBankDetail) {
                 if (!normalizedBankName) throw new Error("Bank Name is required");
                 if (!normalizedAccountNumber) throw new Error("Account Number is required");
                 if (!normalizedIfscCode) throw new Error("IFSC Code is required");
+                nextData.hasBankAccount = true;
                 nextData.bankDetails = {
                   bankName: normalizedBankName,
                   accountNumber: normalizedAccountNumber,
@@ -4923,11 +5287,9 @@ var init_Dealers = __esm({
               } else {
                 const preferredPaymentMethod = normalizeText2(
                   nextData.preferredPaymentMethod ?? currentDoc.preferredPaymentMethod ?? "cash"
-                );
+                ) || "cash";
+                nextData.hasBankAccount = false;
                 nextData.bankDetails = {};
-                if (!preferredPaymentMethod) {
-                  throw new Error("Preferred Payment Method is required for non-bank dealers");
-                }
                 nextData.preferredPaymentMethod = preferredPaymentMethod;
               }
             }
@@ -5983,25 +6345,6 @@ var init_inventory = __esm({
       };
       const productMatch = { "items.product": { $in: productObjectIds } };
       const branchObjectId = new ObjectId(branchId);
-      const initialStockPipeline = [
-        {
-          $match: {
-            branch: branchObjectId,
-            notes: "INITIAL STOCK"
-          }
-        }
-      ];
-      addOptimizedGranularMatch(initialStockPipeline, branch);
-      initialStockPipeline.push(
-        { $match: { ...productMatch, "items.inStock": { $gt: 0 } } },
-        {
-          $group: {
-            _id: "$items.product",
-            total: { $sum: "$items.inStock" }
-          }
-        }
-      );
-      const initialStocks = await aggregateStock("stock-orders", initialStockPipeline, "total");
       const stockInPipeline = [
         {
           $match: {
@@ -6020,6 +6363,33 @@ var init_inventory = __esm({
         }
       );
       const stockIns = await aggregateStock("stock-orders", stockInPipeline, "total");
+      const instockPipeline = [
+        {
+          $match: {
+            branch: branchObjectId
+          }
+        }
+      ];
+      addOptimizedGranularMatch(instockPipeline, branch);
+      instockPipeline.push(
+        {
+          $match: {
+            ...productMatch,
+            "items.instock": { $gt: 0 },
+            $or: [
+              { "items.status": "approved" },
+              { status: "approved" }
+            ]
+          }
+        },
+        {
+          $group: {
+            _id: "$items.product",
+            total: { $sum: "$items.instock" }
+          }
+        }
+      );
+      const instockAddeds = await aggregateStock("instock-entries", instockPipeline, "total");
       const stockOutPipeline = [
         {
           $match: {
@@ -6058,32 +6428,12 @@ var init_inventory = __esm({
         }
       );
       const returns = await aggregateStock("return-orders", returnPipeline, "total");
-      const instockPipeline = [
-        {
-          $match: {
-            branch: branchObjectId,
-            status: "approved"
-          }
-        }
-      ];
-      addOptimizedGranularMatch(instockPipeline, branch);
-      instockPipeline.push(
-        { $match: { ...productMatch, "items.instock": { $gt: 0 } } },
-        {
-          $group: {
-            _id: "$items.product",
-            total: { $sum: "$items.instock" }
-          }
-        }
-      );
-      const instockAddeds = await aggregateStock("instock-entries", instockPipeline, "total");
       const updateMap = (results, sign) => {
         results.forEach((r) => {
           const pid = r._id.toString();
           stockMap.set(pid, (stockMap.get(pid) || 0) + r.total * sign);
         });
       };
-      updateMap(initialStocks, 1);
       updateMap(stockIns, 1);
       updateMap(instockAddeds, 1);
       updateMap(stockOuts, -1);
@@ -9055,23 +9405,49 @@ var init_Billings = __esm({
                       existingQty
                     };
                   }).filter((row) => row.additionalQtyNeeded > 0);
-                  const enforceStrictStock = process.env.ENABLE_STRICT_STOCK_CHECK === "true";
+                  const enforceStrictStock = process.env.ENABLE_STRICT_STOCK_CHECK !== "false";
                   if (enforceStrictStock && stockChecks.length > 0) {
-                    const productIDsToCheck = stockChecks.map((s) => s.productID);
-                    const stockMap = await getMultipleProductsStock(
-                      req.payload,
-                      productIDsToCheck,
-                      branchId
-                    );
-                    const stockRows = stockChecks.map((row) => ({
-                      ...row,
-                      currentStock: stockMap.get(row.productID) || 0
-                    }));
-                    for (const row of stockRows) {
-                      if (row.additionalQtyNeeded > row.currentStock) {
-                        console.log(
-                          `[Inventory] WARNING: ${productNameByID.get(row.productID) || row.productID} (${row.requestedQty} needed, ${row.currentStock} available). Proceeding due to override.`
-                        );
+                    let isZeroStockBillingSkipped = false;
+                    try {
+                      const widgetSettings = await req.payload.findGlobal({
+                        slug: "widget-settings",
+                        depth: 0
+                      });
+                      const skipRows = widgetSettings?.skipZeroStockBillingByBranch;
+                      if (Array.isArray(skipRows)) {
+                        const branchRow = skipRows.find((r) => {
+                          const rBranchId = typeof r.branch === "object" && r.branch !== null ? r.branch.id : r.branch;
+                          return String(rBranchId) === String(branchId);
+                        });
+                        if (branchRow && branchRow.skipZeroStockBilling === true) {
+                          isZeroStockBillingSkipped = true;
+                        }
+                      }
+                    } catch (err) {
+                      req.payload.logger.error(
+                        `[Billings Hook] Error checking skip zero stock billing settings:`,
+                        err
+                      );
+                    }
+                    if (!isZeroStockBillingSkipped) {
+                      const productIDsToCheck = stockChecks.map((s) => s.productID);
+                      const stockMap = await getMultipleProductsStock(
+                        req.payload,
+                        productIDsToCheck,
+                        branchId
+                      );
+                      const stockRows = stockChecks.map((row) => ({
+                        ...row,
+                        currentStock: stockMap.get(row.productID) || 0
+                      }));
+                      for (const row of stockRows) {
+                        if (row.currentStock <= 0 || row.additionalQtyNeeded > row.currentStock) {
+                          const pName = productNameByID.get(row.productID) || row.productID;
+                          throw new APIError(
+                            `Cannot bill "${pName}". Out of stock (Current stock: ${row.currentStock}, Requested: ${row.requestedQty}${operation === "update" ? `, Additional: ${row.additionalQtyNeeded}` : ""}).`,
+                            400
+                          );
+                        }
                       }
                     }
                   }
@@ -12798,12 +13174,47 @@ var init_Expenses = __esm({
 import dayjs4 from "dayjs";
 import utc4 from "dayjs/plugin/utc.js";
 import timezone4 from "dayjs/plugin/timezone.js";
-var StockOrders, StockOrders_default;
+var getRelationshipID5, StockOrders, StockOrders_default;
 var init_StockOrders = __esm({
   "src/collections/StockOrders.ts"() {
     "use strict";
     dayjs4.extend(utc4);
     dayjs4.extend(timezone4);
+    getRelationshipID5 = (value) => {
+      if (!value) return null;
+      if (typeof value === "string") return value.trim();
+      if (typeof value === "number" && Number.isFinite(value)) return String(value);
+      if (typeof value === "object" && value !== null) {
+        if ("id" in value && value.id != null) {
+          const id = value.id;
+          if (typeof id === "string" || typeof id === "number") return String(id).trim();
+          if (typeof id === "object") {
+            const nestedId = getRelationshipID5(id);
+            if (nestedId) return nestedId;
+          }
+        }
+        if ("_id" in value && value._id != null) {
+          const id = value._id;
+          if (typeof id === "string" || typeof id === "number") return String(id).trim();
+          if (id && typeof id.toString === "function") {
+            const str = id.toString();
+            if (str && str !== "[object Object]") return str;
+          }
+        }
+        if ("value" in value && value.value != null) {
+          const resolved = getRelationshipID5(value.value);
+          if (resolved) return resolved;
+        }
+        if (typeof value.toHexString === "function") {
+          return value.toHexString();
+        }
+        if (typeof value.toString === "function") {
+          const str = value.toString();
+          if (str && str !== "[object Object]") return str;
+        }
+      }
+      return null;
+    };
     StockOrders = {
       slug: "stock-orders",
       admin: {
@@ -12812,8 +13223,25 @@ var init_StockOrders = __esm({
       },
       access: {
         read: () => true,
-        create: ({ req: { user } }) => user?.role != null && ["branch", "waiter", "superadmin", "cashier"].includes(user.role),
-        update: ({ req: { user } }) => user?.role != null && ["superadmin", "supervisor", "driver", "branch", "factory", "chef", "cashier"].includes(user.role),
+        create: ({ req: { user } }) => Boolean(
+          user?.role != null && ["superadmin", "admin", "branch", "waiter", "cashier", "supervisor", "manager", "company"].includes(
+            user.role
+          )
+        ),
+        update: ({ req: { user } }) => Boolean(
+          user?.role != null && [
+            "superadmin",
+            "admin",
+            "supervisor",
+            "driver",
+            "branch",
+            "factory",
+            "chef",
+            "cashier",
+            "manager",
+            "company"
+          ].includes(user.role)
+        ),
         delete: ({ req: { user } }) => user?.role === "superadmin"
       },
       hooks: {
@@ -12821,7 +13249,7 @@ var init_StockOrders = __esm({
           async ({ data, req, operation, originalDoc }) => {
             if (!data.cashierId && req.user) {
               const emp = req.user?.employee;
-              const empId = typeof emp === "object" && emp !== null ? emp.id || emp._id : emp;
+              const empId = getRelationshipID5(emp) || req.user.id;
               data.cashierId = empId ? String(empId) : String(req.user.id);
             }
             if (!data.cashierName && req.user) {
@@ -12829,85 +13257,83 @@ var init_StockOrders = __esm({
               const empName = typeof emp === "object" && emp !== null ? emp.name : null;
               data.cashierName = empName || req.user.name || req.user.username || "";
             }
+            if (!data.createdBy && req.user) {
+              data.createdBy = req.user.id;
+            }
             if (operation === "create") {
               if (!req.user) throw new Error("Unauthorized");
-              if (!data.branch) {
-                if (req.user.role === "branch" && req.user.branch) {
-                  data.branch = typeof req.user.branch === "string" ? req.user.branch : req.user.branch.id;
-                } else if (["waiter", "cashier"].includes(req.user.role)) {
-                  const lastLoginBranch = req.user?.lastLoginBranch;
-                  const lastLoginBranchId = typeof lastLoginBranch === "string" ? lastLoginBranch : lastLoginBranch?.id;
-                  if (lastLoginBranchId) {
-                    data.branch = lastLoginBranchId;
-                  } else if (req.user.branch) {
-                    data.branch = typeof req.user.branch === "string" ? req.user.branch : req.user.branch.id;
-                  }
-                }
+              let branchId = getRelationshipID5(data.branch) || getRelationshipID5(req.user?.lastLoginBranch) || getRelationshipID5(req.user?.branch);
+              if (!branchId) {
+                throw new Error("Branch is required");
               }
-              if (req.user.role === "branch") {
-                const userBranchId = typeof req.user.branch === "string" ? req.user.branch : req.user.branch?.id;
-                const dataBranchId = typeof data.branch === "string" ? data.branch : data?.branch?.id;
-                if (!userBranchId || userBranchId !== dataBranchId) {
-                  throw new Error("Unauthorized branch");
-                }
-              } else if (["waiter", "cashier"].includes(req.user.role)) {
-                const userBranchId = typeof req.user.branch === "string" ? req.user.branch : req.user.branch?.id;
-                const lastLoginBranch = req.user?.lastLoginBranch;
-                const lastLoginBranchId = typeof lastLoginBranch === "string" ? lastLoginBranch : lastLoginBranch?.id;
-                const dataBranchId = typeof data.branch === "string" ? data.branch : data?.branch?.id;
-                const isAllowed = dataBranchId && (dataBranchId === lastLoginBranchId || dataBranchId === userBranchId || !userBranchId && !lastLoginBranchId);
-                if (!isAllowed && (lastLoginBranchId || userBranchId)) {
-                  throw new Error("Unauthorized branch");
-                }
-              }
+              data.branch = branchId;
               const date = dayjs4().tz("Asia/Kolkata");
               const dateStr = date.format("YYMMDD");
-              let branchId;
-              if (typeof data.branch === "string") {
-                branchId = data.branch;
-              } else if (typeof data.branch === "object" && data.branch !== null && "id" in data.branch) {
-                branchId = data.branch.id;
-              } else {
-                throw new Error("Invalid branch");
+              let branchDoc = null;
+              try {
+                branchDoc = await req.payload.findByID({
+                  collection: "branches",
+                  id: branchId,
+                  depth: 0
+                });
+              } catch (err) {
+                console.error("[StockOrders hook] Error finding branch:", err);
               }
-              const branch = await req.payload.findByID({
-                collection: "branches",
-                id: branchId,
-                depth: 0
-              });
-              const abbr = (branch.name || "").substring(0, 3).toUpperCase();
-              if (branch?.company) {
-                let companyToSet = branch.company;
-                if (typeof companyToSet === "object" && companyToSet !== null && "id" in companyToSet) {
-                  companyToSet = companyToSet.id;
+              const abbr = (branchDoc?.name || "BRN").substring(0, 3).toUpperCase();
+              let resolvedCompanyId = getRelationshipID5(data.company) || getRelationshipID5(branchDoc?.company) || getRelationshipID5(req.user?.company);
+              if (!resolvedCompanyId) {
+                try {
+                  const compRes = await req.payload.find({
+                    collection: "companies",
+                    limit: 1,
+                    depth: 0,
+                    overrideAccess: true
+                  });
+                  if (compRes.docs?.[0]?.id) {
+                    resolvedCompanyId = String(compRes.docs[0].id);
+                  }
+                } catch (_) {
                 }
-                if (typeof companyToSet === "string") {
-                  data.company = companyToSet;
-                }
+              }
+              if (resolvedCompanyId) {
+                data.company = resolvedCompanyId;
               }
               const prefix = `${abbr}-STC-${dateStr}-`;
-              const { totalDocs: existingCount } = await req.payload.count({
-                collection: "stock-orders",
-                where: {
-                  invoiceNumber: {
-                    greater_than_equal: `${prefix}01`,
-                    less_than_equal: `${prefix}99`
+              let seq = 1;
+              try {
+                const { totalDocs: existingCount } = await req.payload.count({
+                  collection: "stock-orders",
+                  where: {
+                    invoiceNumber: {
+                      greater_than_equal: `${prefix}01`,
+                      less_than_equal: `${prefix}99`
+                    }
                   }
+                });
+                seq = existingCount + 1;
+              } catch (_) {
+              }
+              for (let attempt = 0; attempt < 25; attempt++) {
+                const candidate = `${prefix}${(seq + attempt).toString().padStart(2, "0")}`;
+                const exists = await req.payload.find({
+                  collection: "stock-orders",
+                  where: { invoiceNumber: { equals: candidate } },
+                  limit: 1,
+                  depth: 0,
+                  overrideAccess: true
+                });
+                if (!exists?.docs?.length) {
+                  data.invoiceNumber = candidate;
+                  break;
                 }
-              });
-              const seq = (existingCount + 1).toString().padStart(2, "0");
-              data.invoiceNumber = `${prefix}${seq}`;
+              }
+              if (!data.invoiceNumber) {
+                data.invoiceNumber = `${prefix}${seq.toString().padStart(2, "0")}-${Date.now().toString().slice(-4)}`;
+              }
             }
             let branchWorkflow = { skipSupervisor: false, skipDriver: false };
             try {
-              let branchToFetch = null;
-              if (typeof data.branch === "string") {
-                branchToFetch = data.branch;
-              } else if (typeof data.branch === "object" && data.branch !== null && "id" in data.branch) {
-                branchToFetch = data.branch.id;
-              } else if (originalDoc?.branch) {
-                branchToFetch = typeof originalDoc.branch === "string" ? originalDoc.branch : originalDoc.branch.id;
-              }
+              let branchToFetch = getRelationshipID5(data.branch) || getRelationshipID5(originalDoc?.branch) || getRelationshipID5(req.user?.lastLoginBranch) || getRelationshipID5(req.user?.branch);
               if (branchToFetch) {
                 const branch = await req.payload.findByID({
                   collection: "branches",
@@ -12929,8 +13355,9 @@ var init_StockOrders = __esm({
               for (let i = 0; i < data.items.length; i++) {
                 const item = data.items[i];
                 if (!item.product) continue;
-                const productId = typeof item.product === "string" ? item.product : item.product?.id;
-                if (!productId) throw new Error("Invalid product");
+                const productId = getRelationshipID5(item.product);
+                if (!productId) continue;
+                item.product = productId;
                 let product = null;
                 let price = 0;
                 try {
@@ -12940,23 +13367,21 @@ var init_StockOrders = __esm({
                     depth: 1
                   });
                   if (product) {
-                    item.name = product.name;
-                    price = product?.defaultPriceDetails?.price || 0;
+                    item.name = product.name || item?.name || "Product";
+                    price = product?.defaultPriceDetails?.price || item?.price || 0;
                   }
                 } catch (error) {
                   console.warn(`[StockOrders Hook] Product with ID ${productId} not found:`, error);
                 }
                 if (!product) {
                   const originalItem2 = originalDoc?.items?.[i];
-                  if (originalItem2) {
-                    item.name = originalItem2.name || "Unknown Product";
-                    const originalQty = originalItem2.requiredQty || originalItem2.inStock || 0;
-                    const originalAmount = originalItem2.requiredAmount || originalItem2.inStockAmount || 0;
-                    if (originalQty > 0) {
-                      price = originalAmount / originalQty;
-                    }
+                  item.name = item?.name || originalItem2?.name || "Product";
+                  const originalQty = originalItem2?.requiredQty || originalItem2?.inStock || item?.requiredQty || item?.inStock || 0;
+                  const originalAmount = originalItem2?.requiredAmount || originalItem2?.inStockAmount || 0;
+                  if (originalQty > 0) {
+                    price = originalAmount / originalQty;
                   } else {
-                    item.name = "Unknown Product";
+                    price = item?.price || 0;
                   }
                 }
                 item.inStockAmount = (item.inStock || 0) * price;
@@ -20262,30 +20687,6 @@ var init_inventory2 = __esm({
       if (!StockOrderModel || !BillingModel || !ReturnOrderModel || !InstockEntryModel) {
         throw new Error("Inventory report collections not found");
       }
-      const initialStockPipeline = [
-        {
-          $match: {
-            $and: [
-              { branch: { $in: mappedBranchIds } },
-              { notes: "INITIAL STOCK" }
-            ]
-          }
-        }
-      ];
-      addGranularMatch(initialStockPipeline);
-      initialStockPipeline.push(
-        { $match: { "items.inStock": { $gt: 0 }, "items.product": { $in: mappedProductIds } } },
-        {
-          $group: {
-            _id: {
-              branch: "$branch",
-              product: "$items.product"
-            },
-            totalInStock: { $sum: "$items.inStock" }
-          }
-        }
-      );
-      const initialStockStats = await StockOrderModel.aggregate(initialStockPipeline);
       const stockInPipeline = [
         {
           $match: {
@@ -20367,8 +20768,11 @@ var init_inventory2 = __esm({
         {
           $match: {
             "items.product": { $in: mappedProductIds },
-            "items.status": "approved",
-            "items.instock": { $gt: 0 }
+            "items.instock": { $gt: 0 },
+            $or: [
+              { "items.status": "approved" },
+              { status: "approved" }
+            ]
           }
         },
         {
@@ -20412,26 +20816,13 @@ var init_inventory2 = __esm({
           }
         });
       };
-      processMetric(initialStockStats, "initial", "totalInStock", 1);
       processMetric(stockInStats, "received", "totalReceived", 1);
+      processMetric(instockStats, "instock", "totalInstock", 1);
       processMetric(stockOutStats, "sold", "totalSold", -1);
       processMetric(returnStats, "returned", "totalReturned", -1);
-      processMetric(instockStats, "instock", "totalInstock", 1);
       const reportData = Object.entries(inventoryMap).map(([productId, item]) => {
         const totalInventory = Object.values(item.branches).reduce((sum, branchData) => {
           return sum + branchData.inventory;
-        }, 0);
-        const totalSold = Object.values(item.branches).reduce((sum, branchData) => {
-          return sum + branchData.sold;
-        }, 0);
-        const totalReturned = Object.values(item.branches).reduce((sum, branchData) => {
-          return sum + branchData.returned;
-        }, 0);
-        const totalReceived = Object.values(item.branches).reduce((sum, branchData) => {
-          return sum + branchData.received;
-        }, 0);
-        const totalInstock = Object.values(item.branches).reduce((sum, branchData) => {
-          return sum + branchData.instock;
         }, 0);
         const branchDetails = branches.map((branchDoc) => {
           const stats = item.branches[branchDoc.id] || {
@@ -20457,16 +20848,20 @@ var init_inventory2 = __esm({
           return {
             id: branchDoc.id,
             name: branchDoc.name,
+            initial: 0,
+            instock: stats.instock || 0,
             inventory,
-            value,
-            sold: stats.sold,
-            returned: stats.returned,
-            received: stats.received,
-            instock: stats.instock,
-            initial: stats.initial
+            received: stats.received || 0,
+            returned: stats.returned || 0,
+            sold: stats.sold || 0,
+            value
           };
         });
         const totalValue = branchDetails.reduce((sum, branchData) => sum + branchData.value, 0);
+        const totalSold = branchDetails.reduce((sum, branchData) => sum + branchData.sold, 0);
+        const totalReturned = branchDetails.reduce((sum, branchData) => sum + branchData.returned, 0);
+        const totalReceived = branchDetails.reduce((sum, branchData) => sum + branchData.received, 0);
+        const totalInstock = branchDetails.reduce((sum, branchData) => sum + branchData.instock, 0);
         return {
           id: productId,
           name: item.name,
@@ -21388,11 +21783,13 @@ var init_getReviewReport = __esm({
               billNumber,
               billId: typeof review.bill === "object" ? review.bill?.id : review.bill,
               productName,
-              reviewMessage: item.feedback,
+              rating: item.rating ?? 0,
+              reviewMessage: item.feedback || "",
               chefReply: item.chefReply || "",
               reviewId: review.id,
               itemId: item.id,
-              status: item.status,
+              status: item.status || "waiting",
+              reviewStatus: item.reviewStatus || "pending",
               reviewDate: review.createdAt
             });
           });
@@ -21596,7 +21993,7 @@ var init_Reviews = __esm({
             {
               name: "feedback",
               type: "textarea",
-              required: true
+              required: false
             },
             {
               name: "chefReply",
@@ -21626,8 +22023,24 @@ var init_Reviews = __esm({
               options: [
                 { label: "Waiting (Auto)", value: "waiting" },
                 { label: "Replied (Auto)", value: "replied" },
-                { label: "Approved", value: "approved" }
+                { label: "Approved", value: "approved" },
+                { label: "Positive", value: "positive" },
+                { label: "Negative", value: "negative" }
               ]
+            },
+            {
+              name: "reviewStatus",
+              label: "Review Status (Sentiment)",
+              type: "select",
+              defaultValue: "pending",
+              options: [
+                { label: "Pending", value: "pending" },
+                { label: "Positive", value: "positive" },
+                { label: "Negative", value: "negative" }
+              ],
+              admin: {
+                description: "Admin team classification: positive or negative review"
+              }
             }
           ]
         },
@@ -22018,12 +22431,47 @@ var init_BillingCustomers = __esm({
 import dayjs17 from "dayjs";
 import utc17 from "dayjs/plugin/utc.js";
 import timezone17 from "dayjs/plugin/timezone.js";
-var InstockEntries, InstockEntries_default;
+var getRelationshipID6, InstockEntries, InstockEntries_default;
 var init_InstockEntries = __esm({
   "src/collections/InstockEntries.ts"() {
     "use strict";
     dayjs17.extend(utc17);
     dayjs17.extend(timezone17);
+    getRelationshipID6 = (value) => {
+      if (!value) return null;
+      if (typeof value === "string") return value.trim();
+      if (typeof value === "number" && Number.isFinite(value)) return String(value);
+      if (typeof value === "object" && value !== null) {
+        if ("id" in value && value.id != null) {
+          const id = value.id;
+          if (typeof id === "string" || typeof id === "number") return String(id).trim();
+          if (typeof id === "object") {
+            const nestedId = getRelationshipID6(id);
+            if (nestedId) return nestedId;
+          }
+        }
+        if ("_id" in value && value._id != null) {
+          const id = value._id;
+          if (typeof id === "string" || typeof id === "number") return String(id).trim();
+          if (id && typeof id.toString === "function") {
+            const str = id.toString();
+            if (str && str !== "[object Object]") return str;
+          }
+        }
+        if ("value" in value && value.value != null) {
+          const resolved = getRelationshipID6(value.value);
+          if (resolved) return resolved;
+        }
+        if (typeof value.toHexString === "function") {
+          return value.toHexString();
+        }
+        if (typeof value.toString === "function") {
+          const str = value.toString();
+          if (str && str !== "[object Object]") return str;
+        }
+      }
+      return null;
+    };
     InstockEntries = {
       slug: "instock-entries",
       admin: {
@@ -22031,8 +22479,14 @@ var init_InstockEntries = __esm({
       },
       access: {
         read: () => true,
-        create: ({ req: { user } }) => user?.role != null && ["branch", "waiter", "superadmin", "cashier"].includes(user.role),
-        update: ({ req: { user } }) => user?.role != null && ["superadmin", "supervisor", "branch", "cashier"].includes(user.role),
+        create: ({ req: { user } }) => Boolean(
+          user?.role != null && ["superadmin", "admin", "branch", "waiter", "cashier", "supervisor", "manager", "company"].includes(
+            user.role
+          )
+        ),
+        update: ({ req: { user } }) => Boolean(
+          user?.role != null && ["superadmin", "admin", "supervisor", "branch", "cashier", "manager", "company"].includes(user.role)
+        ),
         delete: ({ req: { user } }) => user?.role === "superadmin"
       },
       hooks: {
@@ -22040,7 +22494,7 @@ var init_InstockEntries = __esm({
           async ({ data, req, operation, originalDoc: _originalDoc }) => {
             if (!data.cashierId && req.user) {
               const emp = req.user?.employee;
-              const empId = typeof emp === "object" && emp !== null ? emp.id || emp._id : emp;
+              const empId = getRelationshipID6(emp) || req.user.id;
               data.cashierId = empId ? String(empId) : String(req.user.id);
             }
             if (!data.cashierName && req.user) {
@@ -22048,81 +22502,112 @@ var init_InstockEntries = __esm({
               const empName = typeof emp === "object" && emp !== null ? emp.name : null;
               data.cashierName = empName || req.user.name || req.user.username || "";
             }
+            if (!data.createdBy && req.user) {
+              data.createdBy = req.user.id;
+            }
             if (operation === "create") {
               if (!req.user) throw new Error("Unauthorized");
-              if (!data.branch) {
-                if (req.user.role === "branch" && req.user.branch) {
-                  data.branch = typeof req.user.branch === "string" ? req.user.branch : req.user.branch.id;
-                } else if (["waiter", "cashier"].includes(req.user.role)) {
-                  const lastLoginBranch = req.user?.lastLoginBranch;
-                  const lastLoginBranchId = typeof lastLoginBranch === "string" ? lastLoginBranch : lastLoginBranch?.id;
-                  if (lastLoginBranchId) {
-                    data.branch = lastLoginBranchId;
-                  } else if (req.user.branch) {
-                    data.branch = typeof req.user.branch === "string" ? req.user.branch : req.user.branch.id;
-                  }
-                }
+              let branchId2 = getRelationshipID6(data.branch) || getRelationshipID6(req.user?.lastLoginBranch) || getRelationshipID6(req.user?.branch);
+              if (!branchId2) {
+                throw new Error("Branch is required");
               }
-              if (req.user.role === "branch") {
-                const userBranchId = typeof req.user.branch === "string" ? req.user.branch : req.user.branch?.id;
-                const dataBranchId = typeof data.branch === "string" ? data.branch : data?.branch?.id;
-                if (!userBranchId || userBranchId !== dataBranchId) {
-                  throw new Error("Unauthorized branch");
-                }
-              } else if (["waiter", "cashier"].includes(req.user.role)) {
-                const userBranchId = typeof req.user.branch === "string" ? req.user.branch : req.user.branch?.id;
-                const lastLoginBranch = req.user?.lastLoginBranch;
-                const lastLoginBranchId = typeof lastLoginBranch === "string" ? lastLoginBranch : lastLoginBranch?.id;
-                const dataBranchId = typeof data.branch === "string" ? data.branch : data?.branch?.id;
-                const isAllowed = dataBranchId && (dataBranchId === lastLoginBranchId || dataBranchId === userBranchId || !userBranchId && !lastLoginBranchId);
-                if (!isAllowed && (lastLoginBranchId || userBranchId)) {
-                  throw new Error("Unauthorized branch");
-                }
-              }
+              data.branch = branchId2;
               const date = dayjs17().tz("Asia/Kolkata");
               const dateStr = date.format("YYMMDD");
-              let branchId;
-              if (typeof data.branch === "string") {
-                branchId = data.branch;
-              } else if (typeof data.branch === "object" && data.branch !== null && "id" in data.branch) {
-                branchId = data.branch.id;
-              } else {
-                throw new Error("Invalid branch");
+              let branchDoc = null;
+              try {
+                branchDoc = await req.payload.findByID({
+                  collection: "branches",
+                  id: branchId2,
+                  depth: 0
+                });
+              } catch (err) {
+                console.error("[InstockEntries hook] Error finding branch:", err);
               }
-              const branch = await req.payload.findByID({
-                collection: "branches",
-                id: branchId,
-                depth: 0
-              });
-              const abbr = (branch.name || "").substring(0, 3).toUpperCase();
-              if (branch?.company) {
-                let companyToSet = branch.company;
-                if (typeof companyToSet === "object" && companyToSet !== null && "id" in companyToSet) {
-                  companyToSet = companyToSet.id;
+              const abbr = (branchDoc?.name || "BRN").substring(0, 3).toUpperCase();
+              let resolvedCompanyId = getRelationshipID6(data.company) || getRelationshipID6(branchDoc?.company) || getRelationshipID6(req.user?.company);
+              if (!resolvedCompanyId) {
+                try {
+                  const compRes = await req.payload.find({
+                    collection: "companies",
+                    limit: 1,
+                    depth: 0,
+                    overrideAccess: true
+                  });
+                  if (compRes.docs?.[0]?.id) {
+                    resolvedCompanyId = String(compRes.docs[0].id);
+                  }
+                } catch (_) {
                 }
-                if (typeof companyToSet === "string") {
-                  data.company = companyToSet;
-                }
+              }
+              if (resolvedCompanyId) {
+                data.company = resolvedCompanyId;
               }
               const prefix = `${abbr}-INS-${dateStr}-`;
-              const { totalDocs: existingCount } = await req.payload.count({
-                collection: "instock-entries",
-                where: {
-                  invoiceNumber: {
-                    greater_than_equal: `${prefix}01`,
-                    less_than_equal: `${prefix}99`
+              let seq = 1;
+              try {
+                const { totalDocs: existingCount } = await req.payload.count({
+                  collection: "instock-entries",
+                  where: {
+                    invoiceNumber: {
+                      greater_than_equal: `${prefix}01`,
+                      less_than_equal: `${prefix}99`
+                    }
+                  }
+                });
+                seq = existingCount + 1;
+              } catch (_) {
+              }
+              for (let attempt = 0; attempt < 25; attempt++) {
+                const candidate = `${prefix}${(seq + attempt).toString().padStart(2, "0")}`;
+                const exists = await req.payload.find({
+                  collection: "instock-entries",
+                  where: { invoiceNumber: { equals: candidate } },
+                  limit: 1,
+                  depth: 0,
+                  overrideAccess: true
+                });
+                if (!exists?.docs?.length) {
+                  data.invoiceNumber = candidate;
+                  break;
+                }
+              }
+              if (!data.invoiceNumber) {
+                data.invoiceNumber = `${prefix}${seq.toString().padStart(2, "0")}-${Date.now().toString().slice(-4)}`;
+              }
+            }
+            let isApprovalSkipped = false;
+            const branchId = getRelationshipID6(data.branch) || getRelationshipID6(_originalDoc?.branch) || getRelationshipID6(req.user?.lastLoginBranch) || getRelationshipID6(req.user?.branch);
+            if (branchId) {
+              try {
+                const widgetSettings = await req.payload.findGlobal({
+                  slug: "widget-settings",
+                  depth: 0
+                });
+                const skipRows = widgetSettings?.skipInstockApprovalByBranch;
+                if (Array.isArray(skipRows)) {
+                  const branchRow = skipRows.find((r) => {
+                    const rBranchId = getRelationshipID6(r.branch);
+                    return String(rBranchId) === String(branchId);
+                  });
+                  if (branchRow && branchRow.skipInstockApproval === true) {
+                    isApprovalSkipped = true;
                   }
                 }
-              });
-              const seq = (existingCount + 1).toString().padStart(2, "0");
-              data.invoiceNumber = `${prefix}${seq}`;
+              } catch (err) {
+                req.payload.logger.error(
+                  `[InstockEntries Hook] Error checking skip approval settings:`,
+                  err
+                );
+              }
             }
             if (data.items && data.items.length > 0) {
               for (let i = 0; i < data.items.length; i++) {
                 const item = data.items[i];
                 if (!item.product) continue;
-                const productId = typeof item.product === "string" ? item.product : item.product?.id;
-                if (!productId) throw new Error("Invalid product");
+                const productId = getRelationshipID6(item.product);
+                if (!productId) continue;
+                item.product = productId;
                 let product = null;
                 try {
                   product = await req.payload.findByID({
@@ -22134,17 +22619,17 @@ var init_InstockEntries = __esm({
                   console.warn(`[InstockEntries Hook] Product with ID ${productId} not found:`, error);
                 }
                 if (operation === "create") {
-                  item.status = "waiting";
+                  item.status = isApprovalSkipped ? "approved" : "waiting";
+                } else if (operation === "update" && !item.status) {
+                  item.status = isApprovalSkipped ? "approved" : "waiting";
                 }
                 if (product && !item.dealer && product.dealer) {
                   let productDealerId = "";
                   if (Array.isArray(product.dealer) && product.dealer.length > 0) {
                     const firstDealer = product.dealer[0];
-                    productDealerId = typeof firstDealer === "string" ? firstDealer : firstDealer.id;
-                  } else if (typeof product.dealer === "string") {
-                    productDealerId = product.dealer;
-                  } else if (typeof product.dealer === "object" && product.dealer.id) {
-                    productDealerId = product.dealer.id;
+                    productDealerId = getRelationshipID6(firstDealer) || "";
+                  } else {
+                    productDealerId = getRelationshipID6(product.dealer) || "";
                   }
                   if (productDealerId) {
                     item.dealer = productDealerId;
@@ -22153,7 +22638,10 @@ var init_InstockEntries = __esm({
               }
             }
             if (operation === "create") {
-              data.status = "waiting";
+              data.status = isApprovalSkipped ? "approved" : "waiting";
+            } else if (operation === "update" && data.items && data.items.length > 0) {
+              const allApproved = data.items.every((it) => it.status === "approved");
+              data.status = allApproved ? "approved" : "waiting";
             }
             return data;
           }
@@ -26983,6 +27471,50 @@ var init_Widgets = __esm({
           ]
         },
         {
+          name: "skipInstockApprovalByBranch",
+          label: "Skip Instock Approval by Branch",
+          type: "array",
+          admin: {
+            description: "Branch-wise control for skipping instock entry approval (auto-approving instock entries)."
+          },
+          fields: [
+            {
+              name: "branch",
+              type: "relationship",
+              relationTo: "branches",
+              required: true
+            },
+            {
+              name: "skipInstockApproval",
+              label: "Skip Instock Approval",
+              type: "checkbox",
+              defaultValue: false
+            }
+          ]
+        },
+        {
+          name: "skipZeroStockBillingByBranch",
+          label: "Skip Zero Stock Billing by Branch",
+          type: "array",
+          admin: {
+            description: "Branch-wise control to allow billing even when product stock is zero (skips zero-stock block)."
+          },
+          fields: [
+            {
+              name: "branch",
+              type: "relationship",
+              relationTo: "branches",
+              required: true
+            },
+            {
+              name: "skipZeroStockBilling",
+              label: "Allow Billing on Zero Stock",
+              type: "checkbox",
+              defaultValue: false
+            }
+          ]
+        },
+        {
           name: "categoryDelayByBranch",
           label: "Category Delay by Branch",
           type: "array",
@@ -27416,11 +27948,11 @@ var init_createWidgetOrder = __esm({
 });
 
 // src/endpoints/getTableCustomerDetailsVisibility.ts
-var getRelationshipID5, getTableCustomerDetailsVisibilityHandler;
+var getRelationshipID7, getTableCustomerDetailsVisibilityHandler;
 var init_getTableCustomerDetailsVisibility = __esm({
   "src/endpoints/getTableCustomerDetailsVisibility.ts"() {
     "use strict";
-    getRelationshipID5 = (value) => {
+    getRelationshipID7 = (value) => {
       if (typeof value === "string" && value.trim().length > 0) return value;
       if (value && typeof value === "object" && "id" in value && (typeof value.id === "string" || typeof value.id === "number")) {
         return String(value.id);
@@ -27431,7 +27963,7 @@ var init_getTableCustomerDetailsVisibility = __esm({
       try {
         const url = new URL(req.url || "http://localhost");
         const queryBranchID = url.searchParams.get("branchId");
-        const userBranchID = req.user && typeof req.user === "object" && "branch" in req.user ? getRelationshipID5(req.user.branch) : null;
+        const userBranchID = req.user && typeof req.user === "object" && "branch" in req.user ? getRelationshipID7(req.user.branch) : null;
         const branchID = queryBranchID || userBranchID;
         if (!branchID) {
           return Response.json(
@@ -27446,7 +27978,7 @@ var init_getTableCustomerDetailsVisibility = __esm({
         });
         const tableRows = Array.isArray(widgetSettings?.tableOrderCustomerDetailsByBranch) ? widgetSettings.tableOrderCustomerDetailsByBranch : [];
         const tableRow = tableRows.find(
-          (candidate) => getRelationshipID5(candidate?.branch) === branchID
+          (candidate) => getRelationshipID7(candidate?.branch) === branchID
         );
         const showCustomerDetailsForTableOrders = typeof tableRow?.showCustomerDetailsForTableOrders === "boolean" ? tableRow.showCustomerDetailsForTableOrders : true;
         const allowSkipCustomerDetailsForTableOrders = typeof tableRow?.allowSkipCustomerDetailsForTableOrders === "boolean" ? tableRow.allowSkipCustomerDetailsForTableOrders : true;
@@ -27454,7 +27986,7 @@ var init_getTableCustomerDetailsVisibility = __esm({
         const autoSubmitCustomerDetailsForTableOrders = typeof tableRow?.autoSubmitCustomerDetailsForTableOrders === "boolean" ? tableRow.autoSubmitCustomerDetailsForTableOrders : true;
         const billingRows = Array.isArray(widgetSettings?.billingOrderCustomerDetailsByBranch) ? widgetSettings.billingOrderCustomerDetailsByBranch : [];
         const billingRow = billingRows.find(
-          (candidate) => getRelationshipID5(candidate?.branch) === branchID
+          (candidate) => getRelationshipID7(candidate?.branch) === branchID
         );
         const showCustomerDetailsForBillingOrders = typeof billingRow?.showCustomerDetailsForBillingOrders === "boolean" ? billingRow.showCustomerDetailsForBillingOrders : true;
         const allowSkipCustomerDetailsForBillingOrders = typeof billingRow?.allowSkipCustomerDetailsForBillingOrders === "boolean" ? billingRow.allowSkipCustomerDetailsForBillingOrders : true;
@@ -27462,30 +27994,30 @@ var init_getTableCustomerDetailsVisibility = __esm({
         const autoSubmitCustomerDetailsForBillingOrders = typeof billingRow?.autoSubmitCustomerDetailsForBillingOrders === "boolean" ? billingRow.autoSubmitCustomerDetailsForBillingOrders : true;
         const skipDeliverRows = Array.isArray(widgetSettings?.skipDeliverByBranch) ? widgetSettings.skipDeliverByBranch : [];
         const skipDeliverRow = skipDeliverRows.find(
-          (candidate) => getRelationshipID5(candidate?.branch) === branchID
+          (candidate) => getRelationshipID7(candidate?.branch) === branchID
         );
         const skipDeliver = typeof skipDeliverRow?.skipDeliver === "boolean" ? skipDeliverRow.skipDeliver : false;
         const skipDeliverWaiterSelectionType = typeof skipDeliverRow?.waiterSelectionType === "string" ? skipDeliverRow.waiterSelectionType : "all";
-        const skipDeliverWaiters = Array.isArray(skipDeliverRow?.waiters) ? skipDeliverRow.waiters.map((w) => getRelationshipID5(w)).filter(Boolean) : [];
+        const skipDeliverWaiters = Array.isArray(skipDeliverRow?.waiters) ? skipDeliverRow.waiters.map((w) => getRelationshipID7(w)).filter(Boolean) : [];
         const skipConfirmRows = Array.isArray(widgetSettings?.skipConfirmByBranch) ? widgetSettings.skipConfirmByBranch : [];
         const skipConfirmRow = skipConfirmRows.find(
-          (candidate) => getRelationshipID5(candidate?.branch) === branchID
+          (candidate) => getRelationshipID7(candidate?.branch) === branchID
         );
         const skipConfirm = typeof skipConfirmRow?.skipConfirm === "boolean" ? skipConfirmRow.skipConfirm : false;
         const skipConfirmWaiterSelectionType = typeof skipConfirmRow?.waiterSelectionType === "string" ? skipConfirmRow.waiterSelectionType : "all";
-        const skipConfirmWaiters = Array.isArray(skipConfirmRow?.waiters) ? skipConfirmRow.waiters.map((w) => getRelationshipID5(w)).filter(Boolean) : [];
+        const skipConfirmWaiters = Array.isArray(skipConfirmRow?.waiters) ? skipConfirmRow.waiters.map((w) => getRelationshipID7(w)).filter(Boolean) : [];
         const categoryDelayRows = Array.isArray(widgetSettings?.categoryDelayByBranch) ? widgetSettings.categoryDelayByBranch : [];
         const categoryDelayRow = categoryDelayRows.find(
-          (candidate) => getRelationshipID5(candidate?.branch) === branchID
+          (candidate) => getRelationshipID7(candidate?.branch) === branchID
         );
         const delayMinutes = typeof categoryDelayRow?.delayMinutes === "number" ? categoryDelayRow.delayMinutes : 0;
         const applyToBilling = typeof categoryDelayRow?.applyToBilling === "boolean" ? categoryDelayRow.applyToBilling : true;
         const applyToTable = typeof categoryDelayRow?.applyToTable === "boolean" ? categoryDelayRow.applyToTable : true;
         const waiterSelectionType = typeof categoryDelayRow?.waiterSelectionType === "string" ? categoryDelayRow.waiterSelectionType : "all";
-        const waiters = Array.isArray(categoryDelayRow?.waiters) ? categoryDelayRow.waiters.map((w) => getRelationshipID5(w)).filter(Boolean) : [];
+        const waiters = Array.isArray(categoryDelayRow?.waiters) ? categoryDelayRow.waiters.map((w) => getRelationshipID7(w)).filter(Boolean) : [];
         const entireBillBlockingRows = Array.isArray(widgetSettings?.entireBillBlockingByBranch) ? widgetSettings.entireBillBlockingByBranch : [];
         const entireBillBlockingRow = entireBillBlockingRows.find(
-          (candidate) => getRelationshipID5(candidate?.branch) === branchID
+          (candidate) => getRelationshipID7(candidate?.branch) === branchID
         );
         const entireBillBlocking = typeof entireBillBlockingRow?.enabled === "boolean" ? entireBillBlockingRow.enabled : false;
         return Response.json({
@@ -27527,7 +28059,7 @@ var init_getTableCustomerDetailsVisibility = __esm({
 import dayjs26 from "dayjs";
 import utc26 from "dayjs/plugin/utc.js";
 import timezone26 from "dayjs/plugin/timezone.js";
-var ACTIVE_BILLING_STATUSES, LIVE_TABLE_TIMEZONE, BRANCH_SCOPED_ROLES2, getRelationshipID6, normalizeSectionName, parseSimpleTableNumber, extractNumericTableIndex, normalizeTableIdentifier, toTableLabel, parseConfiguredTableRange2, resolveConfiguredTables, parseOfflineTablesToArrayOfStrings2, toKotLabel, toElapsedSeconds, toMoneyNumber, getBillingTotalAmount, getBranchNameFromRelation, buildBranchWhere, resolveBranchScope, ensureBranch, ensureSection, ensureTable, compareTables, areAllItemsCancelled, normalizeItemStatus, getNonCancelledStatuses, deriveLiveTableState, getActiveTimerStart, responseCache, CACHE_TTL_MS, getLiveTableStatusHandler;
+var ACTIVE_BILLING_STATUSES, LIVE_TABLE_TIMEZONE, BRANCH_SCOPED_ROLES2, getRelationshipID8, normalizeSectionName, parseSimpleTableNumber, extractNumericTableIndex, normalizeTableIdentifier, toTableLabel, parseConfiguredTableRange2, resolveConfiguredTables, parseOfflineTablesToArrayOfStrings2, toKotLabel, toElapsedSeconds, toMoneyNumber, getBillingTotalAmount, getBranchNameFromRelation, buildBranchWhere, resolveBranchScope, ensureBranch, ensureSection, ensureTable, compareTables, areAllItemsCancelled, normalizeItemStatus, getNonCancelledStatuses, deriveLiveTableState, getActiveTimerStart, responseCache, CACHE_TTL_MS, getLiveTableStatusHandler;
 var init_getLiveTableStatus = __esm({
   "src/endpoints/getLiveTableStatus.ts"() {
     "use strict";
@@ -27545,7 +28077,7 @@ var init_getLiveTableStatus = __esm({
       "driver",
       "chef"
     ]);
-    getRelationshipID6 = (value) => {
+    getRelationshipID8 = (value) => {
       if (typeof value === "string" && value.trim().length > 0) return value;
       if (value && typeof value === "object" && "id" in value && (typeof value.id === "string" || typeof value.id === "number")) {
         return String(value.id);
@@ -27693,7 +28225,7 @@ var init_getLiveTableStatus = __esm({
       }
       if (requestedBranchId && requestedBranchId !== "all") {
         if (BRANCH_SCOPED_ROLES2.has(user.role || "")) {
-          const userBranchId = getRelationshipID6(user.branch);
+          const userBranchId = getRelationshipID8(user.branch);
           if (!userBranchId) {
             return {
               errorResponse: Response.json(
@@ -27717,7 +28249,7 @@ var init_getLiveTableStatus = __esm({
         }
       }
       if (BRANCH_SCOPED_ROLES2.has(user.role || "")) {
-        const userBranchId = getRelationshipID6(user.branch);
+        const userBranchId = getRelationshipID8(user.branch);
         if (!userBranchId) {
           return {
             errorResponse: Response.json(
@@ -27734,7 +28266,7 @@ var init_getLiveTableStatus = __esm({
         }
         return {};
       }
-      const companyId = getRelationshipID6(user.company);
+      const companyId = getRelationshipID8(user.company);
       if (!companyId) {
         return {
           errorResponse: Response.json(
@@ -27956,7 +28488,7 @@ var init_getLiveTableStatus = __esm({
         const branchMap = /* @__PURE__ */ new Map();
         const userIds = /* @__PURE__ */ new Set();
         for (const tableConfig of tableConfigResult.docs) {
-          const branchId = getRelationshipID6(tableConfig?.branch);
+          const branchId = getRelationshipID8(tableConfig?.branch);
           if (!branchId) continue;
           const branchName = getBranchNameFromRelation(tableConfig.branch, branchId);
           const branch = ensureBranch(branchMap, branchId, branchName);
@@ -27981,7 +28513,7 @@ var init_getLiveTableStatus = __esm({
                 }
               } else if (alloc && typeof alloc === "object") {
                 const tNum = typeof alloc.tableNumber === "string" ? alloc.tableNumber.trim() : typeof alloc.tableNumber === "number" ? String(alloc.tableNumber) : "";
-                const wId = getRelationshipID6(alloc.waiter);
+                const wId = getRelationshipID8(alloc.waiter);
                 if (tNum && wId) {
                   sectionWaiterMap.set(tNum, wId);
                   userIds.add(wId);
@@ -27997,7 +28529,7 @@ var init_getLiveTableStatus = __esm({
           }
         }
         for (const billing of activeBillingResult.docs) {
-          const createdById = getRelationshipID6(billing?.createdBy);
+          const createdById = getRelationshipID8(billing?.createdBy);
           if (createdById) {
             userIds.add(createdById);
           }
@@ -28039,7 +28571,7 @@ var init_getLiveTableStatus = __esm({
           const tableNumberValue = billing?.tableDetails?.tableNumber;
           if (typeof sectionValue !== "string" || typeof tableNumberValue !== "string") continue;
           if (!sectionValue.trim() || !tableNumberValue.trim()) continue;
-          const branchId = getRelationshipID6(billing?.branch);
+          const branchId = getRelationshipID8(billing?.branch);
           if (!branchId) continue;
           const branchName = getBranchNameFromRelation(billing.branch, branchId);
           const branch = ensureBranch(branchMap, branchId, branchName);
@@ -28075,7 +28607,7 @@ var init_getLiveTableStatus = __esm({
           const kotCandidate = typeof billing?.kotNumber === "string" ? billing.kotNumber : typeof billing?.invoiceNumber === "string" ? billing.invoiceNumber : null;
           const liveTableState = deriveLiveTableState(billing?.items);
           const activeTimerStart = liveTableState === "active" ? getActiveTimerStart(billing, startOfTodayMs, endOfTodayMs) : null;
-          const createdById = getRelationshipID6(billing?.createdBy);
+          const createdById = getRelationshipID8(billing?.createdBy);
           const servedByName = createdById ? userMap.get(createdById) || null : null;
           tableState.occupied = true;
           tableState.tableState = liveTableState;
@@ -28135,11 +28667,11 @@ var init_getLiveTableStatus = __esm({
 });
 
 // src/endpoints/allocateTableWaiter.ts
-var getRelationshipID7, allocateTableWaiterHandler;
+var getRelationshipID9, allocateTableWaiterHandler;
 var init_allocateTableWaiter = __esm({
   "src/endpoints/allocateTableWaiter.ts"() {
     "use strict";
-    getRelationshipID7 = (value) => {
+    getRelationshipID9 = (value) => {
       if (typeof value === "string" && value.trim().length > 0) return value;
       if (value && typeof value === "object" && "id" in value && (typeof value.id === "string" || typeof value.id === "number")) {
         return String(value.id);
@@ -28210,7 +28742,7 @@ var init_allocateTableWaiter = __esm({
               return { tableNumber: tNum2, waiterId: wId2 };
             }
             const tNum = typeof alloc?.tableNumber === "string" ? alloc.tableNumber.trim() : typeof alloc?.tableNumber === "number" ? String(alloc.tableNumber) : "";
-            const wId = getRelationshipID7(alloc?.waiter);
+            const wId = getRelationshipID9(alloc?.waiter);
             return { tableNumber: tNum, waiterId: wId };
           }).filter((alloc) => alloc.tableNumber && alloc.waiterId);
           const updatesForThisSection = tablesToProcess.filter(
@@ -28397,7 +28929,7 @@ var init_toggleTableOffline = __esm({
 });
 
 // src/endpoints/getLiveLoggedInUsers.ts
-var BRANCH_SCOPED_ROLES3, toText, getRelationshipID8, getBranchName, buildBranchWhere2, getRequestURL, resolveBranchScope2, getDisplayName, getActiveSessions, getLiveLoggedInUsersHandler;
+var BRANCH_SCOPED_ROLES3, toText, getRelationshipID10, getBranchName, buildBranchWhere2, getRequestURL, resolveBranchScope2, getDisplayName, getActiveSessions, getLiveLoggedInUsersHandler;
 var init_getLiveLoggedInUsers = __esm({
   "src/endpoints/getLiveLoggedInUsers.ts"() {
     "use strict";
@@ -28416,7 +28948,7 @@ var init_getLiveLoggedInUsers = __esm({
       if (typeof value === "number" && Number.isFinite(value)) return String(value);
       return null;
     };
-    getRelationshipID8 = (value) => {
+    getRelationshipID10 = (value) => {
       if (typeof value === "string" && value.trim().length > 0) return value;
       if (value && typeof value === "object" && "id" in value && (typeof value.id === "string" || typeof value.id === "number")) {
         return String(value.id);
@@ -28462,7 +28994,7 @@ var init_getLiveLoggedInUsers = __esm({
       }
       if (requestedBranchId && requestedBranchId !== "all") {
         if (BRANCH_SCOPED_ROLES3.has(user.role || "")) {
-          const userBranchId = getRelationshipID8(user.branch);
+          const userBranchId = getRelationshipID10(user.branch);
           if (!userBranchId) {
             return {
               errorResponse: Response.json(
@@ -28486,7 +29018,7 @@ var init_getLiveLoggedInUsers = __esm({
         }
       }
       if (BRANCH_SCOPED_ROLES3.has(user.role || "")) {
-        const userBranchId = getRelationshipID8(user.branch);
+        const userBranchId = getRelationshipID10(user.branch);
         if (!userBranchId) {
           return {
             errorResponse: Response.json(
@@ -28503,7 +29035,7 @@ var init_getLiveLoggedInUsers = __esm({
         }
         return {};
       }
-      const companyId = getRelationshipID8(user.company);
+      const companyId = getRelationshipID10(user.company);
       if (!companyId) {
         return {
           errorResponse: Response.json(
@@ -28592,8 +29124,8 @@ var init_getLiveLoggedInUsers = __esm({
           try {
             const activeSessions = getActiveSessions(doc.sessions, nowMs);
             if (activeSessions.length === 0) return null;
-            const directBranchId = getRelationshipID8(doc.branch);
-            const fallbackBranchId = getRelationshipID8(doc.lastLoginBranch);
+            const directBranchId = getRelationshipID10(doc.branch);
+            const fallbackBranchId = getRelationshipID10(doc.lastLoginBranch);
             let branchId = directBranchId || fallbackBranchId;
             const directBranchName = getBranchName(doc.branch);
             const fallbackBranchName = getBranchName(doc.lastLoginBranch);
@@ -28710,7 +29242,7 @@ var init_getReportBranches = __esm({
 });
 
 // src/endpoints/getWidgetProductOptions.ts
-var toPositiveInt, toText2, getRelationshipID9, getWidgetProductOptionsHandler;
+var toPositiveInt, toText2, getRelationshipID11, getWidgetProductOptionsHandler;
 var init_getWidgetProductOptions = __esm({
   "src/endpoints/getWidgetProductOptions.ts"() {
     "use strict";
@@ -28721,7 +29253,7 @@ var init_getWidgetProductOptions = __esm({
       return Math.min(max, parsed);
     };
     toText2 = (value) => typeof value === "string" ? value : value === null || value === void 0 ? "" : String(value);
-    getRelationshipID9 = (value) => {
+    getRelationshipID11 = (value) => {
       if (typeof value === "string" || typeof value === "number") return toText2(value).trim();
       if (value && typeof value === "object" && "id" in value && (typeof value.id === "string" || typeof value.id === "number")) {
         return toText2(value.id).trim();
@@ -28786,7 +29318,7 @@ var init_getWidgetProductOptions = __esm({
         });
         const docs = Array.isArray(products?.docs) ? products.docs : [];
         const categoryIDSet = new Set(normalizedCategoryIDs);
-        const categoryFilteredDocs = categoryIDSet.size > 0 ? docs.filter((doc) => categoryIDSet.has(getRelationshipID9(doc.category))) : docs;
+        const categoryFilteredDocs = categoryIDSet.size > 0 ? docs.filter((doc) => categoryIDSet.has(getRelationshipID11(doc.category))) : docs;
         const options = categoryFilteredDocs.map((doc) => {
           const id = toText2(doc.id).trim();
           if (!id) return null;
@@ -28810,11 +29342,12 @@ var init_getWidgetProductOptions = __esm({
 });
 
 // src/endpoints/getBillingMenu.ts
-var toText3, looksLikeMediaPath, looksLikeImagePath, normalizeImageUrl, extractImageUrl, getRelationshipID10, resolveMode, getBillingMenuHandler;
+var toText3, looksLikeMediaPath, looksLikeImagePath, normalizeImageUrl, extractImageUrl, getRelationshipID12, resolveMode, getBillingMenuHandler;
 var init_getBillingMenu = __esm({
   "src/endpoints/getBillingMenu.ts"() {
     "use strict";
     init_menuCache();
+    init_inventory();
     toText3 = (value) => typeof value === "string" ? value : value === null || value === void 0 ? "" : String(value);
     looksLikeMediaPath = (value) => {
       const normalized = value.toLowerCase();
@@ -28883,7 +29416,7 @@ var init_getBillingMenu = __esm({
       }
       return null;
     };
-    getRelationshipID10 = (value) => {
+    getRelationshipID12 = (value) => {
       if (typeof value === "string" || typeof value === "number") return toText3(value).trim();
       if (value && typeof value === "object" && "id" in value && (typeof value.id === "string" || typeof value.id === "number")) {
         return toText3(value.id).trim();
@@ -28919,7 +29452,7 @@ var init_getBillingMenu = __esm({
           if (!branch) {
             return Response.json({ message: "Branch not found" }, { status: 404 });
           }
-          const companyID = getRelationshipID10(branch.company);
+          const companyID = getRelationshipID12(branch.company);
           const categories = cachedCategories.filter((doc) => {
             if (doc.isBilling !== true) return false;
             const companyList = Array.isArray(doc.company) ? doc.company : [doc.company];
@@ -28964,14 +29497,14 @@ var init_getBillingMenu = __esm({
           );
         }
         const query = (url.searchParams.get("q") || "").trim().toLowerCase();
-        const products = cachedProducts.filter((doc) => {
+        const filteredDocs = cachedProducts.filter((doc) => {
           const inactiveBranches = Array.isArray(doc.inactiveBranches) ? doc.inactiveBranches : [];
           const isInactive = inactiveBranches.some((b) => {
             const id = typeof b === "object" && b !== null ? b.id : b;
             return String(id) === String(branchID);
           });
           if (isInactive) return false;
-          const categoryVal = getRelationshipID10(doc.category);
+          const categoryVal = getRelationshipID12(doc.category);
           if (categoryVal !== categoryID) return false;
           if (query.length > 0) {
             const name = String(doc.name || "").toLowerCase();
@@ -28982,8 +29515,36 @@ var init_getBillingMenu = __esm({
             }
           }
           return true;
-        }).map((doc) => {
+        });
+        const productIds = filteredDocs.map((doc) => toText3(doc.id).trim()).filter((id) => id.length > 0);
+        let stockMap = /* @__PURE__ */ new Map();
+        try {
+          stockMap = await getMultipleProductsStock(req.payload, productIds, String(branchID));
+        } catch (err) {
+          req.payload.logger.error({ err, msg: "Error computing live stock in getBillingMenu" });
+        }
+        let isZeroStockBillingSkipped = false;
+        try {
+          const widgetSettings = await req.payload.findGlobal({
+            slug: "widget-settings",
+            depth: 0
+          });
+          const skipRows = widgetSettings?.skipZeroStockBillingByBranch;
+          if (Array.isArray(skipRows)) {
+            const branchRow = skipRows.find((r) => {
+              const rBranchId = typeof r.branch === "object" && r.branch !== null ? r.branch.id : r.branch;
+              return String(rBranchId) === String(branchID);
+            });
+            if (branchRow && branchRow.skipZeroStockBilling === true) {
+              isZeroStockBillingSkipped = true;
+            }
+          }
+        } catch (err) {
+          req.payload.logger.error({ err, msg: "Error checking skip zero stock billing settings in getBillingMenu" });
+        }
+        const products = filteredDocs.map((doc) => {
           const id = toText3(doc.id).trim();
+          const currentStock = stockMap.get(id) ?? 0;
           const price = typeof doc.defaultPriceDetails?.price === "number" && Number.isFinite(doc.defaultPriceDetails.price) ? doc.defaultPriceDetails.price : null;
           const imageUrl = extractImageUrl(
             doc.imageUrl ?? doc.thumbnailURL ?? doc.thumbnail ?? doc.image ?? doc.images ?? doc.media
@@ -28993,9 +29554,11 @@ var init_getBillingMenu = __esm({
             name: toText3(doc.name).trim() || id,
             productId: toText3(doc.productId).trim() || null,
             upc: toText3(doc.upc).trim() || null,
-            categoryId: getRelationshipID10(doc.category) || null,
+            categoryId: getRelationshipID12(doc.category) || null,
             isAvailable: doc.isAvailable !== false,
-            isOutOfStock: doc.isOutOfStock === true,
+            isOutOfStock: isZeroStockBillingSkipped ? doc.isOutOfStock === true : doc.isOutOfStock === true || currentStock <= 0,
+            allowZeroStockBilling: isZeroStockBillingSkipped,
+            stock: currentStock,
             price,
             defaultPriceDetails: doc.defaultPriceDetails,
             branchOverrides: doc.branchOverrides,
@@ -29010,6 +29573,7 @@ var init_getBillingMenu = __esm({
           {
             mode,
             branchId: branchID,
+            allowZeroStockBilling: isZeroStockBillingSkipped,
             categoryId: categoryID,
             count: products.length,
             products
@@ -32618,7 +33182,7 @@ ${ackLine}` : ackLine;
 });
 
 // src/endpoints/createTableOrderBatch.ts
-var BRANCH_SCOPED_ROLES5, toText7, getRelationshipID11, normalizeSectionName3, parseSimpleTableNumber2, normalizeTableNumber2, parseConfiguredTableRange3, resolveConfiguredTables2, parseOfflineTablesToArrayOfStrings3, parseBody3, parseSelections, buildBillingBaseData, resolveAllowedTablesBySection, getErrorStatus, getErrorMessage, createTableOrderBatchHandler;
+var BRANCH_SCOPED_ROLES5, toText7, getRelationshipID13, normalizeSectionName3, parseSimpleTableNumber2, normalizeTableNumber2, parseConfiguredTableRange3, resolveConfiguredTables2, parseOfflineTablesToArrayOfStrings3, parseBody3, parseSelections, buildBillingBaseData, resolveAllowedTablesBySection, getErrorStatus, getErrorMessage, createTableOrderBatchHandler;
 var init_createTableOrderBatch = __esm({
   "src/endpoints/createTableOrderBatch.ts"() {
     "use strict";
@@ -32637,15 +33201,15 @@ var init_createTableOrderBatch = __esm({
       if (typeof value === "number" && Number.isFinite(value)) return String(value);
       return null;
     };
-    getRelationshipID11 = (value) => {
+    getRelationshipID13 = (value) => {
       if (!value) return null;
       if (typeof value === "string" && value.trim().length > 0) return value;
       if (typeof value === "number" && Number.isFinite(value)) return String(value);
       if (typeof value === "object" && value !== null) {
         const record = value;
-        const id = getRelationshipID11(record.id);
+        const id = getRelationshipID13(record.id);
         if (id) return id;
-        return getRelationshipID11(record._id);
+        return getRelationshipID13(record._id);
       }
       return null;
     };
@@ -32855,7 +33419,7 @@ var init_createTableOrderBatch = __esm({
         }
         const currentUser = req.user;
         const userRole = typeof currentUser?.role === "string" ? currentUser.role : "";
-        const userBranchId = getRelationshipID11(currentUser?.branch);
+        const userBranchId = getRelationshipID13(currentUser?.branch);
         if (BRANCH_SCOPED_ROLES5.has(userRole)) {
           if (!userBranchId) {
             return Response.json(
@@ -35119,6 +35683,173 @@ var init_WaiterCalls = __esm({
       timestamps: true
     };
     WaiterCalls_default = WaiterCalls;
+  }
+});
+
+// src/collections/CallLogs.ts
+var CallLogs, CallLogs_default;
+var init_CallLogs = __esm({
+  "src/collections/CallLogs.ts"() {
+    "use strict";
+    CallLogs = {
+      slug: "call-logs",
+      admin: {
+        useAsTitle: "callId",
+        defaultColumns: ["callId", "callerName", "receiverName", "status", "durationSeconds", "createdAt"]
+      },
+      access: {
+        create: () => true,
+        read: () => true,
+        update: () => true,
+        delete: ({ req: { user } }) => user?.role === "superadmin" || user?.role === "admin"
+      },
+      fields: [
+        {
+          name: "callId",
+          type: "text",
+          required: true,
+          index: true,
+          admin: {
+            description: "Unique call session identifier."
+          }
+        },
+        {
+          name: "callerUser",
+          type: "relationship",
+          relationTo: "users",
+          required: false,
+          admin: {
+            description: "User who initiated the call."
+          }
+        },
+        {
+          name: "callerUserId",
+          type: "text",
+          index: true,
+          admin: {
+            description: "Raw string ID of the caller."
+          }
+        },
+        {
+          name: "callerName",
+          type: "text",
+          admin: {
+            description: "Display name of caller."
+          }
+        },
+        {
+          name: "callerRole",
+          type: "text",
+          admin: {
+            description: "Role of caller (e.g. superadmin, admin, waiter)."
+          }
+        },
+        {
+          name: "callerPhone",
+          type: "text"
+        },
+        {
+          name: "receiverUser",
+          type: "relationship",
+          relationTo: "users",
+          required: false,
+          admin: {
+            description: "User who received the call."
+          }
+        },
+        {
+          name: "receiverUserId",
+          type: "text",
+          index: true,
+          admin: {
+            description: "Raw string ID of the receiver."
+          }
+        },
+        {
+          name: "receiverName",
+          type: "text",
+          admin: {
+            description: "Display name of receiver."
+          }
+        },
+        {
+          name: "receiverRole",
+          type: "text",
+          admin: {
+            description: "Role of receiver."
+          }
+        },
+        {
+          name: "receiverPhone",
+          type: "text"
+        },
+        {
+          name: "branch",
+          type: "relationship",
+          relationTo: "branches",
+          required: false,
+          admin: {
+            description: "Branch associated with this call if applicable."
+          }
+        },
+        {
+          name: "callType",
+          type: "select",
+          options: [
+            { label: "Voice Call", value: "voice" },
+            { label: "Video Call", value: "video" }
+          ],
+          defaultValue: "voice"
+        },
+        {
+          name: "direction",
+          type: "select",
+          options: [
+            { label: "Outgoing", value: "outgoing" },
+            { label: "Incoming", value: "incoming" }
+          ],
+          defaultValue: "outgoing"
+        },
+        {
+          name: "status",
+          type: "select",
+          options: [
+            { label: "Connected", value: "connected" },
+            { label: "Missed", value: "missed" },
+            { label: "Declined", value: "declined" },
+            { label: "Busy", value: "busy" },
+            { label: "Offline", value: "offline" },
+            { label: "Ended", value: "ended" }
+          ],
+          defaultValue: "missed",
+          required: true
+        },
+        {
+          name: "durationSeconds",
+          type: "number",
+          defaultValue: 0,
+          admin: {
+            description: "Duration of call in seconds."
+          }
+        },
+        {
+          name: "startedAt",
+          type: "text",
+          admin: {
+            description: "ISO timestamp when call was started."
+          }
+        },
+        {
+          name: "endedAt",
+          type: "text",
+          admin: {
+            description: "ISO timestamp when call ended."
+          }
+        }
+      ],
+      timestamps: true
+    };
+    CallLogs_default = CallLogs;
   }
 });
 
@@ -40236,6 +40967,7 @@ var init_payload_config = __esm({
     init_getIdempotencyMetrics();
     init_idempotencyRetention();
     init_WaiterCalls();
+    init_CallLogs();
     init_ReportCardRules();
     init_readQueries();
     init_TimeWiseReport();
@@ -41117,6 +41849,7 @@ var init_payload_config = __esm({
         StockAlerts,
         IdempotencyKeys_default,
         WaiterCalls_default,
+        CallLogs_default,
         CctvReports_default,
         ReportCardRules_default
       ].map(wrapCollection),

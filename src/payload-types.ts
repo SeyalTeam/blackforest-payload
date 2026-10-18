@@ -111,6 +111,7 @@ export interface Config {
     'stock-alerts': StockAlert;
     'idempotency-keys': IdempotencyKey;
     'waiter-calls': WaiterCall;
+    'call-logs': CallLog;
     'cctv-reports': CctvReport;
     'report-card-rules': ReportCardRule;
     'payload-locked-documents': PayloadLockedDocument;
@@ -163,6 +164,7 @@ export interface Config {
     'stock-alerts': StockAlertsSelect<false> | StockAlertsSelect<true>;
     'idempotency-keys': IdempotencyKeysSelect<false> | IdempotencyKeysSelect<true>;
     'waiter-calls': WaiterCallsSelect<false> | WaiterCallsSelect<true>;
+    'call-logs': CallLogsSelect<false> | CallLogsSelect<true>;
     'cctv-reports': CctvReportsSelect<false> | CctvReportsSelect<true>;
     'report-card-rules': ReportCardRulesSelect<false> | ReportCardRulesSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -1845,14 +1847,18 @@ export interface Review {
     | {
         product: string | Product;
         rating?: number | null;
-        feedback: string;
+        feedback?: string | null;
         /**
          * Reply from the chef regarding this feedback
          */
         chefReply?: string | null;
         repliedBy?: string | null;
         repliedAt?: string | null;
-        status?: ('waiting' | 'replied' | 'approved') | null;
+        status?: ('waiting' | 'replied' | 'approved' | 'positive' | 'negative') | null;
+        /**
+         * Admin team classification: positive or negative review
+         */
+        reviewStatus?: ('pending' | 'positive' | 'negative') | null;
         id?: string | null;
       }[]
     | null;
@@ -2540,6 +2546,72 @@ export interface WaiterCall {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "call-logs".
+ */
+export interface CallLog {
+  id: string;
+  /**
+   * Unique call session identifier.
+   */
+  callId: string;
+  /**
+   * User who initiated the call.
+   */
+  callerUser?: (string | null) | User;
+  /**
+   * Raw string ID of the caller.
+   */
+  callerUserId?: string | null;
+  /**
+   * Display name of caller.
+   */
+  callerName?: string | null;
+  /**
+   * Role of caller (e.g. superadmin, admin, waiter).
+   */
+  callerRole?: string | null;
+  callerPhone?: string | null;
+  /**
+   * User who received the call.
+   */
+  receiverUser?: (string | null) | User;
+  /**
+   * Raw string ID of the receiver.
+   */
+  receiverUserId?: string | null;
+  /**
+   * Display name of receiver.
+   */
+  receiverName?: string | null;
+  /**
+   * Role of receiver.
+   */
+  receiverRole?: string | null;
+  receiverPhone?: string | null;
+  /**
+   * Branch associated with this call if applicable.
+   */
+  branch?: (string | null) | Branch;
+  callType?: ('voice' | 'video') | null;
+  direction?: ('outgoing' | 'incoming') | null;
+  status: 'connected' | 'missed' | 'declined' | 'busy' | 'offline' | 'ended';
+  /**
+   * Duration of call in seconds.
+   */
+  durationSeconds?: number | null;
+  /**
+   * ISO timestamp when call was started.
+   */
+  startedAt?: string | null;
+  /**
+   * ISO timestamp when call ended.
+   */
+  endedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "cctv-reports".
  */
 export interface CctvReport {
@@ -2815,6 +2887,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'waiter-calls';
         value: string | WaiterCall;
+      } | null)
+    | ({
+        relationTo: 'call-logs';
+        value: string | CallLog;
       } | null)
     | ({
         relationTo: 'cctv-reports';
@@ -3894,6 +3970,7 @@ export interface ReviewsSelect<T extends boolean = true> {
         repliedBy?: T;
         repliedAt?: T;
         status?: T;
+        reviewStatus?: T;
         id?: T;
       };
   customerName?: T;
@@ -4163,6 +4240,32 @@ export interface WaiterCallsSelect<T extends boolean = true> {
   assignedWaiter?: T;
   billing?: T;
   callTimestamp?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "call-logs_select".
+ */
+export interface CallLogsSelect<T extends boolean = true> {
+  callId?: T;
+  callerUser?: T;
+  callerUserId?: T;
+  callerName?: T;
+  callerRole?: T;
+  callerPhone?: T;
+  receiverUser?: T;
+  receiverUserId?: T;
+  receiverName?: T;
+  receiverRole?: T;
+  receiverPhone?: T;
+  branch?: T;
+  callType?: T;
+  direction?: T;
+  status?: T;
+  durationSeconds?: T;
+  startedAt?: T;
+  endedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

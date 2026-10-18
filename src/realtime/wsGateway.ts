@@ -153,11 +153,201 @@ const realtimeState: RealtimeState = {
   heartbeatTimer: null,
 }
 
+const WORKER_ID = randomUUID()
+const BUS_COLLECTION = 'realtime_bus'
+const ACTIVE_CONNS_COLLECTION = 'active_connections'
+
+type RealtimeBusMessage = {
+  channel: 'call_signal' | 'chat' | 'billing' | 'session_terminate'
+  createdAt: Date
+  fromWorkerId: string
+  payload: Record<string, unknown>
+  recipientAudience?: string | null
+  recipientUserId?: string | null
+  senderId?: string | null
+  targetUserId?: string | null
+}
+
+const getMongoDb = (): any => {
+  const payload = realtimeState.payload
+  if (!payload) return null
+  return (
+    (payload.db as any)?.connection?.db ||
+    (payload.db as any)?.dbs?.[(payload.db as any)?.defaultDB]?.connection?.db ||
+    (payload.db as any)?.collections?.['users']?.collection?.conn?.db ||
+    null
+  )
+}
+
+const publishToBus = (msg: Omit<RealtimeBusMessage, 'fromWorkerId' | 'createdAt'>): void => {
+  const db = getMongoDb()
+  if (!db) return
+  db.collection(BUS_COLLECTION)
+    .insertOne({
+      ...msg,
+      fromWorkerId: WORKER_ID,
+      createdAt: new Date(),
+    })
+    .catch((err: any) => {
+      console.warn('[wsGateway] Failed to insert bus event:', err?.message || err)
+    })
+}
+
+let busChangeStream: any = null
+let isClusterInitialized = false
+
+const deliverBusCallSignal = (payload: Record<string, unknown>, targetUserId?: string | null): void => {
+  if (!targetUserId) return
+  const targetConnIDs = realtimeState.connectionsByUserID.get(targetUserId)
+  if (!targetConnIDs || targetConnIDs.size === 0) return
+
+  for (const connID of targetConnIDs) {
+    const targetConn = realtimeState.connections.get(connID)
+    if (targetConn && targetConn.socket.readyState === WebSocket.OPEN) {
+      sendServerMessage(targetConn, payload)
+    }
+  }
+}
+
+const deliverBusChatEvent = (
+  safePayload: Record<string, unknown>,
+  recipientAudience?: string | null,
+  recipientUserId?: string | null,
+  senderId?: string | null,
+): void => {
+  if (recipientUserId) {
+    const connIDs = realtimeState.connectionsByUserID.get(recipientUserId)
+    if (connIDs) {
+      for (const connID of connIDs) {
+        const connection = realtimeState.connections.get(connID)
+        if (connection) sendServerMessage(connection, safePayload)
+      }
+    }
+  }
+
+  if (recipientAudience === 'admins') {
+    for (const connection of realtimeState.connections.values()) {
+      if (connection.role === 'admin' || connection.role === 'superadmin') {
+        sendServerMessage(connection, safePayload)
+      }
+    }
+  }
+
+  if (senderId) {
+    const connIDs = realtimeState.connectionsByUserID.get(senderId)
+    if (connIDs) {
+      for (const connID of connIDs) {
+        const connection = realtimeState.connections.get(connID)
+        if (connection) sendServerMessage(connection, safePayload)
+      }
+    }
+  }
+}
+
+const deliverBusBillingEvent = (storedEvent: StoredEvent): void => {
+  for (const connection of realtimeState.connections.values()) {
+    if (!matchesSubscription(storedEvent, connection.subscription)) continue
+    sendServerMessage(connection, storedEvent)
+  }
+}
+
+const deliverBusSessionTermination = (userId: string, reason: string): void => {
+  const connectionIDs = realtimeState.connectionsByUserID.get(userId)
+  if (!connectionIDs || connectionIDs.size === 0) return
+
+  for (const connectionID of Array.from(connectionIDs)) {
+    const connection = realtimeState.connections.get(connectionID)
+    if (connection) {
+      sendSystemMessage(connection, {
+        eventType: 'session_terminated',
+        error_code: 'session_terminated',
+        message: reason,
+        reason,
+      })
+      setTimeout(() => {
+        closeSocket(connection.socket, 4401, reason)
+      }, 100)
+    }
+  }
+}
+
+const startBusListener = (db: any): void => {
+  try {
+    const busColl = db.collection(BUS_COLLECTION)
+    busChangeStream = busColl.watch([{ $match: { operationType: 'insert' } }])
+
+    busChangeStream.on('change', (change: any) => {
+      try {
+        const doc = change.fullDocument as RealtimeBusMessage | undefined
+        if (!doc || doc.fromWorkerId === WORKER_ID) return
+
+        if (doc.channel === 'call_signal') {
+          deliverBusCallSignal(doc.payload, doc.targetUserId)
+        } else if (doc.channel === 'chat') {
+          deliverBusChatEvent(doc.payload, doc.recipientAudience, doc.recipientUserId, doc.senderId)
+        } else if (doc.channel === 'billing') {
+          deliverBusBillingEvent(doc.payload as unknown as StoredEvent)
+        } else if (doc.channel === 'session_terminate') {
+          deliverBusSessionTermination(
+            doc.targetUserId || (doc.payload?.userId as string),
+            (doc.payload?.reason as string) || 'Session terminated',
+          )
+        }
+      } catch (err) {
+        console.error('[wsGateway] Error handling bus change event:', err)
+      }
+    })
+
+    busChangeStream.on('error', (err: any) => {
+      console.warn('[wsGateway] Bus change stream error, reconnecting in 2s:', err?.message || err)
+      try {
+        busChangeStream?.close()
+      } catch {}
+      setTimeout(() => startBusListener(db), 2000)
+    })
+
+    busChangeStream.on('close', () => {
+      setTimeout(() => startBusListener(db), 2000)
+    })
+  } catch (err: any) {
+    console.warn('[wsGateway] Change stream watch failed, retrying in 5s:', err?.message || err)
+    setTimeout(() => startBusListener(db), 5000)
+  }
+}
+
+const initCrossWorkerCluster = async (): Promise<void> => {
+  if (isClusterInitialized) return
+  const db = getMongoDb()
+  if (!db) {
+    setTimeout(initCrossWorkerCluster, 1000)
+    return
+  }
+  isClusterInitialized = true
+
+  try {
+    await db.collection(ACTIVE_CONNS_COLLECTION).createIndex({ userId: 1 }).catch(() => {})
+    await db.collection(ACTIVE_CONNS_COLLECTION).createIndex({ connectionId: 1 }, { unique: true }).catch(() => {})
+    await db.collection(ACTIVE_CONNS_COLLECTION).createIndex({ workerId: 1 }).catch(() => {})
+    await db.collection(BUS_COLLECTION).createIndex({ createdAt: 1 }, { expireAfterSeconds: 60 }).catch(() => {})
+
+    // Clean up stale connections from this worker from previous crash/restart
+    await db.collection(ACTIVE_CONNS_COLLECTION).deleteMany({ workerId: WORKER_ID }).catch(() => {})
+
+    startBusListener(db)
+  } catch (err: any) {
+    console.error('[wsGateway] initCrossWorkerCluster error:', err?.message || err)
+  }
+}
+
 const parseRelationshipID = (value: unknown): string | null => {
   if (typeof value === 'string' && value.trim().length > 0) return value.trim()
   if (typeof value === 'number' && Number.isFinite(value)) return String(value)
 
   if (value && typeof value === 'object') {
+    if (typeof (value as any).toHexString === 'function') {
+      const hex = (value as any).toHexString()
+      if (typeof hex === 'string' && hex.trim().length > 0) return hex.trim()
+    }
     if ('id' in value) {
       const id = (value as { id?: unknown }).id
       if (typeof id === 'string' && id.trim().length > 0) return id.trim()
@@ -167,6 +357,12 @@ const parseRelationshipID = (value: unknown): string | null => {
       const id = (value as { _id?: unknown })._id
       if (typeof id === 'string' && id.trim().length > 0) return id.trim()
       if (typeof id === 'number' && Number.isFinite(id)) return String(id)
+    }
+    if (typeof (value as any).toString === 'function') {
+      const str = (value as any).toString()
+      if (typeof str === 'string' && str.trim().length > 0 && str !== '[object Object]') {
+        return str.trim()
+      }
     }
   }
 
@@ -340,6 +536,11 @@ const removeConnection = (connectionID: string): void => {
   if (connectionSet.size === 0) {
     realtimeState.connectionsByUserID.delete(connection.userID)
   }
+
+  const db = getMongoDb()
+  if (db) {
+    db.collection(ACTIVE_CONNS_COLLECTION).deleteOne({ connectionId: connectionID }).catch(() => {})
+  }
 }
 
 const pruneEventBuffers = (nowMs: number): void => {
@@ -418,6 +619,18 @@ const startHeartbeatLoop = (): void => {
   realtimeState.heartbeatTimer = setInterval(() => {
     const nowMs = Date.now()
     pruneEventBuffers(nowMs)
+
+    const db = getMongoDb()
+    if (db) {
+      db.collection(ACTIVE_CONNS_COLLECTION).updateMany(
+        { workerId: WORKER_ID },
+        { $set: { lastHeartbeat: new Date() } }
+      ).catch(() => {})
+
+      db.collection(ACTIVE_CONNS_COLLECTION).deleteMany({
+        lastHeartbeat: { $lt: new Date(Date.now() - 120_000) }
+      }).catch(() => {})
+    }
 
     for (const connection of realtimeState.connections.values()) {
       if (nowMs - connection.lastPongAtMs > HEARTBEAT_TIMEOUT_MS) {
@@ -849,6 +1062,20 @@ const registerConnection = (socket: WebSocket, context: AuthenticatedUserContext
   userConnections.add(connectionID)
   realtimeState.connectionsByUserID.set(context.userID, userConnections)
 
+  const db = getMongoDb()
+  if (db) {
+    db.collection(ACTIVE_CONNS_COLLECTION)
+      .insertOne({
+        connectionId: connectionID,
+        userId: context.userID,
+        role: context.role,
+        workerId: WORKER_ID,
+        createdAt: new Date(),
+        lastHeartbeat: new Date(),
+      })
+      .catch(() => {})
+  }
+
   return connection
 }
 
@@ -964,7 +1191,7 @@ const recordCallEventToDb = async (params: {
   }
 }
 
-const handleCallSignal = (connection: ConnectionState, value: Record<string, unknown>): void => {
+const handleCallSignal = async (connection: ConnectionState, value: Record<string, unknown>): Promise<void> => {
   const targetUserId =
     typeof value.targetUserId === 'string'
       ? value.targetUserId.trim()
@@ -1032,6 +1259,21 @@ const handleCallSignal = (connection: ConnectionState, value: Record<string, unk
     }
   }
 
+  if (!targetUserName && realtimeState.payload && isMongoId(targetUserId)) {
+    try {
+      const userDoc = await realtimeState.payload.findByID({
+        collection: 'users',
+        id: targetUserId,
+        depth: 0,
+        overrideAccess: true,
+      })
+      if (userDoc && typeof userDoc === 'object') {
+        if (typeof (userDoc as any).name === 'string') targetUserName = (userDoc as any).name.trim()
+        if (typeof (userDoc as any).role === 'string') targetUserRole = (userDoc as any).role.trim()
+      }
+    } catch {}
+  }
+
   const durationSec =
     typeof value.durationSeconds === 'number'
       ? value.durationSeconds
@@ -1051,8 +1293,41 @@ const handleCallSignal = (connection: ConnectionState, value: Record<string, unk
     durationSeconds: durationSec,
   })
 
-  if (!targetConnIDs || targetConnIDs.size === 0) {
-    if (signalType === 'offer') {
+  // 1. Deliver to any locally connected sockets for target user
+  let sentLocally = false
+  if (targetConnIDs && targetConnIDs.size > 0) {
+    for (const connID of targetConnIDs) {
+      const targetConn = realtimeState.connections.get(connID)
+      if (targetConn && targetConn.socket.readyState === WebSocket.OPEN) {
+        sendServerMessage(targetConn, eventPayload)
+        sentLocally = true
+      }
+    }
+  }
+
+  // 2. Broadcast to all other cluster workers via realtime_bus
+  publishToBus({
+    channel: 'call_signal',
+    targetUserId,
+    payload: eventPayload,
+  })
+
+  // 3. If offer could not be delivered locally, check cluster-wide presence
+  if (!sentLocally && signalType === 'offer') {
+    const db = getMongoDb()
+    let isOnlineInCluster = false
+    if (db) {
+      try {
+        const count = await db.collection(ACTIVE_CONNS_COLLECTION).countDocuments({
+          userId: targetUserId,
+        })
+        isOnlineInCluster = count > 0
+      } catch {
+        isOnlineInCluster = true
+      }
+    }
+
+    if (!isOnlineInCluster) {
       void recordCallEventToDb({
         callId,
         signalType: 'user_offline',
@@ -1074,39 +1349,6 @@ const handleCallSignal = (connection: ConnectionState, value: Record<string, unk
         timestamp: nowISO(),
       })
     }
-    return
-  }
-
-  let sent = false
-  for (const connID of targetConnIDs) {
-    const targetConn = realtimeState.connections.get(connID)
-    if (targetConn && targetConn.socket.readyState === WebSocket.OPEN) {
-      sendServerMessage(targetConn, eventPayload)
-      sent = true
-    }
-  }
-
-  if (!sent && signalType === 'offer') {
-    void recordCallEventToDb({
-      callId,
-      signalType: 'user_offline',
-      callerUserId: connection.userID,
-      callerName: senderName,
-      callerRole: connection.role,
-      targetUserId,
-      targetUserName,
-      targetUserRole,
-    })
-    sendServerMessage(connection, {
-      eventType: 'call_signal',
-      callId,
-      signalType: 'user_offline',
-      senderId: 'system',
-      targetUserId: connection.userID,
-      offlineUserId: targetUserId,
-      message: 'The user is currently offline or unreachable.',
-      timestamp: nowISO(),
-    })
   }
 }
 
@@ -1155,7 +1397,7 @@ const bootSocket = (socket: WebSocket, context: AuthenticatedUserContext): void 
     const action = typeof rawAction === 'string' ? rawAction.trim() : ''
 
     if (action === 'call_signal') {
-      handleCallSignal(connection, parsed.value)
+      void handleCallSignal(connection, parsed.value)
       return
     }
 
@@ -1223,6 +1465,7 @@ const isRealtimePath = (request: IncomingMessage): boolean => {
 export const createRealtimeGateway = (payload: Payload): RealtimeGateway => {
   realtimeState.payload = payload
   startHeartbeatLoop()
+  void initCrossWorkerCluster()
 
   return {
     endpointPath: WS_ENDPOINT_PATH,
@@ -1327,6 +1570,12 @@ export const publishBillingRealtimeEvent = (
     sendServerMessage(connection, storedEvent)
   }
 
+  // Broadcast to other cluster workers
+  publishToBus({
+    channel: 'billing',
+    payload: storedEvent as unknown as Record<string, unknown>,
+  })
+
   return storedEvent
 }
 
@@ -1383,6 +1632,15 @@ export const publishChatRealtimeEvent = (input: ChatRealtimePublishInput): void 
       }
     }
   }
+
+  // Broadcast to other cluster workers
+  publishToBus({
+    channel: 'chat',
+    recipientAudience: input.recipientAudience,
+    recipientUserId: input.recipientUserId || null,
+    senderId: input.senderId,
+    payload: safePayload,
+  })
 }
 
 export const terminateUserSession = (
@@ -1394,22 +1652,36 @@ export const terminateUserSession = (
   if (!normalizedUserId) return
 
   const connectionIDs = realtimeState.connectionsByUserID.get(normalizedUserId)
-  if (!connectionIDs || connectionIDs.size === 0) return
-
-  for (const connectionID of Array.from(connectionIDs)) {
-    const connection = realtimeState.connections.get(connectionID)
-    if (connection) {
-      sendSystemMessage(connection, {
-        eventType,
-        error_code: eventType,
-        message: reason,
-        reason,
-      })
-      setTimeout(() => {
-        closeSocket(connection.socket, 4401, reason)
-      }, 100)
+  if (connectionIDs && connectionIDs.size > 0) {
+    for (const connectionID of Array.from(connectionIDs)) {
+      const connection = realtimeState.connections.get(connectionID)
+      if (connection) {
+        sendSystemMessage(connection, {
+          eventType,
+          error_code: eventType,
+          message: reason,
+          reason,
+        })
+        setTimeout(() => {
+          closeSocket(connection.socket, 4401, reason)
+        }, 100)
+      }
     }
   }
+
+  // Broadcast to other cluster workers
+  publishToBus({
+    channel: 'session_terminate',
+    targetUserId: normalizedUserId,
+    payload: { userId: normalizedUserId, reason, eventType },
+  })
 }
+
+process.on('beforeExit', () => {
+  const db = getMongoDb()
+  if (db) {
+    db.collection(ACTIVE_CONNS_COLLECTION).deleteMany({ workerId: WORKER_ID }).catch(() => {})
+  }
+})
 
 export const getRealtimeEndpointPath = (): string => WS_ENDPOINT_PATH
