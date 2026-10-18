@@ -415,12 +415,29 @@ const Attendance: CollectionConfig = {
     read: ({ req: { user } }) => {
       if (!user) return false
       if (['superadmin', 'admin', 'company', 'account'].includes(user.role)) return true
-      if (user.role === 'branch') {
+      const rawBranch = user.branch || (user as any).lastLoginBranch
+      const branchId =
+        rawBranch && typeof rawBranch === 'object' ? (rawBranch as any).id || (rawBranch as any)._id : rawBranch
+      if (branchId) {
         return {
-          'user.branch': {
-            equals: user.branch,
-          },
-        } as any // Cast to any/Where to satisfy Payload types
+          or: [
+            {
+              loginBranch: {
+                equals: branchId,
+              },
+            },
+            {
+              'user.branch': {
+                equals: branchId,
+              },
+            },
+            {
+              user: {
+                equals: user.id,
+              },
+            },
+          ],
+        } as any
       }
       return {
         user: {
