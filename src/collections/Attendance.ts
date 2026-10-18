@@ -412,39 +412,7 @@ const Attendance: CollectionConfig = {
 
   },
   access: {
-    read: ({ req: { user } }) => {
-      if (!user) return false
-      if (['superadmin', 'admin', 'company', 'account'].includes(user.role)) return true
-      const rawBranch = user.branch || (user as any).lastLoginBranch
-      const branchId =
-        rawBranch && typeof rawBranch === 'object' ? (rawBranch as any).id || (rawBranch as any)._id : rawBranch
-      if (branchId) {
-        return {
-          or: [
-            {
-              loginBranch: {
-                equals: branchId,
-              },
-            },
-            {
-              'user.branch': {
-                equals: branchId,
-              },
-            },
-            {
-              user: {
-                equals: user.id,
-              },
-            },
-          ],
-        } as any
-      }
-      return {
-        user: {
-          equals: user.id,
-        },
-      } as any
-    },
+    read: ({ req: { user } }) => !!user,
     create: ({ req: { user } }) => !!user, // Any logged in user can create an entry (punch)
     update: ({ req: { user } }) => {
       if (!user) return false
