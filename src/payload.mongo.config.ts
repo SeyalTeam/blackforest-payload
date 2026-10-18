@@ -34,6 +34,8 @@ import Attendance from './collections/Attendance'
 import APKFiles from './collections/APKFiles'
 import { StockAlerts } from './collections/StockAlerts'
 import IdempotencyKeys from './collections/IdempotencyKeys'
+import WaiterCalls from './collections/WaiterCalls'
+import CallLogs from './collections/CallLogs'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -83,6 +85,8 @@ export default buildConfig({
     RawMaterialInstockEntries,
     StockAlerts,
     IdempotencyKeys,
+    WaiterCalls,
+    CallLogs,
   ],
   editor: lexicalEditor({}),
   secret: process.env.PAYLOAD_SECRET || 'TEMP_SECRET',

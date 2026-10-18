@@ -871,6 +871,99 @@ const enforceConnectionLimits = (userID: string): { ok: true } | { ok: false; re
   return { ok: true }
 }
 
+const isMongoId = (id?: string): boolean =>
+  typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id.trim())
+
+const recordCallEventToDb = async (params: {
+  callId: string
+  signalType: string
+  callerUserId: string
+  callerName: string
+  callerRole: string
+  targetUserId: string
+  targetUserName?: string
+  targetUserRole?: string
+  durationSeconds?: number
+}): Promise<void> => {
+  const payload = realtimeState.payload
+  if (!payload || !params.callId) return
+
+  try {
+    const existing = await payload.find({
+      collection: 'call-logs',
+      where: { callId: { equals: params.callId } },
+      limit: 1,
+      overrideAccess: true,
+    })
+
+    const now = nowISO()
+
+    if (existing.docs.length > 0) {
+      const doc = existing.docs[0] as Record<string, any>
+      const updateData: Record<string, unknown> = {}
+
+      if (params.signalType === 'answer') {
+        updateData.status = 'connected'
+      } else if (params.signalType === 'rejected' || params.signalType === 'declined') {
+        updateData.status = 'declined'
+        updateData.endedAt = now
+      } else if (params.signalType === 'busy') {
+        updateData.status = 'busy'
+        updateData.endedAt = now
+      } else if (params.signalType === 'user_offline') {
+        updateData.status = 'offline'
+        updateData.endedAt = now
+      } else if (params.signalType === 'end' || params.signalType === 'hangup') {
+        if (doc.status === 'connected') {
+          updateData.status = 'connected'
+        }
+        updateData.endedAt = now
+        if (typeof params.durationSeconds === 'number' && params.durationSeconds > 0) {
+          updateData.durationSeconds = Math.max(doc.durationSeconds || 0, params.durationSeconds)
+        }
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        await payload.update({
+          collection: 'call-logs',
+          id: doc.id,
+          data: updateData,
+          overrideAccess: true,
+        })
+      }
+    } else {
+      let initialStatus = 'missed'
+      if (params.signalType === 'answer') initialStatus = 'connected'
+      else if (params.signalType === 'rejected' || params.signalType === 'declined') initialStatus = 'declined'
+      else if (params.signalType === 'busy') initialStatus = 'busy'
+      else if (params.signalType === 'user_offline') initialStatus = 'offline'
+
+      await payload.create({
+        collection: 'call-logs',
+        data: {
+          callId: params.callId,
+          callerUserId: params.callerUserId,
+          ...(isMongoId(params.callerUserId) ? { callerUser: params.callerUserId } : {}),
+          callerName: params.callerName,
+          callerRole: params.callerRole,
+          receiverUserId: params.targetUserId,
+          ...(isMongoId(params.targetUserId) ? { receiverUser: params.targetUserId } : {}),
+          receiverName: params.targetUserName || 'Staff',
+          receiverRole: params.targetUserRole || 'staff',
+          callType: 'voice',
+          direction: 'outgoing',
+          status: initialStatus,
+          durationSeconds: params.durationSeconds || 0,
+          startedAt: now,
+        },
+        overrideAccess: true,
+      })
+    }
+  } catch (err) {
+    payload.logger.error({ msg: 'Failed to record call log in database', err })
+  }
+}
+
 const handleCallSignal = (connection: ConnectionState, value: Record<string, unknown>): void => {
   const targetUserId =
     typeof value.targetUserId === 'string'
@@ -914,8 +1007,53 @@ const handleCallSignal = (connection: ConnectionState, value: Record<string, unk
   if (value.data !== undefined) eventPayload.data = value.data
 
   const targetConnIDs = realtimeState.connectionsByUserID.get(targetUserId)
+  let targetUserName: string | undefined
+  let targetUserRole: string | undefined
+
+  if (targetConnIDs && targetConnIDs.size > 0) {
+    for (const connID of targetConnIDs) {
+      const conn = realtimeState.connections.get(connID)
+      if (conn?.user?.name && typeof conn.user.name === 'string') {
+        targetUserName = conn.user.name.trim()
+      }
+      if (conn?.role && typeof conn.role === 'string') {
+        targetUserRole = conn.role.trim()
+      }
+      if (targetUserName) break
+    }
+  }
+
+  const durationSec =
+    typeof value.durationSeconds === 'number'
+      ? value.durationSeconds
+      : typeof value.duration === 'number'
+        ? value.duration
+        : undefined
+
+  void recordCallEventToDb({
+    callId,
+    signalType,
+    callerUserId: connection.userID,
+    callerName: senderName,
+    callerRole: connection.role,
+    targetUserId,
+    targetUserName,
+    targetUserRole,
+    durationSeconds: durationSec,
+  })
+
   if (!targetConnIDs || targetConnIDs.size === 0) {
     if (signalType === 'offer') {
+      void recordCallEventToDb({
+        callId,
+        signalType: 'user_offline',
+        callerUserId: connection.userID,
+        callerName: senderName,
+        callerRole: connection.role,
+        targetUserId,
+        targetUserName,
+        targetUserRole,
+      })
       sendServerMessage(connection, {
         eventType: 'call_signal',
         callId,
@@ -939,6 +1077,16 @@ const handleCallSignal = (connection: ConnectionState, value: Record<string, unk
   }
 
   if (!sent && signalType === 'offer') {
+    void recordCallEventToDb({
+      callId,
+      signalType: 'user_offline',
+      callerUserId: connection.userID,
+      callerName: senderName,
+      callerRole: connection.role,
+      targetUserId,
+      targetUserName,
+      targetUserRole,
+    })
     sendServerMessage(connection, {
       eventType: 'call_signal',
       callId,

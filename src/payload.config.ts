@@ -144,6 +144,7 @@ import IdempotencyKeys from './collections/IdempotencyKeys'
 import { getIdempotencyMetricsHandler } from './endpoints/getIdempotencyMetrics'
 import { setupIdempotencyRetention } from './utilities/idempotencyRetention'
 import WaiterCalls from './collections/WaiterCalls'
+import CallLogs from './collections/CallLogs'
 import ReportCardRules from './collections/ReportCardRules'
 import { readGraphQLQueries } from './graphql/readQueries'
 import { TimeWiseReportGlobal } from './globals/TimeWiseReport'
@@ -1108,6 +1109,7 @@ export default buildConfig({
     StockAlerts,
     IdempotencyKeys,
     WaiterCalls,
+    CallLogs,
     CctvReports,
     ReportCardRules,
   ].map(wrapCollection),
