@@ -33,6 +33,7 @@ type RawPreparationItem = {
   waiterDeliverTime?: unknown
   quantity: unknown
   subtotal: unknown
+  billStatus?: unknown
 }
 
 export type ProductPreparationStatus = 'exceeded' | 'lower' | 'neutral'
@@ -48,6 +49,7 @@ export type ProductPreparationBillDetail = {
   amount: null | number
   billNumber: string
   billingId: string
+  billStatus?: string
   chefName: string
   confirmedByName: string
   deliveredByName: string
@@ -97,6 +99,7 @@ type ProductPreparationBillDetailsArgs = {
   startDate?: null | string
   stationType?: null | string
   status?: null | string
+  isLive?: null | boolean
 }
 
 const parseDateParam = (value: unknown): string => {
@@ -251,15 +254,35 @@ const parseStatusParam = (value: unknown): ProductPreparationStatusFilter => {
   return 'all'
 }
 
+export const rollOverMinutes = (value: number | null | undefined): number | null => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+
+  const sign = value < 0 ? -1 : 1
+  const abs = Math.abs(value)
+  let minutes = Math.floor(abs)
+  let seconds = Math.round((abs - minutes) * 100)
+
+  if (seconds >= 60) {
+    const extraMinutes = Math.floor(seconds / 60)
+    seconds = seconds % 60
+    minutes += extraMinutes
+  }
+
+  return sign * (minutes + seconds / 100)
+}
+
 const getPreparationStatus = (
   actual: null | number | undefined,
   baseline: null | number | undefined,
 ): ProductPreparationStatus => {
-  if (actual == null || baseline == null) return 'neutral'
-  if (!Number.isFinite(actual) || !Number.isFinite(baseline)) return 'neutral'
-  if (baseline <= 0) return 'neutral'
-  if (actual > baseline) return 'exceeded'
-  if (actual <= baseline) return 'lower'
+  const normActual = actual != null ? rollOverMinutes(actual) : null
+  const normBaseline = baseline != null ? rollOverMinutes(baseline) : null
+
+  if (normActual == null || normBaseline == null) return 'neutral'
+  if (!Number.isFinite(normActual) || !Number.isFinite(normBaseline)) return 'neutral'
+  if (normBaseline <= 0) return 'neutral'
+  if (normActual > normBaseline) return 'exceeded'
+  if (normActual <= normBaseline) return 'lower'
   return 'neutral'
 }
 
@@ -274,7 +297,8 @@ const getDurationMinutes = (start: dayjs.Dayjs, end: dayjs.Dayjs): number => {
       diff = 0
     }
   }
-  return Math.max(0, Number(diff.toFixed(2)))
+  const raw = Math.max(0, Number(diff.toFixed(2)))
+  return rollOverMinutes(raw) ?? raw
 }
 
 const resolveSupervisorConfirmingMinutes = (row: RawPreparationItem): null | number => {
@@ -395,7 +419,9 @@ export const getProductPreparationBillDetailsData = async (
       $gte: startOfDay,
       $lte: endOfDay,
     },
-    status: { $not: { $eq: 'cancelled' } },
+    status: args.isLive
+      ? { $nin: ['completed', 'settled', 'settlement', 'cancelled'] }
+      : { $not: { $eq: 'cancelled' } },
   }
 
   const hasTableOrderReferenceExpression = {
@@ -600,6 +626,7 @@ export const getProductPreparationBillDetailsData = async (
   // Fetch billing docs using projection
   const billingDocs = await BillingModel.find(matchQuery, {
     branch: 1,
+    status: 1,
     invoiceNumber: 1,
     kotNumber: 1,
     createdAt: 1,
@@ -757,6 +784,7 @@ export const getProductPreparationBillDetailsData = async (
 
       rows.push({
         billingId: String(b._id),
+        billStatus: typeof b.status === 'string' ? b.status : '',
         branchId: toId(b.branch),
         invoiceNumber: b.invoiceNumber,
         kotNumber: b.kotNumber,
@@ -819,14 +847,14 @@ export const getProductPreparationBillDetailsData = async (
       const chefStandardPreparationTime =
         configuredPerUnit != null && configuredPerUnit > 0
           ? (configuredPerUnit > sharedKotTime
-              ? Number((configuredPerUnit - sharedKotTime).toFixed(2))
-              : configuredPerUnit)
+              ? rollOverMinutes(Number((configuredPerUnit - sharedKotTime).toFixed(2)))
+              : rollOverMinutes(configuredPerUnit))
           : null
       const chefTotalTarget =
         totalStandardTime != null && totalStandardTime > 0
           ? (totalStandardTime > sharedKotTime
-              ? Number((totalStandardTime - sharedKotTime).toFixed(2))
-              : totalStandardTime)
+              ? rollOverMinutes(Number((totalStandardTime - sharedKotTime).toFixed(2)))
+              : rollOverMinutes(totalStandardTime))
           : null
 
       const manualChefTime = parsePreparingTimeValue(row.preparingTime)
@@ -864,6 +892,7 @@ export const getProductPreparationBillDetailsData = async (
         amount,
         billNumber: resolveBillNumber(row),
         billingId: toId(row.billingId) || '',
+        billStatus: typeof row.billStatus === 'string' ? row.billStatus : '',
         chefName: typeof row.chefName === 'string' ? row.chefName : '--',
         confirmedByName: typeof row.confirmedByName === 'string' ? row.confirmedByName : '--',
         deliveredByName: typeof row.deliveredByName === 'string' && row.deliveredByName ? row.deliveredByName : '--',
@@ -912,6 +941,7 @@ export const getProductPreparationBillDetailsData = async (
     .map((item) => ({
       billNumber: item.billNumber,
       billingId: item.billingId,
+      billStatus: item.billStatus,
       amount: item.amount,
       chefName: item.chefName,
       confirmedByName: item.confirmedByName,

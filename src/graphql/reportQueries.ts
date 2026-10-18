@@ -719,6 +719,7 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       status: { type: graphQL.GraphQLString },
       orderType: { type: graphQL.GraphQLString },
       stationType: { type: graphQL.GraphQLString },
+      isLive: { type: graphQL.GraphQLBoolean },
     },
   })
 
@@ -735,6 +736,7 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
     fields: {
       billingId: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       billNumber: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+      billStatus: { type: graphQL.GraphQLString },
       amount: { type: graphQL.GraphQLFloat },
       productId: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       productName: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },

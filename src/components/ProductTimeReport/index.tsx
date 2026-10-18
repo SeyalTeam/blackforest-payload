@@ -50,6 +50,7 @@ type ProductPreparationBillDetailsQueryResponse = {
         amount?: unknown
         billNumber?: unknown
         billingId?: unknown
+        billStatus?: unknown
         chefName?: unknown
         confirmedByName?: unknown
         deliveredByName?: unknown
@@ -93,6 +94,7 @@ const PRODUCT_PREPARATION_BILL_DETAILS_QUERY = `
       details {
         billingId
         billNumber
+        billStatus
         amount
         productId
         productName
@@ -135,6 +137,7 @@ const ProductTimeReport: React.FC = () => {
   const [availableChefs, setAvailableChefs] = useState<UserDoc[]>([])
 
   const [stationType, setStationType] = useState<'kitchen' | 'counter'>('kitchen')
+  const [isLive, setIsLive] = useState(false)
   const [selectedBranch, setSelectedBranch] = useState<string>('')
   const [selectedKitchen, setSelectedKitchen] = useState<string>('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
@@ -478,6 +481,7 @@ const ProductTimeReport: React.FC = () => {
                 chefId: stationType === 'kitchen' ? selectedChef : 'all',
                 status: normalizedStatus,
                 stationType,
+                isLive,
               },
             },
           }),
@@ -501,6 +505,7 @@ const ProductTimeReport: React.FC = () => {
                   typeof entry.billNumber === 'string' && entry.billNumber.trim().length > 0
                     ? entry.billNumber
                     : 'Unknown',
+                billStatus: typeof entry.billStatus === 'string' ? entry.billStatus : '',
                 productId: typeof entry.productId === 'string' ? entry.productId.trim() : '',
                 productName: typeof entry.productName === 'string' ? entry.productName : '--',
                 orderedAt: typeof entry.orderedAt === 'string' ? entry.orderedAt : '--',
@@ -669,6 +674,7 @@ const ProductTimeReport: React.FC = () => {
     selectedChef,
     selectedStatus,
     stationType,
+    isLive,
   ])
 
   useEffect(() => {
@@ -744,7 +750,7 @@ const ProductTimeReport: React.FC = () => {
       : `${selectedRoundOffValue > 0 ? '+' : ''}${formatAmount(selectedRoundOffValue)}`
 
   const handleExportCSV = () => {
-    if (billDetails.length === 0 || !rangeStartDate || !rangeEndDate) return
+    if (displayDetails.length === 0 || !rangeStartDate || !rangeEndDate) return
 
     const startDate = toLocalDateStr(rangeStartDate)
     const endDate = toLocalDateStr(rangeEndDate)
@@ -790,7 +796,7 @@ const ProductTimeReport: React.FC = () => {
 
     const csvRows = [
       columns.join(','),
-      ...billDetails.map((row, index) =>
+      ...displayDetails.map((row, index) =>
         isCounter
           ? [
               String(index + 1),
@@ -909,8 +915,16 @@ const ProductTimeReport: React.FC = () => {
       return stationType === 'kitchen' ? hasPrep : !hasPrep
     })
 
+    // Live Filter: only show ongoing KOT bills products (exclude completed and settlement status)
+    if (isLive) {
+      filtered = filtered.filter((entry) => {
+        const s = String(entry.billStatus || '').toLowerCase()
+        return s !== 'completed' && s !== 'settled' && s !== 'settlement'
+      })
+    }
+
     return filtered
-  }, [billDetails, selectedStatus, selectedCategory, selectedProduct, selectedChef, productToCategoryMap, stationType])
+  }, [billDetails, selectedStatus, selectedCategory, selectedProduct, selectedChef, productToCategoryMap, stationType, isLive])
 
   const topCategoryRows = useMemo(() => {
     const categoryCountMap = new Map<
@@ -1031,6 +1045,7 @@ const ProductTimeReport: React.FC = () => {
   }, [displayDetails, topListLimit])
 
   const hasAnyFilterSelection =
+    isLive ||
     stationType !== 'kitchen' ||
     selectedBranch !== '' ||
     selectedKitchen !== '' ||
@@ -1134,6 +1149,7 @@ const ProductTimeReport: React.FC = () => {
   }
 
   const handleClearAllFilters = () => {
+    setIsLive(false)
     setStationType('kitchen')
     setSelectedBranch('')
     setSelectedKitchen('')
@@ -1183,16 +1199,90 @@ const ProductTimeReport: React.FC = () => {
           />
         </label>
 
+        <label>
+          Category
+          <select
+            aria-label="Category filter"
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            disabled={loadingMeta || (stationType === 'kitchen' ? !selectedKitchen : !selectedBranch)}
+          >
+            <option value="all">All Categories</option>
+            {filteredCategories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Product
+          <select
+            aria-label="Product filter"
+            value={selectedProduct}
+            onChange={(e) => setSelectedProduct(e.target.value)}
+            disabled={loadingMeta || (stationType === 'kitchen' ? !selectedKitchen : !selectedBranch)}
+          >
+            <option value="all">All Products</option>
+            {filteredProducts.map((product) => (
+              <option key={product.id} value={product.id}>
+                {product.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Chef
+          <select
+            aria-label="Chef filter"
+            value={stationType === 'counter' ? 'all' : selectedChef}
+            onChange={(e) => setSelectedChef(e.target.value)}
+            disabled={stationType === 'counter' || loadingMeta}
+          >
+            <option value="all">
+              {stationType === 'counter' ? 'Counter (No Chef)' : 'All Chefs'}
+            </option>
+            {stationType !== 'counter' &&
+              activeChefList.map((chef) => (
+                <option key={chef.id} value={chef.id}>
+                  {chef.name}
+                </option>
+              ))}
+          </select>
+        </label>
+
         <button
           type="button"
           onClick={handleExportCSV}
-          disabled={billDetails.length === 0 || loading || loadingMeta}
+          disabled={displayDetails.length === 0 || loading || loadingMeta}
         >
           Export
+        </button>
+
+        <button
+          type="button"
+          className="reset-btn"
+          onClick={handleClearAllFilters}
+          disabled={!hasAnyFilterSelection || loading || loadingMeta || loadingBillDetails}
+        >
+          Reset
         </button>
       </div>
 
       <div className="filters-wrap">
+        <button
+          type="button"
+          className={`live-btn ${isLive ? 'active' : ''}`}
+          onClick={() => setIsLive((prev) => !prev)}
+          aria-pressed={isLive}
+          title={isLive ? 'Showing ongoing KOT bills only' : 'Click to show ongoing KOT bills only'}
+        >
+          <span className="live-dot" />
+          Live
+        </button>
+
         <label>
           Station
           <select
@@ -1253,60 +1343,6 @@ const ProductTimeReport: React.FC = () => {
         </label>
 
         <label>
-          Category
-          <select
-            aria-label="Category filter"
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            disabled={loadingMeta || (stationType === 'kitchen' ? !selectedKitchen : !selectedBranch)}
-          >
-            <option value="all">All Categories</option>
-            {filteredCategories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Product
-          <select
-            aria-label="Product filter"
-            value={selectedProduct}
-            onChange={(e) => setSelectedProduct(e.target.value)}
-            disabled={loadingMeta || (stationType === 'kitchen' ? !selectedKitchen : !selectedBranch)}
-          >
-            <option value="all">All Products</option>
-            {filteredProducts.map((product) => (
-              <option key={product.id} value={product.id}>
-                {product.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Chef
-          <select
-            aria-label="Chef filter"
-            value={stationType === 'counter' ? 'all' : selectedChef}
-            onChange={(e) => setSelectedChef(e.target.value)}
-            disabled={stationType === 'counter' || loadingMeta}
-          >
-            <option value="all">
-              {stationType === 'counter' ? 'Counter (No Chef)' : 'All Chefs'}
-            </option>
-            {stationType !== 'counter' &&
-              activeChefList.map((chef) => (
-                <option key={chef.id} value={chef.id}>
-                  {chef.name}
-                </option>
-              ))}
-          </select>
-        </label>
-
-        <label>
           Status
           <select
             aria-label="Status filter"
@@ -1323,26 +1359,6 @@ const ProductTimeReport: React.FC = () => {
             <option value="chef_preparing_time">Preparing Time Given (Chef)</option>
           </select>
         </label>
-
-        <button
-          type="button"
-          className="filters-clear-icon-btn"
-          onClick={handleClearAllFilters}
-          disabled={!hasAnyFilterSelection || loading || loadingMeta || loadingBillDetails}
-          aria-label="Clear all filters"
-          title="Clear all filters"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path
-              d="M4 6h16m-13 0l1 13h8l1-13m-8 0V4h4v2m-6 6l6 6m0-6l-6 6"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
       </div>
 
       <div className="pt-status-summary-row">

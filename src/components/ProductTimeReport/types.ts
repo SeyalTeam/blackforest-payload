@@ -34,6 +34,7 @@ export type BillPreparationDetail = {
   amount: number | null
   billingId: string
   billNumber: string
+  billStatus?: string
   productId: string
   productName: string
   orderedAt: string

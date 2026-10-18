@@ -17996,7 +17996,7 @@ import mongoose4 from "mongoose";
 import dayjs11 from "dayjs";
 import utc11 from "dayjs/plugin/utc.js";
 import timezone11 from "dayjs/plugin/timezone.js";
-var parseDateParam, toId4, parseToDayjs2, parseTimeLikeValue3, formatRailwayTime, parsePreparingTimeValue3, parseAmountValue, parseStatusParam, getPreparationStatus, getDurationMinutes, resolveSupervisorConfirmingMinutes, resolveWaiterDeliverMinutes, resolveChefActualMinutes, resolveItemPreparationMinutes2, resolveBillNumber, getProductPreparationBillDetailsData;
+var parseDateParam, toId4, parseToDayjs2, parseTimeLikeValue3, formatRailwayTime, parsePreparingTimeValue3, parseAmountValue, parseStatusParam, rollOverMinutes, getPreparationStatus, getDurationMinutes, resolveSupervisorConfirmingMinutes, resolveWaiterDeliverMinutes, resolveChefActualMinutes, resolveItemPreparationMinutes2, resolveBillNumber, getProductPreparationBillDetailsData;
 var init_productPreparation = __esm({
   "src/services/reports/productPreparation.ts"() {
     "use strict";
@@ -18108,12 +18108,27 @@ var init_productPreparation = __esm({
       }
       return "all";
     };
+    rollOverMinutes = (value) => {
+      if (typeof value !== "number" || !Number.isFinite(value)) return null;
+      const sign = value < 0 ? -1 : 1;
+      const abs = Math.abs(value);
+      let minutes = Math.floor(abs);
+      let seconds = Math.round((abs - minutes) * 100);
+      if (seconds >= 60) {
+        const extraMinutes = Math.floor(seconds / 60);
+        seconds = seconds % 60;
+        minutes += extraMinutes;
+      }
+      return sign * (minutes + seconds / 100);
+    };
     getPreparationStatus = (actual, baseline) => {
-      if (actual == null || baseline == null) return "neutral";
-      if (!Number.isFinite(actual) || !Number.isFinite(baseline)) return "neutral";
-      if (baseline <= 0) return "neutral";
-      if (actual > baseline) return "exceeded";
-      if (actual <= baseline) return "lower";
+      const normActual = actual != null ? rollOverMinutes(actual) : null;
+      const normBaseline = baseline != null ? rollOverMinutes(baseline) : null;
+      if (normActual == null || normBaseline == null) return "neutral";
+      if (!Number.isFinite(normActual) || !Number.isFinite(normBaseline)) return "neutral";
+      if (normBaseline <= 0) return "neutral";
+      if (normActual > normBaseline) return "exceeded";
+      if (normActual <= normBaseline) return "lower";
       return "neutral";
     };
     getDurationMinutes = (start, end) => {
@@ -18125,7 +18140,8 @@ var init_productPreparation = __esm({
           diff = 0;
         }
       }
-      return Math.max(0, Number(diff.toFixed(2)));
+      const raw = Math.max(0, Number(diff.toFixed(2)));
+      return rollOverMinutes(raw) ?? raw;
     };
     resolveSupervisorConfirmingMinutes = (row) => {
       if (!row.confirmedAt || typeof row.confirmedAt !== "string" || row.confirmedAt.trim() === "" || row.confirmedAt.trim() === "--") {
@@ -18215,7 +18231,7 @@ var init_productPreparation = __esm({
           $gte: startOfDay,
           $lte: endOfDay
         },
-        status: { $not: { $eq: "cancelled" } }
+        status: args.isLive ? { $nin: ["completed", "settled", "settlement", "cancelled"] } : { $not: { $eq: "cancelled" } }
       };
       const hasTableOrderReferenceExpression = {
         $or: [
@@ -18373,6 +18389,7 @@ var init_productPreparation = __esm({
       });
       const billingDocs = await BillingModel.find(matchQuery, {
         branch: 1,
+        status: 1,
         invoiceNumber: 1,
         kotNumber: 1,
         createdAt: 1,
@@ -18494,6 +18511,7 @@ var init_productPreparation = __esm({
           const resolvedDeliveredByName = item.deliveredBy ? tableUserMap.get(String(item.deliveredBy)) || "" : b.createdBy ? tableUserMap.get(String(b.createdBy)) || "" : "";
           rows.push({
             billingId: String(b._id),
+            billStatus: typeof b.status === "string" ? b.status : "",
             branchId: toId4(b.branch),
             invoiceNumber: b.invoiceNumber,
             kotNumber: b.kotNumber,
@@ -18536,8 +18554,8 @@ var init_productPreparation = __esm({
         const totalStandardTime = configuredPerUnit != null && configuredPerUnit > 0 ? configuredPerUnit * quantity : null;
         const amount = parseAmountValue(row.finalLineTotal) ?? parseAmountValue(row.subtotal) ?? null;
         const sharedKotTime = (supervisorStandardTime || 0) + (waiterStandardTime || 0);
-        const chefStandardPreparationTime = configuredPerUnit != null && configuredPerUnit > 0 ? configuredPerUnit > sharedKotTime ? Number((configuredPerUnit - sharedKotTime).toFixed(2)) : configuredPerUnit : null;
-        const chefTotalTarget = totalStandardTime != null && totalStandardTime > 0 ? totalStandardTime > sharedKotTime ? Number((totalStandardTime - sharedKotTime).toFixed(2)) : totalStandardTime : null;
+        const chefStandardPreparationTime = configuredPerUnit != null && configuredPerUnit > 0 ? configuredPerUnit > sharedKotTime ? rollOverMinutes(Number((configuredPerUnit - sharedKotTime).toFixed(2))) : rollOverMinutes(configuredPerUnit) : null;
+        const chefTotalTarget = totalStandardTime != null && totalStandardTime > 0 ? totalStandardTime > sharedKotTime ? rollOverMinutes(Number((totalStandardTime - sharedKotTime).toFixed(2))) : rollOverMinutes(totalStandardTime) : null;
         const manualChefTime = parsePreparingTimeValue3(row.preparingTime);
         const chefTime = chefStandardPreparationTime ?? manualChefTime;
         const supervisorStatus = supervisorConfirmingTime != null && supervisorStandardTime != null && supervisorStandardTime > 0 ? supervisorConfirmingTime > supervisorStandardTime ? "exceeded" : "lower" : "neutral";
@@ -18557,6 +18575,7 @@ var init_productPreparation = __esm({
           amount,
           billNumber: resolveBillNumber(row),
           billingId: toId4(row.billingId) || "",
+          billStatus: typeof row.billStatus === "string" ? row.billStatus : "",
           chefName: typeof row.chefName === "string" ? row.chefName : "--",
           confirmedByName: typeof row.confirmedByName === "string" ? row.confirmedByName : "--",
           deliveredByName: typeof row.deliveredByName === "string" && row.deliveredByName ? row.deliveredByName : "--",
@@ -18600,6 +18619,7 @@ var init_productPreparation = __esm({
       }).map((item) => ({
         billNumber: item.billNumber,
         billingId: item.billingId,
+        billStatus: item.billStatus,
         amount: item.amount,
         chefName: item.chefName,
         confirmedByName: item.confirmedByName,
@@ -26576,22 +26596,7 @@ var init_Attendance = __esm({
         ]
       },
       access: {
-        read: ({ req: { user } }) => {
-          if (!user) return false;
-          if (["superadmin", "admin", "company", "account"].includes(user.role)) return true;
-          if (user.role === "branch") {
-            return {
-              "user.branch": {
-                equals: user.branch
-              }
-            };
-          }
-          return {
-            user: {
-              equals: user.id
-            }
-          };
-        },
+        read: ({ req: { user } }) => !!user,
         create: ({ req: { user } }) => !!user,
         // Any logged in user can create an entry (punch)
         update: ({ req: { user } }) => {
@@ -34488,7 +34493,8 @@ var init_reportQueries = __esm({
           kitchenId: { type: graphQL.GraphQLString },
           status: { type: graphQL.GraphQLString },
           orderType: { type: graphQL.GraphQLString },
-          stationType: { type: graphQL.GraphQLString }
+          stationType: { type: graphQL.GraphQLString },
+          isLive: { type: graphQL.GraphQLBoolean }
         }
       });
       const ProductPreparationBillDetailsAvailableChefType = new graphQL.GraphQLObjectType({
@@ -34503,6 +34509,7 @@ var init_reportQueries = __esm({
         fields: {
           billingId: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
           billNumber: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+          billStatus: { type: graphQL.GraphQLString },
           amount: { type: graphQL.GraphQLFloat },
           productId: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
           productName: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },

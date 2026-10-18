@@ -37,10 +37,30 @@ export const relationshipToIDList = (value: unknown): string[] => {
   return single ? [single] : []
 }
 
+export const rollOverMinutes = (value: number | null | undefined): number | null => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+
+  const sign = value < 0 ? -1 : 1
+  const abs = Math.abs(value)
+  let minutes = Math.floor(abs)
+  let seconds = Math.round((abs - minutes) * 100)
+
+  if (seconds >= 60) {
+    const extraMinutes = Math.floor(seconds / 60)
+    seconds = seconds % 60
+    minutes += extraMinutes
+  }
+
+  return sign * (minutes + seconds / 100)
+}
+
 export const formatMinutes = (value: number | null | undefined): string => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '--'
 
-  const fixed = value.toFixed(2)
+  const normalized = rollOverMinutes(value)
+  if (normalized == null) return '--'
+
+  const fixed = normalized.toFixed(2)
   const pretty = fixed.endsWith('.00') ? fixed.slice(0, -3) : fixed
   return `${pretty} min`
 }
@@ -66,12 +86,15 @@ export const getPreparationStatus = (
   actual: number | null | undefined,
   baseline: number | null | undefined,
 ): PreparationStatus => {
-  if (actual == null || baseline == null) return 'neutral'
-  if (!Number.isFinite(actual) || !Number.isFinite(baseline)) return 'neutral'
+  const normActual = actual != null ? rollOverMinutes(actual) : null
+  const normBaseline = baseline != null ? rollOverMinutes(baseline) : null
+
+  if (normActual == null || normBaseline == null) return 'neutral'
+  if (!Number.isFinite(normActual) || !Number.isFinite(normBaseline)) return 'neutral'
   // A missing or non-positive configured baseline should not be treated as exceeded.
-  if (baseline <= 0) return 'neutral'
-  if (actual > baseline) return 'exceeded'
-  if (actual <= baseline) return 'lower'
+  if (normBaseline <= 0) return 'neutral'
+  if (normActual > normBaseline) return 'exceeded'
+  if (normActual <= normBaseline) return 'lower'
   return 'neutral'
 }
 
@@ -201,7 +224,8 @@ export const parseBillTimeValue = (value: unknown, fallbackDate: Date): Date | n
 export const diffMinutesWithOvernight = (start: Date, end: Date): number => {
   let diffMs = end.getTime() - start.getTime()
   if (diffMs < 0) diffMs += 24 * 60 * 60 * 1000
-  return Math.max(0, diffMs / (60 * 1000))
+  const raw = Math.max(0, diffMs / (60 * 1000))
+  return rollOverMinutes(Number(raw.toFixed(2))) ?? raw
 }
 
 export const resolveItemActualPreparationMinutesForPreview = (
