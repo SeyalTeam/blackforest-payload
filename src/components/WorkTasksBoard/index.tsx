@@ -907,8 +907,8 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
       <div className="trello-topbar">
         <div className="topbar-left">
           <div className="trello-brand">
-            <span className="trello-icon-badge">■</span>
-            <span>Trello</span>
+            <span className="trello-icon-badge">✓</span>
+            <span>Work Tasks</span>
           </div>
           <button className="topbar-btn" onClick={() => fetchData()} title="Refresh Board">
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
@@ -1007,7 +1007,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
             className="header-pill"
             onClick={() =>
               alert(
-                'Trello Work Module:\n- Only Superadmin can create/edit columns and create/delete tasks.\n- View tasks by Custom Lists, by Role, or by Individual.',
+                'Work Tasks Module:\n- Only Superadmin can create/edit columns and create/delete tasks.\n- View tasks by Custom Lists, by Role, or by Individual.',
               )
             }
           >
@@ -1281,30 +1281,41 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                         <div className="card-badges">
                           {/* Recurrence Frequency Badge */}
                           <span
-                            className="badge-item"
+                            className="badge-item badge-recurrence"
                             title={`Recurrence: ${task.frequency || 'Daily'}`}
                             style={{
                               backgroundColor:
                                 task.frequency === 'hourly'
-                                  ? '#e0f2fe'
+                                  ? 'rgba(14, 165, 233, 0.18)'
                                   : task.frequency === 'weekly'
-                                    ? '#f3e8ff'
+                                    ? 'rgba(168, 85, 247, 0.18)'
                                     : task.frequency === 'monthly'
-                                      ? '#ffedd5'
-                                      : '#f3f4f6',
+                                      ? 'rgba(249, 115, 22, 0.18)'
+                                      : 'rgba(100, 116, 139, 0.2)',
                               color:
                                 task.frequency === 'hourly'
-                                  ? '#0369a1'
+                                  ? '#38bdf8'
                                   : task.frequency === 'weekly'
-                                    ? '#7e22ce'
+                                    ? '#c084fc'
                                     : task.frequency === 'monthly'
-                                      ? '#c2410c'
-                                      : '#374151',
+                                      ? '#fb923c'
+                                      : '#94a3b8',
+                              border: `1px solid ${
+                                task.frequency === 'hourly'
+                                  ? 'rgba(56, 189, 248, 0.3)'
+                                  : task.frequency === 'weekly'
+                                    ? 'rgba(192, 132, 252, 0.3)'
+                                    : task.frequency === 'monthly'
+                                      ? 'rgba(251, 146, 60, 0.3)'
+                                      : 'rgba(148, 163, 184, 0.25)'
+                              }`,
                               fontWeight: 600,
                               fontSize: '11px',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '3px',
+                              padding: '2px 7px',
+                              borderRadius: '4px',
                             }}
                           >
                             <Clock size={11} />
@@ -1373,7 +1384,6 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                     <textarea
                       autoFocus
                       className="composer-textarea"
-                      style={{ backgroundColor: '#ffffff', color: '#172b4d' }}
                       placeholder="Enter a title for this card..."
                       value={inlineTitle}
                       onChange={(e) => setInlineTitle(e.target.value)}
