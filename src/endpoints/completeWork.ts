@@ -89,6 +89,7 @@ export const completeWorkHandler: PayloadHandler = async (req): Promise<Response
     let workDurationMinutes = 0
     let workStartTime = nowIso
     let attendanceId: string | null = null
+    const dutyCompletePhoto = body?.dutyCompletePhoto || body?.selfieMediaId || body?.photo || body?.workCompletedPhoto
 
     if (attSearch.docs.length > 0) {
       const attDoc = attSearch.docs[0]
@@ -105,6 +106,7 @@ export const completeWorkHandler: PayloadHandler = async (req): Promise<Response
           workStatus: 'completed',
           workCompletedTime: nowIso,
           workDurationMinutes,
+          ...(dutyCompletePhoto ? { dutyCompletePhoto } : {}),
         },
         overrideAccess: true,
       })
