@@ -60,7 +60,7 @@ var init_logBuffer = __esm({
 // src/realtime/wsGateway.ts
 import { randomUUID } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
-var parsePositiveInteger, WS_ENDPOINT_PATH, KOT_TOPIC, HEARTBEAT_PING_MS, HEARTBEAT_TIMEOUT_MS, REPLAY_RETENTION_MS, MAX_CONNECTIONS_PER_USER, MAX_TOTAL_CONNECTIONS, MAX_PAYLOAD_BYTES, INCLUDE_ITEM_SNAPSHOT, BRANCH_SCOPED_ROLES, realtimeState, WORKER_ID, BUS_COLLECTION, ACTIVE_CONNS_COLLECTION, getMongoDb, publishToBus, busChangeStream, isClusterInitialized, deliverBusCallSignal, deliverBusChatEvent, deliverBusBillingEvent, deliverBusSessionTermination, startBusListener, initCrossWorkerCluster, parseRelationshipID, parseRelationshipIDs, parseJSONMessage, normalizeBearerToken, decodeJWTExpiryMs, readHeaderValue, toHeaderObject, nowISO, closeSocket, encodeJSON, ensurePayloadSize, sendServerMessage, sendSystemMessage, removeConnection, pruneEventBuffers, matchesSubscription, canAccessBranch, canAccessKitchen, scheduleTokenExpiry, startHeartbeatLoop, resolveAllowedBranchIDs, resolveAllowedKitchenIDs, authenticateRequest, validateKitchenSubscription, sendSubscriptionNack, sendUnsubscribeNack, handleReplay, handleSubscribe, handleUnsubscribe, registerConnection, enforceConnectionLimits, isMongoId, recordCallEventToDb, handleCallSignal, bootSocket, rejectUpgrade, isRealtimePath, createRealtimeGateway, publishBillingRealtimeEvent, publishChatRealtimeEvent, terminateUserSession, getRealtimeEndpointPath;
+var parsePositiveInteger, WS_ENDPOINT_PATH, KOT_TOPIC, HEARTBEAT_PING_MS, HEARTBEAT_TIMEOUT_MS, REPLAY_RETENTION_MS, MAX_CONNECTIONS_PER_USER, MAX_TOTAL_CONNECTIONS, MAX_PAYLOAD_BYTES, INCLUDE_ITEM_SNAPSHOT, BRANCH_SCOPED_ROLES, realtimeState, WORKER_ID, BUS_COLLECTION, ACTIVE_CONNS_COLLECTION, getMongoDb, publishToBus, busChangeStream, isClusterInitialized, deliverBusCallSignal, deliverBusChatEvent, deliverBusBillingEvent, deliverBusSessionTermination, startBusListener, initCrossWorkerCluster, parseRelationshipID, parseRelationshipIDs, parseJSONMessage, normalizeBearerToken, decodeJWTExpiryMs, readHeaderValue, toHeaderObject, nowISO, closeSocket, encodeJSON, ensurePayloadSize, sendServerMessage, sendSystemMessage, removeConnection, pruneEventBuffers, matchesSubscription, canAccessBranch, canAccessKitchen, scheduleTokenExpiry, startHeartbeatLoop, resolveAllowedBranchIDs, resolveAllowedKitchenIDs, authenticateRequest, validateKitchenSubscription, sendSubscriptionNack, sendUnsubscribeNack, handleReplay, handleSubscribe, handleUnsubscribe, registerConnection, enforceConnectionLimits, isMongoId, recordCallEventToDb, getTodayDateStringIST, checkActivitiesPunchedIn, isUserPunchedIn, activeLiveCalls, terminateActiveCallsForUser, handleCallSignal, bootSocket, rejectUpgrade, isRealtimePath, createRealtimeGateway, publishBillingRealtimeEvent, publishChatRealtimeEvent, terminateUserSession, getRealtimeEndpointPath;
 var init_wsGateway = __esm({
   "src/realtime/wsGateway.ts"() {
     "use strict";
@@ -908,6 +908,121 @@ var init_wsGateway = __esm({
         payload.logger.error({ msg: "Failed to record call log in database", err });
       }
     };
+    getTodayDateStringIST = () => {
+      const d = /* @__PURE__ */ new Date();
+      const utcOffset = d.getTime() + 5.5 * 60 * 60 * 1e3;
+      const localDate = new Date(utcOffset);
+      const year = localDate.getUTCFullYear();
+      const month = String(localDate.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(localDate.getUTCDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+    checkActivitiesPunchedIn = (activities) => {
+      if (!Array.isArray(activities) || activities.length === 0) return false;
+      const sessions = activities.filter((a) => !a.type || a.type === "session");
+      if (sessions.length === 0) return false;
+      const lastSession = sessions[sessions.length - 1];
+      const status = String(lastSession.status || "").toLowerCase();
+      const punchOut = lastSession.punchOut;
+      const hasNoPunchOut = punchOut === null || punchOut === void 0 || String(punchOut).trim() === "";
+      return status !== "closed" && hasNoPunchOut;
+    };
+    isUserPunchedIn = async (userId) => {
+      if (!realtimeState.payload || !isMongoId(userId)) return false;
+      try {
+        const today = getTodayDateStringIST();
+        const attResult = await realtimeState.payload.find({
+          collection: "attendance",
+          where: {
+            and: [
+              { dateString: { equals: today } },
+              { user: { equals: userId } }
+            ]
+          },
+          limit: 1,
+          depth: 0,
+          overrideAccess: true
+        });
+        if (attResult.docs && attResult.docs.length > 0) {
+          return checkActivitiesPunchedIn(attResult.docs[0].activities);
+        }
+        const userDoc = await realtimeState.payload.findByID({
+          collection: "users",
+          id: userId,
+          depth: 0,
+          overrideAccess: true
+        });
+        const emp = userDoc && typeof userDoc === "object" ? userDoc.employee : null;
+        const empId = emp && (typeof emp === "string" ? emp : emp.id || emp._id);
+        if (empId && isMongoId(empId)) {
+          const empAtt = await realtimeState.payload.find({
+            collection: "attendance",
+            where: {
+              and: [
+                { dateString: { equals: today } },
+                { employee: { equals: empId } }
+              ]
+            },
+            limit: 1,
+            depth: 0,
+            overrideAccess: true
+          });
+          if (empAtt.docs && empAtt.docs.length > 0) {
+            return checkActivitiesPunchedIn(empAtt.docs[0].activities);
+          }
+        }
+        return false;
+      } catch (err) {
+        realtimeState.payload?.logger?.error?.({ msg: "Error checking user punch-in status in wsGateway", err });
+        return false;
+      }
+    };
+    activeLiveCalls = /* @__PURE__ */ new Map();
+    terminateActiveCallsForUser = (userId, reason = "User punched out / off duty") => {
+      const normId = userId?.trim();
+      if (!normId) return;
+      for (const [callId, call] of Array.from(activeLiveCalls.entries())) {
+        if (call.callerId === normId || call.calleeId === normId) {
+          activeLiveCalls.delete(callId);
+          const otherUserId = call.callerId === normId ? call.calleeId : call.callerId;
+          const terminationPayload = {
+            eventType: "call_signal",
+            callId,
+            signalType: "call_ended",
+            senderId: "system",
+            targetUserId: otherUserId,
+            reason,
+            timestamp: nowISO()
+          };
+          const otherConns = realtimeState.connectionsByUserID.get(otherUserId);
+          if (otherConns && otherConns.size > 0) {
+            for (const connID of otherConns) {
+              const conn = realtimeState.connections.get(connID);
+              if (conn && conn.socket.readyState === WebSocket.OPEN) {
+                sendServerMessage(conn, terminationPayload);
+              }
+            }
+          }
+          const userConns = realtimeState.connectionsByUserID.get(normId);
+          if (userConns && userConns.size > 0) {
+            for (const connID of userConns) {
+              const conn = realtimeState.connections.get(connID);
+              if (conn && conn.socket.readyState === WebSocket.OPEN) {
+                sendServerMessage(conn, {
+                  ...terminationPayload,
+                  targetUserId: normId
+                });
+              }
+            }
+          }
+          publishToBus({
+            channel: "call_signal",
+            targetUserId: otherUserId,
+            payload: terminationPayload
+          });
+        }
+      }
+    };
     handleCallSignal = async (connection, value) => {
       const targetUserId = typeof value.targetUserId === "string" ? value.targetUserId.trim() : typeof value.recipientUserId === "string" ? value.recipientUserId.trim() : "";
       const callId = typeof value.callId === "string" ? value.callId.trim() : "";
@@ -927,6 +1042,29 @@ var init_wsGateway = __esm({
           message: "Cannot place a call to yourself."
         });
         return;
+      }
+      if (signalType === "offer") {
+        const callerRole = (connection.role || "").toLowerCase();
+        if (callerRole !== "admin") {
+          const callerPunchedIn = await isUserPunchedIn(connection.userID);
+          if (!callerPunchedIn) {
+            sendServerMessage(connection, {
+              eventType: "call_signal",
+              callId,
+              signalType: "call_blocked_not_punched_in",
+              senderId: "system",
+              targetUserId: connection.userID,
+              message: "You cannot place calls because you are currently punched out or not on duty.",
+              timestamp: nowISO()
+            });
+            sendSystemMessage(connection, {
+              eventType: "call_signal_nack",
+              error_code: "caller_not_punched_in",
+              message: "You must be punched in to make calls. You are currently punched out or off duty."
+            });
+            return;
+          }
+        }
       }
       const senderName = typeof connection.user?.name === "string" && connection.user.name.trim().length > 0 ? connection.user.name.trim() : typeof connection.user?.email === "string" ? connection.user.email : "Admin";
       const eventPayload = {
@@ -972,6 +1110,52 @@ var init_wsGateway = __esm({
           }
         } catch {
         }
+      }
+      if (signalType === "offer") {
+        let isTargetAdmin = false;
+        if (targetConnIDs && targetConnIDs.size > 0) {
+          for (const connID of targetConnIDs) {
+            const conn = realtimeState.connections.get(connID);
+            if (conn?.role && conn.role.toLowerCase() === "admin") {
+              isTargetAdmin = true;
+              break;
+            }
+          }
+        }
+        if (!isTargetAdmin && targetUserRole && targetUserRole.toLowerCase() === "admin") {
+          isTargetAdmin = true;
+        }
+        if (!isTargetAdmin) {
+          const targetPunchedIn = await isUserPunchedIn(targetUserId);
+          if (!targetPunchedIn) {
+            void recordCallEventToDb({
+              callId,
+              signalType: "user_offline",
+              callerUserId: connection.userID,
+              callerName: senderName,
+              callerRole: connection.role,
+              targetUserId,
+              targetUserName,
+              targetUserRole
+            });
+            sendServerMessage(connection, {
+              eventType: "call_signal",
+              callId,
+              signalType: "user_offline",
+              senderId: "system",
+              targetUserId: connection.userID,
+              offlineUserId: targetUserId,
+              message: "The user is currently off-duty or punched out.",
+              timestamp: nowISO()
+            });
+            return;
+          }
+        }
+      }
+      if (signalType === "offer") {
+        activeLiveCalls.set(callId, { callerId: connection.userID, calleeId: targetUserId });
+      } else if (signalType === "call_ended" || signalType === "declined" || signalType === "busy" || signalType === "user_offline") {
+        activeLiveCalls.delete(callId);
       }
       const durationSec = typeof value.durationSeconds === "number" ? value.durationSeconds : typeof value.duration === "number" ? value.duration : void 0;
       void recordCallEventToDb({
@@ -1269,6 +1453,7 @@ var init_wsGateway = __esm({
     terminateUserSession = (userId, reason, eventType = "session_terminated") => {
       const normalizedUserId = userId?.trim();
       if (!normalizedUserId) return;
+      terminateActiveCallsForUser(normalizedUserId, reason);
       const connectionIDs = realtimeState.connectionsByUserID.get(normalizedUserId);
       if (connectionIDs && connectionIDs.size > 0) {
         for (const connectionID of Array.from(connectionIDs)) {
@@ -26238,6 +26423,7 @@ var Attendance, Attendance_default;
 var init_Attendance = __esm({
   "src/collections/Attendance.ts"() {
     "use strict";
+    init_wsGateway();
     Attendance = {
       slug: "attendance",
       admin: {
@@ -26359,6 +26545,14 @@ var init_Attendance = __esm({
                 punchOut: a.punchOut,
                 photo: a.capturedImage
               }));
+              const lastSession = sessionActivities[sessionActivities.length - 1];
+              const isPunchedOut = lastSession?.status === "closed" || lastSession?.punchOut && String(lastSession.punchOut).trim().length > 0;
+              if (isPunchedOut) {
+                const userId = typeof doc.user === "string" ? doc.user : doc.user?.id;
+                if (userId) {
+                  terminateActiveCallsForUser(String(userId), "User punched out / off duty");
+                }
+              }
               if (doc.loginBranch) {
                 const userId = typeof doc.user === "string" ? doc.user : doc.user?.id;
                 const branchId = typeof doc.loginBranch === "string" ? doc.loginBranch : doc.loginBranch?.id;
@@ -40118,7 +40312,7 @@ async function calculateReportCardData(req, params) {
     activeRuleScores.push(rule5Result.score);
   }
   const rawOverall = activeRuleScores.reduce((sum, s) => sum + s, 0) / activeRuleScores.length;
-  const overallScore = Math.min(100, Math.max(0, Number(rawOverall.toFixed(2))));
+  let overallScore = Math.min(100, Math.max(0, Number(rawOverall.toFixed(2))));
   let grade = "Grade B";
   let gradeTag = "\u26A0\uFE0F Average";
   let recommendation = "Fair contribution with minor gaps in task checklist or response timing. Supervisor coaching recommended.";
@@ -40136,7 +40330,12 @@ async function calculateReportCardData(req, params) {
     recommendation = "Performance is below acceptable SLA thresholds. Immediate counseling and corrective action plan required.";
   }
   const rulesList = [];
-  if (isWaiter) {
+  const hasConfiguredRules = configuredRulesDocs.length > 0;
+  const isRuleActive = (cat, defaultRoleEligible) => {
+    if (!hasConfiguredRules) return defaultRoleEligible;
+    return Boolean(getConfiguredRule(cat));
+  };
+  if (isRuleActive("call_speed", isWaiter)) {
     const c1 = computeRuleScoreAndMax("call_speed", rule1Result.score, rule1Result.ruleTitle);
     rule1Result.maxMarks = c1.maxMarks;
     rule1Result.marks = c1.score;
@@ -40153,37 +40352,41 @@ async function calculateReportCardData(req, params) {
       details: rule1Result
     });
   }
-  const c2 = computeRuleScoreAndMax("attendance", rule2Result.score, rule2Result.ruleTitle);
-  rule2Result.maxMarks = c2.maxMarks;
-  rule2Result.marks = c2.score;
-  rule2Result.ruleTitle = c2.title;
-  if (c2.id) rule2Result.ruleId = c2.id;
-  rulesList.push({
-    id: c2.id || "rule-attendance",
-    title: c2.title,
-    category: "attendance",
-    maxMarks: c2.maxMarks,
-    score: c2.score,
-    ratingLabel: rule2Result.ratingLabel,
-    summary: `${rule2Result.presentDays} shifts (${rule2Result.onTimeDays} on-time, ${rule2Result.lateDays} late)`,
-    details: rule2Result
-  });
-  const c3 = computeRuleScoreAndMax("tasks", rule3Result.score, rule3Result.ruleTitle);
-  rule3Result.maxMarks = c3.maxMarks;
-  rule3Result.marks = c3.score;
-  rule3Result.ruleTitle = c3.title;
-  if (c3.id) rule3Result.ruleId = c3.id;
-  rulesList.push({
-    id: c3.id || "rule-tasks",
-    title: c3.title,
-    category: "tasks",
-    maxMarks: c3.maxMarks,
-    score: c3.score,
-    ratingLabel: rule3Result.ratingLabel,
-    summary: `${rule3Result.totalCompleted}/${rule3Result.totalAssigned} tasks (${rule3Result.completionRatePercent}% checklist)`,
-    details: rule3Result
-  });
-  if (isWaiter) {
+  if (isRuleActive("attendance", true)) {
+    const c2 = computeRuleScoreAndMax("attendance", rule2Result.score, rule2Result.ruleTitle);
+    rule2Result.maxMarks = c2.maxMarks;
+    rule2Result.marks = c2.score;
+    rule2Result.ruleTitle = c2.title;
+    if (c2.id) rule2Result.ruleId = c2.id;
+    rulesList.push({
+      id: c2.id || "rule-attendance",
+      title: c2.title,
+      category: "attendance",
+      maxMarks: c2.maxMarks,
+      score: c2.score,
+      ratingLabel: rule2Result.ratingLabel,
+      summary: `${rule2Result.presentDays} shifts (${rule2Result.onTimeDays} on-time, ${rule2Result.lateDays} late)`,
+      details: rule2Result
+    });
+  }
+  if (isRuleActive("tasks", true)) {
+    const c3 = computeRuleScoreAndMax("tasks", rule3Result.score, rule3Result.ruleTitle);
+    rule3Result.maxMarks = c3.maxMarks;
+    rule3Result.marks = c3.score;
+    rule3Result.ruleTitle = c3.title;
+    if (c3.id) rule3Result.ruleId = c3.id;
+    rulesList.push({
+      id: c3.id || "rule-tasks",
+      title: c3.title,
+      category: "tasks",
+      maxMarks: c3.maxMarks,
+      score: c3.score,
+      ratingLabel: rule3Result.ratingLabel,
+      summary: `${rule3Result.totalCompleted}/${rule3Result.totalAssigned} tasks (${rule3Result.completionRatePercent}% checklist)`,
+      details: rule3Result
+    });
+  }
+  if (isRuleActive("billing", isWaiter)) {
     const c4 = computeRuleScoreAndMax("billing", rule4Result.score, rule4Result.ruleTitle);
     rule4Result.maxMarks = c4.maxMarks;
     rule4Result.marks = c4.score;
@@ -40200,7 +40403,7 @@ async function calculateReportCardData(req, params) {
       details: rule4Result
     });
   }
-  if (isWaiter || isChef || isSupervisor) {
+  if (isRuleActive("kot_time", isWaiter || isChef || isSupervisor)) {
     const c5 = computeRuleScoreAndMax("kot_time", rule5Result.score, rule5Result.ruleTitle);
     rule5Result.maxMarks = c5.maxMarks;
     rule5Result.marks = c5.score;
@@ -40217,7 +40420,7 @@ async function calculateReportCardData(req, params) {
       details: rule5Result
     });
   }
-  if (isWaiter || role === "all" || getConfiguredRule("billing_table")) {
+  if (isRuleActive("billing_table", isWaiter || role === "all")) {
     const c6 = computeRuleScoreAndMax("billing_table", rule6Result.score, rule6Result.ruleTitle);
     rule6Result.maxMarks = c6.maxMarks;
     rule6Result.marks = c6.score;
@@ -40234,7 +40437,7 @@ async function calculateReportCardData(req, params) {
       details: rule6Result
     });
   }
-  if (isCashier || isWaiter || role === "all" || getConfiguredRule("billing_counter")) {
+  if (isRuleActive("billing_counter", isCashier || isWaiter || role === "all")) {
     const c7 = computeRuleScoreAndMax("billing_counter", rule7Result.score, rule7Result.ruleTitle);
     rule7Result.maxMarks = c7.maxMarks;
     rule7Result.marks = c7.score;
@@ -40251,10 +40454,58 @@ async function calculateReportCardData(req, params) {
       details: rule7Result
     });
   }
+  const knownCategories = /* @__PURE__ */ new Set([
+    "call_speed",
+    "attendance",
+    "tasks",
+    "billing",
+    "kot_time",
+    "billing_table",
+    "billing_counter"
+  ]);
+  for (const doc of configuredRulesDocs) {
+    if (knownCategories.has(doc.category)) continue;
+    const appliesToRole = !doc.roles || doc.roles.length === 0 || doc.roles.includes("all") || doc.roles.includes(lowerRole);
+    if (!appliesToRole) continue;
+    const maxMarks = typeof doc.maxMarks === "number" && doc.maxMarks > 0 ? doc.maxMarks : 100;
+    const title = doc.title || "Performance Standard";
+    rulesList.push({
+      id: String(doc.id || doc._id || `rule-${doc.category}`),
+      title,
+      category: doc.category || "custom",
+      maxMarks,
+      score: 0,
+      ratingLabel: "\u26AA Pending / No Activity",
+      summary: "0 recorded \u2022 Pending live evaluation",
+      details: {
+        ruleTitle: title,
+        maxMarks,
+        marks: 0,
+        score: 0,
+        ratingLabel: "\u26AA Pending / No Activity"
+      }
+    });
+  }
   const totalScore = Number(
     rulesList.reduce((sum, r) => sum + (r.score || 0), 0).toFixed(1)
   );
   const totalMaxMarks = rulesList.reduce((sum, r) => sum + (r.maxMarks || 100), 0);
+  if (totalMaxMarks > 0) {
+    overallScore = Math.min(100, Math.max(0, Math.round(totalScore / totalMaxMarks * 100)));
+    if (overallScore >= 90) {
+      grade = "Grade A+";
+      gradeTag = "\u{1F31F} Star Performer";
+    } else if (overallScore >= 80) {
+      grade = "Grade A";
+      gradeTag = "\u2705 Target Met";
+    } else if (overallScore < 65) {
+      grade = "Grade C";
+      gradeTag = "\u{1F6A8} Needs Improvement";
+    } else {
+      grade = "Grade B";
+      gradeTag = "\u26A0\uFE0F Average";
+    }
+  }
   let rank = 1;
   let totalRanked = 1;
   let rankingList = [];

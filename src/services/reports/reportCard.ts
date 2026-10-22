@@ -1448,7 +1448,7 @@ export async function calculateReportCardData(
 
   const rawOverall =
     activeRuleScores.reduce((sum, s) => sum + s, 0) / activeRuleScores.length
-  const overallScore = Math.min(100, Math.max(0, Number(rawOverall.toFixed(2))))
+  let overallScore = Math.min(100, Math.max(0, Number(rawOverall.toFixed(2))))
 
   let grade = 'Grade B'
   let gradeTag = '⚠️ Average'
@@ -1472,8 +1472,14 @@ export async function calculateReportCardData(
   }
 
   const rulesList: RuleSummaryItem[] = []
+  const hasConfiguredRules = configuredRulesDocs.length > 0
 
-  if (isWaiter) {
+  const isRuleActive = (cat: string, defaultRoleEligible: boolean) => {
+    if (!hasConfiguredRules) return defaultRoleEligible
+    return Boolean(getConfiguredRule(cat))
+  }
+
+  if (isRuleActive('call_speed', isWaiter)) {
     const c1 = computeRuleScoreAndMax('call_speed', rule1Result.score, rule1Result.ruleTitle)
     rule1Result.maxMarks = c1.maxMarks
     rule1Result.marks = c1.score
@@ -1492,41 +1498,45 @@ export async function calculateReportCardData(
     })
   }
 
-  const c2 = computeRuleScoreAndMax('attendance', rule2Result.score, rule2Result.ruleTitle)
-  rule2Result.maxMarks = c2.maxMarks
-  rule2Result.marks = c2.score
-  rule2Result.ruleTitle = c2.title
-  if (c2.id) rule2Result.ruleId = c2.id
+  if (isRuleActive('attendance', true)) {
+    const c2 = computeRuleScoreAndMax('attendance', rule2Result.score, rule2Result.ruleTitle)
+    rule2Result.maxMarks = c2.maxMarks
+    rule2Result.marks = c2.score
+    rule2Result.ruleTitle = c2.title
+    if (c2.id) rule2Result.ruleId = c2.id
 
-  rulesList.push({
-    id: c2.id || 'rule-attendance',
-    title: c2.title,
-    category: 'attendance',
-    maxMarks: c2.maxMarks,
-    score: c2.score,
-    ratingLabel: rule2Result.ratingLabel,
-    summary: `${rule2Result.presentDays} shifts (${rule2Result.onTimeDays} on-time, ${rule2Result.lateDays} late)`,
-    details: rule2Result,
-  })
+    rulesList.push({
+      id: c2.id || 'rule-attendance',
+      title: c2.title,
+      category: 'attendance',
+      maxMarks: c2.maxMarks,
+      score: c2.score,
+      ratingLabel: rule2Result.ratingLabel,
+      summary: `${rule2Result.presentDays} shifts (${rule2Result.onTimeDays} on-time, ${rule2Result.lateDays} late)`,
+      details: rule2Result,
+    })
+  }
 
-  const c3 = computeRuleScoreAndMax('tasks', rule3Result.score, rule3Result.ruleTitle)
-  rule3Result.maxMarks = c3.maxMarks
-  rule3Result.marks = c3.score
-  rule3Result.ruleTitle = c3.title
-  if (c3.id) rule3Result.ruleId = c3.id
+  if (isRuleActive('tasks', true)) {
+    const c3 = computeRuleScoreAndMax('tasks', rule3Result.score, rule3Result.ruleTitle)
+    rule3Result.maxMarks = c3.maxMarks
+    rule3Result.marks = c3.score
+    rule3Result.ruleTitle = c3.title
+    if (c3.id) rule3Result.ruleId = c3.id
 
-  rulesList.push({
-    id: c3.id || 'rule-tasks',
-    title: c3.title,
-    category: 'tasks',
-    maxMarks: c3.maxMarks,
-    score: c3.score,
-    ratingLabel: rule3Result.ratingLabel,
-    summary: `${rule3Result.totalCompleted}/${rule3Result.totalAssigned} tasks (${rule3Result.completionRatePercent}% checklist)`,
-    details: rule3Result,
-  })
+    rulesList.push({
+      id: c3.id || 'rule-tasks',
+      title: c3.title,
+      category: 'tasks',
+      maxMarks: c3.maxMarks,
+      score: c3.score,
+      ratingLabel: rule3Result.ratingLabel,
+      summary: `${rule3Result.totalCompleted}/${rule3Result.totalAssigned} tasks (${rule3Result.completionRatePercent}% checklist)`,
+      details: rule3Result,
+    })
+  }
 
-  if (isWaiter) {
+  if (isRuleActive('billing', isWaiter)) {
     const c4 = computeRuleScoreAndMax('billing', rule4Result.score, rule4Result.ruleTitle)
     rule4Result.maxMarks = c4.maxMarks
     rule4Result.marks = c4.score
@@ -1545,7 +1555,7 @@ export async function calculateReportCardData(
     })
   }
 
-  if (isWaiter || isChef || isSupervisor) {
+  if (isRuleActive('kot_time', isWaiter || isChef || isSupervisor)) {
     const c5 = computeRuleScoreAndMax('kot_time', rule5Result.score, rule5Result.ruleTitle)
     rule5Result.maxMarks = c5.maxMarks
     rule5Result.marks = c5.score
@@ -1564,7 +1574,7 @@ export async function calculateReportCardData(
     })
   }
 
-  if (isWaiter || role === 'all' || getConfiguredRule('billing_table')) {
+  if (isRuleActive('billing_table', isWaiter || role === 'all')) {
     const c6 = computeRuleScoreAndMax('billing_table', rule6Result.score, rule6Result.ruleTitle)
     rule6Result.maxMarks = c6.maxMarks
     rule6Result.marks = c6.score
@@ -1583,7 +1593,7 @@ export async function calculateReportCardData(
     })
   }
 
-  if (isCashier || isWaiter || role === 'all' || getConfiguredRule('billing_counter')) {
+  if (isRuleActive('billing_counter', isCashier || isWaiter || role === 'all')) {
     const c7 = computeRuleScoreAndMax('billing_counter', rule7Result.score, rule7Result.ruleTitle)
     rule7Result.maxMarks = c7.maxMarks
     rule7Result.marks = c7.score
@@ -1602,10 +1612,72 @@ export async function calculateReportCardData(
     })
   }
 
+  // Automatically append any additional or custom rules configured in dashboard
+  const knownCategories = new Set([
+    'call_speed',
+    'attendance',
+    'tasks',
+    'billing',
+    'kot_time',
+    'billing_table',
+    'billing_counter',
+  ])
+
+  for (const doc of configuredRulesDocs) {
+    if (knownCategories.has(doc.category)) continue
+
+    const appliesToRole =
+      !doc.roles ||
+      doc.roles.length === 0 ||
+      doc.roles.includes('all') ||
+      doc.roles.includes(lowerRole)
+
+    if (!appliesToRole) continue
+
+    const maxMarks =
+      typeof doc.maxMarks === 'number' && doc.maxMarks > 0 ? doc.maxMarks : 100
+    const title = doc.title || 'Performance Standard'
+
+    rulesList.push({
+      id: String(doc.id || doc._id || `rule-${doc.category}`),
+      title,
+      category: doc.category || 'custom',
+      maxMarks,
+      score: 0,
+      ratingLabel: '⚪ Pending / No Activity',
+      summary: '0 recorded • Pending live evaluation',
+      details: {
+        ruleTitle: title,
+        maxMarks,
+        marks: 0,
+        score: 0,
+        ratingLabel: '⚪ Pending / No Activity',
+      },
+    })
+  }
+
   const totalScore = Number(
     rulesList.reduce((sum, r) => sum + (r.score || 0), 0).toFixed(1)
   )
   const totalMaxMarks = rulesList.reduce((sum, r) => sum + (r.maxMarks || 100), 0)
+
+  // Mathematically scale overallScore from totalScore and totalMaxMarks
+  if (totalMaxMarks > 0) {
+    overallScore = Math.min(100, Math.max(0, Math.round((totalScore / totalMaxMarks) * 100)))
+    if (overallScore >= 90) {
+      grade = 'Grade A+'
+      gradeTag = '🌟 Star Performer'
+    } else if (overallScore >= 80) {
+      grade = 'Grade A'
+      gradeTag = '✅ Target Met'
+    } else if (overallScore < 65) {
+      grade = 'Grade C'
+      gradeTag = '🚨 Needs Improvement'
+    } else {
+      grade = 'Grade B'
+      gradeTag = '⚠️ Average'
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Classroom Ranking / Peer Leaderboard Calculation (Branch, Company, Overall)
