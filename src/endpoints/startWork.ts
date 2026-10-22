@@ -88,6 +88,7 @@ export const startWorkHandler: PayloadHandler = async (req): Promise<Response> =
     const attDoc = attSearch.docs[0]
     const nowIso = new Date().toISOString()
     const currentStartTime = (attDoc as any).workStartTime || nowIso
+    const dutyStartPhoto = body?.dutyStartPhoto || body?.selfieMediaId || body?.photo || body?.workStartSelfie
 
     const updated = await req.payload.update({
       collection: 'attendance',
@@ -95,6 +96,7 @@ export const startWorkHandler: PayloadHandler = async (req): Promise<Response> =
       data: {
         workStatus: 'in_progress',
         workStartTime: currentStartTime,
+        ...(dutyStartPhoto ? { dutyStartPhoto } : {}),
       },
       overrideAccess: true,
     })
@@ -104,6 +106,7 @@ export const startWorkHandler: PayloadHandler = async (req): Promise<Response> =
       message: 'Work officially started!',
       workStatus: 'in_progress',
       workStartTime: currentStartTime,
+      dutyStartPhoto: (updated as any).dutyStartPhoto,
       attendanceId: attDoc.id,
       dateString,
     })

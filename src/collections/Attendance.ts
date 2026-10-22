@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { terminateActiveCallsForUser } from '../realtime/wsGateway'
 
 const Attendance: CollectionConfig = {
   slug: 'attendance',
@@ -138,6 +139,16 @@ const Attendance: CollectionConfig = {
             punchOut: a.punchOut,
             photo: a.capturedImage,
           }));
+
+          // If the latest session is closed or has punchOut, terminate any active live call immediately
+          const lastSession = sessionActivities[sessionActivities.length - 1];
+          const isPunchedOut = lastSession?.status === 'closed' || (lastSession?.punchOut && String(lastSession.punchOut).trim().length > 0);
+          if (isPunchedOut) {
+            const userId = typeof doc.user === 'string' ? doc.user : doc.user?.id;
+            if (userId) {
+              terminateActiveCallsForUser(String(userId), 'User punched out / off duty');
+            }
+          }
 
           // Update the User's lastLoginBranch to match the attendance branch, 
           // so the user profile stays perfectly in sync with where they just punched in.
@@ -536,6 +547,14 @@ const Attendance: CollectionConfig = {
       },
     },
     {
+      name: 'dutyStartPhoto',
+      type: 'upload',
+      relationTo: 'media',
+      admin: {
+        description: 'Selfie photo captured when employee started duty in the mobile app.',
+      },
+    },
+    {
       name: 'workCompletedTime',
       type: 'date',
       timezone: true,
@@ -545,6 +564,14 @@ const Attendance: CollectionConfig = {
           pickerAppearance: 'dayAndTime',
           displayFormat: 'yyyy-MM-dd HH:mm:ss',
         },
+      },
+    },
+    {
+      name: 'dutyCompletePhoto',
+      type: 'upload',
+      relationTo: 'media',
+      admin: {
+        description: 'Photo captured when employee completed duty in the mobile app.',
       },
     },
     {
