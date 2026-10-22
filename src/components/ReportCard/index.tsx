@@ -582,6 +582,33 @@ export default function ReportCardDashboard() {
             category: 'kot_time',
             maxMarks: 100,
           },
+          {
+            id: 'def-8',
+            title: '🍳 Kitchen Order Production Value & Volume',
+            enabled: true,
+            roles: ['chef', 'kitchen'],
+            role: 'chef',
+            category: 'chef_kitchen_volume',
+            maxMarks: 100,
+          },
+          {
+            id: 'def-9',
+            title: '📦 Stock Order Fulfillment & Accuracy SLA',
+            enabled: true,
+            roles: ['chef', 'kitchen', 'store_keeper'],
+            role: 'chef',
+            category: 'chef_stock_fulfillment',
+            maxMarks: 100,
+          },
+          {
+            id: 'def-10',
+            title: '💰 Stock Order Production Value & Volume',
+            enabled: true,
+            roles: ['chef', 'kitchen', 'store_keeper'],
+            role: 'chef',
+            category: 'chef_stock_volume',
+            maxMarks: 100,
+          },
         ]
       }
 
@@ -720,6 +747,63 @@ export default function ReportCardDashboard() {
           kotTimeDetails: null,
           billingTableDetails: null,
           billingCounterDetails: reportData.rule7CounterBilling,
+          kitchenVolumeDetails: null,
+          stockFulfillmentDetails: null,
+          stockVolumeDetails: null,
+        }
+      }
+
+      // Use real Rule 8 Kitchen Volume data if category is chef_kitchen_volume
+      if (rule.category === 'chef_kitchen_volume' && reportData?.rule8ChefKitchenVolume) {
+        return {
+          ...rule,
+          score: reportData.rule8ChefKitchenVolume.score,
+          callSpeedDetails: null,
+          attendanceDetails: null,
+          tasksDetails: null,
+          billingDetails: null,
+          kotTimeDetails: null,
+          billingTableDetails: null,
+          billingCounterDetails: null,
+          kitchenVolumeDetails: reportData.rule8ChefKitchenVolume,
+          stockFulfillmentDetails: null,
+          stockVolumeDetails: null,
+        }
+      }
+
+      // Use real Rule 9 Stock Fulfillment data if category is chef_stock_fulfillment
+      if (rule.category === 'chef_stock_fulfillment' && reportData?.rule9ChefStockFulfillment) {
+        return {
+          ...rule,
+          score: reportData.rule9ChefStockFulfillment.score,
+          callSpeedDetails: null,
+          attendanceDetails: null,
+          tasksDetails: null,
+          billingDetails: null,
+          kotTimeDetails: null,
+          billingTableDetails: null,
+          billingCounterDetails: null,
+          kitchenVolumeDetails: null,
+          stockFulfillmentDetails: reportData.rule9ChefStockFulfillment,
+          stockVolumeDetails: null,
+        }
+      }
+
+      // Use real Rule 10 Stock Volume data if category is chef_stock_volume
+      if (rule.category === 'chef_stock_volume' && reportData?.rule10ChefStockVolume) {
+        return {
+          ...rule,
+          score: reportData.rule10ChefStockVolume.score,
+          callSpeedDetails: null,
+          attendanceDetails: null,
+          tasksDetails: null,
+          billingDetails: null,
+          kotTimeDetails: null,
+          billingTableDetails: null,
+          billingCounterDetails: null,
+          kitchenVolumeDetails: null,
+          stockFulfillmentDetails: null,
+          stockVolumeDetails: reportData.rule10ChefStockVolume,
         }
       }
 
@@ -736,6 +820,9 @@ export default function ReportCardDashboard() {
         kotTimeDetails: null,
         billingTableDetails: null,
         billingCounterDetails: null,
+        kitchenVolumeDetails: null,
+        stockFulfillmentDetails: null,
+        stockVolumeDetails: null,
       }
     })
 
@@ -860,6 +947,15 @@ export default function ReportCardDashboard() {
       const counterBillingScore = Number(
         (Math.min(100, Math.max(70, 90 + ((empSeed * 19) % 17) - 6)) + ((empSeed % 60) / 100)).toFixed(2)
       )
+      const kitchenVolumeScore = Number(
+        (Math.min(100, Math.max(72, 91 + ((empSeed * 23) % 17) - 6)) + ((empSeed % 50) / 100)).toFixed(2)
+      )
+      const stockFulfillmentScore = Number(
+        (Math.min(100, Math.max(75, 94 + ((empSeed * 29) % 15) - 5)) + ((empSeed % 40) / 100)).toFixed(2)
+      )
+      const stockVolumeScore = Number(
+        (Math.min(100, Math.max(70, 89 + ((empSeed * 31) % 17) - 6)) + ((empSeed % 60) / 100)).toFixed(2)
+      )
 
       let ruleScores: { key: string; label: string; score: number }[] = []
 
@@ -884,6 +980,9 @@ export default function ReportCardDashboard() {
           { key: 'attendance', label: 'Attendance', score: attendanceScore },
           { key: 'tasks', label: 'Duties', score: tasksScore },
           { key: 'kot_time', label: 'KOT Prep', score: kotTimeScore },
+          { key: 'chef_kitchen_volume', label: 'Kitchen Output', score: kitchenVolumeScore },
+          { key: 'chef_stock_fulfillment', label: 'Stock Fulfillment', score: stockFulfillmentScore },
+          { key: 'chef_stock_volume', label: 'Stock Production', score: stockVolumeScore },
         ]
       } else if (empRole === 'supervisor') {
         ruleScores = [
@@ -919,6 +1018,12 @@ export default function ReportCardDashboard() {
             return { ...r, score: empRealData.rule6TableBilling.score }
           if (r.key === 'billing_counter' && empRealData.rule7CounterBilling)
             return { ...r, score: empRealData.rule7CounterBilling.score }
+          if (r.key === 'chef_kitchen_volume' && (empRealData as any).rule8ChefKitchenVolume)
+            return { ...r, score: (empRealData as any).rule8ChefKitchenVolume.score }
+          if (r.key === 'chef_stock_fulfillment' && (empRealData as any).rule9ChefStockFulfillment)
+            return { ...r, score: (empRealData as any).rule9ChefStockFulfillment.score }
+          if (r.key === 'chef_stock_volume' && (empRealData as any).rule10ChefStockVolume)
+            return { ...r, score: (empRealData as any).rule10ChefStockVolume.score }
           return r
         })
       }
@@ -1354,8 +1459,11 @@ export default function ReportCardDashboard() {
                   ) : selectedRole === 'chef' ? (
                     <>
                       <th className="text-center">Attendance</th>
-                      <th className="text-center">Kitchen Tasks</th>
+                      <th className="text-center">Duties</th>
                       <th className="text-center">KOT Prep</th>
+                      <th className="text-center">Kitchen Output</th>
+                      <th className="text-center">Stock Fulfillment</th>
+                      <th className="text-center">Stock Production</th>
                     </>
                   ) : selectedRole === 'supervisor' ? (
                     <>
@@ -1379,11 +1487,11 @@ export default function ReportCardDashboard() {
                   <tr>
                     <td
                       colSpan={
-                        selectedRole === 'waiter'
+                        selectedRole === 'waiter' || selectedRole === 'chef'
                           ? 11
                           : selectedRole === 'cashier'
                           ? 9
-                          : selectedRole === 'chef' || selectedRole === 'supervisor'
+                          : selectedRole === 'supervisor'
                           ? 8
                           : 7
                       }
@@ -1629,6 +1737,45 @@ export default function ReportCardDashboard() {
                               }`}
                             >
                               {item.ruleScores[2]?.score ?? '—'}
+                            </span>
+                          </td>
+                          <td className="text-center">
+                            <span
+                              className={`score-pill-cell ${
+                                (item.ruleScores[3]?.score ?? 0) >= 90
+                                  ? 'high'
+                                  : (item.ruleScores[3]?.score ?? 0) >= 80
+                                  ? 'med'
+                                  : 'low'
+                              }`}
+                            >
+                              {item.ruleScores[3]?.score ?? '—'}
+                            </span>
+                          </td>
+                          <td className="text-center">
+                            <span
+                              className={`score-pill-cell ${
+                                (item.ruleScores[4]?.score ?? 0) >= 90
+                                  ? 'high'
+                                  : (item.ruleScores[4]?.score ?? 0) >= 80
+                                  ? 'med'
+                                  : 'low'
+                              }`}
+                            >
+                              {item.ruleScores[4]?.score ?? '—'}
+                            </span>
+                          </td>
+                          <td className="text-center">
+                            <span
+                              className={`score-pill-cell ${
+                                (item.ruleScores[5]?.score ?? 0) >= 90
+                                  ? 'high'
+                                  : (item.ruleScores[5]?.score ?? 0) >= 80
+                                  ? 'med'
+                                  : 'low'
+                              }`}
+                            >
+                              {item.ruleScores[5]?.score ?? '—'}
                             </span>
                           </td>
                         </>
@@ -2004,6 +2151,92 @@ export default function ReportCardDashboard() {
                             </span>
                             <span style={{ fontWeight: 600, padding: '0.15rem 0.45rem', borderRadius: '4px', backgroundColor: '#fef3c7', color: '#92400e' }}>
                               {rule.billingCounterDetails.alertTag}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      {(rule as any).kitchenVolumeDetails && (
+                        <div
+                          style={{
+                            marginTop: '0.45rem',
+                            fontSize: '0.82rem',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.25rem',
+                          }}
+                        >
+                          <div style={{ color: '#ea580c', fontWeight: 600 }}>
+                            🍳 Kitchen Output: ₹{(rule as any).kitchenVolumeDetails.totalOutputValue.toLocaleString('en-IN')} across {(rule as any).kitchenVolumeDetails.totalItemsPrepared} dishes • Benchmark: ₹{(rule as any).kitchenVolumeDetails.branchBenchmarkOutput.toLocaleString('en-IN')} ({(rule as any).kitchenVolumeDetails.achievementPercent}% achieved)
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', fontSize: '0.75rem', marginTop: '0.1rem' }}>
+                            <span style={{ backgroundColor: '#fff7ed', color: '#c2410c', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #fed7aa' }}>
+                              🏢 Branch: {(rule as any).kitchenVolumeDetails.branchSharePercent}% of ₹{(rule as any).kitchenVolumeDetails.branchTotalOutput.toLocaleString('en-IN')}
+                            </span>
+                            <span style={{ backgroundColor: '#eff6ff', color: '#1e40af', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #bfdbfe' }}>
+                              🏛️ Company: {(rule as any).kitchenVolumeDetails.companySharePercent}% of ₹{(rule as any).kitchenVolumeDetails.companyTotalOutput.toLocaleString('en-IN')}
+                            </span>
+                            <span style={{ backgroundColor: '#f5f3ff', color: '#5b21b6', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #ddd6fe' }}>
+                              🌐 Overall: {(rule as any).kitchenVolumeDetails.overallSharePercent}% of ₹{(rule as any).kitchenVolumeDetails.overallTotalOutput.toLocaleString('en-IN')}
+                            </span>
+                            <span style={{ fontWeight: 600, padding: '0.15rem 0.45rem', borderRadius: '4px', backgroundColor: '#fef3c7', color: '#92400e' }}>
+                              {(rule as any).kitchenVolumeDetails.alertTag}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      {(rule as any).stockFulfillmentDetails && (
+                        <div
+                          style={{
+                            marginTop: '0.45rem',
+                            fontSize: '0.82rem',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.25rem',
+                          }}
+                        >
+                          <div style={{ color: '#0284c7', fontWeight: 600 }}>
+                            📦 Stock Fulfillment: {(rule as any).stockFulfillmentDetails.sendingQty} / {(rule as any).stockFulfillmentDetails.requiredQty} units dispatched ({(rule as any).stockFulfillmentDetails.fulfillmentRatePercent}%) across {(rule as any).stockFulfillmentDetails.totalStockOrders} stock orders
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', fontSize: '0.75rem', marginTop: '0.1rem' }}>
+                            <span style={{ backgroundColor: '#f0f9ff', color: '#0369a1', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #bae6fd' }}>
+                              📋 Items Handled: {(rule as any).stockFulfillmentDetails.totalItems}
+                            </span>
+                            {(rule as any).stockFulfillmentDetails.differenceQty > 0 && (
+                              <span style={{ backgroundColor: '#fef2f2', color: '#b91c1c', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #fecaca' }}>
+                                ⚠️ Shortage: {(rule as any).stockFulfillmentDetails.differenceQty} units (₹{(rule as any).stockFulfillmentDetails.differenceAmount.toLocaleString('en-IN')})
+                              </span>
+                            )}
+                            <span style={{ fontWeight: 600, padding: '0.15rem 0.45rem', borderRadius: '4px', backgroundColor: '#fef3c7', color: '#92400e' }}>
+                              {(rule as any).stockFulfillmentDetails.alertTag}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      {(rule as any).stockVolumeDetails && (
+                        <div
+                          style={{
+                            marginTop: '0.45rem',
+                            fontSize: '0.82rem',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.25rem',
+                          }}
+                        >
+                          <div style={{ color: '#0d9488', fontWeight: 600 }}>
+                            💰 Stock Production: ₹{(rule as any).stockVolumeDetails.totalDispatchedValue.toLocaleString('en-IN')} across {(rule as any).stockVolumeDetails.totalOrdersDispatched} orders • Quota: ₹{(rule as any).stockVolumeDetails.branchBenchmarkDispatched.toLocaleString('en-IN')} ({(rule as any).stockVolumeDetails.achievementPercent}% achieved)
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', fontSize: '0.75rem', marginTop: '0.1rem' }}>
+                            <span style={{ backgroundColor: '#f0fdfa', color: '#0f766e', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #99f6e4' }}>
+                              🏢 Branch: {(rule as any).stockVolumeDetails.branchSharePercent}% of ₹{(rule as any).stockVolumeDetails.branchTotalDispatched.toLocaleString('en-IN')}
+                            </span>
+                            <span style={{ backgroundColor: '#eff6ff', color: '#1e40af', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #bfdbfe' }}>
+                              🏛️ Company: {(rule as any).stockVolumeDetails.companySharePercent}% of ₹{(rule as any).stockVolumeDetails.companyTotalDispatched.toLocaleString('en-IN')}
+                            </span>
+                            <span style={{ backgroundColor: '#f5f3ff', color: '#5b21b6', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid #ddd6fe' }}>
+                              🌐 Overall: {(rule as any).stockVolumeDetails.overallSharePercent}% of ₹{(rule as any).stockVolumeDetails.overallTotalDispatched.toLocaleString('en-IN')}
+                            </span>
+                            <span style={{ fontWeight: 600, padding: '0.15rem 0.45rem', borderRadius: '4px', backgroundColor: '#fef3c7', color: '#92400e' }}>
+                              {(rule as any).stockVolumeDetails.alertTag}
                             </span>
                           </div>
                         </div>

@@ -12,6 +12,9 @@ type CategoryKey =
   | 'billing'
   | 'billing_table'
   | 'billing_counter'
+  | 'chef_kitchen_volume'
+  | 'chef_stock_fulfillment'
+  | 'chef_stock_volume'
   | 'hygiene'
   | 'reviews'
   | 'general'
@@ -535,6 +538,216 @@ const CATEGORY_CONFIGS: Record<CategoryKey, CategoryConfig> = {
       return {
         scenario: `Branch Counter Sales = ₹3,20,000 across 2 cashiers (Benchmark = ₹1,60,000). Cashier generated ₹1,42,800 across 210 counter bills.`,
         calculation: `Branch Benchmark = ₹3,20,000 / 2 = ₹1,60,000\nAchievement % = (₹1,42,800 / ₹1,60,000) × 100 = 89.25%\nMarks = (89.25 / 100) × ${maxMarks} = ${marks} Marks (⚠️ Below Branch Average -10.75%)`,
+        finalMarks: marks,
+      }
+    },
+  },
+  chef_kitchen_volume: {
+    key: 'chef_kitchen_volume',
+    icon: '🍳',
+    title: 'Kitchen Order Production Value & Volume',
+    description:
+      'Evaluates the total sales value (₹) and dish volume of customer food items prepared by the chef against branch kitchen benchmarks and targets.',
+    formulaDisplay:
+      'Kitchen Benchmark = Total Branch Kitchen Output / Active Kitchen Chefs\nAchievement % = (Chef Prepared Value / Kitchen Benchmark) × 100\nMarks = min(Max Marks, (Achievement % / 100) × Max Marks)',
+    formulaExplanation:
+      'Aggregates all bill items marked prepared by the chef (excluding cancelled items). Performance is evaluated against the branch average kitchen output per chef (or admin monthly target). Exact unrounded score is awarded.',
+    metricLabel: 'Kitchen Production Rate vs Benchmark (%)',
+    tiers: [
+      {
+        threshold: '≥ 105.0% of Benchmark',
+        score: 100,
+        rating: '🌟 Star Kitchen Producer',
+        color: '#10b981',
+        note: 'Exceptional kitchen output and dish preparation efficiency',
+      },
+      {
+        threshold: '95.0% – 104.99% of Benchmark',
+        score: 95,
+        rating: '🟢 Production Target Met',
+        color: '#22c55e',
+        note: 'Steady culinary output matching kitchen requirements',
+      },
+      {
+        threshold: '80.0% – 94.99% of Benchmark',
+        score: 85,
+        rating: '🟡 Moderate Output',
+        color: '#eab308',
+        note: 'Acceptable dish volume with scope for higher throughput',
+      },
+      {
+        threshold: '65.0% – 79.99% of Benchmark',
+        score: 70,
+        rating: '🟠 Below Kitchen Benchmark',
+        color: '#f97316',
+        note: 'Low dish preparation volume during peak service hours',
+      },
+      {
+        threshold: '< 65.0% of Benchmark',
+        score: 50,
+        rating: '🔴 Critical Kitchen Shortfall',
+        color: '#ef4444',
+        note: 'Substantial shortfall in kitchen food preparation',
+      },
+    ],
+    roleNotes: [
+      {
+        role: 'Kitchen Chef / Line Cook',
+        badge: '👨‍🍳 Kitchen Team',
+        slaTarget: '100% of Branch Kitchen Average',
+        criteria:
+          'Calculates line totals of all KOT items where item.preparedBy matches the chef. Excludes cancelled items.',
+      },
+    ],
+    example: (maxMarks: number) => {
+      const branchKitchenTotal = 400000
+      const activeChefs = 4
+      const benchmark = branchKitchenTotal / activeChefs // 100,000
+      const chefPreparedValue = 96500
+      const achievementRate = Number(((chefPreparedValue / benchmark) * 100).toFixed(2)) // 96.5%
+      const marks = Number(((achievementRate / 100) * maxMarks).toFixed(2))
+      return {
+        scenario: `Branch Kitchen produced ₹4,00,000 in food across 4 active chefs (Benchmark = ₹1,00,000). Chef prepared ₹96,500 across 185 dishes.`,
+        calculation: `Benchmark = ₹4,00,000 / 4 = ₹1,00,000\nAchievement % = (₹96,500 / ₹1,00,000) × 100 = 96.5%\nMarks = (96.5 / 100) × ${maxMarks} = ${marks} Marks (🟢 Production Target Met)`,
+        finalMarks: marks,
+      }
+    },
+  },
+  chef_stock_fulfillment: {
+    key: 'chef_stock_fulfillment',
+    icon: '📦',
+    title: 'Stock Order Fulfillment & Accuracy SLA',
+    description:
+      'Evaluates stock order fulfillment accuracy by comparing dispatched quantities against branch required quantities (avoiding shortages or stock discrepancies).',
+    formulaDisplay:
+      'Fulfillment Rate = (Dispatched Qty [sendingQty] / Ordered Qty [requiredQty]) × 100\nMarks = (Score / 100) × Max Marks',
+    formulaExplanation:
+      'Evaluates all stock order items dispatched by the chef. Penalizes shortages or missing items against branch store requirements. Strict unrounded percentage scoring.',
+    metricLabel: 'Stock Fulfillment Accuracy (%)',
+    tiers: [
+      {
+        threshold: '≥ 98.0% Fulfilled',
+        score: 100,
+        rating: '🌟 Perfect Stock Fulfillment',
+        color: '#10b981',
+        note: 'Zero stock shortages; branch requests 100% fulfilled',
+      },
+      {
+        threshold: '95.0% – 97.99% Fulfilled',
+        score: 90,
+        rating: '🟢 High Accuracy',
+        color: '#22c55e',
+        note: 'Solid stock preparation with minimal discrepancy',
+      },
+      {
+        threshold: '85.0% – 94.99% Fulfilled',
+        score: 75,
+        rating: '🟡 Minor Stock Shortage',
+        color: '#eab308',
+        note: 'Moderate variance between requested and dispatched quantities',
+      },
+      {
+        threshold: '75.0% – 84.99% Fulfilled',
+        score: 60,
+        rating: '🟠 Frequent Shortage',
+        color: '#f97316',
+        note: 'Recurring supply shortages impacting branch inventory',
+      },
+      {
+        threshold: '< 75.0% Fulfilled',
+        score: 40,
+        rating: '🔴 Critical Stock Discrepancy',
+        color: '#ef4444',
+        note: 'Severe dispatch shortages causing store stockouts',
+      },
+    ],
+    roleNotes: [
+      {
+        role: 'Stock Order Chef / Central Kitchen',
+        badge: '📦 Production Team',
+        slaTarget: '≥ 98.0% Dispatched vs Required',
+        criteria:
+          'Evaluates items in stock-orders where item.sendingUpdatedBy matches the chef. Tracks sendingQty vs requiredQty.',
+      },
+    ],
+    example: (maxMarks: number) => {
+      const reqQty = 500
+      const sntQty = 485
+      const fulfillmentRate = Number(((sntQty / reqQty) * 100).toFixed(2)) // 97.0%
+      const score = 90
+      const marks = Number(((score / 100) * maxMarks).toFixed(2))
+      return {
+        scenario: `Branches requested 500 units of bakery/pastry products. Chef prepared and dispatched 485 units (15 shortage).`,
+        calculation: `Fulfillment % = (485 / 500) × 100 = 97.0% → Falls in 95.0%–97.99% tier → Score = 90\nMarks = (${score} / 100) × ${maxMarks} = ${marks} Marks (🟢 High Accuracy)`,
+        finalMarks: marks,
+      }
+    },
+  },
+  chef_stock_volume: {
+    key: 'chef_stock_volume',
+    icon: '💰',
+    title: 'Stock Order Production Value & Volume',
+    description:
+      'Evaluates total stock production value (₹) prepared and dispatched by the chef for branch stock replenishment against production quotas.',
+    formulaDisplay:
+      'Stock Benchmark = Total Stock Dispatched / Active Stock Chefs\nAchievement % = (Chef Stock Dispatched Value / Stock Benchmark) × 100\nMarks = min(Max Marks, (Achievement % / 100) × Max Marks)',
+    formulaExplanation:
+      'Aggregates sendingAmount (sendingQty × price) of all stock order items dispatched by the chef. Evaluated against branch or central production benchmark with exact unrounded scoring.',
+    metricLabel: 'Stock Production Rate vs Benchmark (%)',
+    tiers: [
+      {
+        threshold: '≥ 105.0% of Benchmark',
+        score: 100,
+        rating: '🌟 Star Stock Producer',
+        color: '#10b981',
+        note: 'Outstanding stock production output across batches',
+      },
+      {
+        threshold: '95.0% – 104.99% of Benchmark',
+        score: 95,
+        rating: '🟢 Production Target Met',
+        color: '#22c55e',
+        note: 'Solid stock replenishment fulfilling company demands',
+      },
+      {
+        threshold: '80.0% – 94.99% of Benchmark',
+        score: 85,
+        rating: '🟡 Moderate Stock Output',
+        color: '#eab308',
+        note: 'Acceptable production volume with room for efficiency gains',
+      },
+      {
+        threshold: '65.0% – 79.99% of Benchmark',
+        score: 70,
+        rating: '🟠 Below Production Benchmark',
+        color: '#f97316',
+        note: 'Below expected production volume for scheduled shifts',
+      },
+      {
+        threshold: '< 65.0% of Benchmark',
+        score: 50,
+        rating: '🔴 Critical Production Shortfall',
+        color: '#ef4444',
+        note: 'Substantial production lag causing stock delivery delays',
+      },
+    ],
+    roleNotes: [
+      {
+        role: 'Stock Order Chef / Bakery Staff',
+        badge: '🥖 Central Bakery',
+        slaTarget: '100% of Production Benchmark',
+        criteria:
+          'Calculates total sendingAmount (sendingQty × price) from stock-orders where item.sendingUpdatedBy matches the chef.',
+      },
+    ],
+    example: (maxMarks: number) => {
+      const benchmark = 250000
+      const chefProduced = 242000
+      const achievementRate = Number(((chefProduced / benchmark) * 100).toFixed(2)) // 96.8%
+      const marks = Number(((achievementRate / 100) * maxMarks).toFixed(2))
+      return {
+        scenario: `Production quota = ₹2,50,000 for the period. Chef prepared and dispatched ₹2,42,000 in bulk stock orders.`,
+        calculation: `Achievement % = (₹2,42,000 / ₹2,50,000) × 100 = 96.8%\nMarks = (96.8 / 100) × ${maxMarks} = ${marks} Marks (🟢 Production Target Met)`,
         finalMarks: marks,
       }
     },

@@ -36175,6 +36175,9 @@ var init_ReportCardRules = __esm({
                 { label: "\u{1F37D}\uFE0F Table Service & Billing Accuracy", value: "billing" },
                 { label: "\u{1F37D}\uFE0F Table Order Billing & Revenue", value: "billing_table" },
                 { label: "\u{1F6CD}\uFE0F Counter / Non-Table KOT Billing", value: "billing_counter" },
+                { label: "\u{1F373} Kitchen Order Production Value & Volume", value: "chef_kitchen_volume" },
+                { label: "\u{1F4E6} Stock Order Fulfillment & Accuracy SLA", value: "chef_stock_fulfillment" },
+                { label: "\u{1F4B0} Stock Order Production Value & Volume", value: "chef_stock_volume" },
                 { label: "\u2B50 Grooming, Hygiene & Cleanliness", value: "hygiene" },
                 { label: "\u{1F4AC} Customer Feedback & Reviews", value: "reviews" },
                 { label: "\u2139\uFE0F General Guidelines & Policy", value: "general" }
@@ -36189,7 +36192,12 @@ var init_ReportCardRules = __esm({
           min: 0,
           admin: {
             description: "Optional fixed \u20B9 sales quota for this rule. If left empty, benchmark defaults to Branch Average Sales per staff.",
-            condition: (data) => ["billing_table", "billing_counter"].includes(data?.category)
+            condition: (data) => [
+              "billing_table",
+              "billing_counter",
+              "chef_kitchen_volume",
+              "chef_stock_volume"
+            ].includes(data?.category)
           }
         },
         {
@@ -40132,8 +40140,8 @@ async function calculateReportCardData(req, params) {
           }
         }
       ]);
-      const strBranchId = resolvedBranchId ? String(resolvedBranchId) : null;
-      const strCompanyId = resolvedCompanyId ? String(resolvedCompanyId) : null;
+      const strBranchId2 = resolvedBranchId ? String(resolvedBranchId) : null;
+      const strCompanyId2 = resolvedCompanyId ? String(resolvedCompanyId) : null;
       for (const row of aggResults) {
         const isTable = Boolean(row._id?.isTable);
         const rowBranch = row._id?.branch;
@@ -40142,20 +40150,20 @@ async function calculateReportCardData(req, params) {
         const cnt = row.totalBills || 0;
         if (isTable) {
           overallTableRevenue += rev;
-          if (strBranchId && rowBranch === strBranchId) {
+          if (strBranchId2 && rowBranch === strBranchId2) {
             branchTableRevenue += rev;
             branchTableBills += cnt;
           }
-          if (strCompanyId && rowCompany === strCompanyId) {
+          if (strCompanyId2 && rowCompany === strCompanyId2) {
             companyTableRevenue += rev;
           }
         } else {
           overallCounterRevenue += rev;
-          if (strBranchId && rowBranch === strBranchId) {
+          if (strBranchId2 && rowBranch === strBranchId2) {
             branchCounterRevenue += rev;
             branchCounterBills += cnt;
           }
-          if (strCompanyId && rowCompany === strCompanyId) {
+          if (strCompanyId2 && rowCompany === strCompanyId2) {
             companyCounterRevenue += rev;
           }
         }
@@ -40294,6 +40302,363 @@ async function calculateReportCardData(req, params) {
     alertTag: counterAlertTag,
     ratingLabel: counterRatingLabel
   };
+  let empKitchenItemsCount = 0;
+  let empKitchenPreparedValue = 0;
+  let branchKitchenOutput = 0;
+  let companyKitchenOutput = 0;
+  let overallKitchenOutput = 0;
+  let activeKitchenChefsCount = 1;
+  let empStockOrdersCount = 0;
+  let empStockItemsCount = 0;
+  let empStockRequiredQty = 0;
+  let empStockSendingQty = 0;
+  let empStockDifferenceQty = 0;
+  let empStockDifferenceAmount = 0;
+  let empStockSendingAmount = 0;
+  let branchStockSendingAmount = 0;
+  let companyStockSendingAmount = 0;
+  let overallStockSendingAmount = 0;
+  let activeStockChefsCount = 1;
+  const strUserId = resolvedUserId ? String(resolvedUserId) : "";
+  const strBranchId = resolvedBranchId ? String(resolvedBranchId) : null;
+  const strCompanyId = resolvedCompanyId ? String(resolvedCompanyId) : null;
+  if (isChef || lowerRole === "kitchen") {
+    try {
+      const BillingModel = req.payload.db?.collections?.["billings"];
+      if (BillingModel && typeof BillingModel.aggregate === "function") {
+        const kitchenAgg = await BillingModel.aggregate([
+          {
+            $match: {
+              createdAt: { $gte: startDate, $lte: endDate },
+              status: { $ne: "cancelled" }
+            }
+          },
+          { $unwind: "$items" },
+          {
+            $match: {
+              "items.status": { $ne: "cancelled" }
+            }
+          },
+          {
+            $project: {
+              branch: { $toString: "$branch" },
+              company: { $toString: "$company" },
+              preparedBy: { $toString: "$items.preparedBy" },
+              itemVal: {
+                $cond: [
+                  { $gt: ["$items.finalLineTotal", 0] },
+                  "$items.finalLineTotal",
+                  {
+                    $cond: [
+                      { $gt: ["$items.subtotal", 0] },
+                      "$items.subtotal",
+                      {
+                        $multiply: [
+                          { $ifNull: ["$items.quantity", 1] },
+                          { $ifNull: ["$items.price", 0] }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          {
+            $group: {
+              _id: {
+                branch: "$branch",
+                company: "$company",
+                isUser: {
+                  $cond: [
+                    { $eq: ["$preparedBy", strUserId] },
+                    true,
+                    false
+                  ]
+                }
+              },
+              totalOutput: { $sum: "$itemVal" },
+              dishCount: { $sum: 1 }
+            }
+          }
+        ]);
+        for (const row of kitchenAgg) {
+          const isUser = Boolean(row._id?.isUser);
+          const rBranch = row._id?.branch;
+          const rCompany = row._id?.company;
+          const val = row.totalOutput || 0;
+          const cnt = row.dishCount || 0;
+          overallKitchenOutput += val;
+          if (strBranchId && rBranch === strBranchId) {
+            branchKitchenOutput += val;
+          }
+          if (strCompanyId && rCompany === strCompanyId) {
+            companyKitchenOutput += val;
+          }
+          if (isUser) {
+            empKitchenItemsCount += cnt;
+            empKitchenPreparedValue += val;
+          }
+        }
+      }
+    } catch (_kErr) {
+      req.payload.logger.error({ msg: "Error aggregating kitchen output", _kErr });
+    }
+  }
+  if (isChef || lowerRole === "kitchen" || lowerRole === "store_keeper") {
+    try {
+      const StockOrderModel = req.payload.db?.collections?.["stock-orders"];
+      if (StockOrderModel && typeof StockOrderModel.aggregate === "function") {
+        const stockAgg = await StockOrderModel.aggregate([
+          {
+            $match: {
+              createdAt: { $gte: startDate, $lte: endDate }
+            }
+          },
+          { $unwind: "$items" },
+          {
+            $project: {
+              branch: { $toString: "$branch" },
+              company: { $toString: "$company" },
+              sendingUpdatedBy: { $toString: "$items.sendingUpdatedBy" },
+              createdBy: { $toString: "$createdBy" },
+              requiredQty: { $ifNull: ["$items.requiredQty", 0] },
+              sendingQty: { $ifNull: ["$items.sendingQty", 0] },
+              differenceQty: { $ifNull: ["$items.differenceQty", 0] },
+              differenceAmount: { $ifNull: ["$items.differenceAmount", 0] },
+              sendingAmount: {
+                $ifNull: [
+                  "$items.sendingAmount",
+                  {
+                    $multiply: [
+                      { $ifNull: ["$items.sendingQty", 0] },
+                      1
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          {
+            $group: {
+              _id: {
+                branch: "$branch",
+                company: "$company",
+                isUser: {
+                  $cond: [
+                    {
+                      $or: [
+                        { $eq: ["$sendingUpdatedBy", strUserId] },
+                        {
+                          $and: [
+                            { $eq: ["$sendingUpdatedBy", ""] },
+                            { $eq: ["$createdBy", strUserId] }
+                          ]
+                        }
+                      ]
+                    },
+                    true,
+                    false
+                  ]
+                }
+              },
+              totalSendingAmount: { $sum: "$sendingAmount" },
+              totalRequiredQty: { $sum: "$requiredQty" },
+              totalSendingQty: { $sum: "$sendingQty" },
+              totalDifferenceQty: { $sum: "$differenceQty" },
+              totalDifferenceAmount: { $sum: "$differenceAmount" },
+              itemCount: { $sum: 1 }
+            }
+          }
+        ]);
+        for (const row of stockAgg) {
+          const isUser = Boolean(row._id?.isUser);
+          const rBranch = row._id?.branch;
+          const rCompany = row._id?.company;
+          const val = row.totalSendingAmount || 0;
+          overallStockSendingAmount += val;
+          if (strBranchId && rBranch === strBranchId) {
+            branchStockSendingAmount += val;
+          }
+          if (strCompanyId && rCompany === strCompanyId) {
+            companyStockSendingAmount += val;
+          }
+          if (isUser) {
+            empStockItemsCount += row.itemCount || 0;
+            empStockRequiredQty += row.totalRequiredQty || 0;
+            empStockSendingQty += row.totalSendingQty || 0;
+            empStockDifferenceQty += row.totalDifferenceQty || 0;
+            empStockDifferenceAmount += row.totalDifferenceAmount || 0;
+            empStockSendingAmount += val;
+            empStockOrdersCount += 1;
+          }
+        }
+      }
+    } catch (_sErr) {
+      req.payload.logger.error({ msg: "Error aggregating stock orders", _sErr });
+    }
+  }
+  try {
+    if (resolvedBranchId) {
+      const chefsRes = await req.payload.find({
+        collection: "employees",
+        where: {
+          and: [
+            { branch: { equals: resolvedBranchId } },
+            { role: { in: ["chef", "kitchen"] } },
+            { status: { equals: "active" } }
+          ]
+        },
+        limit: 50,
+        overrideAccess: true
+      });
+      if (chefsRes.docs && chefsRes.docs.length > 0) {
+        activeKitchenChefsCount = chefsRes.docs.length;
+        activeStockChefsCount = chefsRes.docs.length;
+      }
+    }
+  } catch (_chefStaffErr) {
+    activeKitchenChefsCount = 2;
+    activeStockChefsCount = 2;
+  }
+  const kitchenConfigRule = getConfiguredRule("chef_kitchen_volume");
+  const kitchenConfiguredTarget = typeof kitchenConfigRule?.monthlySalesTarget === "number" && kitchenConfigRule.monthlySalesTarget > 0 ? kitchenConfigRule.monthlySalesTarget : 0;
+  const branchKitchenBenchmarkOutput = kitchenConfiguredTarget > 0 ? Math.round(kitchenConfiguredTarget * periodScale) : Math.round(branchKitchenOutput / Math.max(1, activeKitchenChefsCount));
+  const rawKitchenAchievement = branchKitchenBenchmarkOutput > 0 && empKitchenPreparedValue > 0 ? empKitchenPreparedValue / branchKitchenBenchmarkOutput * 100 : 0;
+  const kitchenAchievementPercent = Number(rawKitchenAchievement.toFixed(2));
+  const rule8Score = Math.min(100, Math.max(0, kitchenAchievementPercent));
+  const kitchenBranchShare = branchKitchenOutput > 0 ? Number((empKitchenPreparedValue / branchKitchenOutput * 100).toFixed(2)) : 0;
+  const kitchenCompanyShare = companyKitchenOutput > 0 ? Number((empKitchenPreparedValue / companyKitchenOutput * 100).toFixed(2)) : 0;
+  const kitchenOverallShare = overallKitchenOutput > 0 ? Number((empKitchenPreparedValue / overallKitchenOutput * 100).toFixed(2)) : 0;
+  let kitchenAlertTag = "\u{1F7E2} Production Target Met";
+  let kitchenRatingLabel = "\u{1F7E2} Production Target Met";
+  if (kitchenAchievementPercent >= 105) {
+    kitchenAlertTag = "\u{1F31F} Star Kitchen Producer";
+    kitchenRatingLabel = "\u{1F31F} Star Kitchen Producer (+5% above benchmark)";
+  } else if (kitchenAchievementPercent >= 95) {
+    kitchenAlertTag = "\u{1F7E2} Production Target Met";
+    kitchenRatingLabel = "\u{1F7E2} Production Target Met (Balanced kitchen output)";
+  } else if (kitchenAchievementPercent >= 80) {
+    kitchenAlertTag = "\u{1F7E1} Moderate Output";
+    kitchenRatingLabel = "\u{1F7E1} Moderate Output (Within 20% of benchmark)";
+  } else if (kitchenAchievementPercent >= 65) {
+    kitchenAlertTag = "\u{1F7E0} Below Kitchen Benchmark";
+    kitchenRatingLabel = "\u{1F7E0} Below Kitchen Benchmark";
+  } else if (empKitchenItemsCount === 0) {
+    kitchenAlertTag = "\u26AA No Kitchen Orders";
+    kitchenRatingLabel = "\u26AA No Kitchen Orders Prepared";
+  } else {
+    kitchenAlertTag = "\u{1F534} Critical Kitchen Shortfall";
+    kitchenRatingLabel = "\u{1F534} Critical Kitchen Shortfall (Major deficit)";
+  }
+  const rule8Result = {
+    ruleTitle: kitchenConfigRule?.title || "\u{1F373} Kitchen Order Production Value & Volume",
+    score: rule8Score,
+    totalItemsPrepared: empKitchenItemsCount,
+    totalOutputValue: empKitchenPreparedValue,
+    branchTotalOutput: branchKitchenOutput,
+    branchBenchmarkOutput: branchKitchenBenchmarkOutput,
+    companyTotalOutput: companyKitchenOutput,
+    overallTotalOutput: overallKitchenOutput,
+    branchSharePercent: kitchenBranchShare,
+    companySharePercent: kitchenCompanyShare,
+    overallSharePercent: kitchenOverallShare,
+    achievementPercent: kitchenAchievementPercent,
+    alertTag: kitchenAlertTag,
+    ratingLabel: kitchenRatingLabel
+  };
+  const stockFulfillConfigRule = getConfiguredRule("chef_stock_fulfillment");
+  const rawStockFulfillment = empStockRequiredQty > 0 ? empStockSendingQty / empStockRequiredQty * 100 : empStockSendingQty > 0 ? 100 : 0;
+  const stockFulfillmentPercent = Number(rawStockFulfillment.toFixed(2));
+  let rule9Score = 100;
+  let stockFulfillmentAlertTag = "\u{1F31F} Perfect Fulfillment";
+  let stockFulfillmentRatingLabel = "\u{1F31F} Perfect Stock Fulfillment";
+  if (empStockItemsCount === 0) {
+    rule9Score = 0;
+    stockFulfillmentAlertTag = "\u26AA No Stock Orders";
+    stockFulfillmentRatingLabel = "\u26AA No Stock Orders Dispatched";
+  } else if (stockFulfillmentPercent >= 98) {
+    rule9Score = 100;
+    stockFulfillmentAlertTag = "\u{1F31F} Perfect Fulfillment";
+    stockFulfillmentRatingLabel = "\u{1F31F} Perfect Stock Fulfillment (\u226598%)";
+  } else if (stockFulfillmentPercent >= 95) {
+    rule9Score = 90;
+    stockFulfillmentAlertTag = "\u{1F7E2} High Accuracy";
+    stockFulfillmentRatingLabel = "\u{1F7E2} High Stock Accuracy (95-97.99%)";
+  } else if (stockFulfillmentPercent >= 85) {
+    rule9Score = 75;
+    stockFulfillmentAlertTag = "\u{1F7E1} Minor Shortage";
+    stockFulfillmentRatingLabel = "\u{1F7E1} Minor Stock Shortage (85-94.99%)";
+  } else if (stockFulfillmentPercent >= 75) {
+    rule9Score = 60;
+    stockFulfillmentAlertTag = "\u{1F7E0} Frequent Shortage";
+    stockFulfillmentRatingLabel = "\u{1F7E0} Frequent Shortage (75-84.99%)";
+  } else {
+    rule9Score = 40;
+    stockFulfillmentAlertTag = "\u{1F534} Critical Discrepancy";
+    stockFulfillmentRatingLabel = "\u{1F534} Critical Stock Discrepancy (<75%)";
+  }
+  const rule9Result = {
+    ruleTitle: stockFulfillConfigRule?.title || "\u{1F4E6} Stock Order Fulfillment & Accuracy SLA",
+    score: rule9Score,
+    totalStockOrders: empStockOrdersCount,
+    totalItems: empStockItemsCount,
+    requiredQty: empStockRequiredQty,
+    sendingQty: empStockSendingQty,
+    differenceQty: empStockDifferenceQty,
+    differenceAmount: empStockDifferenceAmount,
+    fulfillmentRatePercent: stockFulfillmentPercent,
+    alertTag: stockFulfillmentAlertTag,
+    ratingLabel: stockFulfillmentRatingLabel
+  };
+  const stockVolConfigRule = getConfiguredRule("chef_stock_volume");
+  const stockConfiguredTarget = typeof stockVolConfigRule?.monthlySalesTarget === "number" && stockVolConfigRule.monthlySalesTarget > 0 ? stockVolConfigRule.monthlySalesTarget : 0;
+  const branchStockBenchmarkDispatched = stockConfiguredTarget > 0 ? Math.round(stockConfiguredTarget * periodScale) : Math.round(branchStockSendingAmount / Math.max(1, activeStockChefsCount));
+  const rawStockVolAchievement = branchStockBenchmarkDispatched > 0 && empStockSendingAmount > 0 ? empStockSendingAmount / branchStockBenchmarkDispatched * 100 : 0;
+  const stockVolAchievementPercent = Number(rawStockVolAchievement.toFixed(2));
+  const rule10Score = Math.min(100, Math.max(0, stockVolAchievementPercent));
+  const stockBranchShare = branchStockSendingAmount > 0 ? Number((empStockSendingAmount / branchStockSendingAmount * 100).toFixed(2)) : 0;
+  const stockCompanyShare = companyStockSendingAmount > 0 ? Number((empStockSendingAmount / companyStockSendingAmount * 100).toFixed(2)) : 0;
+  const stockOverallShare = overallStockSendingAmount > 0 ? Number((empStockSendingAmount / overallStockSendingAmount * 100).toFixed(2)) : 0;
+  let stockVolAlertTag = "\u{1F7E2} Production Target Met";
+  let stockVolRatingLabel = "\u{1F7E2} Production Target Met";
+  if (stockVolAchievementPercent >= 105) {
+    stockVolAlertTag = "\u{1F31F} Star Stock Producer";
+    stockVolRatingLabel = "\u{1F31F} Star Stock Producer (+5% above quota)";
+  } else if (stockVolAchievementPercent >= 95) {
+    stockVolAlertTag = "\u{1F7E2} Production Target Met";
+    stockVolRatingLabel = "\u{1F7E2} Production Target Met (Balanced stock supply)";
+  } else if (stockVolAchievementPercent >= 80) {
+    stockVolAlertTag = "\u{1F7E1} Moderate Output";
+    stockVolRatingLabel = "\u{1F7E1} Moderate Output (Within 20% of quota)";
+  } else if (stockVolAchievementPercent >= 65) {
+    stockVolAlertTag = "\u{1F7E0} Below Production Quota";
+    stockVolRatingLabel = "\u{1F7E0} Below Production Quota";
+  } else if (empStockItemsCount === 0) {
+    stockVolAlertTag = "\u26AA No Stock Orders";
+    stockVolRatingLabel = "\u26AA No Stock Orders Dispatched";
+  } else {
+    stockVolAlertTag = "\u{1F534} Critical Production Shortfall";
+    stockVolRatingLabel = "\u{1F534} Critical Production Shortfall (Major deficit)";
+  }
+  const rule10Result = {
+    ruleTitle: stockVolConfigRule?.title || "\u{1F4B0} Stock Order Production Value & Volume",
+    score: rule10Score,
+    totalOrdersDispatched: empStockOrdersCount,
+    totalDispatchedValue: empStockSendingAmount,
+    branchTotalDispatched: branchStockSendingAmount,
+    branchBenchmarkDispatched: branchStockBenchmarkDispatched,
+    companyTotalDispatched: companyStockSendingAmount,
+    overallTotalDispatched: overallStockSendingAmount,
+    branchSharePercent: stockBranchShare,
+    companySharePercent: stockCompanyShare,
+    overallSharePercent: stockOverallShare,
+    achievementPercent: stockVolAchievementPercent,
+    alertTag: stockVolAlertTag,
+    ratingLabel: stockVolRatingLabel
+  };
+  const isKitchenChef = empKitchenItemsCount > 0 || isChef && empStockItemsCount === 0;
+  const isStockChef = empStockItemsCount > 0;
   const activeRuleScores = [rule2Result.score, rule3Result.score];
   if (isWaiter) {
     activeRuleScores.push(
@@ -40308,7 +40673,17 @@ async function calculateReportCardData(req, params) {
       rule4Result.score,
       rule7Result.score
     );
-  } else if (isChef || isSupervisor) {
+  } else if (isChef) {
+    if (isKitchenChef) {
+      activeRuleScores.push(rule5Result.score, rule8Result.score);
+    }
+    if (isStockChef) {
+      activeRuleScores.push(rule9Result.score, rule10Result.score);
+    }
+    if (!isKitchenChef && !isStockChef) {
+      activeRuleScores.push(rule5Result.score);
+    }
+  } else if (isSupervisor) {
     activeRuleScores.push(rule5Result.score);
   }
   const rawOverall = activeRuleScores.reduce((sum, s) => sum + s, 0) / activeRuleScores.length;
@@ -40454,6 +40829,63 @@ async function calculateReportCardData(req, params) {
       details: rule7Result
     });
   }
+  if (isChef || isRuleActive("chef_kitchen_volume", isChef)) {
+    if (isKitchenChef) {
+      const c8 = computeRuleScoreAndMax("chef_kitchen_volume", rule8Result.score, rule8Result.ruleTitle);
+      rule8Result.maxMarks = c8.maxMarks;
+      rule8Result.marks = c8.score;
+      rule8Result.ruleTitle = c8.title;
+      if (c8.id) rule8Result.ruleId = c8.id;
+      rulesList.push({
+        id: c8.id || "rule-chef-kitchen-volume",
+        title: c8.title,
+        category: "chef_kitchen_volume",
+        maxMarks: c8.maxMarks,
+        score: c8.score,
+        ratingLabel: rule8Result.ratingLabel,
+        summary: `\u20B9${rule8Result.totalOutputValue.toLocaleString("en-IN")} prepared across ${rule8Result.totalItemsPrepared} dishes (${rule8Result.branchSharePercent}% of kitchen) \u2022 ${rule8Result.alertTag}`,
+        details: rule8Result
+      });
+    }
+  }
+  if (isChef || isRuleActive("chef_stock_fulfillment", isChef)) {
+    if (isStockChef) {
+      const c9 = computeRuleScoreAndMax("chef_stock_fulfillment", rule9Result.score, rule9Result.ruleTitle);
+      rule9Result.maxMarks = c9.maxMarks;
+      rule9Result.marks = c9.score;
+      rule9Result.ruleTitle = c9.title;
+      if (c9.id) rule9Result.ruleId = c9.id;
+      rulesList.push({
+        id: c9.id || "rule-chef-stock-fulfillment",
+        title: c9.title,
+        category: "chef_stock_fulfillment",
+        maxMarks: c9.maxMarks,
+        score: c9.score,
+        ratingLabel: rule9Result.ratingLabel,
+        summary: `${rule9Result.sendingQty} / ${rule9Result.requiredQty} items fulfilled (${rule9Result.fulfillmentRatePercent}%) \u2022 ${rule9Result.alertTag}`,
+        details: rule9Result
+      });
+    }
+  }
+  if (isChef || isRuleActive("chef_stock_volume", isChef)) {
+    if (isStockChef) {
+      const c10 = computeRuleScoreAndMax("chef_stock_volume", rule10Result.score, rule10Result.ruleTitle);
+      rule10Result.maxMarks = c10.maxMarks;
+      rule10Result.marks = c10.score;
+      rule10Result.ruleTitle = c10.title;
+      if (c10.id) rule10Result.ruleId = c10.id;
+      rulesList.push({
+        id: c10.id || "rule-chef-stock-volume",
+        title: c10.title,
+        category: "chef_stock_volume",
+        maxMarks: c10.maxMarks,
+        score: c10.score,
+        ratingLabel: rule10Result.ratingLabel,
+        summary: `\u20B9${rule10Result.totalDispatchedValue.toLocaleString("en-IN")} dispatched across ${rule10Result.totalOrdersDispatched} orders (${rule10Result.branchSharePercent}% of stock) \u2022 ${rule10Result.alertTag}`,
+        details: rule10Result
+      });
+    }
+  }
   const knownCategories = /* @__PURE__ */ new Set([
     "call_speed",
     "attendance",
@@ -40461,7 +40893,10 @@ async function calculateReportCardData(req, params) {
     "billing",
     "kot_time",
     "billing_table",
-    "billing_counter"
+    "billing_counter",
+    "chef_kitchen_volume",
+    "chef_stock_fulfillment",
+    "chef_stock_volume"
   ]);
   for (const doc of configuredRulesDocs) {
     if (knownCategories.has(doc.category)) continue;
@@ -40555,13 +40990,14 @@ async function calculateReportCardData(req, params) {
       } catch (_cbErr) {
       }
     }
-    let activeWaiterEmployees = [];
+    const targetTeam = lowerRole || "waiter";
+    let activeRoleEmployees = [];
     try {
       const eRes = await req.payload.find({
         collection: "employees",
         where: {
           and: [
-            { team: { equals: "waiter" } },
+            ...targetTeam !== "all" ? [{ team: { equals: targetTeam } }] : [],
             { status: { equals: "active" } }
           ]
         },
@@ -40569,16 +41005,29 @@ async function calculateReportCardData(req, params) {
         depth: 1,
         overrideAccess: true
       });
-      activeWaiterEmployees = eRes.docs || [];
+      activeRoleEmployees = eRes.docs || [];
     } catch (_eErr) {
     }
-    let waiterUsers = [];
+    if (activeRoleEmployees.length === 0 && targetTeam !== "waiter") {
+      try {
+        const fallbackRes = await req.payload.find({
+          collection: "employees",
+          where: { status: { equals: "active" } },
+          limit: 100,
+          depth: 1,
+          overrideAccess: true
+        });
+        activeRoleEmployees = fallbackRes.docs || [];
+      } catch (_fbErr) {
+      }
+    }
+    let roleUsers = [];
     try {
       const uRes = await req.payload.find({
         collection: "users",
         where: {
           and: [
-            { role: { equals: "waiter" } },
+            ...targetTeam !== "all" ? [{ role: { equals: targetTeam } }] : [],
             { loginBlocked: { not_equals: true } }
           ]
         },
@@ -40586,11 +41035,11 @@ async function calculateReportCardData(req, params) {
         depth: 2,
         overrideAccess: true
       });
-      waiterUsers = uRes.docs || [];
+      roleUsers = uRes.docs || [];
     } catch (_uErr) {
     }
     const userByEmpId = /* @__PURE__ */ new Map();
-    for (const u of waiterUsers) {
+    for (const u of roleUsers) {
       if (u.employee) {
         const empIdStr = typeof u.employee === "string" ? u.employee : String(u.employee.id || u.employee._id);
         userByEmpId.set(empIdStr, u);
@@ -40719,7 +41168,7 @@ async function calculateReportCardData(req, params) {
     ]);
     const scoredPeers = [];
     const seenEmpIds = /* @__PURE__ */ new Set();
-    for (const e of activeWaiterEmployees) {
+    for (const e of activeRoleEmployees) {
       const empId = String(e.id || e._id);
       if (seenEmpIds.has(empId)) continue;
       seenEmpIds.add(empId);
@@ -40934,6 +41383,9 @@ async function calculateReportCardData(req, params) {
     rule5KotTime: rule5Result,
     rule6TableBilling: rule6Result,
     rule7CounterBilling: rule7Result,
+    rule8ChefKitchenVolume: rule8Result,
+    rule9ChefStockFulfillment: rule9Result,
+    rule10ChefStockVolume: rule10Result,
     overallScore,
     totalScore,
     totalMaxMarks,

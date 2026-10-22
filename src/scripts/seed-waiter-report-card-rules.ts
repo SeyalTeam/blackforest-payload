@@ -59,6 +59,30 @@ const WAITER_RULES_SEED = [
     category: 'billing_counter',
     maxMarks: 100,
   },
+  {
+    title: '🍳 Kitchen Order Production Value & Volume',
+    enabled: true,
+    roles: ['chef', 'kitchen'],
+    role: 'chef',
+    category: 'chef_kitchen_volume',
+    maxMarks: 100,
+  },
+  {
+    title: '📦 Stock Order Fulfillment & Accuracy SLA',
+    enabled: true,
+    roles: ['chef', 'kitchen', 'store_keeper'],
+    role: 'chef',
+    category: 'chef_stock_fulfillment',
+    maxMarks: 100,
+  },
+  {
+    title: '💰 Stock Order Production Value & Volume',
+    enabled: true,
+    roles: ['chef', 'kitchen', 'store_keeper'],
+    role: 'chef',
+    category: 'chef_stock_volume',
+    maxMarks: 100,
+  },
 ]
 
 export const seedWaiterReportCardRules = async () => {

@@ -123,6 +123,63 @@ export type Rule7CounterBillingResult = {
   ratingLabel: string
 }
 
+export type Rule8ChefKitchenVolumeResult = {
+  ruleId?: string
+  ruleTitle: string
+  score: number // Out of 100
+  maxMarks?: number
+  marks?: number
+  totalItemsPrepared: number
+  totalOutputValue: number
+  branchTotalOutput: number
+  branchBenchmarkOutput: number
+  companyTotalOutput: number
+  overallTotalOutput: number
+  branchSharePercent: number
+  companySharePercent: number
+  overallSharePercent: number
+  achievementPercent: number
+  alertTag: string
+  ratingLabel: string
+}
+
+export type Rule9ChefStockFulfillmentResult = {
+  ruleId?: string
+  ruleTitle: string
+  score: number // Out of 100
+  maxMarks?: number
+  marks?: number
+  totalStockOrders: number
+  totalItems: number
+  requiredQty: number
+  sendingQty: number
+  differenceQty: number
+  differenceAmount: number
+  fulfillmentRatePercent: number
+  alertTag: string
+  ratingLabel: string
+}
+
+export type Rule10ChefStockVolumeResult = {
+  ruleId?: string
+  ruleTitle: string
+  score: number // Out of 100
+  maxMarks?: number
+  marks?: number
+  totalOrdersDispatched: number
+  totalDispatchedValue: number
+  branchTotalDispatched: number
+  branchBenchmarkDispatched: number
+  companyTotalDispatched: number
+  overallTotalDispatched: number
+  branchSharePercent: number
+  companySharePercent: number
+  overallSharePercent: number
+  achievementPercent: number
+  alertTag: string
+  ratingLabel: string
+}
+
 export type RuleSummaryItem = {
   id: string
   title: string
@@ -173,6 +230,9 @@ export type EmployeeReportCardData = {
   rule5KotTime: Rule5KotTimeResult
   rule6TableBilling?: Rule6TableBillingResult
   rule7CounterBilling?: Rule7CounterBillingResult
+  rule8ChefKitchenVolume?: Rule8ChefKitchenVolumeResult
+  rule9ChefStockFulfillment?: Rule9ChefStockFulfillmentResult
+  rule10ChefStockVolume?: Rule10ChefStockVolumeResult
   overallScore: number
   totalScore?: number
   totalMaxMarks?: number
@@ -1422,12 +1482,478 @@ export async function calculateReportCardData(
     ratingLabel: counterRatingLabel,
   }
 
+  // ---------------------------------------------------------------------------
+  // RULE 8: Kitchen Order Production Value & Volume (chef_kitchen_volume)
+  // RULE 9: Stock Order Fulfillment & Accuracy SLA (chef_stock_fulfillment)
+  // RULE 10: Stock Order Production Value & Volume (chef_stock_volume)
+  // ---------------------------------------------------------------------------
+  let empKitchenItemsCount = 0
+  let empKitchenPreparedValue = 0
+  let branchKitchenOutput = 0
+  let companyKitchenOutput = 0
+  let overallKitchenOutput = 0
+  let activeKitchenChefsCount = 1
+
+  let empStockOrdersCount = 0
+  let empStockItemsCount = 0
+  let empStockRequiredQty = 0
+  let empStockSendingQty = 0
+  let empStockDifferenceQty = 0
+  let empStockDifferenceAmount = 0
+  let empStockSendingAmount = 0
+
+  let branchStockSendingAmount = 0
+  let companyStockSendingAmount = 0
+  let overallStockSendingAmount = 0
+  let activeStockChefsCount = 1
+
+  const strUserId = resolvedUserId ? String(resolvedUserId) : ''
+  const strBranchId = resolvedBranchId ? String(resolvedBranchId) : null
+  const strCompanyId = resolvedCompanyId ? String(resolvedCompanyId) : null
+
+  // A. Calculate Kitchen Order Items prepared by this Chef from billings
+  if (isChef || lowerRole === 'kitchen') {
+    try {
+      const BillingModel = (req.payload.db as any)?.collections?.['billings']
+      if (BillingModel && typeof BillingModel.aggregate === 'function') {
+        const kitchenAgg: Array<{
+          _id: {
+            branch: string
+            company: string
+            isUser: boolean
+          }
+          totalOutput: number
+          dishCount: number
+        }> = await BillingModel.aggregate([
+          {
+            $match: {
+              createdAt: { $gte: startDate, $lte: endDate },
+              status: { $ne: 'cancelled' },
+            },
+          },
+          { $unwind: '$items' },
+          {
+            $match: {
+              'items.status': { $ne: 'cancelled' },
+            },
+          },
+          {
+            $project: {
+              branch: { $toString: '$branch' },
+              company: { $toString: '$company' },
+              preparedBy: { $toString: '$items.preparedBy' },
+              itemVal: {
+                $cond: [
+                  { $gt: ['$items.finalLineTotal', 0] },
+                  '$items.finalLineTotal',
+                  {
+                    $cond: [
+                      { $gt: ['$items.subtotal', 0] },
+                      '$items.subtotal',
+                      {
+                        $multiply: [
+                          { $ifNull: ['$items.quantity', 1] },
+                          { $ifNull: ['$items.price', 0] },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+          {
+            $group: {
+              _id: {
+                branch: '$branch',
+                company: '$company',
+                isUser: {
+                  $cond: [
+                    { $eq: ['$preparedBy', strUserId] },
+                    true,
+                    false,
+                  ],
+                },
+              },
+              totalOutput: { $sum: '$itemVal' },
+              dishCount: { $sum: 1 },
+            },
+          },
+        ])
+
+        for (const row of kitchenAgg) {
+          const isUser = Boolean(row._id?.isUser)
+          const rBranch = row._id?.branch
+          const rCompany = row._id?.company
+          const val = row.totalOutput || 0
+          const cnt = row.dishCount || 0
+
+          overallKitchenOutput += val
+          if (strBranchId && rBranch === strBranchId) {
+            branchKitchenOutput += val
+          }
+          if (strCompanyId && rCompany === strCompanyId) {
+            companyKitchenOutput += val
+          }
+          if (isUser) {
+            empKitchenItemsCount += cnt
+            empKitchenPreparedValue += val
+          }
+        }
+      }
+    } catch (_kErr) {
+      req.payload.logger.error({ msg: 'Error aggregating kitchen output', _kErr })
+    }
+  }
+
+  // B. Calculate Stock Order Items prepared/dispatched by this Chef
+  if (isChef || lowerRole === 'kitchen' || lowerRole === 'store_keeper') {
+    try {
+      const StockOrderModel = (req.payload.db as any)?.collections?.['stock-orders']
+      if (StockOrderModel && typeof StockOrderModel.aggregate === 'function') {
+        const stockAgg: Array<{
+          _id: {
+            branch: string
+            company: string
+            isUser: boolean
+          }
+          totalSendingAmount: number
+          totalRequiredQty: number
+          totalSendingQty: number
+          totalDifferenceQty: number
+          totalDifferenceAmount: number
+          itemCount: number
+        }> = await StockOrderModel.aggregate([
+          {
+            $match: {
+              createdAt: { $gte: startDate, $lte: endDate },
+            },
+          },
+          { $unwind: '$items' },
+          {
+            $project: {
+              branch: { $toString: '$branch' },
+              company: { $toString: '$company' },
+              sendingUpdatedBy: { $toString: '$items.sendingUpdatedBy' },
+              createdBy: { $toString: '$createdBy' },
+              requiredQty: { $ifNull: ['$items.requiredQty', 0] },
+              sendingQty: { $ifNull: ['$items.sendingQty', 0] },
+              differenceQty: { $ifNull: ['$items.differenceQty', 0] },
+              differenceAmount: { $ifNull: ['$items.differenceAmount', 0] },
+              sendingAmount: {
+                $ifNull: [
+                  '$items.sendingAmount',
+                  {
+                    $multiply: [
+                      { $ifNull: ['$items.sendingQty', 0] },
+                      1,
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+          {
+            $group: {
+              _id: {
+                branch: '$branch',
+                company: '$company',
+                isUser: {
+                  $cond: [
+                    {
+                      $or: [
+                        { $eq: ['$sendingUpdatedBy', strUserId] },
+                        {
+                          $and: [
+                            { $eq: ['$sendingUpdatedBy', ''] },
+                            { $eq: ['$createdBy', strUserId] },
+                          ],
+                        },
+                      ],
+                    },
+                    true,
+                    false,
+                  ],
+                },
+              },
+              totalSendingAmount: { $sum: '$sendingAmount' },
+              totalRequiredQty: { $sum: '$requiredQty' },
+              totalSendingQty: { $sum: '$sendingQty' },
+              totalDifferenceQty: { $sum: '$differenceQty' },
+              totalDifferenceAmount: { $sum: '$differenceAmount' },
+              itemCount: { $sum: 1 },
+            },
+          },
+        ])
+
+        for (const row of stockAgg) {
+          const isUser = Boolean(row._id?.isUser)
+          const rBranch = row._id?.branch
+          const rCompany = row._id?.company
+          const val = row.totalSendingAmount || 0
+
+          overallStockSendingAmount += val
+          if (strBranchId && rBranch === strBranchId) {
+            branchStockSendingAmount += val
+          }
+          if (strCompanyId && rCompany === strCompanyId) {
+            companyStockSendingAmount += val
+          }
+          if (isUser) {
+            empStockItemsCount += row.itemCount || 0
+            empStockRequiredQty += row.totalRequiredQty || 0
+            empStockSendingQty += row.totalSendingQty || 0
+            empStockDifferenceQty += row.totalDifferenceQty || 0
+            empStockDifferenceAmount += row.totalDifferenceAmount || 0
+            empStockSendingAmount += val
+            empStockOrdersCount += 1
+          }
+        }
+      }
+    } catch (_sErr) {
+      req.payload.logger.error({ msg: 'Error aggregating stock orders', _sErr })
+    }
+  }
+
+  // Active Chef Counts
+  try {
+    if (resolvedBranchId) {
+      const chefsRes = await req.payload.find({
+        collection: 'employees',
+        where: {
+          and: [
+            { branch: { equals: resolvedBranchId } },
+            { role: { in: ['chef', 'kitchen'] } },
+            { status: { equals: 'active' } },
+          ],
+        },
+        limit: 50,
+        overrideAccess: true,
+      })
+      if (chefsRes.docs && chefsRes.docs.length > 0) {
+        activeKitchenChefsCount = chefsRes.docs.length
+        activeStockChefsCount = chefsRes.docs.length
+      }
+    }
+  } catch (_chefStaffErr) {
+    activeKitchenChefsCount = 2
+    activeStockChefsCount = 2
+  }
+
+  // ---------------------------------------------------------------------------
+  // Evaluate Rule 8: Kitchen Order Production Value & Volume
+  // ---------------------------------------------------------------------------
+  const kitchenConfigRule = getConfiguredRule('chef_kitchen_volume')
+  const kitchenConfiguredTarget =
+    typeof (kitchenConfigRule as any)?.monthlySalesTarget === 'number' &&
+    (kitchenConfigRule as any).monthlySalesTarget > 0
+      ? (kitchenConfigRule as any).monthlySalesTarget
+      : 0
+  const branchKitchenBenchmarkOutput =
+    kitchenConfiguredTarget > 0
+      ? Math.round(kitchenConfiguredTarget * periodScale)
+      : Math.round(branchKitchenOutput / Math.max(1, activeKitchenChefsCount))
+
+  const rawKitchenAchievement =
+    branchKitchenBenchmarkOutput > 0 && empKitchenPreparedValue > 0
+      ? (empKitchenPreparedValue / branchKitchenBenchmarkOutput) * 100
+      : 0
+  const kitchenAchievementPercent = Number(rawKitchenAchievement.toFixed(2))
+  const rule8Score = Math.min(100, Math.max(0, kitchenAchievementPercent))
+
+  const kitchenBranchShare =
+    branchKitchenOutput > 0
+      ? Number(((empKitchenPreparedValue / branchKitchenOutput) * 100).toFixed(2))
+      : 0
+  const kitchenCompanyShare =
+    companyKitchenOutput > 0
+      ? Number(((empKitchenPreparedValue / companyKitchenOutput) * 100).toFixed(2))
+      : 0
+  const kitchenOverallShare =
+    overallKitchenOutput > 0
+      ? Number(((empKitchenPreparedValue / overallKitchenOutput) * 100).toFixed(2))
+      : 0
+
+  let kitchenAlertTag = '🟢 Production Target Met'
+  let kitchenRatingLabel = '🟢 Production Target Met'
+  if (kitchenAchievementPercent >= 105) {
+    kitchenAlertTag = '🌟 Star Kitchen Producer'
+    kitchenRatingLabel = '🌟 Star Kitchen Producer (+5% above benchmark)'
+  } else if (kitchenAchievementPercent >= 95) {
+    kitchenAlertTag = '🟢 Production Target Met'
+    kitchenRatingLabel = '🟢 Production Target Met (Balanced kitchen output)'
+  } else if (kitchenAchievementPercent >= 80) {
+    kitchenAlertTag = '🟡 Moderate Output'
+    kitchenRatingLabel = '🟡 Moderate Output (Within 20% of benchmark)'
+  } else if (kitchenAchievementPercent >= 65) {
+    kitchenAlertTag = '🟠 Below Kitchen Benchmark'
+    kitchenRatingLabel = '🟠 Below Kitchen Benchmark'
+  } else if (empKitchenItemsCount === 0) {
+    kitchenAlertTag = '⚪ No Kitchen Orders'
+    kitchenRatingLabel = '⚪ No Kitchen Orders Prepared'
+  } else {
+    kitchenAlertTag = '🔴 Critical Kitchen Shortfall'
+    kitchenRatingLabel = '🔴 Critical Kitchen Shortfall (Major deficit)'
+  }
+
+  const rule8Result: Rule8ChefKitchenVolumeResult = {
+    ruleTitle: kitchenConfigRule?.title || '🍳 Kitchen Order Production Value & Volume',
+    score: rule8Score,
+    totalItemsPrepared: empKitchenItemsCount,
+    totalOutputValue: empKitchenPreparedValue,
+    branchTotalOutput: branchKitchenOutput,
+    branchBenchmarkOutput: branchKitchenBenchmarkOutput,
+    companyTotalOutput: companyKitchenOutput,
+    overallTotalOutput: overallKitchenOutput,
+    branchSharePercent: kitchenBranchShare,
+    companySharePercent: kitchenCompanyShare,
+    overallSharePercent: kitchenOverallShare,
+    achievementPercent: kitchenAchievementPercent,
+    alertTag: kitchenAlertTag,
+    ratingLabel: kitchenRatingLabel,
+  }
+
+  // ---------------------------------------------------------------------------
+  // Evaluate Rule 9: Stock Order Fulfillment & Accuracy SLA
+  // ---------------------------------------------------------------------------
+  const stockFulfillConfigRule = getConfiguredRule('chef_stock_fulfillment')
+  const rawStockFulfillment =
+    empStockRequiredQty > 0
+      ? (empStockSendingQty / empStockRequiredQty) * 100
+      : empStockSendingQty > 0
+      ? 100
+      : 0
+  const stockFulfillmentPercent = Number(rawStockFulfillment.toFixed(2))
+
+  let rule9Score = 100
+  let stockFulfillmentAlertTag = '🌟 Perfect Fulfillment'
+  let stockFulfillmentRatingLabel = '🌟 Perfect Stock Fulfillment'
+
+  if (empStockItemsCount === 0) {
+    rule9Score = 0
+    stockFulfillmentAlertTag = '⚪ No Stock Orders'
+    stockFulfillmentRatingLabel = '⚪ No Stock Orders Dispatched'
+  } else if (stockFulfillmentPercent >= 98.0) {
+    rule9Score = 100
+    stockFulfillmentAlertTag = '🌟 Perfect Fulfillment'
+    stockFulfillmentRatingLabel = '🌟 Perfect Stock Fulfillment (≥98%)'
+  } else if (stockFulfillmentPercent >= 95.0) {
+    rule9Score = 90
+    stockFulfillmentAlertTag = '🟢 High Accuracy'
+    stockFulfillmentRatingLabel = '🟢 High Stock Accuracy (95-97.99%)'
+  } else if (stockFulfillmentPercent >= 85.0) {
+    rule9Score = 75
+    stockFulfillmentAlertTag = '🟡 Minor Shortage'
+    stockFulfillmentRatingLabel = '🟡 Minor Stock Shortage (85-94.99%)'
+  } else if (stockFulfillmentPercent >= 75.0) {
+    rule9Score = 60
+    stockFulfillmentAlertTag = '🟠 Frequent Shortage'
+    stockFulfillmentRatingLabel = '🟠 Frequent Shortage (75-84.99%)'
+  } else {
+    rule9Score = 40
+    stockFulfillmentAlertTag = '🔴 Critical Discrepancy'
+    stockFulfillmentRatingLabel = '🔴 Critical Stock Discrepancy (<75%)'
+  }
+
+  const rule9Result: Rule9ChefStockFulfillmentResult = {
+    ruleTitle: stockFulfillConfigRule?.title || '📦 Stock Order Fulfillment & Accuracy SLA',
+    score: rule9Score,
+    totalStockOrders: empStockOrdersCount,
+    totalItems: empStockItemsCount,
+    requiredQty: empStockRequiredQty,
+    sendingQty: empStockSendingQty,
+    differenceQty: empStockDifferenceQty,
+    differenceAmount: empStockDifferenceAmount,
+    fulfillmentRatePercent: stockFulfillmentPercent,
+    alertTag: stockFulfillmentAlertTag,
+    ratingLabel: stockFulfillmentRatingLabel,
+  }
+
+  // ---------------------------------------------------------------------------
+  // Evaluate Rule 10: Stock Order Production Value & Volume
+  // ---------------------------------------------------------------------------
+  const stockVolConfigRule = getConfiguredRule('chef_stock_volume')
+  const stockConfiguredTarget =
+    typeof (stockVolConfigRule as any)?.monthlySalesTarget === 'number' &&
+    (stockVolConfigRule as any).monthlySalesTarget > 0
+      ? (stockVolConfigRule as any).monthlySalesTarget
+      : 0
+  const branchStockBenchmarkDispatched =
+    stockConfiguredTarget > 0
+      ? Math.round(stockConfiguredTarget * periodScale)
+      : Math.round(branchStockSendingAmount / Math.max(1, activeStockChefsCount))
+
+  const rawStockVolAchievement =
+    branchStockBenchmarkDispatched > 0 && empStockSendingAmount > 0
+      ? (empStockSendingAmount / branchStockBenchmarkDispatched) * 100
+      : 0
+  const stockVolAchievementPercent = Number(rawStockVolAchievement.toFixed(2))
+  const rule10Score = Math.min(100, Math.max(0, stockVolAchievementPercent))
+
+  const stockBranchShare =
+    branchStockSendingAmount > 0
+      ? Number(((empStockSendingAmount / branchStockSendingAmount) * 100).toFixed(2))
+      : 0
+  const stockCompanyShare =
+    companyStockSendingAmount > 0
+      ? Number(((empStockSendingAmount / companyStockSendingAmount) * 100).toFixed(2))
+      : 0
+  const stockOverallShare =
+    overallStockSendingAmount > 0
+      ? Number(((empStockSendingAmount / overallStockSendingAmount) * 100).toFixed(2))
+      : 0
+
+  let stockVolAlertTag = '🟢 Production Target Met'
+  let stockVolRatingLabel = '🟢 Production Target Met'
+  if (stockVolAchievementPercent >= 105) {
+    stockVolAlertTag = '🌟 Star Stock Producer'
+    stockVolRatingLabel = '🌟 Star Stock Producer (+5% above quota)'
+  } else if (stockVolAchievementPercent >= 95) {
+    stockVolAlertTag = '🟢 Production Target Met'
+    stockVolRatingLabel = '🟢 Production Target Met (Balanced stock supply)'
+  } else if (stockVolAchievementPercent >= 80) {
+    stockVolAlertTag = '🟡 Moderate Output'
+    stockVolRatingLabel = '🟡 Moderate Output (Within 20% of quota)'
+  } else if (stockVolAchievementPercent >= 65) {
+    stockVolAlertTag = '🟠 Below Production Quota'
+    stockVolRatingLabel = '🟠 Below Production Quota'
+  } else if (empStockItemsCount === 0) {
+    stockVolAlertTag = '⚪ No Stock Orders'
+    stockVolRatingLabel = '⚪ No Stock Orders Dispatched'
+  } else {
+    stockVolAlertTag = '🔴 Critical Production Shortfall'
+    stockVolRatingLabel = '🔴 Critical Production Shortfall (Major deficit)'
+  }
+
+  const rule10Result: Rule10ChefStockVolumeResult = {
+    ruleTitle: stockVolConfigRule?.title || '💰 Stock Order Production Value & Volume',
+    score: rule10Score,
+    totalOrdersDispatched: empStockOrdersCount,
+    totalDispatchedValue: empStockSendingAmount,
+    branchTotalDispatched: branchStockSendingAmount,
+    branchBenchmarkDispatched: branchStockBenchmarkDispatched,
+    companyTotalDispatched: companyStockSendingAmount,
+    overallTotalDispatched: overallStockSendingAmount,
+    branchSharePercent: stockBranchShare,
+    companySharePercent: stockCompanyShare,
+    overallSharePercent: stockOverallShare,
+    achievementPercent: stockVolAchievementPercent,
+    alertTag: stockVolAlertTag,
+    ratingLabel: stockVolRatingLabel,
+  }
+
   // Active Rule Scores depending on role:
   // - Waiter: Rule 1 (Call Speed), Rule 2 (Attendance), Rule 3 (Tasks), Rule 4 (Billing), Rule 5 (KOT Delivery), Rule 6 (Table Sales), Rule 7 (Counter Sales)
   // - Cashier: Rule 2 (Attendance), Rule 3 (Tasks), Rule 4 (Billing), Rule 7 (Counter Sales)
-  // - Chef: Rule 2 (Attendance), Rule 3 (Tasks), Rule 5 (KOT Prep Time)
+  // - Chef:
+  //    * Kitchen Chef: Rule 2 (Attendance), Rule 3 (Tasks), Rule 5 (KOT Prep Time), Rule 8 (Kitchen Output)
+  //    * Stock Chef: Rule 2 (Attendance), Rule 3 (Tasks), Rule 9 (Stock Fulfillment), Rule 10 (Stock Volume)
+  //    * Both: evaluates all active rules
   // - Supervisor: Rule 2 (Attendance), Rule 3 (Tasks), Rule 5 (KOT Confirm Time)
   // - Other Roles: Rule 2 (Attendance), Rule 3 (Tasks)
+  const isKitchenChef = empKitchenItemsCount > 0 || (isChef && empStockItemsCount === 0)
+  const isStockChef = empStockItemsCount > 0
+
   const activeRuleScores = [rule2Result.score, rule3Result.score]
   if (isWaiter) {
     activeRuleScores.push(
@@ -1442,7 +1968,17 @@ export async function calculateReportCardData(
       rule4Result.score,
       rule7Result.score,
     )
-  } else if (isChef || isSupervisor) {
+  } else if (isChef) {
+    if (isKitchenChef) {
+      activeRuleScores.push(rule5Result.score, rule8Result.score)
+    }
+    if (isStockChef) {
+      activeRuleScores.push(rule9Result.score, rule10Result.score)
+    }
+    if (!isKitchenChef && !isStockChef) {
+      activeRuleScores.push(rule5Result.score)
+    }
+  } else if (isSupervisor) {
     activeRuleScores.push(rule5Result.score)
   }
 
@@ -1612,6 +2148,69 @@ export async function calculateReportCardData(
     })
   }
 
+  if (isChef || isRuleActive('chef_kitchen_volume', isChef)) {
+    if (isKitchenChef) {
+      const c8 = computeRuleScoreAndMax('chef_kitchen_volume', rule8Result.score, rule8Result.ruleTitle)
+      rule8Result.maxMarks = c8.maxMarks
+      rule8Result.marks = c8.score
+      rule8Result.ruleTitle = c8.title
+      if (c8.id) rule8Result.ruleId = c8.id
+
+      rulesList.push({
+        id: c8.id || 'rule-chef-kitchen-volume',
+        title: c8.title,
+        category: 'chef_kitchen_volume',
+        maxMarks: c8.maxMarks,
+        score: c8.score,
+        ratingLabel: rule8Result.ratingLabel,
+        summary: `₹${rule8Result.totalOutputValue.toLocaleString('en-IN')} prepared across ${rule8Result.totalItemsPrepared} dishes (${rule8Result.branchSharePercent}% of kitchen) • ${rule8Result.alertTag}`,
+        details: rule8Result,
+      })
+    }
+  }
+
+  if (isChef || isRuleActive('chef_stock_fulfillment', isChef)) {
+    if (isStockChef) {
+      const c9 = computeRuleScoreAndMax('chef_stock_fulfillment', rule9Result.score, rule9Result.ruleTitle)
+      rule9Result.maxMarks = c9.maxMarks
+      rule9Result.marks = c9.score
+      rule9Result.ruleTitle = c9.title
+      if (c9.id) rule9Result.ruleId = c9.id
+
+      rulesList.push({
+        id: c9.id || 'rule-chef-stock-fulfillment',
+        title: c9.title,
+        category: 'chef_stock_fulfillment',
+        maxMarks: c9.maxMarks,
+        score: c9.score,
+        ratingLabel: rule9Result.ratingLabel,
+        summary: `${rule9Result.sendingQty} / ${rule9Result.requiredQty} items fulfilled (${rule9Result.fulfillmentRatePercent}%) • ${rule9Result.alertTag}`,
+        details: rule9Result,
+      })
+    }
+  }
+
+  if (isChef || isRuleActive('chef_stock_volume', isChef)) {
+    if (isStockChef) {
+      const c10 = computeRuleScoreAndMax('chef_stock_volume', rule10Result.score, rule10Result.ruleTitle)
+      rule10Result.maxMarks = c10.maxMarks
+      rule10Result.marks = c10.score
+      rule10Result.ruleTitle = c10.title
+      if (c10.id) rule10Result.ruleId = c10.id
+
+      rulesList.push({
+        id: c10.id || 'rule-chef-stock-volume',
+        title: c10.title,
+        category: 'chef_stock_volume',
+        maxMarks: c10.maxMarks,
+        score: c10.score,
+        ratingLabel: rule10Result.ratingLabel,
+        summary: `₹${rule10Result.totalDispatchedValue.toLocaleString('en-IN')} dispatched across ${rule10Result.totalOrdersDispatched} orders (${rule10Result.branchSharePercent}% of stock) • ${rule10Result.alertTag}`,
+        details: rule10Result,
+      })
+    }
+  }
+
   // Automatically append any additional or custom rules configured in dashboard
   const knownCategories = new Set([
     'call_speed',
@@ -1621,6 +2220,9 @@ export async function calculateReportCardData(
     'kot_time',
     'billing_table',
     'billing_counter',
+    'chef_kitchen_volume',
+    'chef_stock_fulfillment',
+    'chef_stock_volume',
   ])
 
   for (const doc of configuredRulesDocs) {
@@ -1737,15 +2339,15 @@ export async function calculateReportCardData(
       } catch (_cbErr) {}
     }
 
-    // 2. Fetch all ACTIVE waiters from employees collection
-    // User requirement: ONLY active employees (status === 'active'), ONLY role/team waiter
-    let activeWaiterEmployees: any[] = []
+    // 2. Fetch all ACTIVE employees for the target role from employees collection
+    const targetTeam = lowerRole || 'waiter'
+    let activeRoleEmployees: any[] = []
     try {
       const eRes = await req.payload.find({
         collection: 'employees',
         where: {
           and: [
-            { team: { equals: 'waiter' } },
+            ...(targetTeam !== 'all' ? [{ team: { equals: targetTeam } }] : []),
             { status: { equals: 'active' } },
           ],
         },
@@ -1753,17 +2355,31 @@ export async function calculateReportCardData(
         depth: 1,
         overrideAccess: true,
       })
-      activeWaiterEmployees = eRes.docs || []
+      activeRoleEmployees = eRes.docs || []
     } catch (_eErr) {}
 
-    // Fetch waiter users to link branch assignments
-    let waiterUsers: any[] = []
+    // Fallback if no employees have this explicit team tag
+    if (activeRoleEmployees.length === 0 && targetTeam !== 'waiter') {
+      try {
+        const fallbackRes = await req.payload.find({
+          collection: 'employees',
+          where: { status: { equals: 'active' } },
+          limit: 100,
+          depth: 1,
+          overrideAccess: true,
+        })
+        activeRoleEmployees = fallbackRes.docs || []
+      } catch (_fbErr) {}
+    }
+
+    // Fetch role users to link branch assignments
+    let roleUsers: any[] = []
     try {
       const uRes = await req.payload.find({
         collection: 'users',
         where: {
           and: [
-            { role: { equals: 'waiter' } },
+            ...(targetTeam !== 'all' ? [{ role: { equals: targetTeam } }] : []),
             { loginBlocked: { not_equals: true } },
           ],
         },
@@ -1771,11 +2387,11 @@ export async function calculateReportCardData(
         depth: 2,
         overrideAccess: true,
       })
-      waiterUsers = uRes.docs || []
+      roleUsers = uRes.docs || []
     } catch (_uErr) {}
 
     const userByEmpId = new Map<string, any>()
-    for (const u of waiterUsers) {
+    for (const u of roleUsers) {
       if (u.employee) {
         const empIdStr =
           typeof u.employee === 'string'
@@ -1911,7 +2527,7 @@ export async function calculateReportCardData(
     const scoredPeers: (PeerRankItem & { branchId?: string; companyId?: string; isCompanyPeer?: boolean })[] = []
     const seenEmpIds = new Set<string>()
 
-    for (const e of activeWaiterEmployees) {
+    for (const e of activeRoleEmployees) {
       const empId = String(e.id || (e as any)._id)
       if (seenEmpIds.has(empId)) continue
       seenEmpIds.add(empId)
@@ -2170,6 +2786,9 @@ export async function calculateReportCardData(
     rule5KotTime: rule5Result,
     rule6TableBilling: rule6Result,
     rule7CounterBilling: rule7Result,
+    rule8ChefKitchenVolume: rule8Result,
+    rule9ChefStockFulfillment: rule9Result,
+    rule10ChefStockVolume: rule10Result,
     overallScore,
     totalScore,
     totalMaxMarks,

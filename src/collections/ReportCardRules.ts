@@ -119,6 +119,9 @@ export const ReportCardRules: CollectionConfig = {
             { label: '🍽️ Table Service & Billing Accuracy', value: 'billing' },
             { label: '🍽️ Table Order Billing & Revenue', value: 'billing_table' },
             { label: '🛍️ Counter / Non-Table KOT Billing', value: 'billing_counter' },
+            { label: '🍳 Kitchen Order Production Value & Volume', value: 'chef_kitchen_volume' },
+            { label: '📦 Stock Order Fulfillment & Accuracy SLA', value: 'chef_stock_fulfillment' },
+            { label: '💰 Stock Order Production Value & Volume', value: 'chef_stock_volume' },
             { label: '⭐ Grooming, Hygiene & Cleanliness', value: 'hygiene' },
             { label: '💬 Customer Feedback & Reviews', value: 'reviews' },
             { label: 'ℹ️ General Guidelines & Policy', value: 'general' },
@@ -134,7 +137,13 @@ export const ReportCardRules: CollectionConfig = {
       admin: {
         description:
           'Optional fixed ₹ sales quota for this rule. If left empty, benchmark defaults to Branch Average Sales per staff.',
-        condition: (data) => ['billing_table', 'billing_counter'].includes(data?.category),
+        condition: (data) =>
+          [
+            'billing_table',
+            'billing_counter',
+            'chef_kitchen_volume',
+            'chef_stock_volume',
+          ].includes(data?.category),
       },
     },
     {

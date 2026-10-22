@@ -2691,6 +2691,9 @@ export interface ReportCardRule {
     | 'billing'
     | 'billing_table'
     | 'billing_counter'
+    | 'chef_kitchen_volume'
+    | 'chef_stock_fulfillment'
+    | 'chef_stock_volume'
     | 'hygiene'
     | 'reviews'
     | 'general';
