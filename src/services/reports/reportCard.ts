@@ -304,6 +304,15 @@ export async function calculateReportCardData(
   let resolvedBranchId: string | null = params.branchId || null
   let resolvedBranchName = params.branchName || ''
 
+  let resolvedIsKitchen: boolean | null = null
+  let resolvedIsStock: boolean | null = null
+  if (params.isKitchen !== undefined) {
+    resolvedIsKitchen = params.isKitchen === 'true' || params.isKitchen === true
+  }
+  if (params.isStock !== undefined) {
+    resolvedIsStock = params.isStock === 'true' || params.isStock === true
+  }
+
   try {
     const empDoc = await req.payload.findByID({
       collection: 'employees',
@@ -350,6 +359,12 @@ export async function calculateReportCardData(
           resolvedBranchName =
             typeof userDoc.branch === 'object' ? (userDoc.branch as any).name || '' : ''
         }
+        if (resolvedIsKitchen === null && typeof (userDoc as any).isKitchen === 'boolean') {
+          resolvedIsKitchen = (userDoc as any).isKitchen
+        }
+        if (resolvedIsStock === null && typeof (userDoc as any).isStock === 'boolean') {
+          resolvedIsStock = (userDoc as any).isStock
+        }
       }
     } catch (_u) {}
   }
@@ -373,6 +388,12 @@ export async function calculateReportCardData(
             typeof u.branch === 'string' ? u.branch : (u.branch as any).id
           resolvedBranchName =
             typeof u.branch === 'object' ? (u.branch as any).name || '' : ''
+        }
+        if (resolvedIsKitchen === null && typeof (u as any).isKitchen === 'boolean') {
+          resolvedIsKitchen = (u as any).isKitchen
+        }
+        if (resolvedIsStock === null && typeof (u as any).isStock === 'boolean') {
+          resolvedIsStock = (u as any).isStock
         }
       }
     } catch (_e) {
@@ -1959,8 +1980,33 @@ export async function calculateReportCardData(
   //    * Both: evaluates all active rules
   // - Supervisor: Rule 2 (Attendance), Rule 3 (Tasks), Rule 5 (KOT Confirm Time)
   // - Other Roles: Rule 2 (Attendance), Rule 3 (Tasks)
-  const isKitchenChef = empKitchenItemsCount > 0 || (isChef && empStockItemsCount === 0)
-  const isStockChef = empStockItemsCount > 0
+  let isKitchenChef = false
+  let isStockChef = false
+
+  if (isChef) {
+    if (resolvedIsKitchen === true && resolvedIsStock === false) {
+      isKitchenChef = true
+      isStockChef = false
+    } else if (resolvedIsStock === true && resolvedIsKitchen === false) {
+      isKitchenChef = false
+      isStockChef = true
+    } else if (resolvedIsKitchen === true && resolvedIsStock === true) {
+      isKitchenChef = true
+      isStockChef = true
+    } else {
+      // If flags are not set, infer from activity
+      if (empStockItemsCount > 0 && empKitchenItemsCount === 0) {
+        isStockChef = true
+        isKitchenChef = false
+      } else if (empKitchenItemsCount > 0 && empStockItemsCount === 0) {
+        isKitchenChef = true
+        isStockChef = false
+      } else {
+        isKitchenChef = true
+        isStockChef = true
+      }
+    }
+  }
 
   const activeRuleScores = [rule2Result.score, rule3Result.score]
   if (isWaiter) {
@@ -2019,6 +2065,7 @@ export async function calculateReportCardData(
   const hasConfiguredRules = configuredRulesDocs.length > 0
 
   const isRuleActive = (cat: string, defaultRoleEligible: boolean) => {
+    if (!defaultRoleEligible) return false
     if (!hasConfiguredRules) return defaultRoleEligible
     return Boolean(getConfiguredRule(cat))
   }
@@ -2099,7 +2146,8 @@ export async function calculateReportCardData(
     })
   }
 
-  if (isRuleActive('kot_time', isWaiter || isChef || isSupervisor)) {
+  const canEvaluateKotTime = isWaiter || (isChef ? isKitchenChef : false) || isSupervisor
+  if (isRuleActive('kot_time', canEvaluateKotTime)) {
     const c5 = computeRuleScoreAndMax('kot_time', rule5Result.score, rule5Result.ruleTitle)
     rule5Result.maxMarks = c5.maxMarks
     rule5Result.marks = c5.score
@@ -2156,67 +2204,61 @@ export async function calculateReportCardData(
     })
   }
 
-  if (isChef || isRuleActive('chef_kitchen_volume', isChef)) {
-    if (isKitchenChef) {
-      const c8 = computeRuleScoreAndMax('chef_kitchen_volume', rule8Result.score, rule8Result.ruleTitle)
-      rule8Result.maxMarks = c8.maxMarks
-      rule8Result.marks = c8.score
-      rule8Result.ruleTitle = c8.title
-      if (c8.id) rule8Result.ruleId = c8.id
+  if (isKitchenChef && isRuleActive('chef_kitchen_volume', true)) {
+    const c8 = computeRuleScoreAndMax('chef_kitchen_volume', rule8Result.score, rule8Result.ruleTitle)
+    rule8Result.maxMarks = c8.maxMarks
+    rule8Result.marks = c8.score
+    rule8Result.ruleTitle = c8.title
+    if (c8.id) rule8Result.ruleId = c8.id
 
-      rulesList.push({
-        id: c8.id || 'rule-chef-kitchen-volume',
-        title: c8.title,
-        category: 'chef_kitchen_volume',
-        maxMarks: c8.maxMarks,
-        score: c8.score,
-        ratingLabel: rule8Result.ratingLabel,
-        summary: `₹${rule8Result.totalOutputValue.toLocaleString('en-IN')} prepared across ${rule8Result.totalItemsPrepared} dishes (${rule8Result.branchSharePercent}% of kitchen) • ${rule8Result.alertTag}`,
-        details: rule8Result,
-      })
-    }
+    rulesList.push({
+      id: c8.id || 'rule-chef-kitchen-volume',
+      title: c8.title,
+      category: 'chef_kitchen_volume',
+      maxMarks: c8.maxMarks,
+      score: c8.score,
+      ratingLabel: rule8Result.ratingLabel,
+      summary: `₹${rule8Result.totalOutputValue.toLocaleString('en-IN')} prepared across ${rule8Result.totalItemsPrepared} dishes (${rule8Result.branchSharePercent}% of kitchen) • ${rule8Result.alertTag}`,
+      details: rule8Result,
+    })
   }
 
-  if (isChef || isRuleActive('chef_stock_fulfillment', isChef)) {
-    if (isStockChef) {
-      const c9 = computeRuleScoreAndMax('chef_stock_fulfillment', rule9Result.score, rule9Result.ruleTitle)
-      rule9Result.maxMarks = c9.maxMarks
-      rule9Result.marks = c9.score
-      rule9Result.ruleTitle = c9.title
-      if (c9.id) rule9Result.ruleId = c9.id
+  if (isStockChef && isRuleActive('chef_stock_fulfillment', true)) {
+    const c9 = computeRuleScoreAndMax('chef_stock_fulfillment', rule9Result.score, rule9Result.ruleTitle)
+    rule9Result.maxMarks = c9.maxMarks
+    rule9Result.marks = c9.score
+    rule9Result.ruleTitle = c9.title
+    if (c9.id) rule9Result.ruleId = c9.id
 
-      rulesList.push({
-        id: c9.id || 'rule-chef-stock-fulfillment',
-        title: c9.title,
-        category: 'chef_stock_fulfillment',
-        maxMarks: c9.maxMarks,
-        score: c9.score,
-        ratingLabel: rule9Result.ratingLabel,
-        summary: `${rule9Result.sendingQty} / ${rule9Result.requiredQty} items fulfilled (${rule9Result.fulfillmentRatePercent}%) • ${rule9Result.alertTag}`,
-        details: rule9Result,
-      })
-    }
+    rulesList.push({
+      id: c9.id || 'rule-chef-stock-fulfillment',
+      title: c9.title,
+      category: 'chef_stock_fulfillment',
+      maxMarks: c9.maxMarks,
+      score: c9.score,
+      ratingLabel: rule9Result.ratingLabel,
+      summary: `${rule9Result.sendingQty} / ${rule9Result.requiredQty} items fulfilled (${rule9Result.fulfillmentRatePercent}%) • ${rule9Result.alertTag}`,
+      details: rule9Result,
+    })
   }
 
-  if (isChef || isRuleActive('chef_stock_volume', isChef)) {
-    if (isStockChef) {
-      const c10 = computeRuleScoreAndMax('chef_stock_volume', rule10Result.score, rule10Result.ruleTitle)
-      rule10Result.maxMarks = c10.maxMarks
-      rule10Result.marks = c10.score
-      rule10Result.ruleTitle = c10.title
-      if (c10.id) rule10Result.ruleId = c10.id
+  if (isStockChef && isRuleActive('chef_stock_volume', true)) {
+    const c10 = computeRuleScoreAndMax('chef_stock_volume', rule10Result.score, rule10Result.ruleTitle)
+    rule10Result.maxMarks = c10.maxMarks
+    rule10Result.marks = c10.score
+    rule10Result.ruleTitle = c10.title
+    if (c10.id) rule10Result.ruleId = c10.id
 
-      rulesList.push({
-        id: c10.id || 'rule-chef-stock-volume',
-        title: c10.title,
-        category: 'chef_stock_volume',
-        maxMarks: c10.maxMarks,
-        score: c10.score,
-        ratingLabel: rule10Result.ratingLabel,
-        summary: `₹${rule10Result.totalDispatchedValue.toLocaleString('en-IN')} dispatched across ${rule10Result.totalOrdersDispatched} orders (${rule10Result.branchSharePercent}% of stock) • ${rule10Result.alertTag}`,
-        details: rule10Result,
-      })
-    }
+    rulesList.push({
+      id: c10.id || 'rule-chef-stock-volume',
+      title: c10.title,
+      category: 'chef_stock_volume',
+      maxMarks: c10.maxMarks,
+      score: c10.score,
+      ratingLabel: rule10Result.ratingLabel,
+      summary: `₹${rule10Result.totalDispatchedValue.toLocaleString('en-IN')} dispatched across ${rule10Result.totalOrdersDispatched} orders (${rule10Result.branchSharePercent}% of stock) • ${rule10Result.alertTag}`,
+      details: rule10Result,
+    })
   }
 
   // Automatically append any additional or custom rules configured in dashboard
@@ -2820,6 +2862,8 @@ export async function calculateReportCardData(
     branchRanking,
     companyRanking,
     overallRanking,
+    isKitchen: isKitchenChef,
+    isStock: isStockChef,
     rules: rulesList,
   }
 }

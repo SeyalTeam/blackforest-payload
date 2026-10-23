@@ -39382,6 +39382,14 @@ async function calculateReportCardData(req, params) {
   let scheduledLoginTime = null;
   let resolvedBranchId = params.branchId || null;
   let resolvedBranchName = params.branchName || "";
+  let resolvedIsKitchen = null;
+  let resolvedIsStock = null;
+  if (params.isKitchen !== void 0) {
+    resolvedIsKitchen = params.isKitchen === "true" || params.isKitchen === true;
+  }
+  if (params.isStock !== void 0) {
+    resolvedIsStock = params.isStock === "true" || params.isStock === true;
+  }
   try {
     const empDoc = await req.payload.findByID({
       collection: "employees",
@@ -39422,6 +39430,12 @@ async function calculateReportCardData(req, params) {
           resolvedBranchId = typeof userDoc.branch === "string" ? userDoc.branch : userDoc.branch.id;
           resolvedBranchName = typeof userDoc.branch === "object" ? userDoc.branch.name || "" : "";
         }
+        if (resolvedIsKitchen === null && typeof userDoc.isKitchen === "boolean") {
+          resolvedIsKitchen = userDoc.isKitchen;
+        }
+        if (resolvedIsStock === null && typeof userDoc.isStock === "boolean") {
+          resolvedIsStock = userDoc.isStock;
+        }
       }
     } catch (_u) {
     }
@@ -39443,6 +39457,12 @@ async function calculateReportCardData(req, params) {
         if (!resolvedBranchId && u.branch) {
           resolvedBranchId = typeof u.branch === "string" ? u.branch : u.branch.id;
           resolvedBranchName = typeof u.branch === "object" ? u.branch.name || "" : "";
+        }
+        if (resolvedIsKitchen === null && typeof u.isKitchen === "boolean") {
+          resolvedIsKitchen = u.isKitchen;
+        }
+        if (resolvedIsStock === null && typeof u.isStock === "boolean") {
+          resolvedIsStock = u.isStock;
         }
       }
     } catch (_e) {
@@ -40684,8 +40704,31 @@ async function calculateReportCardData(req, params) {
     alertTag: stockVolAlertTag,
     ratingLabel: stockVolRatingLabel
   };
-  const isKitchenChef = empKitchenItemsCount > 0 || isChef && empStockItemsCount === 0;
-  const isStockChef = empStockItemsCount > 0;
+  let isKitchenChef = false;
+  let isStockChef = false;
+  if (isChef) {
+    if (resolvedIsKitchen === true && resolvedIsStock === false) {
+      isKitchenChef = true;
+      isStockChef = false;
+    } else if (resolvedIsStock === true && resolvedIsKitchen === false) {
+      isKitchenChef = false;
+      isStockChef = true;
+    } else if (resolvedIsKitchen === true && resolvedIsStock === true) {
+      isKitchenChef = true;
+      isStockChef = true;
+    } else {
+      if (empStockItemsCount > 0 && empKitchenItemsCount === 0) {
+        isStockChef = true;
+        isKitchenChef = false;
+      } else if (empKitchenItemsCount > 0 && empStockItemsCount === 0) {
+        isKitchenChef = true;
+        isStockChef = false;
+      } else {
+        isKitchenChef = true;
+        isStockChef = true;
+      }
+    }
+  }
   const activeRuleScores = [rule2Result.score, rule3Result.score];
   if (isWaiter) {
     activeRuleScores.push(
@@ -40734,6 +40777,7 @@ async function calculateReportCardData(req, params) {
   const rulesList = [];
   const hasConfiguredRules = configuredRulesDocs.length > 0;
   const isRuleActive = (cat, defaultRoleEligible) => {
+    if (!defaultRoleEligible) return false;
     if (!hasConfiguredRules) return defaultRoleEligible;
     return Boolean(getConfiguredRule(cat));
   };
@@ -40805,7 +40849,8 @@ async function calculateReportCardData(req, params) {
       details: rule4Result
     });
   }
-  if (isRuleActive("kot_time", isWaiter || isChef || isSupervisor)) {
+  const canEvaluateKotTime = isWaiter || (isChef ? isKitchenChef : false) || isSupervisor;
+  if (isRuleActive("kot_time", canEvaluateKotTime)) {
     const c5 = computeRuleScoreAndMax("kot_time", rule5Result.score, rule5Result.ruleTitle);
     rule5Result.maxMarks = c5.maxMarks;
     rule5Result.marks = c5.score;
@@ -40856,62 +40901,56 @@ async function calculateReportCardData(req, params) {
       details: rule7Result
     });
   }
-  if (isChef || isRuleActive("chef_kitchen_volume", isChef)) {
-    if (isKitchenChef) {
-      const c8 = computeRuleScoreAndMax("chef_kitchen_volume", rule8Result.score, rule8Result.ruleTitle);
-      rule8Result.maxMarks = c8.maxMarks;
-      rule8Result.marks = c8.score;
-      rule8Result.ruleTitle = c8.title;
-      if (c8.id) rule8Result.ruleId = c8.id;
-      rulesList.push({
-        id: c8.id || "rule-chef-kitchen-volume",
-        title: c8.title,
-        category: "chef_kitchen_volume",
-        maxMarks: c8.maxMarks,
-        score: c8.score,
-        ratingLabel: rule8Result.ratingLabel,
-        summary: `\u20B9${rule8Result.totalOutputValue.toLocaleString("en-IN")} prepared across ${rule8Result.totalItemsPrepared} dishes (${rule8Result.branchSharePercent}% of kitchen) \u2022 ${rule8Result.alertTag}`,
-        details: rule8Result
-      });
-    }
+  if (isKitchenChef && isRuleActive("chef_kitchen_volume", true)) {
+    const c8 = computeRuleScoreAndMax("chef_kitchen_volume", rule8Result.score, rule8Result.ruleTitle);
+    rule8Result.maxMarks = c8.maxMarks;
+    rule8Result.marks = c8.score;
+    rule8Result.ruleTitle = c8.title;
+    if (c8.id) rule8Result.ruleId = c8.id;
+    rulesList.push({
+      id: c8.id || "rule-chef-kitchen-volume",
+      title: c8.title,
+      category: "chef_kitchen_volume",
+      maxMarks: c8.maxMarks,
+      score: c8.score,
+      ratingLabel: rule8Result.ratingLabel,
+      summary: `\u20B9${rule8Result.totalOutputValue.toLocaleString("en-IN")} prepared across ${rule8Result.totalItemsPrepared} dishes (${rule8Result.branchSharePercent}% of kitchen) \u2022 ${rule8Result.alertTag}`,
+      details: rule8Result
+    });
   }
-  if (isChef || isRuleActive("chef_stock_fulfillment", isChef)) {
-    if (isStockChef) {
-      const c9 = computeRuleScoreAndMax("chef_stock_fulfillment", rule9Result.score, rule9Result.ruleTitle);
-      rule9Result.maxMarks = c9.maxMarks;
-      rule9Result.marks = c9.score;
-      rule9Result.ruleTitle = c9.title;
-      if (c9.id) rule9Result.ruleId = c9.id;
-      rulesList.push({
-        id: c9.id || "rule-chef-stock-fulfillment",
-        title: c9.title,
-        category: "chef_stock_fulfillment",
-        maxMarks: c9.maxMarks,
-        score: c9.score,
-        ratingLabel: rule9Result.ratingLabel,
-        summary: `${rule9Result.sendingQty} / ${rule9Result.requiredQty} items fulfilled (${rule9Result.fulfillmentRatePercent}%) \u2022 ${rule9Result.alertTag}`,
-        details: rule9Result
-      });
-    }
+  if (isStockChef && isRuleActive("chef_stock_fulfillment", true)) {
+    const c9 = computeRuleScoreAndMax("chef_stock_fulfillment", rule9Result.score, rule9Result.ruleTitle);
+    rule9Result.maxMarks = c9.maxMarks;
+    rule9Result.marks = c9.score;
+    rule9Result.ruleTitle = c9.title;
+    if (c9.id) rule9Result.ruleId = c9.id;
+    rulesList.push({
+      id: c9.id || "rule-chef-stock-fulfillment",
+      title: c9.title,
+      category: "chef_stock_fulfillment",
+      maxMarks: c9.maxMarks,
+      score: c9.score,
+      ratingLabel: rule9Result.ratingLabel,
+      summary: `${rule9Result.sendingQty} / ${rule9Result.requiredQty} items fulfilled (${rule9Result.fulfillmentRatePercent}%) \u2022 ${rule9Result.alertTag}`,
+      details: rule9Result
+    });
   }
-  if (isChef || isRuleActive("chef_stock_volume", isChef)) {
-    if (isStockChef) {
-      const c10 = computeRuleScoreAndMax("chef_stock_volume", rule10Result.score, rule10Result.ruleTitle);
-      rule10Result.maxMarks = c10.maxMarks;
-      rule10Result.marks = c10.score;
-      rule10Result.ruleTitle = c10.title;
-      if (c10.id) rule10Result.ruleId = c10.id;
-      rulesList.push({
-        id: c10.id || "rule-chef-stock-volume",
-        title: c10.title,
-        category: "chef_stock_volume",
-        maxMarks: c10.maxMarks,
-        score: c10.score,
-        ratingLabel: rule10Result.ratingLabel,
-        summary: `\u20B9${rule10Result.totalDispatchedValue.toLocaleString("en-IN")} dispatched across ${rule10Result.totalOrdersDispatched} orders (${rule10Result.branchSharePercent}% of stock) \u2022 ${rule10Result.alertTag}`,
-        details: rule10Result
-      });
-    }
+  if (isStockChef && isRuleActive("chef_stock_volume", true)) {
+    const c10 = computeRuleScoreAndMax("chef_stock_volume", rule10Result.score, rule10Result.ruleTitle);
+    rule10Result.maxMarks = c10.maxMarks;
+    rule10Result.marks = c10.score;
+    rule10Result.ruleTitle = c10.title;
+    if (c10.id) rule10Result.ruleId = c10.id;
+    rulesList.push({
+      id: c10.id || "rule-chef-stock-volume",
+      title: c10.title,
+      category: "chef_stock_volume",
+      maxMarks: c10.maxMarks,
+      score: c10.score,
+      ratingLabel: rule10Result.ratingLabel,
+      summary: `\u20B9${rule10Result.totalDispatchedValue.toLocaleString("en-IN")} dispatched across ${rule10Result.totalOrdersDispatched} orders (${rule10Result.branchSharePercent}% of stock) \u2022 ${rule10Result.alertTag}`,
+      details: rule10Result
+    });
   }
   const knownCategories = /* @__PURE__ */ new Set([
     "call_speed",
@@ -41439,6 +41478,8 @@ async function calculateReportCardData(req, params) {
     branchRanking,
     companyRanking,
     overallRanking,
+    isKitchen: isKitchenChef,
+    isStock: isStockChef,
     rules: rulesList
   };
 }

@@ -1191,6 +1191,139 @@ const recordCallEventToDb = async (params: {
   }
 }
 
+const getTodayDateStringIST = (): string => {
+  const d = new Date()
+  const utcOffset = d.getTime() + 5.5 * 60 * 60 * 1000
+  const localDate = new Date(utcOffset)
+  const year = localDate.getUTCFullYear()
+  const month = String(localDate.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(localDate.getUTCDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const checkActivitiesPunchedIn = (activities: any): boolean => {
+  if (!Array.isArray(activities) || activities.length === 0) return false
+  const sessions = activities.filter((a) => !a.type || a.type === 'session')
+  if (sessions.length === 0) return false
+  const lastSession = sessions[sessions.length - 1]
+  const status = String(lastSession.status || '').toLowerCase()
+  const punchOut = lastSession.punchOut
+  const hasNoPunchOut = punchOut === null || punchOut === undefined || String(punchOut).trim() === ''
+  return status !== 'closed' && hasNoPunchOut
+}
+
+export const isUserPunchedIn = async (userId: string): Promise<boolean> => {
+  if (!realtimeState.payload || !isMongoId(userId)) return false
+  try {
+    const today = getTodayDateStringIST()
+    const attResult = await realtimeState.payload.find({
+      collection: 'attendance',
+      where: {
+        and: [
+          { dateString: { equals: today } },
+          { user: { equals: userId } },
+        ],
+      },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    })
+
+    if (attResult.docs && attResult.docs.length > 0) {
+      return checkActivitiesPunchedIn(attResult.docs[0].activities)
+    }
+
+    // Also check if user is linked to employee ID
+    const userDoc = await realtimeState.payload.findByID({
+      collection: 'users',
+      id: userId,
+      depth: 0,
+      overrideAccess: true,
+    })
+    const emp = userDoc && typeof userDoc === 'object' ? (userDoc as any).employee : null
+    const empId = emp && (typeof emp === 'string' ? emp : emp.id || emp._id)
+    if (empId && isMongoId(empId)) {
+      const empAtt = await realtimeState.payload.find({
+        collection: 'attendance',
+        where: {
+          and: [
+            { dateString: { equals: today } },
+            { employee: { equals: empId } },
+          ],
+        },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+      })
+      if (empAtt.docs && empAtt.docs.length > 0) {
+        return checkActivitiesPunchedIn(empAtt.docs[0].activities)
+      }
+    }
+
+    return false
+  } catch (err) {
+    realtimeState.payload?.logger?.error?.({ msg: 'Error checking user punch-in status in wsGateway', err })
+    return false
+  }
+}
+
+// Active live calls: callId -> { callerId: string, calleeId: string }
+const activeLiveCalls = new Map<string, { callerId: string; calleeId: string }>()
+
+export const terminateActiveCallsForUser = (userId: string, reason = 'User punched out / off duty'): void => {
+  const normId = userId?.trim()
+  if (!normId) return
+
+  for (const [callId, call] of Array.from(activeLiveCalls.entries())) {
+    if (call.callerId === normId || call.calleeId === normId) {
+      activeLiveCalls.delete(callId)
+      const otherUserId = call.callerId === normId ? call.calleeId : call.callerId
+
+      const terminationPayload = {
+        eventType: 'call_signal',
+        callId,
+        signalType: 'call_ended',
+        senderId: 'system',
+        targetUserId: otherUserId,
+        reason,
+        timestamp: nowISO(),
+      }
+
+      // Deliver locally to other user
+      const otherConns = realtimeState.connectionsByUserID.get(otherUserId)
+      if (otherConns && otherConns.size > 0) {
+        for (const connID of otherConns) {
+          const conn = realtimeState.connections.get(connID)
+          if (conn && conn.socket.readyState === WebSocket.OPEN) {
+            sendServerMessage(conn, terminationPayload)
+          }
+        }
+      }
+
+      // Deliver locally to the user themselves
+      const userConns = realtimeState.connectionsByUserID.get(normId)
+      if (userConns && userConns.size > 0) {
+        for (const connID of userConns) {
+          const conn = realtimeState.connections.get(connID)
+          if (conn && conn.socket.readyState === WebSocket.OPEN) {
+            sendServerMessage(conn, {
+              ...terminationPayload,
+              targetUserId: normId,
+            })
+          }
+        }
+      }
+
+      // Publish to bus for other cluster workers
+      publishToBus({
+        channel: 'call_signal',
+        targetUserId: otherUserId,
+        payload: terminationPayload,
+      })
+    }
+  }
+}
+
 const handleCallSignal = async (connection: ConnectionState, value: Record<string, unknown>): Promise<void> => {
   const targetUserId =
     typeof value.targetUserId === 'string'
@@ -1217,6 +1350,31 @@ const handleCallSignal = async (connection: ConnectionState, value: Record<strin
       message: 'Cannot place a call to yourself.',
     })
     return
+  }
+
+  // 1. STRICT PUNCH-IN CHECK FOR CALLER: Non-admin users MUST be punched in to place calls
+  if (signalType === 'offer') {
+    const callerRole = (connection.role || '').toLowerCase()
+    if (callerRole !== 'admin') {
+      const callerPunchedIn = await isUserPunchedIn(connection.userID)
+      if (!callerPunchedIn) {
+        sendServerMessage(connection, {
+          eventType: 'call_signal',
+          callId,
+          signalType: 'call_blocked_not_punched_in',
+          senderId: 'system',
+          targetUserId: connection.userID,
+          message: 'You cannot place calls because you are currently punched out or not on duty.',
+          timestamp: nowISO(),
+        })
+        sendSystemMessage(connection, {
+          eventType: 'call_signal_nack',
+          error_code: 'caller_not_punched_in',
+          message: 'You must be punched in to make calls. You are currently punched out or off duty.',
+        })
+        return
+      }
+    }
   }
 
   const senderName =
@@ -1272,6 +1430,57 @@ const handleCallSignal = async (connection: ConnectionState, value: Record<strin
         if (typeof (userDoc as any).role === 'string') targetUserRole = (userDoc as any).role.trim()
       }
     } catch {}
+  }
+
+  // 2. STRICT PUNCH-IN CHECK FOR CALLEE: Non-admin recipients MUST be currently punched in
+  if (signalType === 'offer') {
+    let isTargetAdmin = false
+    if (targetConnIDs && targetConnIDs.size > 0) {
+      for (const connID of targetConnIDs) {
+        const conn = realtimeState.connections.get(connID)
+        if (conn?.role && conn.role.toLowerCase() === 'admin') {
+          isTargetAdmin = true
+          break
+        }
+      }
+    }
+    if (!isTargetAdmin && targetUserRole && targetUserRole.toLowerCase() === 'admin') {
+      isTargetAdmin = true
+    }
+
+    if (!isTargetAdmin) {
+      const targetPunchedIn = await isUserPunchedIn(targetUserId)
+      if (!targetPunchedIn) {
+        void recordCallEventToDb({
+          callId,
+          signalType: 'user_offline',
+          callerUserId: connection.userID,
+          callerName: senderName,
+          callerRole: connection.role,
+          targetUserId,
+          targetUserName,
+          targetUserRole,
+        })
+        sendServerMessage(connection, {
+          eventType: 'call_signal',
+          callId,
+          signalType: 'user_offline',
+          senderId: 'system',
+          targetUserId: connection.userID,
+          offlineUserId: targetUserId,
+          message: 'The user is currently off-duty or punched out.',
+          timestamp: nowISO(),
+        })
+        return
+      }
+    }
+  }
+
+  // Track active calls in memory
+  if (signalType === 'offer') {
+    activeLiveCalls.set(callId, { callerId: connection.userID, calleeId: targetUserId })
+  } else if (signalType === 'call_ended' || signalType === 'declined' || signalType === 'busy' || signalType === 'user_offline') {
+    activeLiveCalls.delete(callId)
   }
 
   const durationSec =
@@ -1650,6 +1859,8 @@ export const terminateUserSession = (
 ): void => {
   const normalizedUserId = userId?.trim()
   if (!normalizedUserId) return
+
+  terminateActiveCallsForUser(normalizedUserId, reason)
 
   const connectionIDs = realtimeState.connectionsByUserID.get(normalizedUserId)
   if (connectionIDs && connectionIDs.size > 0) {

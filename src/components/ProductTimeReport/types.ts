@@ -29,6 +29,7 @@ export type ProductDoc = {
 }
 
 export type PreparationStatus = 'exceeded' | 'lower' | 'neutral'
+export type StageKey = 'chef' | 'supervisor' | 'waiter'
 
 export type BillPreparationDetail = {
   amount: number | null
