@@ -380,6 +380,14 @@ export async function calculateReportCardData(
     }
   }
 
+  // Explicit branch parameters passed from active app session override defaults
+  if (params.branchName) {
+    resolvedBranchName = params.branchName
+  }
+  if (params.branchId) {
+    resolvedBranchId = params.branchId
+  }
+
   let resolvedCompanyId: string | null = null
   let resolvedCompanyName = ''
 
@@ -2463,7 +2471,7 @@ export async function calculateReportCardData(
       }
     } catch (_attErr) {}
 
-    // Exact placement lookup to map active waiters to their true branch and company
+    // Exact placement lookup to map active staff to their true branch and company
     const resolveWaiterPlacement = (
       name: string,
       attInfo?: { branchId?: string; branchName?: string; companyName?: string; companyId?: string },
@@ -2488,21 +2496,24 @@ export async function calculateReportCardData(
       if (nl.includes('castro') || nl.includes('thirumaaran') || nl.includes('thirumaran')) {
         bName = 'VSeyal'
         cName = 'BlackForest Cakes'
-      } else if (nl.includes('-cdm') || nl.includes('annalakshmi') || nl.includes('ravichandran')) {
+      } else if (nl.includes('-cdm') || nl.includes('annalakshmi') || nl.includes('ravichandran') || nl.includes('muruganantham') || nl.includes('dhamotharan')) {
         bName = 'CHIDAMBARAM NAGAR'
         cName = 'BlackForest Cakes'
-      } else if (nl.includes('- kmc') || nl.includes('kmc') || nl.includes('serma') || nl.includes('swathi')) {
+      } else if (nl.includes('- kmc') || nl.includes('kmc') || nl.includes('serma') || nl.includes('swathi') || nl.includes('jasten') || nl.includes('infant raj') || nl.includes('shiva') || nl.includes('mathew')) {
         bName = 'KMC'
         cName = 'BlackForest Cakes'
-      } else if (nl.includes('vvd') || nl.includes('vijayalakshmi') || nl.includes('santhosh')) {
+      } else if (nl.includes('vvd') || nl.includes('vijayalakshmi') || nl.includes('santhosh') || nl.includes('shinosh') || nl.includes('arunprasad')) {
         bName = 'VVD'
         cName = 'BlackForest Cakes'
-      } else if (nl.includes('lakshmi') || nl.includes('ikram') || nl.includes('palanisamy') || nl.includes('ganesh') || nl.includes('mithra')) {
+      } else if (nl.includes('lakshmi') || nl.includes('ikram') || nl.includes('palanisamy') || nl.includes('ganesh') || nl.includes('mithra') || nl.includes('saravanan') || nl.includes('kishore') || nl.includes('hotel1') || nl.includes('eagleeyes')) {
         bName = 'TH1-THOOTHUKUDI HOTEL1'
         cName = 'Thoothukudi Hotel'
-      } else if (nl.includes('jeeva') || nl.includes('anantha') || nl.includes('venkatesh') || nl.includes('karthikey')) {
+      } else if (nl.includes('jeeva') || nl.includes('anantha') || nl.includes('venkatesh') || nl.includes('karthikey') || nl.includes('marimurugan')) {
         bName = 'THOOTHUKUDI MACROON'
         cName = 'Thoothukudi Macroon'
+      } else if (nl.includes('chef') && !bName) {
+        bName = resolvedBranchName || 'VSeyal'
+        cName = resolvedCompanyName || 'BlackForest Cakes'
       } else if (!bName) {
         bName = 'ETP-Ettayapuram Road'
         cName = 'BlackForest Cakes'
@@ -2543,13 +2554,15 @@ export async function calculateReportCardData(
       const eNameLower = eName.toLowerCase().trim()
       const attInfo = periodAttendanceMap.get(empId) || (linkedUser ? periodAttendanceMap.get(String(linkedUser.id)) : undefined)
 
-      // Filter active waiters by attendance in this period
+      // Filter active staff by attendance in this period
       let workedInPeriod = isCurrent
       if (!workedInPeriod) {
         if (periodAttendanceMap.size > 0) {
           workedInPeriod = Boolean(attInfo && attInfo.shifts > 0)
         } else {
-          if (period === 'today') {
+          if (targetTeam === 'chef' || targetTeam === 'kitchen' || targetTeam === 'supervisor' || targetTeam === 'manager') {
+            workedInPeriod = true
+          } else if (period === 'today') {
             workedInPeriod = Array.from(todayActiveWaitersLower).some((t) => eNameLower.includes(t))
           } else if (period === 'week') {
             workedInPeriod = Array.from(weekActiveWaitersLower).some((t) => eNameLower.includes(t))
@@ -2637,12 +2650,18 @@ export async function calculateReportCardData(
       })
     }
 
-    const branchPeersRaw = scoredPeers.filter(
-      (p) =>
-        p.isCurrent ||
-        (p.branchName && p.branchName.toLowerCase() === (resolvedBranchName || 'vseyal').toLowerCase()) ||
-        (resolvedBranchId && p.branchId === String(resolvedBranchId)),
-    )
+    const targetBranchClean = (resolvedBranchName || 'vseyal').toLowerCase().replace(/[\s\-•/]*\bbranch\b[\s\-•/]*/gi, '').trim()
+    const branchPeersRaw = scoredPeers.filter((p) => {
+      if (p.isCurrent) return true
+      if (resolvedBranchId && p.branchId && String(p.branchId) === String(resolvedBranchId)) {
+        return true
+      }
+      if (p.branchName) {
+        const pClean = p.branchName.toLowerCase().replace(/[\s\-•/]*\bbranch\b[\s\-•/]*/gi, '').trim()
+        return pClean === targetBranchClean
+      }
+      return false
+    })
 
     const companyPeersRaw = scoredPeers.filter(
       (p) =>
