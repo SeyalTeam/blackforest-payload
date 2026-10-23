@@ -217,6 +217,7 @@ export interface Config {
     'menu-settings': MenuSetting;
     'messages-chat': MessagesChat;
     'kot-time': KotTime;
+    'chef-settings': ChefSetting;
   };
   globalsSelect: {
     'payment-settings': PaymentSettingsSelect<false> | PaymentSettingsSelect<true>;
@@ -261,6 +262,7 @@ export interface Config {
     'menu-settings': MenuSettingsSelect<false> | MenuSettingsSelect<true>;
     'messages-chat': MessagesChatSelect<false> | MessagesChatSelect<true>;
     'kot-time': KotTimeSelect<false> | KotTimeSelect<true>;
+    'chef-settings': ChefSettingsSelect<false> | ChefSettingsSelect<true>;
   };
   locale: null;
   user: User & {
@@ -701,7 +703,14 @@ export interface User {
   lastLoginBranch?: (string | null) | Branch;
   kitchenBranches?: (string | Branch)[] | null;
   kitchen?: (string | Kitchen)[] | null;
+  /**
+   * Categories assigned to this chef for food preparation in the kitchen.
+   */
   categories?: (string | Category)[] | null;
+  /**
+   * Categories assigned to this chef for stock order production & fulfillment.
+   */
+  stockCategories?: (string | Category)[] | null;
   company?: (string | null) | Company;
   factory_companies?: (string | Company)[] | null;
   storekeeper_companies?: (string | Company)[] | null;
@@ -2992,6 +3001,7 @@ export interface UsersSelect<T extends boolean = true> {
   kitchenBranches?: T;
   kitchen?: T;
   categories?: T;
+  stockCategories?: T;
   company?: T;
   factory_companies?: T;
   storekeeper_companies?: T;
@@ -6030,6 +6040,7 @@ export interface MenuSetting {
               | 'app-version-settings'
               | 'work-gps'
               | 'kot-time'
+              | 'chef-settings'
             )[]
           | null;
         id?: string | null;
@@ -6081,6 +6092,48 @@ export interface KotTime {
          * Waiter deliver time
          */
         waiterTime: number;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * Manage chef assignments for Kitchen (branch, kitchen, categories) and Stock Order (categories).
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "chef-settings".
+ */
+export interface ChefSetting {
+  id: string;
+  /**
+   * Assign each chef for Stock Order, Kitchen, or Both. For Kitchen, assign branch, kitchen, and categories. For Stock Order, assign stock categories.
+   */
+  chefAssignments?:
+    | {
+        chef: string | User;
+        assignmentType: 'kitchen' | 'stock' | 'both';
+        status?: ('active' | 'inactive') | null;
+        /**
+         * Primary branch for this kitchen chef
+         */
+        branch?: (string | null) | Branch;
+        /**
+         * Select branches if kitchen serves multiple branches
+         */
+        kitchenBranches?: (string | Branch)[] | null;
+        /**
+         * Select kitchen(s) for this chef
+         */
+        kitchen?: (string | Kitchen)[] | null;
+        /**
+         * Categories belonging to selected kitchen(s)
+         */
+        kitchenCategories?: (string | Category)[] | null;
+        /**
+         * Categories assigned to this chef for stock order production & fulfillment
+         */
+        stockCategories?: (string | Category)[] | null;
         id?: string | null;
       }[]
     | null;
@@ -6831,6 +6884,28 @@ export interface KotTimeSelect<T extends boolean = true> {
         supervisorTime?: T;
         waiterUnit?: T;
         waiterTime?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "chef-settings_select".
+ */
+export interface ChefSettingsSelect<T extends boolean = true> {
+  chefAssignments?:
+    | T
+    | {
+        chef?: T;
+        assignmentType?: T;
+        status?: T;
+        branch?: T;
+        kitchenBranches?: T;
+        kitchen?: T;
+        kitchenCategories?: T;
+        stockCategories?: T;
         id?: T;
       };
   updatedAt?: T;

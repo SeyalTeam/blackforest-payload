@@ -121,6 +121,7 @@ export const MenuSettingsGlobal: GlobalConfig = {
             { label: 'App Version Settings', value: 'app-version-settings' },
             { label: 'Work GPS', value: 'work-gps' },
             { label: 'KOT Time', value: 'kot-time' },
+            { label: 'Chef Settings', value: 'chef-settings' },
           ],
         },
       ],

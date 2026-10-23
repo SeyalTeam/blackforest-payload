@@ -22,6 +22,8 @@ type Employee = {
   phoneNumber?: string
   branch?: string | { id: string; name?: string }
   salary?: number
+  isKitchen?: boolean
+  isStock?: boolean
 }
 
 type User = {
@@ -31,6 +33,8 @@ type User = {
   role?: string
   branch?: string | { id: string; name?: string }
   employee?: string | { id: string; name?: string }
+  isKitchen?: boolean
+  isStock?: boolean
 }
 
 type ReportRule = {
@@ -122,6 +126,30 @@ const getEmployeeUser = (emp: Employee, usersList: User[]): User | null => {
   return null
 }
 
+const getChefWorkAssignment = (
+  emp: Employee,
+  usersList: User[],
+  realData?: any,
+): { isKitchen: boolean; isStock: boolean } => {
+  if (realData?.isKitchen !== undefined && realData?.isStock !== undefined) {
+    return { isKitchen: Boolean(realData.isKitchen), isStock: Boolean(realData.isStock) }
+  }
+  const user = getEmployeeUser(emp, usersList)
+  const isK =
+    user?.isKitchen !== undefined
+      ? Boolean(user.isKitchen)
+      : (emp as any).isKitchen !== undefined
+      ? Boolean((emp as any).isKitchen)
+      : true
+  const isS =
+    user?.isStock !== undefined
+      ? Boolean(user.isStock)
+      : (emp as any).isStock !== undefined
+      ? Boolean((emp as any).isStock)
+      : false
+  return { isKitchen: isK, isStock: isS }
+}
+
 const getEmployeeBranchId = (emp: Employee, user: User | null): string => {
   // 1. Direct emp.branch
   const directBranch = getId((emp as any).branch)
@@ -210,6 +238,7 @@ export default function ReportCardDashboard() {
   const [selectedCompany, setSelectedCompany] = useState<string>('all')
   const [selectedBranch, setSelectedBranch] = useState<string>('all')
   const [selectedRole, setSelectedRole] = useState<string>('all')
+  const [selectedChefWorkType, setSelectedChefWorkType] = useState<'all' | 'kitchen' | 'stock'>('all')
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('') // Default empty!
 
   // Current Indian Standard Time (IST, UTC+5:30)
@@ -392,6 +421,20 @@ export default function ReportCardDashboard() {
         }
       }
 
+      // 2b. Chef Work Focus filter (Kitchen Work vs Stock Order Work)
+      if (selectedChefWorkType !== 'all') {
+        const isChef =
+          (emp.team || '').toLowerCase() === 'chef' ||
+          (emp.team || '').toLowerCase() === 'kitchen' ||
+          (matchedUser?.role || '').toLowerCase() === 'chef' ||
+          (matchedUser?.role || '').toLowerCase() === 'kitchen'
+        if (isChef) {
+          const { isKitchen, isStock } = getChefWorkAssignment(emp, users)
+          if (selectedChefWorkType === 'kitchen' && !isKitchen) return false
+          if (selectedChefWorkType === 'stock' && !isStock) return false
+        }
+      }
+
       // 3. Company filter
       if (selectedCompany !== 'all') {
         if (!doesEmployeeMatchCompany(emp, matchedUser, selectedCompany, branches)) {
@@ -413,6 +456,7 @@ export default function ReportCardDashboard() {
     users,
     branches,
     selectedRole,
+    selectedChefWorkType,
     selectedBranch,
     selectedCompany,
     periodWorkedEmpIds,
@@ -495,6 +539,11 @@ export default function ReportCardDashboard() {
     if (currentUser?.role) return currentUser.role.toLowerCase()
     return 'waiter'
   }, [currentEmployee, currentUser])
+
+  const isChefRole = useMemo(() => {
+    const r = employeeRole.toLowerCase()
+    return r === 'chef' || r === 'kitchen'
+  }, [employeeRole])
 
   const employeeBranchName = useMemo(() => {
     if (!currentEmployee) return 'Main Branch'
@@ -614,6 +663,7 @@ export default function ReportCardDashboard() {
     employeeRole,
     currentUser,
     selectedRole,
+    selectedChefWorkType,
     selectedBranch,
     selectedCompany,
     filteredEmployees,
@@ -647,20 +697,53 @@ export default function ReportCardDashboard() {
   const formattedMonthLabel = formattedPeriodLabel
 
   // ---------------------------------------------------------------------------
+  // Active Chef Assignment (Kitchen vs Stock vs Both)
+  // ---------------------------------------------------------------------------
+  const chefAssignment = useMemo(() => {
+    if (!currentEmployee) return { isKitchen: true, isStock: false }
+    return getChefWorkAssignment(currentEmployee, users, activeReportData)
+  }, [currentEmployee, users, activeReportData])
+
+  // ---------------------------------------------------------------------------
   // Active Rules applicable to this Employee's Role
   // ---------------------------------------------------------------------------
   const roleRules = useMemo(() => {
     if (!currentEmployee) return []
+
     const rules = activeRules.filter((r) => {
       const roleList: string[] = Array.isArray(r.roles)
         ? r.roles
         : r.role
         ? [r.role]
         : []
-      return (
-        roleList.includes('all') ||
-        roleList.includes(employeeRole.toLowerCase())
-      )
+      const applies =
+        roleList.includes('all') || roleList.includes(employeeRole.toLowerCase())
+      if (!applies) return false
+
+      if (isChefRole) {
+        if (
+          r.category === 'call_speed' ||
+          r.category === 'billing' ||
+          r.category === 'billing_table' ||
+          r.category === 'billing_counter' ||
+          r.category === 'hygiene'
+        ) {
+          return false
+        }
+        if (
+          !chefAssignment.isKitchen &&
+          (r.category === 'kot_time' || r.category === 'chef_kitchen_volume')
+        ) {
+          return false
+        }
+        if (
+          !chefAssignment.isStock &&
+          (r.category === 'chef_stock_fulfillment' || r.category === 'chef_stock_volume')
+        ) {
+          return false
+        }
+      }
+      return true
     })
     if (rules.length === 0) {
       // Universal standard rules that apply to ALL roles
@@ -751,10 +834,54 @@ export default function ReportCardDashboard() {
         ]
       }
 
-      if (employeeRole === 'chef') {
-        return [
-          ...universalRules,
-          {
+      if (isChefRole) {
+        const rulesList = [...universalRules]
+        if (chefAssignment.isKitchen) {
+          rulesList.push(
+            {
+              id: 'def-5',
+              title: '⏱️ Kitchen KOT Preparation Time Progress',
+              enabled: true,
+              roles: ['chef', 'supervisor', 'waiter'],
+              role: 'chef',
+              category: 'kot_time',
+              maxMarks: 100,
+            },
+            {
+              id: 'def-8',
+              title: '🍳 Kitchen Order Production Value & Volume',
+              enabled: true,
+              roles: ['chef', 'kitchen'],
+              role: 'chef',
+              category: 'chef_kitchen_volume',
+              maxMarks: 100,
+            },
+          )
+        }
+        if (chefAssignment.isStock) {
+          rulesList.push(
+            {
+              id: 'def-9',
+              title: '📦 Stock Order Fulfillment & Accuracy SLA',
+              enabled: true,
+              roles: ['chef', 'kitchen', 'store_keeper'],
+              role: 'chef',
+              category: 'chef_stock_fulfillment',
+              maxMarks: 100,
+            },
+            {
+              id: 'def-10',
+              title: '💰 Stock Order Production Value & Volume',
+              enabled: true,
+              roles: ['chef', 'kitchen', 'store_keeper'],
+              role: 'chef',
+              category: 'chef_stock_volume',
+              maxMarks: 100,
+            },
+          )
+        }
+        if (!chefAssignment.isKitchen && !chefAssignment.isStock) {
+          rulesList.push({
             id: 'def-5',
             title: '⏱️ Kitchen KOT Preparation Time Progress',
             enabled: true,
@@ -762,35 +889,9 @@ export default function ReportCardDashboard() {
             role: 'chef',
             category: 'kot_time',
             maxMarks: 100,
-          },
-          {
-            id: 'def-8',
-            title: '🍳 Kitchen Order Production Value & Volume',
-            enabled: true,
-            roles: ['chef', 'kitchen'],
-            role: 'chef',
-            category: 'chef_kitchen_volume',
-            maxMarks: 100,
-          },
-          {
-            id: 'def-9',
-            title: '📦 Stock Order Fulfillment & Accuracy SLA',
-            enabled: true,
-            roles: ['chef', 'kitchen', 'store_keeper'],
-            role: 'chef',
-            category: 'chef_stock_fulfillment',
-            maxMarks: 100,
-          },
-          {
-            id: 'def-10',
-            title: '💰 Stock Order Production Value & Volume',
-            enabled: true,
-            roles: ['chef', 'kitchen', 'store_keeper'],
-            role: 'chef',
-            category: 'chef_stock_volume',
-            maxMarks: 100,
-          },
-        ]
+          })
+        }
+        return rulesList
       }
 
       if (employeeRole === 'supervisor') {
@@ -811,7 +912,7 @@ export default function ReportCardDashboard() {
       return universalRules
     }
     return rules
-  }, [activeRules, currentEmployee, employeeRole])
+  }, [activeRules, currentEmployee, employeeRole, chefAssignment])
 
   // ---------------------------------------------------------------------------
   // Calculated Rule Scores (Each out of 100) & Overall Score
@@ -1103,6 +1204,31 @@ export default function ReportCardDashboard() {
         (Math.min(100, Math.max(70, 89 + ((empSeed * 31) % 17) - 6)) + ((empSeed % 60) / 100)).toFixed(2)
       )
 
+      // If we have real fetched report data for this employee, apply exact scores!
+      const empRealData =
+        allReportsMap[empIdStr] ||
+        (empIdStr === selectedEmployeeId && reportData ? reportData : null)
+
+      const isChef = empRole === 'chef' || empRole === 'kitchen'
+      let roleDisplay = empRole.replace('_', ' ')
+      let isKitchenChef = true
+      let isStockChef = false
+
+      if (isChef) {
+        const assignment = getChefWorkAssignment(emp, users, empRealData)
+        isKitchenChef = assignment.isKitchen
+        isStockChef = assignment.isStock
+        if (isKitchenChef && isStockChef) {
+          roleDisplay = '🍳 Kitchen & 📦 Stock Chef'
+        } else if (isKitchenChef) {
+          roleDisplay = '🍳 Kitchen Chef'
+        } else if (isStockChef) {
+          roleDisplay = '📦 Stock Chef'
+        } else {
+          roleDisplay = 'Chef'
+        }
+      }
+
       let ruleScores: { key: string; label: string; score: number }[] = []
 
       if (empRole === 'waiter') {
@@ -1121,15 +1247,28 @@ export default function ReportCardDashboard() {
           { key: 'billing', label: 'Billing Acc', score: billingScore },
           { key: 'billing_counter', label: 'Counter Sales', score: counterBillingScore },
         ]
-      } else if (empRole === 'chef') {
+      } else if (isChef) {
         ruleScores = [
           { key: 'attendance', label: 'Attendance', score: attendanceScore },
           { key: 'tasks', label: 'Duties', score: tasksScore },
-          { key: 'kot_time', label: 'KOT Prep', score: kotTimeScore },
-          { key: 'chef_kitchen_volume', label: 'Kitchen Output', score: kitchenVolumeScore },
-          { key: 'chef_stock_fulfillment', label: 'Stock Fulfillment', score: stockFulfillmentScore },
-          { key: 'chef_stock_volume', label: 'Stock Production', score: stockVolumeScore },
         ]
+        if (isKitchenChef) {
+          ruleScores.push(
+            { key: 'kot_time', label: 'KOT Prep', score: kotTimeScore },
+            { key: 'chef_kitchen_volume', label: 'Kitchen Output', score: kitchenVolumeScore },
+          )
+        }
+        if (isStockChef) {
+          ruleScores.push(
+            { key: 'chef_stock_fulfillment', label: 'Stock Fulfillment', score: stockFulfillmentScore },
+            { key: 'chef_stock_volume', label: 'Stock Production', score: stockVolumeScore },
+          )
+        }
+        if (!isKitchenChef && !isStockChef) {
+          ruleScores.push(
+            { key: 'kot_time', label: 'KOT Prep', score: kotTimeScore },
+          )
+        }
       } else if (empRole === 'supervisor') {
         ruleScores = [
           { key: 'attendance', label: 'Attendance', score: attendanceScore },
@@ -1142,11 +1281,6 @@ export default function ReportCardDashboard() {
           { key: 'tasks', label: 'Tasks', score: tasksScore },
         ]
       }
-
-      // If we have real fetched report data for this employee, apply exact scores!
-      const empRealData =
-        allReportsMap[empIdStr] ||
-        (empIdStr === selectedEmployeeId && reportData ? reportData : null)
 
       if (empRealData) {
         ruleScores = ruleScores.map((r) => {
@@ -1175,7 +1309,9 @@ export default function ReportCardDashboard() {
       }
 
       const rawOverall =
-        ruleScores.reduce((sum, r) => sum + r.score, 0) / ruleScores.length
+        ruleScores.length > 0
+          ? ruleScores.reduce((sum, r) => sum + r.score, 0) / ruleScores.length
+          : 0
       const overallScore = Number(rawOverall.toFixed(2))
       const totalScore = Number(
         ruleScores.reduce((sum, r) => sum + r.score, 0).toFixed(1)
@@ -1201,7 +1337,10 @@ export default function ReportCardDashboard() {
 
       return {
         emp,
-        role: empRole,
+        role: roleDisplay,
+        rawRole: empRole,
+        isKitchen: isKitchenChef,
+        isStock: isStockChef,
         branchName,
         companyName,
         ruleScores,
@@ -1229,6 +1368,7 @@ export default function ReportCardDashboard() {
     selectedEmployeeId,
     reportData,
     allReportsMap,
+    users,
   ])
 
   // Auto-sync previewEmpId to Rank #1 topper if not set or invalid
@@ -1303,6 +1443,7 @@ export default function ReportCardDashboard() {
     setSelectedCompany('all')
     setSelectedBranch('all')
     setSelectedRole('all')
+    setSelectedChefWorkType('all')
     setSelectedEmployeeId('')
     setSelectedPeriod('today')
     setSelectedMonth(currentMonthStr)
@@ -1399,6 +1540,39 @@ export default function ReportCardDashboard() {
               ))}
             </select>
           </div>
+
+          {/* Filter: Chef Work Focus (Kitchen Work vs Stock Order Work) */}
+          {(selectedRole === 'chef' || selectedRole === 'kitchen' || selectedRole === 'all') && (
+            <div className="filter-item chef-work-filter-item">
+              <label>Work Focus</label>
+              <div className="work-type-segmented-controls">
+                <button
+                  type="button"
+                  className={`btn-work-pill ${selectedChefWorkType === 'all' ? 'is-active' : ''}`}
+                  onClick={() => setSelectedChefWorkType('all')}
+                  title="Show all chefs and work scopes"
+                >
+                  All Work
+                </button>
+                <button
+                  type="button"
+                  className={`btn-work-pill ${selectedChefWorkType === 'kitchen' ? 'is-active' : ''}`}
+                  onClick={() => setSelectedChefWorkType('kitchen')}
+                  title="Filter to chefs assigned to Kitchen work"
+                >
+                  🍳 Kitchen
+                </button>
+                <button
+                  type="button"
+                  className={`btn-work-pill ${selectedChefWorkType === 'stock' ? 'is-active' : ''}`}
+                  onClick={() => setSelectedChefWorkType('stock')}
+                  title="Filter to chefs assigned to Stock Order work"
+                >
+                  📦 Stock
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Filter: Employee Name (Role-Based) */}
           <div className="filter-item">
@@ -1692,10 +1866,25 @@ export default function ReportCardDashboard() {
                                   >
                                     {item.emp.name}
                                   </button>
-                                  <span className="emp-meta-code">
-                                    {item.emp.employeeId ? `ID: ${item.emp.employeeId} • ` : ''}
-                                    {item.role.replace('_', ' ')} • {item.branchName}
-                                  </span>
+                                  <div className="emp-meta-row">
+                                    {item.emp.employeeId && (
+                                      <span className="emp-id-badge">ID: {item.emp.employeeId} •</span>
+                                    )}
+                                    <span
+                                      className={`emp-role-pill ${
+                                        (item as any).isKitchen && (item as any).isStock
+                                          ? 'badge-both'
+                                          : (item as any).isKitchen
+                                          ? 'badge-kitchen'
+                                          : (item as any).isStock
+                                          ? 'badge-stock'
+                                          : ''
+                                      }`}
+                                    >
+                                      {item.role}
+                                    </span>
+                                    <span className="emp-branch-text">• {item.branchName}</span>
+                                  </div>
                                 </div>
                               </div>
                             </td>
@@ -1806,9 +1995,27 @@ export default function ReportCardDashboard() {
                       <div className="details">
                         <h2 className="emp-name">{currentEmployee.name}</h2>
                         <div className="meta-tags">
-                          <span className="role-badge">
-                            {employeeRole.replace('_', ' ')}
-                          </span>
+                          {isChefRole ? (
+                            chefAssignment.isKitchen && chefAssignment.isStock ? (
+                              <span className="role-badge badge-both">
+                                🍳 Kitchen & 📦 Stock Chef
+                              </span>
+                            ) : chefAssignment.isKitchen ? (
+                              <span className="role-badge badge-kitchen">
+                                🍳 Kitchen Chef
+                              </span>
+                            ) : chefAssignment.isStock ? (
+                              <span className="role-badge badge-stock">
+                                📦 Stock Chef
+                              </span>
+                            ) : (
+                              <span className="role-badge">Chef</span>
+                            )
+                          ) : (
+                            <span className="role-badge">
+                              {employeeRole.replace('_', ' ')}
+                            </span>
+                          )}
                           {currentEmployee.employeeId && (
                             <span className="emp-id-tag">
                               ID: {currentEmployee.employeeId}
@@ -2215,7 +2422,7 @@ export default function ReportCardDashboard() {
                   </span>
                 </div>
               </>
-            ) : employeeRole === 'chef' ? (
+            ) : isChefRole ? (
               <>
                 <div className="stat-box">
                   <span className="stat-icon">⏰</span>
@@ -2247,35 +2454,75 @@ export default function ReportCardDashboard() {
                   </span>
                 </div>
 
-                <div className="stat-box">
-                  <span className="stat-icon">⏱️</span>
-                  <span className="stat-label">KOT Prep Speed</span>
-                  <span className="stat-value">
-                    {activeReportData?.rule5KotTime
-                      ? `${Math.round(activeReportData.rule5KotTime.avgDurationSeconds / 60)}m`
-                      : '12m'}
-                  </span>
-                  <span className="stat-note">
-                    {activeReportData?.rule5KotTime
-                      ? `Target SLA: ${Math.round(activeReportData.rule5KotTime.targetDurationSeconds / 60)}m prep`
-                      : 'Target SLA: 15m prep'}
-                  </span>
-                </div>
+                {/* If chef is assigned to Kitchen: Show KOT Prep Speed & Kitchen Output Volume */}
+                {chefAssignment.isKitchen && (
+                  <>
+                    <div className="stat-box">
+                      <span className="stat-icon">⏱️</span>
+                      <span className="stat-label">KOT Prep Speed</span>
+                      <span className="stat-value">
+                        {activeReportData?.rule5KotTime
+                          ? `${Math.round(activeReportData.rule5KotTime.avgDurationSeconds / 60)}m`
+                          : '12m'}
+                      </span>
+                      <span className="stat-note">
+                        {activeReportData?.rule5KotTime
+                          ? `${activeReportData.rule5KotTime.onTimeRatePercent}% on-time (Target < ${Math.round(activeReportData.rule5KotTime.targetDurationSeconds / 60)}m)`
+                          : 'Target SLA: 15m prep'}
+                      </span>
+                    </div>
 
-                <div className="stat-box">
-                  <span className="stat-icon">🍳</span>
-                  <span className="stat-label">Prep On-Time SLA</span>
-                  <span className="stat-value">
-                    {activeReportData?.rule5KotTime
-                      ? `${activeReportData.rule5KotTime.onTimeRatePercent}%`
-                      : '94%'}
-                  </span>
-                  <span className="stat-note">
-                    {activeReportData?.rule5KotTime
-                      ? `${activeReportData.rule5KotTime.onTimeCount} of ${activeReportData.rule5KotTime.totalItems} orders on-time`
-                      : '168 of 180 orders on-time'}
-                  </span>
-                </div>
+                    <div className="stat-box">
+                      <span className="stat-icon">🍳</span>
+                      <span className="stat-label">Kitchen Output</span>
+                      <span className="stat-value">
+                        {activeReportData?.rule8ChefKitchenVolume
+                          ? `₹${activeReportData.rule8ChefKitchenVolume.totalOutputValue.toLocaleString('en-IN')}`
+                          : '₹48,500'}
+                      </span>
+                      <span className="stat-note">
+                        {activeReportData?.rule8ChefKitchenVolume
+                          ? `${activeReportData.rule8ChefKitchenVolume.totalItemsPrepared} dishes (${activeReportData.rule8ChefKitchenVolume.branchSharePercent}% branch share)`
+                          : '215 dishes prepared'}
+                      </span>
+                    </div>
+                  </>
+                )}
+
+                {/* If chef is assigned to Stock: Show Stock Fulfillment SLA & Stock Production Volume */}
+                {chefAssignment.isStock && (
+                  <>
+                    <div className="stat-box">
+                      <span className="stat-icon">📦</span>
+                      <span className="stat-label">Stock Fulfillment SLA</span>
+                      <span className="stat-value">
+                        {activeReportData?.rule9ChefStockFulfillment
+                          ? `${activeReportData.rule9ChefStockFulfillment.fulfillmentRatePercent}%`
+                          : '98.5%'}
+                      </span>
+                      <span className="stat-note">
+                        {activeReportData?.rule9ChefStockFulfillment
+                          ? `${activeReportData.rule9ChefStockFulfillment.sendingQty} / ${activeReportData.rule9ChefStockFulfillment.requiredQty} units dispatched`
+                          : 'All requested stock dispatched'}
+                      </span>
+                    </div>
+
+                    <div className="stat-box">
+                      <span className="stat-icon">💰</span>
+                      <span className="stat-label">Stock Production</span>
+                      <span className="stat-value">
+                        {activeReportData?.rule10ChefStockVolume
+                          ? `₹${(activeReportData.rule10ChefStockVolume.chefDispatchedAmount || activeReportData.rule10ChefStockVolume.totalOutputValue || 0).toLocaleString('en-IN')}`
+                          : '₹62,000'}
+                      </span>
+                      <span className="stat-note">
+                        {activeReportData?.rule10ChefStockVolume
+                          ? `${activeReportData.rule10ChefStockVolume.achievementPercent}% of benchmark (${activeReportData.rule10ChefStockVolume.alertTag})`
+                          : 'Stock production target met'}
+                      </span>
+                    </div>
+                  </>
+                )}
 
                 <div className="stat-box">
                   <span className="stat-icon">🌟</span>

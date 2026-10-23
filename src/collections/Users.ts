@@ -116,8 +116,8 @@ export const Users: CollectionConfig = {
           type: 'checkbox',
           defaultValue: false,
           access: {
-            create: ({ req }) => req.user?.role === 'superadmin',
-            update: ({ req }) => req.user?.role === 'superadmin',
+            create: ({ req }) => canManageChefDetails(req.user?.role),
+            update: ({ req }) => canManageChefDetails(req.user?.role),
           },
         },
         {
@@ -126,8 +126,8 @@ export const Users: CollectionConfig = {
           type: 'checkbox',
           defaultValue: false,
           access: {
-            create: ({ req }) => req.user?.role === 'superadmin',
-            update: ({ req }) => req.user?.role === 'superadmin',
+            create: ({ req }) => canManageChefDetails(req.user?.role),
+            update: ({ req }) => canManageChefDetails(req.user?.role),
           },
         },
       ],
@@ -217,7 +217,7 @@ export const Users: CollectionConfig = {
       fields: [
         {
           name: 'categories',
-          label: 'Categories',
+          label: 'Kitchen Categories',
           type: 'relationship',
           relationTo: 'categories',
           hasMany: true,
@@ -226,6 +226,7 @@ export const Users: CollectionConfig = {
             width: '100%',
             condition: ({ role, isKitchen }) =>
               Boolean(isKitchen) || ['kitchen', 'chef'].includes(role),
+            description: 'Categories assigned to this chef for food preparation in the kitchen.',
           },
           filterOptions: async ({ data, siblingData, id, req }): Promise<Where | boolean> => {
             if (!req?.payload) return true
@@ -251,7 +252,7 @@ export const Users: CollectionConfig = {
 
             // Only show categories that belong to the selected kitchen(s)
             if (kitchenIds.length === 0) {
-              return { id: { in: ['000000000000000000000000'] } }
+              return { isKitchen: { equals: true } }
             }
 
             try {
@@ -275,11 +276,42 @@ export const Users: CollectionConfig = {
               if (uniqueCategoryIds.length > 0) {
                 return { id: { in: uniqueCategoryIds } }
               } else {
-                return { id: { in: ['000000000000000000000000'] } }
+                return { isKitchen: { equals: true } }
               }
             } catch (e) {
               console.error('Error fetching kitchen categories for filterOptions:', e)
-              return { id: { in: ['000000000000000000000000'] } }
+              return { isKitchen: { equals: true } }
+            }
+          },
+          access: {
+            create: ({ req }) => canManageChefDetails(req.user?.role),
+            update: ({ req }) => canManageChefDetails(req.user?.role),
+          },
+        },
+      ],
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'stockCategories',
+          label: 'Stock Order Categories',
+          type: 'relationship',
+          relationTo: 'categories',
+          hasMany: true,
+          required: false,
+          admin: {
+            width: '100%',
+            condition: ({ role, isStock }) =>
+              Boolean(isStock) || (role === 'chef' && Boolean(isStock)),
+            description:
+              'Categories assigned to this chef for stock order production & fulfillment.',
+          },
+          filterOptions: (): Where | boolean => {
+            return {
+              isStock: {
+                equals: true,
+              },
             }
           },
           access: {
@@ -482,7 +514,7 @@ export const Users: CollectionConfig = {
     {
       path: '/login-phone',
       method: 'post',
-      handler: async (req, res, next) => {
+      handler: async (req: any, res: any, next: any): Promise<any> => {
         try {
           const body = req.body || {}
           const phoneNumber = body.phoneNumber
@@ -1191,8 +1223,10 @@ export const Users: CollectionConfig = {
           company?: unknown
           factory_companies?: unknown[]
           categories?: unknown
+          stockCategories?: unknown
           employee?: unknown
           isKitchen?: boolean | null
+          isStock?: boolean | null
         }
 
         const isPasswordChange =
@@ -1229,7 +1263,15 @@ export const Users: CollectionConfig = {
               (originalDoc as { branch?: unknown } | undefined)?.branch,
             )
             const isEditingSelf = req.user.id === (originalDoc as { id?: string } | undefined)?.id
-            const protectedChefFields = ['branch', 'kitchen', 'categories', 'employee']
+            const protectedChefFields = [
+              'branch',
+              'kitchen',
+              'categories',
+              'stockCategories',
+              'isKitchen',
+              'isStock',
+              'employee',
+            ]
             const isUpdatingChefDetails = protectedChefFields.some((field) =>
               Object.prototype.hasOwnProperty.call(nextData, field),
             )
@@ -1297,6 +1339,11 @@ export const Users: CollectionConfig = {
             (operation === 'update'
               ? (originalDoc as { categories?: unknown } | undefined)?.categories
               : undefined)
+          const resolvedStockCategories =
+            nextData.stockCategories ??
+            (operation === 'update'
+              ? (originalDoc as { stockCategories?: unknown } | undefined)?.stockCategories
+              : undefined)
           const resolvedKitchenFlag =
             typeof nextData.isKitchen === 'boolean'
               ? nextData.isKitchen
@@ -1319,6 +1366,11 @@ export const Users: CollectionConfig = {
             const categoryIds = Array.from(new Set(getRelationshipIDs(resolvedCategories)))
             if (nextData.categories !== undefined) {
               nextData.categories = categoryIds
+            }
+
+            const stockCategoryIds = Array.from(new Set(getRelationshipIDs(resolvedStockCategories)))
+            if (nextData.stockCategories !== undefined) {
+              nextData.stockCategories = stockCategoryIds
             }
 
             if (kitchenIds.length > 0) {
@@ -1392,8 +1444,50 @@ export const Users: CollectionConfig = {
                   // Log or ignore errors when updating old chefs
                 }
               }
-            } else if (categoryIds.length > 0) {
+            } else if (categoryIds.length > 0 && resolvedKitchenFlag) {
               throw new Error('Kitchen is required before assigning chef categories')
+            }
+
+            // Auto-reassign exclusive stock categories across chefs
+            if (stockCategoryIds.length > 0) {
+              const currentUserId =
+                getRelationshipID((originalDoc as { id?: unknown } | undefined)?.id) ||
+                getRelationshipID((nextData as { id?: unknown })?.id)
+              try {
+                const otherChefs = await req.payload.find({
+                  collection: 'users',
+                  where: {
+                    and: [
+                      { role: { equals: 'chef' } },
+                      ...(currentUserId ? [{ id: { not_equals: currentUserId } }] : []),
+                      { stockCategories: { in: stockCategoryIds } },
+                    ],
+                  },
+                  depth: 0,
+                  limit: 100,
+                  pagination: false,
+                  overrideAccess: true,
+                })
+
+                for (const otherChef of otherChefs.docs) {
+                  const otherStockCats = getRelationshipIDs((otherChef as any).stockCategories)
+                  const updatedOtherStockCats = otherStockCats.filter(
+                    (id) => !stockCategoryIds.includes(id),
+                  )
+                  if (updatedOtherStockCats.length !== otherStockCats.length) {
+                    await req.payload.update({
+                      collection: 'users',
+                      id: otherChef.id,
+                      data: {
+                        stockCategories: updatedOtherStockCats,
+                      },
+                      overrideAccess: true,
+                    })
+                  }
+                }
+              } catch (e) {
+                // Log or ignore errors
+              }
             }
           }
 
@@ -1507,6 +1601,103 @@ export const Users: CollectionConfig = {
               }
             } catch (err) {
               console.error('Error synchronizing chef categories in afterChange:', err)
+            }
+          }
+
+          const assignedStockCategoryIds = getRelationshipIDs((doc as any).stockCategories)
+          if (assignedStockCategoryIds.length > 0) {
+            try {
+              const conflictingChefsResult = await req.payload.find({
+                collection: 'users',
+                where: {
+                  and: [
+                    { id: { not_equals: currentChefId } },
+                    { role: { equals: 'chef' } },
+                    { stockCategories: { in: assignedStockCategoryIds } },
+                  ],
+                },
+                depth: 0,
+                limit: 100,
+                pagination: false,
+                overrideAccess: true,
+              })
+
+              for (const otherChef of conflictingChefsResult.docs) {
+                const otherStockCatIds = getRelationshipIDs((otherChef as any).stockCategories)
+                const updatedOtherStockCatIds = otherStockCatIds.filter(
+                  (cId) => !assignedStockCategoryIds.includes(cId),
+                )
+
+                if (updatedOtherStockCatIds.length !== otherStockCatIds.length) {
+                  await req.payload.update({
+                    collection: 'users',
+                    id: otherChef.id,
+                    data: {
+                      stockCategories: updatedOtherStockCatIds,
+                    },
+                    context: {
+                      ...(req.context || {}),
+                      skipChefCategorySync: true,
+                    },
+                    overrideAccess: true,
+                  })
+                }
+              }
+            } catch (err) {
+              console.error('Error synchronizing chef stock categories in afterChange:', err)
+            }
+          }
+
+          // Sync chef configuration into chef-settings global
+          if (!req.context?.fromChefSettingsSync) {
+            try {
+              const chefSettings = await req.payload.findGlobal({
+                slug: 'chef-settings',
+                depth: 0,
+                overrideAccess: true,
+              })
+
+              const assignments = Array.isArray((chefSettings as any)?.chefAssignments)
+                ? [...(chefSettings as any).chefAssignments]
+                : []
+
+              const isKitchen = Boolean(doc.isKitchen)
+              const isStock = Boolean(doc.isStock)
+              const assignmentType = isKitchen && isStock ? 'both' : isStock ? 'stock' : 'kitchen'
+
+              const updatedRow = {
+                chef: currentChefId,
+                assignmentType,
+                status: doc.status === 'inactive' || doc.loginBlocked ? 'inactive' : 'active',
+                branch: getRelationshipID(doc.branch),
+                kitchenBranches: getRelationshipIDs(doc.kitchenBranches),
+                kitchen: getRelationshipIDs(doc.kitchen),
+                kitchenCategories: getRelationshipIDs(doc.categories),
+                stockCategories: getRelationshipIDs((doc as any).stockCategories),
+              }
+
+              const existingIndex = assignments.findIndex(
+                (a: any) => getRelationshipID(a?.chef) === currentChefId,
+              )
+              if (existingIndex >= 0) {
+                assignments[existingIndex] = updatedRow
+              } else {
+                assignments.push(updatedRow)
+              }
+
+              await req.payload.updateGlobal({
+                slug: 'chef-settings',
+                data: {
+                  chefAssignments: assignments,
+                },
+                context: {
+                  ...(req.context || {}),
+                  fromChefUserSync: true,
+                },
+                overrideAccess: true,
+              })
+            } catch (err) {
+              console.error('[Users afterChange] Error updating chef-settings global:', err)
             }
           }
         }

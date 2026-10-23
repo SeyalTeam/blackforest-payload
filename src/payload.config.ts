@@ -170,6 +170,7 @@ import { toggleDailyTaskHandler } from './endpoints/toggleDailyTask'
 import { startWorkHandler } from './endpoints/startWork'
 import { completeWorkHandler } from './endpoints/completeWork'
 import { KotTimeGlobal } from './globals/KotTime'
+import { ChefSettingsGlobal } from './globals/ChefSettings'
 import { getKotTimeHandler } from './endpoints/getKotTime'
 import { getReportCardDataHandler } from './endpoints/getReportCardData'
 
@@ -1061,6 +1062,7 @@ export default buildConfig({
     MenuSettingsGlobal,
     MessagesChatGlobal,
     KotTimeGlobal,
+    ChefSettingsGlobal,
   ].map(wrapGlobal),
 
   // Collections

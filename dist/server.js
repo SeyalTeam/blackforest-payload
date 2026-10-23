@@ -1827,8 +1827,8 @@ var init_Users = __esm({
               type: "checkbox",
               defaultValue: false,
               access: {
-                create: ({ req }) => req.user?.role === "superadmin",
-                update: ({ req }) => req.user?.role === "superadmin"
+                create: ({ req }) => canManageChefDetails(req.user?.role),
+                update: ({ req }) => canManageChefDetails(req.user?.role)
               }
             },
             {
@@ -1837,8 +1837,8 @@ var init_Users = __esm({
               type: "checkbox",
               defaultValue: false,
               access: {
-                create: ({ req }) => req.user?.role === "superadmin",
-                update: ({ req }) => req.user?.role === "superadmin"
+                create: ({ req }) => canManageChefDetails(req.user?.role),
+                update: ({ req }) => canManageChefDetails(req.user?.role)
               }
             }
           ]
@@ -1926,14 +1926,15 @@ var init_Users = __esm({
           fields: [
             {
               name: "categories",
-              label: "Categories",
+              label: "Kitchen Categories",
               type: "relationship",
               relationTo: "categories",
               hasMany: true,
               required: false,
               admin: {
                 width: "100%",
-                condition: ({ role, isKitchen }) => Boolean(isKitchen) || ["kitchen", "chef"].includes(role)
+                condition: ({ role, isKitchen }) => Boolean(isKitchen) || ["kitchen", "chef"].includes(role),
+                description: "Categories assigned to this chef for food preparation in the kitchen."
               },
               filterOptions: async ({ data, siblingData, id, req }) => {
                 if (!req?.payload) return true;
@@ -1956,7 +1957,7 @@ var init_Users = __esm({
                   }
                 }
                 if (kitchenIds.length === 0) {
-                  return { id: { in: ["000000000000000000000000"] } };
+                  return { isKitchen: { equals: true } };
                 }
                 try {
                   const kitchensResult = await req.payload.find({
@@ -1976,12 +1977,41 @@ var init_Users = __esm({
                   if (uniqueCategoryIds.length > 0) {
                     return { id: { in: uniqueCategoryIds } };
                   } else {
-                    return { id: { in: ["000000000000000000000000"] } };
+                    return { isKitchen: { equals: true } };
                   }
                 } catch (e) {
                   console.error("Error fetching kitchen categories for filterOptions:", e);
-                  return { id: { in: ["000000000000000000000000"] } };
+                  return { isKitchen: { equals: true } };
                 }
+              },
+              access: {
+                create: ({ req }) => canManageChefDetails(req.user?.role),
+                update: ({ req }) => canManageChefDetails(req.user?.role)
+              }
+            }
+          ]
+        },
+        {
+          type: "row",
+          fields: [
+            {
+              name: "stockCategories",
+              label: "Stock Order Categories",
+              type: "relationship",
+              relationTo: "categories",
+              hasMany: true,
+              required: false,
+              admin: {
+                width: "100%",
+                condition: ({ role, isStock }) => Boolean(isStock) || role === "chef" && Boolean(isStock),
+                description: "Categories assigned to this chef for stock order production & fulfillment."
+              },
+              filterOptions: () => {
+                return {
+                  isStock: {
+                    equals: true
+                  }
+                };
               },
               access: {
                 create: ({ req }) => canManageChefDetails(req.user?.role),
@@ -2433,7 +2463,7 @@ var init_Users = __esm({
               throw new Error("Login blocked by superadmin. Please contact administrator.");
             }
             if (user.role === "superadmin" || user.role === "watcher") return;
-            const getRelationshipID14 = (value) => {
+            const getRelationshipID15 = (value) => {
               if (!value) return null;
               if (typeof value === "string") return value;
               if (typeof value === "object" && value !== null && "id" in value) {
@@ -2503,7 +2533,7 @@ var init_Users = __esm({
               user.branch = branchID;
               setResolvedLoginBranchContext(branchID);
             };
-            const existingUserBranchID = getRelationshipID14(user.branch);
+            const existingUserBranchID = getRelationshipID15(user.branch);
             if (existingUserBranchID) {
               setResolvedLoginBranchContext(existingUserBranchID);
             }
@@ -2515,7 +2545,7 @@ var init_Users = __esm({
                     throw new Error("Invalid Branch PIN.");
                   }
                 } else {
-                  const userBranchID = getRelationshipID14(user.branch);
+                  const userBranchID = getRelationshipID15(user.branch);
                   const enforceBranchMatch = strictBranchAssignmentRoles.includes(user.role);
                   if (enforceBranchMatch && userBranchID && userBranchID !== matchedBranch.id) {
                     throw new Error("Branch PIN does not match your assigned branch.");
@@ -2691,7 +2721,7 @@ var init_Users = __esm({
               try {
                 const matchedBranch = await resolveBranchByPin();
                 if (matchedBranch) {
-                  const userBranchID = getRelationshipID14(user.branch);
+                  const userBranchID = getRelationshipID15(user.branch);
                   const enforceBranchMatch = strictBranchAssignmentRoles.includes(user.role);
                   if (enforceBranchMatch && userBranchID && userBranchID !== matchedBranch.id) {
                     console.warn(
@@ -2749,7 +2779,15 @@ var init_Users = __esm({
                   originalDoc?.branch
                 );
                 const isEditingSelf = req.user.id === originalDoc?.id;
-                const protectedChefFields = ["branch", "kitchen", "categories", "employee"];
+                const protectedChefFields = [
+                  "branch",
+                  "kitchen",
+                  "categories",
+                  "stockCategories",
+                  "isKitchen",
+                  "isStock",
+                  "employee"
+                ];
                 const isUpdatingChefDetails = protectedChefFields.some(
                   (field) => Object.prototype.hasOwnProperty.call(nextData, field)
                 );
@@ -2785,6 +2823,7 @@ var init_Users = __esm({
               const resolvedKitchenBranches = nextData.kitchenBranches ?? (operation === "update" ? originalDoc?.kitchenBranches : void 0);
               const resolvedKitchen = nextData.kitchen ?? (operation === "update" ? originalDoc?.kitchen : void 0);
               const resolvedCategories = nextData.categories ?? (operation === "update" ? originalDoc?.categories : void 0);
+              const resolvedStockCategories = nextData.stockCategories ?? (operation === "update" ? originalDoc?.stockCategories : void 0);
               const resolvedKitchenFlag = typeof nextData.isKitchen === "boolean" ? nextData.isKitchen : Boolean(
                 operation === "update" ? originalDoc?.isKitchen : false
               );
@@ -2796,6 +2835,10 @@ var init_Users = __esm({
                 const categoryIds = Array.from(new Set(getRelationshipIDs(resolvedCategories)));
                 if (nextData.categories !== void 0) {
                   nextData.categories = categoryIds;
+                }
+                const stockCategoryIds = Array.from(new Set(getRelationshipIDs(resolvedStockCategories)));
+                if (nextData.stockCategories !== void 0) {
+                  nextData.stockCategories = stockCategoryIds;
                 }
                 if (kitchenIds.length > 0) {
                   const kitchensResult = await req.payload.find({
@@ -2858,8 +2901,44 @@ var init_Users = __esm({
                     } catch (e) {
                     }
                   }
-                } else if (categoryIds.length > 0) {
+                } else if (categoryIds.length > 0 && resolvedKitchenFlag) {
                   throw new Error("Kitchen is required before assigning chef categories");
+                }
+                if (stockCategoryIds.length > 0) {
+                  const currentUserId = getRelationshipID(originalDoc?.id) || getRelationshipID(nextData?.id);
+                  try {
+                    const otherChefs = await req.payload.find({
+                      collection: "users",
+                      where: {
+                        and: [
+                          { role: { equals: "chef" } },
+                          ...currentUserId ? [{ id: { not_equals: currentUserId } }] : [],
+                          { stockCategories: { in: stockCategoryIds } }
+                        ]
+                      },
+                      depth: 0,
+                      limit: 100,
+                      pagination: false,
+                      overrideAccess: true
+                    });
+                    for (const otherChef of otherChefs.docs) {
+                      const otherStockCats = getRelationshipIDs(otherChef.stockCategories);
+                      const updatedOtherStockCats = otherStockCats.filter(
+                        (id) => !stockCategoryIds.includes(id)
+                      );
+                      if (updatedOtherStockCats.length !== otherStockCats.length) {
+                        await req.payload.update({
+                          collection: "users",
+                          id: otherChef.id,
+                          data: {
+                            stockCategories: updatedOtherStockCats
+                          },
+                          overrideAccess: true
+                        });
+                      }
+                    }
+                  } catch (e) {
+                  }
                 }
               }
               if (resolvedKitchenFlag) {
@@ -2936,6 +3015,91 @@ var init_Users = __esm({
                   }
                 } catch (err) {
                   console.error("Error synchronizing chef categories in afterChange:", err);
+                }
+              }
+              const assignedStockCategoryIds = getRelationshipIDs(doc.stockCategories);
+              if (assignedStockCategoryIds.length > 0) {
+                try {
+                  const conflictingChefsResult = await req.payload.find({
+                    collection: "users",
+                    where: {
+                      and: [
+                        { id: { not_equals: currentChefId } },
+                        { role: { equals: "chef" } },
+                        { stockCategories: { in: assignedStockCategoryIds } }
+                      ]
+                    },
+                    depth: 0,
+                    limit: 100,
+                    pagination: false,
+                    overrideAccess: true
+                  });
+                  for (const otherChef of conflictingChefsResult.docs) {
+                    const otherStockCatIds = getRelationshipIDs(otherChef.stockCategories);
+                    const updatedOtherStockCatIds = otherStockCatIds.filter(
+                      (cId) => !assignedStockCategoryIds.includes(cId)
+                    );
+                    if (updatedOtherStockCatIds.length !== otherStockCatIds.length) {
+                      await req.payload.update({
+                        collection: "users",
+                        id: otherChef.id,
+                        data: {
+                          stockCategories: updatedOtherStockCatIds
+                        },
+                        context: {
+                          ...req.context || {},
+                          skipChefCategorySync: true
+                        },
+                        overrideAccess: true
+                      });
+                    }
+                  }
+                } catch (err) {
+                  console.error("Error synchronizing chef stock categories in afterChange:", err);
+                }
+              }
+              if (!req.context?.fromChefSettingsSync) {
+                try {
+                  const chefSettings = await req.payload.findGlobal({
+                    slug: "chef-settings",
+                    depth: 0,
+                    overrideAccess: true
+                  });
+                  const assignments = Array.isArray(chefSettings?.chefAssignments) ? [...chefSettings.chefAssignments] : [];
+                  const isKitchen = Boolean(doc.isKitchen);
+                  const isStock = Boolean(doc.isStock);
+                  const assignmentType = isKitchen && isStock ? "both" : isStock ? "stock" : "kitchen";
+                  const updatedRow = {
+                    chef: currentChefId,
+                    assignmentType,
+                    status: doc.status === "inactive" || doc.loginBlocked ? "inactive" : "active",
+                    branch: getRelationshipID(doc.branch),
+                    kitchenBranches: getRelationshipIDs(doc.kitchenBranches),
+                    kitchen: getRelationshipIDs(doc.kitchen),
+                    kitchenCategories: getRelationshipIDs(doc.categories),
+                    stockCategories: getRelationshipIDs(doc.stockCategories)
+                  };
+                  const existingIndex = assignments.findIndex(
+                    (a) => getRelationshipID(a?.chef) === currentChefId
+                  );
+                  if (existingIndex >= 0) {
+                    assignments[existingIndex] = updatedRow;
+                  } else {
+                    assignments.push(updatedRow);
+                  }
+                  await req.payload.updateGlobal({
+                    slug: "chef-settings",
+                    data: {
+                      chefAssignments: assignments
+                    },
+                    context: {
+                      ...req.context || {},
+                      fromChefUserSync: true
+                    },
+                    overrideAccess: true
+                  });
+                } catch (err) {
+                  console.error("[Users afterChange] Error updating chef-settings global:", err);
                 }
               }
             }
@@ -37679,7 +37843,8 @@ var init_MenuSettings = __esm({
                 { label: "App Download Settings", value: "app-download-settings" },
                 { label: "App Version Settings", value: "app-version-settings" },
                 { label: "Work GPS", value: "work-gps" },
-                { label: "KOT Time", value: "kot-time" }
+                { label: "KOT Time", value: "kot-time" },
+                { label: "Chef Settings", value: "chef-settings" }
               ]
             }
           ]
@@ -39261,6 +39426,358 @@ var init_KotTime = __esm({
                     width: "60%",
                     placeholder: "Enter deliver time (number)",
                     description: "Waiter deliver time"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    };
+  }
+});
+
+// src/globals/ChefSettings.ts
+var getRelationshipID14, getRelationshipIDs2, ChefSettingsGlobal;
+var init_ChefSettings = __esm({
+  "src/globals/ChefSettings.ts"() {
+    "use strict";
+    getRelationshipID14 = (value) => {
+      if (!value) return null;
+      if (typeof value === "string") return value.trim();
+      if (typeof value === "number" && Number.isFinite(value)) return String(value);
+      if (typeof value === "object" && value !== null) {
+        if ("id" in value && value.id != null) {
+          const id = value.id;
+          if (typeof id === "string" || typeof id === "number") return String(id).trim();
+          if (typeof id === "object") {
+            const nestedId = getRelationshipID14(id);
+            if (nestedId) return nestedId;
+          }
+        }
+        if ("_id" in value && value._id != null) {
+          const id = value._id;
+          if (typeof id === "string" || typeof id === "number") return String(id).trim();
+          if (id && typeof id.toString === "function") {
+            const str = id.toString();
+            if (str && str !== "[object Object]") return str;
+          }
+        }
+        if ("value" in value && value.value != null) {
+          const resolved = getRelationshipID14(value.value);
+          if (resolved) return resolved;
+        }
+      }
+      return null;
+    };
+    getRelationshipIDs2 = (value) => {
+      if (!value) return [];
+      if (!Array.isArray(value)) {
+        const id = getRelationshipID14(value);
+        return id ? [id] : [];
+      }
+      return value.map((item) => getRelationshipID14(item)).filter((id) => Boolean(id));
+    };
+    ChefSettingsGlobal = {
+      slug: "chef-settings",
+      label: "Chef Settings",
+      admin: {
+        group: "Settings",
+        description: "Manage chef assignments for Kitchen (branch, kitchen, categories) and Stock Order (categories)."
+      },
+      access: {
+        read: () => true,
+        update: ({ req }) => Boolean(
+          req.user && ["superadmin", "admin", "manager", "company", "branch"].includes(req.user.role)
+        )
+      },
+      hooks: {
+        beforeChange: [
+          async ({ data, req }) => {
+            if (!req.payload) return data;
+            let assignments = Array.isArray(data?.chefAssignments) ? data.chefAssignments : [];
+            if (assignments.length === 0) {
+              try {
+                const chefsResult = await req.payload.find({
+                  collection: "users",
+                  where: { role: { equals: "chef" } },
+                  depth: 0,
+                  limit: 500,
+                  pagination: false,
+                  overrideAccess: true
+                });
+                if (chefsResult.docs.length > 0) {
+                  assignments = chefsResult.docs.map((chefDoc) => {
+                    const isKitchen = chefDoc.isKitchen === true;
+                    const isStock = chefDoc.isStock === true;
+                    const assignmentType = isKitchen && isStock ? "both" : isStock ? "stock" : "kitchen";
+                    return {
+                      chef: String(chefDoc.id),
+                      assignmentType,
+                      status: chefDoc.status === "inactive" || chefDoc.loginBlocked ? "inactive" : "active",
+                      branch: getRelationshipID14(chefDoc.branch),
+                      kitchenBranches: getRelationshipIDs2(chefDoc.kitchenBranches),
+                      kitchen: getRelationshipIDs2(chefDoc.kitchen),
+                      kitchenCategories: getRelationshipIDs2(chefDoc.categories),
+                      stockCategories: getRelationshipIDs2(chefDoc.stockCategories)
+                    };
+                  });
+                  data.chefAssignments = assignments;
+                }
+              } catch (err) {
+                console.error("[ChefSettings beforeChange] Error fetching chefs for seed:", err);
+              }
+            }
+            return data;
+          }
+        ],
+        afterChange: [
+          async ({ doc, req }) => {
+            if (!req.payload || req.context?.fromChefUserSync) return doc;
+            const assignments = Array.isArray(doc?.chefAssignments) ? doc.chefAssignments : [];
+            for (const entry of assignments) {
+              const chefId = getRelationshipID14(entry.chef);
+              if (!chefId) continue;
+              const assignmentType = entry.assignmentType || "both";
+              const isKitchen = assignmentType === "kitchen" || assignmentType === "both";
+              const isStock = assignmentType === "stock" || assignmentType === "both";
+              const branch = getRelationshipID14(entry.branch);
+              const kitchenBranches = getRelationshipIDs2(entry.kitchenBranches);
+              const kitchen = getRelationshipIDs2(entry.kitchen);
+              const kitchenCategories = getRelationshipIDs2(entry.kitchenCategories);
+              const stockCategories = getRelationshipIDs2(entry.stockCategories);
+              try {
+                await req.payload.update({
+                  collection: "users",
+                  id: chefId,
+                  data: {
+                    isKitchen,
+                    isStock,
+                    branch: isKitchen && kitchenBranches.length > 0 ? null : branch,
+                    kitchenBranches: isKitchen ? kitchenBranches : [],
+                    kitchen: isKitchen ? kitchen : [],
+                    categories: isKitchen ? kitchenCategories : [],
+                    stockCategories: isStock ? stockCategories : []
+                  },
+                  context: {
+                    ...req.context || {},
+                    fromChefSettingsSync: true,
+                    skipChefCategorySync: false
+                  },
+                  overrideAccess: true
+                });
+              } catch (err) {
+                console.error(`[ChefSettings afterChange] Error syncing chef ${chefId}:`, err);
+              }
+            }
+            return doc;
+          }
+        ]
+      },
+      fields: [
+        {
+          name: "chefAssignments",
+          type: "array",
+          label: "Chef Assignments",
+          labels: {
+            singular: "Chef Assignment",
+            plural: "Chef Assignments"
+          },
+          admin: {
+            description: "Assign each chef for Stock Order, Kitchen, or Both. For Kitchen, assign branch, kitchen, and categories. For Stock Order, assign stock categories."
+          },
+          fields: [
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "chef",
+                  type: "relationship",
+                  relationTo: "users",
+                  required: true,
+                  label: "Chef",
+                  filterOptions: {
+                    role: { equals: "chef" }
+                  },
+                  admin: {
+                    width: "40%"
+                  }
+                },
+                {
+                  name: "assignmentType",
+                  type: "select",
+                  label: "Assign For",
+                  required: true,
+                  defaultValue: "both",
+                  options: [
+                    { label: "\u{1F373} Kitchen Only", value: "kitchen" },
+                    { label: "\u{1F4E6} Stock Order Only", value: "stock" },
+                    { label: "\u{1F373} Kitchen & \u{1F4E6} Stock Order (Both)", value: "both" }
+                  ],
+                  admin: {
+                    width: "35%"
+                  }
+                },
+                {
+                  name: "status",
+                  type: "select",
+                  label: "Status",
+                  defaultValue: "active",
+                  options: [
+                    { label: "Active", value: "active" },
+                    { label: "Inactive", value: "inactive" }
+                  ],
+                  admin: {
+                    width: "25%"
+                  }
+                }
+              ]
+            },
+            // Kitchen Configuration Section
+            {
+              type: "collapsible",
+              label: "\u{1F373} Kitchen Configuration (Branch -> Kitchen -> Category)",
+              admin: {
+                condition: (_data, siblingData) => siblingData?.assignmentType === "kitchen" || siblingData?.assignmentType === "both",
+                initCollapsed: false
+              },
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "branch",
+                      type: "relationship",
+                      relationTo: "branches",
+                      label: "Branch",
+                      required: false,
+                      admin: {
+                        width: "50%",
+                        description: "Primary branch for this kitchen chef"
+                      }
+                    },
+                    {
+                      name: "kitchenBranches",
+                      label: "Kitchen Branches (Multi-Branch)",
+                      type: "relationship",
+                      relationTo: "branches",
+                      hasMany: true,
+                      required: false,
+                      admin: {
+                        width: "50%",
+                        description: "Select branches if kitchen serves multiple branches"
+                      }
+                    }
+                  ]
+                },
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "kitchen",
+                      label: "Kitchens",
+                      type: "relationship",
+                      relationTo: "kitchens",
+                      hasMany: true,
+                      required: false,
+                      admin: {
+                        width: "50%",
+                        description: "Select kitchen(s) for this chef"
+                      },
+                      filterOptions: ({ siblingData }) => {
+                        const branches = siblingData?.kitchenBranches;
+                        if (Array.isArray(branches) && branches.length > 0) {
+                          return {
+                            branches: {
+                              in: branches.map(
+                                (b) => typeof b === "object" && b !== null ? b.id : b
+                              )
+                            }
+                          };
+                        } else if (siblingData?.branch) {
+                          const branch = siblingData.branch;
+                          const branchId = typeof branch === "object" && branch !== null ? branch.id : branch;
+                          return {
+                            branches: {
+                              contains: branchId
+                            }
+                          };
+                        }
+                        return true;
+                      }
+                    },
+                    {
+                      name: "kitchenCategories",
+                      label: "Kitchen Categories",
+                      type: "relationship",
+                      relationTo: "categories",
+                      hasMany: true,
+                      required: false,
+                      admin: {
+                        width: "50%",
+                        description: "Categories belonging to selected kitchen(s)"
+                      },
+                      filterOptions: async ({ siblingData, req }) => {
+                        if (!req?.payload) return true;
+                        const rawKitchens = siblingData?.kitchen;
+                        const kitchenIds = getRelationshipIDs2(rawKitchens);
+                        if (kitchenIds.length === 0) {
+                          return { isKitchen: { equals: true } };
+                        }
+                        try {
+                          const kitchensResult = await req.payload.find({
+                            collection: "kitchens",
+                            where: { id: { in: kitchenIds } },
+                            depth: 0,
+                            limit: 100,
+                            pagination: false,
+                            overrideAccess: true
+                          });
+                          const categoryIds = [];
+                          for (const k of kitchensResult.docs) {
+                            const ids = getRelationshipIDs2(k.categories);
+                            categoryIds.push(...ids);
+                          }
+                          const uniqueCategoryIds = Array.from(new Set(categoryIds));
+                          if (uniqueCategoryIds.length > 0) {
+                            return { id: { in: uniqueCategoryIds } };
+                          }
+                          return { isKitchen: { equals: true } };
+                        } catch (e) {
+                          console.error("[ChefSettings] Error fetching kitchen categories:", e);
+                          return { isKitchen: { equals: true } };
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            // Stock Order Configuration Section
+            {
+              type: "collapsible",
+              label: "\u{1F4E6} Stock Order Configuration (Category Assignment)",
+              admin: {
+                condition: (_data, siblingData) => siblingData?.assignmentType === "stock" || siblingData?.assignmentType === "both",
+                initCollapsed: false
+              },
+              fields: [
+                {
+                  name: "stockCategories",
+                  label: "Stock Order Categories",
+                  type: "relationship",
+                  relationTo: "categories",
+                  hasMany: true,
+                  required: false,
+                  admin: {
+                    description: "Categories assigned to this chef for stock order production & fulfillment"
+                  },
+                  filterOptions: () => {
+                    return {
+                      isStock: {
+                        equals: true
+                      }
+                    };
                   }
                 }
               ]
@@ -41876,6 +42393,7 @@ var init_payload_config = __esm({
     init_startWork();
     init_completeWork();
     init_KotTime();
+    init_ChefSettings();
     init_getKotTime();
     init_getReportCardData();
     initLogHook();
@@ -42684,7 +43202,8 @@ var init_payload_config = __esm({
         WorkGPSGlobal,
         MenuSettingsGlobal,
         MessagesChatGlobal,
-        KotTimeGlobal
+        KotTimeGlobal,
+        ChefSettingsGlobal
       ].map(wrapGlobal),
       // Collections
       collections: [
