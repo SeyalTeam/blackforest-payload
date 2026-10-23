@@ -40106,6 +40106,7 @@ async function calculateReportCardData(req, params) {
   const getConfiguredRule = (cat) => {
     return configuredRulesDocs.find((doc) => {
       if (doc.category !== cat) return false;
+      if (doc.enabled === false) return false;
       if (!doc.roles || doc.roles.length === 0 || doc.roles.includes("all")) return true;
       return doc.roles.includes(role.toLowerCase());
     });

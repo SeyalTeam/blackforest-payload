@@ -1194,6 +1194,7 @@ export async function calculateReportCardData(
   const getConfiguredRule = (cat: string) => {
     return configuredRulesDocs.find((doc: any) => {
       if (doc.category !== cat) return false
+      if (doc.enabled === false) return false
       if (!doc.roles || doc.roles.length === 0 || doc.roles.includes('all')) return true
       return doc.roles.includes(role.toLowerCase())
     })
