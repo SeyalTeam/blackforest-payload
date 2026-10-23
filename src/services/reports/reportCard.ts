@@ -35,6 +35,7 @@ export type Rule2AttendanceResult = {
   avgLateMinutes: number
   attendanceRatePercent: number
   ratingLabel: string
+  workStartTime?: string | null
 }
 
 export type Rule3TasksResult = {
@@ -223,6 +224,7 @@ export type EmployeeReportCardData = {
   companyName?: string
   role: string
   month: string
+  workStartTime?: string | null
   rule1CallSpeed: Rule1CallSpeedResult
   rule2Attendance: Rule2AttendanceResult
   rule3Tasks: Rule3TasksResult
@@ -247,6 +249,8 @@ export type EmployeeReportCardData = {
   overallRanking?: ScopeRanking
   period?: string
   periodLabel?: string
+  isKitchen?: boolean
+  isStock?: boolean
   rules: RuleSummaryItem[]
 }
 
@@ -260,6 +264,8 @@ export async function calculateReportCardData(
     month: string // Format: YYYY-MM
     role: string
     period?: string // 'today' | 'week' | 'month' | 'previous_month'
+    isKitchen?: boolean | string
+    isStock?: boolean | string
   },
 ): Promise<EmployeeReportCardData> {
   let { employeeId, month, role, period } = params
@@ -632,6 +638,7 @@ export async function calculateReportCardData(
   let lateOver30Days = 0
   let totalLateMinutes = 0
   let totalAttendancePoints = 0
+  let todayWorkStartTime: string | null = null
 
   try {
     const orConditions: any[] = [{ employee: { equals: employeeId } }]
@@ -659,6 +666,31 @@ export async function calculateReportCardData(
     for (const doc of attendanceDocs as any[]) {
       const activities = Array.isArray(doc.activities) ? doc.activities : []
       const sessions = activities.filter((a: any) => a.type === 'session')
+
+      if (!todayWorkStartTime) {
+        if (doc.workStartTime) {
+          todayWorkStartTime =
+            typeof doc.workStartTime === 'string'
+              ? doc.workStartTime
+              : new Date(doc.workStartTime).toISOString()
+        } else if (sessions.length > 0) {
+          const sorted = [...sessions].sort(
+            (a, b) => new Date(a.punchIn).getTime() - new Date(b.punchIn).getTime(),
+          )
+          if (sorted[0]?.punchIn) {
+            todayWorkStartTime =
+              typeof sorted[0].punchIn === 'string'
+                ? sorted[0].punchIn
+                : new Date(sorted[0].punchIn).toISOString()
+          }
+        }
+        if (!todayWorkStartTime && doc.punchIn) {
+          todayWorkStartTime =
+            typeof doc.punchIn === 'string'
+              ? doc.punchIn
+              : new Date(doc.punchIn).toISOString()
+        }
+      }
 
       let dayScore = 100
 
@@ -776,6 +808,7 @@ export async function calculateReportCardData(
     avgLateMinutes,
     attendanceRatePercent: attendanceRatePercent || 95,
     ratingLabel: ratingLabel2,
+    workStartTime: todayWorkStartTime,
   }
 
   // ---------------------------------------------------------------------------
@@ -2591,7 +2624,7 @@ export async function calculateReportCardData(
     ])
 
     const weekActiveWaitersLower = new Set([
-      ...todayActiveWaitersLower,
+      ...Array.from(todayActiveWaitersLower),
       'sugadeesh', 'muthuraja', 'palanisamy'
     ])
 
@@ -2858,6 +2891,7 @@ export async function calculateReportCardData(
     month,
     period,
     periodLabel,
+    workStartTime: todayWorkStartTime,
     rule1CallSpeed: rule1Result,
     rule2Attendance: rule2Result,
     rule3Tasks: rule3Result,

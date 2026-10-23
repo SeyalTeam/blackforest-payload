@@ -39666,6 +39666,7 @@ async function calculateReportCardData(req, params) {
   let lateOver30Days = 0;
   let totalLateMinutes = 0;
   let totalAttendancePoints = 0;
+  let todayWorkStartTime = null;
   try {
     const orConditions = [{ employee: { equals: employeeId } }];
     if (resolvedUserId) {
@@ -39689,6 +39690,21 @@ async function calculateReportCardData(req, params) {
     for (const doc of attendanceDocs) {
       const activities = Array.isArray(doc.activities) ? doc.activities : [];
       const sessions = activities.filter((a) => a.type === "session");
+      if (!todayWorkStartTime) {
+        if (doc.workStartTime) {
+          todayWorkStartTime = typeof doc.workStartTime === "string" ? doc.workStartTime : new Date(doc.workStartTime).toISOString();
+        } else if (sessions.length > 0) {
+          const sorted = [...sessions].sort(
+            (a, b) => new Date(a.punchIn).getTime() - new Date(b.punchIn).getTime()
+          );
+          if (sorted[0]?.punchIn) {
+            todayWorkStartTime = typeof sorted[0].punchIn === "string" ? sorted[0].punchIn : new Date(sorted[0].punchIn).toISOString();
+          }
+        }
+        if (!todayWorkStartTime && doc.punchIn) {
+          todayWorkStartTime = typeof doc.punchIn === "string" ? doc.punchIn : new Date(doc.punchIn).toISOString();
+        }
+      }
       let dayScore = 100;
       if (sessions.length > 0) {
         const sortedSessions = [...sessions].sort(
@@ -39791,7 +39807,8 @@ async function calculateReportCardData(req, params) {
     totalLateMinutes,
     avgLateMinutes,
     attendanceRatePercent: attendanceRatePercent || 95,
-    ratingLabel: ratingLabel2
+    ratingLabel: ratingLabel2,
+    workStartTime: todayWorkStartTime
   };
   let checklistDays = 0;
   let perfectDays = 0;
@@ -41248,7 +41265,7 @@ async function calculateReportCardData(req, params) {
       "ikram"
     ]);
     const weekActiveWaitersLower = /* @__PURE__ */ new Set([
-      ...todayActiveWaitersLower,
+      ...Array.from(todayActiveWaitersLower),
       "sugadeesh",
       "muthuraja",
       "palanisamy"
@@ -41474,6 +41491,7 @@ async function calculateReportCardData(req, params) {
     month,
     period,
     periodLabel,
+    workStartTime: todayWorkStartTime,
     rule1CallSpeed: rule1Result,
     rule2Attendance: rule2Result,
     rule3Tasks: rule3Result,
@@ -41567,7 +41585,7 @@ var init_getReportCardData = __esm({
           if (typeof req.query.employeeIds === "string" && req.query.employeeIds.trim()) {
             targetEmployeeIds = req.query.employeeIds.split(",").map((id) => id.trim()).filter(Boolean);
           } else {
-            const whereClause = {};
+            const whereClause = { status: { equals: "active" } };
             if (role && role !== "all") {
               whereClause.team = { equals: role };
             }
@@ -41577,13 +41595,65 @@ var init_getReportCardData = __esm({
             const empsRes = await req.payload.find({
               collection: "employees",
               where: Object.keys(whereClause).length > 0 ? whereClause : void 0,
-              limit: 100,
+              limit: 200,
               depth: 0,
               overrideAccess: true
             });
             targetEmployeeIds = (empsRes.docs || []).map((e) => String(e.id));
           }
-          const idsToCompute = targetEmployeeIds.slice(0, 50);
+          let startDateStr = `${month}-01`;
+          const [yStr, mStr] = month.split("-");
+          const lastDayOfMonth = new Date(parseInt(yStr, 10), parseInt(mStr, 10), 0).getDate();
+          let endDateStr = `${month}-${String(lastDayOfMonth).padStart(2, "0")}`;
+          if (period === "today") {
+            const now = /* @__PURE__ */ new Date();
+            const istNow = new Date(now.getTime() + 5.5 * 60 * 60 * 1e3);
+            startDateStr = istNow.toISOString().split("T")[0];
+            endDateStr = startDateStr;
+          } else if (period === "week") {
+            const now = /* @__PURE__ */ new Date();
+            const istNow = new Date(now.getTime() + 5.5 * 60 * 60 * 1e3);
+            const day = istNow.getUTCDay();
+            const diffToMonday = day === 0 ? -6 : 1 - day;
+            const ws = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate() + diffToMonday));
+            const we = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate() + diffToMonday + 6));
+            startDateStr = ws.toISOString().split("T")[0];
+            endDateStr = we.toISOString().split("T")[0];
+          }
+          const workedEmployeeIdsSet = /* @__PURE__ */ new Set();
+          try {
+            const attWhere = {
+              and: [
+                { dateString: { greater_than_equal: startDateStr } },
+                { dateString: { less_than_equal: endDateStr } }
+              ]
+            };
+            if (typeof req.query.branch === "string" && req.query.branch !== "all") {
+              attWhere.and.push({ loginBranch: { equals: req.query.branch } });
+            }
+            const attRes = await req.payload.find({
+              collection: "attendance",
+              where: attWhere,
+              limit: 2e3,
+              depth: 0,
+              overrideAccess: true
+            });
+            for (const doc of attRes.docs || []) {
+              const eId = doc.employee ? typeof doc.employee === "string" ? doc.employee : String(doc.employee.id || doc.employee._id) : "";
+              const uId = doc.user ? typeof doc.user === "string" ? doc.user : String(doc.user.id || doc.user._id) : "";
+              if (eId) workedEmployeeIdsSet.add(eId);
+              if (uId) workedEmployeeIdsSet.add(uId);
+            }
+          } catch (_attErr) {
+          }
+          let candidateIds = targetEmployeeIds;
+          if (workedEmployeeIdsSet.size > 0) {
+            const workedCandidates = targetEmployeeIds.filter((id) => workedEmployeeIdsSet.has(id));
+            if (workedCandidates.length > 0) {
+              candidateIds = workedCandidates;
+            }
+          }
+          const idsToCompute = candidateIds.slice(0, 50);
           const dataByEmployeeId = {};
           await Promise.all(
             idsToCompute.map(async (empId) => {
@@ -41604,6 +41674,9 @@ var init_getReportCardData = __esm({
             month,
             role,
             period,
+            startDateStr,
+            endDateStr,
+            workedEmployeeIds: Array.from(workedEmployeeIdsSet),
             dataByEmployeeId
           });
         }
