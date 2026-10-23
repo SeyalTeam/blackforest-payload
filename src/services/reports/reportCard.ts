@@ -334,42 +334,54 @@ export async function calculateReportCardData(
   } catch (_e) {
     // If not found in employees, check if employeeId was a userId
     try {
-      const userDoc = await req.payload.findByID({
+      const uDoc = await req.payload.findByID({
         collection: 'users',
         id: employeeId,
         depth: 1,
         overrideAccess: true,
       })
-      if (userDoc) {
-        resolvedUserId = String(userDoc.id)
-        if (userDoc.employee) {
-          const empObj = userDoc.employee as any
+      if (uDoc) {
+        resolvedUserId = String(uDoc.id)
+        if (uDoc.employee) {
+          const empObj = uDoc.employee as any
           employeeId =
             typeof empObj === 'string' ? empObj : String(empObj.id || empObj._id || '')
           if (typeof empObj === 'object' && empObj.name) {
             employeeName = empObj.name
           }
         }
-        if (employeeName === 'Employee' && userDoc.name) {
-          employeeName = userDoc.name
+        if (employeeName === 'Employee' && uDoc.name) {
+          employeeName = uDoc.name
         }
-        if (userDoc.branch) {
+        if (uDoc.branch) {
           resolvedBranchId =
-            typeof userDoc.branch === 'string' ? userDoc.branch : (userDoc.branch as any).id
+            typeof uDoc.branch === 'string' ? uDoc.branch : (uDoc.branch as any).id
           resolvedBranchName =
-            typeof userDoc.branch === 'object' ? (userDoc.branch as any).name || '' : ''
+            typeof uDoc.branch === 'object' ? (uDoc.branch as any).name || '' : ''
         }
-        if (resolvedIsKitchen === null && typeof (userDoc as any).isKitchen === 'boolean') {
-          resolvedIsKitchen = (userDoc as any).isKitchen
+        if (resolvedIsKitchen === null && typeof (uDoc as any).isKitchen === 'boolean') {
+          resolvedIsKitchen = (uDoc as any).isKitchen
         }
-        if (resolvedIsStock === null && typeof (userDoc as any).isStock === 'boolean') {
-          resolvedIsStock = (userDoc as any).isStock
+        if (resolvedIsStock === null && typeof (uDoc as any).isStock === 'boolean') {
+          resolvedIsStock = (uDoc as any).isStock
         }
       }
     } catch (_u) {}
   }
 
-  if (!resolvedUserId) {
+  // Always resolve the user document to definitively obtain isKitchen and isStock flags
+  let resolvedUserDoc: any = null
+  if (resolvedUserId) {
+    try {
+      resolvedUserDoc = await req.payload.findByID({
+        collection: 'users',
+        id: resolvedUserId,
+        depth: 0,
+        overrideAccess: true,
+      })
+    } catch (_uErr) {}
+  }
+  if (!resolvedUserDoc && employeeId) {
     try {
       const userRes = await req.payload.find({
         collection: 'users',
@@ -377,27 +389,31 @@ export async function calculateReportCardData(
           employee: { equals: employeeId },
         },
         limit: 1,
-        depth: 1,
+        depth: 0,
         overrideAccess: true,
       })
       if (userRes.docs && userRes.docs.length > 0) {
-        const u = userRes.docs[0]
-        resolvedUserId = String(u.id)
-        if (!resolvedBranchId && u.branch) {
-          resolvedBranchId =
-            typeof u.branch === 'string' ? u.branch : (u.branch as any).id
-          resolvedBranchName =
-            typeof u.branch === 'object' ? (u.branch as any).name || '' : ''
-        }
-        if (resolvedIsKitchen === null && typeof (u as any).isKitchen === 'boolean') {
-          resolvedIsKitchen = (u as any).isKitchen
-        }
-        if (resolvedIsStock === null && typeof (u as any).isStock === 'boolean') {
-          resolvedIsStock = (u as any).isStock
-        }
+        resolvedUserDoc = userRes.docs[0]
+        resolvedUserId = String(resolvedUserDoc.id)
       }
-    } catch (_e) {
-      // Ignore error
+    } catch (_e) {}
+  }
+
+  if (resolvedUserDoc) {
+    if (resolvedIsKitchen === null && typeof (resolvedUserDoc as any).isKitchen === 'boolean') {
+      resolvedIsKitchen = (resolvedUserDoc as any).isKitchen
+    }
+    if (resolvedIsStock === null && typeof (resolvedUserDoc as any).isStock === 'boolean') {
+      resolvedIsStock = (resolvedUserDoc as any).isStock
+    }
+    if (!resolvedBranchId && resolvedUserDoc.branch) {
+      resolvedBranchId =
+        typeof resolvedUserDoc.branch === 'string'
+          ? resolvedUserDoc.branch
+          : (resolvedUserDoc.branch as any).id
+    }
+    if (!resolvedBranchName && typeof resolvedUserDoc.branch === 'object' && (resolvedUserDoc.branch as any).name) {
+      resolvedBranchName = (resolvedUserDoc.branch as any).name
     }
   }
 
@@ -2286,6 +2302,7 @@ export async function calculateReportCardData(
       doc.roles.includes(lowerRole)
 
     if (!appliesToRole) continue
+    if (isChef && doc.category === 'hygiene' && !doc.roles?.includes('chef')) continue
 
     const maxMarks =
       typeof doc.maxMarks === 'number' && doc.maxMarks > 0 ? doc.maxMarks : 100

@@ -39408,39 +39408,51 @@ async function calculateReportCardData(req, params) {
     }
   } catch (_e) {
     try {
-      const userDoc = await req.payload.findByID({
+      const uDoc = await req.payload.findByID({
         collection: "users",
         id: employeeId,
         depth: 1,
         overrideAccess: true
       });
-      if (userDoc) {
-        resolvedUserId = String(userDoc.id);
-        if (userDoc.employee) {
-          const empObj = userDoc.employee;
+      if (uDoc) {
+        resolvedUserId = String(uDoc.id);
+        if (uDoc.employee) {
+          const empObj = uDoc.employee;
           employeeId = typeof empObj === "string" ? empObj : String(empObj.id || empObj._id || "");
           if (typeof empObj === "object" && empObj.name) {
             employeeName = empObj.name;
           }
         }
-        if (employeeName === "Employee" && userDoc.name) {
-          employeeName = userDoc.name;
+        if (employeeName === "Employee" && uDoc.name) {
+          employeeName = uDoc.name;
         }
-        if (userDoc.branch) {
-          resolvedBranchId = typeof userDoc.branch === "string" ? userDoc.branch : userDoc.branch.id;
-          resolvedBranchName = typeof userDoc.branch === "object" ? userDoc.branch.name || "" : "";
+        if (uDoc.branch) {
+          resolvedBranchId = typeof uDoc.branch === "string" ? uDoc.branch : uDoc.branch.id;
+          resolvedBranchName = typeof uDoc.branch === "object" ? uDoc.branch.name || "" : "";
         }
-        if (resolvedIsKitchen === null && typeof userDoc.isKitchen === "boolean") {
-          resolvedIsKitchen = userDoc.isKitchen;
+        if (resolvedIsKitchen === null && typeof uDoc.isKitchen === "boolean") {
+          resolvedIsKitchen = uDoc.isKitchen;
         }
-        if (resolvedIsStock === null && typeof userDoc.isStock === "boolean") {
-          resolvedIsStock = userDoc.isStock;
+        if (resolvedIsStock === null && typeof uDoc.isStock === "boolean") {
+          resolvedIsStock = uDoc.isStock;
         }
       }
     } catch (_u) {
     }
   }
-  if (!resolvedUserId) {
+  let resolvedUserDoc = null;
+  if (resolvedUserId) {
+    try {
+      resolvedUserDoc = await req.payload.findByID({
+        collection: "users",
+        id: resolvedUserId,
+        depth: 0,
+        overrideAccess: true
+      });
+    } catch (_uErr) {
+    }
+  }
+  if (!resolvedUserDoc && employeeId) {
     try {
       const userRes = await req.payload.find({
         collection: "users",
@@ -39448,24 +39460,28 @@ async function calculateReportCardData(req, params) {
           employee: { equals: employeeId }
         },
         limit: 1,
-        depth: 1,
+        depth: 0,
         overrideAccess: true
       });
       if (userRes.docs && userRes.docs.length > 0) {
-        const u = userRes.docs[0];
-        resolvedUserId = String(u.id);
-        if (!resolvedBranchId && u.branch) {
-          resolvedBranchId = typeof u.branch === "string" ? u.branch : u.branch.id;
-          resolvedBranchName = typeof u.branch === "object" ? u.branch.name || "" : "";
-        }
-        if (resolvedIsKitchen === null && typeof u.isKitchen === "boolean") {
-          resolvedIsKitchen = u.isKitchen;
-        }
-        if (resolvedIsStock === null && typeof u.isStock === "boolean") {
-          resolvedIsStock = u.isStock;
-        }
+        resolvedUserDoc = userRes.docs[0];
+        resolvedUserId = String(resolvedUserDoc.id);
       }
     } catch (_e) {
+    }
+  }
+  if (resolvedUserDoc) {
+    if (resolvedIsKitchen === null && typeof resolvedUserDoc.isKitchen === "boolean") {
+      resolvedIsKitchen = resolvedUserDoc.isKitchen;
+    }
+    if (resolvedIsStock === null && typeof resolvedUserDoc.isStock === "boolean") {
+      resolvedIsStock = resolvedUserDoc.isStock;
+    }
+    if (!resolvedBranchId && resolvedUserDoc.branch) {
+      resolvedBranchId = typeof resolvedUserDoc.branch === "string" ? resolvedUserDoc.branch : resolvedUserDoc.branch.id;
+    }
+    if (!resolvedBranchName && typeof resolvedUserDoc.branch === "object" && resolvedUserDoc.branch.name) {
+      resolvedBranchName = resolvedUserDoc.branch.name;
     }
   }
   if (params.branchName) {
@@ -40969,6 +40985,7 @@ async function calculateReportCardData(req, params) {
     if (knownCategories.has(doc.category)) continue;
     const appliesToRole = !doc.roles || doc.roles.length === 0 || doc.roles.includes("all") || doc.roles.includes(lowerRole);
     if (!appliesToRole) continue;
+    if (isChef && doc.category === "hygiene" && !doc.roles?.includes("chef")) continue;
     const maxMarks = typeof doc.maxMarks === "number" && doc.maxMarks > 0 ? doc.maxMarks : 100;
     const title = doc.title || "Performance Standard";
     rulesList.push({
