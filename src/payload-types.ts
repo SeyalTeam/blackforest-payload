@@ -2334,10 +2334,18 @@ export interface Attendance {
   workStartTime?: string | null;
   workStartTime_tz?: SupportedTimezones;
   /**
+   * Selfie photo captured when employee started duty in the mobile app.
+   */
+  dutyStartPhoto?: (string | null) | Media;
+  /**
    * Timestamp when employee tapped "COMPLETE MY WORK" in the mobile app.
    */
   workCompletedTime?: string | null;
   workCompletedTime_tz?: SupportedTimezones;
+  /**
+   * Photo captured when employee completed duty in the mobile app.
+   */
+  dutyCompletePhoto?: (string | null) | Media;
   /**
    * Calculated duration between work start and work completion in minutes.
    */
@@ -4092,8 +4100,10 @@ export interface AttendanceSelect<T extends boolean = true> {
   workStatus?: T;
   workStartTime?: T;
   workStartTime_tz?: T;
+  dutyStartPhoto?: T;
   workCompletedTime?: T;
   workCompletedTime_tz?: T;
+  dutyCompletePhoto?: T;
   workDurationMinutes?: T;
   activities?:
     | T

@@ -212,19 +212,88 @@ export default function ReportCardDashboard() {
   const [selectedRole, setSelectedRole] = useState<string>('all')
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('') // Default empty!
 
-  // Default month: Current Year-Month (e.g. 2026-10)
-  const currentMonthStr = useMemo(() => {
+  // Current Indian Standard Time (IST, UTC+5:30)
+  const currentISTDate = useMemo(() => {
     const now = new Date()
-    const year = now.getFullYear()
-    const month = String(now.getMonth() + 1).padStart(2, '0')
-    return `${year}-${month}`
+    return new Date(now.getTime() + 5.5 * 60 * 60 * 1000)
   }, [])
+
+  const todayDateStr = useMemo(() => {
+    return currentISTDate.toISOString().split('T')[0]
+  }, [currentISTDate])
+
+  const currentMonthStr = useMemo(() => {
+    const y = currentISTDate.getUTCFullYear()
+    const m = String(currentISTDate.getUTCMonth() + 1).padStart(2, '0')
+    return `${y}-${m}`
+  }, [currentISTDate])
+
+  // Period Filter: 'today' | 'week' | 'month' | 'custom_month' (Default: 'today')
+  const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'week' | 'month' | 'custom_month'>('today')
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthStr)
+  const [periodWorkedEmpIds, setPeriodWorkedEmpIds] = useState<Set<string> | null>(null)
+  const [loadingPeriod, setLoadingPeriod] = useState<boolean>(false)
 
   const [loadingMetadata, setLoadingMetadata] = useState<boolean>(true)
   const [loadingReport, setLoadingReport] = useState<boolean>(false)
   const [reportData, setReportData] = useState<any>(null)
   const [allReportsMap, setAllReportsMap] = useState<Record<string, any>>({})
+
+  // ---------------------------------------------------------------------------
+  // Fetch Attendance for Selected Period (Filter out former staff who did not work)
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    let isCancelled = false
+    const fetchWorkedStaff = async () => {
+      try {
+        setLoadingPeriod(true)
+        let startStr = `${selectedMonth}-01`
+        const [y, m] = selectedMonth.split('-').map((v) => parseInt(v, 10))
+        const lastDay = new Date(y, m, 0).getDate()
+        let endStr = `${selectedMonth}-${String(lastDay).padStart(2, '0')}`
+
+        if (selectedPeriod === 'today') {
+          startStr = todayDateStr
+          endStr = todayDateStr
+        } else if (selectedPeriod === 'week') {
+          const day = currentISTDate.getUTCDay()
+          const diffToMonday = day === 0 ? -6 : 1 - day
+          const ws = new Date(Date.UTC(currentISTDate.getUTCFullYear(), currentISTDate.getUTCMonth(), currentISTDate.getUTCDate() + diffToMonday))
+          const we = new Date(Date.UTC(currentISTDate.getUTCFullYear(), currentISTDate.getUTCMonth(), currentISTDate.getUTCDate() + diffToMonday + 6))
+          startStr = ws.toISOString().split('T')[0]
+          endStr = we.toISOString().split('T')[0]
+        } else if (selectedPeriod === 'month') {
+          startStr = `${currentMonthStr}-01`
+          const curLastDay = new Date(currentISTDate.getUTCFullYear(), currentISTDate.getUTCMonth() + 1, 0).getDate()
+          endStr = `${currentMonthStr}-${String(curLastDay).padStart(2, '0')}`
+        }
+
+        const res = await fetch(
+          `/api/attendance?where[and][0][dateString][greater_than_equal]=${startStr}&where[and][1][dateString][less_than_equal]=${endStr}&limit=2000&depth=0`
+        )
+        if (res.ok && !isCancelled) {
+          const json = await res.json()
+          const set = new Set<string>()
+          for (const a of (json.docs || [])) {
+            const eId = a.employee ? (typeof a.employee === 'string' ? a.employee : String(a.employee.id || a.employee._id)) : ''
+            const uId = a.user ? (typeof a.user === 'string' ? a.user : String(a.user.id || a.user._id)) : ''
+            if (eId) set.add(eId)
+            if (uId) set.add(uId)
+          }
+          setPeriodWorkedEmpIds(set)
+        }
+      } catch (err) {
+        console.error('Error fetching period attendance:', err)
+      } finally {
+        if (!isCancelled) setLoadingPeriod(false)
+      }
+    }
+
+    fetchWorkedStaff()
+    return () => {
+      isCancelled = true
+    }
+  }, [selectedPeriod, selectedMonth, todayDateStr, currentISTDate, currentMonthStr])
 
   // ---------------------------------------------------------------------------
   // Fetch Initial Metadata (Companies, Branches, Employees, Users, Rules)
@@ -297,13 +366,24 @@ export default function ReportCardDashboard() {
   }, [filteredBranches, selectedBranch])
 
   // ---------------------------------------------------------------------------
-  // Role, Company & Branch Filtered Employees
+  // Role, Company & Branch Filtered Employees (Strictly Active & Worked in Period)
   // ---------------------------------------------------------------------------
   const filteredEmployees = useMemo(() => {
     return employees.filter((emp) => {
-      const matchedUser = getEmployeeUser(emp, users)
+      // 0. Exclude inactive employees (people who have left / resigned)
+      if ((emp as any).status === 'inactive') return false
 
-      // 1. Role filter
+      const matchedUser = getEmployeeUser(emp, users)
+      const empId = getId(emp.id)
+      const userId = matchedUser ? getId(matchedUser.id) : null
+
+      // 1. Strictly filter to staff who actually worked during this selected period
+      if (periodWorkedEmpIds !== null) {
+        const worked = (empId && periodWorkedEmpIds.has(empId)) || (userId && periodWorkedEmpIds.has(userId))
+        if (!worked) return false
+      }
+
+      // 2. Role filter
       if (selectedRole !== 'all') {
         const empTeam = (emp.team || '').toLowerCase()
         const userRole = (matchedUser?.role || '').toLowerCase()
@@ -312,14 +392,14 @@ export default function ReportCardDashboard() {
         }
       }
 
-      // 2. Company filter
+      // 3. Company filter
       if (selectedCompany !== 'all') {
         if (!doesEmployeeMatchCompany(emp, matchedUser, selectedCompany, branches)) {
           return false
         }
       }
 
-      // 3. Branch filter
+      // 4. Branch filter
       if (selectedBranch !== 'all') {
         if (!doesEmployeeMatchBranch(emp, matchedUser, selectedBranch)) {
           return false
@@ -328,7 +408,15 @@ export default function ReportCardDashboard() {
 
       return true
     })
-  }, [employees, users, branches, selectedRole, selectedBranch, selectedCompany])
+  }, [
+    employees,
+    users,
+    branches,
+    selectedRole,
+    selectedBranch,
+    selectedCompany,
+    periodWorkedEmpIds,
+  ])
 
   // Reset selected employee if they are no longer in the filtered list
   useEffect(() => {
@@ -340,13 +428,62 @@ export default function ReportCardDashboard() {
     }
   }, [filteredEmployees, selectedEmployeeId])
 
+  // Helper functions to get branch and company name for an employee
+  const getBranchName = useCallback(
+    (emp: Employee) => {
+      const user = getEmployeeUser(emp, users)
+      const bId = getEmployeeBranchId(emp, user)
+      if (bId) {
+        const b = branches.find((item) => getId(item.id) === bId)
+        if (b) return b.name
+      }
+      return 'Branch'
+    },
+    [branches, users]
+  )
+
+  const getCompanyName = useCallback(
+    (emp: Employee) => {
+      const user = getEmployeeUser(emp, users)
+      const bId = getEmployeeBranchId(emp, user)
+      if (bId) {
+        const b = branches.find((item) => getId(item.id) === bId)
+        if (b) {
+          const compId = getBranchCompanyId(b)
+          const c = companies.find((item) => getId(item.id) === compId)
+          if (c) return c.name
+        }
+      }
+      if (user && (user as any).company) {
+        const compId = getId((user as any).company)
+        const c = companies.find((item) => getId(item.id) === compId)
+        if (c) return c.name
+      }
+      return companies[0]?.name || 'Blackforest'
+    },
+    [branches, companies, users]
+  )
+
   // ---------------------------------------------------------------------------
-  // Selected Employee Details & Context
+  // Selected / Preview Employee Details & Context (Side-by-Side Master Detail)
   // ---------------------------------------------------------------------------
+  const [previewEmpId, setPreviewEmpId] = useState<string | null>(null)
+
+  const effectivePreviewEmpId = useMemo(() => {
+    if (selectedEmployeeId && selectedEmployeeId !== 'all') {
+      return selectedEmployeeId
+    }
+    if (previewEmpId) {
+      const exists = filteredEmployees.some((e) => getId(e.id) === previewEmpId)
+      if (exists) return previewEmpId
+    }
+    return filteredEmployees[0] ? getId(filteredEmployees[0].id) : null
+  }, [selectedEmployeeId, previewEmpId, filteredEmployees])
+
   const currentEmployee = useMemo(() => {
-    if (!selectedEmployeeId || selectedEmployeeId === 'all') return null
-    return employees.find((e) => getId(e.id) === selectedEmployeeId) || null
-  }, [employees, selectedEmployeeId])
+    if (!effectivePreviewEmpId) return null
+    return employees.find((e) => getId(e.id) === effectivePreviewEmpId) || null
+  }, [effectivePreviewEmpId, employees])
 
   const currentUser = useMemo(() => {
     if (!currentEmployee) return null
@@ -361,32 +498,54 @@ export default function ReportCardDashboard() {
 
   const employeeBranchName = useMemo(() => {
     if (!currentEmployee) return 'Main Branch'
-    const bId = getEmployeeBranchId(currentEmployee, currentUser)
-    if (bId) {
-      const b = branches.find((item) => getId(item.id) === bId)
-      if (b) return b.name
-    }
-    return 'Branch'
-  }, [currentEmployee, currentUser, branches])
+    return getBranchName(currentEmployee)
+  }, [currentEmployee, getBranchName])
 
   const employeeCompanyName = useMemo(() => {
     if (!currentEmployee) return companies[0]?.name || 'Blackforest'
-    const bId = getEmployeeBranchId(currentEmployee, currentUser)
-    if (bId) {
-      const b = branches.find((item) => getId(item.id) === bId)
-      if (b) {
-        const compId = getBranchCompanyId(b)
-        const c = companies.find((item) => getId(item.id) === compId)
-        if (c) return c.name
+    return getCompanyName(currentEmployee)
+  }, [currentEmployee, getCompanyName])
+
+  // Active employee report data from bulk map or individual fetch
+  const activeReportData = useMemo(() => {
+    if (!currentEmployee) return null
+    const empId = getId(currentEmployee.id)
+    return (
+      allReportsMap[empId] ||
+      (empId === selectedEmployeeId && reportData ? reportData : null) ||
+      null
+    )
+  }, [currentEmployee, allReportsMap, selectedEmployeeId, reportData])
+
+  // Ensure active preview employee has full report card data fetched
+  useEffect(() => {
+    if (!currentEmployee) return
+    const empId = getId(currentEmployee.id)
+    if (!empId || allReportsMap[empId]) return
+
+    let cancelled = false
+    const fetchActiveReport = async () => {
+      try {
+        const uId = currentUser?.id || ''
+        const role = (currentEmployee.team || 'waiter').toLowerCase()
+        const periodParam = selectedPeriod === 'custom_month' ? 'month' : selectedPeriod
+        const res = await fetch(
+          `/api/reports/report-card-data?employeeId=${empId}&month=${selectedMonth}&role=${role}&userId=${uId}&period=${periodParam}`
+        )
+        if (res.ok && !cancelled) {
+          const json = await res.json()
+          setAllReportsMap((prev) => ({ ...prev, [empId]: json }))
+        }
+      } catch (err) {
+        console.error('Error fetching active preview employee report:', err)
       }
     }
-    if (currentUser && (currentUser as any).company) {
-      const compId = getId((currentUser as any).company)
-      const c = companies.find((item) => getId(item.id) === compId)
-      if (c) return c.name
+
+    fetchActiveReport()
+    return () => {
+      cancelled = true
     }
-    return companies[0]?.name || 'Blackforest'
-  }, [currentEmployee, currentUser, branches, companies])
+  }, [currentEmployee, allReportsMap, selectedMonth, currentUser, selectedPeriod])
 
   // ---------------------------------------------------------------------------
   // Fetch Real Report Card Data from API for Selected Employee & Month
@@ -406,8 +565,9 @@ export default function ReportCardDashboard() {
           setLoadingReport(true)
           const empIds = filteredEmployees.map((e) => getId(e.id)).filter(Boolean).join(',')
           const uId = currentUser?.id || ''
+          const periodParam = selectedPeriod === 'custom_month' ? 'month' : selectedPeriod
           const res = await fetch(
-            `/api/reports/report-card-data?employeeId=all&month=${selectedMonth}&role=${selectedRole}&branch=${selectedBranch}&company=${selectedCompany}&employeeIds=${empIds}&userId=${uId}`
+            `/api/reports/report-card-data?employeeId=all&month=${selectedMonth}&role=${selectedRole}&branch=${selectedBranch}&company=${selectedCompany}&employeeIds=${empIds}&userId=${uId}&period=${periodParam}`
           )
           if (res.ok) {
             const json = await res.json()
@@ -430,8 +590,9 @@ export default function ReportCardDashboard() {
       try {
         setLoadingReport(true)
         const uId = currentUser?.id || ''
+        const periodParam = selectedPeriod === 'custom_month' ? 'month' : selectedPeriod
         const res = await fetch(
-          `/api/reports/report-card-data?employeeId=${selectedEmployeeId}&month=${selectedMonth}&role=${employeeRole}&userId=${uId}`
+          `/api/reports/report-card-data?employeeId=${selectedEmployeeId}&month=${selectedMonth}&role=${employeeRole}&userId=${uId}&period=${periodParam}`
         )
         if (res.ok) {
           const json = await res.json()
@@ -449,6 +610,7 @@ export default function ReportCardDashboard() {
   }, [
     selectedEmployeeId,
     selectedMonth,
+    selectedPeriod,
     employeeRole,
     currentUser,
     selectedRole,
@@ -457,13 +619,32 @@ export default function ReportCardDashboard() {
     filteredEmployees,
   ])
 
-  // Formatted Month Label (e.g. October 2026)
-  const formattedMonthLabel = useMemo(() => {
+  // Formatted Period / Month Label (e.g. "Today (23 Oct 2026)", "This Week (19 Oct – 25 Oct)", "This Month (October 2026)")
+  const formattedPeriodLabel = useMemo(() => {
+    if (selectedPeriod === 'today') {
+      const d = currentISTDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      return `Today (${d})`
+    }
+    if (selectedPeriod === 'week') {
+      const day = currentISTDate.getUTCDay()
+      const diffToMonday = day === 0 ? -6 : 1 - day
+      const ws = new Date(Date.UTC(currentISTDate.getUTCFullYear(), currentISTDate.getUTCMonth(), currentISTDate.getUTCDate() + diffToMonday))
+      const we = new Date(Date.UTC(currentISTDate.getUTCFullYear(), currentISTDate.getUTCMonth(), currentISTDate.getUTCDate() + diffToMonday + 6))
+      const startStr = ws.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+      const endStr = we.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      return `This Week (${startStr} – ${endStr})`
+    }
+    if (selectedPeriod === 'month') {
+      const d = new Date(currentISTDate.getUTCFullYear(), currentISTDate.getUTCMonth(), 1)
+      return `This Month (${d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })})`
+    }
     if (!selectedMonth) return ''
     const [year, month] = selectedMonth.split('-')
     const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1)
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-  }, [selectedMonth])
+  }, [selectedPeriod, selectedMonth, currentISTDate])
+
+  const formattedMonthLabel = formattedPeriodLabel
 
   // ---------------------------------------------------------------------------
   // Active Rules applicable to this Employee's Role
@@ -646,11 +827,11 @@ export default function ReportCardDashboard() {
 
     const ruleScores = roleRules.map((rule, idx) => {
       // Use real Rule 1 Call Speed data if category is call_speed
-      if (rule.category === 'call_speed' && reportData?.rule1CallSpeed) {
+      if (rule.category === 'call_speed' && activeReportData?.rule1CallSpeed) {
         return {
           ...rule,
-          score: reportData.rule1CallSpeed.score,
-          callSpeedDetails: reportData.rule1CallSpeed,
+          score: activeReportData.rule1CallSpeed.score,
+          callSpeedDetails: activeReportData.rule1CallSpeed,
           attendanceDetails: null,
           tasksDetails: null,
           billingDetails: null,
@@ -661,12 +842,12 @@ export default function ReportCardDashboard() {
       }
 
       // Use real Rule 2 Attendance data if category is attendance
-      if (rule.category === 'attendance' && reportData?.rule2Attendance) {
+      if (rule.category === 'attendance' && activeReportData?.rule2Attendance) {
         return {
           ...rule,
-          score: reportData.rule2Attendance.score,
+          score: activeReportData.rule2Attendance.score,
           callSpeedDetails: null,
-          attendanceDetails: reportData.rule2Attendance,
+          attendanceDetails: activeReportData.rule2Attendance,
           tasksDetails: null,
           billingDetails: null,
           kotTimeDetails: null,
@@ -676,13 +857,13 @@ export default function ReportCardDashboard() {
       }
 
       // Use real Rule 3 Tasks data if category is tasks
-      if (rule.category === 'tasks' && reportData?.rule3Tasks) {
+      if (rule.category === 'tasks' && activeReportData?.rule3Tasks) {
         return {
           ...rule,
-          score: reportData.rule3Tasks.score,
+          score: activeReportData.rule3Tasks.score,
           callSpeedDetails: null,
           attendanceDetails: null,
-          tasksDetails: reportData.rule3Tasks,
+          tasksDetails: activeReportData.rule3Tasks,
           billingDetails: null,
           kotTimeDetails: null,
           billingTableDetails: null,
@@ -691,14 +872,14 @@ export default function ReportCardDashboard() {
       }
 
       // Use real Rule 4 Billing data if category is billing
-      if (rule.category === 'billing' && reportData?.rule4Billing) {
+      if (rule.category === 'billing' && activeReportData?.rule4Billing) {
         return {
           ...rule,
-          score: reportData.rule4Billing.score,
+          score: activeReportData.rule4Billing.score,
           callSpeedDetails: null,
           attendanceDetails: null,
           tasksDetails: null,
-          billingDetails: reportData.rule4Billing,
+          billingDetails: activeReportData.rule4Billing,
           kotTimeDetails: null,
           billingTableDetails: null,
           billingCounterDetails: null,
@@ -706,47 +887,47 @@ export default function ReportCardDashboard() {
       }
 
       // Use real Rule 5 KOT Time data if category is kot_time
-      if (rule.category === 'kot_time' && reportData?.rule5KotTime) {
+      if (rule.category === 'kot_time' && activeReportData?.rule5KotTime) {
         return {
           ...rule,
-          score: reportData.rule5KotTime.score,
+          score: activeReportData.rule5KotTime.score,
           callSpeedDetails: null,
           attendanceDetails: null,
           tasksDetails: null,
           billingDetails: null,
-          kotTimeDetails: reportData.rule5KotTime,
+          kotTimeDetails: activeReportData.rule5KotTime,
           billingTableDetails: null,
           billingCounterDetails: null,
         }
       }
 
       // Use real Rule 6 Table Billing data if category is billing_table
-      if (rule.category === 'billing_table' && reportData?.rule6TableBilling) {
+      if (rule.category === 'billing_table' && activeReportData?.rule6TableBilling) {
         return {
           ...rule,
-          score: reportData.rule6TableBilling.score,
+          score: activeReportData.rule6TableBilling.score,
           callSpeedDetails: null,
           attendanceDetails: null,
           tasksDetails: null,
           billingDetails: null,
           kotTimeDetails: null,
-          billingTableDetails: reportData.rule6TableBilling,
+          billingTableDetails: activeReportData.rule6TableBilling,
           billingCounterDetails: null,
         }
       }
 
       // Use real Rule 7 Counter Billing data if category is billing_counter
-      if (rule.category === 'billing_counter' && reportData?.rule7CounterBilling) {
+      if (rule.category === 'billing_counter' && activeReportData?.rule7CounterBilling) {
         return {
           ...rule,
-          score: reportData.rule7CounterBilling.score,
+          score: activeReportData.rule7CounterBilling.score,
           callSpeedDetails: null,
           attendanceDetails: null,
           tasksDetails: null,
           billingDetails: null,
           kotTimeDetails: null,
           billingTableDetails: null,
-          billingCounterDetails: reportData.rule7CounterBilling,
+          billingCounterDetails: activeReportData.rule7CounterBilling,
           kitchenVolumeDetails: null,
           stockFulfillmentDetails: null,
           stockVolumeDetails: null,
@@ -754,10 +935,10 @@ export default function ReportCardDashboard() {
       }
 
       // Use real Rule 8 Kitchen Volume data if category is chef_kitchen_volume
-      if (rule.category === 'chef_kitchen_volume' && reportData?.rule8ChefKitchenVolume) {
+      if (rule.category === 'chef_kitchen_volume' && activeReportData?.rule8ChefKitchenVolume) {
         return {
           ...rule,
-          score: reportData.rule8ChefKitchenVolume.score,
+          score: activeReportData.rule8ChefKitchenVolume.score,
           callSpeedDetails: null,
           attendanceDetails: null,
           tasksDetails: null,
@@ -765,17 +946,17 @@ export default function ReportCardDashboard() {
           kotTimeDetails: null,
           billingTableDetails: null,
           billingCounterDetails: null,
-          kitchenVolumeDetails: reportData.rule8ChefKitchenVolume,
+          kitchenVolumeDetails: activeReportData.rule8ChefKitchenVolume,
           stockFulfillmentDetails: null,
           stockVolumeDetails: null,
         }
       }
 
       // Use real Rule 9 Stock Fulfillment data if category is chef_stock_fulfillment
-      if (rule.category === 'chef_stock_fulfillment' && reportData?.rule9ChefStockFulfillment) {
+      if (rule.category === 'chef_stock_fulfillment' && activeReportData?.rule9ChefStockFulfillment) {
         return {
           ...rule,
-          score: reportData.rule9ChefStockFulfillment.score,
+          score: activeReportData.rule9ChefStockFulfillment.score,
           callSpeedDetails: null,
           attendanceDetails: null,
           tasksDetails: null,
@@ -784,16 +965,16 @@ export default function ReportCardDashboard() {
           billingTableDetails: null,
           billingCounterDetails: null,
           kitchenVolumeDetails: null,
-          stockFulfillmentDetails: reportData.rule9ChefStockFulfillment,
+          stockFulfillmentDetails: activeReportData.rule9ChefStockFulfillment,
           stockVolumeDetails: null,
         }
       }
 
       // Use real Rule 10 Stock Volume data if category is chef_stock_volume
-      if (rule.category === 'chef_stock_volume' && reportData?.rule10ChefStockVolume) {
+      if (rule.category === 'chef_stock_volume' && activeReportData?.rule10ChefStockVolume) {
         return {
           ...rule,
-          score: reportData.rule10ChefStockVolume.score,
+          score: activeReportData.rule10ChefStockVolume.score,
           callSpeedDetails: null,
           attendanceDetails: null,
           tasksDetails: null,
@@ -803,7 +984,7 @@ export default function ReportCardDashboard() {
           billingCounterDetails: null,
           kitchenVolumeDetails: null,
           stockFulfillmentDetails: null,
-          stockVolumeDetails: reportData.rule10ChefStockVolume,
+          stockVolumeDetails: activeReportData.rule10ChefStockVolume,
         }
       }
 
@@ -835,7 +1016,7 @@ export default function ReportCardDashboard() {
     )
 
     return { ruleScores, totalScore, totalMaxMarks, totalAvg }
-  }, [currentEmployee, roleRules, reportData])
+  }, [currentEmployee, roleRules, activeReportData])
 
   // ---------------------------------------------------------------------------
   // Performance Grade & Status Badge
@@ -885,41 +1066,6 @@ export default function ReportCardDashboard() {
   // ---------------------------------------------------------------------------
   // Classroom Ranking Calculations (School Class Rank Card 1, 2, 3...)
   // ---------------------------------------------------------------------------
-  const getBranchName = useCallback(
-    (emp: Employee) => {
-      const user = getEmployeeUser(emp, users)
-      const bId = getEmployeeBranchId(emp, user)
-      if (bId) {
-        const b = branches.find((item) => getId(item.id) === bId)
-        if (b) return b.name
-      }
-      return 'Branch'
-    },
-    [branches, users]
-  )
-
-  const getCompanyName = useCallback(
-    (emp: Employee) => {
-      const user = getEmployeeUser(emp, users)
-      const bId = getEmployeeBranchId(emp, user)
-      if (bId) {
-        const b = branches.find((item) => getId(item.id) === bId)
-        if (b) {
-          const compId = getBranchCompanyId(b)
-          const c = companies.find((item) => getId(item.id) === compId)
-          if (c) return c.name
-        }
-      }
-      if (user && (user as any).company) {
-        const compId = getId((user as any).company)
-        const c = companies.find((item) => getId(item.id) === compId)
-        if (c) return c.name
-      }
-      return companies[0]?.name || 'Blackforest'
-    },
-    [branches, companies, users]
-  )
-
   const classroomRankings = useMemo(() => {
     if (filteredEmployees.length === 0) return []
 
@@ -1085,6 +1231,16 @@ export default function ReportCardDashboard() {
     allReportsMap,
   ])
 
+  // Auto-sync previewEmpId to Rank #1 topper if not set or invalid
+  useEffect(() => {
+    if (classroomRankings.length > 0) {
+      const isValid = classroomRankings.some((r) => getId(r.emp.id) === previewEmpId)
+      if (!isValid) {
+        setPreviewEmpId(getId(classroomRankings[0].emp.id))
+      }
+    }
+  }, [classroomRankings, previewEmpId])
+
   const classStats = useMemo(() => {
     if (classroomRankings.length === 0) return null
     const total = classroomRankings.length
@@ -1136,11 +1292,11 @@ export default function ReportCardDashboard() {
 
     return {
       title: `${roleName} Classroom Rank Card`,
-      subtitle: `Evaluating ${classroomRankings.length} ${roleName.toLowerCase()} across ${scopeLocation} • Month: ${formattedMonthLabel}`,
+      subtitle: `Evaluating ${classroomRankings.length} ${roleName.toLowerCase()} across ${scopeLocation} • Period: ${formattedPeriodLabel}`,
       scopeLocation,
       roleName,
     }
-  }, [selectedBranch, selectedCompany, selectedRole, branches, companies, classroomRankings.length, formattedMonthLabel])
+  }, [selectedBranch, selectedCompany, selectedRole, branches, companies, classroomRankings.length, formattedPeriodLabel])
 
   // Clear / Reset all filters
   const handleResetFilters = useCallback(() => {
@@ -1148,7 +1304,11 @@ export default function ReportCardDashboard() {
     setSelectedBranch('all')
     setSelectedRole('all')
     setSelectedEmployeeId('')
-  }, [])
+    setSelectedPeriod('today')
+    setSelectedMonth(currentMonthStr)
+    setAllReportsMap({})
+    setReportData(null)
+  }, [currentMonthStr])
 
   return (
     <div className="report-card-container">
@@ -1273,17 +1433,81 @@ export default function ReportCardDashboard() {
             </select>
           </div>
 
-          {/* Filter: Choosing Month */}
-          <div className="filter-item">
-            <label htmlFor="filter-month">Report Month</label>
-            <input
-              id="filter-month"
-              type="month"
-              className="filter-input"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              disabled={loadingMetadata}
-            />
+          {/* Filter: Choosing Time Period & Month */}
+          <div className="filter-item period-filter-item">
+            <label>
+              Time Period {loadingPeriod && <span className="period-loading-tag">Updating...</span>}
+            </label>
+            <div className="period-segmented-controls">
+              <button
+                type="button"
+                className={`btn-period-pill ${selectedPeriod === 'today' ? 'is-active' : ''}`}
+                onClick={() => {
+                  setSelectedPeriod('today')
+                  setSelectedMonth(currentMonthStr)
+                  setAllReportsMap({})
+                  setReportData(null)
+                }}
+                title="Only employees who worked Today"
+              >
+                <span className="pill-dot">⚡</span> Today
+              </button>
+
+              <button
+                type="button"
+                className={`btn-period-pill ${selectedPeriod === 'week' ? 'is-active' : ''}`}
+                onClick={() => {
+                  setSelectedPeriod('week')
+                  setSelectedMonth(currentMonthStr)
+                  setAllReportsMap({})
+                  setReportData(null)
+                }}
+                title="Only employees who worked This Week"
+              >
+                <span className="pill-dot">📅</span> This Week
+              </button>
+
+              <button
+                type="button"
+                className={`btn-period-pill ${selectedPeriod === 'month' ? 'is-active' : ''}`}
+                onClick={() => {
+                  setSelectedPeriod('month')
+                  setSelectedMonth(currentMonthStr)
+                  setAllReportsMap({})
+                  setReportData(null)
+                }}
+                title="Only employees who worked This Month"
+              >
+                <span className="pill-dot">📆</span> This Month
+              </button>
+
+              <div
+                className={`custom-month-container ${selectedPeriod === 'custom_month' ? 'is-active' : ''}`}
+                title="Pick specific month"
+              >
+                <label htmlFor="custom-month-input" className="btn-calendar-pill">
+                  <span className="cal-icon">🗓️</span>
+                  <span className="cal-label">
+                    {selectedPeriod === 'custom_month' ? selectedMonth : 'Month'}
+                  </span>
+                </label>
+                <input
+                  id="custom-month-input"
+                  type="month"
+                  className="hidden-month-input"
+                  value={selectedMonth}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setSelectedMonth(e.target.value)
+                      setSelectedPeriod('custom_month')
+                      setAllReportsMap({})
+                      setReportData(null)
+                    }
+                  }}
+                  disabled={loadingMetadata}
+                />
+              </div>
+            </div>
           </div>
 
           {/* Reset Filters */}
@@ -1346,60 +1570,11 @@ export default function ReportCardDashboard() {
             </div>
           </div>
         </div>
-      ) : selectedEmployeeId === 'all' ? (
+      ) : selectedEmployeeId === 'all' || currentEmployee ? (
         /* -------------------------------------------------------------------- */
-        /* 3. Classroom Rank Card & Leaderboard View (Rank 1, 2, 3...)          */
+        /* 3. Classroom Rank Card & Leaderboard Split View                      */
         /* -------------------------------------------------------------------- */
         <div className="rank-card-view">
-          {/* Top 3 Podium (Gold 🥇, Silver 🥈, Bronze 🥉) */}
-          {classroomRankings.length >= 2 && (
-            <div className="podium-grid">
-              {classroomRankings.slice(0, 3).map((item) => {
-                const medal = item.rank === 1 ? '🥇' : item.rank === 2 ? '🥈' : '🥉'
-                const rankClass = `rank-${item.rank}`
-                return (
-                  <div key={item.emp.id} className={`podium-card ${rankClass}`}>
-                    <div className="podium-top">
-                      <span className="podium-medal">{medal}</span>
-                      <span className={`rank-tag ${item.gradeClass}`}>
-                        Rank #{item.rank}
-                      </span>
-                    </div>
-                    <div className="podium-body">
-                      <h4 className="emp-title">{item.emp.name}</h4>
-                      <div className="emp-sub">
-                        {item.emp.employeeId ? `ID: ${item.emp.employeeId} • ` : ''}
-                        {item.branchName}
-                      </div>
-                    </div>
-                    <div className="podium-score-row">
-                      <div className="score-val">
-                        {item.totalScore} <span>/ {item.totalMaxMarks}</span>
-                        <span
-                          style={{
-                            fontSize: '0.82rem',
-                            color: 'var(--theme-text-secondary, #9ca3af)',
-                            fontWeight: 600,
-                            marginLeft: '6px',
-                          }}
-                        >
-                          ({item.overallScore}%)
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn-card-link"
-                        onClick={() => setSelectedEmployeeId(item.emp.id)}
-                      >
-                        View Report Card →
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
           {/* Classroom Stats Strip */}
           {classStats && (
             <div className="rank-stats-strip">
@@ -1430,530 +1605,226 @@ export default function ReportCardDashboard() {
             </div>
           )}
 
-          {/* Classroom Rank Table */}
-          <div className="rank-table-wrap">
-            <table className="rank-table">
-              <thead>
-                <tr>
-                  <th className="text-center" style={{ width: '60px' }}>
-                    Rank
-                  </th>
-                  <th>Employee Name</th>
-                  <th>Branch / Company</th>
-                  {selectedRole === 'waiter' ? (
-                    <>
-                      <th className="text-center">Call Speed</th>
-                      <th className="text-center">Attendance</th>
-                      <th className="text-center">Tasks</th>
-                      <th className="text-center">Billing</th>
-                      <th className="text-center">KOT Time</th>
-                      <th className="text-center">Table Sales</th>
-                    </>
-                  ) : selectedRole === 'cashier' ? (
-                    <>
-                      <th className="text-center">Attendance</th>
-                      <th className="text-center">Tasks</th>
-                      <th className="text-center">Billing</th>
-                      <th className="text-center">Counter Sales</th>
-                    </>
-                  ) : selectedRole === 'chef' ? (
-                    <>
-                      <th className="text-center">Attendance</th>
-                      <th className="text-center">Duties</th>
-                      <th className="text-center">KOT Prep</th>
-                      <th className="text-center">Kitchen Output</th>
-                      <th className="text-center">Stock Fulfillment</th>
-                      <th className="text-center">Stock Production</th>
-                    </>
-                  ) : selectedRole === 'supervisor' ? (
-                    <>
-                      <th className="text-center">Attendance</th>
-                      <th className="text-center">Checklists</th>
-                      <th className="text-center">KOT Confirm</th>
-                    </>
-                  ) : (
-                    <>
-                      <th className="text-center">Attendance</th>
-                      <th className="text-center">Tasks</th>
-                    </>
-                  )}
-                  <th className="text-center">Overall Score</th>
-                  <th className="text-center">Grade</th>
-                  <th className="text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {classroomRankings.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={
-                        selectedRole === 'waiter' || selectedRole === 'chef'
-                          ? 11
-                          : selectedRole === 'cashier'
-                          ? 9
-                          : selectedRole === 'supervisor'
-                          ? 8
-                          : 7
-                      }
-                      className="text-center"
-                      style={{ padding: '3.5rem 1rem', color: '#6b7280' }}
-                    >
-                      <div style={{ fontSize: '2.5rem', marginBottom: '0.6rem' }}>👥</div>
-                      <div style={{ fontWeight: 700, fontSize: '1.15rem', color: '#111827' }}>
-                        No {rankingScopeText.roleName.toLowerCase()} found for {rankingScopeText.scopeLocation}
-                      </div>
-                      <div style={{ fontSize: '0.88rem', color: '#6b7280', marginTop: '0.4rem' }}>
-                        Try choosing &quot;All Branches&quot; or another role from the filters above.
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  classroomRankings.map((item) => {
-                  const badgeClass =
-                    item.rank === 1
-                      ? 'rank-gold'
-                      : item.rank === 2
-                      ? 'rank-silver'
-                      : item.rank === 3
-                      ? 'rank-bronze'
-                      : 'rank-standard'
-                  const rowHighlightClass = item.rank === 1 ? 'top-row-1' : ''
-
-                  return (
-                    <tr key={item.emp.id} className={rowHighlightClass}>
-                      <td className="text-center rank-cell">
-                        <span className={`rank-badge ${badgeClass}`}>
-                          {item.rank === 1
-                            ? '🥇'
-                            : item.rank === 2
-                            ? '🥈'
-                            : item.rank === 3
-                            ? '🥉'
-                            : `#${item.rank}`}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="emp-cell">
-                          <div className="emp-avatar">
-                            {item.emp.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="emp-info">
-                            <button
-                              type="button"
-                              className="emp-name-link"
-                              onClick={() => setSelectedEmployeeId(item.emp.id)}
-                            >
-                              {item.emp.name}
-                            </button>
-                            <span className="emp-meta-code">
-                              {item.emp.employeeId ? `ID: ${item.emp.employeeId} • ` : ''}
-                              {item.role.replace('_', ' ')}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="branch-cell">
-                          <strong>{item.branchName}</strong>
-                          <div style={{ fontSize: '0.76rem', color: '#6b7280' }}>
-                            {item.companyName}
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Rule Scores */}
-                      {selectedRole === 'waiter' ? (
-                        <>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores[0]?.score ?? 0) >= 90
-                                  ? 'high'
-                                  : (item.ruleScores[0]?.score ?? 0) >= 80
-                                  ? 'med'
-                                  : 'low'
-                              }`}
-                            >
-                              {item.ruleScores[0]?.score ?? '—'}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores[1]?.score ?? 0) >= 90
-                                  ? 'high'
-                                  : (item.ruleScores[1]?.score ?? 0) >= 80
-                                  ? 'med'
-                                  : 'low'
-                              }`}
-                            >
-                              {item.ruleScores[1]?.score ?? '—'}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores[2]?.score ?? 0) >= 90
-                                  ? 'high'
-                                  : (item.ruleScores[2]?.score ?? 0) >= 80
-                                  ? 'med'
-                                  : 'low'
-                              }`}
-                            >
-                              {item.ruleScores[2]?.score ?? '—'}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores[3]?.score ?? 0) >= 90
-                                  ? 'high'
-                                  : (item.ruleScores[3]?.score ?? 0) >= 80
-                                  ? 'med'
-                                  : 'low'
-                              }`}
-                            >
-                              {item.ruleScores[3]?.score ?? '—'}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores[4]?.score ?? 0) >= 90
-                                  ? 'high'
-                                  : (item.ruleScores[4]?.score ?? 0) >= 80
-                                  ? 'med'
-                                  : 'low'
-                              }`}
-                            >
-                              {item.ruleScores[4]?.score ?? '—'}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores[5]?.score ?? 0) >= 90
-                                  ? 'high'
-                                  : (item.ruleScores[5]?.score ?? 0) >= 80
-                                  ? 'med'
-                                  : 'low'
-                              }`}
-                            >
-                              {item.ruleScores[5]?.score ?? '—'}
-                            </span>
-                          </td>
-                        </>
-                      ) : selectedRole === 'cashier' ? (
-                        <>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores[0]?.score ?? 0) >= 90
-                                  ? 'high'
-                                  : (item.ruleScores[0]?.score ?? 0) >= 80
-                                  ? 'med'
-                                  : 'low'
-                              }`}
-                            >
-                              {item.ruleScores[0]?.score ?? '—'}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores[1]?.score ?? 0) >= 90
-                                  ? 'high'
-                                  : (item.ruleScores[1]?.score ?? 0) >= 80
-                                  ? 'med'
-                                  : 'low'
-                              }`}
-                            >
-                              {item.ruleScores[1]?.score ?? '—'}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores[2]?.score ?? 0) >= 90
-                                  ? 'high'
-                                  : (item.ruleScores[2]?.score ?? 0) >= 80
-                                  ? 'med'
-                                  : 'low'
-                              }`}
-                            >
-                              {item.ruleScores[2]?.score ?? '—'}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores[3]?.score ?? 0) >= 90
-                                  ? 'high'
-                                  : (item.ruleScores[3]?.score ?? 0) >= 80
-                                  ? 'med'
-                                  : 'low'
-                              }`}
-                            >
-                              {item.ruleScores[3]?.score ?? '—'}
-                            </span>
-                          </td>
-                        </>
-                      ) : selectedRole === 'chef' ? (
-                        <>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores[0]?.score ?? 0) >= 90
-                                  ? 'high'
-                                  : (item.ruleScores[0]?.score ?? 0) >= 80
-                                  ? 'med'
-                                  : 'low'
-                              }`}
-                            >
-                              {item.ruleScores[0]?.score ?? '—'}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores[1]?.score ?? 0) >= 90
-                                  ? 'high'
-                                  : (item.ruleScores[1]?.score ?? 0) >= 80
-                                  ? 'med'
-                                  : 'low'
-                              }`}
-                            >
-                              {item.ruleScores[1]?.score ?? '—'}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores[2]?.score ?? 0) >= 90
-                                  ? 'high'
-                                  : (item.ruleScores[2]?.score ?? 0) >= 80
-                                  ? 'med'
-                                  : 'low'
-                              }`}
-                            >
-                              {item.ruleScores[2]?.score ?? '—'}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores[3]?.score ?? 0) >= 90
-                                  ? 'high'
-                                  : (item.ruleScores[3]?.score ?? 0) >= 80
-                                  ? 'med'
-                                  : 'low'
-                              }`}
-                            >
-                              {item.ruleScores[3]?.score ?? '—'}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores[4]?.score ?? 0) >= 90
-                                  ? 'high'
-                                  : (item.ruleScores[4]?.score ?? 0) >= 80
-                                  ? 'med'
-                                  : 'low'
-                              }`}
-                            >
-                              {item.ruleScores[4]?.score ?? '—'}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores[5]?.score ?? 0) >= 90
-                                  ? 'high'
-                                  : (item.ruleScores[5]?.score ?? 0) >= 80
-                                  ? 'med'
-                                  : 'low'
-                              }`}
-                            >
-                              {item.ruleScores[5]?.score ?? '—'}
-                            </span>
-                          </td>
-                        </>
-                      ) : selectedRole === 'supervisor' ? (
-                        <>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores[0]?.score ?? 0) >= 90
-                                  ? 'high'
-                                  : (item.ruleScores[0]?.score ?? 0) >= 80
-                                  ? 'med'
-                                  : 'low'
-                              }`}
-                            >
-                              {item.ruleScores[0]?.score ?? '—'}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores[1]?.score ?? 0) >= 90
-                                  ? 'high'
-                                  : (item.ruleScores[1]?.score ?? 0) >= 80
-                                  ? 'med'
-                                  : 'low'
-                              }`}
-                            >
-                              {item.ruleScores[1]?.score ?? '—'}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores[2]?.score ?? 0) >= 90
-                                  ? 'high'
-                                  : (item.ruleScores[2]?.score ?? 0) >= 80
-                                  ? 'med'
-                                  : 'low'
-                              }`}
-                            >
-                              {item.ruleScores[2]?.score ?? '—'}
-                            </span>
-                          </td>
-                        </>
-                      ) : (
-                        <>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores.find((r) => r.key === 'attendance')?.score ??
-                                  90) >= 90
-                                  ? 'high'
-                                  : 'med'
-                              }`}
-                            >
-                              {item.ruleScores.find((r) => r.key === 'attendance')?.score ?? 90}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span
-                              className={`score-pill-cell ${
-                                (item.ruleScores.find((r) => r.key === 'tasks')?.score ?? 88) >= 90
-                                  ? 'high'
-                                  : 'med'
-                              }`}
-                            >
-                              {item.ruleScores.find((r) => r.key === 'tasks')?.score ?? 88}
-                            </span>
-                          </td>
-                        </>
-                      )}
-
-                      {/* Total Score */}
-                      <td className="text-center">
-                        <div className="total-score-box">
-                          <span className="score-number">
-                            {item.totalScore} <span>/ {item.totalMaxMarks}</span>
-                          </span>
-                          <div style={{ fontSize: '0.78rem', color: '#6b7280', fontWeight: 700, marginTop: '2px' }}>
-                            {item.overallScore}%
-                          </div>
-                          <div className="bar-track">
-                            <div
-                              className={`bar-prog ${
-                                item.overallScore >= 90
-                                  ? 'bg-a-plus'
-                                  : item.overallScore >= 80
-                                  ? 'bg-a'
-                                  : item.overallScore >= 65
-                                  ? 'bg-b'
-                                  : 'bg-c'
-                              }`}
-                              style={{ width: `${item.overallScore}%` }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Grade */}
-                      <td className="text-center">
-                        <span
-                          className={`grade-badge ${item.gradeClass}`}
-                          style={{ fontSize: '0.78rem', padding: '0.2rem 0.6rem' }}
-                        >
-                          {item.grade}
-                        </span>
-                      </td>
-
-                      {/* Action */}
-                      <td className="text-right">
-                        <button
-                          type="button"
-                          className="btn-open-report"
-                          onClick={() => setSelectedEmployeeId(item.emp.id)}
-                        >
-                          View Report Card →
-                        </button>
-                      </td>
+          {/* Master-Detail Split Layout (Table on Left, Report Card on Right) */}
+          <div className="classroom-split-layout">
+            {/* Left Column: Classroom Rank Table */}
+            <div className="split-left-table">
+              <div className="rank-table-wrap">
+                <table className="rank-table">
+                  <thead>
+                    <tr>
+                      <th className="text-center" style={{ width: '55px' }}>
+                        Rank
+                      </th>
+                      <th>Employee Name</th>
+                      <th className="text-center" style={{ minWidth: '130px' }}>
+                        Overall Score
+                      </th>
+                      <th className="text-center" style={{ minWidth: '95px' }}>
+                        Percentage
+                      </th>
+                      <th className="text-center" style={{ width: '65px' }}>
+                        Action
+                      </th>
                     </tr>
-                  )
-                })
-              )}
-            </tbody>
-            </table>
-          </div>
-        </div>
-      ) : currentEmployee ? (
-        /* -------------------------------------------------------------------- */
-        /* 4. Loaded State: Single User Report Card (Left-Aligned Layout)       */
-        /* -------------------------------------------------------------------- */
-        <div className="report-card-view">
-          {/* Back to Rank Card Navigation Bar */}
-          <div className="single-card-nav">
-            <button
-              type="button"
-              className="btn-back-to-rank"
-              onClick={() => setSelectedEmployeeId('all')}
-            >
-              ← Back to Rank Card
-            </button>
-            {employeeRankInfo && (
-              <div className="rank-badge-pill">
-                🏆 Classroom Standing: <strong>Rank #{employeeRankInfo.rank}</strong> of{' '}
-                {filteredEmployees.length} ({employeeRankInfo.totalScore} / {employeeRankInfo.totalMaxMarks} • {employeeRankInfo.overallScore}%)
-              </div>
-            )}
-          </div>
+                  </thead>
+                  <tbody>
+                    {classroomRankings.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="text-center"
+                          style={{ padding: '3.5rem 1rem', color: '#6b7280' }}
+                        >
+                          <div style={{ fontSize: '2.5rem', marginBottom: '0.6rem' }}>👥</div>
+                          <div style={{ fontWeight: 700, fontSize: '1.15rem', color: '#111827' }}>
+                            No {rankingScopeText.roleName.toLowerCase()} found for {rankingScopeText.scopeLocation}
+                          </div>
+                          <div style={{ fontSize: '0.88rem', color: '#6b7280', marginTop: '0.4rem' }}>
+                            Try choosing &quot;All Branches&quot; or another role from the filters above.
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      classroomRankings.map((item) => {
+                        const isSelected = currentEmployee && getId(item.emp.id) === getId(currentEmployee.id)
+                        const badgeClass =
+                          item.rank === 1
+                            ? 'rank-gold'
+                            : item.rank === 2
+                            ? 'rank-silver'
+                            : item.rank === 3
+                            ? 'rank-bronze'
+                            : 'rank-standard'
+                        const rowHighlightClass = item.rank === 1 ? 'top-row-1' : ''
 
-          {/* Profile Banner */}
-          <div className="profile-banner">
-            <div className="profile-info">
-              <div className="avatar">
-                {currentEmployee.name.charAt(0).toUpperCase()}
-              </div>
+                        return (
+                          <tr
+                            key={item.emp.id}
+                            className={`rank-row ${rowHighlightClass} ${isSelected ? 'active-row' : ''}`}
+                            onClick={() => setPreviewEmpId(item.emp.id)}
+                            title={`Click to view ${item.emp.name}'s report card on the right`}
+                          >
+                            <td className="text-center rank-cell">
+                              <span className={`rank-badge ${badgeClass}`}>
+                                {item.rank === 1
+                                  ? '🥇'
+                                  : item.rank === 2
+                                  ? '🥈'
+                                  : item.rank === 3
+                                  ? '🥉'
+                                  : `#${item.rank}`}
+                              </span>
+                            </td>
+                            <td>
+                              <div className="emp-cell">
+                                <div className="emp-avatar">
+                                  {item.emp.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div className="emp-info">
+                                  <button
+                                    type="button"
+                                    className="emp-name-link"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setPreviewEmpId(item.emp.id)
+                                    }}
+                                  >
+                                    {item.emp.name}
+                                  </button>
+                                  <span className="emp-meta-code">
+                                    {item.emp.employeeId ? `ID: ${item.emp.employeeId} • ` : ''}
+                                    {item.role.replace('_', ' ')} • {item.branchName}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
 
-              <div className="details">
-                <h2 className="emp-name">{currentEmployee.name}</h2>
-                <div className="meta-tags">
-                  <span className="role-badge">
-                    {employeeRole.replace('_', ' ')}
-                  </span>
-                  {currentEmployee.employeeId && (
-                    <span className="emp-id-tag">
-                      ID: {currentEmployee.employeeId}
-                    </span>
+                            {/* Overall Score */}
+                            <td className="text-center score-col-cell">
+                              <div className="overall-score-pill">
+                                <span className="score-value-bold">
+                                  {item.totalScore}
+                                </span>
+                                <span className="score-denom">
+                                  / {item.totalMaxMarks}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Percentage */}
+                            <td className="text-center">
+                              <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', minWidth: '65px' }}>
+                                <span
+                                  style={{
+                                    fontWeight: 800,
+                                    fontSize: '0.88rem',
+                                    color:
+                                      item.overallScore >= 90
+                                        ? '#047857'
+                                        : item.overallScore >= 80
+                                        ? '#1d4ed8'
+                                        : item.overallScore >= 65
+                                        ? '#d97706'
+                                        : '#dc2626',
+                                  }}
+                                >
+                                  {typeof item.overallScore === 'number'
+                                    ? `${Number(item.overallScore).toFixed(2)}%`
+                                    : `${item.overallScore}%`}
+                                </span>
+                                <div className="bar-track" style={{ width: '55px', height: '4px', marginTop: '3px' }}>
+                                  <div
+                                    className={`bar-prog ${
+                                      item.overallScore >= 90
+                                        ? 'bg-a-plus'
+                                        : item.overallScore >= 80
+                                        ? 'bg-a'
+                                        : item.overallScore >= 65
+                                        ? 'bg-b'
+                                        : 'bg-c'
+                                    }`}
+                                    style={{ width: `${Math.min(100, Math.max(0, item.overallScore))}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Action Icon Button */}
+                            <td className="text-center" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                className={`btn-icon-report ${isSelected ? 'is-active' : ''}`}
+                                onClick={() => setPreviewEmpId(item.emp.id)}
+                                title={`View ${item.emp.name}'s Report Card on the right`}
+                                aria-label={`View ${item.emp.name}'s Report Card`}
+                              >
+                                <svg
+                                  width="17"
+                                  height="17"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                  <circle cx="12" cy="12" r="3" />
+                                </svg>
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Right Column: Selected Employee Report Card Preview */}
+            <div className="split-right-preview">
+              {currentEmployee ? (
+                <div className="report-card-view preview-mode">
+                  {employeeRankInfo && (
+                    <div className="preview-standing-bar">
+                      <span className="standing-pill">
+                        🏆 Classroom Standing: <strong>Rank #{employeeRankInfo.rank}</strong> of{' '}
+                        {classroomRankings.length} ({employeeRankInfo.totalScore} / {employeeRankInfo.totalMaxMarks} • {employeeRankInfo.overallScore}%)
+                      </span>
+                    </div>
                   )}
-                  <span className="branch-tag">• {employeeBranchName}</span>
-                  <span className="company-tag">• {employeeCompanyName}</span>
-                </div>
-              </div>
-            </div>
 
-            <div className="month-pill">
-              <span className="period-lbl">Evaluation Period</span>
-              <span className="month-name">{formattedMonthLabel}</span>
-            </div>
-          </div>
+                  {/* Profile Banner */}
+                  <div className="profile-banner">
+                    <div className="profile-info">
+                      <div className="avatar">
+                        {currentEmployee.name.charAt(0).toUpperCase()}
+                      </div>
+
+                      <div className="details">
+                        <h2 className="emp-name">{currentEmployee.name}</h2>
+                        <div className="meta-tags">
+                          <span className="role-badge">
+                            {employeeRole.replace('_', ' ')}
+                          </span>
+                          {currentEmployee.employeeId && (
+                            <span className="emp-id-tag">
+                              ID: {currentEmployee.employeeId}
+                            </span>
+                          )}
+                          <span className="branch-tag">• {employeeBranchName}</span>
+                          <span className="company-tag">• {employeeCompanyName}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="month-pill">
+                      <span className="period-lbl">Evaluation Period</span>
+                      <span className="month-name">{formattedMonthLabel}</span>
+                    </div>
+                  </div>
 
           {/* Overall Performance Score Card */}
           <div className="score-overview-card">
@@ -2273,13 +2144,13 @@ export default function ReportCardDashboard() {
                   <span className="stat-icon">⚡</span>
                   <span className="stat-label">Call Speed SLA (&lt; 30s)</span>
                   <span className="stat-value">
-                    {reportData?.rule1CallSpeed
-                      ? `${reportData.rule1CallSpeed.avgResponseSeconds}s`
+                    {activeReportData?.rule1CallSpeed
+                      ? `${activeReportData.rule1CallSpeed.avgResponseSeconds}s`
                       : '24s'}
                   </span>
                   <span className="stat-note">
-                    {reportData?.rule1CallSpeed
-                      ? `${reportData.rule1CallSpeed.under30sCount} of ${reportData.rule1CallSpeed.totalCalls} calls < 30s`
+                    {activeReportData?.rule1CallSpeed
+                      ? `${activeReportData.rule1CallSpeed.under30sCount} of ${activeReportData.rule1CallSpeed.totalCalls} calls < 30s`
                       : 'Target met (< 30s)'}
                   </span>
                 </div>
@@ -2288,13 +2159,13 @@ export default function ReportCardDashboard() {
                   <span className="stat-icon">⏰</span>
                   <span className="stat-label">Shift Attendance</span>
                   <span className="stat-value">
-                    {reportData?.rule2Attendance
-                      ? `${reportData.rule2Attendance.presentDays} / ${reportData.rule2Attendance.totalDaysInMonth - 4}`
+                    {activeReportData?.rule2Attendance
+                      ? `${activeReportData.rule2Attendance.presentDays} / ${activeReportData.rule2Attendance.totalDaysInMonth - 4}`
                       : '25 / 26'}
                   </span>
                   <span className="stat-note">
-                    {reportData?.rule2Attendance
-                      ? `${reportData.rule2Attendance.attendanceRatePercent}% attendance rate`
+                    {activeReportData?.rule2Attendance
+                      ? `${activeReportData.rule2Attendance.attendanceRatePercent}% attendance rate`
                       : '96.1% attendance rate'}
                   </span>
                 </div>
@@ -2303,13 +2174,13 @@ export default function ReportCardDashboard() {
                   <span className="stat-icon">📋</span>
                   <span className="stat-label">Tasks Completed</span>
                   <span className="stat-value">
-                    {reportData?.rule3Tasks
-                      ? `${reportData.rule3Tasks.totalCompleted}`
+                    {activeReportData?.rule3Tasks
+                      ? `${activeReportData.rule3Tasks.totalCompleted}`
                       : '142'}
                   </span>
                   <span className="stat-note">
-                    {reportData?.rule3Tasks
-                      ? `${reportData.rule3Tasks.completionRatePercent}% completion (${reportData.rule3Tasks.totalAssigned} assigned)`
+                    {activeReportData?.rule3Tasks
+                      ? `${activeReportData.rule3Tasks.completionRatePercent}% completion (${activeReportData.rule3Tasks.totalAssigned} assigned)`
                       : 'Out of 150 assigned duties'}
                   </span>
                 </div>
@@ -2318,13 +2189,13 @@ export default function ReportCardDashboard() {
                   <span className="stat-icon">🍽️</span>
                   <span className="stat-label">Billing Accuracy</span>
                   <span className="stat-value">
-                    {reportData?.rule4Billing
-                      ? `${reportData.rule4Billing.productAccuracyPercent}%`
+                    {activeReportData?.rule4Billing
+                      ? `${activeReportData.rule4Billing.productAccuracyPercent}%`
                       : '98.2%'}
                   </span>
                   <span className="stat-note">
-                    {reportData?.rule4Billing
-                      ? `${reportData.rule4Billing.servedProducts} / ${reportData.rule4Billing.totalProducts} items served (${reportData.rule4Billing.cancelledProducts} cancelled)`
+                    {activeReportData?.rule4Billing
+                      ? `${activeReportData.rule4Billing.servedProducts} / ${activeReportData.rule4Billing.totalProducts} items served (${activeReportData.rule4Billing.cancelledProducts} cancelled)`
                       : '342 items served (4 cancelled)'}
                   </span>
                 </div>
@@ -2333,13 +2204,13 @@ export default function ReportCardDashboard() {
                   <span className="stat-icon">⏱️</span>
                   <span className="stat-label">KOT Delivery SLA</span>
                   <span className="stat-value">
-                    {reportData?.rule5KotTime
-                      ? `${Math.round(reportData.rule5KotTime.avgDurationSeconds / 60)}m`
+                    {activeReportData?.rule5KotTime
+                      ? `${Math.round(activeReportData.rule5KotTime.avgDurationSeconds / 60)}m`
                       : '3.8m'}
                   </span>
                   <span className="stat-note">
-                    {reportData?.rule5KotTime
-                      ? `${reportData.rule5KotTime.onTimeRatePercent}% delivered within 5m SLA`
+                    {activeReportData?.rule5KotTime
+                      ? `${activeReportData.rule5KotTime.onTimeRatePercent}% delivered within 5m SLA`
                       : '95% delivered within 5m SLA'}
                   </span>
                 </div>
@@ -2350,13 +2221,13 @@ export default function ReportCardDashboard() {
                   <span className="stat-icon">⏰</span>
                   <span className="stat-label">Shift Attendance</span>
                   <span className="stat-value">
-                    {reportData?.rule2Attendance
-                      ? `${reportData.rule2Attendance.presentDays} / ${reportData.rule2Attendance.totalDaysInMonth - 4}`
+                    {activeReportData?.rule2Attendance
+                      ? `${activeReportData.rule2Attendance.presentDays} / ${activeReportData.rule2Attendance.totalDaysInMonth - 4}`
                       : '25 / 26'}
                   </span>
                   <span className="stat-note">
-                    {reportData?.rule2Attendance
-                      ? `${reportData.rule2Attendance.attendanceRatePercent}% attendance rate`
+                    {activeReportData?.rule2Attendance
+                      ? `${activeReportData.rule2Attendance.attendanceRatePercent}% attendance rate`
                       : '96.1% attendance rate'}
                   </span>
                 </div>
@@ -2365,13 +2236,13 @@ export default function ReportCardDashboard() {
                   <span className="stat-icon">📋</span>
                   <span className="stat-label">Kitchen Duties</span>
                   <span className="stat-value">
-                    {reportData?.rule3Tasks
-                      ? `${reportData.rule3Tasks.totalCompleted}`
+                    {activeReportData?.rule3Tasks
+                      ? `${activeReportData.rule3Tasks.totalCompleted}`
                       : '142'}
                   </span>
                   <span className="stat-note">
-                    {reportData?.rule3Tasks
-                      ? `${reportData.rule3Tasks.completionRatePercent}% checklist completion`
+                    {activeReportData?.rule3Tasks
+                      ? `${activeReportData.rule3Tasks.completionRatePercent}% checklist completion`
                       : '142 of 150 tasks done'}
                   </span>
                 </div>
@@ -2380,13 +2251,13 @@ export default function ReportCardDashboard() {
                   <span className="stat-icon">⏱️</span>
                   <span className="stat-label">KOT Prep Speed</span>
                   <span className="stat-value">
-                    {reportData?.rule5KotTime
-                      ? `${Math.round(reportData.rule5KotTime.avgDurationSeconds / 60)}m`
+                    {activeReportData?.rule5KotTime
+                      ? `${Math.round(activeReportData.rule5KotTime.avgDurationSeconds / 60)}m`
                       : '12m'}
                   </span>
                   <span className="stat-note">
-                    {reportData?.rule5KotTime
-                      ? `Target SLA: ${Math.round(reportData.rule5KotTime.targetDurationSeconds / 60)}m prep`
+                    {activeReportData?.rule5KotTime
+                      ? `Target SLA: ${Math.round(activeReportData.rule5KotTime.targetDurationSeconds / 60)}m prep`
                       : 'Target SLA: 15m prep'}
                   </span>
                 </div>
@@ -2395,13 +2266,13 @@ export default function ReportCardDashboard() {
                   <span className="stat-icon">🍳</span>
                   <span className="stat-label">Prep On-Time SLA</span>
                   <span className="stat-value">
-                    {reportData?.rule5KotTime
-                      ? `${reportData.rule5KotTime.onTimeRatePercent}%`
+                    {activeReportData?.rule5KotTime
+                      ? `${activeReportData.rule5KotTime.onTimeRatePercent}%`
                       : '94%'}
                   </span>
                   <span className="stat-note">
-                    {reportData?.rule5KotTime
-                      ? `${reportData.rule5KotTime.onTimeCount} of ${reportData.rule5KotTime.totalItems} orders on-time`
+                    {activeReportData?.rule5KotTime
+                      ? `${activeReportData.rule5KotTime.onTimeCount} of ${activeReportData.rule5KotTime.totalItems} orders on-time`
                       : '168 of 180 orders on-time'}
                   </span>
                 </div>
@@ -2419,13 +2290,13 @@ export default function ReportCardDashboard() {
                   <span className="stat-icon">⏰</span>
                   <span className="stat-label">Shift Attendance</span>
                   <span className="stat-value">
-                    {reportData?.rule2Attendance
-                      ? `${reportData.rule2Attendance.presentDays} / ${reportData.rule2Attendance.totalDaysInMonth - 4}`
+                    {activeReportData?.rule2Attendance
+                      ? `${activeReportData.rule2Attendance.presentDays} / ${activeReportData.rule2Attendance.totalDaysInMonth - 4}`
                       : '25 / 26'}
                   </span>
                   <span className="stat-note">
-                    {reportData?.rule2Attendance
-                      ? `${reportData.rule2Attendance.attendanceRatePercent}% attendance rate`
+                    {activeReportData?.rule2Attendance
+                      ? `${activeReportData.rule2Attendance.attendanceRatePercent}% attendance rate`
                       : '96.1% attendance rate'}
                   </span>
                 </div>
@@ -2434,13 +2305,13 @@ export default function ReportCardDashboard() {
                   <span className="stat-icon">📋</span>
                   <span className="stat-label">Floor Checklists</span>
                   <span className="stat-value">
-                    {reportData?.rule3Tasks
-                      ? `${reportData.rule3Tasks.totalCompleted}`
+                    {activeReportData?.rule3Tasks
+                      ? `${activeReportData.rule3Tasks.totalCompleted}`
                       : '142'}
                   </span>
                   <span className="stat-note">
-                    {reportData?.rule3Tasks
-                      ? `${reportData.rule3Tasks.totalCompleted} of ${reportData.rule3Tasks.totalAssigned} done`
+                    {activeReportData?.rule3Tasks
+                      ? `${activeReportData.rule3Tasks.totalCompleted} of ${activeReportData.rule3Tasks.totalAssigned} done`
                       : '142 of 150 tasks done'}
                   </span>
                 </div>
@@ -2449,13 +2320,13 @@ export default function ReportCardDashboard() {
                   <span className="stat-icon">⏱️</span>
                   <span className="stat-label">KOT Confirm Speed</span>
                   <span className="stat-value">
-                    {reportData?.rule5KotTime
-                      ? `${reportData.rule5KotTime.avgDurationSeconds}s`
+                    {activeReportData?.rule5KotTime
+                      ? `${activeReportData.rule5KotTime.avgDurationSeconds}s`
                       : '75s'}
                   </span>
                   <span className="stat-note">
-                    {reportData?.rule5KotTime
-                      ? `Branch SLA: ${reportData.rule5KotTime.targetDurationSeconds}s target`
+                    {activeReportData?.rule5KotTime
+                      ? `Branch SLA: ${activeReportData.rule5KotTime.targetDurationSeconds}s target`
                       : 'Branch SLA: 120s target'}
                   </span>
                 </div>
@@ -2464,13 +2335,13 @@ export default function ReportCardDashboard() {
                   <span className="stat-icon">🎯</span>
                   <span className="stat-label">Confirm SLA Rate</span>
                   <span className="stat-value">
-                    {reportData?.rule5KotTime
-                      ? `${reportData.rule5KotTime.onTimeRatePercent}%`
+                    {activeReportData?.rule5KotTime
+                      ? `${activeReportData.rule5KotTime.onTimeRatePercent}%`
                       : '96%'}
                   </span>
                   <span className="stat-note">
-                    {reportData?.rule5KotTime
-                      ? `${reportData.rule5KotTime.onTimeCount} of ${reportData.rule5KotTime.totalItems} on-time`
+                    {activeReportData?.rule5KotTime
+                      ? `${activeReportData.rule5KotTime.onTimeCount} of ${activeReportData.rule5KotTime.totalItems} on-time`
                       : '210 of 220 on-time'}
                   </span>
                 </div>
@@ -2488,13 +2359,13 @@ export default function ReportCardDashboard() {
                   <span className="stat-icon">⏰</span>
                   <span className="stat-label">Shift Attendance</span>
                   <span className="stat-value">
-                    {reportData?.rule2Attendance
-                      ? `${reportData.rule2Attendance.presentDays} / ${reportData.rule2Attendance.totalDaysInMonth - 4}`
+                    {activeReportData?.rule2Attendance
+                      ? `${activeReportData.rule2Attendance.presentDays} / ${activeReportData.rule2Attendance.totalDaysInMonth - 4}`
                       : '25 / 26'}
                   </span>
                   <span className="stat-note">
-                    {reportData?.rule2Attendance
-                      ? `${reportData.rule2Attendance.attendanceRatePercent}% attendance rate`
+                    {activeReportData?.rule2Attendance
+                      ? `${activeReportData.rule2Attendance.attendanceRatePercent}% attendance rate`
                       : '96.1% attendance rate'}
                   </span>
                 </div>
@@ -2503,13 +2374,13 @@ export default function ReportCardDashboard() {
                   <span className="stat-icon">🚨</span>
                   <span className="stat-label">Punctuality Score</span>
                   <span className="stat-value">
-                    {reportData?.rule2Attendance
-                      ? `${reportData.rule2Attendance.score} / 100`
+                    {activeReportData?.rule2Attendance
+                      ? `${activeReportData.rule2Attendance.score} / 100`
                       : '96 / 100'}
                   </span>
                   <span className="stat-note">
-                    {reportData?.rule2Attendance
-                      ? `${reportData.rule2Attendance.lateDays} late punch-ins (${reportData.rule2Attendance.totalLateMinutes}m total)`
+                    {activeReportData?.rule2Attendance
+                      ? `${activeReportData.rule2Attendance.lateDays} late punch-ins (${activeReportData.rule2Attendance.totalLateMinutes}m total)`
                       : '2 late punch-ins (14m total)'}
                   </span>
                 </div>
@@ -2518,13 +2389,13 @@ export default function ReportCardDashboard() {
                   <span className="stat-icon">📋</span>
                   <span className="stat-label">Duties Completed</span>
                   <span className="stat-value">
-                    {reportData?.rule3Tasks
-                      ? `${reportData.rule3Tasks.totalCompleted}`
+                    {activeReportData?.rule3Tasks
+                      ? `${activeReportData.rule3Tasks.totalCompleted}`
                       : '142'}
                   </span>
                   <span className="stat-note">
-                    {reportData?.rule3Tasks
-                      ? `${reportData.rule3Tasks.totalCompleted} of ${reportData.rule3Tasks.totalAssigned} tasks done`
+                    {activeReportData?.rule3Tasks
+                      ? `${activeReportData.rule3Tasks.totalCompleted} of ${activeReportData.rule3Tasks.totalAssigned} tasks done`
                       : '142 of 150 tasks done'}
                   </span>
                 </div>
@@ -2533,13 +2404,13 @@ export default function ReportCardDashboard() {
                   <span className="stat-icon">🎯</span>
                   <span className="stat-label">Checklist Discipline</span>
                   <span className="stat-value">
-                    {reportData?.rule3Tasks
-                      ? `${reportData.rule3Tasks.completionRatePercent}%`
+                    {activeReportData?.rule3Tasks
+                      ? `${activeReportData.rule3Tasks.completionRatePercent}%`
                       : '94.7%'}
                   </span>
                   <span className="stat-note">
-                    {reportData?.rule3Tasks
-                      ? `${reportData.rule3Tasks.perfectDays} perfect checklist days`
+                    {activeReportData?.rule3Tasks
+                      ? `${activeReportData.rule3Tasks.perfectDays} perfect checklist days`
                       : '20 perfect checklist days'}
                   </span>
                 </div>
@@ -2563,6 +2434,16 @@ export default function ReportCardDashboard() {
             </div>
           </div>
         </div>
+      ) : (
+        <div className="preview-empty-state">
+          <div className="icon">👁️</div>
+          <h4>Select an Employee</h4>
+          <p>Click on any employee row or the 👁️ icon to view their complete report card here.</p>
+        </div>
+      )}
+    </div>
+  </div>
+</div>
       ) : null}
     </div>
   )

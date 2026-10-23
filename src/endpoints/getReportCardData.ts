@@ -79,7 +79,7 @@ export const getReportCardDataHandler: PayloadHandler = async (
           .map((id) => id.trim())
           .filter(Boolean)
       } else {
-        const whereClause: any = {}
+        const whereClause: any = { status: { equals: 'active' } }
         if (role && role !== 'all') {
           whereClause.team = { equals: role }
         }
@@ -89,14 +89,79 @@ export const getReportCardDataHandler: PayloadHandler = async (
         const empsRes = await req.payload.find({
           collection: 'employees',
           where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
-          limit: 100,
+          limit: 200,
           depth: 0,
           overrideAccess: true,
         })
         targetEmployeeIds = (empsRes.docs || []).map((e) => String(e.id))
       }
 
-      const idsToCompute = targetEmployeeIds.slice(0, 50)
+      // Resolve date range for requested period to find who worked
+      let startDateStr = `${month}-01`
+      const [yStr, mStr] = month.split('-')
+      const lastDayOfMonth = new Date(parseInt(yStr, 10), parseInt(mStr, 10), 0).getDate()
+      let endDateStr = `${month}-${String(lastDayOfMonth).padStart(2, '0')}`
+
+      if (period === 'today') {
+        const now = new Date()
+        const istNow = new Date(now.getTime() + 5.5 * 60 * 60 * 1000)
+        startDateStr = istNow.toISOString().split('T')[0]
+        endDateStr = startDateStr
+      } else if (period === 'week') {
+        const now = new Date()
+        const istNow = new Date(now.getTime() + 5.5 * 60 * 60 * 1000)
+        const day = istNow.getUTCDay()
+        const diffToMonday = day === 0 ? -6 : 1 - day
+        const ws = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate() + diffToMonday))
+        const we = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate() + diffToMonday + 6))
+        startDateStr = ws.toISOString().split('T')[0]
+        endDateStr = we.toISOString().split('T')[0]
+      }
+
+      const workedEmployeeIdsSet = new Set<string>()
+      try {
+        const attWhere: any = {
+          and: [
+            { dateString: { greater_than_equal: startDateStr } },
+            { dateString: { less_than_equal: endDateStr } },
+          ],
+        }
+        if (typeof req.query.branch === 'string' && req.query.branch !== 'all') {
+          attWhere.and.push({ loginBranch: { equals: req.query.branch } })
+        }
+        const attRes = await req.payload.find({
+          collection: 'attendance',
+          where: attWhere,
+          limit: 2000,
+          depth: 0,
+          overrideAccess: true,
+        })
+        for (const doc of (attRes.docs || [])) {
+          const eId = doc.employee
+            ? typeof doc.employee === 'string'
+              ? doc.employee
+              : String((doc.employee as any).id || (doc.employee as any)._id)
+            : ''
+          const uId = doc.user
+            ? typeof doc.user === 'string'
+              ? doc.user
+              : String((doc.user as any).id || (doc.user as any)._id)
+            : ''
+          if (eId) workedEmployeeIdsSet.add(eId)
+          if (uId) workedEmployeeIdsSet.add(uId)
+        }
+      } catch (_attErr) {}
+
+      // If we found employees who worked in this period, prioritize them
+      let candidateIds = targetEmployeeIds
+      if (workedEmployeeIdsSet.size > 0) {
+        const workedCandidates = targetEmployeeIds.filter((id) => workedEmployeeIdsSet.has(id))
+        if (workedCandidates.length > 0) {
+          candidateIds = workedCandidates
+        }
+      }
+
+      const idsToCompute = candidateIds.slice(0, 50)
       const dataByEmployeeId: Record<string, any> = {}
 
       await Promise.all(
@@ -120,6 +185,9 @@ export const getReportCardDataHandler: PayloadHandler = async (
         month,
         role,
         period,
+        startDateStr,
+        endDateStr,
+        workedEmployeeIds: Array.from(workedEmployeeIdsSet),
         dataByEmployeeId,
       })
     }
