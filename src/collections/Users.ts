@@ -1665,6 +1665,9 @@ export const Users: CollectionConfig = {
               const isStock = Boolean(doc.isStock)
               const assignmentType = isKitchen && isStock ? 'both' : isStock ? 'stock' : 'kitchen'
 
+              const currentChefKitchenCats = getRelationshipIDs(doc.categories)
+              const currentChefStockCats = getRelationshipIDs((doc as any).stockCategories)
+
               const updatedRow = {
                 chef: currentChefId,
                 assignmentType,
@@ -1672,8 +1675,28 @@ export const Users: CollectionConfig = {
                 branch: getRelationshipID(doc.branch),
                 kitchenBranches: getRelationshipIDs(doc.kitchenBranches),
                 kitchen: getRelationshipIDs(doc.kitchen),
-                kitchenCategories: getRelationshipIDs(doc.categories),
-                stockCategories: getRelationshipIDs((doc as any).stockCategories),
+                kitchenCategories: currentChefKitchenCats,
+                stockCategories: currentChefStockCats,
+              }
+
+              // Enforce "one category one chef only" in chef-settings assignments too:
+              // Strip current chef's categories from all other chefs in the global settings
+              for (const other of assignments) {
+                const otherId = getRelationshipID(other.chef)
+                if (otherId && otherId !== currentChefId) {
+                  if (currentChefKitchenCats.length > 0) {
+                    const otherK = getRelationshipIDs(other.kitchenCategories)
+                    other.kitchenCategories = otherK.filter(
+                      (id) => !currentChefKitchenCats.includes(id),
+                    )
+                  }
+                  if (currentChefStockCats.length > 0) {
+                    const otherS = getRelationshipIDs(other.stockCategories)
+                    other.stockCategories = otherS.filter(
+                      (id) => !currentChefStockCats.includes(id),
+                    )
+                  }
+                }
               }
 
               const existingIndex = assignments.findIndex(
