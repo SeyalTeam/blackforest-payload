@@ -185,6 +185,119 @@ const enforceOneCategoryOneChef = async (
   return currentAssignments
 }
 
+const syncActiveChefsAndNames = async (
+  currentAssignments: any[],
+  payload: any,
+): Promise<any[]> => {
+  if (!payload) return currentAssignments
+
+  // 1. Fetch all categories to map id -> name
+  const categoryMap = new Map<string, string>()
+  try {
+    const allCategories = await payload.find({
+      collection: 'categories',
+      depth: 0,
+      limit: 1000,
+      pagination: false,
+      overrideAccess: true,
+    })
+    for (const cat of allCategories.docs) {
+      if (cat?.name) {
+        categoryMap.set(String(cat.id), cat.name.trim())
+      }
+    }
+  } catch (err) {
+    console.error('[ChefSettings] Error fetching categories for names:', err)
+  }
+
+  // 2. Fetch all chefs from users collection
+  const allChefsMap = new Map<string, any>()
+  try {
+    const allChefs = await payload.find({
+      collection: 'users',
+      where: {
+        role: { equals: 'chef' },
+      },
+      depth: 0,
+      limit: 500,
+      pagination: false,
+      overrideAccess: true,
+    })
+    for (const chef of allChefs.docs) {
+      allChefsMap.set(String(chef.id), chef)
+    }
+  } catch (err) {
+    console.error('[ChefSettings] Error fetching chefs for sync:', err)
+  }
+
+  const assignments = Array.isArray(currentAssignments) ? [...currentAssignments] : []
+  const existingChefIds = new Set<string>()
+
+  // 3. For each existing assignment, populate chefName, kitchenCategoryNames, stockCategoryNames
+  for (const entry of assignments) {
+    const chefId = getRelationshipID(entry.chef)
+    if (!chefId) continue
+    existingChefIds.add(chefId)
+
+    const chefDoc = allChefsMap.get(chefId)
+    if (chefDoc) {
+      entry.chefName = chefDoc.name || chefDoc.username || 'Chef'
+    }
+
+    const kCats = getRelationshipIDs(entry.kitchenCategories)
+    entry.kitchenCategoryNames = kCats
+      .map((id) => categoryMap.get(id))
+      .filter((n): n is string => Boolean(n))
+      .join(', ')
+
+    const sCats = getRelationshipIDs(entry.stockCategories)
+    entry.stockCategoryNames = sCats
+      .map((id) => categoryMap.get(id))
+      .filter((n): n is string => Boolean(n))
+      .join(', ')
+  }
+
+  // 4. Ensure EVERY active chef in the users collection is present in the list
+  allChefsMap.forEach((chefDoc, chefId) => {
+    const isInactive = chefDoc.status === 'inactive' || chefDoc.loginBlocked === true
+    if (!isInactive && !existingChefIds.has(chefId)) {
+      const isKitchen = chefDoc.isKitchen === true
+      const isStock = chefDoc.isStock === true
+      const assignmentType = isKitchen && isStock ? 'both' : isStock ? 'stock' : 'kitchen'
+
+      const kCats = getRelationshipIDs(chefDoc.categories)
+      const sCats = getRelationshipIDs(chefDoc.stockCategories)
+
+      const rawKBranches = getRelationshipIDs(chefDoc.kitchenBranches)
+      const primaryBranch = getRelationshipID(chefDoc.branch)
+      const finalBranches = rawKBranches.length > 0 ? rawKBranches : primaryBranch ? [primaryBranch] : []
+
+      assignments.push({
+        chef: chefId,
+        chefName: chefDoc.name || chefDoc.username || 'Chef',
+        assignmentType,
+        status: 'active',
+        branch: primaryBranch,
+        kitchenBranches: finalBranches,
+        kitchen: getRelationshipIDs(chefDoc.kitchen),
+        kitchenCategories: kCats,
+        kitchenCategoryNames: kCats
+          .map((id) => categoryMap.get(id))
+          .filter((n): n is string => Boolean(n))
+          .join(', '),
+        stockCategories: sCats,
+        stockCategoryNames: sCats
+          .map((id) => categoryMap.get(id))
+          .filter((n): n is string => Boolean(n))
+          .join(', '),
+      })
+      existingChefIds.add(chefId)
+    }
+  })
+
+  return assignments
+}
+
 export const ChefSettingsGlobal: GlobalConfig = {
   slug: 'chef-settings',
   label: 'Chef Settings',
@@ -202,58 +315,66 @@ export const ChefSettingsGlobal: GlobalConfig = {
       ),
   },
   hooks: {
+    afterRead: [
+      async ({ doc, req }) => {
+        if (!req.payload) return doc
+        try {
+          const assignments = Array.isArray(doc?.chefAssignments) ? doc.chefAssignments : []
+          doc.chefAssignments = await syncActiveChefsAndNames(assignments, req.payload)
+        } catch (err) {
+          console.error('[ChefSettings afterRead] Error syncing active chefs:', err)
+        }
+        return doc
+      },
+    ],
     beforeChange: [
       async ({ data, req, originalDoc }) => {
         if (!req.payload) return data
 
-        // If chefAssignments array is empty or uninitialized, auto-populate from existing chefs in users
         let assignments = Array.isArray(data?.chefAssignments) ? data.chefAssignments : []
-        if (assignments.length === 0) {
-          try {
-            const chefsResult = await req.payload.find({
-              collection: 'users',
-              where: { role: { equals: 'chef' } },
-              depth: 0,
-              limit: 500,
-              pagination: false,
-              overrideAccess: true,
-            })
 
-            if (chefsResult.docs.length > 0) {
-              assignments = chefsResult.docs.map((chefDoc: any) => {
-                const isKitchen = chefDoc.isKitchen === true
-                const isStock = chefDoc.isStock === true
-                const assignmentType =
-                  isKitchen && isStock ? 'both' : isStock ? 'stock' : 'kitchen'
+        // 1. Ensure all active chefs are present and display names are populated
+        assignments = await syncActiveChefsAndNames(assignments, req.payload)
 
-                return {
-                  chef: String(chefDoc.id),
-                  assignmentType,
-                  status: chefDoc.status === 'inactive' || chefDoc.loginBlocked ? 'inactive' : 'active',
-                  branch: getRelationshipID(chefDoc.branch),
-                  kitchenBranches: getRelationshipIDs(chefDoc.kitchenBranches),
-                  kitchen: getRelationshipIDs(chefDoc.kitchen),
-                  kitchenCategories: getRelationshipIDs(chefDoc.categories),
-                  stockCategories: getRelationshipIDs(chefDoc.stockCategories),
-                }
-              })
-              data.chefAssignments = assignments
-            }
-          } catch (err) {
-            console.error('[ChefSettings beforeChange] Error fetching chefs for seed:', err)
-          }
-        }
-
-        // Enforce "one category one chef only" across both kitchen and stock categories
+        // 2. Enforce "one category one chef only" across both kitchen and stock categories
         const originalAssignments = Array.isArray(originalDoc?.chefAssignments)
           ? originalDoc.chefAssignments
           : []
-        data.chefAssignments = await enforceOneCategoryOneChef(
+        assignments = await enforceOneCategoryOneChef(
           assignments,
           originalAssignments,
           req.payload,
         )
 
+        // 3. Re-calculate category names after deduplication
+        try {
+          const allCategories = await req.payload.find({
+            collection: 'categories',
+            depth: 0,
+            limit: 1000,
+            pagination: false,
+            overrideAccess: true,
+          })
+          const catMap = new Map<string, string>()
+          allCategories.docs.forEach((cat: any) => {
+            if (cat?.name) catMap.set(String(cat.id), cat.name.trim())
+          })
+
+          for (const entry of assignments) {
+            const kCats = getRelationshipIDs(entry.kitchenCategories)
+            entry.kitchenCategoryNames = kCats
+              .map((id) => catMap.get(id))
+              .filter(Boolean)
+              .join(', ')
+            const sCats = getRelationshipIDs(entry.stockCategories)
+            entry.stockCategoryNames = sCats
+              .map((id) => catMap.get(id))
+              .filter(Boolean)
+              .join(', ')
+          }
+        } catch (_) {}
+
+        data.chefAssignments = assignments
         return data
       },
     ],
@@ -271,24 +392,64 @@ export const ChefSettingsGlobal: GlobalConfig = {
           const isStock = assignmentType === 'stock' || assignmentType === 'both'
 
           const branch = getRelationshipID(entry.branch)
-          const kitchenBranches = getRelationshipIDs(entry.kitchenBranches)
+          const rawKitchenBranches = getRelationshipIDs(entry.kitchenBranches)
+          const kitchenBranches = rawKitchenBranches.length > 0 ? rawKitchenBranches : branch ? [branch] : []
+          const safeIsKitchen = isKitchen && kitchenBranches.length > 0
           const kitchen = getRelationshipIDs(entry.kitchen)
           const kitchenCategories = getRelationshipIDs(entry.kitchenCategories)
           const stockCategories = getRelationshipIDs(entry.stockCategories)
 
-          // 1. Update this chef's user document
+          // 1. Update this chef's user document only if values actually changed
           try {
+            const currentChef = await req.payload.findByID({
+              collection: 'users',
+              id: chefId,
+              depth: 0,
+              overrideAccess: true,
+            })
+
+            const curIsKitchen = Boolean(currentChef?.isKitchen)
+            const curIsStock = Boolean((currentChef as any)?.isStock)
+            const curBranches = getRelationshipIDs((currentChef as any)?.kitchenBranches)
+            const curBranch = getRelationshipID(currentChef?.branch)
+            const curKitchen = getRelationshipIDs((currentChef as any)?.kitchen)
+            const curCats = getRelationshipIDs(currentChef?.categories)
+            const curStockCats = getRelationshipIDs((currentChef as any)?.stockCategories)
+
+            const targetBranch = safeIsKitchen && kitchenBranches.length > 0 ? null : branch
+            const targetBranches = safeIsKitchen ? kitchenBranches : []
+            const targetKitchen = safeIsKitchen ? kitchen : []
+            const targetCats = safeIsKitchen ? kitchenCategories : []
+            const targetStockCats = isStock ? stockCategories : []
+
+            const isSame =
+              curIsKitchen === safeIsKitchen &&
+              curIsStock === isStock &&
+              targetBranch === curBranch &&
+              curBranches.length === targetBranches.length &&
+              curBranches.every((b) => targetBranches.includes(b)) &&
+              curKitchen.length === targetKitchen.length &&
+              curKitchen.every((k) => targetKitchen.includes(k)) &&
+              curCats.length === targetCats.length &&
+              curCats.every((c) => targetCats.includes(c)) &&
+              curStockCats.length === targetStockCats.length &&
+              curStockCats.every((s) => targetStockCats.includes(s))
+
+            if (isSame) {
+              continue
+            }
+
             await req.payload.update({
               collection: 'users',
               id: chefId,
               data: {
-                isKitchen,
+                isKitchen: safeIsKitchen,
                 isStock,
-                branch: isKitchen && kitchenBranches.length > 0 ? null : branch,
-                kitchenBranches: isKitchen ? kitchenBranches : [],
-                kitchen: isKitchen ? kitchen : [],
-                categories: isKitchen ? kitchenCategories : [],
-                stockCategories: isStock ? stockCategories : [],
+                branch: targetBranch,
+                kitchenBranches: targetBranches,
+                kitchen: targetKitchen,
+                categories: targetCats,
+                stockCategories: targetStockCats,
               },
               context: {
                 ...(req.context || {}),
@@ -413,8 +574,32 @@ export const ChefSettingsGlobal: GlobalConfig = {
       admin: {
         description:
           'Assign each chef for Stock Order, Kitchen, or Both. For Kitchen, assign branch, kitchen, and categories. For Stock Order, assign stock categories.',
+        components: {
+          RowLabel: '/components/ChefRowLabel/index.tsx#ChefRowLabel',
+        },
       },
       fields: [
+        {
+          name: 'chefName',
+          type: 'text',
+          admin: {
+            hidden: true,
+          },
+        },
+        {
+          name: 'kitchenCategoryNames',
+          type: 'text',
+          admin: {
+            hidden: true,
+          },
+        },
+        {
+          name: 'stockCategoryNames',
+          type: 'text',
+          admin: {
+            hidden: true,
+          },
+        },
         {
           type: 'row',
           fields: [

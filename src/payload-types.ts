@@ -6111,6 +6111,9 @@ export interface ChefSetting {
    */
   chefAssignments?:
     | {
+        chefName?: string | null;
+        kitchenCategoryNames?: string | null;
+        stockCategoryNames?: string | null;
         chef: string | User;
         assignmentType: 'kitchen' | 'stock' | 'both';
         status?: ('active' | 'inactive') | null;
@@ -6898,6 +6901,9 @@ export interface ChefSettingsSelect<T extends boolean = true> {
   chefAssignments?:
     | T
     | {
+        chefName?: T;
+        kitchenCategoryNames?: T;
+        stockCategoryNames?: T;
         chef?: T;
         assignmentType?: T;
         status?: T;

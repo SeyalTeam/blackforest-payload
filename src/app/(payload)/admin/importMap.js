@@ -37,6 +37,7 @@ import { default as default_5e6a0e56c42edcb4e104ac5a24108eec } from '../../../co
 import { default as default_3005347841fa10396ea6b3f07ad955e3 } from '../../../components/BranchGPSView/index.tsx'
 import { default as default_b07b651643e9d499f934280c75fe9e9c } from '../../../components/MessageChat/index.tsx'
 import { KotTimeRowLabel as KotTimeRowLabel_58da7ac8fde1c469974277b2989eced7 } from '../../../components/KotTimeRowLabel/index.tsx'
+import { ChefRowLabel as ChefRowLabel_2b435c2e758764fa8160bdf8b653a3b9 } from '../../../components/ChefRowLabel/index.tsx'
 import { S3ClientUploadHandler as S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24 } from '@payloadcms/storage-s3/client'
 
 export const importMap = {
@@ -79,5 +80,6 @@ export const importMap = {
   "/components/BranchGPSView/index.tsx#default": default_3005347841fa10396ea6b3f07ad955e3,
   "/components/MessageChat/index.tsx#default": default_b07b651643e9d499f934280c75fe9e9c,
   "/components/KotTimeRowLabel/index.tsx#KotTimeRowLabel": KotTimeRowLabel_58da7ac8fde1c469974277b2989eced7,
+  "/components/ChefRowLabel/index.tsx#ChefRowLabel": ChefRowLabel_2b435c2e758764fa8160bdf8b653a3b9,
   "@payloadcms/storage-s3/client#S3ClientUploadHandler": S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24
 }
