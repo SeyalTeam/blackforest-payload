@@ -2904,42 +2904,6 @@ var init_Users = __esm({
                 } else if (categoryIds.length > 0 && resolvedKitchenFlag) {
                   throw new Error("Kitchen is required before assigning chef categories");
                 }
-                if (stockCategoryIds.length > 0) {
-                  const currentUserId = getRelationshipID(originalDoc?.id) || getRelationshipID(nextData?.id);
-                  try {
-                    const otherChefs = await req.payload.find({
-                      collection: "users",
-                      where: {
-                        and: [
-                          { role: { equals: "chef" } },
-                          ...currentUserId ? [{ id: { not_equals: currentUserId } }] : [],
-                          { stockCategories: { in: stockCategoryIds } }
-                        ]
-                      },
-                      depth: 0,
-                      limit: 100,
-                      pagination: false,
-                      overrideAccess: true
-                    });
-                    for (const otherChef of otherChefs.docs) {
-                      const otherStockCats = getRelationshipIDs(otherChef.stockCategories);
-                      const updatedOtherStockCats = otherStockCats.filter(
-                        (id) => !stockCategoryIds.includes(id)
-                      );
-                      if (updatedOtherStockCats.length !== otherStockCats.length) {
-                        await req.payload.update({
-                          collection: "users",
-                          id: otherChef.id,
-                          data: {
-                            stockCategories: updatedOtherStockCats
-                          },
-                          overrideAccess: true
-                        });
-                      }
-                    }
-                  } catch (e) {
-                  }
-                }
               }
               if (resolvedKitchenFlag) {
                 if (!Array.isArray(resolvedKitchenBranches) || resolvedKitchenBranches.length === 0) {
@@ -3017,47 +2981,6 @@ var init_Users = __esm({
                   console.error("Error synchronizing chef categories in afterChange:", err);
                 }
               }
-              const assignedStockCategoryIds = getRelationshipIDs(doc.stockCategories);
-              if (assignedStockCategoryIds.length > 0) {
-                try {
-                  const conflictingChefsResult = await req.payload.find({
-                    collection: "users",
-                    where: {
-                      and: [
-                        { id: { not_equals: currentChefId } },
-                        { role: { equals: "chef" } },
-                        { stockCategories: { in: assignedStockCategoryIds } }
-                      ]
-                    },
-                    depth: 0,
-                    limit: 100,
-                    pagination: false,
-                    overrideAccess: true
-                  });
-                  for (const otherChef of conflictingChefsResult.docs) {
-                    const otherStockCatIds = getRelationshipIDs(otherChef.stockCategories);
-                    const updatedOtherStockCatIds = otherStockCatIds.filter(
-                      (cId) => !assignedStockCategoryIds.includes(cId)
-                    );
-                    if (updatedOtherStockCatIds.length !== otherStockCatIds.length) {
-                      await req.payload.update({
-                        collection: "users",
-                        id: otherChef.id,
-                        data: {
-                          stockCategories: updatedOtherStockCatIds
-                        },
-                        context: {
-                          ...req.context || {},
-                          skipChefCategorySync: true
-                        },
-                        overrideAccess: true
-                      });
-                    }
-                  }
-                } catch (err) {
-                  console.error("Error synchronizing chef stock categories in afterChange:", err);
-                }
-              }
               if (!req.context?.fromChefSettingsSync && !req.context?.skipChefCategorySync) {
                 try {
                   const chefSettings = await req.payload.findGlobal({
@@ -3088,12 +3011,6 @@ var init_Users = __esm({
                         const otherK = getRelationshipIDs(other.kitchenCategories);
                         other.kitchenCategories = otherK.filter(
                           (id) => !currentChefKitchenCats.includes(id)
-                        );
-                      }
-                      if (currentChefStockCats.length > 0) {
-                        const otherS = getRelationshipIDs(other.stockCategories);
-                        other.stockCategories = otherS.filter(
-                          (id) => !currentChefStockCats.includes(id)
                         );
                       }
                     }
@@ -39499,27 +39416,20 @@ var init_ChefSettings = __esm({
     };
     enforceOneCategoryOneChef = async (currentAssignments, originalAssignments, payload) => {
       const prevKitchenMap = /* @__PURE__ */ new Map();
-      const prevStockMap = /* @__PURE__ */ new Map();
       for (const orig of originalAssignments) {
         const chefId = getRelationshipID14(orig.chef);
         if (chefId) {
           prevKitchenMap.set(chefId, new Set(getRelationshipIDs2(orig.kitchenCategories)));
-          prevStockMap.set(chefId, new Set(getRelationshipIDs2(orig.stockCategories)));
         }
       }
       const newlyAddedKitchen = /* @__PURE__ */ new Map();
-      const newlyAddedStock = /* @__PURE__ */ new Map();
       for (const curr of currentAssignments) {
         const chefId = getRelationshipID14(curr.chef);
         if (!chefId) continue;
         const currKitchen = getRelationshipIDs2(curr.kitchenCategories);
-        const currStock = getRelationshipIDs2(curr.stockCategories);
         const prevKitchen = prevKitchenMap.get(chefId) || /* @__PURE__ */ new Set();
-        const prevStock = prevStockMap.get(chefId) || /* @__PURE__ */ new Set();
         const addedK = currKitchen.filter((id) => !prevKitchen.has(id));
-        const addedS = currStock.filter((id) => !prevStock.has(id));
         if (addedK.length > 0) newlyAddedKitchen.set(chefId, addedK);
-        if (addedS.length > 0) newlyAddedStock.set(chefId, addedS);
       }
       newlyAddedKitchen.forEach((addedCategories, ownerChefId) => {
         for (const entry of currentAssignments) {
@@ -39533,20 +39443,7 @@ var init_ChefSettings = __esm({
           }
         }
       });
-      newlyAddedStock.forEach((addedCategories, ownerChefId) => {
-        for (const entry of currentAssignments) {
-          const otherChefId = getRelationshipID14(entry.chef);
-          if (otherChefId && otherChefId !== ownerChefId) {
-            const existing = getRelationshipIDs2(entry.stockCategories);
-            const updated = existing.filter((catId) => !addedCategories.includes(catId));
-            if (updated.length !== existing.length) {
-              entry.stockCategories = updated;
-            }
-          }
-        }
-      });
       const userCatOwner = /* @__PURE__ */ new Map();
-      const userStockOwner = /* @__PURE__ */ new Map();
       if (payload) {
         try {
           const allChefs = await payload.find({
@@ -39562,29 +39459,17 @@ var init_ChefSettings = __esm({
             getRelationshipIDs2(c.categories).forEach((catId) => {
               userCatOwner.set(catId, cId);
             });
-            getRelationshipIDs2(c.stockCategories).forEach((catId) => {
-              userStockOwner.set(catId, cId);
-            });
           }
         } catch (_) {
         }
       }
       const claimedKitchenChef = /* @__PURE__ */ new Map();
-      const claimedStockChef = /* @__PURE__ */ new Map();
       newlyAddedKitchen.forEach((cats, chefId) => {
         cats.forEach((c) => claimedKitchenChef.set(c, chefId));
-      });
-      newlyAddedStock.forEach((cats, chefId) => {
-        cats.forEach((c) => claimedStockChef.set(c, chefId));
       });
       userCatOwner.forEach((chefId, catId) => {
         if (!claimedKitchenChef.has(catId)) {
           claimedKitchenChef.set(catId, chefId);
-        }
-      });
-      userStockOwner.forEach((chefId, catId) => {
-        if (!claimedStockChef.has(catId)) {
-          claimedStockChef.set(catId, chefId);
         }
       });
       for (let i = currentAssignments.length - 1; i >= 0; i--) {
@@ -39601,16 +39486,6 @@ var init_ChefSettings = __esm({
           }
         }
         entry.kitchenCategories = validKCats;
-        const sCats = getRelationshipIDs2(entry.stockCategories);
-        const validSCats = [];
-        for (const catId of sCats) {
-          const existingOwner = claimedStockChef.get(catId);
-          if (!existingOwner || existingOwner === chefId) {
-            claimedStockChef.set(catId, chefId);
-            validSCats.push(catId);
-          }
-        }
-        entry.stockCategories = validSCats;
       }
       return currentAssignments;
     };
@@ -39858,50 +39733,6 @@ var init_ChefSettings = __esm({
                 } catch (err) {
                   console.error(
                     `[ChefSettings afterChange] Error reassigning kitchen categories for chef ${chefId}:`,
-                    err
-                  );
-                }
-              }
-              if (stockCategories.length > 0) {
-                try {
-                  const conflictingChefs = await req.payload.find({
-                    collection: "users",
-                    where: {
-                      and: [
-                        { id: { not_equals: chefId } },
-                        { role: { equals: "chef" } },
-                        { stockCategories: { in: stockCategories } }
-                      ]
-                    },
-                    depth: 0,
-                    limit: 100,
-                    pagination: false,
-                    overrideAccess: true
-                  });
-                  for (const otherChef of conflictingChefs.docs) {
-                    const otherStockCatIds = getRelationshipIDs2(otherChef.stockCategories);
-                    const updatedOtherStockCatIds = otherStockCatIds.filter(
-                      (id) => !stockCategories.includes(id)
-                    );
-                    if (updatedOtherStockCatIds.length !== otherStockCatIds.length) {
-                      await req.payload.update({
-                        collection: "users",
-                        id: otherChef.id,
-                        data: {
-                          stockCategories: updatedOtherStockCatIds
-                        },
-                        context: {
-                          ...req.context || {},
-                          fromChefSettingsSync: true,
-                          skipChefCategorySync: true
-                        },
-                        overrideAccess: true
-                      });
-                    }
-                  }
-                } catch (err) {
-                  console.error(
-                    `[ChefSettings afterChange] Error reassigning stock categories for chef ${chefId}:`,
                     err
                   );
                 }

@@ -1447,48 +1447,6 @@ export const Users: CollectionConfig = {
             } else if (categoryIds.length > 0 && resolvedKitchenFlag) {
               throw new Error('Kitchen is required before assigning chef categories')
             }
-
-            // Auto-reassign exclusive stock categories across chefs
-            if (stockCategoryIds.length > 0) {
-              const currentUserId =
-                getRelationshipID((originalDoc as { id?: unknown } | undefined)?.id) ||
-                getRelationshipID((nextData as { id?: unknown })?.id)
-              try {
-                const otherChefs = await req.payload.find({
-                  collection: 'users',
-                  where: {
-                    and: [
-                      { role: { equals: 'chef' } },
-                      ...(currentUserId ? [{ id: { not_equals: currentUserId } }] : []),
-                      { stockCategories: { in: stockCategoryIds } },
-                    ],
-                  },
-                  depth: 0,
-                  limit: 100,
-                  pagination: false,
-                  overrideAccess: true,
-                })
-
-                for (const otherChef of otherChefs.docs) {
-                  const otherStockCats = getRelationshipIDs((otherChef as any).stockCategories)
-                  const updatedOtherStockCats = otherStockCats.filter(
-                    (id) => !stockCategoryIds.includes(id),
-                  )
-                  if (updatedOtherStockCats.length !== otherStockCats.length) {
-                    await req.payload.update({
-                      collection: 'users',
-                      id: otherChef.id,
-                      data: {
-                        stockCategories: updatedOtherStockCats,
-                      },
-                      overrideAccess: true,
-                    })
-                  }
-                }
-              } catch (e) {
-                // Log or ignore errors
-              }
-            }
           }
 
           if (resolvedKitchenFlag) {
@@ -1604,50 +1562,6 @@ export const Users: CollectionConfig = {
             }
           }
 
-          const assignedStockCategoryIds = getRelationshipIDs((doc as any).stockCategories)
-          if (assignedStockCategoryIds.length > 0) {
-            try {
-              const conflictingChefsResult = await req.payload.find({
-                collection: 'users',
-                where: {
-                  and: [
-                    { id: { not_equals: currentChefId } },
-                    { role: { equals: 'chef' } },
-                    { stockCategories: { in: assignedStockCategoryIds } },
-                  ],
-                },
-                depth: 0,
-                limit: 100,
-                pagination: false,
-                overrideAccess: true,
-              })
-
-              for (const otherChef of conflictingChefsResult.docs) {
-                const otherStockCatIds = getRelationshipIDs((otherChef as any).stockCategories)
-                const updatedOtherStockCatIds = otherStockCatIds.filter(
-                  (cId) => !assignedStockCategoryIds.includes(cId),
-                )
-
-                if (updatedOtherStockCatIds.length !== otherStockCatIds.length) {
-                  await req.payload.update({
-                    collection: 'users',
-                    id: otherChef.id,
-                    data: {
-                      stockCategories: updatedOtherStockCatIds,
-                    },
-                    context: {
-                      ...(req.context || {}),
-                      skipChefCategorySync: true,
-                    },
-                    overrideAccess: true,
-                  })
-                }
-              }
-            } catch (err) {
-              console.error('Error synchronizing chef stock categories in afterChange:', err)
-            }
-          }
-
           // Sync chef configuration into chef-settings global
           if (!req.context?.fromChefSettingsSync && !req.context?.skipChefCategorySync) {
             try {
@@ -1688,12 +1602,6 @@ export const Users: CollectionConfig = {
                     const otherK = getRelationshipIDs(other.kitchenCategories)
                     other.kitchenCategories = otherK.filter(
                       (id) => !currentChefKitchenCats.includes(id),
-                    )
-                  }
-                  if (currentChefStockCats.length > 0) {
-                    const otherS = getRelationshipIDs(other.stockCategories)
-                    other.stockCategories = otherS.filter(
-                      (id) => !currentChefStockCats.includes(id),
                     )
                   }
                 }

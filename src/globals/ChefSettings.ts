@@ -43,40 +43,31 @@ const enforceOneCategoryOneChef = async (
   originalAssignments: any[],
   payload?: any,
 ): Promise<any[]> => {
-  // 1. Build map of previous categories for each chef
+  // 1. Build map of previous kitchen categories for each chef
   const prevKitchenMap = new Map<string, Set<string>>()
-  const prevStockMap = new Map<string, Set<string>>()
 
   for (const orig of originalAssignments) {
     const chefId = getRelationshipID(orig.chef)
     if (chefId) {
       prevKitchenMap.set(chefId, new Set(getRelationshipIDs(orig.kitchenCategories)))
-      prevStockMap.set(chefId, new Set(getRelationshipIDs(orig.stockCategories)))
     }
   }
 
-  // 2. Identify newly added categories per chef in the current save
+  // 2. Identify newly added kitchen categories per chef in the current save
   const newlyAddedKitchen = new Map<string, string[]>()
-  const newlyAddedStock = new Map<string, string[]>()
 
   for (const curr of currentAssignments) {
     const chefId = getRelationshipID(curr.chef)
     if (!chefId) continue
 
     const currKitchen = getRelationshipIDs(curr.kitchenCategories)
-    const currStock = getRelationshipIDs(curr.stockCategories)
-
     const prevKitchen = prevKitchenMap.get(chefId) || new Set()
-    const prevStock = prevStockMap.get(chefId) || new Set()
-
     const addedK = currKitchen.filter((id) => !prevKitchen.has(id))
-    const addedS = currStock.filter((id) => !prevStock.has(id))
 
     if (addedK.length > 0) newlyAddedKitchen.set(chefId, addedK)
-    if (addedS.length > 0) newlyAddedStock.set(chefId, addedS)
   }
 
-  // 3. For any newly added category on a chef, remove it from all other chefs in the list
+  // 3. For any newly added kitchen category on a chef, remove it from all other chefs in the list
   newlyAddedKitchen.forEach((addedCategories, ownerChefId) => {
     for (const entry of currentAssignments) {
       const otherChefId = getRelationshipID(entry.chef)
@@ -90,22 +81,8 @@ const enforceOneCategoryOneChef = async (
     }
   })
 
-  newlyAddedStock.forEach((addedCategories, ownerChefId) => {
-    for (const entry of currentAssignments) {
-      const otherChefId = getRelationshipID(entry.chef)
-      if (otherChefId && otherChefId !== ownerChefId) {
-        const existing = getRelationshipIDs(entry.stockCategories)
-        const updated = existing.filter((catId) => !addedCategories.includes(catId))
-        if (updated.length !== existing.length) {
-          entry.stockCategories = updated
-        }
-      }
-    }
-  })
-
   // 4. Check users collection to see which chef actually holds it in DB if conflicts remain
   const userCatOwner = new Map<string, string>() // categoryId -> chefId
-  const userStockOwner = new Map<string, string>() // categoryId -> chefId
   if (payload) {
     try {
       const allChefs = await payload.find({
@@ -121,35 +98,23 @@ const enforceOneCategoryOneChef = async (
         getRelationshipIDs(c.categories).forEach((catId) => {
           userCatOwner.set(catId, cId)
         })
-        getRelationshipIDs((c as any).stockCategories).forEach((catId) => {
-          userStockOwner.set(catId, cId)
-        })
       }
     } catch (_) {}
   }
 
-  // 5. Strict deduplication pass:
-  // Ensure absolutely no category appears in more than one chef row
+  // 5. Strict deduplication pass for kitchen categories only:
+  // Ensure absolutely no kitchen category appears in more than one chef row
   const claimedKitchenChef = new Map<string, string>() // categoryId -> chefId
-  const claimedStockChef = new Map<string, string>() // categoryId -> chefId
 
   // Prioritize chefs who newly added categories
   newlyAddedKitchen.forEach((cats, chefId) => {
     cats.forEach((c) => claimedKitchenChef.set(c, chefId))
-  })
-  newlyAddedStock.forEach((cats, chefId) => {
-    cats.forEach((c) => claimedStockChef.set(c, chefId))
   })
 
   // Next prioritize the actual owner in users collection
   userCatOwner.forEach((chefId, catId) => {
     if (!claimedKitchenChef.has(catId)) {
       claimedKitchenChef.set(catId, chefId)
-    }
-  })
-  userStockOwner.forEach((chefId, catId) => {
-    if (!claimedStockChef.has(catId)) {
-      claimedStockChef.set(catId, chefId)
     }
   })
 
@@ -169,17 +134,8 @@ const enforceOneCategoryOneChef = async (
       }
     }
     entry.kitchenCategories = validKCats
-
-    const sCats = getRelationshipIDs(entry.stockCategories)
-    const validSCats: string[] = []
-    for (const catId of sCats) {
-      const existingOwner = claimedStockChef.get(catId)
-      if (!existingOwner || existingOwner === chefId) {
-        claimedStockChef.set(catId, chefId)
-        validSCats.push(catId)
-      }
-    }
-    entry.stockCategories = validSCats
+    // Stock categories are allowed to be shared across multiple chefs for shared work,
+    // so entry.stockCategories is preserved as-is.
   }
 
   return currentAssignments
@@ -505,53 +461,6 @@ export const ChefSettingsGlobal: GlobalConfig = {
             } catch (err) {
               console.error(
                 `[ChefSettings afterChange] Error reassigning kitchen categories for chef ${chefId}:`,
-                err,
-              )
-            }
-          }
-
-          // 3. Remove newly assigned stock categories from any other chefs in DB
-          if (stockCategories.length > 0) {
-            try {
-              const conflictingChefs = await req.payload.find({
-                collection: 'users',
-                where: {
-                  and: [
-                    { id: { not_equals: chefId } },
-                    { role: { equals: 'chef' } },
-                    { stockCategories: { in: stockCategories } },
-                  ],
-                },
-                depth: 0,
-                limit: 100,
-                pagination: false,
-                overrideAccess: true,
-              })
-
-              for (const otherChef of conflictingChefs.docs) {
-                const otherStockCatIds = getRelationshipIDs((otherChef as any).stockCategories)
-                const updatedOtherStockCatIds = otherStockCatIds.filter(
-                  (id) => !stockCategories.includes(id),
-                )
-                if (updatedOtherStockCatIds.length !== otherStockCatIds.length) {
-                  await req.payload.update({
-                    collection: 'users',
-                    id: otherChef.id,
-                    data: {
-                      stockCategories: updatedOtherStockCatIds,
-                    },
-                    context: {
-                      ...(req.context || {}),
-                      fromChefSettingsSync: true,
-                      skipChefCategorySync: true,
-                    },
-                    overrideAccess: true,
-                  })
-                }
-              }
-            } catch (err) {
-              console.error(
-                `[ChefSettings afterChange] Error reassigning stock categories for chef ${chefId}:`,
                 err,
               )
             }
