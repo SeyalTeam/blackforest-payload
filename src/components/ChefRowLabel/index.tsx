@@ -24,20 +24,24 @@ const extractId = (val: unknown): string => {
   if (typeof val === 'number') return String(val)
   if (typeof val === 'object' && val !== null) {
     const obj = val as Record<string, unknown>
-    if (obj.id) return String(obj.id).trim()
-    if (obj._id) return String(obj._id).trim()
+    if (obj.id) return extractId(obj.id)
+    if (obj._id) return extractId(obj._id)
+    if (obj.value) return extractId(obj.value)
   }
   return ''
 }
 
 const extractName = (val: unknown): string => {
-  if (!val || typeof val !== 'object') return ''
-  const obj = val as Record<string, unknown>
-  return (
-    (typeof obj.name === 'string' && obj.name.trim()) ||
-    (typeof obj.username === 'string' && obj.username.trim()) ||
-    ''
-  )
+  if (!val) return ''
+  if (typeof val === 'string') return val.trim()
+  if (typeof val === 'object' && val !== null) {
+    const obj = val as Record<string, unknown>
+    if (typeof obj.name === 'string' && obj.name.trim()) return obj.name.trim()
+    if (typeof obj.label === 'string' && obj.label.trim()) return obj.label.trim()
+    if (typeof obj.title === 'string' && obj.title.trim()) return obj.title.trim()
+    if (typeof obj.username === 'string' && obj.username.trim()) return obj.username.trim()
+  }
+  return ''
 }
 
 export const ChefRowLabel: React.FC = () => {
