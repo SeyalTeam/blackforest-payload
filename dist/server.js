@@ -3058,7 +3058,7 @@ var init_Users = __esm({
                   console.error("Error synchronizing chef stock categories in afterChange:", err);
                 }
               }
-              if (!req.context?.fromChefSettingsSync) {
+              if (!req.context?.fromChefSettingsSync && !req.context?.skipChefCategorySync) {
                 try {
                   const chefSettings = await req.payload.findGlobal({
                     slug: "chef-settings",
@@ -39497,7 +39497,7 @@ var init_ChefSettings = __esm({
       }
       return value.map((item) => getRelationshipID14(item)).filter((id) => Boolean(id));
     };
-    enforceOneCategoryOneChef = (currentAssignments, originalAssignments) => {
+    enforceOneCategoryOneChef = async (currentAssignments, originalAssignments, payload) => {
       const prevKitchenMap = /* @__PURE__ */ new Map();
       const prevStockMap = /* @__PURE__ */ new Map();
       for (const orig of originalAssignments) {
@@ -39545,23 +39545,58 @@ var init_ChefSettings = __esm({
           }
         }
       });
-      const assignedKitchenChef = /* @__PURE__ */ new Map();
-      const assignedStockChef = /* @__PURE__ */ new Map();
+      const userCatOwner = /* @__PURE__ */ new Map();
+      const userStockOwner = /* @__PURE__ */ new Map();
+      if (payload) {
+        try {
+          const allChefs = await payload.find({
+            collection: "users",
+            where: { role: { equals: "chef" } },
+            depth: 0,
+            limit: 200,
+            pagination: false,
+            overrideAccess: true
+          });
+          for (const c of allChefs.docs) {
+            const cId = String(c.id);
+            getRelationshipIDs2(c.categories).forEach((catId) => {
+              userCatOwner.set(catId, cId);
+            });
+            getRelationshipIDs2(c.stockCategories).forEach((catId) => {
+              userStockOwner.set(catId, cId);
+            });
+          }
+        } catch (_) {
+        }
+      }
+      const claimedKitchenChef = /* @__PURE__ */ new Map();
+      const claimedStockChef = /* @__PURE__ */ new Map();
       newlyAddedKitchen.forEach((cats, chefId) => {
-        cats.forEach((c) => assignedKitchenChef.set(c, chefId));
+        cats.forEach((c) => claimedKitchenChef.set(c, chefId));
       });
       newlyAddedStock.forEach((cats, chefId) => {
-        cats.forEach((c) => assignedStockChef.set(c, chefId));
+        cats.forEach((c) => claimedStockChef.set(c, chefId));
       });
-      for (const entry of currentAssignments) {
+      userCatOwner.forEach((chefId, catId) => {
+        if (!claimedKitchenChef.has(catId)) {
+          claimedKitchenChef.set(catId, chefId);
+        }
+      });
+      userStockOwner.forEach((chefId, catId) => {
+        if (!claimedStockChef.has(catId)) {
+          claimedStockChef.set(catId, chefId);
+        }
+      });
+      for (let i = currentAssignments.length - 1; i >= 0; i--) {
+        const entry = currentAssignments[i];
         const chefId = getRelationshipID14(entry.chef);
         if (!chefId) continue;
         const kCats = getRelationshipIDs2(entry.kitchenCategories);
         const validKCats = [];
         for (const catId of kCats) {
-          const existingOwner = assignedKitchenChef.get(catId);
+          const existingOwner = claimedKitchenChef.get(catId);
           if (!existingOwner || existingOwner === chefId) {
-            assignedKitchenChef.set(catId, chefId);
+            claimedKitchenChef.set(catId, chefId);
             validKCats.push(catId);
           }
         }
@@ -39569,9 +39604,9 @@ var init_ChefSettings = __esm({
         const sCats = getRelationshipIDs2(entry.stockCategories);
         const validSCats = [];
         for (const catId of sCats) {
-          const existingOwner = assignedStockChef.get(catId);
+          const existingOwner = claimedStockChef.get(catId);
           if (!existingOwner || existingOwner === chefId) {
-            assignedStockChef.set(catId, chefId);
+            claimedStockChef.set(catId, chefId);
             validSCats.push(catId);
           }
         }
@@ -39630,7 +39665,11 @@ var init_ChefSettings = __esm({
               }
             }
             const originalAssignments = Array.isArray(originalDoc?.chefAssignments) ? originalDoc.chefAssignments : [];
-            data.chefAssignments = enforceOneCategoryOneChef(assignments, originalAssignments);
+            data.chefAssignments = await enforceOneCategoryOneChef(
+              assignments,
+              originalAssignments,
+              req.payload
+            );
             return data;
           }
         ],
@@ -39665,7 +39704,7 @@ var init_ChefSettings = __esm({
                   context: {
                     ...req.context || {},
                     fromChefSettingsSync: true,
-                    skipChefCategorySync: false
+                    skipChefCategorySync: true
                   },
                   overrideAccess: true
                 });
@@ -39702,6 +39741,7 @@ var init_ChefSettings = __esm({
                         },
                         context: {
                           ...req.context || {},
+                          fromChefSettingsSync: true,
                           skipChefCategorySync: true
                         },
                         overrideAccess: true
@@ -39745,6 +39785,7 @@ var init_ChefSettings = __esm({
                         },
                         context: {
                           ...req.context || {},
+                          fromChefSettingsSync: true,
                           skipChefCategorySync: true
                         },
                         overrideAccess: true

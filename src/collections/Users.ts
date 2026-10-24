@@ -1649,7 +1649,7 @@ export const Users: CollectionConfig = {
           }
 
           // Sync chef configuration into chef-settings global
-          if (!req.context?.fromChefSettingsSync) {
+          if (!req.context?.fromChefSettingsSync && !req.context?.skipChefCategorySync) {
             try {
               const chefSettings = await req.payload.findGlobal({
                 slug: 'chef-settings',

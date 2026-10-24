@@ -38,10 +38,11 @@ const getRelationshipIDs = (value: unknown): string[] => {
   return value.map((item) => getRelationshipID(item)).filter((id): id is string => Boolean(id))
 }
 
-const enforceOneCategoryOneChef = (
+const enforceOneCategoryOneChef = async (
   currentAssignments: any[],
   originalAssignments: any[],
-): any[] => {
+  payload?: any,
+): Promise<any[]> => {
   // 1. Build map of previous categories for each chef
   const prevKitchenMap = new Map<string, Set<string>>()
   const prevStockMap = new Map<string, Set<string>>()
@@ -102,29 +103,68 @@ const enforceOneCategoryOneChef = (
     }
   })
 
-  // 4. Strict deduplication pass:
+  // 4. Check users collection to see which chef actually holds it in DB if conflicts remain
+  const userCatOwner = new Map<string, string>() // categoryId -> chefId
+  const userStockOwner = new Map<string, string>() // categoryId -> chefId
+  if (payload) {
+    try {
+      const allChefs = await payload.find({
+        collection: 'users',
+        where: { role: { equals: 'chef' } },
+        depth: 0,
+        limit: 200,
+        pagination: false,
+        overrideAccess: true,
+      })
+      for (const c of allChefs.docs) {
+        const cId = String(c.id)
+        getRelationshipIDs(c.categories).forEach((catId) => {
+          userCatOwner.set(catId, cId)
+        })
+        getRelationshipIDs((c as any).stockCategories).forEach((catId) => {
+          userStockOwner.set(catId, cId)
+        })
+      }
+    } catch (_) {}
+  }
+
+  // 5. Strict deduplication pass:
   // Ensure absolutely no category appears in more than one chef row
-  const assignedKitchenChef = new Map<string, string>() // categoryId -> chefId
-  const assignedStockChef = new Map<string, string>() // categoryId -> chefId
+  const claimedKitchenChef = new Map<string, string>() // categoryId -> chefId
+  const claimedStockChef = new Map<string, string>() // categoryId -> chefId
 
   // Prioritize chefs who newly added categories
   newlyAddedKitchen.forEach((cats, chefId) => {
-    cats.forEach((c) => assignedKitchenChef.set(c, chefId))
+    cats.forEach((c) => claimedKitchenChef.set(c, chefId))
   })
   newlyAddedStock.forEach((cats, chefId) => {
-    cats.forEach((c) => assignedStockChef.set(c, chefId))
+    cats.forEach((c) => claimedStockChef.set(c, chefId))
   })
 
-  for (const entry of currentAssignments) {
+  // Next prioritize the actual owner in users collection
+  userCatOwner.forEach((chefId, catId) => {
+    if (!claimedKitchenChef.has(catId)) {
+      claimedKitchenChef.set(catId, chefId)
+    }
+  })
+  userStockOwner.forEach((chefId, catId) => {
+    if (!claimedStockChef.has(catId)) {
+      claimedStockChef.set(catId, chefId)
+    }
+  })
+
+  // Iterate in reverse (so later rows take priority if neither is claimed)
+  for (let i = currentAssignments.length - 1; i >= 0; i--) {
+    const entry = currentAssignments[i]
     const chefId = getRelationshipID(entry.chef)
     if (!chefId) continue
 
     const kCats = getRelationshipIDs(entry.kitchenCategories)
     const validKCats: string[] = []
     for (const catId of kCats) {
-      const existingOwner = assignedKitchenChef.get(catId)
+      const existingOwner = claimedKitchenChef.get(catId)
       if (!existingOwner || existingOwner === chefId) {
-        assignedKitchenChef.set(catId, chefId)
+        claimedKitchenChef.set(catId, chefId)
         validKCats.push(catId)
       }
     }
@@ -133,9 +173,9 @@ const enforceOneCategoryOneChef = (
     const sCats = getRelationshipIDs(entry.stockCategories)
     const validSCats: string[] = []
     for (const catId of sCats) {
-      const existingOwner = assignedStockChef.get(catId)
+      const existingOwner = claimedStockChef.get(catId)
       if (!existingOwner || existingOwner === chefId) {
-        assignedStockChef.set(catId, chefId)
+        claimedStockChef.set(catId, chefId)
         validSCats.push(catId)
       }
     }
@@ -208,7 +248,11 @@ export const ChefSettingsGlobal: GlobalConfig = {
         const originalAssignments = Array.isArray(originalDoc?.chefAssignments)
           ? originalDoc.chefAssignments
           : []
-        data.chefAssignments = enforceOneCategoryOneChef(assignments, originalAssignments)
+        data.chefAssignments = await enforceOneCategoryOneChef(
+          assignments,
+          originalAssignments,
+          req.payload,
+        )
 
         return data
       },
@@ -249,7 +293,7 @@ export const ChefSettingsGlobal: GlobalConfig = {
               context: {
                 ...(req.context || {}),
                 fromChefSettingsSync: true,
-                skipChefCategorySync: false,
+                skipChefCategorySync: true,
               },
               overrideAccess: true,
             })
@@ -290,6 +334,7 @@ export const ChefSettingsGlobal: GlobalConfig = {
                     },
                     context: {
                       ...(req.context || {}),
+                      fromChefSettingsSync: true,
                       skipChefCategorySync: true,
                     },
                     overrideAccess: true,
@@ -336,6 +381,7 @@ export const ChefSettingsGlobal: GlobalConfig = {
                     },
                     context: {
                       ...(req.context || {}),
+                      fromChefSettingsSync: true,
                       skipChefCategorySync: true,
                     },
                     overrideAccess: true,
