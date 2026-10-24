@@ -62,6 +62,16 @@ const getRelationshipIDs = (value: unknown): string[] => {
 const canManageChefDetails = (role?: string | null): boolean =>
   role === 'superadmin' || role === 'admin' || role === 'branch'
 
+const canUpdateChefDetails = ({ req, id }: { req: any; id?: string | number }): boolean => {
+  if (!req?.user) return false
+  if (canManageChefDetails(req.user.role)) return true
+  if (req.user.role === 'chef') {
+    const targetId = id ? String(id) : null
+    return !targetId || String(req.user.id) === targetId
+  }
+  return false
+}
+
 let cachedMenuSettings: any = null
 let cachedMenuSettingsAt = 0
 
@@ -207,7 +217,7 @@ export const Users: CollectionConfig = {
           },
           access: {
             create: ({ req }) => canManageChefDetails(req.user?.role),
-            update: ({ req }) => canManageChefDetails(req.user?.role),
+            update: canUpdateChefDetails,
           },
         },
       ],
@@ -285,7 +295,7 @@ export const Users: CollectionConfig = {
           },
           access: {
             create: ({ req }) => canManageChefDetails(req.user?.role),
-            update: ({ req }) => canManageChefDetails(req.user?.role),
+            update: canUpdateChefDetails,
           },
         },
       ],
@@ -316,7 +326,7 @@ export const Users: CollectionConfig = {
           },
           access: {
             create: ({ req }) => canManageChefDetails(req.user?.role),
-            update: ({ req }) => canManageChefDetails(req.user?.role),
+            update: canUpdateChefDetails,
           },
         },
       ],
