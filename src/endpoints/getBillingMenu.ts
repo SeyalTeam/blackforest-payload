@@ -286,33 +286,39 @@ export const getBillingMenuHandler: PayloadHandler = async (req): Promise<Respon
         return true
       })
 
-    const productIds = filteredDocs.map((doc) => toText(doc.id).trim()).filter((id) => id.length > 0)
-    let stockMap = new Map<string, number>()
-    try {
-      stockMap = await getMultipleProductsStock(req.payload, productIds, String(branchID))
-    } catch (err) {
-      req.payload.logger.error({ err, msg: 'Error computing live stock in getBillingMenu' })
+    const enforceStrictStock = process.env.ENABLE_STRICT_STOCK_CHECK !== 'false'
+
+    let isZeroStockBillingSkipped = !enforceStrictStock
+    if (enforceStrictStock) {
+      try {
+        const widgetSettings = await req.payload.findGlobal({
+          slug: 'widget-settings',
+          depth: 0,
+        })
+        const skipRows = (widgetSettings as any)?.skipZeroStockBillingByBranch
+        if (Array.isArray(skipRows)) {
+          const branchRow = skipRows.find((r: any) => {
+            const rBranchId =
+              typeof r.branch === 'object' && r.branch !== null ? r.branch.id : r.branch
+            return String(rBranchId) === String(branchID)
+          })
+          if (branchRow && branchRow.skipZeroStockBilling === true) {
+            isZeroStockBillingSkipped = true
+          }
+        }
+      } catch (err) {
+        req.payload.logger.error({ err, msg: 'Error checking skip zero stock billing settings in getBillingMenu' })
+      }
     }
 
-    let isZeroStockBillingSkipped = false
-    try {
-      const widgetSettings = await req.payload.findGlobal({
-        slug: 'widget-settings',
-        depth: 0,
-      })
-      const skipRows = (widgetSettings as any)?.skipZeroStockBillingByBranch
-      if (Array.isArray(skipRows)) {
-        const branchRow = skipRows.find((r: any) => {
-          const rBranchId =
-            typeof r.branch === 'object' && r.branch !== null ? r.branch.id : r.branch
-          return String(rBranchId) === String(branchID)
-        })
-        if (branchRow && branchRow.skipZeroStockBilling === true) {
-          isZeroStockBillingSkipped = true
-        }
+    const productIds = filteredDocs.map((doc) => toText(doc.id).trim()).filter((id) => id.length > 0)
+    let stockMap = new Map<string, number>()
+    if (enforceStrictStock && !isZeroStockBillingSkipped) {
+      try {
+        stockMap = await getMultipleProductsStock(req.payload, productIds, String(branchID))
+      } catch (err) {
+        req.payload.logger.error({ err, msg: 'Error computing live stock in getBillingMenu' })
       }
-    } catch (err) {
-      req.payload.logger.error({ err, msg: 'Error checking skip zero stock billing settings in getBillingMenu' })
     }
 
     const products = filteredDocs

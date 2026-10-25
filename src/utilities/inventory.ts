@@ -138,11 +138,17 @@ export const getMultipleProductsStock = async (
 
   const branchObjectId = new ObjectId(branchId)
 
+  // Earliest reset date if available
+  const baseResetDate = branch?.inventoryResetDate ? new Date(branch.inventoryResetDate) : null
+  const hasValidResetDate = baseResetDate && !isNaN(baseResetDate.getTime()) && baseResetDate.getTime() > 0
+  const dateMatch = hasValidResetDate ? { createdAt: { $gte: baseResetDate } } : {}
+
   // 1. Stock In (Received from Stock Orders) - ADD
   const stockInPipeline: any[] = [
     {
       $match: {
         branch: branchObjectId,
+        ...productMatch,
       },
     },
   ]
@@ -163,6 +169,8 @@ export const getMultipleProductsStock = async (
     {
       $match: {
         branch: branchObjectId,
+        ...productMatch,
+        ...dateMatch,
       },
     },
   ]
@@ -193,6 +201,8 @@ export const getMultipleProductsStock = async (
       $match: {
         branch: branchObjectId,
         status: { $ne: 'cancelled' },
+        ...productMatch,
+        ...dateMatch,
       },
     },
   ]
@@ -214,6 +224,8 @@ export const getMultipleProductsStock = async (
       $match: {
         branch: branchObjectId,
         status: { $ne: 'cancelled' },
+        ...productMatch,
+        ...dateMatch,
       },
     },
   ]
