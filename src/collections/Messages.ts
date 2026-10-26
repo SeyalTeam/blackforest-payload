@@ -232,6 +232,14 @@ export const Messages: CollectionConfig = {
     beforeChange: [prepareMessageForCreate],
     afterChange: [createInitialReceiptAndUpdateThread],
   },
+  indexes: [
+    {
+      fields: ['thread', 'createdAt'],
+    },
+    {
+      fields: ['thread', 'senderType', 'createdAt'],
+    },
+  ],
   fields: [
     {
       name: 'thread',

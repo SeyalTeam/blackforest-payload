@@ -165,6 +165,7 @@ type WidgetSettingsGlobal = {
   tableOrderCustomerDetailsByBranch?: TableCustomerDetailsRow[] | null
   billingOrderCustomerDetailsByBranch?: BillingCustomerDetailsRow[] | null
   tableQRDomains?: TableQRDomainRow[] | null
+  frontendAPIDomains?: TableQRDomainRow[] | null
   appAPIDomains?: AppAPIDomainProfileRow[] | null
   skipDeliverByBranch?: SkipDeliverRow[] | null
   skipConfirmByBranch?: SkipConfirmRow[] | null
@@ -237,6 +238,7 @@ type WidgetKey =
   | 'cashdrawer-access'
 
 const BILLING_APP_KEY = 'billing-app'
+const FRONTEND_APP_KEY = 'frontend-web'
 
 const sanitizeUploadedAPKFile = (file: File): File => {
   const originalName = file.name.trim() || 'app.apk'
@@ -326,6 +328,9 @@ const getTableQRDomainRowKey = (row: TableQRDomainRow, index: number): string =>
 
 const getBillingAPIDomainRowKey = (row: TableQRDomainRow, index: number): string =>
   row.id || row.domainURL || `billing-api-domain-${index}`
+
+const getFrontendAPIDomainRowKey = (row: TableQRDomainRow, index: number): string =>
+  row.id || row.domainURL || `frontend-api-domain-${index}`
 
 const normalizeAppKey = (value: unknown): string =>
   typeof value === 'string' ? value.trim().toLowerCase() : ''
@@ -559,6 +564,14 @@ const WidgetSettings: React.FC<any> = (props) => {
   const [removingBillingAPIDomainKey, setRemovingBillingAPIDomainKey] = useState<string | null>(
     null,
   )
+  const [frontendAPIDomains, setFrontendAPIDomains] = useState<TableQRDomainRow[]>([])
+  const [newFrontendAPIDomainURL, setNewFrontendAPIDomainURL] = useState('')
+  const [savingFrontendAPIDomain, setSavingFrontendAPIDomain] = useState(false)
+  const [removingFrontendAPIDomainKey, setRemovingFrontendAPIDomainKey] = useState<string | null>(
+    null,
+  )
+  const [syncingFrontendEnv, setSyncingFrontendEnv] = useState(false)
+  const [frontendEnvSyncResult, setFrontendEnvSyncResult] = useState<string | null>(null)
   const [tableQRConfigs, setTableQRConfigs] = useState<TableConfigRow[]>([])
   const [loadingTableQRConfigs, setLoadingTableQRConfigs] = useState(false)
   const [tableQRConfigsLoaded, setTableQRConfigsLoaded] = useState(false)
@@ -829,6 +842,16 @@ const WidgetSettings: React.FC<any> = (props) => {
       Array.isArray(billingAPIDomainProfile?.domains) ? (billingAPIDomainProfile.domains ?? []) : [],
     [billingAPIDomainProfile],
   )
+  const frontendAPIDomainProfile = useMemo(
+    () => appAPIDomains.find((profile) => normalizeAppKey(profile.appKey) === FRONTEND_APP_KEY),
+    [appAPIDomains],
+  )
+  const resolvedFrontendAPIDomains = useMemo(() => {
+    if (frontendAPIDomains.length > 0) return frontendAPIDomains
+    return Array.isArray(frontendAPIDomainProfile?.domains)
+      ? (frontendAPIDomainProfile.domains ?? [])
+      : []
+  }, [frontendAPIDomains, frontendAPIDomainProfile])
   const liveTableNowMs = useMemo(() => Date.now(), [liveTableTick])
 
   const visibilityOptions: Option[] = useMemo(
@@ -1193,6 +1216,7 @@ const WidgetSettings: React.FC<any> = (props) => {
               settingsJSON.billingOrderCustomerDetailsByBranch || [],
             )
             setTableQRDomains(settingsJSON.tableQRDomains || [])
+            setFrontendAPIDomains(settingsJSON.frontendAPIDomains || [])
             setAppAPIDomains(settingsJSON.appAPIDomains || [])
             setSkipDeliverByBranch(settingsJSON.skipDeliverByBranch || [])
             setSkipConfirmByBranch(settingsJSON.skipConfirmByBranch || [])
@@ -3105,6 +3129,231 @@ const WidgetSettings: React.FC<any> = (props) => {
       alert('Failed to remove billing LIVE API domain')
     } finally {
       setRemovingBillingAPIDomainKey(null)
+    }
+  }
+
+  const triggerFrontendEnvSync = async (activeDomainURL: string) => {
+    setSyncingFrontendEnv(true)
+    try {
+      const res = await fetch('/api/sync-frontend-env', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activeDomain: activeDomainURL }),
+      })
+      const data = await res.json()
+      if (data?.success) {
+        setFrontendEnvSyncResult(`Synced to frontend .env: ${activeDomainURL}`)
+      } else {
+        setFrontendEnvSyncResult(data?.message || 'Sync complete')
+      }
+    } catch {
+      setFrontendEnvSyncResult('Could not reach sync endpoint')
+    } finally {
+      setSyncingFrontendEnv(false)
+    }
+  }
+
+  const manualSyncFrontendEnv = async () => {
+    const active =
+      resolvedFrontendAPIDomains.find((d) => d.enabled !== false && d.type === 'primary') ||
+      resolvedFrontendAPIDomains.find((d) => d.enabled !== false) ||
+      resolvedFrontendAPIDomains[0]
+
+    if (!active?.domainURL) {
+      alert('No active frontend API domain to sync. Please add a domain first.')
+      return
+    }
+
+    setSyncingFrontendEnv(true)
+    try {
+      const res = await fetch('/api/sync-frontend-env', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activeDomain: active.domainURL.trim() }),
+      })
+      const data = await res.json()
+      if (data?.success) {
+        setFrontendEnvSyncResult(`Synced to frontend .env: ${active.domainURL}`)
+        alert(`Successfully synced NEXT_PUBLIC_API_URL=${active.domainURL} to frontend .env file!`)
+      } else {
+        alert(data?.message || 'Failed to sync to frontend .env')
+      }
+    } catch (e) {
+      console.error('Failed to sync frontend .env:', e)
+      alert('Error triggering sync to frontend .env')
+    } finally {
+      setSyncingFrontendEnv(false)
+    }
+  }
+
+  const saveFrontendAPIDomains = async (nextDomains: TableQRDomainRow[]) => {
+    const normalizedDomains: TableQRDomainRow[] = nextDomains.map((row) => ({
+      ...row,
+      domainURL: row.domainURL?.trim() || '',
+      enabled: row.enabled !== false,
+      type: row.type === 'secondary' ? 'secondary' : 'primary',
+    }))
+
+    const hasPrimary = normalizedDomains.some((domain) => domain.type === 'primary')
+    const finalizedDomains: TableQRDomainRow[] =
+      normalizedDomains.length > 0 && !hasPrimary
+        ? normalizedDomains.map((domain, domainIndex) =>
+            domainIndex === 0 ? { ...domain, type: 'primary' } : domain,
+          )
+        : normalizedDomains
+
+    const otherProfiles = appAPIDomains.filter(
+      (profile) => normalizeAppKey(profile.appKey) !== FRONTEND_APP_KEY,
+    )
+    const nextProfiles: AppAPIDomainProfileRow[] = [
+      ...otherProfiles,
+      {
+        ...(frontendAPIDomainProfile?.id ? { id: frontendAPIDomainProfile.id } : {}),
+        appKey: FRONTEND_APP_KEY,
+        domains: finalizedDomains,
+      },
+    ]
+
+    const persistedSettings = await persistWidgetSettings({
+      frontendAPIDomains: finalizedDomains,
+      appAPIDomains: nextProfiles,
+    })
+    setFrontendAPIDomains(persistedSettings.frontendAPIDomains || finalizedDomains)
+    setAppAPIDomains(persistedSettings.appAPIDomains || nextProfiles)
+
+    const activeDomain =
+      finalizedDomains.find((d) => d.enabled && d.type === 'primary') ||
+      finalizedDomains.find((d) => d.enabled) ||
+      finalizedDomains[0]
+
+    if (activeDomain?.domainURL) {
+      void triggerFrontendEnvSync(activeDomain.domainURL)
+    }
+  }
+
+  const addFrontendAPIDomain = async () => {
+    const nextDomainURL = newFrontendAPIDomainURL.trim()
+
+    if (!nextDomainURL) {
+      alert('Please enter the frontend LIVE API domain URL')
+      return
+    }
+
+    let normalizedURL: string
+    try {
+      normalizedURL = new URL(nextDomainURL).toString().replace(/\/$/, '')
+    } catch {
+      alert('Please enter a valid domain URL, including http:// or https://')
+      return
+    }
+
+    const existingDomains = resolvedFrontendAPIDomains
+      .map((row) => row.domainURL?.trim())
+      .filter((value): value is string => Boolean(value))
+
+    if (existingDomains.some((value) => value.toLowerCase() === normalizedURL.toLowerCase())) {
+      alert('This frontend LIVE API domain is already added')
+      return
+    }
+
+    setSavingFrontendAPIDomain(true)
+    try {
+      const isFirst = resolvedFrontendAPIDomains.length === 0
+      const nextRows: TableQRDomainRow[] = [
+        ...resolvedFrontendAPIDomains.map((row) => ({
+          ...row,
+          domainURL: row.domainURL?.trim() || '',
+        })),
+        {
+          domainURL: normalizedURL,
+          enabled: true,
+          type: isFirst ? 'primary' : 'secondary',
+        },
+      ]
+
+      await saveFrontendAPIDomains(nextRows)
+      setNewFrontendAPIDomainURL('')
+      alert('Frontend LIVE API domain added and synced to frontend .env file')
+    } catch (error) {
+      console.error('Failed to save frontend API domain:', error)
+      alert('Failed to add frontend LIVE API domain')
+    } finally {
+      setSavingFrontendAPIDomain(false)
+    }
+  }
+
+  const toggleFrontendAPIDomainType = async (row: TableQRDomainRow, index: number) => {
+    try {
+      if (row.type === 'primary') return
+
+      const nextRows: TableQRDomainRow[] = resolvedFrontendAPIDomains.map((currentRow, currentIndex) => {
+        const isMatch = row.id && currentRow.id ? currentRow.id === row.id : currentIndex === index
+        if (isMatch) {
+          return { ...currentRow, type: 'primary' }
+        }
+        if (currentRow.type === 'primary') {
+          return { ...currentRow, type: 'secondary' }
+        }
+        return currentRow
+      })
+
+      await saveFrontendAPIDomains(nextRows)
+    } catch (error) {
+      console.error('Failed to toggle frontend API domain type:', error)
+      alert('Failed to update frontend API domain priority')
+    }
+  }
+
+  const toggleFrontendAPIDomainEnabled = async (row: TableQRDomainRow, index: number) => {
+    try {
+      const nextRows = resolvedFrontendAPIDomains.map((currentRow, currentIndex) => {
+        const isMatch = row.id && currentRow.id ? currentRow.id === row.id : currentIndex === index
+        if (isMatch) {
+          return { ...currentRow, enabled: !currentRow.enabled }
+        }
+        return currentRow
+      })
+
+      await saveFrontendAPIDomains(nextRows)
+    } catch (error) {
+      console.error('Failed to toggle frontend API domain:', error)
+      alert('Failed to update frontend API domain status')
+    }
+  }
+
+  const removeFrontendAPIDomain = async (row: TableQRDomainRow, index: number) => {
+    const domainURL = row.domainURL?.trim() || 'this domain'
+    if (!confirm(`Remove "${domainURL}" from Frontend LIVE API domains?`)) {
+      return
+    }
+
+    const rowKey = getFrontendAPIDomainRowKey(row, index)
+    setRemovingFrontendAPIDomainKey(rowKey)
+
+    try {
+      let nextRows: TableQRDomainRow[] = resolvedFrontendAPIDomains
+        .filter((currentRow, currentIndex) => {
+          if (row.id && currentRow.id) return currentRow.id !== row.id
+          return currentIndex !== index
+        })
+        .map((currentRow) => ({
+          ...currentRow,
+          domainURL: currentRow.domainURL?.trim() || '',
+        }))
+
+      if (nextRows.length > 0 && !nextRows.some((domain) => domain.type === 'primary')) {
+        nextRows = nextRows.map((domain, domainIndex) =>
+          domainIndex === 0 ? { ...domain, type: 'primary' } : domain,
+        )
+      }
+
+      await saveFrontendAPIDomains(nextRows)
+      alert('Frontend LIVE API domain removed')
+    } catch (error) {
+      console.error('Failed to remove frontend API domain:', error)
+      alert('Failed to remove frontend LIVE API domain')
+    } finally {
+      setRemovingFrontendAPIDomainKey(null)
     }
   }
 
@@ -5898,6 +6147,188 @@ const WidgetSettings: React.FC<any> = (props) => {
                                       title="Delete Domain"
                                     >
                                       {removingBillingAPIDomainKey === rowKey ? (
+                                        <Loader2 className="animate-spin" size={14} />
+                                      ) : (
+                                        <Trash2 size={14} />
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="table-qr-card-section">
+                    <h3>
+                      <Globe size={18} />
+                      Frontend Web App LIVE API Domains
+                    </h3>
+
+                    <div className="table-qr-domain-management">
+                      <div className="table-qr-add-row">
+                        <div className="form-group">
+                          <label>
+                            <Plus size={12} style={{ marginRight: 4 }} /> Add Frontend LIVE API Domain
+                          </label>
+                          <input
+                            type="url"
+                            value={newFrontendAPIDomainURL}
+                            onChange={(e) => setNewFrontendAPIDomainURL(e.target.value)}
+                            placeholder="https://blackforest1.vseyal.com"
+                          />
+                        </div>
+                        <div
+                          className="form-group"
+                          style={{ display: 'flex', alignItems: 'flex-end' }}
+                        >
+                          <button
+                            type="button"
+                            className="btn btn-primary table-qr-add-btn"
+                            onClick={() => void addFrontendAPIDomain()}
+                            disabled={savingFrontendAPIDomain || !newFrontendAPIDomainURL.trim()}
+                          >
+                            {savingFrontendAPIDomain ? (
+                              <Loader2 className="animate-spin" size={16} />
+                            ) : (
+                              <Plus size={16} />
+                            )}
+                            Add Domain
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="configured-settings">
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: 6,
+                          }}
+                        >
+                          <h3 style={{ margin: 0 }}>Saved Frontend LIVE API Domains</h3>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{
+                              padding: '4px 10px',
+                              fontSize: '0.8rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}
+                            onClick={() => void manualSyncFrontendEnv()}
+                            disabled={syncingFrontendEnv}
+                            title="Force sync active primary domain to frontend .env file"
+                          >
+                            {syncingFrontendEnv ? (
+                              <Loader2 className="animate-spin" size={12} />
+                            ) : (
+                              <RefreshCw size={12} />
+                            )}
+                            Sync to .env
+                          </button>
+                        </div>
+                        <p style={{ marginTop: 0, color: '#94a3b8', fontSize: '0.85rem' }}>
+                          Runtime endpoint:{' '}
+                          <code style={{ background: '#1e293b', padding: '2px 6px', borderRadius: 4 }}>
+                            /api/runtime/api-domain?appKey=frontend-web
+                          </code>
+                        </p>
+                        {frontendEnvSyncResult && (
+                          <div
+                            style={{
+                              padding: '8px 12px',
+                              marginBottom: '12px',
+                              borderRadius: '6px',
+                              fontSize: '0.85rem',
+                              background: 'rgba(34, 197, 94, 0.1)',
+                              border: '1px solid rgba(34, 197, 94, 0.3)',
+                              color: '#4ade80',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                            }}
+                          >
+                            <Check size={14} />
+                            <span>{frontendEnvSyncResult}</span>
+                          </div>
+                        )}
+                        {resolvedFrontendAPIDomains.length === 0 ? (
+                          <div className="empty-state">
+                            <p>No frontend LIVE API domains saved yet.</p>
+                          </div>
+                        ) : (
+                          <div className="table-qr-domains-grid">
+                            {resolvedFrontendAPIDomains.map((row, index) => {
+                              const rowKey = getFrontendAPIDomainRowKey(row, index)
+                              const domainLabel = row.domainURL?.trim() || 'Untitled domain'
+
+                              return (
+                                <div className="configured-row" key={rowKey}>
+                                  <div className="table-qr-domain-meta">
+                                    <div
+                                      className={`domain-icon-wrapper ${row.type === 'primary' ? 'primary' : 'secondary'}`}
+                                    >
+                                      {row.type === 'primary' ? (
+                                        <Crown size={18} />
+                                      ) : (
+                                        <Globe size={18} />
+                                      )}
+                                    </div>
+                                    <span className="branch-name" title={domainLabel}>
+                                      {domainLabel}
+                                    </span>
+                                  </div>
+                                  <div className="row-controls">
+                                    <button
+                                      type="button"
+                                      className={`priority-toggle-btn ${row.type === 'primary' ? 'primary' : 'secondary'}`}
+                                      onClick={() => void toggleFrontendAPIDomainType(row, index)}
+                                      title={
+                                        row.type === 'primary'
+                                          ? 'Primary Domain'
+                                          : 'Secondary Domain (Click to make Primary)'
+                                      }
+                                    >
+                                      {row.type === 'primary' ? (
+                                        <Crown size={14} />
+                                      ) : (
+                                        <Anchor size={14} />
+                                      )}
+                                      <span>
+                                        {row.type === 'primary' ? 'Primary' : 'Secondary'}
+                                      </span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`status-toggle-btn ${row.enabled !== false ? 'active' : ''}`}
+                                      onClick={() => void toggleFrontendAPIDomainEnabled(row, index)}
+                                      title={
+                                        row.enabled !== false
+                                          ? 'Active (Click to Disable)'
+                                          : 'Disabled (Click to Enable)'
+                                      }
+                                    >
+                                      {row.enabled !== false ? (
+                                        <Check size={14} />
+                                      ) : (
+                                        <X size={14} />
+                                      )}
+                                      <span>{row.enabled !== false ? 'Active' : 'Disabled'}</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="remove-row-btn"
+                                      onClick={() => void removeFrontendAPIDomain(row, index)}
+                                      disabled={removingFrontendAPIDomainKey !== null}
+                                      title="Delete Domain"
+                                    >
+                                      {removingFrontendAPIDomainKey === rowKey ? (
                                         <Loader2 className="animate-spin" size={14} />
                                       ) : (
                                         <Trash2 size={14} />

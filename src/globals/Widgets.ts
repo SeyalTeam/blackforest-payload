@@ -1,8 +1,20 @@
 import { GlobalConfig } from 'payload'
+import { syncFrontendEnvFromDoc } from '../utilities/syncFrontendEnv'
 
 export const WidgetSettingsGlobal: GlobalConfig = {
   slug: 'widget-settings',
   label: 'Widgets',
+  hooks: {
+    afterChange: [
+      async ({ doc }) => {
+        try {
+          syncFrontendEnvFromDoc(doc)
+        } catch (error) {
+          console.error('[WidgetSettingsGlobal] Failed to auto-sync frontend .env in afterChange hook:', error)
+        }
+      },
+    ],
+  },
   admin: {
     group: 'Settings',
     components: {
@@ -224,6 +236,39 @@ export const WidgetSettingsGlobal: GlobalConfig = {
       ],
     },
     {
+      name: 'frontendAPIDomains',
+      label: 'Frontend Web LIVE API Domains',
+      type: 'array',
+      admin: {
+        description:
+          'API domain URLs used by the frontend web application. Automatically syncs the active primary domain to frontend .env file.',
+      },
+      fields: [
+        {
+          name: 'domainURL',
+          label: 'Domain URL',
+          type: 'text',
+          required: true,
+        },
+        {
+          name: 'type',
+          label: 'Type',
+          type: 'select',
+          options: [
+            { label: 'Primary', value: 'primary' },
+            { label: 'Secondary', value: 'secondary' },
+          ],
+          defaultValue: 'primary',
+        },
+        {
+          name: 'enabled',
+          label: 'Enabled',
+          type: 'checkbox',
+          defaultValue: true,
+        },
+      ],
+    },
+    {
       name: 'appAPIDomains',
       label: 'App LIVE API Domains',
       type: 'array',
@@ -237,7 +282,10 @@ export const WidgetSettingsGlobal: GlobalConfig = {
           label: 'App',
           type: 'select',
           required: true,
-          options: [{ label: 'Billing App', value: 'billing-app' }],
+          options: [
+            { label: 'Billing App', value: 'billing-app' },
+            { label: 'Frontend Web App', value: 'frontend-web' },
+          ],
         },
         {
           name: 'domains',

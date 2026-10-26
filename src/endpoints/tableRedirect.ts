@@ -1,4 +1,5 @@
 import type { PayloadHandler } from 'payload'
+import { resolveActiveFrontendDomainFromDoc } from '../utilities/syncFrontendEnv'
 
 export const tableRedirectHandler: PayloadHandler = async (req): Promise<Response> => {
   try {
@@ -51,6 +52,11 @@ export const tableRedirectHandler: PayloadHandler = async (req): Promise<Respons
     targetURL.searchParams.set('branchId', branchId)
     targetURL.searchParams.set('section', section)
     targetURL.searchParams.set('table', table)
+
+    const activeApiDomain = resolveActiveFrontendDomainFromDoc(settings)
+    if (activeApiDomain) {
+      targetURL.searchParams.set('apiDomain', activeApiDomain)
+    }
 
     return Response.redirect(targetURL.toString(), 302)
   } catch (error) {

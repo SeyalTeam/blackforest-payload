@@ -437,6 +437,20 @@ const Attendance: CollectionConfig = {
     delete: ({ req: { user } }) =>
       user?.role ? ['superadmin', 'admin'].includes(user.role) : false,
   },
+  indexes: [
+    {
+      fields: ['user', 'date'],
+    },
+    {
+      fields: ['user', 'dateString'],
+    },
+    {
+      fields: ['employee', 'date'],
+    },
+    {
+      fields: ['loginBranch', 'date'],
+    },
+  ],
   fields: [
     {
       name: 'user',

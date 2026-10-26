@@ -64,13 +64,23 @@ export const getRuntimeApiDomainHandler: PayloadHandler = async (req): Promise<R
       overrideAccess: true,
     })) as {
       appAPIDomains?: AppAPIDomainProfile[]
+      frontendAPIDomains?: AppAPIDomainRow[]
     }
 
-    const profiles = Array.isArray(settings?.appAPIDomains) ? settings.appAPIDomains : []
-    const profile =
-      profiles.find((candidate) => normalizeAppKey(candidate?.appKey || null) === appKey) || null
+    let rows: AppAPIDomainRow[] = []
 
-    const rows = Array.isArray(profile?.domains) ? profile.domains : []
+    if (appKey === 'frontend-web' || appKey === 'frontend') {
+      if (Array.isArray(settings?.frontendAPIDomains) && settings.frontendAPIDomains.length > 0) {
+        rows = settings.frontendAPIDomains
+      }
+    }
+
+    if (rows.length === 0) {
+      const profiles = Array.isArray(settings?.appAPIDomains) ? settings.appAPIDomains : []
+      const profile =
+        profiles.find((candidate) => normalizeAppKey(candidate?.appKey || null) === appKey) || null
+      rows = Array.isArray(profile?.domains) ? profile.domains : []
+    }
     const sortedDomains = getSortedDomains(rows)
     const activeDomain = sortedDomains.find((domain) => domain.enabled) || sortedDomains[0] || null
 

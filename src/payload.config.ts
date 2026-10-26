@@ -129,6 +129,7 @@ import { getBillingMenuHandler } from './endpoints/getBillingMenu'
 import { aiAssistantHandler } from './endpoints/aiAssistant'
 import { getBillingCustomerLookupHandler } from './endpoints/getBillingCustomerLookup'
 import { getRuntimeApiDomainHandler } from './endpoints/getRuntimeApiDomain'
+import { syncFrontendEnvHandler } from './endpoints/syncFrontendEnv'
 import { CustomerOfferSettings } from './globals/CustomerOfferSettings'
 import APKFiles from './collections/APKFiles'
 import { AppDownloadSettings } from './globals/AppDownloadSettings'
@@ -534,12 +535,13 @@ const dbAdapter =
   dbMode === 'mongo'
     ? mongooseAdapter({
         url: mongoConnectionString,
-        // autoIndex: process.env.NODE_ENV !== 'production',
+        autoIndex: true,
+        ensureIndexes: true,
         connectOptions: {
-          maxPoolSize: process.env.MONGODB_MAX_POOL_SIZE ? parseInt(process.env.MONGODB_MAX_POOL_SIZE) : 50,
-          minPoolSize: process.env.MONGODB_MIN_POOL_SIZE ? parseInt(process.env.MONGODB_MIN_POOL_SIZE) : 5,
+          maxPoolSize: process.env.MONGODB_MAX_POOL_SIZE ? parseInt(process.env.MONGODB_MAX_POOL_SIZE) : 100,
+          minPoolSize: process.env.MONGODB_MIN_POOL_SIZE ? parseInt(process.env.MONGODB_MIN_POOL_SIZE) : 10,
           maxIdleTimeMS: 20000,
-          waitQueueTimeoutMS: 8000,
+          waitQueueTimeoutMS: 15000,
           serverSelectionTimeoutMS: 5000,
           socketTimeoutMS: 45000,
           retryWrites: true,
@@ -861,6 +863,16 @@ export default buildConfig({
       path: '/runtime/api-domain',
       method: 'get',
       handler: getRuntimeApiDomainHandler,
+    },
+    {
+      path: '/sync-frontend-env',
+      method: 'post',
+      handler: syncFrontendEnvHandler,
+    },
+    {
+      path: '/sync-frontend-env',
+      method: 'get',
+      handler: syncFrontendEnvHandler,
     },
     {
       path: '/widgets/table-qr-preview',

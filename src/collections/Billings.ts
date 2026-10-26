@@ -2161,6 +2161,15 @@ const Billings: CollectionConfig = {
   },
   indexes: [
     {
+      fields: ['createdBy', 'createdAt'],
+    },
+    {
+      fields: ['createdBy', 'branch', 'createdAt'],
+    },
+    {
+      fields: ['createdBy', 'status', 'createdAt'],
+    },
+    {
       fields: ['customerDetails.phoneNumber', 'createdAt'],
     },
     {
@@ -4650,6 +4659,7 @@ const Billings: CollectionConfig = {
           type: 'relationship',
           relationTo: 'users',
           required: true,
+          index: true,
           defaultValue: ({ user }) => user?.id,
           admin: { readOnly: true },
         },
