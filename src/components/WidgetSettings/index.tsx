@@ -6178,7 +6178,7 @@ const WidgetSettings: React.FC<any> = (props) => {
                             type="url"
                             value={newFrontendAPIDomainURL}
                             onChange={(e) => setNewFrontendAPIDomainURL(e.target.value)}
-                            placeholder="https://blackforest1.vseyal.com"
+                            placeholder="https://blackforest-api.vseyal.com"
                           />
                         </div>
                         <div

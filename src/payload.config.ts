@@ -615,6 +615,7 @@ export default buildConfig({
     'http://localhost:3001', // standalone frontend (dev)
     'http://127.0.0.1',
     process.env.FRONTEND_URL || '',
+    'https://blackforest-api.vseyal.com',
     'https://admin.theblackforestcakes.com',
     'https://superadmin.theblackforestcakes.com',
     'https://theblackforestcakes.com',
@@ -625,6 +626,7 @@ export default buildConfig({
     'http://localhost:3001', // standalone frontend (dev)
     'http://127.0.0.1',
     process.env.FRONTEND_URL || '',
+    'https://blackforest-api.vseyal.com',
     'https://admin.theblackforestcakes.com',
     'https://superadmin.theblackforestcakes.com',
     'https://theblackforestcakes.com',
