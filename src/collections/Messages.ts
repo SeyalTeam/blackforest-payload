@@ -237,7 +237,7 @@ export const Messages: CollectionConfig = {
       fields: ['thread', 'createdAt'],
     },
     {
-      fields: ['thread', 'senderType', 'createdAt'],
+      fields: ['thread', 'senderRole', 'createdAt'],
     },
   ],
   fields: [

@@ -536,7 +536,7 @@ const dbAdapter =
     ? mongooseAdapter({
         url: mongoConnectionString,
         autoIndex: true,
-        ensureIndexes: true,
+        ensureIndexes: false,
         connectOptions: {
           maxPoolSize: process.env.MONGODB_MAX_POOL_SIZE ? parseInt(process.env.MONGODB_MAX_POOL_SIZE) : 100,
           minPoolSize: process.env.MONGODB_MIN_POOL_SIZE ? parseInt(process.env.MONGODB_MIN_POOL_SIZE) : 10,
