@@ -201,8 +201,8 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
           transitionError = `Current status "${currentStatus}" is not in the valid sequence.`
         } else if (nextIndex === -1) {
           transitionError = `New status "${nextStatus}" is not in the valid sequence.`
-        } else if (nextIndex !== currentIndex + 1) {
-          transitionError = `Invalid transition: Cannot go from "${currentStatus}" to "${nextStatus}". Must follow: ${statusSequence.join(' -> ')}`
+        } else if (nextIndex < currentIndex) {
+          transitionError = `Cannot reverse status from "${currentStatus}" back to "${nextStatus}".`
         }
       }
 
@@ -233,6 +233,15 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
         if (statusOwnerField && actingUserID) {
           itemUpdateData[statusOwnerField] = actingUserID
           console.log(`[updateItemStatus] SETTING OWNER: item.${statusOwnerField} = ${actingUserID}`)
+        }
+        if (nextStatus === 'delivered') {
+          if (!itemUpdateData.confirmedAt) itemUpdateData.confirmedAt = changedAtDisplay
+          if (!itemUpdateData.confirmedBy && actingUserID) itemUpdateData.confirmedBy = actingUserID
+          if (!itemUpdateData.preparedAt) itemUpdateData.preparedAt = changedAtDisplay
+          if (!itemUpdateData.preparedBy && actingUserID) itemUpdateData.preparedBy = actingUserID
+        } else if (nextStatus === 'confirmed') {
+          if (!itemUpdateData.preparedAt) itemUpdateData.preparedAt = changedAtDisplay
+          if (!itemUpdateData.preparedBy && actingUserID) itemUpdateData.preparedBy = actingUserID
         }
       }
 

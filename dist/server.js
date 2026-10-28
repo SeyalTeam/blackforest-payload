@@ -1715,7 +1715,7 @@ var init_appVersionGuard = __esm({
 });
 
 // src/collections/Users.ts
-var getRelationshipID, getRelationshipIDs, canManageChefDetails, cachedMenuSettings, cachedMenuSettingsAt, Users;
+var getRelationshipID, getRelationshipIDs, canManageChefDetails, canUpdateChefDetails, cachedMenuSettings, cachedMenuSettingsAt, Users;
 var init_Users = __esm({
   "src/collections/Users.ts"() {
     "use strict";
@@ -1767,6 +1767,15 @@ var init_Users = __esm({
       return value.map((item) => getRelationshipID(item)).filter((id) => Boolean(id));
     };
     canManageChefDetails = (role) => role === "superadmin" || role === "admin" || role === "branch";
+    canUpdateChefDetails = ({ req, id }) => {
+      if (!req?.user) return false;
+      if (canManageChefDetails(req.user.role)) return true;
+      if (req.user.role === "chef") {
+        const targetId = id ? String(id) : null;
+        return !targetId || String(req.user.id) === targetId;
+      }
+      return false;
+    };
     cachedMenuSettings = null;
     cachedMenuSettingsAt = 0;
     Users = {
@@ -1916,7 +1925,7 @@ var init_Users = __esm({
               },
               access: {
                 create: ({ req }) => canManageChefDetails(req.user?.role),
-                update: ({ req }) => canManageChefDetails(req.user?.role)
+                update: canUpdateChefDetails
               }
             }
           ]
@@ -1986,7 +1995,7 @@ var init_Users = __esm({
               },
               access: {
                 create: ({ req }) => canManageChefDetails(req.user?.role),
-                update: ({ req }) => canManageChefDetails(req.user?.role)
+                update: canUpdateChefDetails
               }
             }
           ]
@@ -2015,7 +2024,7 @@ var init_Users = __esm({
               },
               access: {
                 create: ({ req }) => canManageChefDetails(req.user?.role),
-                update: ({ req }) => canManageChefDetails(req.user?.role)
+                update: canUpdateChefDetails
               }
             }
           ]
@@ -6630,10 +6639,14 @@ var init_inventory = __esm({
       };
       const productMatch = { "items.product": { $in: productObjectIds } };
       const branchObjectId = new ObjectId(branchId);
+      const baseResetDate = branch?.inventoryResetDate ? new Date(branch.inventoryResetDate) : null;
+      const hasValidResetDate = baseResetDate && !isNaN(baseResetDate.getTime()) && baseResetDate.getTime() > 0;
+      const dateMatch = hasValidResetDate ? { createdAt: { $gte: baseResetDate } } : {};
       const stockInPipeline = [
         {
           $match: {
-            branch: branchObjectId
+            branch: branchObjectId,
+            ...productMatch
           }
         }
       ];
@@ -6651,7 +6664,9 @@ var init_inventory = __esm({
       const instockPipeline = [
         {
           $match: {
-            branch: branchObjectId
+            branch: branchObjectId,
+            ...productMatch,
+            ...dateMatch
           }
         }
       ];
@@ -6679,7 +6694,9 @@ var init_inventory = __esm({
         {
           $match: {
             branch: branchObjectId,
-            status: { $ne: "cancelled" }
+            status: { $ne: "cancelled" },
+            ...productMatch,
+            ...dateMatch
           }
         }
       ];
@@ -6698,7 +6715,9 @@ var init_inventory = __esm({
         {
           $match: {
             branch: branchObjectId,
-            status: { $ne: "cancelled" }
+            status: { $ne: "cancelled" },
+            ...productMatch,
+            ...dateMatch
           }
         }
       ];
@@ -6891,8 +6910,8 @@ var init_updateItemStatus = __esm({
               transitionError = `Current status "${currentStatus}" is not in the valid sequence.`;
             } else if (nextIndex === -1) {
               transitionError = `New status "${nextStatus}" is not in the valid sequence.`;
-            } else if (nextIndex !== currentIndex + 1) {
-              transitionError = `Invalid transition: Cannot go from "${currentStatus}" to "${nextStatus}". Must follow: ${statusSequence.join(" -> ")}`;
+            } else if (nextIndex < currentIndex) {
+              transitionError = `Cannot reverse status from "${currentStatus}" back to "${nextStatus}".`;
             }
           }
           const statusOwnerField = statusChanged2 && nextStatus === "prepared" ? "preparedBy" : statusChanged2 && nextStatus === "confirmed" ? "confirmedBy" : statusChanged2 && nextStatus === "delivered" ? "deliveredBy" : null;
@@ -6911,6 +6930,15 @@ var init_updateItemStatus = __esm({
             if (statusOwnerField && actingUserID) {
               itemUpdateData[statusOwnerField] = actingUserID;
               console.log(`[updateItemStatus] SETTING OWNER: item.${statusOwnerField} = ${actingUserID}`);
+            }
+            if (nextStatus === "delivered") {
+              if (!itemUpdateData.confirmedAt) itemUpdateData.confirmedAt = changedAtDisplay;
+              if (!itemUpdateData.confirmedBy && actingUserID) itemUpdateData.confirmedBy = actingUserID;
+              if (!itemUpdateData.preparedAt) itemUpdateData.preparedAt = changedAtDisplay;
+              if (!itemUpdateData.preparedBy && actingUserID) itemUpdateData.preparedBy = actingUserID;
+            } else if (nextStatus === "confirmed") {
+              if (!itemUpdateData.preparedAt) itemUpdateData.preparedAt = changedAtDisplay;
+              if (!itemUpdateData.preparedBy && actingUserID) itemUpdateData.preparedBy = actingUserID;
             }
           }
           if (hasPreparingTimeUpdate) {
@@ -9391,6 +9419,15 @@ var init_Billings = __esm({
       },
       indexes: [
         {
+          fields: ["createdBy", "createdAt"]
+        },
+        {
+          fields: ["createdBy", "branch", "createdAt"]
+        },
+        {
+          fields: ["createdBy", "status", "createdAt"]
+        },
+        {
           fields: ["customerDetails.phoneNumber", "createdAt"]
         },
         {
@@ -11395,6 +11432,7 @@ var init_Billings = __esm({
               type: "relationship",
               relationTo: "users",
               required: true,
+              index: true,
               defaultValue: ({ user }) => user?.id,
               admin: { readOnly: true }
             },
@@ -12081,6 +12119,14 @@ var init_Messages = __esm({
         beforeChange: [prepareMessageForCreate],
         afterChange: [createInitialReceiptAndUpdateThread]
       },
+      indexes: [
+        {
+          fields: ["thread", "createdAt"]
+        },
+        {
+          fields: ["thread", "senderRole", "createdAt"]
+        }
+      ],
       fields: [
         {
           name: "thread",
@@ -26496,17 +26542,37 @@ var init_Kitchens = __esm({
           hasMany: true,
           required: true,
           label: "Categories",
-          filterOptions: ({ data }) => {
-            const rawDepartments = data?.department;
+          filterOptions: ({ data, siblingData }) => {
+            const rawDepartments = data?.department ?? siblingData?.department;
             const selectedDepartmentIds = (Array.isArray(rawDepartments) ? rawDepartments : rawDepartments ? [rawDepartments] : []).map(
               (department) => typeof department === "object" && department !== null ? department.id : department
             ).filter(Boolean);
+            const rawCategories = data?.categories ?? siblingData?.categories;
+            const selectedCategoryIds = (Array.isArray(rawCategories) ? rawCategories : rawCategories ? [rawCategories] : []).map(
+              (category) => typeof category === "object" && category !== null ? category.id : category
+            ).filter(Boolean);
+            const conditions = [];
             if (selectedDepartmentIds.length > 0) {
-              return {
+              conditions.push({
                 department: {
                   in: selectedDepartmentIds
                 }
+              });
+            }
+            if (selectedCategoryIds.length > 0) {
+              conditions.push({
+                id: {
+                  in: selectedCategoryIds
+                }
+              });
+            }
+            if (conditions.length > 1) {
+              return {
+                or: conditions
               };
+            }
+            if (conditions.length === 1) {
+              return conditions[0];
             }
             return false;
           }
@@ -26904,6 +26970,20 @@ var init_Attendance = __esm({
         },
         delete: ({ req: { user } }) => user?.role ? ["superadmin", "admin"].includes(user.role) : false
       },
+      indexes: [
+        {
+          fields: ["user", "date"]
+        },
+        {
+          fields: ["user", "dateString"]
+        },
+        {
+          fields: ["employee", "date"]
+        },
+        {
+          fields: ["loginBranch", "date"]
+        }
+      ],
       fields: [
         {
           name: "user",
@@ -27434,14 +27514,150 @@ var init_CctvReports = __esm({
   }
 });
 
+// src/utilities/syncFrontendEnv.ts
+import fs2 from "fs";
+import path2 from "path";
+var findFrontendDir, updateEnvFile, syncFrontendEnv, resolveActiveFrontendDomainFromDoc, syncFrontendEnvFromDoc;
+var init_syncFrontendEnv = __esm({
+  "src/utilities/syncFrontendEnv.ts"() {
+    "use strict";
+    findFrontendDir = () => {
+      const candidates = [
+        process.env.FRONTEND_DIR,
+        path2.resolve(process.cwd(), "../blackforest-frontend"),
+        path2.resolve(process.cwd(), "blackforest-frontend"),
+        path2.resolve(__dirname, "../../../../blackforest-frontend"),
+        path2.resolve(__dirname, "../../../blackforest-frontend")
+      ].filter(Boolean);
+      for (const candidate of candidates) {
+        try {
+          if (fs2.existsSync(candidate) && fs2.statSync(candidate).isDirectory()) {
+            return candidate;
+          }
+        } catch {
+        }
+      }
+      return null;
+    };
+    updateEnvFile = (filePath, activeDomain) => {
+      try {
+        let content = "";
+        if (fs2.existsSync(filePath)) {
+          content = fs2.readFileSync(filePath, "utf-8");
+        }
+        const key = "NEXT_PUBLIC_API_URL";
+        const newLine = `${key}=${activeDomain}`;
+        const regex = new RegExp(`^${key}=.*$`, "m");
+        let updatedContent = "";
+        if (regex.test(content)) {
+          updatedContent = content.replace(regex, newLine);
+        } else {
+          updatedContent = content.trim().length > 0 ? `${content.trim()}
+${newLine}
+` : `${newLine}
+`;
+        }
+        fs2.writeFileSync(filePath, updatedContent, "utf-8");
+        return true;
+      } catch (error) {
+        console.error(`[syncFrontendEnv] Failed to update file at ${filePath}:`, error);
+        return false;
+      }
+    };
+    syncFrontendEnv = (activeDomain) => {
+      if (!activeDomain) {
+        return {
+          success: false,
+          activeDomain: "",
+          updatedFiles: [],
+          message: "No active domain provided to sync"
+        };
+      }
+      const normalizedDomain = activeDomain.trim().replace(/\/+$/, "");
+      const frontendDir = findFrontendDir();
+      if (!frontendDir) {
+        return {
+          success: false,
+          activeDomain: normalizedDomain,
+          updatedFiles: [],
+          message: "Frontend directory (blackforest-frontend) not found on server filesystem"
+        };
+      }
+      const filesToUpdate = [".env.local", ".env"];
+      const updatedFiles = [];
+      for (const fileName of filesToUpdate) {
+        const filePath = path2.join(frontendDir, fileName);
+        if (fileName === ".env.local" || fs2.existsSync(filePath)) {
+          const ok = updateEnvFile(filePath, normalizedDomain);
+          if (ok) {
+            updatedFiles.push(fileName);
+          }
+        }
+      }
+      return {
+        success: updatedFiles.length > 0,
+        activeDomain: normalizedDomain,
+        updatedFiles,
+        message: updatedFiles.length > 0 ? `Successfully synced NEXT_PUBLIC_API_URL=${normalizedDomain} to frontend (${updatedFiles.join(", ")})` : "Failed to write to frontend .env files"
+      };
+    };
+    resolveActiveFrontendDomainFromDoc = (doc) => {
+      if (!doc) return null;
+      const frontendRows = Array.isArray(doc.frontendAPIDomains) ? doc.frontendAPIDomains : [];
+      if (frontendRows.length > 0) {
+        const active = frontendRows.find((r) => r.enabled !== false && r.type === "primary") || frontendRows.find((r) => r.enabled !== false) || frontendRows[0];
+        if (active?.domainURL?.trim()) {
+          return active.domainURL.trim().replace(/\/+$/, "");
+        }
+      }
+      const appProfiles = Array.isArray(doc.appAPIDomains) ? doc.appAPIDomains : [];
+      const frontendProfile = appProfiles.find(
+        (p) => (p?.appKey || "").trim().toLowerCase() === "frontend-web"
+      );
+      const profileDomains = Array.isArray(frontendProfile?.domains) ? frontendProfile.domains : [];
+      if (profileDomains.length > 0) {
+        const active = profileDomains.find((r) => r.enabled !== false && r.type === "primary") || profileDomains.find((r) => r.enabled !== false) || profileDomains[0];
+        if (active?.domainURL?.trim()) {
+          return active.domainURL.trim().replace(/\/+$/, "");
+        }
+      }
+      return null;
+    };
+    syncFrontendEnvFromDoc = (doc) => {
+      const activeDomain = resolveActiveFrontendDomainFromDoc(doc);
+      if (!activeDomain) {
+        return {
+          success: false,
+          activeDomain: "",
+          updatedFiles: [],
+          message: "No active frontend API domain configured in widget-settings"
+        };
+      }
+      return syncFrontendEnv(activeDomain);
+    };
+  }
+});
+
 // src/globals/Widgets.ts
 var WidgetSettingsGlobal;
 var init_Widgets = __esm({
   "src/globals/Widgets.ts"() {
     "use strict";
+    init_syncFrontendEnv();
     WidgetSettingsGlobal = {
       slug: "widget-settings",
       label: "Widgets",
+      hooks: {
+        afterChange: [
+          async ({ doc }) => {
+            try {
+              syncFrontendEnvFromDoc(doc);
+            } catch (error) {
+              console.error("[WidgetSettingsGlobal] Failed to auto-sync frontend .env in afterChange hook:", error);
+            }
+          }
+        ]
+      },
       admin: {
         group: "Settings",
         components: {
@@ -27660,6 +27876,38 @@ var init_Widgets = __esm({
           ]
         },
         {
+          name: "frontendAPIDomains",
+          label: "Frontend Web LIVE API Domains",
+          type: "array",
+          admin: {
+            description: "API domain URLs used by the frontend web application. Automatically syncs the active primary domain to frontend .env file."
+          },
+          fields: [
+            {
+              name: "domainURL",
+              label: "Domain URL",
+              type: "text",
+              required: true
+            },
+            {
+              name: "type",
+              label: "Type",
+              type: "select",
+              options: [
+                { label: "Primary", value: "primary" },
+                { label: "Secondary", value: "secondary" }
+              ],
+              defaultValue: "primary"
+            },
+            {
+              name: "enabled",
+              label: "Enabled",
+              type: "checkbox",
+              defaultValue: true
+            }
+          ]
+        },
+        {
           name: "appAPIDomains",
           label: "App LIVE API Domains",
           type: "array",
@@ -27672,7 +27920,10 @@ var init_Widgets = __esm({
               label: "App",
               type: "select",
               required: true,
-              options: [{ label: "Billing App", value: "billing-app" }]
+              options: [
+                { label: "Billing App", value: "billing-app" },
+                { label: "Frontend Web App", value: "frontend-web" }
+              ]
             },
             {
               name: "domains",
@@ -29831,31 +30082,36 @@ var init_getBillingMenu = __esm({
           }
           return true;
         });
+        const enforceStrictStock = process.env.ENABLE_STRICT_STOCK_CHECK !== "false";
+        let isZeroStockBillingSkipped = !enforceStrictStock;
+        if (enforceStrictStock) {
+          try {
+            const widgetSettings = await req.payload.findGlobal({
+              slug: "widget-settings",
+              depth: 0
+            });
+            const skipRows = widgetSettings?.skipZeroStockBillingByBranch;
+            if (Array.isArray(skipRows)) {
+              const branchRow = skipRows.find((r) => {
+                const rBranchId = typeof r.branch === "object" && r.branch !== null ? r.branch.id : r.branch;
+                return String(rBranchId) === String(branchID);
+              });
+              if (branchRow && branchRow.skipZeroStockBilling === true) {
+                isZeroStockBillingSkipped = true;
+              }
+            }
+          } catch (err) {
+            req.payload.logger.error({ err, msg: "Error checking skip zero stock billing settings in getBillingMenu" });
+          }
+        }
         const productIds = filteredDocs.map((doc) => toText3(doc.id).trim()).filter((id) => id.length > 0);
         let stockMap = /* @__PURE__ */ new Map();
-        try {
-          stockMap = await getMultipleProductsStock(req.payload, productIds, String(branchID));
-        } catch (err) {
-          req.payload.logger.error({ err, msg: "Error computing live stock in getBillingMenu" });
-        }
-        let isZeroStockBillingSkipped = false;
-        try {
-          const widgetSettings = await req.payload.findGlobal({
-            slug: "widget-settings",
-            depth: 0
-          });
-          const skipRows = widgetSettings?.skipZeroStockBillingByBranch;
-          if (Array.isArray(skipRows)) {
-            const branchRow = skipRows.find((r) => {
-              const rBranchId = typeof r.branch === "object" && r.branch !== null ? r.branch.id : r.branch;
-              return String(rBranchId) === String(branchID);
-            });
-            if (branchRow && branchRow.skipZeroStockBilling === true) {
-              isZeroStockBillingSkipped = true;
-            }
+        if (enforceStrictStock && !isZeroStockBillingSkipped) {
+          try {
+            stockMap = await getMultipleProductsStock(req.payload, productIds, String(branchID));
+          } catch (err) {
+            req.payload.logger.error({ err, msg: "Error computing live stock in getBillingMenu" });
           }
-        } catch (err) {
-          req.payload.logger.error({ err, msg: "Error checking skip zero stock billing settings in getBillingMenu" });
         }
         const products = filteredDocs.map((doc) => {
           const id = toText3(doc.id).trim();
@@ -30376,9 +30632,17 @@ var init_getRuntimeApiDomain = __esm({
           depth: 0,
           overrideAccess: true
         });
-        const profiles = Array.isArray(settings?.appAPIDomains) ? settings.appAPIDomains : [];
-        const profile = profiles.find((candidate) => normalizeAppKey(candidate?.appKey || null) === appKey) || null;
-        const rows = Array.isArray(profile?.domains) ? profile.domains : [];
+        let rows = [];
+        if (appKey === "frontend-web" || appKey === "frontend") {
+          if (Array.isArray(settings?.frontendAPIDomains) && settings.frontendAPIDomains.length > 0) {
+            rows = settings.frontendAPIDomains;
+          }
+        }
+        if (rows.length === 0) {
+          const profiles = Array.isArray(settings?.appAPIDomains) ? settings.appAPIDomains : [];
+          const profile = profiles.find((candidate) => normalizeAppKey(candidate?.appKey || null) === appKey) || null;
+          rows = Array.isArray(profile?.domains) ? profile.domains : [];
+        }
         const sortedDomains = getSortedDomains(rows);
         const activeDomain = sortedDomains.find((domain) => domain.enabled) || sortedDomains[0] || null;
         if (!activeDomain?.domainURL) {
@@ -30413,6 +30677,55 @@ var init_getRuntimeApiDomain = __esm({
           msg: "Failed to resolve runtime API domain"
         });
         return Response.json({ message: "Failed to resolve runtime API domain" }, { status: 500 });
+      }
+    };
+  }
+});
+
+// src/endpoints/syncFrontendEnv.ts
+var syncFrontendEnvHandler;
+var init_syncFrontendEnv2 = __esm({
+  "src/endpoints/syncFrontendEnv.ts"() {
+    "use strict";
+    init_syncFrontendEnv();
+    syncFrontendEnvHandler = async (req) => {
+      try {
+        let requestedDomain = "";
+        if (req.method === "POST") {
+          try {
+            const body = await req.json?.();
+            if (body?.activeDomain && typeof body.activeDomain === "string") {
+              requestedDomain = body.activeDomain.trim();
+            }
+          } catch {
+          }
+        } else if (req.method === "GET") {
+          const requestURL = new URL(req.url || "http://localhost");
+          requestedDomain = (requestURL.searchParams.get("activeDomain") || "").trim();
+        }
+        if (requestedDomain) {
+          const result2 = syncFrontendEnv(requestedDomain);
+          return Response.json(result2, { status: result2.success ? 200 : 400 });
+        }
+        const settings = await req.payload.findGlobal({
+          slug: "widget-settings",
+          depth: 0,
+          overrideAccess: true
+        });
+        const result = syncFrontendEnvFromDoc(settings);
+        return Response.json(result, { status: result.success ? 200 : 404 });
+      } catch (error) {
+        req.payload.logger.error({
+          err: error,
+          msg: "Failed to sync frontend .env file"
+        });
+        return Response.json(
+          {
+            success: false,
+            message: "Internal server error while syncing frontend .env file"
+          },
+          { status: 500 }
+        );
       }
     };
   }
@@ -32892,6 +33205,7 @@ var tableRedirectHandler;
 var init_tableRedirect = __esm({
   "src/endpoints/tableRedirect.ts"() {
     "use strict";
+    init_syncFrontendEnv();
     tableRedirectHandler = async (req) => {
       try {
         if (!req.url) {
@@ -32922,6 +33236,10 @@ var init_tableRedirect = __esm({
         targetURL.searchParams.set("branchId", branchId);
         targetURL.searchParams.set("section", section);
         targetURL.searchParams.set("table", table);
+        const activeApiDomain = resolveActiveFrontendDomainFromDoc(settings);
+        if (activeApiDomain) {
+          targetURL.searchParams.set("apiDomain", activeApiDomain);
+        }
         return Response.redirect(targetURL.toString(), 302);
       } catch (error) {
         req.payload.logger.error({
@@ -42419,7 +42737,7 @@ import { s3Storage } from "@payloadcms/storage-s3";
 import { mongooseAdapter } from "@payloadcms/db-mongodb";
 import { postgresAdapter } from "@payloadcms/db-postgres";
 import { lexicalEditor } from "@payloadcms/richtext-lexical";
-import path2 from "path";
+import path3 from "path";
 import { buildConfig } from "payload";
 import { fileURLToPath } from "url";
 import sharp from "sharp";
@@ -42544,6 +42862,7 @@ var init_payload_config = __esm({
     init_aiAssistant();
     init_getBillingCustomerLookup();
     init_getRuntimeApiDomain();
+    init_syncFrontendEnv2();
     init_CustomerOfferSettings();
     init_APKFiles();
     init_AppDownloadSettings();
@@ -42590,7 +42909,7 @@ var init_payload_config = __esm({
     init_getReportCardData();
     initLogHook();
     filename = fileURLToPath(import.meta.url);
-    dirname = path2.dirname(filename);
+    dirname = path3.dirname(filename);
     wrapCollection = (collection) => {
       return {
         ...collection,
@@ -42878,12 +43197,13 @@ var init_payload_config = __esm({
     }
     dbAdapter = dbMode === "mongo" ? mongooseAdapter({
       url: mongoConnectionString,
-      // autoIndex: process.env.NODE_ENV !== 'production',
+      autoIndex: true,
+      ensureIndexes: false,
       connectOptions: {
-        maxPoolSize: process.env.MONGODB_MAX_POOL_SIZE ? parseInt(process.env.MONGODB_MAX_POOL_SIZE) : 50,
-        minPoolSize: process.env.MONGODB_MIN_POOL_SIZE ? parseInt(process.env.MONGODB_MIN_POOL_SIZE) : 5,
+        maxPoolSize: process.env.MONGODB_MAX_POOL_SIZE ? parseInt(process.env.MONGODB_MAX_POOL_SIZE) : 100,
+        minPoolSize: process.env.MONGODB_MIN_POOL_SIZE ? parseInt(process.env.MONGODB_MIN_POOL_SIZE) : 10,
         maxIdleTimeMS: 2e4,
-        waitQueueTimeoutMS: 8e3,
+        waitQueueTimeoutMS: 15e3,
         serverSelectionTimeoutMS: 5e3,
         socketTimeoutMS: 45e3,
         retryWrites: true,
@@ -42920,7 +43240,7 @@ var init_payload_config = __esm({
       admin: {
         user: Users.slug,
         importMap: {
-          baseDir: path2.resolve(dirname)
+          baseDir: path3.resolve(dirname)
         },
         timezones: {
           defaultTimezone: "Asia/Calcutta",
@@ -42948,6 +43268,7 @@ var init_payload_config = __esm({
         // standalone frontend (dev)
         "http://127.0.0.1",
         process.env.FRONTEND_URL || "",
+        "https://blackforest-api.vseyal.com",
         "https://admin.theblackforestcakes.com",
         "https://superadmin.theblackforestcakes.com",
         "https://theblackforestcakes.com"
@@ -42958,6 +43279,7 @@ var init_payload_config = __esm({
         // standalone frontend (dev)
         "http://127.0.0.1",
         process.env.FRONTEND_URL || "",
+        "https://blackforest-api.vseyal.com",
         "https://admin.theblackforestcakes.com",
         "https://superadmin.theblackforestcakes.com",
         "https://theblackforestcakes.com"
@@ -43195,6 +43517,16 @@ var init_payload_config = __esm({
           path: "/runtime/api-domain",
           method: "get",
           handler: getRuntimeApiDomainHandler
+        },
+        {
+          path: "/sync-frontend-env",
+          method: "post",
+          handler: syncFrontendEnvHandler
+        },
+        {
+          path: "/sync-frontend-env",
+          method: "get",
+          handler: syncFrontendEnvHandler
         },
         {
           path: "/widgets/table-qr-preview",
@@ -43450,7 +43782,7 @@ var init_payload_config = __esm({
       editor: lexicalEditor(),
       secret: process.env.PAYLOAD_SECRET || "",
       typescript: {
-        outputFile: path2.resolve(dirname, "payload-types.ts")
+        outputFile: path3.resolve(dirname, "payload-types.ts")
       },
       db: dbAdapter,
       sharp,
