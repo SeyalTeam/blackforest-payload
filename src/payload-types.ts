@@ -4809,11 +4809,22 @@ export interface WidgetSetting {
       }[]
     | null;
   /**
+   * API domain URLs used by the frontend web application. Automatically syncs the active primary domain to frontend .env file.
+   */
+  frontendAPIDomains?:
+    | {
+        domainURL: string;
+        type?: ('primary' | 'secondary') | null;
+        enabled?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
    * Per-app API domains with primary/secondary priority. Mobile apps can fetch this to switch API base URL without a new release.
    */
   appAPIDomains?:
     | {
-        appKey: 'billing-app';
+        appKey: 'billing-app' | 'frontend-web';
         domains?:
           | {
               domainURL: string;
@@ -6523,6 +6534,14 @@ export interface WidgetSettingsSelect<T extends boolean = true> {
         id?: T;
       };
   tableQRDomains?:
+    | T
+    | {
+        domainURL?: T;
+        type?: T;
+        enabled?: T;
+        id?: T;
+      };
+  frontendAPIDomains?:
     | T
     | {
         domainURL?: T;

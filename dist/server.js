@@ -421,7 +421,9 @@ var init_wsGateway = __esm({
       if (!subscription) return false;
       if (subscription.topic !== event.topic) return false;
       if (subscription.branchId !== event.branchId) return false;
-      if (subscription.kitchenId) return event.kitchenId === subscription.kitchenId;
+      if (subscription.kitchenId && event.kitchenId) {
+        return event.kitchenId === subscription.kitchenId;
+      }
       return true;
     };
     canAccessBranch = (connection, branchID) => {
@@ -7080,7 +7082,8 @@ var init_updateItemStatus = __esm({
             skipOfferRecalculation: true,
             skipInventoryValidation: true,
             skipCustomerRewardProcessing: true,
-            skipOfferCounterProcessing: true
+            skipOfferCounterProcessing: true,
+            skipRealtimePublish: true
           },
           overrideAccess: true
         });
@@ -9835,6 +9838,13 @@ var init_Billings = __esm({
                 );
               }
               requestContext.offersAppliedInBeforeValidate = false;
+              if (data && typeof data === "object") {
+                const currentSeq = typeof data.realtimeSeq === "number" ? data.realtimeSeq : typeof originalDoc?.realtimeSeq === "number" ? originalDoc.realtimeSeq : 0;
+                if (!data.realtimeSeq || data.realtimeSeq <= (originalDoc?.realtimeSeq || 0)) {
+                  ;
+                  data.realtimeSeq = currentSeq + 1;
+                }
+              }
               if (data.items && Array.isArray(data.items)) {
                 const now = (/* @__PURE__ */ new Date()).toLocaleTimeString("en-IN", {
                   timeZone: "Asia/Kolkata",
@@ -10257,16 +10267,51 @@ var init_Billings = __esm({
             const hookStartedAt = Date.now();
             const billID = getDocLikeID(doc);
             try {
+              const requestContext = req?.context;
+              const skipRealtimePublish = Boolean(requestContext?.skipRealtimePublish);
               const branchID = getRelationshipID4(doc.branch);
-              if (branchID && doc.id) {
+              if (!skipRealtimePublish && branchID && doc.id) {
                 const isCreate = operation === "create";
-                const isStatusChanged = isCreate || previousDoc && previousDoc.status !== doc.status;
-                if (isStatusChanged) {
-                  const nextSeq = (doc.realtimeSeq || 0) + 1;
+                const isBillStatusChanged = isCreate || previousDoc && previousDoc.status !== doc.status;
+                let currentSeq = doc.realtimeSeq || 0;
+                const prevItems = Array.isArray(previousDoc?.items) ? previousDoc.items : [];
+                const curItems = Array.isArray(doc.items) ? doc.items : [];
+                const prevItemMap = /* @__PURE__ */ new Map();
+                prevItems.forEach((pi, idx) => {
+                  const piId = String(pi?.id || pi?._id || `idx_${idx}`);
+                  prevItemMap.set(piId, pi);
+                });
+                for (let idx = 0; idx < curItems.length; idx++) {
+                  const curItem = curItems[idx];
+                  const curItemId = String(curItem?.id || curItem?._id || `idx_${idx}`);
+                  const prevItem = prevItemMap.get(curItemId);
+                  const statusBefore = prevItem ? prevItem.status || "ordered" : null;
+                  const statusAfter = curItem?.status || "ordered";
+                  if (isCreate || !prevItem || statusBefore !== statusAfter) {
+                    currentSeq += 1;
+                    const itemProductId = getRelationshipID4(curItem?.product);
+                    publishBillingRealtimeEvent({
+                      eventId: `${doc.id}:${curItemId}:v${curItem?.itemVersion || 1}:${statusAfter}:seq${currentSeq}`,
+                      eventType: "billing_item_status_changed",
+                      seq: currentSeq,
+                      branchId: branchID,
+                      billingId: String(doc.id),
+                      itemId: curItemId,
+                      productId: itemProductId,
+                      statusBefore,
+                      statusAfter,
+                      itemUpdatedAt: curItem?.itemUpdatedAt || (/* @__PURE__ */ new Date()).toISOString(),
+                      itemVersion: curItem?.itemVersion || 1,
+                      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+                    });
+                  }
+                }
+                if (isBillStatusChanged) {
+                  currentSeq += 1;
                   publishBillingRealtimeEvent({
-                    eventId: `${doc.id}:order:${doc.status || "ordered"}:seq${nextSeq}`,
-                    eventType: isCreate ? "billing_item_status_changed" : "billing_status_changed",
-                    seq: nextSeq,
+                    eventId: `${doc.id}:order:${doc.status || "ordered"}:seq${currentSeq}`,
+                    eventType: "billing_status_changed",
+                    seq: currentSeq,
                     branchId: branchID,
                     billingId: String(doc.id),
                     statusAfter: doc.status || "ordered",

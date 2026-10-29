@@ -2723,6 +2723,21 @@ const Billings: CollectionConfig = {
           }
           requestContext.offersAppliedInBeforeValidate = false
 
+          if (data && typeof data === 'object') {
+            const currentSeq =
+              typeof (data as any).realtimeSeq === 'number'
+                ? (data as any).realtimeSeq
+                : typeof (originalDoc as any)?.realtimeSeq === 'number'
+                  ? (originalDoc as any).realtimeSeq
+                  : 0
+            if (
+              !(data as any).realtimeSeq ||
+              (data as any).realtimeSeq <= ((originalDoc as any)?.realtimeSeq || 0)
+            ) {
+              ;(data as any).realtimeSeq = currentSeq + 1
+            }
+          }
+
         // 🍱 Ensure each item has a status (Ordered by default) and timestamps
         if (data.items && Array.isArray(data.items)) {
           const now = new Date().toLocaleTimeString('en-IN', {
@@ -3280,17 +3295,59 @@ const Billings: CollectionConfig = {
 
         // Broadcast Real-time WebSocket Event for new orders or status updates
         try {
+          const requestContext = (req as any)?.context as Record<string, unknown> | undefined
+          const skipRealtimePublish = Boolean(requestContext?.skipRealtimePublish)
           const branchID = getRelationshipID(doc.branch)
-          if (branchID && doc.id) {
-            const isCreate = operation === 'create'
-            const isStatusChanged = isCreate || (previousDoc && previousDoc.status !== doc.status)
 
-            if (isStatusChanged) {
-              const nextSeq = ((doc as any).realtimeSeq || 0) + 1
+          if (!skipRealtimePublish && branchID && doc.id) {
+            const isCreate = operation === 'create'
+            const isBillStatusChanged = isCreate || (previousDoc && previousDoc.status !== doc.status)
+            let currentSeq = ((doc as any).realtimeSeq || 0)
+
+            const prevItems = Array.isArray(previousDoc?.items) ? previousDoc.items : []
+            const curItems = Array.isArray(doc.items) ? doc.items : []
+
+            const prevItemMap = new Map<string, any>()
+            prevItems.forEach((pi: any, idx: number) => {
+              const piId = String(pi?.id || pi?._id || `idx_${idx}`)
+              prevItemMap.set(piId, pi)
+            })
+
+            // Emit item-level events if any item status changed
+            for (let idx = 0; idx < curItems.length; idx++) {
+              const curItem = curItems[idx] as any
+              const curItemId = String(curItem?.id || curItem?._id || `idx_${idx}`)
+              const prevItem = prevItemMap.get(curItemId)
+
+              const statusBefore = prevItem ? (prevItem.status || 'ordered') : null
+              const statusAfter = curItem?.status || 'ordered'
+
+              if (isCreate || !prevItem || statusBefore !== statusAfter) {
+                currentSeq += 1
+                const itemProductId = getRelationshipID(curItem?.product)
+                publishBillingRealtimeEvent({
+                  eventId: `${doc.id}:${curItemId}:v${curItem?.itemVersion || 1}:${statusAfter}:seq${currentSeq}`,
+                  eventType: 'billing_item_status_changed',
+                  seq: currentSeq,
+                  branchId: branchID,
+                  billingId: String(doc.id),
+                  itemId: curItemId,
+                  productId: itemProductId,
+                  statusBefore,
+                  statusAfter,
+                  itemUpdatedAt: curItem?.itemUpdatedAt || new Date().toISOString(),
+                  itemVersion: curItem?.itemVersion || 1,
+                  timestamp: new Date().toISOString(),
+                })
+              }
+            }
+
+            if (isBillStatusChanged) {
+              currentSeq += 1
               publishBillingRealtimeEvent({
-                eventId: `${doc.id}:order:${doc.status || 'ordered'}:seq${nextSeq}`,
-                eventType: isCreate ? 'billing_item_status_changed' : 'billing_status_changed',
-                seq: nextSeq,
+                eventId: `${doc.id}:order:${doc.status || 'ordered'}:seq${currentSeq}`,
+                eventType: 'billing_status_changed',
+                seq: currentSeq,
                 branchId: branchID,
                 billingId: String(doc.id),
                 statusAfter: doc.status || 'ordered',

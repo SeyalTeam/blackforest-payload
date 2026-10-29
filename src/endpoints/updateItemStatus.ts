@@ -428,6 +428,7 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
         skipInventoryValidation: true,
         skipCustomerRewardProcessing: true,
         skipOfferCounterProcessing: true,
+        skipRealtimePublish: true,
       },
       overrideAccess: true,
     })

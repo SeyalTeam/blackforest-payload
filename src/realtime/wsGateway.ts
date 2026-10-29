@@ -568,7 +568,11 @@ const matchesSubscription = (
   if (!subscription) return false
   if (subscription.topic !== event.topic) return false
   if (subscription.branchId !== event.branchId) return false
-  if (subscription.kitchenId) return event.kitchenId === subscription.kitchenId
+  // Branch-wide events (where event.kitchenId is null/undefined) match all subscriptions in the branch.
+  // Kitchen-targeted events match subscriptions with the same kitchenId or branch-wide subscriptions.
+  if (subscription.kitchenId && event.kitchenId) {
+    return event.kitchenId === subscription.kitchenId
+  }
   return true
 }
 

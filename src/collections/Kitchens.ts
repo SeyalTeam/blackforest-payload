@@ -53,8 +53,8 @@ const Kitchens: CollectionConfig = {
       hasMany: true,
       required: true,
       label: 'Categories',
-      filterOptions: ({ data }): Where | boolean => {
-        const rawDepartments = data?.department
+      filterOptions: ({ data, siblingData }): Where | boolean => {
+        const rawDepartments = data?.department ?? (siblingData as any)?.department
         const selectedDepartmentIds = (Array.isArray(rawDepartments)
           ? rawDepartments
           : rawDepartments
@@ -66,13 +66,47 @@ const Kitchens: CollectionConfig = {
           )
           .filter(Boolean)
 
+        const rawCategories = data?.categories ?? (siblingData as any)?.categories
+        const selectedCategoryIds = (Array.isArray(rawCategories)
+          ? rawCategories
+          : rawCategories
+            ? [rawCategories]
+            : []
+        )
+          .map((category) =>
+            typeof category === 'object' && category !== null ? category.id : category,
+          )
+          .filter(Boolean)
+
+        const conditions: Where[] = []
+
         if (selectedDepartmentIds.length > 0) {
-          return {
+          conditions.push({
             department: {
               in: selectedDepartmentIds,
             },
+          })
+        }
+
+        // Always keep currently selected categories valid so updates (e.g. adding branches) don't fail
+        if (selectedCategoryIds.length > 0) {
+          conditions.push({
+            id: {
+              in: selectedCategoryIds,
+            },
+          })
+        }
+
+        if (conditions.length > 1) {
+          return {
+            or: conditions,
           }
         }
+
+        if (conditions.length === 1) {
+          return conditions[0]
+        }
+
         return false
       },
     },
