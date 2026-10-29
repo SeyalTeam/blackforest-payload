@@ -1374,6 +1374,12 @@ var init_wsGateway = __esm({
         productId: input.productId?.trim() || null,
         statusBefore: input.statusBefore ?? null,
         statusAfter: input.statusAfter ?? null,
+        tableName: input.tableName?.trim() || null,
+        tableNo: input.tableNo?.trim() || input.tableName?.trim() || null,
+        section: input.section?.trim() || null,
+        kotNumber: input.kotNumber?.trim() || null,
+        productName: input.productName?.trim() || null,
+        productNames: Array.isArray(input.productNames) && input.productNames.length > 0 ? input.productNames : null,
         itemUpdatedAt: input.itemUpdatedAt ?? null,
         itemVersion: typeof input.itemVersion === "number" && Number.isFinite(input.itemVersion) ? input.itemVersion : null,
         ...INCLUDE_ITEM_SNAPSHOT ? {
@@ -6932,6 +6938,7 @@ var init_updateItemStatus = __esm({
         let itemVersionAfter = null;
         let itemUpdatedAt = null;
         let itemProductID = null;
+        let itemProductName = null;
         let itemSnapshotForEvent = null;
         const updatedItems = (bill.items || []).map((item) => {
           if (item.id !== itemId) return item;
@@ -6997,6 +7004,7 @@ var init_updateItemStatus = __esm({
           itemVersionAfter = nextItemVersion;
           itemUpdatedAt = changedAtISO;
           itemProductID = getRelationshipID2(item.product);
+          itemProductName = (item.name || (typeof item.product === "object" ? item.product?.name : "") || "").toString().trim() || null;
           itemSnapshotForEvent = itemUpdateData;
           console.log(`[updateItemStatus] SAVING ITEM DATA for ${itemId}:`, JSON.stringify(itemUpdateData));
           return itemUpdateData;
@@ -7056,6 +7064,14 @@ var init_updateItemStatus = __esm({
         const statusChanged = itemStatusBefore !== null && itemStatusAfter !== null && itemStatusBefore !== itemStatusAfter;
         const preparingTimeChanged = preparingTimeBefore !== preparingTimeAfter;
         const billStatusChanged = nextBillStatus !== null && nextBillStatus !== currentBillStatus;
+        const rawTableNum = (bill?.tableDetails?.tableNumber || bill?.tableNumber || bill?.tableNo || (typeof bill?.table === "object" ? bill?.table?.tableNumber : bill?.table) || "").toString().trim();
+        const rawSection = (bill?.tableDetails?.section || bill?.section || (typeof bill?.table === "object" ? bill?.table?.section : "") || "").toString().trim();
+        const resolvedTableName = rawTableNum && rawSection ? `${rawSection} - Table ${rawTableNum}` : rawTableNum ? `Table ${rawTableNum}` : rawSection || null;
+        const resolvedTableNo = rawTableNum || resolvedTableName || null;
+        const resolvedKotNumber = (bill?.kotNumber || "").toString().trim() || null;
+        const allProductNames = (updatedItems || []).map(
+          (it) => (it?.name || (typeof it?.product === "object" ? it?.product?.name : "") || "").toString().trim()
+        ).filter(Boolean);
         if (branchID && itemUpdatedAt && itemVersionAfter !== null) {
           if (statusChanged) {
             realtimeEvents.push({
@@ -7067,6 +7083,11 @@ var init_updateItemStatus = __esm({
               billingId: id,
               itemId: String(itemId),
               productId: itemProductID,
+              productName: itemProductName,
+              tableName: resolvedTableName,
+              tableNo: resolvedTableNo,
+              section: rawSection || null,
+              kotNumber: resolvedKotNumber,
               statusBefore: itemStatusBefore,
               statusAfter: itemStatusAfter,
               itemUpdatedAt,
@@ -7084,6 +7105,11 @@ var init_updateItemStatus = __esm({
               billingId: id,
               itemId: String(itemId),
               productId: itemProductID,
+              productName: itemProductName,
+              tableName: resolvedTableName,
+              tableNo: resolvedTableNo,
+              section: rawSection || null,
+              kotNumber: resolvedKotNumber,
               statusBefore: itemStatusBefore,
               statusAfter: itemStatusAfter,
               itemUpdatedAt,
@@ -7102,6 +7128,12 @@ var init_updateItemStatus = __esm({
             billingId: id,
             itemId: String(itemId),
             productId: itemProductID,
+            productName: allProductNames[0] || itemProductName || null,
+            productNames: allProductNames,
+            tableName: resolvedTableName,
+            tableNo: resolvedTableNo,
+            section: rawSection || null,
+            kotNumber: resolvedKotNumber,
             statusBefore: currentBillStatus,
             statusAfter: nextBillStatus,
             itemUpdatedAt: itemUpdatedAt || changedAtISO,
@@ -10316,6 +10348,12 @@ var init_Billings = __esm({
                 let currentSeq = doc.realtimeSeq || 0;
                 const prevItems = Array.isArray(previousDoc?.items) ? previousDoc.items : [];
                 const curItems = Array.isArray(doc.items) ? doc.items : [];
+                const rawTableNum = (doc?.tableDetails?.tableNumber || doc?.tableNumber || doc?.tableNo || (typeof doc?.table === "object" ? doc?.table?.tableNumber : doc?.table) || "").toString().trim();
+                const rawSection = (doc?.tableDetails?.section || doc?.section || (typeof doc?.table === "object" ? doc?.table?.section : "") || "").toString().trim();
+                const resolvedTableName = rawTableNum && rawSection ? `${rawSection} - Table ${rawTableNum}` : rawTableNum ? `Table ${rawTableNum}` : rawSection || null;
+                const resolvedTableNo = rawTableNum || resolvedTableName || null;
+                const resolvedKotNumber = (doc?.kotNumber || "").toString().trim() || null;
+                const allItemProductNames = curItems.map((it) => (it?.name || (typeof it?.product === "object" ? it?.product?.name : "") || "").toString().trim()).filter(Boolean);
                 const prevItemMap = /* @__PURE__ */ new Map();
                 prevItems.forEach((pi, idx) => {
                   const piId = String(pi?.id || pi?._id || `idx_${idx}`);
@@ -10330,6 +10368,7 @@ var init_Billings = __esm({
                   if (isCreate || !prevItem || statusBefore !== statusAfter) {
                     currentSeq += 1;
                     const itemProductId = getRelationshipID4(curItem?.product);
+                    const curItemProductName = (curItem?.name || (typeof curItem?.product === "object" ? curItem?.product?.name : "") || "").toString().trim() || null;
                     publishBillingRealtimeEvent({
                       eventId: `${doc.id}:${curItemId}:v${curItem?.itemVersion || 1}:${statusAfter}:seq${currentSeq}`,
                       eventType: "billing_item_status_changed",
@@ -10338,6 +10377,11 @@ var init_Billings = __esm({
                       billingId: String(doc.id),
                       itemId: curItemId,
                       productId: itemProductId,
+                      productName: curItemProductName,
+                      tableName: resolvedTableName,
+                      tableNo: resolvedTableNo,
+                      section: rawSection || null,
+                      kotNumber: resolvedKotNumber,
                       statusBefore,
                       statusAfter,
                       itemUpdatedAt: curItem?.itemUpdatedAt || (/* @__PURE__ */ new Date()).toISOString(),
@@ -10356,6 +10400,12 @@ var init_Billings = __esm({
                     billingId: String(doc.id),
                     statusAfter: doc.status || "ordered",
                     statusBefore: previousDoc?.status || null,
+                    tableName: resolvedTableName,
+                    tableNo: resolvedTableNo,
+                    section: rawSection || null,
+                    kotNumber: resolvedKotNumber,
+                    productName: allItemProductNames[0] || null,
+                    productNames: allItemProductNames,
                     timestamp: (/* @__PURE__ */ new Date()).toISOString()
                   });
                 }

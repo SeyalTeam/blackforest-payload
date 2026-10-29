@@ -174,6 +174,7 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
     let itemVersionAfter: number | null = null
     let itemUpdatedAt: string | null = null
     let itemProductID: string | null = null
+    let itemProductName: string | null = null
     let itemSnapshotForEvent: Record<string, unknown> | null = null
 
     const updatedItems = (bill.items || []).map((item: any) => {
@@ -261,6 +262,10 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
       itemVersionAfter = nextItemVersion
       itemUpdatedAt = changedAtISO
       itemProductID = getRelationshipID(item.product)
+      itemProductName =
+        (item.name || (typeof item.product === 'object' ? item.product?.name : '') || '')
+          .toString()
+          .trim() || null
       itemSnapshotForEvent = itemUpdateData as Record<string, unknown>
 
       console.log(`[updateItemStatus] SAVING ITEM DATA for ${itemId}:`, JSON.stringify(itemUpdateData))
@@ -357,6 +362,35 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
     const preparingTimeChanged = preparingTimeBefore !== preparingTimeAfter
     const billStatusChanged = nextBillStatus !== null && nextBillStatus !== currentBillStatus
 
+    const rawTableNum = (
+      (bill as any)?.tableDetails?.tableNumber ||
+      (bill as any)?.tableNumber ||
+      (bill as any)?.tableNo ||
+      (typeof (bill as any)?.table === 'object' ? (bill as any)?.table?.tableNumber : (bill as any)?.table) ||
+      ''
+    ).toString().trim()
+    const rawSection = (
+      (bill as any)?.tableDetails?.section ||
+      (bill as any)?.section ||
+      (typeof (bill as any)?.table === 'object' ? (bill as any)?.table?.section : '') ||
+      ''
+    ).toString().trim()
+    const resolvedTableName = rawTableNum && rawSection
+      ? `${rawSection} - Table ${rawTableNum}`
+      : rawTableNum
+        ? `Table ${rawTableNum}`
+        : rawSection || null
+    const resolvedTableNo = rawTableNum || resolvedTableName || null
+    const resolvedKotNumber = ((bill as any)?.kotNumber || '').toString().trim() || null
+
+    const allProductNames = (updatedItems || [])
+      .map((it: any) =>
+        (it?.name || (typeof it?.product === 'object' ? it?.product?.name : '') || '')
+          .toString()
+          .trim(),
+      )
+      .filter(Boolean)
+
     if (branchID && itemUpdatedAt && itemVersionAfter !== null) {
       if (statusChanged) {
         realtimeEvents.push({
@@ -368,6 +402,11 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
           billingId: id,
           itemId: String(itemId),
           productId: itemProductID,
+          productName: itemProductName,
+          tableName: resolvedTableName,
+          tableNo: resolvedTableNo,
+          section: rawSection || null,
+          kotNumber: resolvedKotNumber,
           statusBefore: itemStatusBefore,
           statusAfter: itemStatusAfter,
           itemUpdatedAt,
@@ -386,6 +425,11 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
           billingId: id,
           itemId: String(itemId),
           productId: itemProductID,
+          productName: itemProductName,
+          tableName: resolvedTableName,
+          tableNo: resolvedTableNo,
+          section: rawSection || null,
+          kotNumber: resolvedKotNumber,
           statusBefore: itemStatusBefore,
           statusAfter: itemStatusAfter,
           itemUpdatedAt,
@@ -405,6 +449,12 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
         billingId: id,
         itemId: String(itemId),
         productId: itemProductID,
+        productName: allProductNames[0] || itemProductName || null,
+        productNames: allProductNames,
+        tableName: resolvedTableName,
+        tableNo: resolvedTableNo,
+        section: rawSection || null,
+        kotNumber: resolvedKotNumber,
         statusBefore: currentBillStatus,
         statusAfter: nextBillStatus,
         itemUpdatedAt: itemUpdatedAt || changedAtISO,

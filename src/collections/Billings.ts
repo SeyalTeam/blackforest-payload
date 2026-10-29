@@ -3307,6 +3307,31 @@ const Billings: CollectionConfig = {
             const prevItems = Array.isArray(previousDoc?.items) ? previousDoc.items : []
             const curItems = Array.isArray(doc.items) ? doc.items : []
 
+            const rawTableNum = (
+              (doc as any)?.tableDetails?.tableNumber ||
+              (doc as any)?.tableNumber ||
+              (doc as any)?.tableNo ||
+              (typeof (doc as any)?.table === 'object' ? (doc as any)?.table?.tableNumber : (doc as any)?.table) ||
+              ''
+            ).toString().trim()
+            const rawSection = (
+              (doc as any)?.tableDetails?.section ||
+              (doc as any)?.section ||
+              (typeof (doc as any)?.table === 'object' ? (doc as any)?.table?.section : '') ||
+              ''
+            ).toString().trim()
+            const resolvedTableName = rawTableNum && rawSection
+              ? `${rawSection} - Table ${rawTableNum}`
+              : rawTableNum
+                ? `Table ${rawTableNum}`
+                : rawSection || null
+            const resolvedTableNo = rawTableNum || resolvedTableName || null
+            const resolvedKotNumber = ((doc as any)?.kotNumber || '').toString().trim() || null
+
+            const allItemProductNames = curItems
+              .map((it: any) => (it?.name || (typeof it?.product === 'object' ? it?.product?.name : '') || '').toString().trim())
+              .filter(Boolean)
+
             const prevItemMap = new Map<string, any>()
             prevItems.forEach((pi: any, idx: number) => {
               const piId = String(pi?.id || pi?._id || `idx_${idx}`)
@@ -3325,6 +3350,11 @@ const Billings: CollectionConfig = {
               if (isCreate || !prevItem || statusBefore !== statusAfter) {
                 currentSeq += 1
                 const itemProductId = getRelationshipID(curItem?.product)
+                const curItemProductName = (
+                  curItem?.name ||
+                  (typeof curItem?.product === 'object' ? curItem?.product?.name : '') ||
+                  ''
+                ).toString().trim() || null
                 publishBillingRealtimeEvent({
                   eventId: `${doc.id}:${curItemId}:v${curItem?.itemVersion || 1}:${statusAfter}:seq${currentSeq}`,
                   eventType: 'billing_item_status_changed',
@@ -3333,6 +3363,11 @@ const Billings: CollectionConfig = {
                   billingId: String(doc.id),
                   itemId: curItemId,
                   productId: itemProductId,
+                  productName: curItemProductName,
+                  tableName: resolvedTableName,
+                  tableNo: resolvedTableNo,
+                  section: rawSection || null,
+                  kotNumber: resolvedKotNumber,
                   statusBefore,
                   statusAfter,
                   itemUpdatedAt: curItem?.itemUpdatedAt || new Date().toISOString(),
@@ -3352,6 +3387,12 @@ const Billings: CollectionConfig = {
                 billingId: String(doc.id),
                 statusAfter: doc.status || 'ordered',
                 statusBefore: previousDoc?.status || null,
+                tableName: resolvedTableName,
+                tableNo: resolvedTableNo,
+                section: rawSection || null,
+                kotNumber: resolvedKotNumber,
+                productName: allItemProductNames[0] || null,
+                productNames: allItemProductNames,
                 timestamp: new Date().toISOString(),
               })
             }

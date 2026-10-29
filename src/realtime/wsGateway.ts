@@ -46,10 +46,16 @@ export type BillingRealtimePublishInput = {
   itemUpdatedAt?: string | null
   itemVersion?: number | null
   kitchenId?: string | null
+  kotNumber?: string | null
   productId?: string | null
+  productName?: string | null
+  productNames?: string[] | null
+  section?: string | null
   seq: number
   statusAfter?: string | null
   statusBefore?: string | null
+  tableName?: string | null
+  tableNo?: string | null
   timestamp?: string
 }
 
@@ -76,11 +82,17 @@ type BillingRealtimeEvent = {
   itemUpdatedAt: string | null
   itemVersion: number | null
   kitchenId: string | null
+  kotNumber?: string | null
   productId: string | null
+  productName?: string | null
+  productNames?: string[] | null
+  section?: string | null
   seq: number
   serverSentAt: string
   statusAfter: string | null
   statusBefore: string | null
+  tableName?: string | null
+  tableNo?: string | null
   timestamp: string
   topic: typeof KOT_TOPIC
 }
@@ -1755,6 +1767,12 @@ export const publishBillingRealtimeEvent = (
     productId: input.productId?.trim() || null,
     statusBefore: input.statusBefore ?? null,
     statusAfter: input.statusAfter ?? null,
+    tableName: input.tableName?.trim() || null,
+    tableNo: input.tableNo?.trim() || input.tableName?.trim() || null,
+    section: input.section?.trim() || null,
+    kotNumber: input.kotNumber?.trim() || null,
+    productName: input.productName?.trim() || null,
+    productNames: Array.isArray(input.productNames) && input.productNames.length > 0 ? input.productNames : null,
     itemUpdatedAt: input.itemUpdatedAt ?? null,
     itemVersion:
       typeof input.itemVersion === 'number' && Number.isFinite(input.itemVersion)
