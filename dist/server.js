@@ -2216,7 +2216,7 @@ var init_Users = __esm({
         {
           path: "/login-phone",
           method: "post",
-          handler: async (req, res, next2) => {
+          handler: (async (req, res, next2) => {
             try {
               const body = req.body || {};
               const phoneNumber = body.phoneNumber;
@@ -2266,7 +2266,7 @@ var init_Users = __esm({
               console.error("[Login-Phone Error]", error);
               return res.status(401).json({ message: "email or password provided is incorrect" });
             }
-          }
+          })
         }
       ],
       hooks: {
@@ -2571,6 +2571,46 @@ var init_Users = __esm({
                   throw error;
                 }
                 console.error("[Login Debug] Branch PIN pre-check error:", error);
+              }
+            }
+            const effectiveBranchID = getRelationshipID15(user.branch) || (pinMatchedBranch ? pinMatchedBranch.id : null);
+            const secretHeader = req.headers?.get("x-app-secret") || req.headers?.get("x-app-key") || req.headers?.get("x-blackforest-key");
+            const VALID_APP_KEYS_SET = /* @__PURE__ */ new Set([
+              process.env.BLACKFOREST_APP_SECRET || "bf_sec_2026_k9x2m8q4v7",
+              process.env.APP_SECRET_WAITER_POS || "bf_pos_9f8d7e6c5b4a3210",
+              process.env.APP_SECRET_BRANCH_APP || "bf_branch_3a2b1c4d5e6f7a8b",
+              process.env.APP_SECRET_ADMIN_APP || "BF_REPORT_SECRET_2024",
+              process.env.APP_SECRET_TRACKER_APP || "bf_tracker_4b5c6d7e8f9a0b1c",
+              process.env.APP_SECRET_FRONTEND_WEB || "bf_web_5e6f7a8b9c0d1e2f",
+              "BF_REPORT_SECRET_2024",
+              "bf_sec_2026_k9x2m8q4v7",
+              "bf_pos_9f8d7e6c5b4a3210",
+              "bf_branch_3a2b1c4d5e6f7a8b",
+              "bf_tracker_4b5c6d7e8f9a0b1c",
+              "bf_web_5e6f7a8b9c0d1e2f"
+            ]);
+            const hasValidAppKey = Boolean(secretHeader && VALID_APP_KEYS_SET.has(secretHeader));
+            if (!hasValidAppKey && effectiveBranchID) {
+              try {
+                const widgetSettings = await req.payload.findGlobal({
+                  slug: "widget-settings",
+                  overrideAccess: true
+                });
+                const rows = Array.isArray(widgetSettings?.appKeyValidationByBranch) ? widgetSettings.appKeyValidationByBranch : [];
+                const branchRow = rows.find(
+                  (r) => getRelationshipID15(r?.branch) === String(effectiveBranchID)
+                );
+                const isKeyRequired = branchRow ? branchRow.requireAppKey !== false : true;
+                if (isKeyRequired) {
+                  throw new Error(
+                    "A valid Blackforest App Key is required to log in for this branch. Please update your app."
+                  );
+                }
+              } catch (appKeyErr) {
+                if (appKeyErr instanceof Error && appKeyErr.message.includes("App Key is required")) {
+                  throw appKeyErr;
+                }
+                console.error("[Users beforeLogin] App key check error:", appKeyErr);
               }
             }
             if (process.env.NODE_ENV === "development") {
@@ -25638,7 +25678,7 @@ var init_RawMaterialBillingReport = __esm({
 import dayjs24 from "dayjs";
 import utc24 from "dayjs/plugin/utc.js";
 import timezone24 from "dayjs/plugin/timezone.js";
-var toNumber10, toInteger6, toDateString6, toNonEmptyString8, getReturnOrderReportData;
+var resolveMediaUrl2, toNumber10, toInteger6, toDateString6, toNonEmptyString8, getReturnOrderReportData;
 var init_returnOrder = __esm({
   "src/services/reports/returnOrder.ts"() {
     "use strict";
@@ -25646,6 +25686,29 @@ var init_returnOrder = __esm({
     dayjs24.extend(utc24);
     dayjs24.extend(timezone24);
     dayjs24.tz.setDefault("Asia/Kolkata");
+    resolveMediaUrl2 = (url, filename2, prefix) => {
+      if (url && typeof url === "string") {
+        const trimmed = url.trim();
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("data:")) {
+          return trimmed;
+        }
+      }
+      if (!filename2 || typeof filename2 !== "string") return void 0;
+      const publicURL = process.env.NEXT_PUBLIC_S3_PUBLIC_URL || process.env.S3_PUBLIC_URL;
+      if (!publicURL) {
+        return `/api/media/file/${filename2}`;
+      }
+      const cleanURL = publicURL.endsWith("/") ? publicURL.slice(0, -1) : publicURL;
+      const rootPrefix = "blackforest/uploads";
+      const docPrefix = prefix ? String(prefix).trim() : "returnorder";
+      const cleanRoot = rootPrefix.replace(/^\/+|\/+$/g, "");
+      const cleanDocPrefix = docPrefix.replace(/^\/+|\/+$/g, "");
+      const normalizedDocPrefix = cleanDocPrefix === cleanRoot ? "" : cleanDocPrefix.startsWith(`${cleanRoot}/`) ? cleanDocPrefix.slice(cleanRoot.length + 1) : cleanDocPrefix;
+      const filenameWithoutRoot = filename2.startsWith(`${cleanRoot}/`) ? filename2.slice(cleanRoot.length + 1) : filename2;
+      const finalDocPrefix = normalizedDocPrefix && filenameWithoutRoot.startsWith(`${normalizedDocPrefix}/`) ? "" : normalizedDocPrefix;
+      const fullPath = [cleanRoot, finalDocPrefix, filenameWithoutRoot].filter(Boolean).join("/").replace(/\/+/g, "/");
+      return `${cleanURL}/${fullPath}`;
+    };
     toNumber10 = (value) => {
       if (typeof value === "number" && Number.isFinite(value)) return value;
       if (typeof value === "string") {
@@ -25749,8 +25812,25 @@ var init_returnOrder = __esm({
         {
           $lookup: {
             from: "media",
-            localField: "items.proofPhoto",
-            foreignField: "_id",
+            let: { proofPhoto: "$items.proofPhoto" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $ne: ["$$proofPhoto", null] },
+                      { $ne: ["$$proofPhoto", ""] },
+                      {
+                        $or: [
+                          { $eq: ["$_id", "$$proofPhoto"] },
+                          { $eq: [{ $toString: "$_id" }, { $toString: "$$proofPhoto" }] }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            ],
             as: "mediaInfo"
           }
         },
@@ -25781,7 +25861,9 @@ var init_returnOrder = __esm({
                 notes: { $ifNull: ["$items.notes", "$notes"] },
                 time: "$createdAt",
                 imageUrl: "$mediaInfo.url",
-                filename: "$mediaInfo.filename"
+                filename: "$mediaInfo.filename",
+                prefix: "$mediaInfo.prefix",
+                proofPhoto: "$items.proofPhoto"
               }
             }
           }
@@ -25801,10 +25883,90 @@ var init_returnOrder = __esm({
         }
       ];
       const groupsRaw = await ReturnOrderModel.aggregate(pipeline);
+      const missingMediaIdSet = /* @__PURE__ */ new Set();
+      for (const group of groupsRaw) {
+        if (Array.isArray(group.items)) {
+          for (const it of group.items) {
+            const hasUrlOrFile = Boolean(it.imageUrl || it.filename);
+            if (!hasUrlOrFile && it.proofPhoto) {
+              const idStr = toNonEmptyString8(it.proofPhoto);
+              if (idStr && !idStr.startsWith("http://") && !idStr.startsWith("https://") && !idStr.startsWith("data:") && /^[0-9a-fA-F]{24}$/.test(idStr)) {
+                missingMediaIdSet.add(idStr);
+              }
+            }
+          }
+        }
+      }
+      const mediaMap = /* @__PURE__ */ new Map();
+      if (missingMediaIdSet.size > 0) {
+        const missingIds = Array.from(missingMediaIdSet);
+        try {
+          const mediaRes = await payload.find({
+            collection: "media",
+            where: {
+              id: {
+                in: missingIds
+              }
+            },
+            depth: 0,
+            pagination: false,
+            limit: missingIds.length,
+            overrideAccess: true
+          });
+          for (const m of mediaRes.docs) {
+            const idStr = String(m.id || m._id);
+            const resolved = resolveMediaUrl2(m.url, m.filename, m.prefix) || m.thumbnailURL;
+            if (resolved) {
+              mediaMap.set(idStr, resolved);
+            }
+          }
+        } catch (e) {
+          req.payload.logger.warn({
+            err: e,
+            msg: "[ReturnOrderReport] Error batch resolving media via payload.find"
+          });
+        }
+        const stillMissing = missingIds.filter((id) => !mediaMap.has(id));
+        if (stillMissing.length > 0 && payload.db.collections["media"]) {
+          try {
+            const MediaModel = payload.db.collections["media"];
+            const mongoose8 = await import("mongoose");
+            const objectIds = stillMissing.map((id) => {
+              try {
+                return new mongoose8.Types.ObjectId(id);
+              } catch {
+                return null;
+              }
+            }).filter(Boolean);
+            const fallbackDocs = await MediaModel.find({
+              $or: [{ _id: { $in: objectIds } }, { _id: { $in: stillMissing } }]
+            }).lean();
+            for (const m of fallbackDocs) {
+              const idStr = String(m._id || m.id);
+              const resolved = resolveMediaUrl2(m.url, m.filename, m.prefix) || m.thumbnailURL;
+              if (resolved) {
+                mediaMap.set(idStr, resolved);
+              }
+            }
+          } catch (err) {
+            req.payload.logger.warn({ err, msg: "[ReturnOrderReport] Fallback media query error" });
+          }
+        }
+      }
       const groups = groupsRaw.map((group) => {
         const items = (Array.isArray(group.items) ? [...group.items] : []).sort((a, b) => new Date(toDateString6(b.time)).getTime() - new Date(toDateString6(a.time)).getTime()).map((item) => {
           const filename2 = toNonEmptyString8(item.filename);
           const imageUrl = toNonEmptyString8(item.imageUrl);
+          const prefix = toNonEmptyString8(item.prefix);
+          const proofPhotoId = toNonEmptyString8(item.proofPhoto);
+          let resolvedUrl = resolveMediaUrl2(imageUrl, filename2, prefix);
+          if (!resolvedUrl && proofPhotoId) {
+            if (proofPhotoId.startsWith("http://") || proofPhotoId.startsWith("https://") || proofPhotoId.startsWith("data:")) {
+              resolvedUrl = proofPhotoId;
+            } else if (mediaMap.has(proofPhotoId)) {
+              resolvedUrl = mediaMap.get(proofPhotoId);
+            }
+          }
           return {
             id: toNonEmptyString8(item.id),
             itemId: toNonEmptyString8(item.itemId),
@@ -25816,7 +25978,7 @@ var init_returnOrder = __esm({
             subtotal: toNumber10(item.subtotal),
             notes: toNonEmptyString8(item.notes, "") || void 0,
             time: toDateString6(item.time),
-            imageUrl: imageUrl || (filename2 ? `/api/media/file/${filename2}` : void 0)
+            imageUrl: resolvedUrl
           };
         });
         return {
@@ -27683,22 +27845,119 @@ ${newLine}
   }
 });
 
+// src/utilities/syncAppKeyGatekeeper.ts
+import fs3 from "fs";
+import path3 from "path";
+var GATEKEEPER_FILE, inMemoryGatekeeperData, getAppKeyGatekeeperData, syncAppKeyGatekeeperFromDoc;
+var init_syncAppKeyGatekeeper = __esm({
+  "src/utilities/syncAppKeyGatekeeper.ts"() {
+    "use strict";
+    GATEKEEPER_FILE = path3.resolve(process.cwd(), "app-key-gatekeeper.json");
+    inMemoryGatekeeperData = {
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      disabledBranchIds: [],
+      disabledBranchPins: [],
+      disabledBranchCodes: []
+    };
+    getAppKeyGatekeeperData = () => {
+      if (inMemoryGatekeeperData.disabledBranchIds.length === 0) {
+        try {
+          if (fs3.existsSync(GATEKEEPER_FILE)) {
+            const raw = fs3.readFileSync(GATEKEEPER_FILE, "utf-8");
+            inMemoryGatekeeperData = JSON.parse(raw);
+          }
+        } catch (_) {
+        }
+      }
+      return inMemoryGatekeeperData;
+    };
+    syncAppKeyGatekeeperFromDoc = async (doc, payload) => {
+      const rows = Array.isArray(doc?.appKeyValidationByBranch) ? doc.appKeyValidationByBranch : [];
+      const disabledBranchIds = [];
+      const disabledBranchPins = [];
+      const disabledBranchCodes = [];
+      for (const row of rows) {
+        if (row.requireAppKey === false) {
+          const branchVal = row.branch;
+          const branchId = typeof branchVal === "object" && branchVal !== null ? String(branchVal.id || branchVal._id || "") : String(branchVal || "");
+          if (branchId) {
+            disabledBranchIds.push(branchId);
+            if (typeof branchVal === "object" && branchVal !== null) {
+              if (branchVal.branchPin) disabledBranchPins.push(String(branchVal.branchPin).trim());
+              if (branchVal.code) disabledBranchCodes.push(String(branchVal.code).trim().toLowerCase());
+              if (branchVal.name) disabledBranchCodes.push(String(branchVal.name).trim().toLowerCase());
+            }
+          }
+        }
+      }
+      if (payload && disabledBranchIds.length > 0) {
+        try {
+          const branches = await payload.find({
+            collection: "branches",
+            where: {
+              id: { in: disabledBranchIds }
+            },
+            limit: 100,
+            depth: 0,
+            overrideAccess: true
+          });
+          for (const b of branches.docs) {
+            if (b.branchPin) {
+              const pin = String(b.branchPin).trim();
+              if (!disabledBranchPins.includes(pin)) disabledBranchPins.push(pin);
+            }
+            if (b.code) {
+              const code = String(b.code).trim().toLowerCase();
+              if (!disabledBranchCodes.includes(code)) disabledBranchCodes.push(code);
+            }
+            if (b.name) {
+              const name = String(b.name).trim().toLowerCase();
+              if (!disabledBranchCodes.includes(name)) disabledBranchCodes.push(name);
+            }
+          }
+        } catch (e) {
+          console.error("[syncAppKeyGatekeeper] Error enriching branch details:", e);
+        }
+      }
+      const data = {
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        disabledBranchIds: Array.from(new Set(disabledBranchIds)),
+        disabledBranchPins: Array.from(new Set(disabledBranchPins)),
+        disabledBranchCodes: Array.from(new Set(disabledBranchCodes))
+      };
+      inMemoryGatekeeperData = data;
+      try {
+        fs3.writeFileSync(GATEKEEPER_FILE, JSON.stringify(data, null, 2), "utf-8");
+      } catch (err) {
+        console.error("[syncAppKeyGatekeeper] Failed to write app-key-gatekeeper.json:", err);
+      }
+      return data;
+    };
+  }
+});
+
 // src/globals/Widgets.ts
 var WidgetSettingsGlobal;
 var init_Widgets = __esm({
   "src/globals/Widgets.ts"() {
     "use strict";
     init_syncFrontendEnv();
+    init_syncAppKeyGatekeeper();
     WidgetSettingsGlobal = {
       slug: "widget-settings",
       label: "Widgets",
       hooks: {
         afterChange: [
-          async ({ doc }) => {
+          async ({ doc, req }) => {
             try {
               syncFrontendEnvFromDoc(doc);
             } catch (error) {
               console.error("[WidgetSettingsGlobal] Failed to auto-sync frontend .env in afterChange hook:", error);
+            }
+            try {
+              await syncAppKeyGatekeeperFromDoc(doc, req?.payload);
+            } catch (error) {
+              console.error("[WidgetSettingsGlobal] Failed to sync App Key Gatekeeper cache:", error);
             }
           }
         ]
@@ -28201,6 +28460,28 @@ var init_Widgets = __esm({
               defaultValue: false
             }
           ]
+        },
+        {
+          name: "appKeyValidationByBranch",
+          label: "App Key Validation by Branch",
+          type: "array",
+          admin: {
+            description: "Branch-wise control for enforcing App Key validation. When enabled (default), apps must provide a valid App Key. When disabled, older app versions without an app key are allowed."
+          },
+          fields: [
+            {
+              name: "branch",
+              type: "relationship",
+              relationTo: "branches",
+              required: true
+            },
+            {
+              name: "requireAppKey",
+              label: "Require App Key",
+              type: "checkbox",
+              defaultValue: true
+            }
+          ]
         }
       ]
     };
@@ -28662,6 +28943,35 @@ var init_getTableCustomerDetailsVisibility = __esm({
           { status: 500 }
         );
       }
+    };
+  }
+});
+
+// src/endpoints/getAppKeyGatekeeperSettings.ts
+var getAppKeyGatekeeperSettingsHandler;
+var init_getAppKeyGatekeeperSettings = __esm({
+  "src/endpoints/getAppKeyGatekeeperSettings.ts"() {
+    "use strict";
+    init_syncAppKeyGatekeeper();
+    getAppKeyGatekeeperSettingsHandler = async (req) => {
+      let data = getAppKeyGatekeeperData();
+      if (data.disabledBranchIds.length === 0) {
+        try {
+          const globalSettings = await req.payload.findGlobal({
+            slug: "widget-settings",
+            overrideAccess: true
+          });
+          data = await syncAppKeyGatekeeperFromDoc(globalSettings, req.payload);
+        } catch (_) {
+        }
+      }
+      return Response.json(data, {
+        status: 200,
+        headers: {
+          "Cache-Control": "public, max-age=5",
+          "Content-Type": "application/json"
+        }
+      });
     };
   }
 });
@@ -42782,7 +43092,7 @@ import { s3Storage } from "@payloadcms/storage-s3";
 import { mongooseAdapter } from "@payloadcms/db-mongodb";
 import { postgresAdapter } from "@payloadcms/db-postgres";
 import { lexicalEditor } from "@payloadcms/richtext-lexical";
-import path3 from "path";
+import path4 from "path";
 import { buildConfig } from "payload";
 import { fileURLToPath } from "url";
 import sharp from "sharp";
@@ -42897,6 +43207,7 @@ var init_payload_config = __esm({
     init_WorkGPS();
     init_createWidgetOrder();
     init_getTableCustomerDetailsVisibility();
+    init_getAppKeyGatekeeperSettings();
     init_getLiveTableStatus();
     init_allocateTableWaiter();
     init_toggleTableOffline();
@@ -42954,7 +43265,7 @@ var init_payload_config = __esm({
     init_getReportCardData();
     initLogHook();
     filename = fileURLToPath(import.meta.url);
-    dirname = path3.dirname(filename);
+    dirname = path4.dirname(filename);
     wrapCollection = (collection) => {
       return {
         ...collection,
@@ -43285,7 +43596,7 @@ var init_payload_config = __esm({
       admin: {
         user: Users.slug,
         importMap: {
-          baseDir: path3.resolve(dirname)
+          baseDir: path4.resolve(dirname)
         },
         timezones: {
           defaultTimezone: "Asia/Calcutta",
@@ -43522,6 +43833,11 @@ var init_payload_config = __esm({
           path: "/widgets/table-customer-details-visibility",
           method: "get",
           handler: getTableCustomerDetailsVisibilityHandler
+        },
+        {
+          path: "/widgets/app-key-settings",
+          method: "get",
+          handler: getAppKeyGatekeeperSettingsHandler
         },
         {
           path: "/widgets/live-table-status",
@@ -43827,7 +44143,7 @@ var init_payload_config = __esm({
       editor: lexicalEditor(),
       secret: process.env.PAYLOAD_SECRET || "",
       typescript: {
-        outputFile: path3.resolve(dirname, "payload-types.ts")
+        outputFile: path4.resolve(dirname, "payload-types.ts")
       },
       db: dbAdapter,
       sharp,

@@ -1,16 +1,22 @@
 import { GlobalConfig } from 'payload'
 import { syncFrontendEnvFromDoc } from '../utilities/syncFrontendEnv'
+import { syncAppKeyGatekeeperFromDoc } from '../utilities/syncAppKeyGatekeeper'
 
 export const WidgetSettingsGlobal: GlobalConfig = {
   slug: 'widget-settings',
   label: 'Widgets',
   hooks: {
     afterChange: [
-      async ({ doc }) => {
+      async ({ doc, req }) => {
         try {
           syncFrontendEnvFromDoc(doc)
         } catch (error) {
           console.error('[WidgetSettingsGlobal] Failed to auto-sync frontend .env in afterChange hook:', error)
+        }
+        try {
+          await syncAppKeyGatekeeperFromDoc(doc, req?.payload)
+        } catch (error) {
+          console.error('[WidgetSettingsGlobal] Failed to sync App Key Gatekeeper cache:', error)
         }
       },
     ],
@@ -518,6 +524,29 @@ export const WidgetSettingsGlobal: GlobalConfig = {
           label: 'Block Billing if Any Undelivered',
           type: 'checkbox',
           defaultValue: false,
+        },
+      ],
+    },
+    {
+      name: 'appKeyValidationByBranch',
+      label: 'App Key Validation by Branch',
+      type: 'array',
+      admin: {
+        description:
+          'Branch-wise control for enforcing App Key validation. When enabled (default), apps must provide a valid App Key. When disabled, older app versions without an app key are allowed.',
+      },
+      fields: [
+        {
+          name: 'branch',
+          type: 'relationship',
+          relationTo: 'branches',
+          required: true,
+        },
+        {
+          name: 'requireAppKey',
+          label: 'Require App Key',
+          type: 'checkbox',
+          defaultValue: true,
         },
       ],
     },

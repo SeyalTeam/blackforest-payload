@@ -35,6 +35,8 @@ import {
   PhoneCall,
   Lock,
   ShoppingCart,
+  Key,
+  ShieldCheck,
 } from 'lucide-react'
 import Select, { type FormatOptionLabelMeta, type GroupBase } from 'react-select'
 import DatePicker from 'react-datepicker'
@@ -161,6 +163,12 @@ type EntireBillBlockingRow = {
   enabled?: boolean | null
 }
 
+type AppKeyValidationRow = {
+  id?: string | null
+  branch?: string | { id?: string; name?: string } | null
+  requireAppKey?: boolean | null
+}
+
 type WidgetSettingsGlobal = {
   tableOrderCustomerDetailsByBranch?: TableCustomerDetailsRow[] | null
   billingOrderCustomerDetailsByBranch?: BillingCustomerDetailsRow[] | null
@@ -173,6 +181,7 @@ type WidgetSettingsGlobal = {
   skipZeroStockBillingByBranch?: SkipZeroStockBillingRow[] | null
   categoryDelayByBranch?: CategoryDelayRow[] | null
   entireBillBlockingByBranch?: EntireBillBlockingRow[] | null
+  appKeyValidationByBranch?: AppKeyValidationRow[] | null
 }
 
 type LiveTableRow = {
@@ -236,6 +245,7 @@ type WidgetKey =
   | 'entire-bill-blocking'
   | 'closing-entry-access'
   | 'cashdrawer-access'
+  | 'app-key-security'
 
 const BILLING_APP_KEY = 'billing-app'
 const FRONTEND_APP_KEY = 'frontend-web'
@@ -643,6 +653,17 @@ const WidgetSettings: React.FC<any> = (props) => {
   })
   const [savingEntireBillBlockingSetting, setSavingEntireBillBlockingSetting] = useState(false)
   const [removingEntireBillBlockingBranchID, setRemovingEntireBillBlockingBranchID] = useState<string | null>(null)
+
+  const [appKeyValidationByBranch, setAppKeyValidationByBranch] = useState<
+    AppKeyValidationRow[]
+  >([])
+  const [selectedAppKeyBranches, setSelectedAppKeyBranches] = useState<Option[]>([])
+  const [appKeyVisibility, setAppKeyVisibility] = useState<Option>({
+    value: 'enabled',
+    label: 'Enabled (App Key Required - Default / Strict Mode)',
+  })
+  const [savingAppKeySetting, setSavingAppKeySetting] = useState(false)
+  const [removingAppKeyBranchID, setRemovingAppKeyBranchID] = useState<string | null>(null)
 
   const [categoryDelayByBranch, setCategoryDelayByBranch] = useState<CategoryDelayRow[]>([])
   const [selectedCategoryDelayBranch, setSelectedCategoryDelayBranch] = useState<Option | null>(null)
@@ -1152,6 +1173,53 @@ const WidgetSettings: React.FC<any> = (props) => {
       .sort((a, b) => a.branchName.localeCompare(b.branchName))
   }, [entireBillBlockingByBranch, branchNameByID])
 
+  const configuredAppKeyRows = useMemo(() => {
+    return appKeyValidationByBranch
+      .map((row) => {
+        const branchID = getRelationshipID(row.branch)
+        if (!branchID) return null
+
+        return {
+          branchID,
+          branchName: branchNameByID.get(branchID) || branchID,
+          requireAppKey: row.requireAppKey !== false,
+        }
+      })
+      .filter(
+        (
+          row,
+        ): row is {
+          branchID: string
+          branchName: string
+          requireAppKey: boolean
+        } => row !== null,
+      )
+      .sort((a, b) => a.branchName.localeCompare(b.branchName))
+  }, [appKeyValidationByBranch, branchNameByID])
+
+  const allBranchesAppKeyStatus = useMemo(() => {
+    const configuredMap = new Map<string, boolean>()
+    for (const row of appKeyValidationByBranch) {
+      const bId = getRelationshipID(row.branch)
+      if (bId) {
+        configuredMap.set(bId, row.requireAppKey !== false)
+      }
+    }
+
+    return branches
+      .map((b) => {
+        const isStrict = configuredMap.has(b.id) ? configuredMap.get(b.id)! : true
+        const isExplicitlyConfigured = configuredMap.has(b.id)
+        return {
+          branchID: b.id,
+          branchName: b.name,
+          requireAppKey: isStrict,
+          isExplicitlyConfigured,
+        }
+      })
+      .sort((a, b) => a.branchName.localeCompare(b.branchName))
+  }, [branches, appKeyValidationByBranch])
+
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true)
@@ -1224,6 +1292,7 @@ const WidgetSettings: React.FC<any> = (props) => {
             setSkipZeroStockBillingByBranch(settingsJSON.skipZeroStockBillingByBranch || [])
             setCategoryDelayByBranch(settingsJSON.categoryDelayByBranch || [])
             setEntireBillBlockingByBranch(settingsJSON.entireBillBlockingByBranch || [])
+            setAppKeyValidationByBranch(settingsJSON.appKeyValidationByBranch || [])
           } catch (e: any) {
             console.error('Failed to parse settings response JSON', e)
           }
@@ -2843,6 +2912,119 @@ const WidgetSettings: React.FC<any> = (props) => {
     }
   }
 
+  const saveAppKeySetting = async () => {
+    if (selectedAppKeyBranches.length === 0) {
+      alert('Please select at least one branch')
+      return
+    }
+
+    setSavingAppKeySetting(true)
+    try {
+      const isRequireKey = appKeyVisibility.value === 'enabled'
+      const hasAll =
+        selectedAppKeyBranches.some((b) => b.value === 'all') ||
+        (branchOptions.length > 0 && selectedAppKeyBranches.length === branchOptions.length)
+      const selectedBranchIDs = hasAll
+        ? branchOptions.map((b) => b.value)
+        : selectedAppKeyBranches.filter((b) => b.value !== 'all').map((b) => b.value)
+
+      const normalizedRows = appKeyValidationByBranch.map((row) => ({
+        ...row,
+        branch: getRelationshipID(row.branch) || row.branch,
+      }))
+
+      const dedupedRows = normalizedRows.filter(
+        (row) => !selectedBranchIDs.includes(getRelationshipID(row.branch) || (row.branch as string)),
+      )
+
+      selectedBranchIDs.forEach((branchID) => {
+        const existingRow = normalizedRows.find(
+          (row) => (getRelationshipID(row.branch) || row.branch) === branchID,
+        )
+        dedupedRows.push({
+          ...(existingRow?.id ? { id: existingRow.id } : {}),
+          branch: branchID,
+          requireAppKey: isRequireKey,
+        })
+      })
+
+      const persistedSettings = await persistWidgetSettings({
+        appKeyValidationByBranch: dedupedRows,
+      })
+      setAppKeyValidationByBranch(persistedSettings.appKeyValidationByBranch || dedupedRows)
+      setSelectedAppKeyBranches([])
+      alert(`App Key Security setting updated for ${selectedBranchIDs.length} branch(es)`)
+    } catch (error) {
+      console.error('Failed to save app key security setting:', error)
+      alert('Failed to save app key security setting')
+    } finally {
+      setSavingAppKeySetting(false)
+    }
+  }
+
+  const toggleSingleBranchAppKey = async (branchID: string, currentRequireKey: boolean) => {
+    const nextRequireKey = !currentRequireKey
+    setSavingAppKeySetting(true)
+    try {
+      const normalizedRows = appKeyValidationByBranch.map((row) => ({
+        ...row,
+        branch: getRelationshipID(row.branch) || row.branch,
+      }))
+
+      const dedupedRows = normalizedRows.filter(
+        (row) => (getRelationshipID(row.branch) || row.branch) !== branchID,
+      )
+
+      const existingRow = normalizedRows.find(
+        (row) => (getRelationshipID(row.branch) || row.branch) === branchID,
+      )
+
+      dedupedRows.push({
+        ...(existingRow?.id ? { id: existingRow.id } : {}),
+        branch: branchID,
+        requireAppKey: nextRequireKey,
+      })
+
+      const persistedSettings = await persistWidgetSettings({
+        appKeyValidationByBranch: dedupedRows,
+      })
+      setAppKeyValidationByBranch(persistedSettings.appKeyValidationByBranch || dedupedRows)
+    } catch (error) {
+      console.error('Failed to toggle branch app key setting:', error)
+      alert('Failed to update branch setting')
+    } finally {
+      setSavingAppKeySetting(false)
+    }
+  }
+
+  const removeAppKeyConfiguredBranch = async (branchID: string, branchName: string) => {
+    if (!confirm(`Reset "${branchName}" to default (Strict Mode - App Key Required)?`)) {
+      return
+    }
+
+    setRemovingAppKeyBranchID(branchID)
+    try {
+      const nextRows = appKeyValidationByBranch
+        .map((row) => ({
+          ...row,
+          branch: getRelationshipID(row.branch) || row.branch,
+        }))
+        .filter((row) => getRelationshipID(row.branch) !== branchID)
+
+      const persistedSettings = await persistWidgetSettings({
+        appKeyValidationByBranch: nextRows,
+      })
+      setAppKeyValidationByBranch(persistedSettings.appKeyValidationByBranch || nextRows)
+
+      alert(`Branch "${branchName}" reset to default (Strict Mode)`)
+    } catch (error) {
+      console.error('Failed to reset branch setting:', error)
+      alert('Failed to reset branch')
+    } finally {
+      setRemovingAppKeyBranchID(null)
+    }
+  }
+
   const addTableQRDomain = async () => {
     const nextDomainURL = newTableQRDomainURL.trim()
 
@@ -3635,6 +3817,16 @@ const WidgetSettings: React.FC<any> = (props) => {
           >
             <Lock className="tile-icon" size={48} />
             <span className="tile-label">Entire Bill</span>
+          </button>
+
+          <div className="tiles-group-title">Security</div>
+          <button
+            type="button"
+            className={`tile ${activeWidget === 'app-key-security' ? 'active' : ''}`}
+            onClick={() => setActiveWidget('app-key-security')}
+          >
+            <Key className="tile-icon" size={48} />
+            <span className="tile-label">App Key Security</span>
           </button>
         </div>
 
@@ -5077,6 +5269,231 @@ const WidgetSettings: React.FC<any> = (props) => {
                       <Save size={16} /> Save Setting
                     </span>
                   )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeWidget === 'app-key-security' && (
+            <div className="widget-modal">
+              <div className="modal-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Key size={22} style={{ color: 'var(--theme-elevation-800, #3b82f6)' }} />
+                  <h2>App Key Security &amp; Legacy App Access</h2>
+                </div>
+                <button className="close-btn" onClick={() => setActiveWidget(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="modal-body">
+                <div
+                  style={{
+                    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                    border: '1px solid rgba(59, 130, 246, 0.25)',
+                    borderRadius: '8px',
+                    padding: '12px 16px',
+                    marginBottom: '20px',
+                    fontSize: '13px',
+                    lineHeight: '1.5',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, color: '#60a5fa', marginBottom: '4px' }}>
+                    <ShieldCheck size={16} /> App Key Gatekeeper Rule
+                  </div>
+                  <p style={{ margin: 0, color: 'var(--theme-text, #e2e8f0)' }}>
+                    By default, <strong>all branches are Enabled (Strict Mode)</strong>: apps connecting to the API must provide a valid App Key.
+                    If you turn off the toggle for a branch to <strong>Disabled (Allow Old Apps)</strong>, staff using older versions of any app (Waiter POS, Branch POS, Tracker, etc.) that do not send an App Key can log in and use the system without being blocked.
+                  </p>
+                </div>
+
+                <div className="form-group">
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: 6,
+                    }}
+                  >
+                    <label style={{ margin: 0 }}>
+                      <MapPin size={14} style={{ marginRight: 4 }} /> Choose Branch (Single or Multiple)
+                    </label>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ padding: '2px 8px', fontSize: '11px', height: 'auto', minHeight: 'unset' }}
+                        onClick={() => setSelectedAppKeyBranches(branchOptions)}
+                      >
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ padding: '2px 8px', fontSize: '11px', height: 'auto', minHeight: 'unset' }}
+                        onClick={() => setSelectedAppKeyBranches([])}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                  <Select
+                    isMulti
+                    options={[{ value: 'all', label: 'All' }, ...branchOptions]}
+                    value={
+                      branchOptions.length > 0 && selectedAppKeyBranches.length === branchOptions.length
+                        ? [{ value: 'all', label: 'All' }, ...selectedAppKeyBranches]
+                        : selectedAppKeyBranches
+                    }
+                    onChange={(selected) => {
+                      const options = (selected ? (selected as Option[]) : [])
+                      const hasAll = options.some((opt) => opt.value === 'all')
+                      const isAllCurrentlySelected =
+                        branchOptions.length > 0 && selectedAppKeyBranches.length === branchOptions.length
+
+                      if (hasAll && !isAllCurrentlySelected) {
+                        setSelectedAppKeyBranches(branchOptions)
+                        return
+                      }
+
+                      if (!hasAll && isAllCurrentlySelected) {
+                        setSelectedAppKeyBranches([])
+                        return
+                      }
+
+                      const filtered = options.filter((opt) => opt.value !== 'all')
+                      if (filtered.length === branchOptions.length && branchOptions.length > 0) {
+                        setSelectedAppKeyBranches(branchOptions)
+                      } else {
+                        setSelectedAppKeyBranches(filtered)
+                      }
+                    }}
+                    styles={customSelectStyles}
+                    placeholder="Select Branches or choose All..."
+                    isLoading={loading}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                  />
+                  <small style={{ display: 'block', marginTop: 4, color: 'var(--theme-text-secondary, #888)' }}>
+                    Choose &quot;All&quot; to select all branches, or select single / multiple individual branches.
+                  </small>
+                </div>
+
+                <div className="form-group" style={{ marginTop: 16 }}>
+                  <label>
+                    <Key size={14} style={{ marginRight: 4 }} /> App Key Requirement Switch
+                  </label>
+                  <Select
+                    options={[
+                      { value: 'enabled', label: 'Enabled (App Key Required - Default / Strict Mode)' },
+                      { value: 'disabled', label: 'Disabled (Allow Old Apps Without Key - Legacy Mode)' },
+                    ]}
+                    value={appKeyVisibility}
+                    onChange={(option) =>
+                      setAppKeyVisibility((option as Option) || { value: 'enabled', label: 'Enabled (App Key Required - Default / Strict Mode)' })
+                    }
+                    styles={customSelectStyles}
+                    isSearchable={false}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                  />
+                  <small style={{ display: 'block', marginTop: 4, color: 'var(--theme-text-secondary, #888)' }}>
+                    When Enabled: Valid App Key is strictly mandatory for all apps. When Disabled: Old apps without App Key are allowed to log in and use API.
+                  </small>
+                </div>
+
+                <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    className="btn btn-primary"
+                    onClick={saveAppKeySetting}
+                    disabled={savingAppKeySetting || selectedAppKeyBranches.length === 0}
+                  >
+                    {savingAppKeySetting ? (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Loader2 className="animate-spin" size={16} /> Applying...
+                      </span>
+                    ) : (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Save size={16} /> Apply Setting to Selected Branches{' '}
+                        {branchOptions.length > 0 && selectedAppKeyBranches.length === branchOptions.length
+                          ? `(All ${branchOptions.length} Branches)`
+                          : selectedAppKeyBranches.length > 0
+                            ? `(${selectedAppKeyBranches.length} Selected)`
+                            : ''}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                <div className="configured-settings" style={{ marginTop: 24 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <h3 style={{ margin: 0 }}>All Branches Security Status ({allBranchesAppKeyStatus.length})</h3>
+                    <small style={{ color: 'var(--theme-text-secondary, #888)' }}>
+                      Default is Enabled (Strict). Click toggle switch on any branch to change status.
+                    </small>
+                  </div>
+                  
+                  {allBranchesAppKeyStatus.length === 0 ? (
+                    <p className="empty-state">No branches found in database.</p>
+                  ) : (
+                    <div className="configured-list">
+                      {allBranchesAppKeyStatus.map((row) => (
+                        <div className="configured-row" key={row.branchID} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px' }}>
+                          <span className="branch-name" style={{ fontWeight: 500 }}>{row.branchName}</span>
+                          <div className="row-controls" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div className="status-group">
+                              <span
+                                className={
+                                  row.requireAppKey
+                                    ? 'status-badge status-enabled'
+                                    : 'status-badge status-disabled'
+                                }
+                                style={
+                                  !row.requireAppKey
+                                    ? { backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', borderColor: 'rgba(245, 158, 11, 0.4)' }
+                                    : {}
+                                }
+                              >
+                                {row.requireAppKey ? '🔒 Strict Mode (Key Required - Default)' : '⚠️ Legacy Mode (Old Apps Allowed)'}
+                              </span>
+                            </div>
+                            
+                            <button
+                              type="button"
+                              className={row.requireAppKey ? 'btn btn-secondary' : 'btn btn-primary'}
+                              style={{ padding: '4px 10px', fontSize: '12px', height: 'auto', minHeight: 'unset' }}
+                              onClick={() => toggleSingleBranchAppKey(row.branchID, row.requireAppKey)}
+                              disabled={savingAppKeySetting}
+                              title={row.requireAppKey ? 'Click to allow old apps without key' : 'Click to require app key'}
+                            >
+                              {row.requireAppKey ? 'Allow Old Apps' : 'Require Key (Strict)'}
+                            </button>
+
+                            {row.isExplicitlyConfigured && (
+                              <button
+                                type="button"
+                                className="remove-row-btn"
+                                onClick={() => removeAppKeyConfiguredBranch(row.branchID, row.branchName)}
+                                disabled={Boolean(removingAppKeyBranchID)}
+                                title="Reset to Default (Strict Mode)"
+                              >
+                                {removingAppKeyBranchID === row.branchID ? (
+                                  <Loader2 className="animate-spin" size={14} />
+                                ) : (
+                                  <Trash2 size={14} />
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setActiveWidget(null)}>
+                  Close
                 </button>
               </div>
             </div>

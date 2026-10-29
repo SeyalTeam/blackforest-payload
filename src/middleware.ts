@@ -38,9 +38,124 @@ const PUBLIC_EXEMPT_PREFIXES = [
   "/api/table-redirect",
   "/api/speedtest",
   "/api/graphql-playground",
+  "/api/widgets/app-key-settings",
+  "/api/branches",
 ];
 
-export function middleware(request: NextRequest) {
+let cachedGatekeeper: {
+  disabledBranchIds: Set<string>;
+  disabledBranchPins: Set<string>;
+  disabledBranchCodes: Set<string>;
+  expiresAt: number;
+} | null = null;
+
+async function getExemptBranches(request: NextRequest): Promise<{
+  disabledBranchIds: Set<string>;
+  disabledBranchPins: Set<string>;
+  disabledBranchCodes: Set<string>;
+}> {
+  const now = Date.now();
+  if (cachedGatekeeper && cachedGatekeeper.expiresAt > now) {
+    return cachedGatekeeper;
+  }
+
+  try {
+    const url = new URL("/api/widgets/app-key-settings", request.url);
+    const res = await fetch(url.toString(), {
+      headers: { "x-internal-query": "true" },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      cachedGatekeeper = {
+        disabledBranchIds: new Set(
+          (data.disabledBranchIds || []).map((id: string) => String(id).trim())
+        ),
+        disabledBranchPins: new Set(
+          (data.disabledBranchPins || []).map((pin: string) => String(pin).trim())
+        ),
+        disabledBranchCodes: new Set(
+          (data.disabledBranchCodes || []).map((code: string) =>
+            String(code).trim().toLowerCase()
+          )
+        ),
+        expiresAt: now + 5000,
+      };
+      return cachedGatekeeper;
+    }
+  } catch (_) {}
+
+  return (
+    cachedGatekeeper || {
+      disabledBranchIds: new Set(),
+      disabledBranchPins: new Set(),
+      disabledBranchCodes: new Set(),
+    }
+  );
+}
+
+async function isRequestFromAppKeyExemptBranch(
+  request: NextRequest,
+  pathname: string
+): Promise<boolean> {
+  const { disabledBranchIds, disabledBranchPins, disabledBranchCodes } =
+    await getExemptBranches(request);
+
+  if (
+    disabledBranchIds.size === 0 &&
+    disabledBranchPins.size === 0 &&
+    disabledBranchCodes.size === 0
+  ) {
+    return false;
+  }
+
+  // 1. Check direct branch headers
+  const branchIdHeader =
+    request.headers.get("x-branch-id") || request.headers.get("x-branch");
+  if (branchIdHeader && disabledBranchIds.has(branchIdHeader.trim())) {
+    return true;
+  }
+
+  const branchPinHeader =
+    request.headers.get("x-branch-pin") || request.headers.get("x-branch-code");
+  if (branchPinHeader) {
+    const pin = branchPinHeader.trim();
+    if (disabledBranchPins.has(pin) || disabledBranchCodes.has(pin.toLowerCase())) {
+      return true;
+    }
+  }
+
+  // 2. Check query params
+  const branchParam =
+    request.nextUrl.searchParams.get("where[branch][equals]") ||
+    request.nextUrl.searchParams.get("branch") ||
+    request.nextUrl.searchParams.get("branchId");
+  if (branchParam && disabledBranchIds.has(branchParam.trim())) {
+    return true;
+  }
+
+  // 3. For login requests, inspect JSON body
+  if (pathname === "/api/users/login" || pathname === "/api/v1/users/login") {
+    try {
+      const body = await request.clone().json();
+      if (body) {
+        if (body.branchPin && disabledBranchPins.has(String(body.branchPin).trim())) {
+          return true;
+        }
+        if (body.email) {
+          const emailStr = String(body.email).trim().toLowerCase();
+          const username = emailStr.includes("@") ? emailStr.split("@")[0] : emailStr;
+          if (disabledBranchCodes.has(username) || disabledBranchCodes.has(emailStr)) {
+            return true;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  return false;
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith("/api/")) {
@@ -96,25 +211,35 @@ export function middleware(request: NextRequest) {
     const hasAppKey = Boolean(secret && VALID_APP_KEYS.has(secret));
     const hasBearer = Boolean(request.headers.get("authorization")?.startsWith("Bearer "));
 
-    // Login endpoint ALWAYS strictly requires the App Key
+    if (hasAppKey) {
+      return NextResponse.next();
+    }
+
+    // Check if this branch has App Key enforcement disabled (Legacy Mode allowed)
+    const isBranchExempt = await isRequestFromAppKeyExemptBranch(request, pathname);
+    if (isBranchExempt) {
+      return NextResponse.next();
+    }
+
+    // Login endpoint ALWAYS strictly requires the App Key unless branch is exempt
     if (pathname === "/api/users/login" || pathname === "/api/v1/users/login") {
-      if (!hasAppKey) {
-        return NextResponse.json(
-          {
-            error: "Forbidden: Unauthorized application.",
-            message: "Login is restricted to authorized Blackforest applications.",
-          },
-          {
-            status: 403,
-            headers: corsHeaders(request),
-          }
-        );
-      }
-    } else if (!hasAppKey && !hasBearer) {
       return NextResponse.json(
         {
           error: "Forbidden: Unauthorized application.",
-          message: "This endpoint is restricted to authorized Blackforest applications.",
+          message:
+            "Login is restricted to authorized Blackforest applications. Please provide a valid App Key or enable legacy mode for your branch in Widget Settings.",
+        },
+        {
+          status: 403,
+          headers: corsHeaders(request),
+        }
+      );
+    } else if (!hasBearer) {
+      return NextResponse.json(
+        {
+          error: "Forbidden: Unauthorized application.",
+          message:
+            "This endpoint is restricted to authorized Blackforest applications. Please provide a valid App Key or enable legacy mode for your branch in Widget Settings.",
         },
         {
           status: 403,

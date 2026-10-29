@@ -524,7 +524,7 @@ export const Users: CollectionConfig = {
     {
       path: '/login-phone',
       method: 'post',
-      handler: async (req: any, res: any, next: any): Promise<any> => {
+      handler: (async (req: any, res: any, next: any): Promise<any> => {
         try {
           const body = req.body || {}
           const phoneNumber = body.phoneNumber
@@ -586,7 +586,7 @@ export const Users: CollectionConfig = {
           console.error('[Login-Phone Error]', error)
           return res.status(401).json({ message: 'email or password provided is incorrect' })
         }
-      },
+      }) as any,
     },
   ],
   hooks: {
@@ -960,6 +960,59 @@ export const Users: CollectionConfig = {
               throw error
             }
             console.error('[Login Debug] Branch PIN pre-check error:', error)
+          }
+        }
+
+        // 🔐 Check App Key requirement by branch setting
+        const effectiveBranchID =
+          getRelationshipID(user.branch) || (pinMatchedBranch ? pinMatchedBranch.id : null)
+        const secretHeader =
+          req.headers?.get('x-app-secret') ||
+          req.headers?.get('x-app-key') ||
+          req.headers?.get('x-blackforest-key')
+        const VALID_APP_KEYS_SET = new Set([
+          process.env.BLACKFOREST_APP_SECRET || 'bf_sec_2026_k9x2m8q4v7',
+          process.env.APP_SECRET_WAITER_POS || 'bf_pos_9f8d7e6c5b4a3210',
+          process.env.APP_SECRET_BRANCH_APP || 'bf_branch_3a2b1c4d5e6f7a8b',
+          process.env.APP_SECRET_ADMIN_APP || 'BF_REPORT_SECRET_2024',
+          process.env.APP_SECRET_TRACKER_APP || 'bf_tracker_4b5c6d7e8f9a0b1c',
+          process.env.APP_SECRET_FRONTEND_WEB || 'bf_web_5e6f7a8b9c0d1e2f',
+          'BF_REPORT_SECRET_2024',
+          'bf_sec_2026_k9x2m8q4v7',
+          'bf_pos_9f8d7e6c5b4a3210',
+          'bf_branch_3a2b1c4d5e6f7a8b',
+          'bf_tracker_4b5c6d7e8f9a0b1c',
+          'bf_web_5e6f7a8b9c0d1e2f',
+        ])
+        const hasValidAppKey = Boolean(secretHeader && VALID_APP_KEYS_SET.has(secretHeader))
+
+        if (!hasValidAppKey && effectiveBranchID) {
+          try {
+            const widgetSettings = (await req.payload.findGlobal({
+              slug: 'widget-settings',
+              overrideAccess: true,
+            })) as any
+            const rows = Array.isArray(widgetSettings?.appKeyValidationByBranch)
+              ? widgetSettings.appKeyValidationByBranch
+              : []
+            const branchRow = rows.find(
+              (r: any) => getRelationshipID(r?.branch) === String(effectiveBranchID),
+            )
+            // By default (or if not configured), requireAppKey is true
+            const isKeyRequired = branchRow ? branchRow.requireAppKey !== false : true
+            if (isKeyRequired) {
+              throw new Error(
+                'A valid Blackforest App Key is required to log in for this branch. Please update your app.',
+              )
+            }
+          } catch (appKeyErr) {
+            if (
+              appKeyErr instanceof Error &&
+              appKeyErr.message.includes('App Key is required')
+            ) {
+              throw appKeyErr
+            }
+            console.error('[Users beforeLogin] App key check error:', appKeyErr)
           }
         }
 

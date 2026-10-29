@@ -119,6 +119,7 @@ import { WorkTasksGlobal } from './globals/WorkTasks'
 import { WorkGPSGlobal } from './globals/WorkGPS'
 import { createWidgetOrderHandler } from './endpoints/createWidgetOrder'
 import { getTableCustomerDetailsVisibilityHandler } from './endpoints/getTableCustomerDetailsVisibility'
+import { getAppKeyGatekeeperSettingsHandler } from './endpoints/getAppKeyGatekeeperSettings'
 import { getLiveTableStatusHandler } from './endpoints/getLiveTableStatus'
 import { allocateTableWaiterHandler } from './endpoints/allocateTableWaiter'
 import { toggleTableOfflineHandler } from './endpoints/toggleTableOffline'
@@ -825,6 +826,11 @@ export default buildConfig({
       path: '/widgets/table-customer-details-visibility',
       method: 'get',
       handler: getTableCustomerDetailsVisibilityHandler,
+    },
+    {
+      path: '/widgets/app-key-settings',
+      method: 'get',
+      handler: getAppKeyGatekeeperSettingsHandler,
     },
     {
       path: '/widgets/live-table-status',
