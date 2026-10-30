@@ -7613,9 +7613,9 @@ var init_customerRewards = __esm({
       }
       return Math.min(100, Math.max(0, value));
     };
-    isValidTimezone = (timezone31) => {
+    isValidTimezone = (timezone32) => {
       try {
-        new Intl.DateTimeFormat("en-US", { timeZone: timezone31 });
+        new Intl.DateTimeFormat("en-US", { timeZone: timezone32 });
         return true;
       } catch {
         return false;
@@ -7642,12 +7642,12 @@ var init_customerRewards = __esm({
       if (!match) return null;
       return `${match[1].padStart(2, "0")}:${match[2]}`;
     };
-    toDateKeyInTimezone = (value, timezone31) => {
+    toDateKeyInTimezone = (value, timezone32) => {
       const normalizedDate = normalizeDateString(value);
       if (!normalizedDate) return null;
       const dateValue = new Date(normalizedDate);
       const formatter = new Intl.DateTimeFormat("en-CA", {
-        timeZone: timezone31,
+        timeZone: timezone32,
         year: "numeric",
         month: "2-digit",
         day: "2-digit"
@@ -7659,9 +7659,9 @@ var init_customerRewards = __esm({
       if (!year || !month || !day) return null;
       return `${year}-${month}-${day}`;
     };
-    toCurrentDateAndMinutesInTimezone = (timezone31, now) => {
+    toCurrentDateAndMinutesInTimezone = (timezone32, now) => {
       const formatter = new Intl.DateTimeFormat("en-CA", {
-        timeZone: timezone31,
+        timeZone: timezone32,
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
@@ -8004,10 +8004,10 @@ var init_customerRewards = __esm({
         return DEFAULT_CUSTOMER_REWARD_SETTINGS;
       }
     };
-    isRandomOfferProductAvailableNow = (row, timezone31, now = /* @__PURE__ */ new Date()) => {
+    isRandomOfferProductAvailableNow = (row, timezone32, now = /* @__PURE__ */ new Date()) => {
       if (!row.enabled) return false;
       const effectiveTimezone = normalizeTimezone(
-        timezone31,
+        timezone32,
         DEFAULT_CUSTOMER_REWARD_SETTINGS.randomCustomerOfferTimezone
       );
       const nowInfo = toCurrentDateAndMinutesInTimezone(effectiveTimezone, now);
@@ -16832,430 +16832,1420 @@ var init_getBranchBillingReport = __esm({
   }
 });
 
-// src/endpoints/getTallyExport.ts
+// src/services/reports/closingEntry.ts
+var EMPTY_OBJECT_ID, toNumber, toInteger, toDateString, toNonEmptyString, toDateParam, buildUtcDayStart, buildUtcDayEnd, toDenominations, toExpenseDetailsFromExpenseDoc, normalizeEntry, toExpenseBranchId, getClosingEntryReportData;
+var init_closingEntry = __esm({
+  "src/services/reports/closingEntry.ts"() {
+    "use strict";
+    init_reportScope();
+    EMPTY_OBJECT_ID = "000000000000000000000000";
+    toNumber = (value) => {
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      if (typeof value === "string") {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return 0;
+    };
+    toInteger = (value) => Math.trunc(toNumber(value));
+    toDateString = (value) => {
+      if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? "" : value.toISOString();
+      }
+      if (typeof value === "string") {
+        if (value.trim().length === 0) return "";
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
+      }
+      if (typeof value === "number" && Number.isFinite(value)) {
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
+      }
+      return "";
+    };
+    toNonEmptyString = (value, fallback = "") => {
+      if (typeof value === "string" && value.trim().length > 0) return value;
+      if (typeof value === "number" && Number.isFinite(value)) return String(value);
+      if (Buffer.isBuffer(value)) {
+        return value.toString("hex");
+      }
+      if (typeof value === "object" && value !== null) {
+        const record = value;
+        if (typeof record.toHexString === "function") {
+          const hex = record.toHexString();
+          if (hex && hex.trim().length > 0) return hex;
+        }
+        const nestedId = toNonEmptyString(record.id, "");
+        if (nestedId.length > 0) return nestedId;
+        const nestedMongoId = toNonEmptyString(record._id, "");
+        if (nestedMongoId.length > 0) return nestedMongoId;
+        if (typeof record.toString === "function") {
+          const stringified = record.toString();
+          if (stringified && stringified !== "[object Object]") return stringified;
+        }
+      }
+      return fallback;
+    };
+    toDateParam = (value) => {
+      if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+        return value.trim();
+      }
+      return (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    };
+    buildUtcDayStart = (dateParam) => {
+      const [year, month, day] = dateParam.split("-").map(Number);
+      return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    };
+    buildUtcDayEnd = (dateParam) => {
+      const [year, month, day] = dateParam.split("-").map(Number);
+      return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+    };
+    toDenominations = (value) => {
+      const source = typeof value === "object" && value != null ? value : {};
+      return {
+        count2000: toInteger(source.count2000),
+        count500: toInteger(source.count500),
+        count200: toInteger(source.count200),
+        count100: toInteger(source.count100),
+        count50: toInteger(source.count50),
+        count10: toInteger(source.count10),
+        count5: toInteger(source.count5)
+      };
+    };
+    toExpenseDetailsFromExpenseDoc = (expense) => {
+      const details = Array.isArray(expense.details) ? expense.details : [];
+      return details.map((detail) => {
+        let imageUrl = "";
+        if (detail?.image && typeof detail.image === "object" && detail.image !== null) {
+          const imageRecord = detail.image;
+          if (typeof imageRecord.url === "string") {
+            imageUrl = imageRecord.url;
+          }
+        }
+        return {
+          category: toNonEmptyString(detail?.source, "OTHERS"),
+          reason: toNonEmptyString(detail?.reason, "(No reason)"),
+          amount: toNumber(detail?.amount),
+          imageUrl,
+          date: toDateString(expense.date)
+        };
+      });
+    };
+    normalizeEntry = (entry) => {
+      return {
+        id: toNonEmptyString(entry.id),
+        closingNumber: toNonEmptyString(entry.closingNumber, "Unknown"),
+        createdAt: toDateString(entry.createdAt),
+        systemSales: toNumber(entry.systemSales),
+        totalBills: toInteger(entry.totalBills),
+        manualSales: toNumber(entry.manualSales),
+        onlineSales: toNumber(entry.onlineSales),
+        totalSales: toNumber(entry.totalSales),
+        expenses: toNumber(entry.expenses),
+        cash: toNumber(entry.cash),
+        upi: toNumber(entry.upi),
+        card: toNumber(entry.card),
+        denominations: toDenominations(entry.denominations),
+        expenseDetails: [],
+        systemCash: 0,
+        systemUpi: 0,
+        systemCard: 0,
+        notes: toNonEmptyString(entry.notes)
+      };
+    };
+    toExpenseBranchId = (value) => {
+      if (typeof value === "object" && value !== null) {
+        const record = value;
+        const id = toNonEmptyString(record.id, "");
+        if (id.length > 0) return id;
+        const mongoId = toNonEmptyString(record._id, "");
+        if (mongoId.length > 0) return mongoId;
+      }
+      return toNonEmptyString(value, "");
+    };
+    getClosingEntryReportData = async (req, args = {}) => {
+      const { payload } = req;
+      const startDateParam = toDateParam(args.startDate);
+      const endDateParam = toDateParam(args.endDate);
+      const branchParam = typeof args.branch === "string" ? args.branch : null;
+      const startOfDay = buildUtcDayStart(startDateParam);
+      const endOfDay = buildUtcDayEnd(endDateParam);
+      const { branchIds } = await resolveReportBranchScope(req, branchParam);
+      const ClosingModel = payload.db.collections["closing-entries"];
+      if (!ClosingModel) {
+        throw new Error("Closing entries collection not found");
+      }
+      const closingMatch = {
+        date: {
+          $gte: startOfDay,
+          $lte: endOfDay
+        }
+      };
+      if (branchIds && branchIds.length > 0) {
+        Object.assign(closingMatch, toBranchQueryFilter(branchIds, "branch"));
+      }
+      const statsRaw = await ClosingModel.aggregate([
+        {
+          $match: closingMatch
+        },
+        {
+          $group: {
+            _id: "$branch",
+            totalEntries: { $sum: 1 },
+            closingNumbers: { $push: "$closingNumber" },
+            lastUpdated: { $max: "$createdAt" },
+            entries: {
+              $push: {
+                id: "$_id",
+                closingNumber: "$closingNumber",
+                createdAt: "$createdAt",
+                systemSales: "$systemSales",
+                totalBills: "$totalBills",
+                manualSales: "$manualSales",
+                onlineSales: "$onlineSales",
+                totalSales: "$totalSales",
+                expenses: "$expenses",
+                cash: "$cash",
+                upi: "$upi",
+                card: "$creditCard",
+                denominations: "$denominations",
+                notes: "$notes"
+              }
+            },
+            systemSales: { $sum: "$systemSales" },
+            totalBills: { $sum: "$totalBills" },
+            manualSales: { $sum: "$manualSales" },
+            onlineSales: { $sum: "$onlineSales" },
+            totalSales: { $sum: "$totalSales" },
+            expenses: { $sum: "$expenses" },
+            returnTotal: { $sum: "$returnTotal" },
+            stockOrders: { $sum: "$stockOrders" },
+            net: { $sum: "$net" },
+            cash: { $sum: "$cash" },
+            upi: { $sum: "$upi" },
+            card: { $sum: "$creditCard" },
+            count2000: { $sum: { $ifNull: ["$denominations.count2000", 0] } },
+            count500: { $sum: { $ifNull: ["$denominations.count500", 0] } },
+            count200: { $sum: { $ifNull: ["$denominations.count200", 0] } },
+            count100: { $sum: { $ifNull: ["$denominations.count100", 0] } },
+            count50: { $sum: { $ifNull: ["$denominations.count50", 0] } },
+            count10: { $sum: { $ifNull: ["$denominations.count10", 0] } },
+            count5: { $sum: { $ifNull: ["$denominations.count5", 0] } }
+          }
+        },
+        {
+          $lookup: {
+            from: "branches",
+            localField: "_id",
+            foreignField: "_id",
+            as: "branchDetails"
+          }
+        },
+        {
+          $unwind: {
+            path: "$branchDetails",
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        {
+          $project: {
+            _id: 1,
+            branchName: { $ifNull: ["$branchDetails.name", "Unknown Branch"] },
+            totalEntries: 1,
+            closingNumbers: 1,
+            lastUpdated: 1,
+            entries: 1,
+            systemSales: 1,
+            totalBills: 1,
+            manualSales: 1,
+            onlineSales: 1,
+            totalSales: 1,
+            expenses: 1,
+            returnTotal: 1,
+            stockOrders: 1,
+            net: 1,
+            cash: 1,
+            upi: 1,
+            card: 1,
+            count2000: 1,
+            count500: 1,
+            count200: 1,
+            count100: 1,
+            count50: 1,
+            count10: 1,
+            count5: 1
+          }
+        },
+        {
+          $sort: { branchName: 1 }
+        }
+      ]);
+      const normalizedStatsBase = (Array.isArray(statsRaw) ? statsRaw : []).map((item) => {
+        const entriesRaw = Array.isArray(item.entries) ? item.entries : [];
+        const closingNumbersRaw = Array.isArray(item.closingNumbers) ? item.closingNumbers : [];
+        return {
+          _id: toNonEmptyString(item._id),
+          branchName: toNonEmptyString(item.branchName, "Unknown Branch"),
+          totalEntries: toInteger(item.totalEntries),
+          closingNumbers: closingNumbersRaw.map((value) => toNonEmptyString(value)).filter(Boolean),
+          lastUpdated: toDateString(item.lastUpdated),
+          entries: entriesRaw.map(normalizeEntry),
+          systemSales: toNumber(item.systemSales),
+          totalBills: toInteger(item.totalBills),
+          manualSales: toNumber(item.manualSales),
+          onlineSales: toNumber(item.onlineSales),
+          totalSales: toNumber(item.totalSales),
+          expenses: toNumber(item.expenses),
+          returnTotal: toNumber(item.returnTotal),
+          stockOrders: toNumber(item.stockOrders),
+          net: toNumber(item.net),
+          cash: toNumber(item.cash),
+          upi: toNumber(item.upi),
+          card: toNumber(item.card),
+          count2000: toInteger(item.count2000),
+          count500: toInteger(item.count500),
+          count200: toInteger(item.count200),
+          count100: toInteger(item.count100),
+          count50: toInteger(item.count50),
+          count10: toInteger(item.count10),
+          count5: toInteger(item.count5)
+        };
+      });
+      const expensesRes = await payload.find({
+        collection: "expenses",
+        where: {
+          and: [
+            { date: { greater_than_equal: startOfDay.toISOString() } },
+            { date: { less_than_equal: endOfDay.toISOString() } },
+            ...branchIds ? [
+              {
+                branch: {
+                  in: branchIds
+                }
+              }
+            ] : []
+          ]
+        },
+        limit: 1e3,
+        pagination: false,
+        depth: 2
+      });
+      const allExpenses = Array.isArray(expensesRes.docs) ? expensesRes.docs : [];
+      const billingsRes = await payload.find({
+        collection: "billings",
+        where: {
+          and: [
+            { updatedAt: { greater_than_equal: startOfDay.toISOString() } },
+            { updatedAt: { less_than_equal: endOfDay.toISOString() } },
+            { status: { in: ["completed", "settled"] } },
+            ...branchIds ? [
+              {
+                branch: {
+                  in: branchIds
+                }
+              }
+            ] : []
+          ]
+        },
+        limit: 1e4,
+        pagination: false,
+        depth: 0
+      });
+      const allBillings = billingsRes.docs || [];
+      const stats = normalizedStatsBase.map((item, index) => {
+        const branchId = item._id;
+        if (!branchId) {
+          return {
+            ...item,
+            _id: "",
+            sNo: index + 1,
+            expenseDetails: [],
+            systemCash: 0,
+            systemUpi: 0,
+            systemCard: 0
+          };
+        }
+        const sortedEntries = [...item.entries].sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+        const branchExpenses = allExpenses.filter((expense) => {
+          const expenseBranchId = toExpenseBranchId(expense.branch);
+          return expenseBranchId === branchId;
+        });
+        const branchBillings = allBillings.filter((billing) => {
+          const billingBranchId = toExpenseBranchId(billing.branch);
+          return billingBranchId === branchId;
+        });
+        const entriesWithMetrics = sortedEntries.map((entry, entryIndex) => {
+          const entryTime = new Date(entry.createdAt).getTime();
+          const prevTime = entryIndex === 0 ? new Date(startOfDay).getTime() : new Date(sortedEntries[entryIndex - 1]?.createdAt || startOfDay).getTime();
+          const relevantExpenses = branchExpenses.filter((expense) => {
+            const expenseTime = new Date(toDateString(expense.date)).getTime();
+            return expenseTime > prevTime && expenseTime <= entryTime;
+          });
+          const prevIso = new Date(prevTime).toISOString();
+          const entryIso = new Date(entry.createdAt).toISOString();
+          const relevantBillings = branchBillings.filter((billing) => {
+            const billUpdatedIso = billing.updatedAt ? new Date(billing.updatedAt).toISOString() : new Date(billing.createdAt).toISOString();
+            return billUpdatedIso > prevIso && billUpdatedIso <= entryIso;
+          });
+          let systemCash = 0;
+          let systemUpi = 0;
+          let systemCard = 0;
+          relevantBillings.forEach((bill) => {
+            const amount = toNumber(bill.totalAmount);
+            const pm = toNonEmptyString(bill.paymentMethod).toLowerCase();
+            if (pm === "cash") systemCash += amount;
+            else if (pm === "upi") systemUpi += amount;
+            else if (pm === "card") systemCard += amount;
+          });
+          return {
+            ...entry,
+            systemCash,
+            systemUpi,
+            systemCard,
+            expenseDetails: relevantExpenses.flatMap(toExpenseDetailsFromExpenseDoc)
+          };
+        });
+        const branchExpenseDetails = branchExpenses.flatMap(toExpenseDetailsFromExpenseDoc);
+        const totalSystemCash = entriesWithMetrics.reduce((sum, entry) => sum + entry.systemCash, 0);
+        const totalSystemUpi = entriesWithMetrics.reduce((sum, entry) => sum + entry.systemUpi, 0);
+        const totalSystemCard = entriesWithMetrics.reduce((sum, entry) => sum + entry.systemCard, 0);
+        return {
+          ...item,
+          _id: branchId === EMPTY_OBJECT_ID ? "" : branchId,
+          sNo: index + 1,
+          entries: entriesWithMetrics,
+          expenseDetails: branchExpenseDetails,
+          systemCash: totalSystemCash,
+          systemUpi: totalSystemUpi,
+          systemCard: totalSystemCard
+        };
+      });
+      const totals = stats.reduce(
+        (acc, curr) => ({
+          totalEntries: acc.totalEntries + curr.totalEntries,
+          systemSales: acc.systemSales + curr.systemSales,
+          totalBills: acc.totalBills + curr.totalBills,
+          manualSales: acc.manualSales + curr.manualSales,
+          onlineSales: acc.onlineSales + curr.onlineSales,
+          totalSales: acc.totalSales + curr.totalSales,
+          expenses: acc.expenses + curr.expenses,
+          returnTotal: acc.returnTotal + curr.returnTotal,
+          stockOrders: acc.stockOrders + curr.stockOrders,
+          net: acc.net + curr.net,
+          cash: acc.cash + curr.cash,
+          upi: acc.upi + curr.upi,
+          card: acc.card + curr.card,
+          systemCash: acc.systemCash + curr.systemCash,
+          systemUpi: acc.systemUpi + curr.systemUpi,
+          systemCard: acc.systemCard + curr.systemCard
+        }),
+        {
+          totalEntries: 0,
+          systemSales: 0,
+          totalBills: 0,
+          manualSales: 0,
+          onlineSales: 0,
+          totalSales: 0,
+          expenses: 0,
+          returnTotal: 0,
+          stockOrders: 0,
+          net: 0,
+          cash: 0,
+          upi: 0,
+          card: 0,
+          systemCash: 0,
+          systemUpi: 0,
+          systemCard: 0
+        }
+      );
+      return {
+        startDate: startDateParam,
+        endDate: endDateParam,
+        stats,
+        totals
+      };
+    };
+  }
+});
+
+// src/services/reports/expense.ts
 import dayjs7 from "dayjs";
 import utc7 from "dayjs/plugin/utc.js";
 import timezone7 from "dayjs/plugin/timezone.js";
-var toDayBoundary2, getTallyExportHandler;
-var init_getTallyExport = __esm({
-  "src/endpoints/getTallyExport.ts"() {
+var ALL_CATEGORIES, toNumber2, toInteger2, toDateString2, toNonEmptyString2, getExpenseReportData;
+var init_expense = __esm({
+  "src/services/reports/expense.ts"() {
     "use strict";
     init_reportScope();
     dayjs7.extend(utc7);
     dayjs7.extend(timezone7);
+    dayjs7.tz.setDefault("Asia/Kolkata");
+    ALL_CATEGORIES = [
+      "MAINTENANCE",
+      "TRANSPORT",
+      "FUEL",
+      "PACKING",
+      "STAFF WELFARE",
+      "Supplies",
+      "ADVERTISEMENT",
+      "ADVANCE",
+      "COMPLEMENTARY",
+      "RAW MATERIAL",
+      "SALARY",
+      "OC PRODUCTS",
+      "OTHERS"
+    ];
+    toNumber2 = (value) => {
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      if (typeof value === "string") {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return 0;
+    };
+    toInteger2 = (value) => Math.trunc(toNumber2(value));
+    toDateString2 = (value) => {
+      if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? "" : value.toISOString();
+      }
+      if (typeof value === "string") {
+        if (value.trim().length === 0) return "";
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
+      }
+      if (typeof value === "number" && Number.isFinite(value)) {
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
+      }
+      return "";
+    };
+    toNonEmptyString2 = (value, fallback = "") => {
+      if (typeof value === "string" && value.trim().length > 0) return value;
+      if (typeof value === "number" && Number.isFinite(value)) return String(value);
+      if (Buffer.isBuffer(value)) {
+        return value.toString("hex");
+      }
+      if (typeof value === "object" && value !== null) {
+        const record = value;
+        if (typeof record.toHexString === "function") {
+          const hex = record.toHexString();
+          if (hex && hex.trim().length > 0) return hex;
+        }
+        const nestedId = toNonEmptyString2(record.id, "");
+        if (nestedId.length > 0) return nestedId;
+        const nestedMongoId = toNonEmptyString2(record._id, "");
+        if (nestedMongoId.length > 0) return nestedMongoId;
+        if (typeof record.toString === "function") {
+          const stringified = record.toString();
+          if (stringified && stringified !== "[object Object]") return stringified;
+        }
+      }
+      return fallback;
+    };
+    getExpenseReportData = async (req, args = {}) => {
+      const { payload } = req;
+      const startDateParam = typeof args.startDate === "string" && args.startDate.trim().length > 0 ? args.startDate : dayjs7().format("YYYY-MM-DD");
+      const endDateParam = typeof args.endDate === "string" && args.endDate.trim().length > 0 ? args.endDate : dayjs7().format("YYYY-MM-DD");
+      const branchParam = typeof args.branch === "string" ? args.branch : "";
+      const categoryParam = typeof args.category === "string" ? args.category : "";
+      const startOfDay = dayjs7.utc(startDateParam).startOf("day").toDate();
+      const endOfDay = dayjs7.utc(endDateParam).endOf("day").toDate();
+      const { branchIds } = await resolveReportBranchScope(req, branchParam);
+      const ExpenseModel = payload.db.collections["expenses"];
+      if (!ExpenseModel) {
+        throw new Error("Expenses collection not found");
+      }
+      const selectedBranches = branchIds ?? [];
+      const selectedCategory = categoryParam !== "all" && categoryParam.length > 0 ? categoryParam : "all";
+      const matchQuery = {
+        date: {
+          $gte: startOfDay,
+          $lte: endOfDay
+        }
+      };
+      if (selectedBranches.length > 0) {
+        Object.assign(matchQuery, toBranchQueryFilter(selectedBranches, "branch"));
+      }
+      const pipeline = [
+        {
+          $match: matchQuery
+        },
+        {
+          $unwind: "$details"
+        }
+      ];
+      if (selectedCategory !== "all") {
+        pipeline.push({
+          $match: {
+            "details.source": selectedCategory
+          }
+        });
+      }
+      pipeline.push(
+        {
+          $lookup: {
+            from: "branches",
+            localField: "branch",
+            foreignField: "_id",
+            as: "branchInfo"
+          }
+        },
+        {
+          $unwind: {
+            path: "$branchInfo",
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        {
+          $lookup: {
+            from: "media",
+            localField: "details.image",
+            foreignField: "_id",
+            as: "mediaInfo"
+          }
+        },
+        {
+          $unwind: {
+            path: "$mediaInfo",
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        {
+          $group: {
+            _id: "$branch",
+            branchName: { $first: { $ifNull: ["$branchInfo.name", "Unknown Branch"] } },
+            total: { $sum: "$details.amount" },
+            count: { $sum: 1 },
+            items: {
+              $push: {
+                category: "$details.source",
+                reason: "$details.reason",
+                amount: "$details.amount",
+                time: "$date",
+                imageUrl: "$mediaInfo.url",
+                filename: "$mediaInfo.filename"
+              }
+            }
+          }
+        },
+        {
+          $sort: { total: -1 }
+        }
+      );
+      const groupsRaw = await ExpenseModel.aggregate(pipeline);
+      const groups = groupsRaw.map((group) => {
+        const sortedItems = (Array.isArray(group.items) ? [...group.items] : []).sort((a, b) => {
+          const aTime = new Date(toDateString2(a.time)).getTime();
+          const bTime = new Date(toDateString2(b.time)).getTime();
+          return bTime - aTime;
+        }).map((item) => {
+          const filename2 = toNonEmptyString2(item.filename);
+          const imageUrl = toNonEmptyString2(item.imageUrl);
+          return {
+            category: toNonEmptyString2(item.category),
+            reason: toNonEmptyString2(item.reason),
+            amount: toNumber2(item.amount),
+            time: toDateString2(item.time),
+            imageUrl: imageUrl || (filename2 ? `/api/media/file/${filename2}` : void 0)
+          };
+        });
+        return {
+          _id: toNonEmptyString2(group._id),
+          branchName: toNonEmptyString2(group.branchName, "Unknown Branch"),
+          total: toNumber2(group.total),
+          count: toInteger2(group.count),
+          items: sortedItems
+        };
+      });
+      const grandTotal = groups.reduce((acc, group) => acc + group.total, 0);
+      const totalCount = groups.reduce((acc, group) => acc + group.count, 0);
+      const categoryStatsMap = {};
+      groups.forEach((group) => {
+        group.items.forEach((item) => {
+          if (!categoryStatsMap[item.category]) {
+            categoryStatsMap[item.category] = { total: 0, count: 0 };
+          }
+          categoryStatsMap[item.category].total += item.amount;
+          categoryStatsMap[item.category].count += 1;
+        });
+      });
+      const categoryStats = Object.keys(categoryStatsMap).map((category) => ({
+        category,
+        total: categoryStatsMap[category].total,
+        count: categoryStatsMap[category].count,
+        percentage: grandTotal > 0 ? categoryStatsMap[category].total / grandTotal * 100 : 0
+      })).sort((a, b) => b.total - a.total);
+      return {
+        startDate: startDateParam,
+        endDate: endDateParam,
+        groups,
+        meta: {
+          grandTotal,
+          totalCount,
+          categories: ALL_CATEGORIES,
+          categoryStats
+        }
+      };
+    };
+  }
+});
+
+// src/services/reports/attendance.ts
+import dayjs8 from "dayjs";
+import utc8 from "dayjs/plugin/utc.js";
+import timezone8 from "dayjs/plugin/timezone.js";
+var toNumber3, toNonEmptyString3, formatSecondsToReadable, toDayBoundary2, getMediaUrl, getAttendanceReportData;
+var init_attendance = __esm({
+  "src/services/reports/attendance.ts"() {
+    "use strict";
+    init_reportScope();
+    init_geo();
+    dayjs8.extend(utc8);
+    dayjs8.extend(timezone8);
+    dayjs8.tz.setDefault("Asia/Kolkata");
+    toNumber3 = (value) => {
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      if (typeof value === "string") {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return 0;
+    };
+    toNonEmptyString3 = (value, fallback = "") => {
+      if (typeof value === "string" && value.trim().length > 0) return value.trim();
+      if (typeof value === "number" && Number.isFinite(value)) return String(value);
+      if (value && typeof value === "object") {
+        const record = value;
+        if (record.id) return toNonEmptyString3(record.id, fallback);
+        if (record._id) return toNonEmptyString3(record._id, fallback);
+        if (typeof record.toString === "function") {
+          const str = record.toString();
+          if (str && str !== "[object Object]") return str;
+        }
+      }
+      return fallback;
+    };
+    formatSecondsToReadable = (seconds) => {
+      const safeSeconds = Math.max(0, Math.floor(seconds));
+      const hours = Math.floor(safeSeconds / 3600);
+      const minutes = Math.floor(safeSeconds % 3600 / 60);
+      const remainingSecs = safeSeconds % 60;
+      if (hours > 0) {
+        return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+      }
+      if (minutes > 0) {
+        return `${minutes}m ${remainingSecs}s`;
+      }
+      return `${remainingSecs}s`;
+    };
     toDayBoundary2 = (dateParam, mode) => {
       const [yearRaw, monthRaw, dayRaw] = dateParam.split("-");
       const year = parseInt(yearRaw, 10);
       const month = parseInt(monthRaw, 10);
       const day = parseInt(dayRaw, 10);
-      const parsedDate = dayjs7.tz(`${year}-${month}-${day}`, "YYYY-MM-DD", "Asia/Kolkata");
+      const parsedDate = dayjs8.tz(`${year}-${month}-${day}`, "YYYY-MM-DD", "Asia/Kolkata");
       return (mode === "start" ? parsedDate.startOf("day") : parsedDate.endOf("day")).toDate();
     };
-    getTallyExportHandler = async (req) => {
+    getMediaUrl = (mediaDoc) => {
+      if (!mediaDoc) return "";
+      if (typeof mediaDoc === "string") {
+        const trimmed = mediaDoc.trim();
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("/api/") || trimmed.startsWith("data:")) {
+          return trimmed;
+        }
+      }
+      if (typeof mediaDoc === "object" && mediaDoc !== null) {
+        if (mediaDoc.url && typeof mediaDoc.url === "string") return mediaDoc.url;
+        if (mediaDoc.thumbnailURL && typeof mediaDoc.thumbnailURL === "string") return mediaDoc.thumbnailURL;
+        if (mediaDoc.filename && typeof mediaDoc.filename === "string") {
+          const publicURL = process.env.NEXT_PUBLIC_S3_PUBLIC_URL || process.env.S3_PUBLIC_URL;
+          if (publicURL) {
+            const cleanURL = publicURL.endsWith("/") ? publicURL.slice(0, -1) : publicURL;
+            const prefix = mediaDoc.prefix ? String(mediaDoc.prefix).replace(/^\/+|\/+$/g, "") : "";
+            return prefix ? `${cleanURL}/blackforest/uploads/${prefix}/${mediaDoc.filename}` : `${cleanURL}/blackforest/uploads/${mediaDoc.filename}`;
+          }
+          return `/api/media/file/${mediaDoc.filename}`;
+        }
+      }
+      return "";
+    };
+    getAttendanceReportData = async (req, args = {}) => {
       const { payload } = req;
+      const todayStr = dayjs8().tz("Asia/Kolkata").format("YYYY-MM-DD");
+      const startDateParam = typeof args.startDate === "string" && args.startDate.trim().length > 0 ? args.startDate.trim() : todayStr;
+      const endDateParam = typeof args.endDate === "string" && args.endDate.trim().length > 0 ? args.endDate.trim() : todayStr;
+      const startOfDay = toDayBoundary2(startDateParam, "start");
+      const endOfDay = toDayBoundary2(endDateParam, "end");
+      const branchParam = typeof args.branch === "string" ? args.branch.trim() : "";
+      const roleParam = typeof args.role === "string" ? args.role.trim() : "";
+      const employeeParam = typeof args.employee === "string" ? args.employee.trim() : "";
+      const statusParam = typeof args.status === "string" ? args.status.trim() : "";
+      const { branchIds } = await resolveReportBranchScope(req, branchParam);
+      let geoLocations = [];
       try {
-        const startDateParam = typeof req.query.startDate === "string" && req.query.startDate.trim().length > 0 ? req.query.startDate : (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-        const endDateParam = typeof req.query.endDate === "string" && req.query.endDate.trim().length > 0 ? req.query.endDate : (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-        const branchParam = typeof req.query.branch === "string" && req.query.branch.trim().length > 0 ? req.query.branch : null;
-        const gstFilter = typeof req.query.gstFilter === "string" && req.query.gstFilter.trim().length > 0 ? req.query.gstFilter : "gst";
-        const startOfDay = toDayBoundary2(startDateParam, "start");
-        const endOfDay = toDayBoundary2(endDateParam, "end");
-        const { branchIds } = await resolveReportBranchScope(req, branchParam);
-        const result = await payload.find({
-          collection: "billings",
-          where: {
-            createdAt: {
-              greater_than_equal: startOfDay,
-              less_than_equal: endOfDay
-            },
-            status: {
-              in: ["completed", "settled"]
-            },
-            ...branchIds ? {
-              branch: {
-                in: branchIds
-              }
-            } : {}
-          },
-          limit: 5e4,
+        const geoSettings = await payload.findGlobal({
+          slug: "branch-geo-settings",
           depth: 1
-          // Populate branch name
         });
-        const csvRows = [];
-        csvRows.push(
-          [
-            "Date",
-            "Voucher No",
-            "Voucher Type",
-            "Branch Name",
-            "Party Name",
-            "Taxable Value",
-            "GST Rate",
-            "CGST Amount",
-            "SGST Amount",
-            "IGST Amount",
-            "Round Off",
-            "Invoice Total"
-          ].join(",")
-        );
-        for (const bill of result.docs) {
-          const billDate = dayjs7(bill.createdAt).tz("Asia/Kolkata").format("DD-MM-YYYY");
-          const invoiceNo = bill.invoiceNumber;
-          const branchName = typeof bill.branch === "object" && bill.branch ? bill.branch.name : "Unknown Branch";
-          const customerName = bill.customerDetails?.name?.trim();
-          const customerPhone = bill.customerDetails?.phoneNumber?.trim();
-          let partyName = "Cash Sales";
-          if (customerName) {
-            partyName = customerName;
-          } else if (customerPhone) {
-            partyName = customerPhone;
-          }
-          const activeItems = (bill.items || []).filter((item) => item.status !== "cancelled");
-          if (activeItems.length === 0) continue;
-          const taxGroups = {};
-          for (const item of activeItems) {
-            const rate = typeof item.gstRate === "number" ? item.gstRate : 0;
-            const taxable = typeof item.taxableAmount === "number" ? item.taxableAmount : 0;
-            const gst = typeof item.gstAmount === "number" ? item.gstAmount : 0;
-            if (!taxGroups[rate]) {
-              taxGroups[rate] = { taxable: 0, gst: 0 };
-            }
-            taxGroups[rate].taxable += taxable;
-            taxGroups[rate].gst += gst;
-          }
-          const rates = Object.keys(taxGroups).map(Number);
-          let filteredRates = rates;
-          if (gstFilter === "gst") {
-            filteredRates = rates.filter((r) => r > 0);
-          } else if (gstFilter === "nongst") {
-            filteredRates = rates.filter((r) => r <= 0);
-          }
-          if (filteredRates.length === 0) continue;
-          const invoiceTotal = typeof bill.totalAmount === "number" ? bill.totalAmount : 0;
-          let sumTaxableAndGst = 0;
-          for (const rate of rates) {
-            sumTaxableAndGst += taxGroups[rate].taxable + taxGroups[rate].gst;
-          }
-          const invoiceRoundOff = invoiceTotal - sumTaxableAndGst;
-          filteredRates.forEach((rate, index) => {
-            const group = taxGroups[rate];
-            const cgst = rate > 0 ? Number((group.gst / 2).toFixed(2)) : 0;
-            const sgst = rate > 0 ? Number((group.gst / 2).toFixed(2)) : 0;
-            const igst = 0;
-            const roundOffVal = index === 0 ? Number(invoiceRoundOff.toFixed(2)) : 0;
-            csvRows.push(
-              [
-                billDate,
-                `"${invoiceNo}"`,
-                "Sales",
-                `"${branchName}"`,
-                `"${partyName.replace(/"/g, '""')}"`,
-                group.taxable.toFixed(2),
-                rate.toFixed(2),
-                cgst.toFixed(2),
-                sgst.toFixed(2),
-                igst.toFixed(2),
-                roundOffVal.toFixed(2),
-                invoiceTotal.toFixed(2)
-              ].join(",")
-            );
+        geoLocations = Array.isArray(geoSettings?.locations) ? geoSettings.locations : [];
+      } catch (e) {
+        req.payload.logger.warn({ msg: "Failed to fetch branch-geo-settings", error: e });
+      }
+      let allBranches = [];
+      try {
+        const branchesResult = await payload.find({
+          collection: "branches",
+          limit: 300,
+          depth: 0
+        });
+        allBranches = branchesResult.docs || [];
+      } catch (e) {
+        req.payload.logger.warn({ msg: "Failed to fetch branches", error: e });
+      }
+      const branchMap = /* @__PURE__ */ new Map();
+      for (const b of allBranches) {
+        branchMap.set(String(b.id), {
+          id: String(b.id),
+          name: b.name || "Unknown Branch",
+          latitude: typeof b.latitude === "number" ? b.latitude : void 0,
+          longitude: typeof b.longitude === "number" ? b.longitude : void 0
+        });
+      }
+      const geofences = [];
+      for (const loc of geoLocations) {
+        const bId = String(typeof loc.branch === "object" ? loc.branch?.id : loc.branch || "");
+        const bName = typeof loc.branch === "object" && loc.branch?.name || branchMap.get(bId)?.name || "Branch";
+        const lat = typeof loc.latitude === "number" ? loc.latitude : Number(loc.latitude);
+        const lng = typeof loc.longitude === "number" ? loc.longitude : Number(loc.longitude);
+        const radius = typeof loc.radius === "number" && loc.radius > 0 ? Number(loc.radius) : 100;
+        if (bId && Number.isFinite(lat) && Number.isFinite(lng)) {
+          geofences.push({
+            branchId: bId,
+            branchName: bName,
+            latitude: lat,
+            longitude: lng,
+            shape: loc.shape || "circle",
+            buildingType: loc.buildingType || "standalone",
+            radius,
+            squareSize: typeof loc.squareSize === "number" ? loc.squareSize : 50,
+            rectWidth: typeof loc.rectWidth === "number" ? loc.rectWidth : 40,
+            rectLength: typeof loc.rectLength === "number" ? loc.rectLength : 60,
+            rotation: typeof loc.rotation === "number" ? loc.rotation : 0
           });
         }
-        const csvContent = csvRows.join("\r\n");
-        return new Response(csvContent, {
-          headers: {
-            "Content-Type": "text/csv; charset=utf-8",
-            "Content-Disposition": `attachment; filename=tally_export_${startDateParam}_to_${endDateParam}.csv`
-          }
-        });
-      } catch (error) {
-        payload.logger.error(error);
-        return Response.json({ error: "Failed to generate Tally export" }, { status: 500 });
       }
-    };
-  }
-});
-
-// src/endpoints/getAccountsBillsReport.ts
-import dayjs8 from "dayjs";
-import utc8 from "dayjs/plugin/utc.js";
-import timezone8 from "dayjs/plugin/timezone.js";
-var BILLING_TIMEZONE3, toDayBoundary3, getAccountsBillsReportHandler;
-var init_getAccountsBillsReport = __esm({
-  "src/endpoints/getAccountsBillsReport.ts"() {
-    "use strict";
-    init_reportScope();
-    dayjs8.extend(utc8);
-    dayjs8.extend(timezone8);
-    BILLING_TIMEZONE3 = "Asia/Kolkata";
-    toDayBoundary3 = (dateParam, mode) => {
-      const [yearRaw, monthRaw, dayRaw] = dateParam.split("-");
-      const year = parseInt(yearRaw, 10);
-      const month = parseInt(monthRaw, 10);
-      const day = parseInt(dayRaw, 10);
-      const parsedDate = dayjs8.tz(`${year}-${month}-${day}`, "YYYY-MM-DD", BILLING_TIMEZONE3);
-      return (mode === "start" ? parsedDate.startOf("day") : parsedDate.endOf("day")).toDate();
-    };
-    getAccountsBillsReportHandler = async (req) => {
-      const { payload } = req;
-      try {
-        const startDateParam = typeof req.query.startDate === "string" ? req.query.startDate : null;
-        const endDateParam = typeof req.query.endDate === "string" ? req.query.endDate : null;
-        const branchParam = typeof req.query.branch === "string" ? req.query.branch : null;
-        const verificationStatusParam = typeof req.query.verificationStatus === "string" ? req.query.verificationStatus : null;
-        const paymentMethodParam = typeof req.query.paymentMethod === "string" ? req.query.paymentMethod : null;
-        const searchParam = typeof req.query.search === "string" ? req.query.search : null;
-        const todayStr = dayjs8().tz(BILLING_TIMEZONE3).format("YYYY-MM-DD");
-        const startStr = startDateParam || todayStr;
-        const endStr = endDateParam || todayStr;
-        const startOfDay = toDayBoundary3(startStr, "start");
-        const endOfDay = toDayBoundary3(endStr, "end");
-        const { branchIds } = await resolveReportBranchScope(req, branchParam);
-        const whereClause = {
-          and: [
-            {
-              or: [
+      for (const b of allBranches) {
+        const bId = String(b.id);
+        if (!geofences.some((g) => g.branchId === bId)) {
+          const lat = typeof b.latitude === "number" ? b.latitude : Number(b.latitude);
+          const lng = typeof b.longitude === "number" ? b.longitude : Number(b.longitude);
+          if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
+            geofences.push({
+              branchId: bId,
+              branchName: b.name || "Branch",
+              latitude: lat,
+              longitude: lng,
+              shape: "circle",
+              radius: 100
+            });
+          }
+        }
+      }
+      const resolveBranchFromCoords = (lat, lng) => {
+        if (typeof lat !== "number" || typeof lng !== "number" || !Number.isFinite(lat) || !Number.isFinite(lng) || lat === 0 && lng === 0) {
+          return null;
+        }
+        let bestMatch = null;
+        let minDistance = Infinity;
+        for (const g of geofences) {
+          const isInside = isPointInsideGeofence(lat, lng, g, 60);
+          const dist = getDistanceToGeofence(lat, lng, g);
+          if (isInside) {
+            if (dist < minDistance) {
+              minDistance = dist;
+              bestMatch = {
+                branchId: g.branchId,
+                branchName: g.branchName,
+                distance: Math.round(dist)
+              };
+            }
+          }
+        }
+        if (!bestMatch) {
+          for (const g of geofences) {
+            const dist = getDistanceToGeofence(lat, lng, g);
+            if (dist <= 300 && dist < minDistance) {
+              minDistance = dist;
+              bestMatch = {
+                branchId: g.branchId,
+                branchName: g.branchName,
+                distance: Math.round(dist)
+              };
+            }
+          }
+        }
+        return bestMatch;
+      };
+      const AttendanceModel = payload.db.collections["attendance"];
+      if (!AttendanceModel) {
+        throw new Error("Attendance collection not found");
+      }
+      const matchQuery = {
+        $or: [
+          {
+            date: {
+              $gte: startOfDay,
+              $lte: endOfDay
+            }
+          },
+          {
+            dateString: {
+              $gte: startDateParam,
+              $lte: endDateParam
+            }
+          }
+        ]
+      };
+      const pipeline = [
+        { $match: matchQuery },
+        // Convert user and employee relationship fields to ObjectId for lookup
+        {
+          $addFields: {
+            userObjectId: {
+              $convert: {
+                input: "$user",
+                to: "objectId",
+                onError: null,
+                onNull: null
+              }
+            },
+            employeeObjectId: {
+              $convert: {
+                input: "$employee",
+                to: "objectId",
+                onError: null,
+                onNull: null
+              }
+            }
+          }
+        },
+        {
+          $lookup: {
+            from: "users",
+            localField: "userObjectId",
+            foreignField: "_id",
+            as: "userDetails"
+          }
+        },
+        {
+          $unwind: {
+            path: "$userDetails",
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        {
+          $addFields: {
+            // If employee not directly on attendance doc, try user's employee
+            resolvedEmployeeId: {
+              $ifNull: [
+                "$employeeObjectId",
                 {
-                  and: [
-                    { status: { in: ["completed", "settled"] } },
-                    { settledAt: { greater_than_equal: startOfDay.toISOString() } },
-                    { settledAt: { less_than_equal: endOfDay.toISOString() } }
-                  ]
-                },
-                {
-                  and: [
-                    { status: { not_in: ["completed", "settled"] } },
-                    { createdAt: { greater_than_equal: startOfDay.toISOString() } },
-                    { createdAt: { less_than_equal: endOfDay.toISOString() } }
-                  ]
+                  $convert: {
+                    input: "$userDetails.employee",
+                    to: "objectId",
+                    onError: null,
+                    onNull: null
+                  }
                 }
               ]
-            }
-          ]
-        };
-        if (branchIds && branchIds.length > 0) {
-          whereClause.and.push({
-            branch: {
-              in: branchIds
-            }
-          });
-        }
-        if (verificationStatusParam && verificationStatusParam !== "all" && verificationStatusParam !== "missed") {
-          whereClause.and.push({
-            verificationStatus: {
-              equals: verificationStatusParam
-            }
-          });
-        }
-        if (paymentMethodParam && paymentMethodParam !== "all") {
-          whereClause.and.push({
-            paymentMethod: {
-              equals: paymentMethodParam
-            }
-          });
-        }
-        if (searchParam && searchParam.trim().length > 0) {
-          whereClause.and.push({
-            invoiceNumber: {
-              like: searchParam.trim()
-            }
-          });
-        }
-        const result = await payload.find({
-          collection: "billings",
-          where: whereClause,
-          depth: 2,
-          limit: 1e3,
-          sort: "-createdAt",
-          pagination: false
-        });
-        const branchIdsInBills = Array.from(
-          new Set(
-            result.docs.map((bill) => {
-              return bill.branch && typeof bill.branch === "object" ? bill.branch.id : bill.branch;
-            }).filter(Boolean)
-          )
-        );
-        const [startYear, startMonth, startDay] = startStr.split("-").map(Number);
-        const startUtc = new Date(Date.UTC(startYear, startMonth - 1, startDay, 0, 0, 0, 0)).toISOString();
-        const [endYear, endMonth, endDay] = endStr.split("-").map(Number);
-        const endUtc = new Date(Date.UTC(endYear, endMonth - 1, endDay, 23, 59, 59, 999)).toISOString();
-        const closingEntriesResult = branchIdsInBills.length > 0 ? await payload.find({
-          collection: "closing-entries",
-          where: {
-            and: [
-              {
-                branch: {
-                  in: branchIdsInBills
-                }
-              },
-              {
-                date: {
-                  greater_than_equal: startUtc
-                }
-              },
-              {
-                date: {
-                  less_than_equal: endUtc
-                }
+            },
+            resolvedBranchId: {
+              $convert: {
+                input: {
+                  $ifNull: [
+                    "$userDetails.branch",
+                    {
+                      $ifNull: [
+                        "$userDetails.lastLoginBranch",
+                        { $arrayElemAt: ["$userDetails.kitchenBranches", 0] }
+                      ]
+                    }
+                  ]
+                },
+                to: "objectId",
+                onError: null,
+                onNull: null
               }
-            ]
-          },
-          limit: 1e3,
-          sort: "createdAt",
-          depth: 0
-        }) : { docs: [] };
-        const closingGroups = {};
-        closingEntriesResult.docs.forEach((entry) => {
-          const bId = entry.branch;
-          if (!bId) return;
-          if (!closingGroups[bId]) {
-            closingGroups[bId] = [];
+            }
           }
-          closingGroups[bId].push(entry);
-        });
-        Object.keys(closingGroups).forEach((k) => {
-          closingGroups[k].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-        });
-        let bills = result.docs.map((bill) => {
-          const waiterName = bill.createdBy && typeof bill.createdBy === "object" ? bill.createdBy.name || bill.createdBy.email || "N/A" : "N/A";
-          const branchName = bill.branch && typeof bill.branch === "object" ? bill.branch.name || "N/A" : "N/A";
-          const itemsCount = Array.isArray(bill.items) ? bill.items.length : 0;
-          const billBranchId = bill.branch && typeof bill.branch === "object" ? bill.branch.id : bill.branch;
-          let closingNumber = "-";
-          let originalClosingNumber = "-";
-          let closingStatus = "n_a";
-          const isBillClosedStatus = bill.status === "completed" || bill.status === "settled";
-          if (isBillClosedStatus) {
-            const groupEntries = closingGroups[billBranchId] || [];
-            if (groupEntries.length > 0) {
-              let matchedEntry = null;
-              const billTime = new Date(bill.settledAt || bill.updatedAt || bill.createdAt).getTime();
-              for (let i = 0; i < groupEntries.length; i++) {
-                const currentEntry = groupEntries[i];
-                const currentEntryTime = new Date(currentEntry.createdAt).getTime();
-                let lastClosingTime = 0;
-                if (i > 0) {
-                  lastClosingTime = new Date(groupEntries[i - 1].createdAt).getTime();
-                } else {
-                  const entryDate = new Date(currentEntry.date);
-                  const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1e3;
-                  lastClosingTime = entryDate.getTime() - IST_OFFSET_MS;
-                }
-                if (billTime > lastClosingTime && billTime <= currentEntryTime) {
-                  matchedEntry = currentEntry;
-                  break;
+        },
+        {
+          $lookup: {
+            from: "employees",
+            localField: "resolvedEmployeeId",
+            foreignField: "_id",
+            as: "employeeDetails"
+          }
+        },
+        {
+          $unwind: {
+            path: "$employeeDetails",
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        {
+          $lookup: {
+            from: "branches",
+            localField: "resolvedBranchId",
+            foreignField: "_id",
+            as: "branchDetails"
+          }
+        },
+        {
+          $unwind: {
+            path: "$branchDetails",
+            preserveNullAndEmptyArrays: true
+          }
+        }
+      ];
+      if (roleParam && roleParam !== "all") {
+        const roles = roleParam.split(",").map((r) => r.trim().toLowerCase()).filter((r) => r.length > 0 && r !== "all");
+        if (roles.length > 0) {
+          pipeline.push({
+            $match: {
+              $or: [
+                { "employeeDetails.team": { $in: roles } },
+                { "userDetails.role": { $in: roles } }
+              ]
+            }
+          });
+        }
+      }
+      if (employeeParam && employeeParam !== "all") {
+        const employeeIds = employeeParam.split(",").map((id) => id.trim()).filter((id) => id.length > 0 && id !== "all");
+        if (employeeIds.length > 0) {
+          pipeline.push({
+            $match: {
+              $or: [
+                { $expr: { $in: [{ $toString: "$resolvedEmployeeId" }, employeeIds] } },
+                { $expr: { $in: [{ $toString: "$userObjectId" }, employeeIds] } }
+              ]
+            }
+          });
+        }
+      }
+      pipeline.push({
+        $sort: { date: -1, "activities.punchIn": -1, createdAt: -1 }
+      });
+      const rawDocs = await AttendanceModel.aggregate(pipeline);
+      const mediaIdSet = /* @__PURE__ */ new Set();
+      const extractMediaId = (val) => {
+        if (!val) return;
+        if (typeof val === "string") {
+          const trimmed = val.trim();
+          if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://") && !trimmed.startsWith("/api/") && !trimmed.startsWith("data:") && /^[0-9a-fA-F]{24}$/.test(trimmed)) {
+            mediaIdSet.add(trimmed);
+          }
+        } else if (typeof val === "object" && val !== null) {
+          const rec = val;
+          if (!rec.url && !rec.filename) {
+            const idStr = toNonEmptyString3(rec.id || rec._id);
+            if (idStr && /^[0-9a-fA-F]{24}$/.test(idStr)) mediaIdSet.add(idStr);
+          }
+        }
+      };
+      for (const doc of rawDocs) {
+        extractMediaId(doc.employeeDetails?.photo);
+        extractMediaId(doc.photo);
+        extractMediaId(doc.capturedImage);
+        const activitiesList = Array.isArray(doc.activities) ? doc.activities : [];
+        for (const act of activitiesList) {
+          extractMediaId(act.capturedImage);
+          extractMediaId(act.photo);
+          extractMediaId(act.image);
+          extractMediaId(act.photoUrl);
+          extractMediaId(act.imageUrl);
+        }
+        const recordsList = Array.isArray(doc.records) ? doc.records : [];
+        for (const rec of recordsList) {
+          extractMediaId(rec.photo);
+          extractMediaId(rec.capturedImage);
+          extractMediaId(rec.image);
+        }
+      }
+      const mediaMap = /* @__PURE__ */ new Map();
+      if (mediaIdSet.size > 0) {
+        const idArray = Array.from(mediaIdSet);
+        try {
+          const mediaRes = await payload.find({
+            collection: "media",
+            where: {
+              id: {
+                in: idArray
+              }
+            },
+            depth: 0,
+            pagination: false,
+            limit: 1e3,
+            overrideAccess: true
+          });
+          for (const m of mediaRes.docs) {
+            const idStr = String(m.id || m._id);
+            const url = getMediaUrl(m);
+            if (url) {
+              mediaMap.set(idStr, url);
+            }
+          }
+        } catch (e) {
+          console.error("[AttendanceReport] Error resolving media images with payload.find:", e);
+        }
+        const missingIds = idArray.filter((id) => !mediaMap.has(id));
+        if (missingIds.length > 0 && payload.db.collections["media"]) {
+          try {
+            const MediaModel = payload.db.collections["media"];
+            const mongoose8 = await import("mongoose");
+            const objectIds = missingIds.map((id) => {
+              try {
+                return new mongoose8.Types.ObjectId(id);
+              } catch {
+                return null;
+              }
+            }).filter(Boolean);
+            if (objectIds.length > 0) {
+              const mediaDocs = await MediaModel.find({
+                _id: { $in: objectIds }
+              }).lean();
+              for (const m of mediaDocs) {
+                const idStr = String(m._id || m.id);
+                const url = getMediaUrl(m);
+                if (url) {
+                  mediaMap.set(idStr, url);
                 }
               }
-              if (matchedEntry) {
-                const parts = matchedEntry.closingNumber.split("-");
-                const seq = parts[3] || "00";
-                const closingTimeStr = dayjs8(matchedEntry.createdAt).tz(BILLING_TIMEZONE3).format("HH:mm");
-                closingNumber = `CLO-${seq} ${closingTimeStr}`;
-                originalClosingNumber = matchedEntry.closingNumber;
-                closingStatus = "closed";
-              } else {
-                closingNumber = "Missed";
-                closingStatus = "missed";
+            }
+          } catch (dbErr) {
+            console.error("[AttendanceReport] Fallback DB media query error:", dbErr);
+          }
+        }
+      }
+      const resolveImage = (rawVal) => {
+        if (!rawVal) return void 0;
+        const directUrl = getMediaUrl(rawVal);
+        if (directUrl) return directUrl;
+        const idStr = toNonEmptyString3(rawVal);
+        if (idStr) {
+          if (mediaMap.has(idStr)) return mediaMap.get(idStr);
+          if (idStr.startsWith("http://") || idStr.startsWith("https://") || idStr.startsWith("/api/") || idStr.startsWith("data:")) {
+            return idStr;
+          }
+          if (idStr.includes(".")) {
+            const publicURL = process.env.NEXT_PUBLIC_S3_PUBLIC_URL || process.env.S3_PUBLIC_URL;
+            if (publicURL) {
+              const cleanURL = publicURL.endsWith("/") ? publicURL.slice(0, -1) : publicURL;
+              return `${cleanURL}/blackforest/uploads/${idStr}`;
+            }
+            return `/api/media/file/${idStr}`;
+          }
+        }
+        return void 0;
+      };
+      const now = /* @__PURE__ */ new Date();
+      const items = [];
+      const uniqueEmployeeSet = /* @__PURE__ */ new Set();
+      let totalActiveCount = 0;
+      let totalWorkSecondsAll = 0;
+      let totalBreakSecondsAll = 0;
+      const roleStatsMap = /* @__PURE__ */ new Map();
+      const branchStatsMap = /* @__PURE__ */ new Map();
+      for (const doc of rawDocs) {
+        const id = toNonEmptyString3(doc._id || doc.id);
+        const dateStr = doc.dateString || (doc.date ? dayjs8.utc(doc.date).format("YYYY-MM-DD") : startDateParam);
+        const dateIso = doc.date ? new Date(doc.date).toISOString() : new Date(dateStr).toISOString();
+        const userId = toNonEmptyString3(doc.userDetails?._id || doc.user);
+        const userName = toNonEmptyString3(doc.employeeDetails?.name || doc.userDetails?.name || doc.userDetails?.email || "Unknown");
+        const userEmail = toNonEmptyString3(doc.userDetails?.email || "");
+        const userRole = toNonEmptyString3(doc.userDetails?.role || "staff");
+        const employeeObjectId = doc.resolvedEmployeeId ? String(doc.resolvedEmployeeId) : void 0;
+        const employeeId = toNonEmptyString3(doc.employeeDetails?.employeeId || "");
+        const employeeName = toNonEmptyString3(doc.employeeDetails?.name || userName);
+        const employeeSalary = typeof doc.employeeDetails?.salary === "number" ? doc.employeeDetails.salary : void 0;
+        const employeeLoginTime = toNonEmptyString3(doc.employeeDetails?.loginTime || "");
+        const employeeLogoutTime = toNonEmptyString3(doc.employeeDetails?.logoutTime || "");
+        const employeeWorkingHours = typeof doc.employeeDetails?.workingHours === "number" ? doc.employeeDetails.workingHours : void 0;
+        const employeeTeam = toNonEmptyString3(doc.employeeDetails?.team || userRole);
+        const employeePhone = toNonEmptyString3(doc.employeeDetails?.phoneNumber || "");
+        const employeePhotoUrl = resolveImage(doc.employeeDetails?.photo);
+        const branchId = toNonEmptyString3(doc.branchDetails?._id || doc.resolvedBranchId || "");
+        const branchName = toNonEmptyString3(doc.branchDetails?.name || "Unassigned");
+        const activitiesRaw = Array.isArray(doc.activities) && doc.activities.length > 0 ? doc.activities : Array.isArray(doc.records) && doc.records.length > 0 ? doc.records.map((r, idx) => ({
+          id: r.id || r._id || `rec-${idx}`,
+          type: "session",
+          punchIn: r.punchIn,
+          punchOut: r.punchOut,
+          capturedImage: r.photo || r.capturedImage,
+          status: !r.punchOut ? "active" : "closed",
+          ipAddress: r.ipAddress || doc.ipAddress,
+          device: r.device || doc.device,
+          latitude: r.latitude || doc.location?.latitude,
+          longitude: r.longitude || doc.location?.longitude
+        })) : [];
+        const activities = [];
+        let recordWorkSeconds = 0;
+        let recordBreakSeconds = 0;
+        let sessionCount = 0;
+        let breakCount = 0;
+        let firstPunchIn = void 0;
+        let lastPunchOut = void 0;
+        let hasActiveSession = false;
+        let hasActiveBreak = false;
+        if (activitiesRaw.length === 0 && doc.punchIn) {
+          const pIn = new Date(doc.punchIn).toISOString();
+          const pOut = doc.punchOut ? new Date(doc.punchOut).toISOString() : void 0;
+          const isAct = !pOut || doc.status === "active";
+          const dur = pOut ? Math.max(0, Math.floor((new Date(pOut).getTime() - new Date(pIn).getTime()) / 1e3)) : Math.max(0, Math.floor((now.getTime() - new Date(pIn).getTime()) / 1e3));
+          const capturedImageUrl = resolveImage(doc.capturedImage || doc.photo || doc.image);
+          const actLat = toNumber3(doc.location?.latitude);
+          const actLng = toNumber3(doc.location?.longitude);
+          const matchedActBranch = resolveBranchFromCoords(actLat, actLng);
+          activities.push({
+            id: "legacy-1",
+            type: "session",
+            punchIn: pIn,
+            punchOut: pOut,
+            status: isAct ? "active" : "closed",
+            durationSeconds: dur,
+            durationFormatted: formatSecondsToReadable(dur),
+            punchOutType: doc.punchOutType,
+            ipAddress: toNonEmptyString3(doc.ipAddress),
+            device: toNonEmptyString3(doc.device),
+            capturedImageUrl,
+            latitude: actLat || void 0,
+            longitude: actLng || void 0,
+            branchId: matchedActBranch?.branchId,
+            branchName: matchedActBranch?.branchName
+          });
+          sessionCount = 1;
+          recordWorkSeconds = dur;
+          firstPunchIn = pIn;
+          lastPunchOut = pOut;
+          if (isAct) hasActiveSession = true;
+        } else {
+          for (const act of activitiesRaw) {
+            const actType = act.type === "break" ? "break" : "session";
+            const pIn = act.punchIn ? new Date(act.punchIn).toISOString() : dateIso;
+            const pOut = act.punchOut ? new Date(act.punchOut).toISOString() : void 0;
+            const isAct = act.status === "active" || !act.punchOut && actType === "session";
+            let dur = toNumber3(act.durationSeconds);
+            if (dur <= 0) {
+              if (pOut) {
+                dur = Math.max(0, Math.floor((new Date(pOut).getTime() - new Date(pIn).getTime()) / 1e3));
+              } else if (isAct) {
+                dur = Math.max(0, Math.floor((now.getTime() - new Date(pIn).getTime()) / 1e3));
+              }
+            }
+            const capturedImageUrl = resolveImage(
+              act.capturedImage || act.photo || act.image || act.photoUrl || act.imageUrl
+            );
+            const breakSecs = toNumber3(act.breakDurationSeconds);
+            const actLat = typeof act.latitude === "number" ? act.latitude : act.latitude ? Number(act.latitude) : void 0;
+            const actLng = typeof act.longitude === "number" ? act.longitude : act.longitude ? Number(act.longitude) : void 0;
+            const matchedActBranch = resolveBranchFromCoords(actLat, actLng);
+            activities.push({
+              id: toNonEmptyString3(act.id || act._id),
+              type: actType,
+              punchIn: pIn,
+              punchOut: pOut,
+              status: isAct ? "active" : "closed",
+              durationSeconds: dur,
+              durationFormatted: formatSecondsToReadable(dur),
+              punchOutType: act.punchOutType,
+              ipAddress: toNonEmptyString3(act.ipAddress),
+              device: toNonEmptyString3(act.device),
+              capturedImageUrl,
+              latitude: actLat,
+              longitude: actLng,
+              branchId: matchedActBranch?.branchId,
+              branchName: matchedActBranch?.branchName
+            });
+            if (actType === "session") {
+              sessionCount++;
+              recordWorkSeconds += dur;
+              if (breakSecs > 0) {
+                breakCount++;
+                recordBreakSeconds += breakSecs;
+                const breakStart = new Date(new Date(pIn).getTime() - breakSecs * 1e3).toISOString();
+                activities.push({
+                  type: "break",
+                  punchIn: breakStart,
+                  punchOut: pIn,
+                  status: "closed",
+                  durationSeconds: breakSecs,
+                  durationFormatted: formatSecondsToReadable(breakSecs)
+                });
+              }
+              if (isAct) hasActiveSession = true;
+              if (!firstPunchIn || new Date(pIn).getTime() < new Date(firstPunchIn).getTime()) {
+                firstPunchIn = pIn;
+              }
+              if (pOut) {
+                if (!lastPunchOut || new Date(pOut).getTime() > new Date(lastPunchOut).getTime()) {
+                  lastPunchOut = pOut;
+                }
               }
             } else {
-              closingNumber = "Pending";
-              closingStatus = "pending";
+              breakCount++;
+              recordBreakSeconds += dur;
+              if (isAct) hasActiveBreak = true;
             }
           }
-          return {
-            id: bill.id,
-            invoiceNumber: bill.invoiceNumber,
-            totalAmount: bill.totalAmount,
-            paymentMethod: bill.paymentMethod || "other",
-            upiBankTransactionId: bill.upiBankTransactionId || "",
-            itemsCount,
-            waiterName,
-            branchName,
-            createdAt: bill.createdAt,
-            verificationStatus: bill.verificationStatus || "pending",
-            closingNumber,
-            originalClosingNumber,
-            closingStatus
-          };
-        });
-        if (verificationStatusParam === "missed") {
-          bills = bills.filter((b) => b.closingStatus === "missed");
         }
-        return Response.json({ bills });
-      } catch (error) {
-        payload.logger.error(error);
-        return Response.json({ error: "Failed to generate report" }, { status: 500 });
-      }
-    };
-  }
-});
-
-// src/endpoints/updateBillVerificationStatus.ts
-var updateBillVerificationStatusHandler;
-var init_updateBillVerificationStatus = __esm({
-  "src/endpoints/updateBillVerificationStatus.ts"() {
-    "use strict";
-    updateBillVerificationStatusHandler = async (req) => {
-      const { payload } = req;
-      if (!req.user || !["superadmin", "admin", "account"].includes(req.user.role)) {
-        return Response.json({ message: "Unauthorized" }, { status: 401 });
-      }
-      try {
-        const { billId, status } = await req.json();
-        if (!billId || !status) {
-          return Response.json({ message: "Missing required fields" }, { status: 400 });
+        let status = "closed";
+        if (hasActiveBreak) {
+          status = "on_break";
+        } else if (hasActiveSession) {
+          status = "active";
         }
-        if (!["pending", "verified", "not_verified", "not_match", "cancelled"].includes(status)) {
-          return Response.json({ message: "Invalid verification status value" }, { status: 400 });
+        if (statusParam && statusParam !== "all") {
+          if (statusParam === "active" && status !== "active") continue;
+          if (statusParam === "closed" && status !== "closed") continue;
+          if (statusParam === "on_break" && status !== "on_break") continue;
         }
-        const updatedBill = await payload.update({
-          collection: "billings",
-          id: billId,
-          data: {
-            verificationStatus: status
-          },
-          overrideAccess: true
-          // Bypass access control checks since role restriction was handled above
-        });
-        return Response.json({ message: "Verification status updated", status: updatedBill.verificationStatus });
-      } catch (error) {
-        payload.logger.error(error);
-        return Response.json({ message: "Error updating verification status" }, { status: 500 });
-      }
-    };
-  }
-});
-
-// src/endpoints/updateBillTransactionId.ts
-var updateBillTransactionIdHandler;
-var init_updateBillTransactionId = __esm({
-  "src/endpoints/updateBillTransactionId.ts"() {
-    "use strict";
-    updateBillTransactionIdHandler = async (req) => {
-      const { payload } = req;
-      if (!req.user || !["superadmin", "admin", "account"].includes(req.user.role)) {
-        return Response.json({ message: "Unauthorized" }, { status: 401 });
-      }
-      try {
-        const { billId, upiBankTransactionId } = await req.json();
-        if (!billId) {
-          return Response.json({ message: "Missing billId" }, { status: 400 });
+        const sessionActs = activities.filter((a) => a.type === "session");
+        const activeSessionWithBranch = sessionActs.slice().reverse().find((a) => a.status === "active" && a.branchName);
+        const latestSessionWithBranch = sessionActs.slice().reverse().find((a) => a.branchName);
+        const loginBranchId = toNonEmptyString3(doc.branchDetails?._id || doc.resolvedBranchId || "");
+        const loginBranchName = toNonEmptyString3(doc.branchDetails?.name || branchMap.get(loginBranchId)?.name || "Unassigned");
+        const currentBranchName = activeSessionWithBranch?.branchName || latestSessionWithBranch?.branchName || loginBranchName;
+        const currentBranchId = activeSessionWithBranch?.branchId || latestSessionWithBranch?.branchId || loginBranchId;
+        if (branchIds && branchIds.length > 0) {
+          const associatedBranchIds = /* @__PURE__ */ new Set();
+          if (currentBranchId) associatedBranchIds.add(String(currentBranchId));
+          if (loginBranchId) associatedBranchIds.add(String(loginBranchId));
+          for (const a of activities) {
+            if (a.branchId) associatedBranchIds.add(String(a.branchId));
+          }
+          const matchesBranch = branchIds.some((bId) => associatedBranchIds.has(String(bId)));
+          if (!matchesBranch) continue;
         }
-        const updatedBill = await payload.update({
-          collection: "billings",
-          id: billId,
-          data: {
-            upiBankTransactionId: upiBankTransactionId || null
-          },
-          overrideAccess: true
-          // Bypass access control checks since role restriction was handled above
-        });
-        return Response.json({ message: "Transaction ID updated", upiBankTransactionId: updatedBill.upiBankTransactionId });
-      } catch (error) {
-        payload.logger.error(error);
-        return Response.json({ message: "Error updating transaction ID" }, { status: 500 });
+        const hasAutoPunchOut = activities.some((a) => a.punchOutType === "auto");
+        let baseShiftSeconds = 12 * 3600;
+        if (employeeWorkingHours && employeeWorkingHours > 0) {
+          baseShiftSeconds = employeeWorkingHours * 3600;
+        } else if (employeeLoginTime && employeeLogoutTime) {
+          const loginTimeStr = employeeLoginTime.replace("_", ":");
+          const logoutTimeStr = employeeLogoutTime.replace("_", ":");
+          const [inH, inM] = loginTimeStr.split(":").map(Number);
+          const [outH, outM] = logoutTimeStr.split(":").map(Number);
+          if (!isNaN(inH) && !isNaN(outH)) {
+            let shiftSeconds = outH * 3600 + (outM || 0) * 60 - (inH * 3600 + (inM || 0) * 60);
+            if (shiftSeconds < 0) shiftSeconds += 24 * 3600;
+            baseShiftSeconds = shiftSeconds;
+          }
+        }
+        if (hasAutoPunchOut && recordWorkSeconds > baseShiftSeconds) {
+          recordWorkSeconds = baseShiftSeconds;
+        }
+        let extraSeconds = 0;
+        if (recordWorkSeconds > baseShiftSeconds) {
+          extraSeconds = recordWorkSeconds - baseShiftSeconds;
+        }
+        const item = {
+          id,
+          date: dateIso,
+          employeeSalary,
+          employeeWorkingHours,
+          employeeLoginTime,
+          employeeLogoutTime,
+          dateString: dateStr,
+          userId,
+          employeeObjectId,
+          userName,
+          userEmail,
+          userRole,
+          employeeId: employeeId || void 0,
+          employeeName,
+          employeeTeam: employeeTeam || void 0,
+          employeePhone: employeePhone || void 0,
+          employeePhotoUrl,
+          branchId: currentBranchId || void 0,
+          branchName: currentBranchName,
+          loginBranchId: loginBranchId || void 0,
+          loginBranchName: loginBranchName !== "Unassigned" ? loginBranchName : void 0,
+          firstPunchIn,
+          lastPunchOut: hasActiveSession ? void 0 : lastPunchOut,
+          totalWorkSeconds: recordWorkSeconds,
+          totalWorkFormatted: formatSecondsToReadable(recordWorkSeconds),
+          extraSeconds: extraSeconds > 0 ? extraSeconds : 0,
+          extraHoursFormatted: extraSeconds > 0 ? formatSecondsToReadable(extraSeconds) : "-",
+          totalBreakSeconds: recordBreakSeconds,
+          totalBreakFormatted: formatSecondsToReadable(recordBreakSeconds),
+          sessionCount,
+          breakCount,
+          status,
+          activities
+        };
+        items.push(item);
+        const employeeKey = employeeId || userId || userName;
+        uniqueEmployeeSet.add(employeeKey);
+        if (status === "active" || status === "on_break") {
+          totalActiveCount++;
+        }
+        totalWorkSecondsAll += recordWorkSeconds;
+        totalBreakSecondsAll += recordBreakSeconds;
+        const roleKey = (employeeTeam || "other").toUpperCase();
+        const existingRole = roleStatsMap.get(roleKey) || { count: 0, totalSeconds: 0 };
+        existingRole.count++;
+        existingRole.totalSeconds += recordWorkSeconds;
+        roleStatsMap.set(roleKey, existingRole);
+        const branchKey = item.branchId || "unknown";
+        const existingBranch = branchStatsMap.get(branchKey) || {
+          branchName: item.branchName,
+          presentCount: 0,
+          activeCount: 0,
+          totalSeconds: 0
+        };
+        existingBranch.presentCount++;
+        if (status === "active" || status === "on_break") {
+          existingBranch.activeCount++;
+        }
+        existingBranch.totalSeconds += recordWorkSeconds;
+        branchStatsMap.set(branchKey, existingBranch);
       }
+      const totalRecords = items.length;
+      const uniqueEmployees = uniqueEmployeeSet.size;
+      const avgWorkSecondsPerDay = totalRecords > 0 ? Math.round(totalWorkSecondsAll / totalRecords) : 0;
+      const roleStats = Array.from(roleStatsMap.entries()).map(([role, data]) => ({
+        role,
+        count: data.count,
+        totalHours: Number((data.totalSeconds / 3600).toFixed(2))
+      })).sort((a, b) => b.count - a.count);
+      const branchStats = Array.from(branchStatsMap.entries()).map(([branchId, data]) => ({
+        branchId,
+        branchName: data.branchName,
+        presentCount: data.presentCount,
+        activeCount: data.activeCount,
+        totalHours: Number((data.totalSeconds / 3600).toFixed(2))
+      })).sort((a, b) => b.presentCount - a.presentCount);
+      return {
+        startDate: startDateParam,
+        endDate: endDateParam,
+        items,
+        totals: {
+          totalRecords,
+          uniqueEmployees,
+          currentlyActive: totalActiveCount,
+          totalWorkSeconds: totalWorkSecondsAll,
+          totalWorkFormatted: formatSecondsToReadable(totalWorkSecondsAll),
+          totalBreakSeconds: totalBreakSecondsAll,
+          totalBreakFormatted: formatSecondsToReadable(totalBreakSecondsAll),
+          avgWorkSecondsPerDay,
+          avgWorkFormatted: formatSecondsToReadable(avgWorkSecondsPerDay)
+        },
+        roleStats,
+        branchStats
+      };
     };
   }
 });
@@ -17265,7 +18255,7 @@ import dayjs9 from "dayjs";
 import utc9 from "dayjs/plugin/utc.js";
 import timezone9 from "dayjs/plugin/timezone.js";
 import mongoose2 from "mongoose";
-var toDayBoundary4, getCategoryWiseReportData;
+var toDayBoundary3, getCategoryWiseReportData;
 var init_categoryWise = __esm({
   "src/services/reports/categoryWise.ts"() {
     "use strict";
@@ -17273,7 +18263,7 @@ var init_categoryWise = __esm({
     dayjs9.extend(utc9);
     dayjs9.extend(timezone9);
     dayjs9.tz.setDefault("Asia/Kolkata");
-    toDayBoundary4 = (dateParam, mode) => {
+    toDayBoundary3 = (dateParam, mode) => {
       const [yearRaw, monthRaw, dayRaw] = dateParam.split("-");
       const year = parseInt(yearRaw, 10);
       const month = parseInt(monthRaw, 10);
@@ -17288,8 +18278,8 @@ var init_categoryWise = __esm({
       const branchParam = typeof args.branch === "string" ? args.branch : "";
       const categoryParam = typeof args.category === "string" ? args.category : "";
       const departmentParam = typeof args.department === "string" ? args.department : "";
-      const startOfDay = toDayBoundary4(startDateParam, "start");
-      const endOfDay = toDayBoundary4(endDateParam, "end");
+      const startOfDay = toDayBoundary3(startDateParam, "start");
+      const endOfDay = toDayBoundary3(endDateParam, "end");
       const { branchIds } = await resolveReportBranchScope(req, branchParam);
       const branches = await payload.find({
         collection: "branches",
@@ -17465,6 +18455,1255 @@ var init_categoryWise = __esm({
         stats,
         totals
       };
+    };
+  }
+});
+
+// src/services/reports/productWise.ts
+import mongoose3 from "mongoose";
+import dayjs10 from "dayjs";
+import utc10 from "dayjs/plugin/utc.js";
+import timezone10 from "dayjs/plugin/timezone.js";
+var toId3, parseTimeLikeValue2, parsePreparingTimeValue2, parseToDayjs, resolveItemPreparationMinutes, toDayBoundary4, getProductWiseReportData;
+var init_productWise = __esm({
+  "src/services/reports/productWise.ts"() {
+    "use strict";
+    init_reportScope();
+    dayjs10.extend(utc10);
+    dayjs10.extend(timezone10);
+    dayjs10.tz.setDefault("Asia/Kolkata");
+    toId3 = (value) => {
+      if (typeof value === "string" && value.trim().length > 0) return value;
+      if (typeof value === "number" && Number.isFinite(value)) return String(value);
+      if (value instanceof mongoose3.Types.ObjectId) return value.toString();
+      if (value && typeof value === "object") {
+        const record = value;
+        if (record.id != null) return toId3(record.id);
+        if (record._id != null) return toId3(record._id);
+      }
+      return null;
+    };
+    parseTimeLikeValue2 = (value, fallbackDate) => {
+      if (value == null) return null;
+      if (value instanceof Date) {
+        const parsed = dayjs10(value).tz("Asia/Kolkata");
+        return parsed.isValid() ? parsed : null;
+      }
+      if (typeof value === "number" && Number.isFinite(value)) {
+        const parsed = dayjs10(value).tz("Asia/Kolkata");
+        return parsed.isValid() ? parsed : null;
+      }
+      if (typeof value !== "string") return null;
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      const explicitDate = dayjs10(trimmed);
+      if (explicitDate.isValid()) return explicitDate.tz("Asia/Kolkata");
+      const timeOnlyMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      if (!timeOnlyMatch) return null;
+      const hour = Number.parseInt(timeOnlyMatch[1], 10);
+      const minute = Number.parseInt(timeOnlyMatch[2], 10);
+      const second = Number.parseInt(timeOnlyMatch[3] || "0", 10);
+      if (!Number.isFinite(hour) || !Number.isFinite(minute) || !Number.isFinite(second) || hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) {
+        return null;
+      }
+      return fallbackDate.tz("Asia/Kolkata").hour(hour).minute(minute).second(second).millisecond(0);
+    };
+    parsePreparingTimeValue2 = (value) => {
+      if (value == null) return null;
+      if (typeof value === "string" && value.trim().length === 0) return null;
+      const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+      if (!Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) return null;
+      return parsed;
+    };
+    parseToDayjs = (value) => {
+      if (value == null) return null;
+      if (dayjs10.isDayjs(value)) {
+        const parsed = value.tz("Asia/Kolkata");
+        return parsed.isValid() ? parsed : null;
+      }
+      if (value instanceof Date || typeof value === "string" || typeof value === "number") {
+        const parsed = dayjs10(value).tz("Asia/Kolkata");
+        return parsed.isValid() ? parsed : null;
+      }
+      return null;
+    };
+    resolveItemPreparationMinutes = (row) => {
+      const fallbackDate = parseToDayjs(row.billCreatedAt) ?? dayjs10().tz("Asia/Kolkata");
+      const orderedAt = parseTimeLikeValue2(row.orderedAt, fallbackDate);
+      const preparedAt = parseTimeLikeValue2(row.preparedAt, fallbackDate);
+      if (orderedAt && preparedAt) {
+        const adjustedPreparedAt = preparedAt.isBefore(orderedAt) ? preparedAt.add(1, "day") : preparedAt;
+        const diffMinutes = adjustedPreparedAt.diff(orderedAt, "minute", true);
+        return Math.max(0, Number(diffMinutes.toFixed(2)));
+      }
+      const preparingTime = parsePreparingTimeValue2(row.preparingTime);
+      if (preparingTime != null) return preparingTime;
+      return null;
+    };
+    toDayBoundary4 = (dateParam, mode) => {
+      const [yearRaw, monthRaw, dayRaw] = dateParam.split("-");
+      const year = parseInt(yearRaw, 10);
+      const month = parseInt(monthRaw, 10);
+      const day = parseInt(dayRaw, 10);
+      const parsedDate = dayjs10.tz(`${year}-${month}-${day}`, "YYYY-MM-DD", "Asia/Kolkata");
+      return (mode === "start" ? parsedDate.startOf("day") : parsedDate.endOf("day")).toDate();
+    };
+    getProductWiseReportData = async (req, args = {}) => {
+      const { payload } = req;
+      const startDateParam = typeof args.startDate === "string" && args.startDate.trim().length > 0 ? args.startDate : (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+      const endDateParam = typeof args.endDate === "string" && args.endDate.trim().length > 0 ? args.endDate : (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+      const startOfDay = toDayBoundary4(startDateParam, "start");
+      const endOfDay = toDayBoundary4(endDateParam, "end");
+      const branchParam = typeof args.branch === "string" ? args.branch : "all";
+      const categoryParam = typeof args.category === "string" ? args.category : "";
+      const departmentParam = typeof args.department === "string" ? args.department : "";
+      const productParam = typeof args.product === "string" ? args.product : "";
+      const chefId = typeof args.chefId === "string" ? args.chefId.trim() : "";
+      const kitchenId = typeof args.kitchenId === "string" ? args.kitchenId.trim() : "";
+      const { branchIds } = await resolveReportBranchScope(req, branchParam);
+      const branches = await payload.find({
+        collection: "branches",
+        where: branchIds ? {
+          id: {
+            in: branchIds
+          }
+        } : void 0,
+        limit: 100,
+        pagination: false
+      });
+      const branchMap = {};
+      branches.docs.forEach((branch) => {
+        branchMap[branch.id] = branch.name.substring(0, 3).toUpperCase();
+      });
+      const BillingModel = payload.db.collections["billings"];
+      if (!BillingModel) {
+        throw new Error("Billings collection not found");
+      }
+      const matchQuery = {
+        createdAt: {
+          $gte: startOfDay,
+          $lte: endOfDay
+        },
+        status: { $not: { $eq: "cancelled" } }
+      };
+      let finalCategoryIds = [];
+      let resolvedBranchIds = branchIds || [];
+      if (kitchenId && mongoose3.Types.ObjectId.isValid(kitchenId)) {
+        const kitchenRes = await payload.findByID({
+          collection: "kitchens",
+          id: kitchenId,
+          depth: 0
+        });
+        if (kitchenRes) {
+          const kitchenBranchIds = (Array.isArray(kitchenRes.branches) ? kitchenRes.branches : []).map((branch) => typeof branch === "object" ? branch.id : branch).filter(Boolean);
+          if (resolvedBranchIds.length > 0) {
+            resolvedBranchIds = resolvedBranchIds.filter((id) => kitchenBranchIds.includes(id));
+            if (resolvedBranchIds.length === 0) {
+              resolvedBranchIds = ["000000000000000000000000"];
+            }
+          } else {
+            resolvedBranchIds = kitchenBranchIds;
+          }
+          const kitchenCategoryIds = (Array.isArray(kitchenRes.categories) ? kitchenRes.categories : []).map((category) => typeof category === "object" ? category.id : category).filter(Boolean);
+          const requestedCategoryIds = categoryParam && categoryParam !== "all" ? categoryParam.split(",").map((id) => id.trim()).filter((id) => mongoose3.Types.ObjectId.isValid(id)) : [];
+          if (requestedCategoryIds.length > 0) {
+            finalCategoryIds = requestedCategoryIds.filter((id) => kitchenCategoryIds.includes(id));
+            if (finalCategoryIds.length === 0) {
+              finalCategoryIds = ["000000000000000000000000"];
+            }
+          } else {
+            finalCategoryIds = kitchenCategoryIds;
+          }
+        } else {
+          resolvedBranchIds = ["000000000000000000000000"];
+        }
+      } else if (categoryParam && categoryParam !== "all") {
+        finalCategoryIds = categoryParam.split(",").map((id) => id.trim()).filter((id) => mongoose3.Types.ObjectId.isValid(id));
+      }
+      if (resolvedBranchIds.length > 0) {
+        const branchObjectIds = resolvedBranchIds.filter((id) => mongoose3.Types.ObjectId.isValid(id)).map((id) => new mongoose3.Types.ObjectId(id));
+        matchQuery.branch = {
+          $in: [...branchObjectIds, ...resolvedBranchIds]
+        };
+      }
+      const commonItemMatch = {
+        "items.status": { $ne: "cancelled" }
+      };
+      if (chefId && chefId !== "all" && mongoose3.Types.ObjectId.isValid(chefId)) {
+        commonItemMatch["items.preparedBy"] = { $eq: new mongoose3.Types.ObjectId(chefId) };
+      }
+      if (productParam && productParam !== "all") {
+        const pTargets = productParam.split(",").filter(Boolean).map((id) => mongoose3.Types.ObjectId.isValid(id) ? new mongoose3.Types.ObjectId(id) : id);
+        if (pTargets.length > 0) {
+          commonItemMatch["items.product"] = { $in: pTargets };
+        }
+      }
+      const aggregationPipeline = [
+        {
+          $match: matchQuery
+        },
+        {
+          $unwind: "$items"
+        },
+        {
+          $match: commonItemMatch
+        },
+        // Group first by product + branch to reduce ~100k items to ~1k unique products
+        {
+          $group: {
+            _id: {
+              productId: "$items.product",
+              branchId: "$branch"
+            },
+            quantity: { $sum: "$items.quantity" },
+            amount: { $sum: "$items.subtotal" }
+          }
+        },
+        {
+          $lookup: {
+            from: "products",
+            localField: "_id.productId",
+            foreignField: "_id",
+            as: "productDetails"
+          }
+        },
+        {
+          $unwind: {
+            path: "$productDetails",
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        {
+          $lookup: {
+            from: "categories",
+            localField: "productDetails.category",
+            foreignField: "_id",
+            as: "categoryDetails"
+          }
+        },
+        {
+          $unwind: {
+            path: "$categoryDetails",
+            preserveNullAndEmptyArrays: true
+          }
+        }
+      ];
+      if (finalCategoryIds.length > 0) {
+        aggregationPipeline.push({
+          $match: {
+            "categoryDetails._id": {
+              $in: finalCategoryIds.map((id) => new mongoose3.Types.ObjectId(id))
+            }
+          }
+        });
+      } else {
+        aggregationPipeline.push({
+          $match: {
+            "productDetails._id": { $exists: true },
+            "categoryDetails._id": { $exists: true }
+          }
+        });
+      }
+      if (departmentParam && departmentParam !== "all") {
+        aggregationPipeline.push({
+          $match: {
+            "categoryDetails.department": { $eq: new mongoose3.Types.ObjectId(departmentParam) }
+          }
+        });
+      }
+      aggregationPipeline.push(
+        {
+          $group: {
+            _id: {
+              productId: "$_id.productId",
+              productName: "$productDetails.name"
+            },
+            price: { $first: "$productDetails.defaultPriceDetails.price" },
+            unit: { $first: "$productDetails.defaultPriceDetails.unit" },
+            preparationTime: { $first: "$productDetails.preparationTime" },
+            totalQuantity: { $sum: "$quantity" },
+            totalAmount: { $sum: "$amount" },
+            branchData: {
+              $push: {
+                branchId: "$_id.branchId",
+                amount: "$amount",
+                quantity: "$quantity"
+              }
+            }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            productId: "$_id.productId",
+            productName: "$_id.productName",
+            price: 1,
+            unit: 1,
+            preparationTime: 1,
+            totalQuantity: 1,
+            totalAmount: 1,
+            branchData: 1
+          }
+        },
+        {
+          $sort: { totalAmount: -1 }
+        }
+      );
+      const needsCategoryFilterInPrep = finalCategoryIds.length > 0 || departmentParam && departmentParam !== "all";
+      const prepItemMatch = {
+        ...commonItemMatch,
+        $or: [
+          {
+            "items.orderedAt": { $exists: true, $nin: [null, ""] },
+            "items.preparedAt": { $exists: true, $nin: [null, ""] }
+          },
+          {
+            "items.preparingTime": { $exists: true, $nin: [null, "", 0] }
+          }
+        ]
+      };
+      const preparationPipeline = [
+        {
+          $match: matchQuery
+        },
+        {
+          $unwind: "$items"
+        },
+        {
+          $match: prepItemMatch
+        }
+      ];
+      if (needsCategoryFilterInPrep) {
+        preparationPipeline.push(
+          {
+            $lookup: {
+              from: "products",
+              localField: "items.product",
+              foreignField: "_id",
+              as: "productDetails"
+            }
+          },
+          {
+            $unwind: {
+              path: "$productDetails",
+              preserveNullAndEmptyArrays: true
+            }
+          },
+          {
+            $lookup: {
+              from: "categories",
+              localField: "productDetails.category",
+              foreignField: "_id",
+              as: "categoryDetails"
+            }
+          },
+          {
+            $unwind: {
+              path: "$categoryDetails",
+              preserveNullAndEmptyArrays: true
+            }
+          }
+        );
+        if (finalCategoryIds.length > 0) {
+          preparationPipeline.push({
+            $match: {
+              "categoryDetails._id": {
+                $in: finalCategoryIds.map((id) => new mongoose3.Types.ObjectId(id))
+              }
+            }
+          });
+        }
+        if (departmentParam && departmentParam !== "all") {
+          preparationPipeline.push({
+            $match: {
+              "categoryDetails.department": { $eq: new mongoose3.Types.ObjectId(departmentParam) }
+            }
+          });
+        }
+      }
+      preparationPipeline.push({
+        $project: {
+          _id: 0,
+          productId: "$items.product",
+          orderedAt: "$items.orderedAt",
+          preparedAt: "$items.preparedAt",
+          preparingTime: "$items.preparingTime",
+          billCreatedAt: "$createdAt"
+        }
+      });
+      const [rawStats, rawPreparationItems] = await Promise.all([
+        BillingModel.aggregate(aggregationPipeline),
+        BillingModel.aggregate(preparationPipeline)
+      ]);
+      const preparationByProductId = {};
+      rawPreparationItems.forEach((row) => {
+        const productId = toId3(row.productId);
+        if (!productId) return;
+        const minutes = resolveItemPreparationMinutes(row);
+        if (minutes == null || !Number.isFinite(minutes)) return;
+        if (!preparationByProductId[productId]) {
+          preparationByProductId[productId] = { totalMinutes: 0, count: 0 };
+        }
+        preparationByProductId[productId].totalMinutes += minutes;
+        preparationByProductId[productId].count += 1;
+      });
+      const branchTotals = {};
+      rawStats.forEach((stat) => {
+        stat.branchData.forEach((branchData) => {
+          const branchId = String(branchData.branchId);
+          if (branchMap[branchId]) {
+            const code = branchMap[branchId];
+            branchTotals[code] = (branchTotals[code] || 0) + branchData.amount;
+          }
+        });
+      });
+      const branchHeaders = Object.keys(branchTotals).filter((code) => branchTotals[code] > 0).sort((a, b) => branchTotals[b] - branchTotals[a]);
+      const stats = rawStats.map((item, index) => {
+        const branchSales = {};
+        const productId = toId3(item.productId) || "";
+        const preparationAggregate = productId ? preparationByProductId[productId] : null;
+        const averagePreparationTime = preparationAggregate && preparationAggregate.count > 0 ? Number((preparationAggregate.totalMinutes / preparationAggregate.count).toFixed(2)) : null;
+        item.branchData.forEach((branchData) => {
+          const branchId = String(branchData.branchId);
+          if (branchMap[branchId]) {
+            const code = branchMap[branchId];
+            branchSales[code] = { amount: branchData.amount, quantity: branchData.quantity };
+          }
+        });
+        return {
+          sNo: index + 1,
+          productId,
+          productName: item.productName,
+          price: item.price || 0,
+          unit: item.unit || "",
+          preparationTime: typeof item.preparationTime === "number" && Number.isFinite(item.preparationTime) ? item.preparationTime : null,
+          averagePreparationTime,
+          averagePreparationSampleSize: preparationAggregate?.count || 0,
+          totalQuantity: item.totalQuantity,
+          totalAmount: item.totalAmount,
+          branchSales
+        };
+      });
+      const totals = stats.reduce(
+        (acc, current) => ({
+          totalQuantity: acc.totalQuantity + current.totalQuantity,
+          totalAmount: acc.totalAmount + current.totalAmount
+        }),
+        { totalQuantity: 0, totalAmount: 0 }
+      );
+      return {
+        startDate: startDateParam,
+        endDate: endDateParam,
+        branchHeaders,
+        stats,
+        totals: {
+          ...totals,
+          branchTotals
+        }
+      };
+    };
+  }
+});
+
+// src/endpoints/getReportsDashboardSummary.ts
+import dayjs11 from "dayjs";
+import utc11 from "dayjs/plugin/utc.js";
+import timezone11 from "dayjs/plugin/timezone.js";
+var getReportsDashboardSummaryHandler;
+var init_getReportsDashboardSummary = __esm({
+  "src/endpoints/getReportsDashboardSummary.ts"() {
+    "use strict";
+    init_branchBilling();
+    init_closingEntry();
+    init_expense();
+    init_attendance();
+    init_categoryWise();
+    init_productWise();
+    init_reportScope();
+    dayjs11.extend(utc11);
+    dayjs11.extend(timezone11);
+    dayjs11.tz.setDefault("Asia/Kolkata");
+    getReportsDashboardSummaryHandler = async (req) => {
+      const { payload } = req;
+      try {
+        const startDateParam = typeof req.query.startDate === "string" ? req.query.startDate : dayjs11().tz("Asia/Kolkata").format("YYYY-MM-DD");
+        const endDateParam = typeof req.query.endDate === "string" ? req.query.endDate : dayjs11().tz("Asia/Kolkata").format("YYYY-MM-DD");
+        const branchParam = typeof req.query.branch === "string" ? req.query.branch : null;
+        const reportArgs = {
+          startDate: startDateParam,
+          endDate: endDateParam,
+          branch: branchParam
+        };
+        const { branchIds } = await resolveReportBranchScope(req, branchParam);
+        const startOfDay = dayjs11.tz(startDateParam, "YYYY-MM-DD", "Asia/Kolkata").startOf("day").toDate();
+        const endOfDay = dayjs11.tz(endDateParam, "YYYY-MM-DD", "Asia/Kolkata").endOf("day").toDate();
+        const branchMatch = branchIds && branchIds.length > 0 ? toBranchQueryFilter(branchIds, "branch") : {};
+        const [
+          billingResult,
+          closingResult,
+          expenseResult,
+          attendanceResult,
+          categoryResult,
+          productResult,
+          reviewsResult,
+          stockOrdersResult,
+          instockResult,
+          returnOrdersResult,
+          customerCountResult,
+          billsVerificationResult
+        ] = await Promise.allSettled([
+          // 1. Branch Billing Data
+          getBranchBillingReportData(req, reportArgs),
+          // 2. Closing Entry Data
+          getClosingEntryReportData(req, reportArgs),
+          // 3. Expense Data
+          getExpenseReportData(req, reportArgs),
+          // 4. Attendance Data
+          getAttendanceReportData(req, reportArgs),
+          // 5. Category-wise Top Data
+          getCategoryWiseReportData(req, reportArgs),
+          // 6. Product-wise Top Data
+          getProductWiseReportData(req, reportArgs),
+          // 7. Reviews Aggregation
+          (async () => {
+            try {
+              const ReviewsModel = payload.db.collections["reviews"];
+              if (!ReviewsModel) return { totalReviews: 0, averageRating: 0, positiveRate: 0 };
+              const reviewMatch = {
+                createdAt: { $gte: startOfDay, $lte: endOfDay }
+              };
+              if (branchIds && branchIds.length > 0) {
+                Object.assign(reviewMatch, toBranchQueryFilter(branchIds, "branch"));
+              }
+              const agg = await ReviewsModel.aggregate([
+                { $match: reviewMatch },
+                { $unwind: "$items" },
+                {
+                  $group: {
+                    _id: null,
+                    total: { $sum: 1 },
+                    avgRating: { $avg: "$items.rating" },
+                    positiveCount: {
+                      $sum: { $cond: [{ $gte: ["$items.rating", 4] }, 1, 0] }
+                    }
+                  }
+                }
+              ]);
+              if (agg.length > 0) {
+                const row = agg[0];
+                const total = row.total || 0;
+                const avg = Math.round((row.avgRating || 0) * 10) / 10;
+                const posRate = total > 0 ? Math.round((row.positiveCount || 0) / total * 100) : 0;
+                return { totalReviews: total, averageRating: avg || 5, positiveRate: posRate };
+              }
+              const allAgg = await ReviewsModel.aggregate([
+                { $unwind: "$items" },
+                {
+                  $group: {
+                    _id: null,
+                    total: { $sum: 1 },
+                    avgRating: { $avg: "$items.rating" },
+                    positiveCount: {
+                      $sum: { $cond: [{ $gte: ["$items.rating", 4] }, 1, 0] }
+                    }
+                  }
+                }
+              ]);
+              if (allAgg.length > 0) {
+                const row = allAgg[0];
+                const total = row.total || 0;
+                const avg = Math.round((row.avgRating || 0) * 10) / 10;
+                const posRate = total > 0 ? Math.round((row.positiveCount || 0) / total * 100) : 0;
+                return { totalReviews: total, averageRating: avg || 4.8, positiveRate: posRate };
+              }
+              return { totalReviews: 0, averageRating: 5, positiveRate: 100 };
+            } catch {
+              return { totalReviews: 0, averageRating: 0, positiveRate: 0 };
+            }
+          })(),
+          // 8. Stock Orders Aggregation
+          (async () => {
+            try {
+              const Model = payload.db.collections["stock-orders"];
+              if (!Model) return { totalOrders: 0, pendingCount: 0, dispatchedCount: 0, deliveredCount: 0 };
+              const match = {
+                createdAt: { $gte: startOfDay, $lte: endOfDay }
+              };
+              if (branchIds && branchIds.length > 0) {
+                Object.assign(match, toBranchQueryFilter(branchIds, "branch"));
+              }
+              const agg = await Model.aggregate([
+                { $match: match },
+                {
+                  $group: {
+                    _id: "$status",
+                    count: { $sum: 1 }
+                  }
+                }
+              ]);
+              let total = 0;
+              let pending = 0;
+              let dispatched = 0;
+              let delivered = 0;
+              for (const item of agg) {
+                const count = item.count || 0;
+                total += count;
+                const status = String(item._id || "").toLowerCase();
+                if (status === "pending") pending += count;
+                else if (["sending", "picked", "in_transit"].includes(status)) dispatched += count;
+                else if (["confirmed", "received", "delivered"].includes(status)) delivered += count;
+              }
+              return { totalOrders: total, pendingCount: pending, dispatchedCount: dispatched, deliveredCount: delivered };
+            } catch {
+              return { totalOrders: 0, pendingCount: 0, dispatchedCount: 0, deliveredCount: 0 };
+            }
+          })(),
+          // 9. Instock Entries Count
+          (async () => {
+            try {
+              const Model = payload.db.collections["instock-entries"];
+              if (!Model) return { totalEntries: 0, receivedQty: 0 };
+              const match = {
+                date: { $gte: startOfDay, $lte: endOfDay }
+              };
+              if (branchIds && branchIds.length > 0) {
+                Object.assign(match, toBranchQueryFilter(branchIds, "branch"));
+              }
+              const agg = await Model.aggregate([
+                { $match: match },
+                { $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
+                {
+                  $group: {
+                    _id: "$_id",
+                    itemsTotal: { $sum: "$items.receivedQty" }
+                  }
+                }
+              ]);
+              return {
+                totalEntries: agg.length,
+                receivedQty: agg.reduce((acc, cur) => acc + (cur.itemsTotal || 0), 0)
+              };
+            } catch {
+              return { totalEntries: 0, receivedQty: 0 };
+            }
+          })(),
+          // 10. Return Orders Count & Value
+          (async () => {
+            try {
+              const Model = payload.db.collections["return-orders"];
+              if (!Model) return { totalReturns: 0, totalLossAmount: 0 };
+              const match = {
+                createdAt: { $gte: startOfDay, $lte: endOfDay }
+              };
+              if (branchIds && branchIds.length > 0) {
+                Object.assign(match, toBranchQueryFilter(branchIds, "branch"));
+              }
+              const agg = await Model.aggregate([
+                { $match: match },
+                { $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
+                {
+                  $group: {
+                    _id: "$_id",
+                    totalLoss: { $sum: { $multiply: ["$items.quantity", "$items.price"] } }
+                  }
+                }
+              ]);
+              return {
+                totalReturns: agg.length,
+                totalLossAmount: Math.round(agg.reduce((acc, cur) => acc + (cur.totalLoss || 0), 0))
+              };
+            } catch {
+              return { totalReturns: 0, totalLossAmount: 0 };
+            }
+          })(),
+          // 11. Customers Total
+          (async () => {
+            try {
+              const Model = payload.db.collections["billing-customers"] || payload.db.collections["customers"];
+              if (!Model) return { totalCustomers: 0 };
+              const count = await Model.countDocuments({});
+              return { totalCustomers: count };
+            } catch {
+              return { totalCustomers: 0 };
+            }
+          })(),
+          // 12. Billings Verification Status
+          (async () => {
+            try {
+              const Model = payload.db.collections["billings"];
+              if (!Model) return { totalBills: 0, verifiedCount: 0, pendingCount: 0 };
+              const match = {
+                createdAt: { $gte: startOfDay, $lte: endOfDay },
+                status: { $ne: "cancelled" }
+              };
+              if (branchIds && branchIds.length > 0) {
+                Object.assign(match, toBranchQueryFilter(branchIds, "branch"));
+              }
+              const agg = await Model.aggregate([
+                { $match: match },
+                {
+                  $group: {
+                    _id: "$verificationStatus",
+                    count: { $sum: 1 }
+                  }
+                }
+              ]);
+              let verified = 0;
+              let pending = 0;
+              let total = 0;
+              for (const row of agg) {
+                const count = row.count || 0;
+                total += count;
+                if (row._id === "verified") verified += count;
+                else pending += count;
+              }
+              return { totalBills: total, verifiedCount: verified, pendingCount: pending };
+            } catch {
+              return { totalBills: 0, verifiedCount: 0, pendingCount: 0 };
+            }
+          })()
+        ]);
+        const billingData = billingResult.status === "fulfilled" ? billingResult.value : null;
+        const billingTotals = billingData?.totals || {
+          totalBills: 0,
+          totalAmount: 0,
+          cash: 0,
+          upi: 0,
+          card: 0,
+          completedCount: 0,
+          settledCount: 0,
+          cancelledCount: 0,
+          tableOrderCount: 0,
+          gstInclusiveAmount: 0,
+          gstExclusiveAmount: 0,
+          nonGstAmount: 0,
+          totalExpenses: 0,
+          totalReturns: 0,
+          totalClosingSales: 0
+        };
+        const closingData = closingResult.status === "fulfilled" ? closingResult.value : null;
+        const closingTotals = closingData?.totals || {
+          totalEntries: 0,
+          systemSales: 0,
+          manualSales: 0,
+          onlineSales: 0,
+          totalSales: 0,
+          expenses: 0,
+          cash: 0,
+          upi: 0,
+          card: 0,
+          systemCash: 0,
+          systemUpi: 0,
+          systemCard: 0
+        };
+        const expenseData = expenseResult.status === "fulfilled" ? expenseResult.value : null;
+        const expenseMeta = expenseData?.meta || {
+          grandTotal: 0,
+          totalCount: 0,
+          categoryStats: []
+        };
+        const attendanceData = attendanceResult.status === "fulfilled" ? attendanceResult.value : null;
+        const attendanceTotals = attendanceData?.totals || {
+          totalRecords: 0,
+          uniqueEmployees: 0,
+          currentlyActive: 0,
+          totalWorkFormatted: "0h 0m"
+        };
+        const categoryData = categoryResult.status === "fulfilled" ? categoryResult.value : null;
+        const topCategories = (categoryData?.stats || []).slice(0, 5).map((c) => ({
+          name: c.categoryName,
+          quantity: c.totalQuantity,
+          amount: Math.round(c.totalAmount)
+        }));
+        const productData = productResult.status === "fulfilled" ? productResult.value : null;
+        const topProducts = (productData?.stats || []).slice(0, 5).map((p) => ({
+          name: p.productName,
+          quantity: p.totalQuantity,
+          amount: Math.round(p.totalAmount)
+        }));
+        const reviews = reviewsResult.status === "fulfilled" ? reviewsResult.value : { totalReviews: 0, averageRating: 0, positiveRate: 0 };
+        const stockOrders = stockOrdersResult.status === "fulfilled" ? stockOrdersResult.value : { totalOrders: 0, pendingCount: 0, dispatchedCount: 0, deliveredCount: 0 };
+        const instockEntries = instockResult.status === "fulfilled" ? instockResult.value : { totalEntries: 0, receivedQty: 0 };
+        const returnOrders = returnOrdersResult.status === "fulfilled" ? returnOrdersResult.value : { totalReturns: 0, totalLossAmount: 0 };
+        const customers = customerCountResult.status === "fulfilled" ? customerCountResult.value : { totalCustomers: 0 };
+        const billsVerification = billsVerificationResult.status === "fulfilled" ? billsVerificationResult.value : { totalBills: 0, verifiedCount: 0, pendingCount: 0 };
+        const taxableAmount = Math.round(billingTotals.gstInclusiveTaxableAmount || billingTotals.totalAmount * 0.952);
+        const totalTax = Math.round(billingTotals.totalAmount - taxableAmount);
+        const cgst = Math.round(totalTax / 2);
+        const sgst = totalTax - cgst;
+        const overallStock = {
+          totalProducts: topProducts.length || 0,
+          totalSold: billingTotals.totalBills,
+          totalReceived: instockEntries.receivedQty,
+          totalReturns: returnOrders.totalReturns,
+          totalRevenue: billingTotals.totalAmount
+        };
+        const summary = {
+          dateRange: {
+            startDate: startDateParam,
+            endDate: endDateParam
+          },
+          billing: billingTotals,
+          closing: {
+            ...closingTotals,
+            discrepancy: Math.round(closingTotals.totalSales - closingTotals.systemSales)
+          },
+          expenses: {
+            grandTotal: expenseMeta.grandTotal,
+            totalCount: expenseMeta.totalCount,
+            topCategories: (expenseMeta.categoryStats || []).slice(0, 4)
+          },
+          attendance: attendanceTotals,
+          gst: {
+            taxableAmount,
+            totalTax,
+            cgst,
+            sgst,
+            totalInvoices: billingTotals.totalBills
+          },
+          stockOrders,
+          instockEntries,
+          returnOrders,
+          reviews,
+          customers,
+          billsVerification,
+          topCategories,
+          topProducts,
+          overallStock
+        };
+        return Response.json(summary);
+      } catch (error) {
+        payload.logger.error({ msg: "Reports Dashboard Summary Error", error });
+        return Response.json({ error: "Failed to generate dashboard summary" }, { status: 500 });
+      }
+    };
+  }
+});
+
+// src/endpoints/getTallyExport.ts
+import dayjs12 from "dayjs";
+import utc12 from "dayjs/plugin/utc.js";
+import timezone12 from "dayjs/plugin/timezone.js";
+var toDayBoundary5, getTallyExportHandler;
+var init_getTallyExport = __esm({
+  "src/endpoints/getTallyExport.ts"() {
+    "use strict";
+    init_reportScope();
+    dayjs12.extend(utc12);
+    dayjs12.extend(timezone12);
+    toDayBoundary5 = (dateParam, mode) => {
+      const [yearRaw, monthRaw, dayRaw] = dateParam.split("-");
+      const year = parseInt(yearRaw, 10);
+      const month = parseInt(monthRaw, 10);
+      const day = parseInt(dayRaw, 10);
+      const parsedDate = dayjs12.tz(`${year}-${month}-${day}`, "YYYY-MM-DD", "Asia/Kolkata");
+      return (mode === "start" ? parsedDate.startOf("day") : parsedDate.endOf("day")).toDate();
+    };
+    getTallyExportHandler = async (req) => {
+      const { payload } = req;
+      try {
+        const startDateParam = typeof req.query.startDate === "string" && req.query.startDate.trim().length > 0 ? req.query.startDate : (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+        const endDateParam = typeof req.query.endDate === "string" && req.query.endDate.trim().length > 0 ? req.query.endDate : (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+        const branchParam = typeof req.query.branch === "string" && req.query.branch.trim().length > 0 ? req.query.branch : null;
+        const gstFilter = typeof req.query.gstFilter === "string" && req.query.gstFilter.trim().length > 0 ? req.query.gstFilter : "gst";
+        const startOfDay = toDayBoundary5(startDateParam, "start");
+        const endOfDay = toDayBoundary5(endDateParam, "end");
+        const { branchIds } = await resolveReportBranchScope(req, branchParam);
+        const result = await payload.find({
+          collection: "billings",
+          where: {
+            createdAt: {
+              greater_than_equal: startOfDay,
+              less_than_equal: endOfDay
+            },
+            status: {
+              in: ["completed", "settled"]
+            },
+            ...branchIds ? {
+              branch: {
+                in: branchIds
+              }
+            } : {}
+          },
+          limit: 5e4,
+          depth: 1
+          // Populate branch name
+        });
+        const csvRows = [];
+        csvRows.push(
+          [
+            "Date",
+            "Voucher No",
+            "Voucher Type",
+            "Branch Name",
+            "Party Name",
+            "Taxable Value",
+            "GST Rate",
+            "CGST Amount",
+            "SGST Amount",
+            "IGST Amount",
+            "Round Off",
+            "Invoice Total"
+          ].join(",")
+        );
+        for (const bill of result.docs) {
+          const billDate = dayjs12(bill.createdAt).tz("Asia/Kolkata").format("DD-MM-YYYY");
+          const invoiceNo = bill.invoiceNumber;
+          const branchName = typeof bill.branch === "object" && bill.branch ? bill.branch.name : "Unknown Branch";
+          const customerName = bill.customerDetails?.name?.trim();
+          const customerPhone = bill.customerDetails?.phoneNumber?.trim();
+          let partyName = "Cash Sales";
+          if (customerName) {
+            partyName = customerName;
+          } else if (customerPhone) {
+            partyName = customerPhone;
+          }
+          const activeItems = (bill.items || []).filter((item) => item.status !== "cancelled");
+          if (activeItems.length === 0) continue;
+          const taxGroups = {};
+          for (const item of activeItems) {
+            const rate = typeof item.gstRate === "number" ? item.gstRate : 0;
+            const taxable = typeof item.taxableAmount === "number" ? item.taxableAmount : 0;
+            const gst = typeof item.gstAmount === "number" ? item.gstAmount : 0;
+            if (!taxGroups[rate]) {
+              taxGroups[rate] = { taxable: 0, gst: 0 };
+            }
+            taxGroups[rate].taxable += taxable;
+            taxGroups[rate].gst += gst;
+          }
+          const rates = Object.keys(taxGroups).map(Number);
+          let filteredRates = rates;
+          if (gstFilter === "gst") {
+            filteredRates = rates.filter((r) => r > 0);
+          } else if (gstFilter === "nongst") {
+            filteredRates = rates.filter((r) => r <= 0);
+          }
+          if (filteredRates.length === 0) continue;
+          const invoiceTotal = typeof bill.totalAmount === "number" ? bill.totalAmount : 0;
+          let sumTaxableAndGst = 0;
+          for (const rate of rates) {
+            sumTaxableAndGst += taxGroups[rate].taxable + taxGroups[rate].gst;
+          }
+          const invoiceRoundOff = invoiceTotal - sumTaxableAndGst;
+          filteredRates.forEach((rate, index) => {
+            const group = taxGroups[rate];
+            const cgst = rate > 0 ? Number((group.gst / 2).toFixed(2)) : 0;
+            const sgst = rate > 0 ? Number((group.gst / 2).toFixed(2)) : 0;
+            const igst = 0;
+            const roundOffVal = index === 0 ? Number(invoiceRoundOff.toFixed(2)) : 0;
+            csvRows.push(
+              [
+                billDate,
+                `"${invoiceNo}"`,
+                "Sales",
+                `"${branchName}"`,
+                `"${partyName.replace(/"/g, '""')}"`,
+                group.taxable.toFixed(2),
+                rate.toFixed(2),
+                cgst.toFixed(2),
+                sgst.toFixed(2),
+                igst.toFixed(2),
+                roundOffVal.toFixed(2),
+                invoiceTotal.toFixed(2)
+              ].join(",")
+            );
+          });
+        }
+        const csvContent = csvRows.join("\r\n");
+        return new Response(csvContent, {
+          headers: {
+            "Content-Type": "text/csv; charset=utf-8",
+            "Content-Disposition": `attachment; filename=tally_export_${startDateParam}_to_${endDateParam}.csv`
+          }
+        });
+      } catch (error) {
+        payload.logger.error(error);
+        return Response.json({ error: "Failed to generate Tally export" }, { status: 500 });
+      }
+    };
+  }
+});
+
+// src/endpoints/getAccountsBillsReport.ts
+import dayjs13 from "dayjs";
+import utc13 from "dayjs/plugin/utc.js";
+import timezone13 from "dayjs/plugin/timezone.js";
+var BILLING_TIMEZONE3, toDayBoundary6, getAccountsBillsReportHandler;
+var init_getAccountsBillsReport = __esm({
+  "src/endpoints/getAccountsBillsReport.ts"() {
+    "use strict";
+    init_reportScope();
+    dayjs13.extend(utc13);
+    dayjs13.extend(timezone13);
+    BILLING_TIMEZONE3 = "Asia/Kolkata";
+    toDayBoundary6 = (dateParam, mode) => {
+      const [yearRaw, monthRaw, dayRaw] = dateParam.split("-");
+      const year = parseInt(yearRaw, 10);
+      const month = parseInt(monthRaw, 10);
+      const day = parseInt(dayRaw, 10);
+      const parsedDate = dayjs13.tz(`${year}-${month}-${day}`, "YYYY-MM-DD", BILLING_TIMEZONE3);
+      return (mode === "start" ? parsedDate.startOf("day") : parsedDate.endOf("day")).toDate();
+    };
+    getAccountsBillsReportHandler = async (req) => {
+      const { payload } = req;
+      try {
+        const startDateParam = typeof req.query.startDate === "string" ? req.query.startDate : null;
+        const endDateParam = typeof req.query.endDate === "string" ? req.query.endDate : null;
+        const branchParam = typeof req.query.branch === "string" ? req.query.branch : null;
+        const verificationStatusParam = typeof req.query.verificationStatus === "string" ? req.query.verificationStatus : null;
+        const paymentMethodParam = typeof req.query.paymentMethod === "string" ? req.query.paymentMethod : null;
+        const searchParam = typeof req.query.search === "string" ? req.query.search : null;
+        const todayStr = dayjs13().tz(BILLING_TIMEZONE3).format("YYYY-MM-DD");
+        const startStr = startDateParam || todayStr;
+        const endStr = endDateParam || todayStr;
+        const startOfDay = toDayBoundary6(startStr, "start");
+        const endOfDay = toDayBoundary6(endStr, "end");
+        const { branchIds } = await resolveReportBranchScope(req, branchParam);
+        const whereClause = {
+          and: [
+            {
+              or: [
+                {
+                  and: [
+                    { status: { in: ["completed", "settled"] } },
+                    { settledAt: { greater_than_equal: startOfDay.toISOString() } },
+                    { settledAt: { less_than_equal: endOfDay.toISOString() } }
+                  ]
+                },
+                {
+                  and: [
+                    { status: { not_in: ["completed", "settled"] } },
+                    { createdAt: { greater_than_equal: startOfDay.toISOString() } },
+                    { createdAt: { less_than_equal: endOfDay.toISOString() } }
+                  ]
+                }
+              ]
+            }
+          ]
+        };
+        if (branchIds && branchIds.length > 0) {
+          whereClause.and.push({
+            branch: {
+              in: branchIds
+            }
+          });
+        }
+        if (verificationStatusParam && verificationStatusParam !== "all" && verificationStatusParam !== "missed") {
+          whereClause.and.push({
+            verificationStatus: {
+              equals: verificationStatusParam
+            }
+          });
+        }
+        if (paymentMethodParam && paymentMethodParam !== "all") {
+          whereClause.and.push({
+            paymentMethod: {
+              equals: paymentMethodParam
+            }
+          });
+        }
+        if (searchParam && searchParam.trim().length > 0) {
+          whereClause.and.push({
+            invoiceNumber: {
+              like: searchParam.trim()
+            }
+          });
+        }
+        const result = await payload.find({
+          collection: "billings",
+          where: whereClause,
+          depth: 2,
+          limit: 1e3,
+          sort: "-createdAt",
+          pagination: false
+        });
+        const branchIdsInBills = Array.from(
+          new Set(
+            result.docs.map((bill) => {
+              return bill.branch && typeof bill.branch === "object" ? bill.branch.id : bill.branch;
+            }).filter(Boolean)
+          )
+        );
+        const [startYear, startMonth, startDay] = startStr.split("-").map(Number);
+        const startUtc = new Date(Date.UTC(startYear, startMonth - 1, startDay, 0, 0, 0, 0)).toISOString();
+        const [endYear, endMonth, endDay] = endStr.split("-").map(Number);
+        const endUtc = new Date(Date.UTC(endYear, endMonth - 1, endDay, 23, 59, 59, 999)).toISOString();
+        const closingEntriesResult = branchIdsInBills.length > 0 ? await payload.find({
+          collection: "closing-entries",
+          where: {
+            and: [
+              {
+                branch: {
+                  in: branchIdsInBills
+                }
+              },
+              {
+                date: {
+                  greater_than_equal: startUtc
+                }
+              },
+              {
+                date: {
+                  less_than_equal: endUtc
+                }
+              }
+            ]
+          },
+          limit: 1e3,
+          sort: "createdAt",
+          depth: 0
+        }) : { docs: [] };
+        const closingGroups = {};
+        closingEntriesResult.docs.forEach((entry) => {
+          const bId = entry.branch;
+          if (!bId) return;
+          if (!closingGroups[bId]) {
+            closingGroups[bId] = [];
+          }
+          closingGroups[bId].push(entry);
+        });
+        Object.keys(closingGroups).forEach((k) => {
+          closingGroups[k].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        });
+        let bills = result.docs.map((bill) => {
+          const waiterName = bill.createdBy && typeof bill.createdBy === "object" ? bill.createdBy.name || bill.createdBy.email || "N/A" : "N/A";
+          const branchName = bill.branch && typeof bill.branch === "object" ? bill.branch.name || "N/A" : "N/A";
+          const itemsCount = Array.isArray(bill.items) ? bill.items.length : 0;
+          const billBranchId = bill.branch && typeof bill.branch === "object" ? bill.branch.id : bill.branch;
+          let closingNumber = "-";
+          let originalClosingNumber = "-";
+          let closingStatus = "n_a";
+          const isBillClosedStatus = bill.status === "completed" || bill.status === "settled";
+          if (isBillClosedStatus) {
+            const groupEntries = closingGroups[billBranchId] || [];
+            if (groupEntries.length > 0) {
+              let matchedEntry = null;
+              const billTime = new Date(bill.settledAt || bill.updatedAt || bill.createdAt).getTime();
+              for (let i = 0; i < groupEntries.length; i++) {
+                const currentEntry = groupEntries[i];
+                const currentEntryTime = new Date(currentEntry.createdAt).getTime();
+                let lastClosingTime = 0;
+                if (i > 0) {
+                  lastClosingTime = new Date(groupEntries[i - 1].createdAt).getTime();
+                } else {
+                  const entryDate = new Date(currentEntry.date);
+                  const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1e3;
+                  lastClosingTime = entryDate.getTime() - IST_OFFSET_MS;
+                }
+                if (billTime > lastClosingTime && billTime <= currentEntryTime) {
+                  matchedEntry = currentEntry;
+                  break;
+                }
+              }
+              if (matchedEntry) {
+                const parts = matchedEntry.closingNumber.split("-");
+                const seq = parts[3] || "00";
+                const closingTimeStr = dayjs13(matchedEntry.createdAt).tz(BILLING_TIMEZONE3).format("HH:mm");
+                closingNumber = `CLO-${seq} ${closingTimeStr}`;
+                originalClosingNumber = matchedEntry.closingNumber;
+                closingStatus = "closed";
+              } else {
+                closingNumber = "Missed";
+                closingStatus = "missed";
+              }
+            } else {
+              closingNumber = "Pending";
+              closingStatus = "pending";
+            }
+          }
+          return {
+            id: bill.id,
+            invoiceNumber: bill.invoiceNumber,
+            totalAmount: bill.totalAmount,
+            paymentMethod: bill.paymentMethod || "other",
+            upiBankTransactionId: bill.upiBankTransactionId || "",
+            itemsCount,
+            waiterName,
+            branchName,
+            createdAt: bill.createdAt,
+            verificationStatus: bill.verificationStatus || "pending",
+            closingNumber,
+            originalClosingNumber,
+            closingStatus
+          };
+        });
+        if (verificationStatusParam === "missed") {
+          bills = bills.filter((b) => b.closingStatus === "missed");
+        }
+        return Response.json({ bills });
+      } catch (error) {
+        payload.logger.error(error);
+        return Response.json({ error: "Failed to generate report" }, { status: 500 });
+      }
+    };
+  }
+});
+
+// src/endpoints/updateBillVerificationStatus.ts
+var updateBillVerificationStatusHandler;
+var init_updateBillVerificationStatus = __esm({
+  "src/endpoints/updateBillVerificationStatus.ts"() {
+    "use strict";
+    updateBillVerificationStatusHandler = async (req) => {
+      const { payload } = req;
+      if (!req.user || !["superadmin", "admin", "account"].includes(req.user.role)) {
+        return Response.json({ message: "Unauthorized" }, { status: 401 });
+      }
+      try {
+        const { billId, status } = await req.json();
+        if (!billId || !status) {
+          return Response.json({ message: "Missing required fields" }, { status: 400 });
+        }
+        if (!["pending", "verified", "not_verified", "not_match", "cancelled"].includes(status)) {
+          return Response.json({ message: "Invalid verification status value" }, { status: 400 });
+        }
+        const updatedBill = await payload.update({
+          collection: "billings",
+          id: billId,
+          data: {
+            verificationStatus: status
+          },
+          overrideAccess: true
+          // Bypass access control checks since role restriction was handled above
+        });
+        return Response.json({ message: "Verification status updated", status: updatedBill.verificationStatus });
+      } catch (error) {
+        payload.logger.error(error);
+        return Response.json({ message: "Error updating verification status" }, { status: 500 });
+      }
+    };
+  }
+});
+
+// src/endpoints/updateBillTransactionId.ts
+var updateBillTransactionIdHandler;
+var init_updateBillTransactionId = __esm({
+  "src/endpoints/updateBillTransactionId.ts"() {
+    "use strict";
+    updateBillTransactionIdHandler = async (req) => {
+      const { payload } = req;
+      if (!req.user || !["superadmin", "admin", "account"].includes(req.user.role)) {
+        return Response.json({ message: "Unauthorized" }, { status: 401 });
+      }
+      try {
+        const { billId, upiBankTransactionId } = await req.json();
+        if (!billId) {
+          return Response.json({ message: "Missing billId" }, { status: 400 });
+        }
+        const updatedBill = await payload.update({
+          collection: "billings",
+          id: billId,
+          data: {
+            upiBankTransactionId: upiBankTransactionId || null
+          },
+          overrideAccess: true
+          // Bypass access control checks since role restriction was handled above
+        });
+        return Response.json({ message: "Transaction ID updated", upiBankTransactionId: updatedBill.upiBankTransactionId });
+      } catch (error) {
+        payload.logger.error(error);
+        return Response.json({ message: "Error updating transaction ID" }, { status: 500 });
+      }
     };
   }
 });
@@ -17915,452 +20154,6 @@ var init_createPaymentSession = __esm({
   }
 });
 
-// src/services/reports/productWise.ts
-import mongoose3 from "mongoose";
-import dayjs10 from "dayjs";
-import utc10 from "dayjs/plugin/utc.js";
-import timezone10 from "dayjs/plugin/timezone.js";
-var toId3, parseTimeLikeValue2, parsePreparingTimeValue2, parseToDayjs, resolveItemPreparationMinutes, toDayBoundary5, getProductWiseReportData;
-var init_productWise = __esm({
-  "src/services/reports/productWise.ts"() {
-    "use strict";
-    init_reportScope();
-    dayjs10.extend(utc10);
-    dayjs10.extend(timezone10);
-    dayjs10.tz.setDefault("Asia/Kolkata");
-    toId3 = (value) => {
-      if (typeof value === "string" && value.trim().length > 0) return value;
-      if (typeof value === "number" && Number.isFinite(value)) return String(value);
-      if (value instanceof mongoose3.Types.ObjectId) return value.toString();
-      if (value && typeof value === "object") {
-        const record = value;
-        if (record.id != null) return toId3(record.id);
-        if (record._id != null) return toId3(record._id);
-      }
-      return null;
-    };
-    parseTimeLikeValue2 = (value, fallbackDate) => {
-      if (value == null) return null;
-      if (value instanceof Date) {
-        const parsed = dayjs10(value).tz("Asia/Kolkata");
-        return parsed.isValid() ? parsed : null;
-      }
-      if (typeof value === "number" && Number.isFinite(value)) {
-        const parsed = dayjs10(value).tz("Asia/Kolkata");
-        return parsed.isValid() ? parsed : null;
-      }
-      if (typeof value !== "string") return null;
-      const trimmed = value.trim();
-      if (!trimmed) return null;
-      const explicitDate = dayjs10(trimmed);
-      if (explicitDate.isValid()) return explicitDate.tz("Asia/Kolkata");
-      const timeOnlyMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-      if (!timeOnlyMatch) return null;
-      const hour = Number.parseInt(timeOnlyMatch[1], 10);
-      const minute = Number.parseInt(timeOnlyMatch[2], 10);
-      const second = Number.parseInt(timeOnlyMatch[3] || "0", 10);
-      if (!Number.isFinite(hour) || !Number.isFinite(minute) || !Number.isFinite(second) || hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) {
-        return null;
-      }
-      return fallbackDate.tz("Asia/Kolkata").hour(hour).minute(minute).second(second).millisecond(0);
-    };
-    parsePreparingTimeValue2 = (value) => {
-      if (value == null) return null;
-      if (typeof value === "string" && value.trim().length === 0) return null;
-      const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
-      if (!Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) return null;
-      return parsed;
-    };
-    parseToDayjs = (value) => {
-      if (value == null) return null;
-      if (dayjs10.isDayjs(value)) {
-        const parsed = value.tz("Asia/Kolkata");
-        return parsed.isValid() ? parsed : null;
-      }
-      if (value instanceof Date || typeof value === "string" || typeof value === "number") {
-        const parsed = dayjs10(value).tz("Asia/Kolkata");
-        return parsed.isValid() ? parsed : null;
-      }
-      return null;
-    };
-    resolveItemPreparationMinutes = (row) => {
-      const fallbackDate = parseToDayjs(row.billCreatedAt) ?? dayjs10().tz("Asia/Kolkata");
-      const orderedAt = parseTimeLikeValue2(row.orderedAt, fallbackDate);
-      const preparedAt = parseTimeLikeValue2(row.preparedAt, fallbackDate);
-      if (orderedAt && preparedAt) {
-        const adjustedPreparedAt = preparedAt.isBefore(orderedAt) ? preparedAt.add(1, "day") : preparedAt;
-        const diffMinutes = adjustedPreparedAt.diff(orderedAt, "minute", true);
-        return Math.max(0, Number(diffMinutes.toFixed(2)));
-      }
-      const preparingTime = parsePreparingTimeValue2(row.preparingTime);
-      if (preparingTime != null) return preparingTime;
-      return null;
-    };
-    toDayBoundary5 = (dateParam, mode) => {
-      const [yearRaw, monthRaw, dayRaw] = dateParam.split("-");
-      const year = parseInt(yearRaw, 10);
-      const month = parseInt(monthRaw, 10);
-      const day = parseInt(dayRaw, 10);
-      const parsedDate = dayjs10.tz(`${year}-${month}-${day}`, "YYYY-MM-DD", "Asia/Kolkata");
-      return (mode === "start" ? parsedDate.startOf("day") : parsedDate.endOf("day")).toDate();
-    };
-    getProductWiseReportData = async (req, args = {}) => {
-      const { payload } = req;
-      const startDateParam = typeof args.startDate === "string" && args.startDate.trim().length > 0 ? args.startDate : (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-      const endDateParam = typeof args.endDate === "string" && args.endDate.trim().length > 0 ? args.endDate : (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-      const startOfDay = toDayBoundary5(startDateParam, "start");
-      const endOfDay = toDayBoundary5(endDateParam, "end");
-      const branchParam = typeof args.branch === "string" ? args.branch : "all";
-      const categoryParam = typeof args.category === "string" ? args.category : "";
-      const departmentParam = typeof args.department === "string" ? args.department : "";
-      const productParam = typeof args.product === "string" ? args.product : "";
-      const chefId = typeof args.chefId === "string" ? args.chefId.trim() : "";
-      const kitchenId = typeof args.kitchenId === "string" ? args.kitchenId.trim() : "";
-      const { branchIds } = await resolveReportBranchScope(req, branchParam);
-      const branches = await payload.find({
-        collection: "branches",
-        where: branchIds ? {
-          id: {
-            in: branchIds
-          }
-        } : void 0,
-        limit: 100,
-        pagination: false
-      });
-      const branchMap = {};
-      branches.docs.forEach((branch) => {
-        branchMap[branch.id] = branch.name.substring(0, 3).toUpperCase();
-      });
-      const BillingModel = payload.db.collections["billings"];
-      if (!BillingModel) {
-        throw new Error("Billings collection not found");
-      }
-      const matchQuery = {
-        createdAt: {
-          $gte: startOfDay,
-          $lte: endOfDay
-        },
-        status: { $not: { $eq: "cancelled" } }
-      };
-      let finalCategoryIds = [];
-      let resolvedBranchIds = branchIds || [];
-      if (kitchenId && mongoose3.Types.ObjectId.isValid(kitchenId)) {
-        const kitchenRes = await payload.findByID({
-          collection: "kitchens",
-          id: kitchenId,
-          depth: 0
-        });
-        if (kitchenRes) {
-          const kitchenBranchIds = (Array.isArray(kitchenRes.branches) ? kitchenRes.branches : []).map((branch) => typeof branch === "object" ? branch.id : branch).filter(Boolean);
-          if (resolvedBranchIds.length > 0) {
-            resolvedBranchIds = resolvedBranchIds.filter((id) => kitchenBranchIds.includes(id));
-            if (resolvedBranchIds.length === 0) {
-              resolvedBranchIds = ["000000000000000000000000"];
-            }
-          } else {
-            resolvedBranchIds = kitchenBranchIds;
-          }
-          const kitchenCategoryIds = (Array.isArray(kitchenRes.categories) ? kitchenRes.categories : []).map((category) => typeof category === "object" ? category.id : category).filter(Boolean);
-          const requestedCategoryIds = categoryParam && categoryParam !== "all" ? categoryParam.split(",").map((id) => id.trim()).filter((id) => mongoose3.Types.ObjectId.isValid(id)) : [];
-          if (requestedCategoryIds.length > 0) {
-            finalCategoryIds = requestedCategoryIds.filter((id) => kitchenCategoryIds.includes(id));
-            if (finalCategoryIds.length === 0) {
-              finalCategoryIds = ["000000000000000000000000"];
-            }
-          } else {
-            finalCategoryIds = kitchenCategoryIds;
-          }
-        } else {
-          resolvedBranchIds = ["000000000000000000000000"];
-        }
-      } else if (categoryParam && categoryParam !== "all") {
-        finalCategoryIds = categoryParam.split(",").map((id) => id.trim()).filter((id) => mongoose3.Types.ObjectId.isValid(id));
-      }
-      if (resolvedBranchIds.length > 0) {
-        const branchObjectIds = resolvedBranchIds.filter((id) => mongoose3.Types.ObjectId.isValid(id)).map((id) => new mongoose3.Types.ObjectId(id));
-        matchQuery.branch = {
-          $in: [...branchObjectIds, ...resolvedBranchIds]
-        };
-      }
-      const commonItemMatch = {
-        "items.status": { $ne: "cancelled" }
-      };
-      if (chefId && chefId !== "all" && mongoose3.Types.ObjectId.isValid(chefId)) {
-        commonItemMatch["items.preparedBy"] = { $eq: new mongoose3.Types.ObjectId(chefId) };
-      }
-      if (productParam && productParam !== "all") {
-        const pTargets = productParam.split(",").filter(Boolean).map((id) => mongoose3.Types.ObjectId.isValid(id) ? new mongoose3.Types.ObjectId(id) : id);
-        if (pTargets.length > 0) {
-          commonItemMatch["items.product"] = { $in: pTargets };
-        }
-      }
-      const aggregationPipeline = [
-        {
-          $match: matchQuery
-        },
-        {
-          $unwind: "$items"
-        },
-        {
-          $match: commonItemMatch
-        },
-        // Group first by product + branch to reduce ~100k items to ~1k unique products
-        {
-          $group: {
-            _id: {
-              productId: "$items.product",
-              branchId: "$branch"
-            },
-            quantity: { $sum: "$items.quantity" },
-            amount: { $sum: "$items.subtotal" }
-          }
-        },
-        {
-          $lookup: {
-            from: "products",
-            localField: "_id.productId",
-            foreignField: "_id",
-            as: "productDetails"
-          }
-        },
-        {
-          $unwind: {
-            path: "$productDetails",
-            preserveNullAndEmptyArrays: true
-          }
-        },
-        {
-          $lookup: {
-            from: "categories",
-            localField: "productDetails.category",
-            foreignField: "_id",
-            as: "categoryDetails"
-          }
-        },
-        {
-          $unwind: {
-            path: "$categoryDetails",
-            preserveNullAndEmptyArrays: true
-          }
-        }
-      ];
-      if (finalCategoryIds.length > 0) {
-        aggregationPipeline.push({
-          $match: {
-            "categoryDetails._id": {
-              $in: finalCategoryIds.map((id) => new mongoose3.Types.ObjectId(id))
-            }
-          }
-        });
-      } else {
-        aggregationPipeline.push({
-          $match: {
-            "productDetails._id": { $exists: true },
-            "categoryDetails._id": { $exists: true }
-          }
-        });
-      }
-      if (departmentParam && departmentParam !== "all") {
-        aggregationPipeline.push({
-          $match: {
-            "categoryDetails.department": { $eq: new mongoose3.Types.ObjectId(departmentParam) }
-          }
-        });
-      }
-      aggregationPipeline.push(
-        {
-          $group: {
-            _id: {
-              productId: "$_id.productId",
-              productName: "$productDetails.name"
-            },
-            price: { $first: "$productDetails.defaultPriceDetails.price" },
-            unit: { $first: "$productDetails.defaultPriceDetails.unit" },
-            preparationTime: { $first: "$productDetails.preparationTime" },
-            totalQuantity: { $sum: "$quantity" },
-            totalAmount: { $sum: "$amount" },
-            branchData: {
-              $push: {
-                branchId: "$_id.branchId",
-                amount: "$amount",
-                quantity: "$quantity"
-              }
-            }
-          }
-        },
-        {
-          $project: {
-            _id: 0,
-            productId: "$_id.productId",
-            productName: "$_id.productName",
-            price: 1,
-            unit: 1,
-            preparationTime: 1,
-            totalQuantity: 1,
-            totalAmount: 1,
-            branchData: 1
-          }
-        },
-        {
-          $sort: { totalAmount: -1 }
-        }
-      );
-      const needsCategoryFilterInPrep = finalCategoryIds.length > 0 || departmentParam && departmentParam !== "all";
-      const prepItemMatch = {
-        ...commonItemMatch,
-        $or: [
-          {
-            "items.orderedAt": { $exists: true, $nin: [null, ""] },
-            "items.preparedAt": { $exists: true, $nin: [null, ""] }
-          },
-          {
-            "items.preparingTime": { $exists: true, $nin: [null, "", 0] }
-          }
-        ]
-      };
-      const preparationPipeline = [
-        {
-          $match: matchQuery
-        },
-        {
-          $unwind: "$items"
-        },
-        {
-          $match: prepItemMatch
-        }
-      ];
-      if (needsCategoryFilterInPrep) {
-        preparationPipeline.push(
-          {
-            $lookup: {
-              from: "products",
-              localField: "items.product",
-              foreignField: "_id",
-              as: "productDetails"
-            }
-          },
-          {
-            $unwind: {
-              path: "$productDetails",
-              preserveNullAndEmptyArrays: true
-            }
-          },
-          {
-            $lookup: {
-              from: "categories",
-              localField: "productDetails.category",
-              foreignField: "_id",
-              as: "categoryDetails"
-            }
-          },
-          {
-            $unwind: {
-              path: "$categoryDetails",
-              preserveNullAndEmptyArrays: true
-            }
-          }
-        );
-        if (finalCategoryIds.length > 0) {
-          preparationPipeline.push({
-            $match: {
-              "categoryDetails._id": {
-                $in: finalCategoryIds.map((id) => new mongoose3.Types.ObjectId(id))
-              }
-            }
-          });
-        }
-        if (departmentParam && departmentParam !== "all") {
-          preparationPipeline.push({
-            $match: {
-              "categoryDetails.department": { $eq: new mongoose3.Types.ObjectId(departmentParam) }
-            }
-          });
-        }
-      }
-      preparationPipeline.push({
-        $project: {
-          _id: 0,
-          productId: "$items.product",
-          orderedAt: "$items.orderedAt",
-          preparedAt: "$items.preparedAt",
-          preparingTime: "$items.preparingTime",
-          billCreatedAt: "$createdAt"
-        }
-      });
-      const [rawStats, rawPreparationItems] = await Promise.all([
-        BillingModel.aggregate(aggregationPipeline),
-        BillingModel.aggregate(preparationPipeline)
-      ]);
-      const preparationByProductId = {};
-      rawPreparationItems.forEach((row) => {
-        const productId = toId3(row.productId);
-        if (!productId) return;
-        const minutes = resolveItemPreparationMinutes(row);
-        if (minutes == null || !Number.isFinite(minutes)) return;
-        if (!preparationByProductId[productId]) {
-          preparationByProductId[productId] = { totalMinutes: 0, count: 0 };
-        }
-        preparationByProductId[productId].totalMinutes += minutes;
-        preparationByProductId[productId].count += 1;
-      });
-      const branchTotals = {};
-      rawStats.forEach((stat) => {
-        stat.branchData.forEach((branchData) => {
-          const branchId = String(branchData.branchId);
-          if (branchMap[branchId]) {
-            const code = branchMap[branchId];
-            branchTotals[code] = (branchTotals[code] || 0) + branchData.amount;
-          }
-        });
-      });
-      const branchHeaders = Object.keys(branchTotals).filter((code) => branchTotals[code] > 0).sort((a, b) => branchTotals[b] - branchTotals[a]);
-      const stats = rawStats.map((item, index) => {
-        const branchSales = {};
-        const productId = toId3(item.productId) || "";
-        const preparationAggregate = productId ? preparationByProductId[productId] : null;
-        const averagePreparationTime = preparationAggregate && preparationAggregate.count > 0 ? Number((preparationAggregate.totalMinutes / preparationAggregate.count).toFixed(2)) : null;
-        item.branchData.forEach((branchData) => {
-          const branchId = String(branchData.branchId);
-          if (branchMap[branchId]) {
-            const code = branchMap[branchId];
-            branchSales[code] = { amount: branchData.amount, quantity: branchData.quantity };
-          }
-        });
-        return {
-          sNo: index + 1,
-          productId,
-          productName: item.productName,
-          price: item.price || 0,
-          unit: item.unit || "",
-          preparationTime: typeof item.preparationTime === "number" && Number.isFinite(item.preparationTime) ? item.preparationTime : null,
-          averagePreparationTime,
-          averagePreparationSampleSize: preparationAggregate?.count || 0,
-          totalQuantity: item.totalQuantity,
-          totalAmount: item.totalAmount,
-          branchSales
-        };
-      });
-      const totals = stats.reduce(
-        (acc, current) => ({
-          totalQuantity: acc.totalQuantity + current.totalQuantity,
-          totalAmount: acc.totalAmount + current.totalAmount
-        }),
-        { totalQuantity: 0, totalAmount: 0 }
-      );
-      return {
-        startDate: startDateParam,
-        endDate: endDateParam,
-        branchHeaders,
-        stats,
-        totals: {
-          ...totals,
-          branchTotals
-        }
-      };
-    };
-  }
-});
-
 // src/endpoints/getProductWiseReport.ts
 var getProductWiseReportHandler;
 var init_getProductWiseReport = __esm({
@@ -18531,23 +20324,23 @@ var init_kot_time = __esm({
 
 // src/services/reports/productPreparation.ts
 import mongoose4 from "mongoose";
-import dayjs11 from "dayjs";
-import utc11 from "dayjs/plugin/utc.js";
-import timezone11 from "dayjs/plugin/timezone.js";
+import dayjs14 from "dayjs";
+import utc14 from "dayjs/plugin/utc.js";
+import timezone14 from "dayjs/plugin/timezone.js";
 var parseDateParam, toId4, parseToDayjs2, parseTimeLikeValue3, formatRailwayTime, parsePreparingTimeValue3, parseAmountValue, parseStatusParam, rollOverMinutes, getPreparationStatus, getDurationMinutes, resolveSupervisorConfirmingMinutes, resolveWaiterDeliverMinutes, resolveChefActualMinutes, resolveItemPreparationMinutes2, resolveBillNumber, getProductPreparationBillDetailsData;
 var init_productPreparation = __esm({
   "src/services/reports/productPreparation.ts"() {
     "use strict";
     init_reportScope();
     init_kot_time();
-    dayjs11.extend(utc11);
-    dayjs11.extend(timezone11);
-    dayjs11.tz.setDefault("Asia/Kolkata");
+    dayjs14.extend(utc14);
+    dayjs14.extend(timezone14);
+    dayjs14.tz.setDefault("Asia/Kolkata");
     parseDateParam = (value) => {
       if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
         return value.trim();
       }
-      return dayjs11().tz("Asia/Kolkata").format("YYYY-MM-DD");
+      return dayjs14().tz("Asia/Kolkata").format("YYYY-MM-DD");
     };
     toId4 = (value) => {
       if (typeof value === "string" && value.trim().length > 0) return value;
@@ -18562,12 +20355,12 @@ var init_productPreparation = __esm({
     };
     parseToDayjs2 = (value) => {
       if (value == null) return null;
-      if (dayjs11.isDayjs(value)) {
+      if (dayjs14.isDayjs(value)) {
         const parsed = value.tz("Asia/Kolkata");
         return parsed.isValid() ? parsed : null;
       }
       if (value instanceof Date || typeof value === "string" || typeof value === "number") {
-        const parsed = dayjs11(value).tz("Asia/Kolkata");
+        const parsed = dayjs14(value).tz("Asia/Kolkata");
         return parsed.isValid() ? parsed : null;
       }
       return null;
@@ -18575,17 +20368,17 @@ var init_productPreparation = __esm({
     parseTimeLikeValue3 = (value, fallbackDate) => {
       if (value == null) return null;
       if (value instanceof Date) {
-        const parsed = dayjs11(value).tz("Asia/Kolkata");
+        const parsed = dayjs14(value).tz("Asia/Kolkata");
         return parsed.isValid() ? parsed : null;
       }
       if (typeof value === "number" && Number.isFinite(value)) {
-        const parsed = dayjs11(value).tz("Asia/Kolkata");
+        const parsed = dayjs14(value).tz("Asia/Kolkata");
         return parsed.isValid() ? parsed : null;
       }
       if (typeof value !== "string") return null;
       const trimmed = value.trim();
       if (!trimmed) return null;
-      const explicitDate = dayjs11(trimmed);
+      const explicitDate = dayjs14(trimmed);
       if (explicitDate.isValid()) return explicitDate.tz("Asia/Kolkata");
       const timeOnlyMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
       if (!timeOnlyMatch) return null;
@@ -18685,7 +20478,7 @@ var init_productPreparation = __esm({
       if (!row.confirmedAt || typeof row.confirmedAt !== "string" || row.confirmedAt.trim() === "" || row.confirmedAt.trim() === "--") {
         return null;
       }
-      const fallbackDate = parseToDayjs2(row.billCreatedAt) ?? dayjs11().tz("Asia/Kolkata");
+      const fallbackDate = parseToDayjs2(row.billCreatedAt) ?? dayjs14().tz("Asia/Kolkata");
       const orderedAt = parseTimeLikeValue3(row.orderedAt, fallbackDate) || fallbackDate;
       const preparedAt = parseTimeLikeValue3(row.preparedAt, fallbackDate);
       const confirmedAt = parseTimeLikeValue3(row.confirmedAt, fallbackDate);
@@ -18697,7 +20490,7 @@ var init_productPreparation = __esm({
       if (!row.deliveredAt || typeof row.deliveredAt !== "string" || row.deliveredAt.trim() === "" || row.deliveredAt.trim() === "--") {
         return null;
       }
-      const fallbackDate = parseToDayjs2(row.billCreatedAt) ?? dayjs11().tz("Asia/Kolkata");
+      const fallbackDate = parseToDayjs2(row.billCreatedAt) ?? dayjs14().tz("Asia/Kolkata");
       const preparedAt = parseTimeLikeValue3(row.preparedAt, fallbackDate);
       const confirmedAt = parseTimeLikeValue3(row.confirmedAt, fallbackDate);
       const orderedAt = parseTimeLikeValue3(row.orderedAt, fallbackDate);
@@ -18724,7 +20517,7 @@ var init_productPreparation = __esm({
       return resolveItemPreparationMinutes2(row);
     };
     resolveItemPreparationMinutes2 = (row) => {
-      const fallbackDate = parseToDayjs2(row.billCreatedAt) ?? dayjs11().tz("Asia/Kolkata");
+      const fallbackDate = parseToDayjs2(row.billCreatedAt) ?? dayjs14().tz("Asia/Kolkata");
       const orderedAt = parseTimeLikeValue3(row.orderedAt, fallbackDate);
       const preparedAt = parseTimeLikeValue3(row.preparedAt, fallbackDate);
       if (orderedAt && preparedAt) {
@@ -18762,8 +20555,8 @@ var init_productPreparation = __esm({
       if (!BillingModel) {
         throw new Error("Billings collection not found");
       }
-      const startOfDay = dayjs11.tz(startDateParam, "YYYY-MM-DD", "Asia/Kolkata").startOf("day").toDate();
-      const endOfDay = dayjs11.tz(endDateParam, "YYYY-MM-DD", "Asia/Kolkata").endOf("day").toDate();
+      const startOfDay = dayjs14.tz(startDateParam, "YYYY-MM-DD", "Asia/Kolkata").startOf("day").toDate();
+      const endOfDay = dayjs14.tz(endDateParam, "YYYY-MM-DD", "Asia/Kolkata").endOf("day").toDate();
       const matchQuery = {
         createdAt: {
           $gte: startOfDay,
@@ -19227,444 +21020,6 @@ var init_getProductPreparationBillDetails = __esm({
   }
 });
 
-// src/services/reports/closingEntry.ts
-var EMPTY_OBJECT_ID, toNumber, toInteger, toDateString, toNonEmptyString, toDateParam, buildUtcDayStart, buildUtcDayEnd, toDenominations, toExpenseDetailsFromExpenseDoc, normalizeEntry, toExpenseBranchId, getClosingEntryReportData;
-var init_closingEntry = __esm({
-  "src/services/reports/closingEntry.ts"() {
-    "use strict";
-    init_reportScope();
-    EMPTY_OBJECT_ID = "000000000000000000000000";
-    toNumber = (value) => {
-      if (typeof value === "number" && Number.isFinite(value)) return value;
-      if (typeof value === "string") {
-        const parsed = Number(value);
-        if (Number.isFinite(parsed)) return parsed;
-      }
-      return 0;
-    };
-    toInteger = (value) => Math.trunc(toNumber(value));
-    toDateString = (value) => {
-      if (value instanceof Date) {
-        return Number.isNaN(value.getTime()) ? "" : value.toISOString();
-      }
-      if (typeof value === "string") {
-        if (value.trim().length === 0) return "";
-        const parsed = new Date(value);
-        return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
-      }
-      if (typeof value === "number" && Number.isFinite(value)) {
-        const parsed = new Date(value);
-        return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
-      }
-      return "";
-    };
-    toNonEmptyString = (value, fallback = "") => {
-      if (typeof value === "string" && value.trim().length > 0) return value;
-      if (typeof value === "number" && Number.isFinite(value)) return String(value);
-      if (Buffer.isBuffer(value)) {
-        return value.toString("hex");
-      }
-      if (typeof value === "object" && value !== null) {
-        const record = value;
-        if (typeof record.toHexString === "function") {
-          const hex = record.toHexString();
-          if (hex && hex.trim().length > 0) return hex;
-        }
-        const nestedId = toNonEmptyString(record.id, "");
-        if (nestedId.length > 0) return nestedId;
-        const nestedMongoId = toNonEmptyString(record._id, "");
-        if (nestedMongoId.length > 0) return nestedMongoId;
-        if (typeof record.toString === "function") {
-          const stringified = record.toString();
-          if (stringified && stringified !== "[object Object]") return stringified;
-        }
-      }
-      return fallback;
-    };
-    toDateParam = (value) => {
-      if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
-        return value.trim();
-      }
-      return (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-    };
-    buildUtcDayStart = (dateParam) => {
-      const [year, month, day] = dateParam.split("-").map(Number);
-      return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-    };
-    buildUtcDayEnd = (dateParam) => {
-      const [year, month, day] = dateParam.split("-").map(Number);
-      return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
-    };
-    toDenominations = (value) => {
-      const source = typeof value === "object" && value != null ? value : {};
-      return {
-        count2000: toInteger(source.count2000),
-        count500: toInteger(source.count500),
-        count200: toInteger(source.count200),
-        count100: toInteger(source.count100),
-        count50: toInteger(source.count50),
-        count10: toInteger(source.count10),
-        count5: toInteger(source.count5)
-      };
-    };
-    toExpenseDetailsFromExpenseDoc = (expense) => {
-      const details = Array.isArray(expense.details) ? expense.details : [];
-      return details.map((detail) => {
-        let imageUrl = "";
-        if (detail?.image && typeof detail.image === "object" && detail.image !== null) {
-          const imageRecord = detail.image;
-          if (typeof imageRecord.url === "string") {
-            imageUrl = imageRecord.url;
-          }
-        }
-        return {
-          category: toNonEmptyString(detail?.source, "OTHERS"),
-          reason: toNonEmptyString(detail?.reason, "(No reason)"),
-          amount: toNumber(detail?.amount),
-          imageUrl,
-          date: toDateString(expense.date)
-        };
-      });
-    };
-    normalizeEntry = (entry) => {
-      return {
-        id: toNonEmptyString(entry.id),
-        closingNumber: toNonEmptyString(entry.closingNumber, "Unknown"),
-        createdAt: toDateString(entry.createdAt),
-        systemSales: toNumber(entry.systemSales),
-        totalBills: toInteger(entry.totalBills),
-        manualSales: toNumber(entry.manualSales),
-        onlineSales: toNumber(entry.onlineSales),
-        totalSales: toNumber(entry.totalSales),
-        expenses: toNumber(entry.expenses),
-        cash: toNumber(entry.cash),
-        upi: toNumber(entry.upi),
-        card: toNumber(entry.card),
-        denominations: toDenominations(entry.denominations),
-        expenseDetails: [],
-        systemCash: 0,
-        systemUpi: 0,
-        systemCard: 0,
-        notes: toNonEmptyString(entry.notes)
-      };
-    };
-    toExpenseBranchId = (value) => {
-      if (typeof value === "object" && value !== null) {
-        const record = value;
-        const id = toNonEmptyString(record.id, "");
-        if (id.length > 0) return id;
-        const mongoId = toNonEmptyString(record._id, "");
-        if (mongoId.length > 0) return mongoId;
-      }
-      return toNonEmptyString(value, "");
-    };
-    getClosingEntryReportData = async (req, args = {}) => {
-      const { payload } = req;
-      const startDateParam = toDateParam(args.startDate);
-      const endDateParam = toDateParam(args.endDate);
-      const branchParam = typeof args.branch === "string" ? args.branch : null;
-      const startOfDay = buildUtcDayStart(startDateParam);
-      const endOfDay = buildUtcDayEnd(endDateParam);
-      const { branchIds } = await resolveReportBranchScope(req, branchParam);
-      const ClosingModel = payload.db.collections["closing-entries"];
-      if (!ClosingModel) {
-        throw new Error("Closing entries collection not found");
-      }
-      const closingMatch = {
-        date: {
-          $gte: startOfDay,
-          $lte: endOfDay
-        }
-      };
-      if (branchIds && branchIds.length > 0) {
-        Object.assign(closingMatch, toBranchQueryFilter(branchIds, "branch"));
-      }
-      const statsRaw = await ClosingModel.aggregate([
-        {
-          $match: closingMatch
-        },
-        {
-          $group: {
-            _id: "$branch",
-            totalEntries: { $sum: 1 },
-            closingNumbers: { $push: "$closingNumber" },
-            lastUpdated: { $max: "$createdAt" },
-            entries: {
-              $push: {
-                id: "$_id",
-                closingNumber: "$closingNumber",
-                createdAt: "$createdAt",
-                systemSales: "$systemSales",
-                totalBills: "$totalBills",
-                manualSales: "$manualSales",
-                onlineSales: "$onlineSales",
-                totalSales: "$totalSales",
-                expenses: "$expenses",
-                cash: "$cash",
-                upi: "$upi",
-                card: "$creditCard",
-                denominations: "$denominations",
-                notes: "$notes"
-              }
-            },
-            systemSales: { $sum: "$systemSales" },
-            totalBills: { $sum: "$totalBills" },
-            manualSales: { $sum: "$manualSales" },
-            onlineSales: { $sum: "$onlineSales" },
-            totalSales: { $sum: "$totalSales" },
-            expenses: { $sum: "$expenses" },
-            returnTotal: { $sum: "$returnTotal" },
-            stockOrders: { $sum: "$stockOrders" },
-            net: { $sum: "$net" },
-            cash: { $sum: "$cash" },
-            upi: { $sum: "$upi" },
-            card: { $sum: "$creditCard" },
-            count2000: { $sum: { $ifNull: ["$denominations.count2000", 0] } },
-            count500: { $sum: { $ifNull: ["$denominations.count500", 0] } },
-            count200: { $sum: { $ifNull: ["$denominations.count200", 0] } },
-            count100: { $sum: { $ifNull: ["$denominations.count100", 0] } },
-            count50: { $sum: { $ifNull: ["$denominations.count50", 0] } },
-            count10: { $sum: { $ifNull: ["$denominations.count10", 0] } },
-            count5: { $sum: { $ifNull: ["$denominations.count5", 0] } }
-          }
-        },
-        {
-          $lookup: {
-            from: "branches",
-            localField: "_id",
-            foreignField: "_id",
-            as: "branchDetails"
-          }
-        },
-        {
-          $unwind: {
-            path: "$branchDetails",
-            preserveNullAndEmptyArrays: true
-          }
-        },
-        {
-          $project: {
-            _id: 1,
-            branchName: { $ifNull: ["$branchDetails.name", "Unknown Branch"] },
-            totalEntries: 1,
-            closingNumbers: 1,
-            lastUpdated: 1,
-            entries: 1,
-            systemSales: 1,
-            totalBills: 1,
-            manualSales: 1,
-            onlineSales: 1,
-            totalSales: 1,
-            expenses: 1,
-            returnTotal: 1,
-            stockOrders: 1,
-            net: 1,
-            cash: 1,
-            upi: 1,
-            card: 1,
-            count2000: 1,
-            count500: 1,
-            count200: 1,
-            count100: 1,
-            count50: 1,
-            count10: 1,
-            count5: 1
-          }
-        },
-        {
-          $sort: { branchName: 1 }
-        }
-      ]);
-      const normalizedStatsBase = (Array.isArray(statsRaw) ? statsRaw : []).map((item) => {
-        const entriesRaw = Array.isArray(item.entries) ? item.entries : [];
-        const closingNumbersRaw = Array.isArray(item.closingNumbers) ? item.closingNumbers : [];
-        return {
-          _id: toNonEmptyString(item._id),
-          branchName: toNonEmptyString(item.branchName, "Unknown Branch"),
-          totalEntries: toInteger(item.totalEntries),
-          closingNumbers: closingNumbersRaw.map((value) => toNonEmptyString(value)).filter(Boolean),
-          lastUpdated: toDateString(item.lastUpdated),
-          entries: entriesRaw.map(normalizeEntry),
-          systemSales: toNumber(item.systemSales),
-          totalBills: toInteger(item.totalBills),
-          manualSales: toNumber(item.manualSales),
-          onlineSales: toNumber(item.onlineSales),
-          totalSales: toNumber(item.totalSales),
-          expenses: toNumber(item.expenses),
-          returnTotal: toNumber(item.returnTotal),
-          stockOrders: toNumber(item.stockOrders),
-          net: toNumber(item.net),
-          cash: toNumber(item.cash),
-          upi: toNumber(item.upi),
-          card: toNumber(item.card),
-          count2000: toInteger(item.count2000),
-          count500: toInteger(item.count500),
-          count200: toInteger(item.count200),
-          count100: toInteger(item.count100),
-          count50: toInteger(item.count50),
-          count10: toInteger(item.count10),
-          count5: toInteger(item.count5)
-        };
-      });
-      const expensesRes = await payload.find({
-        collection: "expenses",
-        where: {
-          and: [
-            { date: { greater_than_equal: startOfDay.toISOString() } },
-            { date: { less_than_equal: endOfDay.toISOString() } },
-            ...branchIds ? [
-              {
-                branch: {
-                  in: branchIds
-                }
-              }
-            ] : []
-          ]
-        },
-        limit: 1e3,
-        pagination: false,
-        depth: 2
-      });
-      const allExpenses = Array.isArray(expensesRes.docs) ? expensesRes.docs : [];
-      const billingsRes = await payload.find({
-        collection: "billings",
-        where: {
-          and: [
-            { updatedAt: { greater_than_equal: startOfDay.toISOString() } },
-            { updatedAt: { less_than_equal: endOfDay.toISOString() } },
-            { status: { in: ["completed", "settled"] } },
-            ...branchIds ? [
-              {
-                branch: {
-                  in: branchIds
-                }
-              }
-            ] : []
-          ]
-        },
-        limit: 1e4,
-        pagination: false,
-        depth: 0
-      });
-      const allBillings = billingsRes.docs || [];
-      const stats = normalizedStatsBase.map((item, index) => {
-        const branchId = item._id;
-        if (!branchId) {
-          return {
-            ...item,
-            _id: "",
-            sNo: index + 1,
-            expenseDetails: [],
-            systemCash: 0,
-            systemUpi: 0,
-            systemCard: 0
-          };
-        }
-        const sortedEntries = [...item.entries].sort(
-          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-        );
-        const branchExpenses = allExpenses.filter((expense) => {
-          const expenseBranchId = toExpenseBranchId(expense.branch);
-          return expenseBranchId === branchId;
-        });
-        const branchBillings = allBillings.filter((billing) => {
-          const billingBranchId = toExpenseBranchId(billing.branch);
-          return billingBranchId === branchId;
-        });
-        const entriesWithMetrics = sortedEntries.map((entry, entryIndex) => {
-          const entryTime = new Date(entry.createdAt).getTime();
-          const prevTime = entryIndex === 0 ? new Date(startOfDay).getTime() : new Date(sortedEntries[entryIndex - 1]?.createdAt || startOfDay).getTime();
-          const relevantExpenses = branchExpenses.filter((expense) => {
-            const expenseTime = new Date(toDateString(expense.date)).getTime();
-            return expenseTime > prevTime && expenseTime <= entryTime;
-          });
-          const prevIso = new Date(prevTime).toISOString();
-          const entryIso = new Date(entry.createdAt).toISOString();
-          const relevantBillings = branchBillings.filter((billing) => {
-            const billUpdatedIso = billing.updatedAt ? new Date(billing.updatedAt).toISOString() : new Date(billing.createdAt).toISOString();
-            return billUpdatedIso > prevIso && billUpdatedIso <= entryIso;
-          });
-          let systemCash = 0;
-          let systemUpi = 0;
-          let systemCard = 0;
-          relevantBillings.forEach((bill) => {
-            const amount = toNumber(bill.totalAmount);
-            const pm = toNonEmptyString(bill.paymentMethod).toLowerCase();
-            if (pm === "cash") systemCash += amount;
-            else if (pm === "upi") systemUpi += amount;
-            else if (pm === "card") systemCard += amount;
-          });
-          return {
-            ...entry,
-            systemCash,
-            systemUpi,
-            systemCard,
-            expenseDetails: relevantExpenses.flatMap(toExpenseDetailsFromExpenseDoc)
-          };
-        });
-        const branchExpenseDetails = branchExpenses.flatMap(toExpenseDetailsFromExpenseDoc);
-        const totalSystemCash = entriesWithMetrics.reduce((sum, entry) => sum + entry.systemCash, 0);
-        const totalSystemUpi = entriesWithMetrics.reduce((sum, entry) => sum + entry.systemUpi, 0);
-        const totalSystemCard = entriesWithMetrics.reduce((sum, entry) => sum + entry.systemCard, 0);
-        return {
-          ...item,
-          _id: branchId === EMPTY_OBJECT_ID ? "" : branchId,
-          sNo: index + 1,
-          entries: entriesWithMetrics,
-          expenseDetails: branchExpenseDetails,
-          systemCash: totalSystemCash,
-          systemUpi: totalSystemUpi,
-          systemCard: totalSystemCard
-        };
-      });
-      const totals = stats.reduce(
-        (acc, curr) => ({
-          totalEntries: acc.totalEntries + curr.totalEntries,
-          systemSales: acc.systemSales + curr.systemSales,
-          totalBills: acc.totalBills + curr.totalBills,
-          manualSales: acc.manualSales + curr.manualSales,
-          onlineSales: acc.onlineSales + curr.onlineSales,
-          totalSales: acc.totalSales + curr.totalSales,
-          expenses: acc.expenses + curr.expenses,
-          returnTotal: acc.returnTotal + curr.returnTotal,
-          stockOrders: acc.stockOrders + curr.stockOrders,
-          net: acc.net + curr.net,
-          cash: acc.cash + curr.cash,
-          upi: acc.upi + curr.upi,
-          card: acc.card + curr.card,
-          systemCash: acc.systemCash + curr.systemCash,
-          systemUpi: acc.systemUpi + curr.systemUpi,
-          systemCard: acc.systemCard + curr.systemCard
-        }),
-        {
-          totalEntries: 0,
-          systemSales: 0,
-          totalBills: 0,
-          manualSales: 0,
-          onlineSales: 0,
-          totalSales: 0,
-          expenses: 0,
-          returnTotal: 0,
-          stockOrders: 0,
-          net: 0,
-          cash: 0,
-          upi: 0,
-          card: 0,
-          systemCash: 0,
-          systemUpi: 0,
-          systemCard: 0
-        }
-      );
-      return {
-        startDate: startDateParam,
-        endDate: endDateParam,
-        stats,
-        totals
-      };
-    };
-  }
-});
-
 // src/endpoints/getClosingEntryReport.ts
 var getClosingEntryReportHandler;
 var init_getClosingEntryReport = __esm({
@@ -19688,26 +21043,26 @@ var init_getClosingEntryReport = __esm({
 });
 
 // src/services/reports/waiterWise.ts
-import dayjs12 from "dayjs";
-import utc12 from "dayjs/plugin/utc.js";
-import timezone12 from "dayjs/plugin/timezone.js";
-var toDayBoundary6, toNumber2, toInteger2, toIsoString, parseHourParam, getWaiterWiseBillingReportData;
+import dayjs15 from "dayjs";
+import utc15 from "dayjs/plugin/utc.js";
+import timezone15 from "dayjs/plugin/timezone.js";
+var toDayBoundary7, toNumber4, toInteger3, toIsoString, parseHourParam, getWaiterWiseBillingReportData;
 var init_waiterWise = __esm({
   "src/services/reports/waiterWise.ts"() {
     "use strict";
     init_reportScope();
-    dayjs12.extend(utc12);
-    dayjs12.extend(timezone12);
-    dayjs12.tz.setDefault("Asia/Kolkata");
-    toDayBoundary6 = (dateParam, mode) => {
+    dayjs15.extend(utc15);
+    dayjs15.extend(timezone15);
+    dayjs15.tz.setDefault("Asia/Kolkata");
+    toDayBoundary7 = (dateParam, mode) => {
       const [yearRaw, monthRaw, dayRaw] = dateParam.split("-");
       const year = parseInt(yearRaw, 10);
       const month = parseInt(monthRaw, 10);
       const day = parseInt(dayRaw, 10);
-      const parsedDate = dayjs12.tz(`${year}-${month}-${day}`, "YYYY-MM-DD", "Asia/Kolkata");
+      const parsedDate = dayjs15.tz(`${year}-${month}-${day}`, "YYYY-MM-DD", "Asia/Kolkata");
       return (mode === "start" ? parsedDate.startOf("day") : parsedDate.endOf("day")).toDate();
     };
-    toNumber2 = (value) => {
+    toNumber4 = (value) => {
       if (typeof value === "number" && Number.isFinite(value)) return value;
       if (typeof value === "string") {
         const parsed = Number(value);
@@ -19715,7 +21070,7 @@ var init_waiterWise = __esm({
       }
       return 0;
     };
-    toInteger2 = (value) => Math.trunc(toNumber2(value));
+    toInteger3 = (value) => Math.trunc(toNumber4(value));
     toIsoString = (value) => {
       if (value == null) return void 0;
       if (value instanceof Date) {
@@ -19741,8 +21096,8 @@ var init_waiterWise = __esm({
       const { payload } = req;
       const startDateParam = typeof args.startDate === "string" && args.startDate.trim().length > 0 ? args.startDate : (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
       const endDateParam = typeof args.endDate === "string" && args.endDate.trim().length > 0 ? args.endDate : (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-      const startOfDay = toDayBoundary6(startDateParam, "start");
-      const endOfDay = toDayBoundary6(endDateParam, "end");
+      const startOfDay = toDayBoundary7(startDateParam, "start");
+      const endOfDay = toDayBoundary7(endDateParam, "end");
       const branchParam = typeof args.branch === "string" ? args.branch : "";
       const waiterParam = typeof args.waiter === "string" ? args.waiter : "";
       const hourParam = parseHourParam(args.hour);
@@ -19816,9 +21171,9 @@ var init_waiterWise = __esm({
       ]);
       const branchBenchmarks = branchBenchmarksRaw.map((item) => ({
         _id: item._id == null ? "" : String(item._id),
-        totalAmount: toNumber2(item.totalAmount),
-        totalBills: toInteger2(item.totalBills),
-        totalWaiters: toInteger2(item.totalWaiters)
+        totalAmount: toNumber4(item.totalAmount),
+        totalBills: toInteger3(item.totalBills),
+        totalWaiters: toInteger3(item.totalWaiters)
       })).filter((item) => item._id.length > 0);
       const hasTableOrderReferenceExpression = {
         $or: [
@@ -20074,16 +21429,16 @@ var init_waiterWise = __esm({
         branchNames: Array.isArray(item.branchNames) ? item.branchNames.map((name) => String(name)).filter((name) => name.length > 0) : [],
         branchIds: Array.isArray(item.branchIds) ? item.branchIds.map((id) => String(id)).filter((id) => id.length > 0) : [],
         lastBillTime: toIsoString(item.lastBillTime),
-        totalBills: toInteger2(item.totalBills),
-        qrAmount: toNumber2(item.qrAmount),
-        nonQrTableAmount: toNumber2(item.nonQrTableAmount),
-        billingAmount: toNumber2(item.billingAmount),
-        cancelledAmount: toNumber2(item.cancelledAmount),
-        totalAmount: toNumber2(item.totalAmount),
-        cashAmount: toNumber2(item.cashAmount),
-        upiAmount: toNumber2(item.upiAmount),
-        cardAmount: toNumber2(item.cardAmount),
-        customerCount: toInteger2(item.customerCount)
+        totalBills: toInteger3(item.totalBills),
+        qrAmount: toNumber4(item.qrAmount),
+        nonQrTableAmount: toNumber4(item.nonQrTableAmount),
+        billingAmount: toNumber4(item.billingAmount),
+        cancelledAmount: toNumber4(item.cancelledAmount),
+        totalAmount: toNumber4(item.totalAmount),
+        cashAmount: toNumber4(item.cashAmount),
+        upiAmount: toNumber4(item.upiAmount),
+        cardAmount: toNumber4(item.cardAmount),
+        customerCount: toInteger3(item.customerCount)
       }));
       const totals = stats.reduce(
         (acc, current) => ({
@@ -20136,8 +21491,8 @@ var init_waiterWise = __esm({
         }
       ]);
       if (timelineMeta.length > 0) {
-        const minHour = toInteger2(timelineMeta[0].minHour);
-        const maxHour = toInteger2(timelineMeta[0].maxHour);
+        const minHour = toInteger3(timelineMeta[0].minHour);
+        const maxHour = toInteger3(timelineMeta[0].maxHour);
         timeline = {
           minHour: minHour >= 0 ? minHour : 6,
           maxHour: maxHour <= 23 ? maxHour : 23
@@ -20330,764 +21685,6 @@ var init_AttendanceReport = __esm({
   }
 });
 
-// src/services/reports/attendance.ts
-import dayjs13 from "dayjs";
-import utc13 from "dayjs/plugin/utc.js";
-import timezone13 from "dayjs/plugin/timezone.js";
-var toNumber3, toNonEmptyString2, formatSecondsToReadable, toDayBoundary7, getMediaUrl, getAttendanceReportData;
-var init_attendance = __esm({
-  "src/services/reports/attendance.ts"() {
-    "use strict";
-    init_reportScope();
-    init_geo();
-    dayjs13.extend(utc13);
-    dayjs13.extend(timezone13);
-    dayjs13.tz.setDefault("Asia/Kolkata");
-    toNumber3 = (value) => {
-      if (typeof value === "number" && Number.isFinite(value)) return value;
-      if (typeof value === "string") {
-        const parsed = Number(value);
-        if (Number.isFinite(parsed)) return parsed;
-      }
-      return 0;
-    };
-    toNonEmptyString2 = (value, fallback = "") => {
-      if (typeof value === "string" && value.trim().length > 0) return value.trim();
-      if (typeof value === "number" && Number.isFinite(value)) return String(value);
-      if (value && typeof value === "object") {
-        const record = value;
-        if (record.id) return toNonEmptyString2(record.id, fallback);
-        if (record._id) return toNonEmptyString2(record._id, fallback);
-        if (typeof record.toString === "function") {
-          const str = record.toString();
-          if (str && str !== "[object Object]") return str;
-        }
-      }
-      return fallback;
-    };
-    formatSecondsToReadable = (seconds) => {
-      const safeSeconds = Math.max(0, Math.floor(seconds));
-      const hours = Math.floor(safeSeconds / 3600);
-      const minutes = Math.floor(safeSeconds % 3600 / 60);
-      const remainingSecs = safeSeconds % 60;
-      if (hours > 0) {
-        return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
-      }
-      if (minutes > 0) {
-        return `${minutes}m ${remainingSecs}s`;
-      }
-      return `${remainingSecs}s`;
-    };
-    toDayBoundary7 = (dateParam, mode) => {
-      const [yearRaw, monthRaw, dayRaw] = dateParam.split("-");
-      const year = parseInt(yearRaw, 10);
-      const month = parseInt(monthRaw, 10);
-      const day = parseInt(dayRaw, 10);
-      const parsedDate = dayjs13.tz(`${year}-${month}-${day}`, "YYYY-MM-DD", "Asia/Kolkata");
-      return (mode === "start" ? parsedDate.startOf("day") : parsedDate.endOf("day")).toDate();
-    };
-    getMediaUrl = (mediaDoc) => {
-      if (!mediaDoc) return "";
-      if (typeof mediaDoc === "string") {
-        const trimmed = mediaDoc.trim();
-        if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("/api/") || trimmed.startsWith("data:")) {
-          return trimmed;
-        }
-      }
-      if (typeof mediaDoc === "object" && mediaDoc !== null) {
-        if (mediaDoc.url && typeof mediaDoc.url === "string") return mediaDoc.url;
-        if (mediaDoc.thumbnailURL && typeof mediaDoc.thumbnailURL === "string") return mediaDoc.thumbnailURL;
-        if (mediaDoc.filename && typeof mediaDoc.filename === "string") {
-          const publicURL = process.env.NEXT_PUBLIC_S3_PUBLIC_URL || process.env.S3_PUBLIC_URL;
-          if (publicURL) {
-            const cleanURL = publicURL.endsWith("/") ? publicURL.slice(0, -1) : publicURL;
-            const prefix = mediaDoc.prefix ? String(mediaDoc.prefix).replace(/^\/+|\/+$/g, "") : "";
-            return prefix ? `${cleanURL}/blackforest/uploads/${prefix}/${mediaDoc.filename}` : `${cleanURL}/blackforest/uploads/${mediaDoc.filename}`;
-          }
-          return `/api/media/file/${mediaDoc.filename}`;
-        }
-      }
-      return "";
-    };
-    getAttendanceReportData = async (req, args = {}) => {
-      const { payload } = req;
-      const todayStr = dayjs13().tz("Asia/Kolkata").format("YYYY-MM-DD");
-      const startDateParam = typeof args.startDate === "string" && args.startDate.trim().length > 0 ? args.startDate.trim() : todayStr;
-      const endDateParam = typeof args.endDate === "string" && args.endDate.trim().length > 0 ? args.endDate.trim() : todayStr;
-      const startOfDay = toDayBoundary7(startDateParam, "start");
-      const endOfDay = toDayBoundary7(endDateParam, "end");
-      const branchParam = typeof args.branch === "string" ? args.branch.trim() : "";
-      const roleParam = typeof args.role === "string" ? args.role.trim() : "";
-      const employeeParam = typeof args.employee === "string" ? args.employee.trim() : "";
-      const statusParam = typeof args.status === "string" ? args.status.trim() : "";
-      const { branchIds } = await resolveReportBranchScope(req, branchParam);
-      let geoLocations = [];
-      try {
-        const geoSettings = await payload.findGlobal({
-          slug: "branch-geo-settings",
-          depth: 1
-        });
-        geoLocations = Array.isArray(geoSettings?.locations) ? geoSettings.locations : [];
-      } catch (e) {
-        req.payload.logger.warn({ msg: "Failed to fetch branch-geo-settings", error: e });
-      }
-      let allBranches = [];
-      try {
-        const branchesResult = await payload.find({
-          collection: "branches",
-          limit: 300,
-          depth: 0
-        });
-        allBranches = branchesResult.docs || [];
-      } catch (e) {
-        req.payload.logger.warn({ msg: "Failed to fetch branches", error: e });
-      }
-      const branchMap = /* @__PURE__ */ new Map();
-      for (const b of allBranches) {
-        branchMap.set(String(b.id), {
-          id: String(b.id),
-          name: b.name || "Unknown Branch",
-          latitude: typeof b.latitude === "number" ? b.latitude : void 0,
-          longitude: typeof b.longitude === "number" ? b.longitude : void 0
-        });
-      }
-      const geofences = [];
-      for (const loc of geoLocations) {
-        const bId = String(typeof loc.branch === "object" ? loc.branch?.id : loc.branch || "");
-        const bName = typeof loc.branch === "object" && loc.branch?.name || branchMap.get(bId)?.name || "Branch";
-        const lat = typeof loc.latitude === "number" ? loc.latitude : Number(loc.latitude);
-        const lng = typeof loc.longitude === "number" ? loc.longitude : Number(loc.longitude);
-        const radius = typeof loc.radius === "number" && loc.radius > 0 ? Number(loc.radius) : 100;
-        if (bId && Number.isFinite(lat) && Number.isFinite(lng)) {
-          geofences.push({
-            branchId: bId,
-            branchName: bName,
-            latitude: lat,
-            longitude: lng,
-            shape: loc.shape || "circle",
-            buildingType: loc.buildingType || "standalone",
-            radius,
-            squareSize: typeof loc.squareSize === "number" ? loc.squareSize : 50,
-            rectWidth: typeof loc.rectWidth === "number" ? loc.rectWidth : 40,
-            rectLength: typeof loc.rectLength === "number" ? loc.rectLength : 60,
-            rotation: typeof loc.rotation === "number" ? loc.rotation : 0
-          });
-        }
-      }
-      for (const b of allBranches) {
-        const bId = String(b.id);
-        if (!geofences.some((g) => g.branchId === bId)) {
-          const lat = typeof b.latitude === "number" ? b.latitude : Number(b.latitude);
-          const lng = typeof b.longitude === "number" ? b.longitude : Number(b.longitude);
-          if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
-            geofences.push({
-              branchId: bId,
-              branchName: b.name || "Branch",
-              latitude: lat,
-              longitude: lng,
-              shape: "circle",
-              radius: 100
-            });
-          }
-        }
-      }
-      const resolveBranchFromCoords = (lat, lng) => {
-        if (typeof lat !== "number" || typeof lng !== "number" || !Number.isFinite(lat) || !Number.isFinite(lng) || lat === 0 && lng === 0) {
-          return null;
-        }
-        let bestMatch = null;
-        let minDistance = Infinity;
-        for (const g of geofences) {
-          const isInside = isPointInsideGeofence(lat, lng, g, 60);
-          const dist = getDistanceToGeofence(lat, lng, g);
-          if (isInside) {
-            if (dist < minDistance) {
-              minDistance = dist;
-              bestMatch = {
-                branchId: g.branchId,
-                branchName: g.branchName,
-                distance: Math.round(dist)
-              };
-            }
-          }
-        }
-        if (!bestMatch) {
-          for (const g of geofences) {
-            const dist = getDistanceToGeofence(lat, lng, g);
-            if (dist <= 300 && dist < minDistance) {
-              minDistance = dist;
-              bestMatch = {
-                branchId: g.branchId,
-                branchName: g.branchName,
-                distance: Math.round(dist)
-              };
-            }
-          }
-        }
-        return bestMatch;
-      };
-      const AttendanceModel = payload.db.collections["attendance"];
-      if (!AttendanceModel) {
-        throw new Error("Attendance collection not found");
-      }
-      const matchQuery = {
-        $or: [
-          {
-            date: {
-              $gte: startOfDay,
-              $lte: endOfDay
-            }
-          },
-          {
-            dateString: {
-              $gte: startDateParam,
-              $lte: endDateParam
-            }
-          }
-        ]
-      };
-      const pipeline = [
-        { $match: matchQuery },
-        // Convert user and employee relationship fields to ObjectId for lookup
-        {
-          $addFields: {
-            userObjectId: {
-              $convert: {
-                input: "$user",
-                to: "objectId",
-                onError: null,
-                onNull: null
-              }
-            },
-            employeeObjectId: {
-              $convert: {
-                input: "$employee",
-                to: "objectId",
-                onError: null,
-                onNull: null
-              }
-            }
-          }
-        },
-        {
-          $lookup: {
-            from: "users",
-            localField: "userObjectId",
-            foreignField: "_id",
-            as: "userDetails"
-          }
-        },
-        {
-          $unwind: {
-            path: "$userDetails",
-            preserveNullAndEmptyArrays: true
-          }
-        },
-        {
-          $addFields: {
-            // If employee not directly on attendance doc, try user's employee
-            resolvedEmployeeId: {
-              $ifNull: [
-                "$employeeObjectId",
-                {
-                  $convert: {
-                    input: "$userDetails.employee",
-                    to: "objectId",
-                    onError: null,
-                    onNull: null
-                  }
-                }
-              ]
-            },
-            resolvedBranchId: {
-              $convert: {
-                input: {
-                  $ifNull: [
-                    "$userDetails.branch",
-                    {
-                      $ifNull: [
-                        "$userDetails.lastLoginBranch",
-                        { $arrayElemAt: ["$userDetails.kitchenBranches", 0] }
-                      ]
-                    }
-                  ]
-                },
-                to: "objectId",
-                onError: null,
-                onNull: null
-              }
-            }
-          }
-        },
-        {
-          $lookup: {
-            from: "employees",
-            localField: "resolvedEmployeeId",
-            foreignField: "_id",
-            as: "employeeDetails"
-          }
-        },
-        {
-          $unwind: {
-            path: "$employeeDetails",
-            preserveNullAndEmptyArrays: true
-          }
-        },
-        {
-          $lookup: {
-            from: "branches",
-            localField: "resolvedBranchId",
-            foreignField: "_id",
-            as: "branchDetails"
-          }
-        },
-        {
-          $unwind: {
-            path: "$branchDetails",
-            preserveNullAndEmptyArrays: true
-          }
-        }
-      ];
-      if (roleParam && roleParam !== "all") {
-        const roles = roleParam.split(",").map((r) => r.trim().toLowerCase()).filter((r) => r.length > 0 && r !== "all");
-        if (roles.length > 0) {
-          pipeline.push({
-            $match: {
-              $or: [
-                { "employeeDetails.team": { $in: roles } },
-                { "userDetails.role": { $in: roles } }
-              ]
-            }
-          });
-        }
-      }
-      if (employeeParam && employeeParam !== "all") {
-        const employeeIds = employeeParam.split(",").map((id) => id.trim()).filter((id) => id.length > 0 && id !== "all");
-        if (employeeIds.length > 0) {
-          pipeline.push({
-            $match: {
-              $or: [
-                { $expr: { $in: [{ $toString: "$resolvedEmployeeId" }, employeeIds] } },
-                { $expr: { $in: [{ $toString: "$userObjectId" }, employeeIds] } }
-              ]
-            }
-          });
-        }
-      }
-      pipeline.push({
-        $sort: { date: -1, "activities.punchIn": -1, createdAt: -1 }
-      });
-      const rawDocs = await AttendanceModel.aggregate(pipeline);
-      const mediaIdSet = /* @__PURE__ */ new Set();
-      const extractMediaId = (val) => {
-        if (!val) return;
-        if (typeof val === "string") {
-          const trimmed = val.trim();
-          if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://") && !trimmed.startsWith("/api/") && !trimmed.startsWith("data:") && /^[0-9a-fA-F]{24}$/.test(trimmed)) {
-            mediaIdSet.add(trimmed);
-          }
-        } else if (typeof val === "object" && val !== null) {
-          const rec = val;
-          if (!rec.url && !rec.filename) {
-            const idStr = toNonEmptyString2(rec.id || rec._id);
-            if (idStr && /^[0-9a-fA-F]{24}$/.test(idStr)) mediaIdSet.add(idStr);
-          }
-        }
-      };
-      for (const doc of rawDocs) {
-        extractMediaId(doc.employeeDetails?.photo);
-        extractMediaId(doc.photo);
-        extractMediaId(doc.capturedImage);
-        const activitiesList = Array.isArray(doc.activities) ? doc.activities : [];
-        for (const act of activitiesList) {
-          extractMediaId(act.capturedImage);
-          extractMediaId(act.photo);
-          extractMediaId(act.image);
-          extractMediaId(act.photoUrl);
-          extractMediaId(act.imageUrl);
-        }
-        const recordsList = Array.isArray(doc.records) ? doc.records : [];
-        for (const rec of recordsList) {
-          extractMediaId(rec.photo);
-          extractMediaId(rec.capturedImage);
-          extractMediaId(rec.image);
-        }
-      }
-      const mediaMap = /* @__PURE__ */ new Map();
-      if (mediaIdSet.size > 0) {
-        const idArray = Array.from(mediaIdSet);
-        try {
-          const mediaRes = await payload.find({
-            collection: "media",
-            where: {
-              id: {
-                in: idArray
-              }
-            },
-            depth: 0,
-            pagination: false,
-            limit: 1e3,
-            overrideAccess: true
-          });
-          for (const m of mediaRes.docs) {
-            const idStr = String(m.id || m._id);
-            const url = getMediaUrl(m);
-            if (url) {
-              mediaMap.set(idStr, url);
-            }
-          }
-        } catch (e) {
-          console.error("[AttendanceReport] Error resolving media images with payload.find:", e);
-        }
-        const missingIds = idArray.filter((id) => !mediaMap.has(id));
-        if (missingIds.length > 0 && payload.db.collections["media"]) {
-          try {
-            const MediaModel = payload.db.collections["media"];
-            const mongoose8 = await import("mongoose");
-            const objectIds = missingIds.map((id) => {
-              try {
-                return new mongoose8.Types.ObjectId(id);
-              } catch {
-                return null;
-              }
-            }).filter(Boolean);
-            if (objectIds.length > 0) {
-              const mediaDocs = await MediaModel.find({
-                _id: { $in: objectIds }
-              }).lean();
-              for (const m of mediaDocs) {
-                const idStr = String(m._id || m.id);
-                const url = getMediaUrl(m);
-                if (url) {
-                  mediaMap.set(idStr, url);
-                }
-              }
-            }
-          } catch (dbErr) {
-            console.error("[AttendanceReport] Fallback DB media query error:", dbErr);
-          }
-        }
-      }
-      const resolveImage = (rawVal) => {
-        if (!rawVal) return void 0;
-        const directUrl = getMediaUrl(rawVal);
-        if (directUrl) return directUrl;
-        const idStr = toNonEmptyString2(rawVal);
-        if (idStr) {
-          if (mediaMap.has(idStr)) return mediaMap.get(idStr);
-          if (idStr.startsWith("http://") || idStr.startsWith("https://") || idStr.startsWith("/api/") || idStr.startsWith("data:")) {
-            return idStr;
-          }
-          if (idStr.includes(".")) {
-            const publicURL = process.env.NEXT_PUBLIC_S3_PUBLIC_URL || process.env.S3_PUBLIC_URL;
-            if (publicURL) {
-              const cleanURL = publicURL.endsWith("/") ? publicURL.slice(0, -1) : publicURL;
-              return `${cleanURL}/blackforest/uploads/${idStr}`;
-            }
-            return `/api/media/file/${idStr}`;
-          }
-        }
-        return void 0;
-      };
-      const now = /* @__PURE__ */ new Date();
-      const items = [];
-      const uniqueEmployeeSet = /* @__PURE__ */ new Set();
-      let totalActiveCount = 0;
-      let totalWorkSecondsAll = 0;
-      let totalBreakSecondsAll = 0;
-      const roleStatsMap = /* @__PURE__ */ new Map();
-      const branchStatsMap = /* @__PURE__ */ new Map();
-      for (const doc of rawDocs) {
-        const id = toNonEmptyString2(doc._id || doc.id);
-        const dateStr = doc.dateString || (doc.date ? dayjs13.utc(doc.date).format("YYYY-MM-DD") : startDateParam);
-        const dateIso = doc.date ? new Date(doc.date).toISOString() : new Date(dateStr).toISOString();
-        const userId = toNonEmptyString2(doc.userDetails?._id || doc.user);
-        const userName = toNonEmptyString2(doc.employeeDetails?.name || doc.userDetails?.name || doc.userDetails?.email || "Unknown");
-        const userEmail = toNonEmptyString2(doc.userDetails?.email || "");
-        const userRole = toNonEmptyString2(doc.userDetails?.role || "staff");
-        const employeeObjectId = doc.resolvedEmployeeId ? String(doc.resolvedEmployeeId) : void 0;
-        const employeeId = toNonEmptyString2(doc.employeeDetails?.employeeId || "");
-        const employeeName = toNonEmptyString2(doc.employeeDetails?.name || userName);
-        const employeeSalary = typeof doc.employeeDetails?.salary === "number" ? doc.employeeDetails.salary : void 0;
-        const employeeLoginTime = toNonEmptyString2(doc.employeeDetails?.loginTime || "");
-        const employeeLogoutTime = toNonEmptyString2(doc.employeeDetails?.logoutTime || "");
-        const employeeWorkingHours = typeof doc.employeeDetails?.workingHours === "number" ? doc.employeeDetails.workingHours : void 0;
-        const employeeTeam = toNonEmptyString2(doc.employeeDetails?.team || userRole);
-        const employeePhone = toNonEmptyString2(doc.employeeDetails?.phoneNumber || "");
-        const employeePhotoUrl = resolveImage(doc.employeeDetails?.photo);
-        const branchId = toNonEmptyString2(doc.branchDetails?._id || doc.resolvedBranchId || "");
-        const branchName = toNonEmptyString2(doc.branchDetails?.name || "Unassigned");
-        const activitiesRaw = Array.isArray(doc.activities) && doc.activities.length > 0 ? doc.activities : Array.isArray(doc.records) && doc.records.length > 0 ? doc.records.map((r, idx) => ({
-          id: r.id || r._id || `rec-${idx}`,
-          type: "session",
-          punchIn: r.punchIn,
-          punchOut: r.punchOut,
-          capturedImage: r.photo || r.capturedImage,
-          status: !r.punchOut ? "active" : "closed",
-          ipAddress: r.ipAddress || doc.ipAddress,
-          device: r.device || doc.device,
-          latitude: r.latitude || doc.location?.latitude,
-          longitude: r.longitude || doc.location?.longitude
-        })) : [];
-        const activities = [];
-        let recordWorkSeconds = 0;
-        let recordBreakSeconds = 0;
-        let sessionCount = 0;
-        let breakCount = 0;
-        let firstPunchIn = void 0;
-        let lastPunchOut = void 0;
-        let hasActiveSession = false;
-        let hasActiveBreak = false;
-        if (activitiesRaw.length === 0 && doc.punchIn) {
-          const pIn = new Date(doc.punchIn).toISOString();
-          const pOut = doc.punchOut ? new Date(doc.punchOut).toISOString() : void 0;
-          const isAct = !pOut || doc.status === "active";
-          const dur = pOut ? Math.max(0, Math.floor((new Date(pOut).getTime() - new Date(pIn).getTime()) / 1e3)) : Math.max(0, Math.floor((now.getTime() - new Date(pIn).getTime()) / 1e3));
-          const capturedImageUrl = resolveImage(doc.capturedImage || doc.photo || doc.image);
-          const actLat = toNumber3(doc.location?.latitude);
-          const actLng = toNumber3(doc.location?.longitude);
-          const matchedActBranch = resolveBranchFromCoords(actLat, actLng);
-          activities.push({
-            id: "legacy-1",
-            type: "session",
-            punchIn: pIn,
-            punchOut: pOut,
-            status: isAct ? "active" : "closed",
-            durationSeconds: dur,
-            durationFormatted: formatSecondsToReadable(dur),
-            punchOutType: doc.punchOutType,
-            ipAddress: toNonEmptyString2(doc.ipAddress),
-            device: toNonEmptyString2(doc.device),
-            capturedImageUrl,
-            latitude: actLat || void 0,
-            longitude: actLng || void 0,
-            branchId: matchedActBranch?.branchId,
-            branchName: matchedActBranch?.branchName
-          });
-          sessionCount = 1;
-          recordWorkSeconds = dur;
-          firstPunchIn = pIn;
-          lastPunchOut = pOut;
-          if (isAct) hasActiveSession = true;
-        } else {
-          for (const act of activitiesRaw) {
-            const actType = act.type === "break" ? "break" : "session";
-            const pIn = act.punchIn ? new Date(act.punchIn).toISOString() : dateIso;
-            const pOut = act.punchOut ? new Date(act.punchOut).toISOString() : void 0;
-            const isAct = act.status === "active" || !act.punchOut && actType === "session";
-            let dur = toNumber3(act.durationSeconds);
-            if (dur <= 0) {
-              if (pOut) {
-                dur = Math.max(0, Math.floor((new Date(pOut).getTime() - new Date(pIn).getTime()) / 1e3));
-              } else if (isAct) {
-                dur = Math.max(0, Math.floor((now.getTime() - new Date(pIn).getTime()) / 1e3));
-              }
-            }
-            const capturedImageUrl = resolveImage(
-              act.capturedImage || act.photo || act.image || act.photoUrl || act.imageUrl
-            );
-            const breakSecs = toNumber3(act.breakDurationSeconds);
-            const actLat = typeof act.latitude === "number" ? act.latitude : act.latitude ? Number(act.latitude) : void 0;
-            const actLng = typeof act.longitude === "number" ? act.longitude : act.longitude ? Number(act.longitude) : void 0;
-            const matchedActBranch = resolveBranchFromCoords(actLat, actLng);
-            activities.push({
-              id: toNonEmptyString2(act.id || act._id),
-              type: actType,
-              punchIn: pIn,
-              punchOut: pOut,
-              status: isAct ? "active" : "closed",
-              durationSeconds: dur,
-              durationFormatted: formatSecondsToReadable(dur),
-              punchOutType: act.punchOutType,
-              ipAddress: toNonEmptyString2(act.ipAddress),
-              device: toNonEmptyString2(act.device),
-              capturedImageUrl,
-              latitude: actLat,
-              longitude: actLng,
-              branchId: matchedActBranch?.branchId,
-              branchName: matchedActBranch?.branchName
-            });
-            if (actType === "session") {
-              sessionCount++;
-              recordWorkSeconds += dur;
-              if (breakSecs > 0) {
-                breakCount++;
-                recordBreakSeconds += breakSecs;
-                const breakStart = new Date(new Date(pIn).getTime() - breakSecs * 1e3).toISOString();
-                activities.push({
-                  type: "break",
-                  punchIn: breakStart,
-                  punchOut: pIn,
-                  status: "closed",
-                  durationSeconds: breakSecs,
-                  durationFormatted: formatSecondsToReadable(breakSecs)
-                });
-              }
-              if (isAct) hasActiveSession = true;
-              if (!firstPunchIn || new Date(pIn).getTime() < new Date(firstPunchIn).getTime()) {
-                firstPunchIn = pIn;
-              }
-              if (pOut) {
-                if (!lastPunchOut || new Date(pOut).getTime() > new Date(lastPunchOut).getTime()) {
-                  lastPunchOut = pOut;
-                }
-              }
-            } else {
-              breakCount++;
-              recordBreakSeconds += dur;
-              if (isAct) hasActiveBreak = true;
-            }
-          }
-        }
-        let status = "closed";
-        if (hasActiveBreak) {
-          status = "on_break";
-        } else if (hasActiveSession) {
-          status = "active";
-        }
-        if (statusParam && statusParam !== "all") {
-          if (statusParam === "active" && status !== "active") continue;
-          if (statusParam === "closed" && status !== "closed") continue;
-          if (statusParam === "on_break" && status !== "on_break") continue;
-        }
-        const sessionActs = activities.filter((a) => a.type === "session");
-        const activeSessionWithBranch = sessionActs.slice().reverse().find((a) => a.status === "active" && a.branchName);
-        const latestSessionWithBranch = sessionActs.slice().reverse().find((a) => a.branchName);
-        const loginBranchId = toNonEmptyString2(doc.branchDetails?._id || doc.resolvedBranchId || "");
-        const loginBranchName = toNonEmptyString2(doc.branchDetails?.name || branchMap.get(loginBranchId)?.name || "Unassigned");
-        const currentBranchName = activeSessionWithBranch?.branchName || latestSessionWithBranch?.branchName || loginBranchName;
-        const currentBranchId = activeSessionWithBranch?.branchId || latestSessionWithBranch?.branchId || loginBranchId;
-        if (branchIds && branchIds.length > 0) {
-          const associatedBranchIds = /* @__PURE__ */ new Set();
-          if (currentBranchId) associatedBranchIds.add(String(currentBranchId));
-          if (loginBranchId) associatedBranchIds.add(String(loginBranchId));
-          for (const a of activities) {
-            if (a.branchId) associatedBranchIds.add(String(a.branchId));
-          }
-          const matchesBranch = branchIds.some((bId) => associatedBranchIds.has(String(bId)));
-          if (!matchesBranch) continue;
-        }
-        const hasAutoPunchOut = activities.some((a) => a.punchOutType === "auto");
-        let baseShiftSeconds = 12 * 3600;
-        if (employeeWorkingHours && employeeWorkingHours > 0) {
-          baseShiftSeconds = employeeWorkingHours * 3600;
-        } else if (employeeLoginTime && employeeLogoutTime) {
-          const loginTimeStr = employeeLoginTime.replace("_", ":");
-          const logoutTimeStr = employeeLogoutTime.replace("_", ":");
-          const [inH, inM] = loginTimeStr.split(":").map(Number);
-          const [outH, outM] = logoutTimeStr.split(":").map(Number);
-          if (!isNaN(inH) && !isNaN(outH)) {
-            let shiftSeconds = outH * 3600 + (outM || 0) * 60 - (inH * 3600 + (inM || 0) * 60);
-            if (shiftSeconds < 0) shiftSeconds += 24 * 3600;
-            baseShiftSeconds = shiftSeconds;
-          }
-        }
-        if (hasAutoPunchOut && recordWorkSeconds > baseShiftSeconds) {
-          recordWorkSeconds = baseShiftSeconds;
-        }
-        let extraSeconds = 0;
-        if (recordWorkSeconds > baseShiftSeconds) {
-          extraSeconds = recordWorkSeconds - baseShiftSeconds;
-        }
-        const item = {
-          id,
-          date: dateIso,
-          employeeSalary,
-          employeeWorkingHours,
-          employeeLoginTime,
-          employeeLogoutTime,
-          dateString: dateStr,
-          userId,
-          employeeObjectId,
-          userName,
-          userEmail,
-          userRole,
-          employeeId: employeeId || void 0,
-          employeeName,
-          employeeTeam: employeeTeam || void 0,
-          employeePhone: employeePhone || void 0,
-          employeePhotoUrl,
-          branchId: currentBranchId || void 0,
-          branchName: currentBranchName,
-          loginBranchId: loginBranchId || void 0,
-          loginBranchName: loginBranchName !== "Unassigned" ? loginBranchName : void 0,
-          firstPunchIn,
-          lastPunchOut: hasActiveSession ? void 0 : lastPunchOut,
-          totalWorkSeconds: recordWorkSeconds,
-          totalWorkFormatted: formatSecondsToReadable(recordWorkSeconds),
-          extraSeconds: extraSeconds > 0 ? extraSeconds : 0,
-          extraHoursFormatted: extraSeconds > 0 ? formatSecondsToReadable(extraSeconds) : "-",
-          totalBreakSeconds: recordBreakSeconds,
-          totalBreakFormatted: formatSecondsToReadable(recordBreakSeconds),
-          sessionCount,
-          breakCount,
-          status,
-          activities
-        };
-        items.push(item);
-        const employeeKey = employeeId || userId || userName;
-        uniqueEmployeeSet.add(employeeKey);
-        if (status === "active" || status === "on_break") {
-          totalActiveCount++;
-        }
-        totalWorkSecondsAll += recordWorkSeconds;
-        totalBreakSecondsAll += recordBreakSeconds;
-        const roleKey = (employeeTeam || "other").toUpperCase();
-        const existingRole = roleStatsMap.get(roleKey) || { count: 0, totalSeconds: 0 };
-        existingRole.count++;
-        existingRole.totalSeconds += recordWorkSeconds;
-        roleStatsMap.set(roleKey, existingRole);
-        const branchKey = item.branchId || "unknown";
-        const existingBranch = branchStatsMap.get(branchKey) || {
-          branchName: item.branchName,
-          presentCount: 0,
-          activeCount: 0,
-          totalSeconds: 0
-        };
-        existingBranch.presentCount++;
-        if (status === "active" || status === "on_break") {
-          existingBranch.activeCount++;
-        }
-        existingBranch.totalSeconds += recordWorkSeconds;
-        branchStatsMap.set(branchKey, existingBranch);
-      }
-      const totalRecords = items.length;
-      const uniqueEmployees = uniqueEmployeeSet.size;
-      const avgWorkSecondsPerDay = totalRecords > 0 ? Math.round(totalWorkSecondsAll / totalRecords) : 0;
-      const roleStats = Array.from(roleStatsMap.entries()).map(([role, data]) => ({
-        role,
-        count: data.count,
-        totalHours: Number((data.totalSeconds / 3600).toFixed(2))
-      })).sort((a, b) => b.count - a.count);
-      const branchStats = Array.from(branchStatsMap.entries()).map(([branchId, data]) => ({
-        branchId,
-        branchName: data.branchName,
-        presentCount: data.presentCount,
-        activeCount: data.activeCount,
-        totalHours: Number((data.totalSeconds / 3600).toFixed(2))
-      })).sort((a, b) => b.presentCount - a.presentCount);
-      return {
-        startDate: startDateParam,
-        endDate: endDateParam,
-        items,
-        totals: {
-          totalRecords,
-          uniqueEmployees,
-          currentlyActive: totalActiveCount,
-          totalWorkSeconds: totalWorkSecondsAll,
-          totalWorkFormatted: formatSecondsToReadable(totalWorkSecondsAll),
-          totalBreakSeconds: totalBreakSecondsAll,
-          totalBreakFormatted: formatSecondsToReadable(totalBreakSecondsAll),
-          avgWorkSecondsPerDay,
-          avgWorkFormatted: formatSecondsToReadable(avgWorkSecondsPerDay)
-        },
-        roleStats,
-        branchStats
-      };
-    };
-  }
-});
-
 // src/endpoints/getAttendanceReport.ts
 var getAttendanceReportHandler;
 var init_getAttendanceReport = __esm({
@@ -21143,13 +21740,13 @@ var init_InventoryReport = __esm({
 });
 
 // src/services/reports/inventory.ts
-var toNumber4, toId5, getInventoryReportData;
+var toNumber5, toId5, getInventoryReportData;
 var init_inventory2 = __esm({
   "src/services/reports/inventory.ts"() {
     "use strict";
     init_inventory();
     init_reportScope();
-    toNumber4 = (value) => {
+    toNumber5 = (value) => {
       if (typeof value === "number" && Number.isFinite(value)) return value;
       if (typeof value === "string") {
         const parsed = Number(value);
@@ -21367,7 +21964,7 @@ var init_inventory2 = __esm({
         rows.forEach((stat) => {
           const branchId = toId5(stat?._id?.branch);
           const productId = toId5(stat?._id?.product);
-          const amount = toNumber4(stat?.[totalField]);
+          const amount = toNumber5(stat?.[totalField]);
           if (branchId && productId && inventoryMap[productId] && inventoryMap[productId].branches[branchId]) {
             inventoryMap[productId].branches[branchId][metricKey] += amount;
             inventoryMap[productId].branches[branchId].inventory += sign * amount;
@@ -21392,14 +21989,14 @@ var init_inventory2 = __esm({
             instock: 0
           };
           const inventory = stats.inventory;
-          let rate = toNumber4(item.product.defaultPriceDetails?.rate);
+          let rate = toNumber5(item.product.defaultPriceDetails?.rate);
           if (Array.isArray(item.product.branchOverrides)) {
             const override = item.product.branchOverrides.find((branchOverride) => {
               const overrideBranchId = typeof branchOverride?.branch === "string" ? branchOverride.branch : branchOverride?.branch?.id;
               return overrideBranchId === branchDoc.id;
             });
             if (override && override.rate !== void 0 && override.rate !== null) {
-              rate = toNumber4(override.rate);
+              rate = toNumber5(override.rate);
             }
           }
           const value = inventory * rate;
@@ -21500,17 +22097,17 @@ var init_StockOrderReport = __esm({
 });
 
 // src/services/reports/stockOrder.ts
-import dayjs14 from "dayjs";
-import utc14 from "dayjs/plugin/utc.js";
-import timezone14 from "dayjs/plugin/timezone.js";
+import dayjs16 from "dayjs";
+import utc16 from "dayjs/plugin/utc.js";
+import timezone16 from "dayjs/plugin/timezone.js";
 var getStockOrderReportData;
 var init_stockOrder = __esm({
   "src/services/reports/stockOrder.ts"() {
     "use strict";
     init_reportScope();
-    dayjs14.extend(utc14);
-    dayjs14.extend(timezone14);
-    dayjs14.tz.setDefault("Asia/Kolkata");
+    dayjs16.extend(utc16);
+    dayjs16.extend(timezone16);
+    dayjs16.tz.setDefault("Asia/Kolkata");
     getStockOrderReportData = async (req, args = {}) => {
       const { payload } = req;
       const startDateStr = args.startDate;
@@ -21525,8 +22122,8 @@ var init_stockOrder = __esm({
       const statusFilter = args.status;
       const orderTypeFilter = args.orderType;
       const hasExplicitBranchFilter = !!(branchFilter && branchFilter !== "all");
-      const start = startDateStr ? dayjs14.tz(startDateStr, "Asia/Kolkata").startOf("day") : dayjs14().tz("Asia/Kolkata").startOf("day");
-      const end = endDateStr ? dayjs14.tz(endDateStr, "Asia/Kolkata").endOf("day") : dayjs14().tz("Asia/Kolkata").endOf("day");
+      const start = startDateStr ? dayjs16.tz(startDateStr, "Asia/Kolkata").startOf("day") : dayjs16().tz("Asia/Kolkata").startOf("day");
+      const end = endDateStr ? dayjs16.tz(endDateStr, "Asia/Kolkata").endOf("day") : dayjs16().tz("Asia/Kolkata").endOf("day");
       const { branchIds } = await resolveReportBranchScope(req, branchFilter || void 0);
       let kitchenCategoryIDSet = null;
       if (kitchenFilter && kitchenFilter !== "all") {
@@ -21680,8 +22277,8 @@ var init_stockOrder = __esm({
       const shouldUseIncomingStage = (currentTime, incomingTime, currentName, incomingName) => {
         if (!incomingTime) return false;
         if (!currentTime) return true;
-        if (dayjs14(incomingTime).isAfter(dayjs14(currentTime))) return true;
-        if (dayjs14(incomingTime).isSame(dayjs14(currentTime)) && !currentName && !!incomingName) return true;
+        if (dayjs16(incomingTime).isAfter(dayjs16(currentTime))) return true;
+        if (dayjs16(incomingTime).isSame(dayjs16(currentTime)) && !currentName && !!incomingName) return true;
         return false;
       };
       const branchMap = /* @__PURE__ */ new Map();
@@ -21691,8 +22288,8 @@ var init_stockOrder = __esm({
       orders.forEach((order) => {
         const branchId = typeof order.branch === "object" ? order.branch?.id : order.branch;
         const branchName = typeof order.branch === "object" ? order.branch?.name : branchId ? branchLookupMap.get(String(branchId))?.name : "Unknown";
-        const created = dayjs14(order.createdAt).tz("Asia/Kolkata").format("YYYY-MM-DD");
-        const delivery = dayjs14(order.deliveryDate).tz("Asia/Kolkata").format("YYYY-MM-DD");
+        const created = dayjs16(order.createdAt).tz("Asia/Kolkata").format("YYYY-MM-DD");
+        const delivery = dayjs16(order.deliveryDate).tz("Asia/Kolkata").format("YYYY-MM-DD");
         const isLive = delivery === created;
         if (orderTypeFilter && orderTypeFilter !== "all") {
           if (orderTypeFilter === "stock" && isLive) return;
@@ -21936,17 +22533,17 @@ var init_getStockOrderReport = __esm({
 
 // src/endpoints/getAfterstockCustomerReport.ts
 import mongoose5 from "mongoose";
-import dayjs15 from "dayjs";
-import utc15 from "dayjs/plugin/utc.js";
-import timezone15 from "dayjs/plugin/timezone.js";
+import dayjs17 from "dayjs";
+import utc17 from "dayjs/plugin/utc.js";
+import timezone17 from "dayjs/plugin/timezone.js";
 var getAfterstockCustomerReportHandler;
 var init_getAfterstockCustomerReport = __esm({
   "src/endpoints/getAfterstockCustomerReport.ts"() {
     "use strict";
     init_reportScope();
-    dayjs15.extend(utc15);
-    dayjs15.extend(timezone15);
-    dayjs15.tz.setDefault("Asia/Kolkata");
+    dayjs17.extend(utc17);
+    dayjs17.extend(timezone17);
+    dayjs17.tz.setDefault("Asia/Kolkata");
     getAfterstockCustomerReportHandler = async (req) => {
       const { payload } = req;
       const startDateParam = typeof req.query.startDate === "string" ? req.query.startDate : (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
@@ -21957,11 +22554,11 @@ var init_getAfterstockCustomerReport = __esm({
       const startAndYear = parseInt(startDateParam.split("-")[0]);
       const startAndMonth = parseInt(startDateParam.split("-")[1]);
       const startAndDay = parseInt(startDateParam.split("-")[2]);
-      const startOfDay = dayjs15.tz(`${startAndYear}-${startAndMonth}-${startAndDay}`, "YYYY-MM-DD", "Asia/Kolkata").startOf("day").toDate();
+      const startOfDay = dayjs17.tz(`${startAndYear}-${startAndMonth}-${startAndDay}`, "YYYY-MM-DD", "Asia/Kolkata").startOf("day").toDate();
       const endAndYear = parseInt(endDateParam.split("-")[0]);
       const endAndMonth = parseInt(endDateParam.split("-")[1]);
       const endAndDay = parseInt(endDateParam.split("-")[2]);
-      const endOfDay = dayjs15.tz(`${endAndYear}-${endAndMonth}-${endAndDay}`, "YYYY-MM-DD", "Asia/Kolkata").endOf("day").toDate();
+      const endOfDay = dayjs17.tz(`${endAndYear}-${endAndMonth}-${endAndDay}`, "YYYY-MM-DD", "Asia/Kolkata").endOf("day").toDate();
       try {
         const { branchIds, errorResponse } = await resolveReportBranchScope(req, branchParam);
         if (errorResponse) return errorResponse;
@@ -22272,17 +22869,17 @@ var init_AfterstockCustomerReport = __esm({
 });
 
 // src/endpoints/getReviewReport.ts
-import dayjs16 from "dayjs";
-import utc16 from "dayjs/plugin/utc.js";
-import timezone16 from "dayjs/plugin/timezone.js";
+import dayjs18 from "dayjs";
+import utc18 from "dayjs/plugin/utc.js";
+import timezone18 from "dayjs/plugin/timezone.js";
 var getReviewReportHandler;
 var init_getReviewReport = __esm({
   "src/endpoints/getReviewReport.ts"() {
     "use strict";
     init_reportScope();
-    dayjs16.extend(utc16);
-    dayjs16.extend(timezone16);
-    dayjs16.tz.setDefault("Asia/Kolkata");
+    dayjs18.extend(utc18);
+    dayjs18.extend(timezone18);
+    dayjs18.tz.setDefault("Asia/Kolkata");
     getReviewReportHandler = async (req) => {
       const { payload } = req;
       const startDateParam = typeof req.query.startDate === "string" ? req.query.startDate : (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
@@ -22291,11 +22888,11 @@ var init_getReviewReport = __esm({
       const startAndYear = parseInt(startDateParam.split("-")[0]);
       const startAndMonth = parseInt(startDateParam.split("-")[1]);
       const startAndDay = parseInt(startDateParam.split("-")[2]);
-      const startOfDay = dayjs16.tz(`${startAndYear}-${startAndMonth}-${startAndDay}`, "YYYY-MM-DD", "Asia/Kolkata").startOf("day").toDate();
+      const startOfDay = dayjs18.tz(`${startAndYear}-${startAndMonth}-${startAndDay}`, "YYYY-MM-DD", "Asia/Kolkata").startOf("day").toDate();
       const endAndYear = parseInt(endDateParam.split("-")[0]);
       const endAndMonth = parseInt(endDateParam.split("-")[1]);
       const endAndDay = parseInt(endDateParam.split("-")[2]);
-      const endOfDay = dayjs16.tz(`${endAndYear}-${endAndMonth}-${endAndDay}`, "YYYY-MM-DD", "Asia/Kolkata").endOf("day").toDate();
+      const endOfDay = dayjs18.tz(`${endAndYear}-${endAndMonth}-${endAndDay}`, "YYYY-MM-DD", "Asia/Kolkata").endOf("day").toDate();
       try {
         const { branchIds, errorResponse } = await resolveReportBranchScope(req, branchParam);
         if (errorResponse) return errorResponse;
@@ -22986,15 +23583,15 @@ var init_BillingCustomers = __esm({
 });
 
 // src/collections/InstockEntries.ts
-import dayjs17 from "dayjs";
-import utc17 from "dayjs/plugin/utc.js";
-import timezone17 from "dayjs/plugin/timezone.js";
+import dayjs19 from "dayjs";
+import utc19 from "dayjs/plugin/utc.js";
+import timezone19 from "dayjs/plugin/timezone.js";
 var getRelationshipID6, InstockEntries, InstockEntries_default;
 var init_InstockEntries = __esm({
   "src/collections/InstockEntries.ts"() {
     "use strict";
-    dayjs17.extend(utc17);
-    dayjs17.extend(timezone17);
+    dayjs19.extend(utc19);
+    dayjs19.extend(timezone19);
     getRelationshipID6 = (value) => {
       if (!value) return null;
       if (typeof value === "string") return value.trim();
@@ -23070,7 +23667,7 @@ var init_InstockEntries = __esm({
                 throw new Error("Branch is required");
               }
               data.branch = branchId2;
-              const date = dayjs17().tz("Asia/Kolkata");
+              const date = dayjs19().tz("Asia/Kolkata");
               const dateStr = date.format("YYMMDD");
               let branchDoc = null;
               try {
@@ -23300,17 +23897,17 @@ var init_InstockEntries = __esm({
 });
 
 // src/endpoints/getInstockEntryReport.ts
-import dayjs18 from "dayjs";
-import utc18 from "dayjs/plugin/utc.js";
-import timezone18 from "dayjs/plugin/timezone.js";
+import dayjs20 from "dayjs";
+import utc20 from "dayjs/plugin/utc.js";
+import timezone20 from "dayjs/plugin/timezone.js";
 var getInstockEntryReportHandler;
 var init_getInstockEntryReport = __esm({
   "src/endpoints/getInstockEntryReport.ts"() {
     "use strict";
     init_reportScope();
-    dayjs18.extend(utc18);
-    dayjs18.extend(timezone18);
-    dayjs18.tz.setDefault("Asia/Kolkata");
+    dayjs20.extend(utc20);
+    dayjs20.extend(timezone20);
+    dayjs20.tz.setDefault("Asia/Kolkata");
     getInstockEntryReportHandler = async (req) => {
       if (!req.user) {
         return Response.json({ message: "Unauthorized" }, { status: 401 });
@@ -23324,8 +23921,8 @@ var init_getInstockEntryReport = __esm({
       const productFilter = url.searchParams.get("product");
       const dealerFilter = url.searchParams.get("dealer");
       const statusFilter = url.searchParams.get("status");
-      const start = startDateStr ? dayjs18.tz(startDateStr, "Asia/Kolkata").startOf("day") : dayjs18().tz("Asia/Kolkata").startOf("day");
-      const end = endDateStr ? dayjs18.tz(endDateStr, "Asia/Kolkata").endOf("day") : dayjs18().tz("Asia/Kolkata").endOf("day");
+      const start = startDateStr ? dayjs20.tz(startDateStr, "Asia/Kolkata").startOf("day") : dayjs20().tz("Asia/Kolkata").startOf("day");
+      const end = endDateStr ? dayjs20.tz(endDateStr, "Asia/Kolkata").endOf("day") : dayjs20().tz("Asia/Kolkata").endOf("day");
       try {
         const { branchIds, errorResponse } = await resolveReportBranchScope(req, branchFilter);
         if (errorResponse) return errorResponse;
@@ -23607,26 +24204,26 @@ var init_InstockEntryReport = __esm({
 });
 
 // src/endpoints/getDashboardStats.ts
-import dayjs19 from "dayjs";
-import utc19 from "dayjs/plugin/utc.js";
-import timezone19 from "dayjs/plugin/timezone.js";
+import dayjs21 from "dayjs";
+import utc21 from "dayjs/plugin/utc.js";
+import timezone21 from "dayjs/plugin/timezone.js";
 import mongoose6 from "mongoose";
 var getDashboardStatsHandler;
 var init_getDashboardStats = __esm({
   "src/endpoints/getDashboardStats.ts"() {
     "use strict";
     init_reportScope();
-    dayjs19.extend(utc19);
-    dayjs19.extend(timezone19);
-    dayjs19.tz.setDefault("Asia/Kolkata");
+    dayjs21.extend(utc21);
+    dayjs21.extend(timezone21);
+    dayjs21.tz.setDefault("Asia/Kolkata");
     getDashboardStatsHandler = async (req) => {
       const { payload } = req;
       const { startDate, endDate, branch, department, category, product } = req.query;
       try {
         const { branchIds, errorResponse } = await resolveReportBranchScope(req, branch || null);
         if (errorResponse) return errorResponse;
-        const start = startDate ? dayjs19(startDate).startOf("day") : dayjs19().tz("Asia/Kolkata").startOf("day");
-        const end = endDate ? dayjs19(endDate).endOf("day") : dayjs19().tz("Asia/Kolkata").endOf("day");
+        const start = startDate ? dayjs21(startDate).startOf("day") : dayjs21().tz("Asia/Kolkata").startOf("day");
+        const end = endDate ? dayjs21(endDate).endOf("day") : dayjs21().tz("Asia/Kolkata").endOf("day");
         const startISO = start.toDate();
         const endISO = end.toDate();
         const productQuery = {
@@ -23768,228 +24365,6 @@ var init_getDashboardStats = __esm({
   }
 });
 
-// src/services/reports/expense.ts
-import dayjs20 from "dayjs";
-import utc20 from "dayjs/plugin/utc.js";
-import timezone20 from "dayjs/plugin/timezone.js";
-var ALL_CATEGORIES, toNumber5, toInteger3, toDateString2, toNonEmptyString3, getExpenseReportData;
-var init_expense = __esm({
-  "src/services/reports/expense.ts"() {
-    "use strict";
-    init_reportScope();
-    dayjs20.extend(utc20);
-    dayjs20.extend(timezone20);
-    dayjs20.tz.setDefault("Asia/Kolkata");
-    ALL_CATEGORIES = [
-      "MAINTENANCE",
-      "TRANSPORT",
-      "FUEL",
-      "PACKING",
-      "STAFF WELFARE",
-      "Supplies",
-      "ADVERTISEMENT",
-      "ADVANCE",
-      "COMPLEMENTARY",
-      "RAW MATERIAL",
-      "SALARY",
-      "OC PRODUCTS",
-      "OTHERS"
-    ];
-    toNumber5 = (value) => {
-      if (typeof value === "number" && Number.isFinite(value)) return value;
-      if (typeof value === "string") {
-        const parsed = Number(value);
-        if (Number.isFinite(parsed)) return parsed;
-      }
-      return 0;
-    };
-    toInteger3 = (value) => Math.trunc(toNumber5(value));
-    toDateString2 = (value) => {
-      if (value instanceof Date) {
-        return Number.isNaN(value.getTime()) ? "" : value.toISOString();
-      }
-      if (typeof value === "string") {
-        if (value.trim().length === 0) return "";
-        const parsed = new Date(value);
-        return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
-      }
-      if (typeof value === "number" && Number.isFinite(value)) {
-        const parsed = new Date(value);
-        return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
-      }
-      return "";
-    };
-    toNonEmptyString3 = (value, fallback = "") => {
-      if (typeof value === "string" && value.trim().length > 0) return value;
-      if (typeof value === "number" && Number.isFinite(value)) return String(value);
-      if (Buffer.isBuffer(value)) {
-        return value.toString("hex");
-      }
-      if (typeof value === "object" && value !== null) {
-        const record = value;
-        if (typeof record.toHexString === "function") {
-          const hex = record.toHexString();
-          if (hex && hex.trim().length > 0) return hex;
-        }
-        const nestedId = toNonEmptyString3(record.id, "");
-        if (nestedId.length > 0) return nestedId;
-        const nestedMongoId = toNonEmptyString3(record._id, "");
-        if (nestedMongoId.length > 0) return nestedMongoId;
-        if (typeof record.toString === "function") {
-          const stringified = record.toString();
-          if (stringified && stringified !== "[object Object]") return stringified;
-        }
-      }
-      return fallback;
-    };
-    getExpenseReportData = async (req, args = {}) => {
-      const { payload } = req;
-      const startDateParam = typeof args.startDate === "string" && args.startDate.trim().length > 0 ? args.startDate : dayjs20().format("YYYY-MM-DD");
-      const endDateParam = typeof args.endDate === "string" && args.endDate.trim().length > 0 ? args.endDate : dayjs20().format("YYYY-MM-DD");
-      const branchParam = typeof args.branch === "string" ? args.branch : "";
-      const categoryParam = typeof args.category === "string" ? args.category : "";
-      const startOfDay = dayjs20.utc(startDateParam).startOf("day").toDate();
-      const endOfDay = dayjs20.utc(endDateParam).endOf("day").toDate();
-      const { branchIds } = await resolveReportBranchScope(req, branchParam);
-      const ExpenseModel = payload.db.collections["expenses"];
-      if (!ExpenseModel) {
-        throw new Error("Expenses collection not found");
-      }
-      const selectedBranches = branchIds ?? [];
-      const selectedCategory = categoryParam !== "all" && categoryParam.length > 0 ? categoryParam : "all";
-      const matchQuery = {
-        date: {
-          $gte: startOfDay,
-          $lte: endOfDay
-        }
-      };
-      if (selectedBranches.length > 0) {
-        Object.assign(matchQuery, toBranchQueryFilter(selectedBranches, "branch"));
-      }
-      const pipeline = [
-        {
-          $match: matchQuery
-        },
-        {
-          $unwind: "$details"
-        }
-      ];
-      if (selectedCategory !== "all") {
-        pipeline.push({
-          $match: {
-            "details.source": selectedCategory
-          }
-        });
-      }
-      pipeline.push(
-        {
-          $lookup: {
-            from: "branches",
-            localField: "branch",
-            foreignField: "_id",
-            as: "branchInfo"
-          }
-        },
-        {
-          $unwind: {
-            path: "$branchInfo",
-            preserveNullAndEmptyArrays: true
-          }
-        },
-        {
-          $lookup: {
-            from: "media",
-            localField: "details.image",
-            foreignField: "_id",
-            as: "mediaInfo"
-          }
-        },
-        {
-          $unwind: {
-            path: "$mediaInfo",
-            preserveNullAndEmptyArrays: true
-          }
-        },
-        {
-          $group: {
-            _id: "$branch",
-            branchName: { $first: { $ifNull: ["$branchInfo.name", "Unknown Branch"] } },
-            total: { $sum: "$details.amount" },
-            count: { $sum: 1 },
-            items: {
-              $push: {
-                category: "$details.source",
-                reason: "$details.reason",
-                amount: "$details.amount",
-                time: "$date",
-                imageUrl: "$mediaInfo.url",
-                filename: "$mediaInfo.filename"
-              }
-            }
-          }
-        },
-        {
-          $sort: { total: -1 }
-        }
-      );
-      const groupsRaw = await ExpenseModel.aggregate(pipeline);
-      const groups = groupsRaw.map((group) => {
-        const sortedItems = (Array.isArray(group.items) ? [...group.items] : []).sort((a, b) => {
-          const aTime = new Date(toDateString2(a.time)).getTime();
-          const bTime = new Date(toDateString2(b.time)).getTime();
-          return bTime - aTime;
-        }).map((item) => {
-          const filename2 = toNonEmptyString3(item.filename);
-          const imageUrl = toNonEmptyString3(item.imageUrl);
-          return {
-            category: toNonEmptyString3(item.category),
-            reason: toNonEmptyString3(item.reason),
-            amount: toNumber5(item.amount),
-            time: toDateString2(item.time),
-            imageUrl: imageUrl || (filename2 ? `/api/media/file/${filename2}` : void 0)
-          };
-        });
-        return {
-          _id: toNonEmptyString3(group._id),
-          branchName: toNonEmptyString3(group.branchName, "Unknown Branch"),
-          total: toNumber5(group.total),
-          count: toInteger3(group.count),
-          items: sortedItems
-        };
-      });
-      const grandTotal = groups.reduce((acc, group) => acc + group.total, 0);
-      const totalCount = groups.reduce((acc, group) => acc + group.count, 0);
-      const categoryStatsMap = {};
-      groups.forEach((group) => {
-        group.items.forEach((item) => {
-          if (!categoryStatsMap[item.category]) {
-            categoryStatsMap[item.category] = { total: 0, count: 0 };
-          }
-          categoryStatsMap[item.category].total += item.amount;
-          categoryStatsMap[item.category].count += 1;
-        });
-      });
-      const categoryStats = Object.keys(categoryStatsMap).map((category) => ({
-        category,
-        total: categoryStatsMap[category].total,
-        count: categoryStatsMap[category].count,
-        percentage: grandTotal > 0 ? categoryStatsMap[category].total / grandTotal * 100 : 0
-      })).sort((a, b) => b.total - a.total);
-      return {
-        startDate: startDateParam,
-        endDate: endDateParam,
-        groups,
-        meta: {
-          grandTotal,
-          totalCount,
-          categories: ALL_CATEGORIES,
-          categoryStats
-        }
-      };
-    };
-  }
-});
-
 // src/endpoints/getExpenseReport.ts
 var getExpenseReportHandler;
 var init_getExpenseReport = __esm({
@@ -24044,9 +24419,9 @@ var init_ExpenseReport = __esm({
 
 // src/services/reports/dealer.ts
 import mongoose7 from "mongoose";
-import dayjs21 from "dayjs";
-import utc21 from "dayjs/plugin/utc.js";
-import timezone21 from "dayjs/plugin/timezone.js";
+import dayjs22 from "dayjs";
+import utc22 from "dayjs/plugin/utc.js";
+import timezone22 from "dayjs/plugin/timezone.js";
 function resolveMediaUrl(filename2, prefix) {
   if (!filename2) return void 0;
   const publicURL = process.env.NEXT_PUBLIC_S3_PUBLIC_URL || process.env.S3_PUBLIC_URL;
@@ -24067,9 +24442,9 @@ var init_dealer = __esm({
   "src/services/reports/dealer.ts"() {
     "use strict";
     init_reportScope();
-    dayjs21.extend(utc21);
-    dayjs21.extend(timezone21);
-    dayjs21.tz.setDefault("Asia/Kolkata");
+    dayjs22.extend(utc22);
+    dayjs22.extend(timezone22);
+    dayjs22.tz.setDefault("Asia/Kolkata");
     toNumber6 = (value) => {
       if (typeof value === "number" && Number.isFinite(value)) return value;
       if (typeof value === "string") {
@@ -24119,12 +24494,12 @@ var init_dealer = __esm({
     };
     getDealerReportData = async (req, args = {}) => {
       const { payload } = req;
-      const startDateParam = typeof args.startDate === "string" && args.startDate.trim().length > 0 ? args.startDate : dayjs21().format("YYYY-MM-DD");
-      const endDateParam = typeof args.endDate === "string" && args.endDate.trim().length > 0 ? args.endDate : dayjs21().format("YYYY-MM-DD");
+      const startDateParam = typeof args.startDate === "string" && args.startDate.trim().length > 0 ? args.startDate : dayjs22().format("YYYY-MM-DD");
+      const endDateParam = typeof args.endDate === "string" && args.endDate.trim().length > 0 ? args.endDate : dayjs22().format("YYYY-MM-DD");
       const branchParam = typeof args.branch === "string" ? args.branch : "";
       const dealerParam = typeof args.dealer === "string" ? args.dealer : "";
-      const startOfDay = dayjs21.utc(startDateParam).startOf("day").toDate();
-      const endOfDay = dayjs21.utc(endDateParam).endOf("day").toDate();
+      const startOfDay = dayjs22.utc(startDateParam).startOf("day").toDate();
+      const endOfDay = dayjs22.utc(endDateParam).endOf("day").toDate();
       const { branchIds } = await resolveReportBranchScope(req, branchParam);
       const DealerBillingModel = payload.db.collections["dealer-billings"];
       if (!DealerBillingModel) {
@@ -24139,8 +24514,8 @@ var init_dealer = __esm({
       const plannedEndDateParam = typeof args.plannedEndDate === "string" ? args.plannedEndDate : "";
       const matchQuery = {};
       if (plannedStartDateParam && plannedEndDateParam) {
-        const startPlanned = dayjs21.utc(plannedStartDateParam).startOf("day").toDate();
-        const endPlanned = dayjs21.utc(plannedEndDateParam).endOf("day").toDate();
+        const startPlanned = dayjs22.utc(plannedStartDateParam).startOf("day").toDate();
+        const endPlanned = dayjs22.utc(plannedEndDateParam).endOf("day").toDate();
         matchQuery.plannedPaymentDate = {
           $gte: startPlanned,
           $lte: endPlanned
@@ -24459,7 +24834,7 @@ var init_dealer = __esm({
       const plannedDatesSet = /* @__PURE__ */ new Set();
       distinctPlannedDates.forEach((dateObj) => {
         if (dateObj) {
-          const dateStr = dayjs21.utc(dateObj).format("YYYY-MM-DD");
+          const dateStr = dayjs22.utc(dateObj).format("YYYY-MM-DD");
           if (dateStr) plannedDatesSet.add(dateStr);
         }
       });
@@ -24532,17 +24907,17 @@ var init_DealerReport = __esm({
 });
 
 // src/services/reports/otherProductsInventory.ts
-import dayjs22 from "dayjs";
-import utc22 from "dayjs/plugin/utc.js";
-import timezone22 from "dayjs/plugin/timezone.js";
+import dayjs23 from "dayjs";
+import utc23 from "dayjs/plugin/utc.js";
+import timezone23 from "dayjs/plugin/timezone.js";
 var toNumber7, toDateString4, toNonEmptyString5, getOtherProductsInventoryReportData;
 var init_otherProductsInventory = __esm({
   "src/services/reports/otherProductsInventory.ts"() {
     "use strict";
     init_reportScope();
-    dayjs22.extend(utc22);
-    dayjs22.extend(timezone22);
-    dayjs22.tz.setDefault("Asia/Kolkata");
+    dayjs23.extend(utc23);
+    dayjs23.extend(timezone23);
+    dayjs23.tz.setDefault("Asia/Kolkata");
     toNumber7 = (value) => {
       if (typeof value === "number" && Number.isFinite(value)) return value;
       if (typeof value === "string") {
@@ -25300,17 +25675,17 @@ var init_RawMaterialInventoryReport = __esm({
 });
 
 // src/services/reports/rawMaterialBilling.ts
-import dayjs23 from "dayjs";
-import utc23 from "dayjs/plugin/utc.js";
-import timezone23 from "dayjs/plugin/timezone.js";
+import dayjs24 from "dayjs";
+import utc24 from "dayjs/plugin/utc.js";
+import timezone24 from "dayjs/plugin/timezone.js";
 var toNumber9, toInteger5, toDateString5, toNonEmptyString7, getRawMaterialBillingReportData;
 var init_rawMaterialBilling = __esm({
   "src/services/reports/rawMaterialBilling.ts"() {
     "use strict";
     init_reportScope();
-    dayjs23.extend(utc23);
-    dayjs23.extend(timezone23);
-    dayjs23.tz.setDefault("Asia/Kolkata");
+    dayjs24.extend(utc24);
+    dayjs24.extend(timezone24);
+    dayjs24.tz.setDefault("Asia/Kolkata");
     toNumber9 = (value) => {
       if (typeof value === "number" && Number.isFinite(value)) return value;
       if (typeof value === "string") {
@@ -25356,13 +25731,13 @@ var init_rawMaterialBilling = __esm({
     };
     getRawMaterialBillingReportData = async (req, args = {}) => {
       const { payload } = req;
-      const startDateParam = typeof args.startDate === "string" && args.startDate.trim().length > 0 ? args.startDate : dayjs23().format("YYYY-MM-DD");
-      const endDateParam = typeof args.endDate === "string" && args.endDate.trim().length > 0 ? args.endDate : dayjs23().format("YYYY-MM-DD");
+      const startDateParam = typeof args.startDate === "string" && args.startDate.trim().length > 0 ? args.startDate : dayjs24().format("YYYY-MM-DD");
+      const endDateParam = typeof args.endDate === "string" && args.endDate.trim().length > 0 ? args.endDate : dayjs24().format("YYYY-MM-DD");
       const companyParam = typeof args.company === "string" ? args.company : "";
       const dealerParam = typeof args.dealer === "string" ? args.dealer : "";
       const categoryParam = typeof args.category === "string" ? args.category : "";
-      const startOfDay = dayjs23.utc(startDateParam).startOf("day").toDate();
-      const endOfDay = dayjs23.utc(endDateParam).endOf("day").toDate();
+      const startOfDay = dayjs24.utc(startDateParam).startOf("day").toDate();
+      const endOfDay = dayjs24.utc(endDateParam).endOf("day").toDate();
       const { companyIds } = await resolveReportCompanyScope(req, companyParam);
       const RawMaterialBillingModel = payload.db.collections["raw-material-billings"];
       if (!RawMaterialBillingModel) {
@@ -25381,8 +25756,8 @@ var init_rawMaterialBilling = __esm({
       const plannedEndDateParam = typeof args.plannedEndDate === "string" ? args.plannedEndDate : "";
       const matchQuery = {};
       if (plannedStartDateParam && plannedEndDateParam) {
-        const startPlanned = dayjs23.utc(plannedStartDateParam).startOf("day").toDate();
-        const endPlanned = dayjs23.utc(plannedEndDateParam).endOf("day").toDate();
+        const startPlanned = dayjs24.utc(plannedStartDateParam).startOf("day").toDate();
+        const endPlanned = dayjs24.utc(plannedEndDateParam).endOf("day").toDate();
         matchQuery.plannedPaymentDate = {
           $gte: startPlanned,
           $lte: endPlanned
@@ -25723,7 +26098,7 @@ var init_rawMaterialBilling = __esm({
       const plannedDatesSet = /* @__PURE__ */ new Set();
       plannedDocs.forEach((doc) => {
         if (doc.plannedPaymentDate) {
-          const dateStr = dayjs23.utc(doc.plannedPaymentDate).format("YYYY-MM-DD");
+          const dateStr = dayjs24.utc(doc.plannedPaymentDate).format("YYYY-MM-DD");
           if (dateStr) plannedDatesSet.add(dateStr);
         }
       });
@@ -25797,17 +26172,17 @@ var init_RawMaterialBillingReport = __esm({
 });
 
 // src/services/reports/returnOrder.ts
-import dayjs24 from "dayjs";
-import utc24 from "dayjs/plugin/utc.js";
-import timezone24 from "dayjs/plugin/timezone.js";
+import dayjs25 from "dayjs";
+import utc25 from "dayjs/plugin/utc.js";
+import timezone25 from "dayjs/plugin/timezone.js";
 var resolveMediaUrl2, toNumber10, toInteger6, toDateString6, toNonEmptyString8, getReturnOrderReportData;
 var init_returnOrder = __esm({
   "src/services/reports/returnOrder.ts"() {
     "use strict";
     init_reportScope();
-    dayjs24.extend(utc24);
-    dayjs24.extend(timezone24);
-    dayjs24.tz.setDefault("Asia/Kolkata");
+    dayjs25.extend(utc25);
+    dayjs25.extend(timezone25);
+    dayjs25.tz.setDefault("Asia/Kolkata");
     resolveMediaUrl2 = (url, filename2, prefix) => {
       if (url && typeof url === "string") {
         const trimmed = url.trim();
@@ -25880,14 +26255,14 @@ var init_returnOrder = __esm({
     };
     getReturnOrderReportData = async (req, args = {}) => {
       const { payload } = req;
-      const startDateParam = typeof args.startDate === "string" && args.startDate.trim().length > 0 ? args.startDate : dayjs24().format("YYYY-MM-DD");
-      const endDateParam = typeof args.endDate === "string" && args.endDate.trim().length > 0 ? args.endDate : dayjs24().format("YYYY-MM-DD");
+      const startDateParam = typeof args.startDate === "string" && args.startDate.trim().length > 0 ? args.startDate : dayjs25().format("YYYY-MM-DD");
+      const endDateParam = typeof args.endDate === "string" && args.endDate.trim().length > 0 ? args.endDate : dayjs25().format("YYYY-MM-DD");
       const branchParam = typeof args.branch === "string" ? args.branch : null;
       const allowedStatuses = ["pending", "accepted", "returned", "cancelled"];
       const requestedStatus = typeof args.status === "string" && args.status.trim().length > 0 ? args.status.toLowerCase() : "all";
       const selectedStatus = allowedStatuses.includes(requestedStatus) ? requestedStatus : "all";
-      const startOfDay = dayjs24.utc(startDateParam).startOf("day").toDate();
-      const endOfDay = dayjs24.utc(endDateParam).endOf("day").toDate();
+      const startOfDay = dayjs25.utc(startDateParam).startOf("day").toDate();
+      const endOfDay = dayjs25.utc(endDateParam).endOf("day").toDate();
       const { branchIds } = await resolveReportBranchScope(req, branchParam);
       const selectedBranches = branchIds ?? [];
       const ReturnOrderModel = payload.db.collections["return-orders"];
@@ -28965,16 +29340,16 @@ var init_WorkGPS = __esm({
 });
 
 // src/endpoints/createWidgetOrder.ts
-import dayjs25 from "dayjs";
-import utc25 from "dayjs/plugin/utc.js";
-import timezone25 from "dayjs/plugin/timezone.js";
+import dayjs26 from "dayjs";
+import utc26 from "dayjs/plugin/utc.js";
+import timezone26 from "dayjs/plugin/timezone.js";
 var createWidgetOrderHandler;
 var init_createWidgetOrder = __esm({
   "src/endpoints/createWidgetOrder.ts"() {
     "use strict";
     init_menuCache();
-    dayjs25.extend(utc25);
-    dayjs25.extend(timezone25);
+    dayjs26.extend(utc26);
+    dayjs26.extend(timezone26);
     createWidgetOrderHandler = async (req) => {
       if (!req.user) {
         return Response.json({ message: "Unauthorized" }, { status: 401 });
@@ -29128,7 +29503,7 @@ var init_createWidgetOrder = __esm({
         if (!branch) {
           return Response.json({ message: "Branch not found" }, { status: 404 });
         }
-        const finalDeliveryDate = orderType === "live" ? dayjs25().tz("Asia/Kolkata").toISOString() : dayjs25(deliveryDate).toISOString();
+        const finalDeliveryDate = orderType === "live" ? dayjs26().tz("Asia/Kolkata").toISOString() : dayjs26(deliveryDate).toISOString();
         const order = await req.payload.create({
           collection: "stock-orders",
           user: req.user,
@@ -29294,15 +29669,15 @@ var init_getAppKeyGatekeeperSettings = __esm({
 });
 
 // src/endpoints/getLiveTableStatus.ts
-import dayjs26 from "dayjs";
-import utc26 from "dayjs/plugin/utc.js";
-import timezone26 from "dayjs/plugin/timezone.js";
+import dayjs27 from "dayjs";
+import utc27 from "dayjs/plugin/utc.js";
+import timezone27 from "dayjs/plugin/timezone.js";
 var ACTIVE_BILLING_STATUSES, LIVE_TABLE_TIMEZONE, BRANCH_SCOPED_ROLES2, getRelationshipID8, normalizeSectionName, parseSimpleTableNumber, extractNumericTableIndex, normalizeTableIdentifier, toTableLabel, parseConfiguredTableRange2, resolveConfiguredTables, parseOfflineTablesToArrayOfStrings2, toKotLabel, toElapsedSeconds, toMoneyNumber, getBillingTotalAmount, getBranchNameFromRelation, buildBranchWhere, resolveBranchScope, ensureBranch, ensureSection, ensureTable, compareTables, areAllItemsCancelled, normalizeItemStatus, getNonCancelledStatuses, deriveLiveTableState, getActiveTimerStart, responseCache, CACHE_TTL_MS, getLiveTableStatusHandler;
 var init_getLiveTableStatus = __esm({
   "src/endpoints/getLiveTableStatus.ts"() {
     "use strict";
-    dayjs26.extend(utc26);
-    dayjs26.extend(timezone26);
+    dayjs27.extend(utc27);
+    dayjs27.extend(timezone27);
     ACTIVE_BILLING_STATUSES = /* @__PURE__ */ new Set(["ordered", "prepared", "confirmed", "delivered"]);
     LIVE_TABLE_TIMEZONE = "Asia/Kolkata";
     BRANCH_SCOPED_ROLES2 = /* @__PURE__ */ new Set([
@@ -29677,7 +30052,7 @@ var init_getLiveTableStatus = __esm({
           });
         }
         const branchWhere = buildBranchWhere(scope.branchIds);
-        const startOfToday = dayjs26().tz(LIVE_TABLE_TIMEZONE).startOf("day");
+        const startOfToday = dayjs27().tz(LIVE_TABLE_TIMEZONE).startOf("day");
         const endOfToday = startOfToday.add(1, "day");
         const startOfTodayISO = startOfToday.toISOString();
         const endOfTodayISO = endOfToday.toISOString();
@@ -30835,16 +31210,16 @@ var init_getBillingMenu = __esm({
 });
 
 // src/endpoints/aiAssistant.ts
-import dayjs27 from "dayjs";
-import utc27 from "dayjs/plugin/utc.js";
-import timezone27 from "dayjs/plugin/timezone.js";
+import dayjs28 from "dayjs";
+import utc28 from "dayjs/plugin/utc.js";
+import timezone28 from "dayjs/plugin/timezone.js";
 import axios2 from "axios";
 var aiAssistantHandler;
 var init_aiAssistant = __esm({
   "src/endpoints/aiAssistant.ts"() {
     "use strict";
-    dayjs27.extend(utc27);
-    dayjs27.extend(timezone27);
+    dayjs28.extend(utc28);
+    dayjs28.extend(timezone28);
     aiAssistantHandler = async (req) => {
       const { payload } = req;
       if (!req.user) {
@@ -30871,12 +31246,12 @@ var init_aiAssistant = __esm({
         let retrievedContext = "";
         const hasSalesTerms = /sale|revenue|income|earn|sold|bill|order|stat|popular/i.test(message);
         if (hasSalesTerms) {
-          let startDate = dayjs27().tz("Asia/Kolkata").startOf("day");
-          let endDate = dayjs27().tz("Asia/Kolkata").endOf("day");
+          let startDate = dayjs28().tz("Asia/Kolkata").startOf("day");
+          let endDate = dayjs28().tz("Asia/Kolkata").endOf("day");
           let dateLabel = "today";
           if (/yesterday/i.test(message)) {
-            startDate = dayjs27().tz("Asia/Kolkata").subtract(1, "day").startOf("day");
-            endDate = dayjs27().tz("Asia/Kolkata").subtract(1, "day").endOf("day");
+            startDate = dayjs28().tz("Asia/Kolkata").subtract(1, "day").startOf("day");
+            endDate = dayjs28().tz("Asia/Kolkata").subtract(1, "day").endOf("day");
             dateLabel = "yesterday";
           }
           const billsResult = await payload.find({
@@ -33925,16 +34300,16 @@ var init_tableRedirect = __esm({
 });
 
 // src/endpoints/callWaiter.ts
-import dayjs28 from "dayjs";
-import utc28 from "dayjs/plugin/utc.js";
-import timezone28 from "dayjs/plugin/timezone.js";
+import dayjs29 from "dayjs";
+import utc29 from "dayjs/plugin/utc.js";
+import timezone29 from "dayjs/plugin/timezone.js";
 var ACTIVE_BILL_STATUSES, CLOSED_BILL_STATUSES, BILLING_TIMEZONE4, toText5, getRelationshipId, extractNumericTableIndex2, normalizeSectionName2, normalizeTableNumber, isActiveStatus, isClosedStatus, parseBody, getLatestActiveBillByTable, callWaiterHandler;
 var init_callWaiter = __esm({
   "src/endpoints/callWaiter.ts"() {
     "use strict";
     init_wsGateway();
-    dayjs28.extend(utc28);
-    dayjs28.extend(timezone28);
+    dayjs29.extend(utc29);
+    dayjs29.extend(timezone29);
     ACTIVE_BILL_STATUSES = ["ordered", "prepared", "confirmed", "delivered"];
     CLOSED_BILL_STATUSES = /* @__PURE__ */ new Set(["completed", "settled", "cancelled"]);
     BILLING_TIMEZONE4 = "Asia/Kolkata";
@@ -34126,7 +34501,7 @@ var init_callWaiter = __esm({
         }
         const resolvedTableNumber = toText5(matchedBill.tableDetails?.tableNumber) || requestedTableNumber || "UNKNOWN";
         const resolvedSection = toText5(matchedBill.tableDetails?.section) || requestedSection || "UNKNOWN";
-        const timestampIST = dayjs28().tz(BILLING_TIMEZONE4).format("YYYY-MM-DDTHH:mm:ss.SSSZ");
+        const timestampIST = dayjs29().tz(BILLING_TIMEZONE4).format("YYYY-MM-DDTHH:mm:ss.SSSZ");
         const signalLine = `WAITER_CALL_SOS ${timestampIST} TABLE-${resolvedTableNumber} SECTION-${resolvedSection}`;
         const existingNotes = toText5(matchedBill.notes);
         const notes = existingNotes ? `${existingNotes}
@@ -34194,15 +34569,15 @@ ${signalLine}` : signalLine;
 });
 
 // src/endpoints/ackWaiterCall.ts
-import dayjs29 from "dayjs";
-import utc29 from "dayjs/plugin/utc.js";
-import timezone29 from "dayjs/plugin/timezone.js";
+import dayjs30 from "dayjs";
+import utc30 from "dayjs/plugin/utc.js";
+import timezone30 from "dayjs/plugin/timezone.js";
 var ACTIVE_BILL_STATUSES2, CLOSED_BILL_STATUSES2, BRANCH_SCOPED_ROLES4, BILLING_TIMEZONE5, SOS_PREFIX, ACK_PREFIX, SOS_NOTE_REGEX, toText6, getRelationshipId2, toNoteToken, parseBody2, getHeaderValue, getActorFromUser, getSignalLines, parseSignalLine, ackWaiterCallHandler;
 var init_ackWaiterCall = __esm({
   "src/endpoints/ackWaiterCall.ts"() {
     "use strict";
-    dayjs29.extend(utc29);
-    dayjs29.extend(timezone29);
+    dayjs30.extend(utc30);
+    dayjs30.extend(timezone30);
     ACTIVE_BILL_STATUSES2 = /* @__PURE__ */ new Set(["ordered", "prepared", "confirmed", "delivered"]);
     CLOSED_BILL_STATUSES2 = /* @__PURE__ */ new Set(["completed", "settled", "cancelled"]);
     BRANCH_SCOPED_ROLES4 = /* @__PURE__ */ new Set([
@@ -34399,7 +34774,7 @@ var init_ackWaiterCall = __esm({
             message: "Waiter call was already acknowledged by this user"
           });
         }
-        const ackTimestamp = dayjs29().tz(BILLING_TIMEZONE5).format("YYYY-MM-DDTHH:mm:ss.SSSZ");
+        const ackTimestamp = dayjs30().tz(BILLING_TIMEZONE5).format("YYYY-MM-DDTHH:mm:ss.SSSZ");
         const ackLine = [
           "WAITER_CALL_ACK",
           ackTimestamp,
@@ -35095,23 +35470,23 @@ var init_StockAlerts = __esm({
 });
 
 // src/services/reports/timeWise.ts
-import dayjs30 from "dayjs";
-import utc30 from "dayjs/plugin/utc.js";
-import timezone30 from "dayjs/plugin/timezone.js";
+import dayjs31 from "dayjs";
+import utc31 from "dayjs/plugin/utc.js";
+import timezone31 from "dayjs/plugin/timezone.js";
 var toDayBoundary8, getTimeWiseReportData;
 var init_timeWise = __esm({
   "src/services/reports/timeWise.ts"() {
     "use strict";
     init_reportScope();
-    dayjs30.extend(utc30);
-    dayjs30.extend(timezone30);
-    dayjs30.tz.setDefault("Asia/Kolkata");
+    dayjs31.extend(utc31);
+    dayjs31.extend(timezone31);
+    dayjs31.tz.setDefault("Asia/Kolkata");
     toDayBoundary8 = (dateParam, mode) => {
       const [yearRaw, monthRaw, dayRaw] = dateParam.split("-");
       const year = parseInt(yearRaw, 10);
       const month = parseInt(monthRaw, 10);
       const day = parseInt(dayRaw, 10);
-      const parsedDate = dayjs30.tz(`${year}-${month}-${day}`, "YYYY-MM-DD", "Asia/Kolkata");
+      const parsedDate = dayjs31.tz(`${year}-${month}-${day}`, "YYYY-MM-DD", "Asia/Kolkata");
       return (mode === "start" ? parsedDate.startOf("day") : parsedDate.endOf("day")).toDate();
     };
     getTimeWiseReportData = async (req, args = {}) => {
@@ -43459,6 +43834,7 @@ var init_payload_config = __esm({
     init_ProductTimeReport();
     init_ChefReport();
     init_getBranchBillingReport();
+    init_getReportsDashboardSummary();
     init_getTallyExport();
     init_getAccountsBillsReport();
     init_updateBillVerificationStatus();
@@ -43971,6 +44347,11 @@ var init_payload_config = __esm({
         }
       },
       endpoints: [
+        {
+          path: "/reports/dashboard-summary",
+          method: "get",
+          handler: getReportsDashboardSummaryHandler
+        },
         {
           path: "/reports/branch-billing",
           method: "get",

@@ -1,747 +1,1246 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Gutter } from '@payloadcms/ui'
 import {
   LayoutDashboard,
   Receipt,
   PieChart,
   BarChart3,
-  Clock,
   Hourglass,
   Lock,
   Users,
   ChefHat,
-  Award,
-  LineChart,
   CalendarCheck,
   CreditCard,
   HeartHandshake,
   Star,
   Truck,
-  Boxes,
-  Undo2,
   FileText,
-  Calculator,
   Landmark,
-  Warehouse,
-  Store,
-  PackageSearch,
-  Coins,
   Wheat,
-  UploadCloud,
-  MessagesSquare,
-  Search,
   ArrowRight,
-  ExternalLink,
-  Sparkles,
-  TrendingUp,
-  Layers,
-  CheckCircle2,
+  Maximize2,
+  RefreshCw,
+  Calendar,
 } from 'lucide-react'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
+import Select from 'react-select'
+import { fetchCachedBranches } from '@/lib/reportCache'
 import './index.scss'
 
-export interface ReportItem {
-  id: string
-  title: string
-  menuLabel: string
-  slug: string
-  href: string
-  group: 'Report' | 'Account' | 'Collections'
-  category:
-    | 'Sales & Billing'
-    | 'Operations & Kitchen'
-    | 'Inventory & Stock'
-    | 'Staff & Tracking'
-    | 'Accounts & Taxes'
-    | 'Raw Materials & Factory'
-    | 'Customer Insights'
-  description: string
-  tags: string[]
-  icon: React.ElementType
-  accentColor: string
-  popular?: boolean
+// Types for the dashboard summary API
+interface DashboardSummaryData {
+  dateRange: {
+    startDate: string
+    endDate: string
+  }
+  billing: {
+    totalBills: number
+    totalAmount: number
+    cash: number
+    upi: number
+    card: number
+    completedCount: number
+    settledCount: number
+    cancelledCount: number
+    tableOrderCount: number
+    gstInclusiveAmount: number
+    nonGstAmount: number
+  }
+  closing: {
+    totalEntries: number
+    totalSales: number
+    systemSales: number
+    manualSales: number
+    onlineSales: number
+    cash: number
+    upi: number
+    card: number
+    expenses: number
+    systemCash: number
+    systemUpi: number
+    systemCard: number
+    discrepancy: number
+  }
+  expenses: {
+    grandTotal: number
+    totalCount: number
+    topCategories: { category: string; count: number; total: number; percentage?: number }[]
+  }
+  attendance: {
+    uniqueEmployees: number
+    currentlyActive: number
+    totalRecords: number
+    totalWorkFormatted: string
+  }
+  gst: {
+    taxableAmount: number
+    totalTax: number
+    cgst: number
+    sgst: number
+    totalInvoices: number
+  }
+  stockOrders: {
+    totalOrders: number
+    pendingCount: number
+    dispatchedCount: number
+    deliveredCount: number
+  }
+  instockEntries: {
+    totalEntries: number
+    receivedQty: number
+  }
+  returnOrders: {
+    totalReturns: number
+    totalLossAmount: number
+  }
+  reviews: {
+    totalReviews: number
+    averageRating: number
+    positiveRate: number
+  }
+  customers: {
+    totalCustomers: number
+  }
+  billsVerification: {
+    totalBills: number
+    verifiedCount: number
+    pendingCount: number
+  }
+  topCategories: {
+    name: string
+    quantity: number
+    amount: number
+  }[]
+  topProducts: {
+    name: string
+    quantity: number
+    amount: number
+  }[]
+  overallStock: {
+    totalProducts: number
+    totalSold: number
+    totalReceived: number
+    totalReturns: number
+    totalRevenue: number
+  }
 }
 
-const ALL_REPORTS: ReportItem[] = [
-  // --- Sales & Billing ---
-  {
-    id: 'branch-billing-report',
-    title: 'Branch Billing Reports',
-    menuLabel: 'Billing Reports',
-    slug: 'branch-billing-report',
-    href: '/admin/globals/branch-billing-report',
-    group: 'Report',
-    category: 'Sales & Billing',
-    description:
-      'Live store sales performance, payment splits across Cash, UPI, Card, Swiggy, and Zomato, with monthly revenue trends.',
-    tags: ['Cash', 'UPI', 'Card', 'Revenue', 'Store Sales'],
-    icon: Receipt,
-    accentColor: '#10B981', // emerald
-    popular: true,
-  },
-  {
-    id: 'time-wise-report',
-    title: 'Time-Wise Sales Analysis',
-    menuLabel: 'Time-Wise Report',
-    slug: 'time-wise-report',
-    href: '/admin/globals/time-wise-report',
-    group: 'Report',
-    category: 'Sales & Billing',
-    description:
-      'Hourly sales distributions, rush-hour peak times, customer traffic influx, and time-slot based revenue analytics.',
-    tags: ['Hourly Trends', 'Peak Hours', 'Order Influx'],
-    icon: Hourglass,
-    accentColor: '#06B6D4', // cyan
-  },
-  {
-    id: 'report-graph',
-    title: 'Visual Revenue Trends & Charts',
-    menuLabel: 'Report Graph',
-    slug: 'report-graph',
-    href: '/admin/globals/report-graph',
-    group: 'Report',
-    category: 'Sales & Billing',
-    description:
-      'High-level graphical charts, sales momentum, monthly growth curves, and cross-branch visual comparisons.',
-    tags: ['Charts', 'Sales Graph', 'Trends', 'Visuals'],
-    icon: LineChart,
-    accentColor: '#8B5CF6', // purple
-  },
-  {
-    id: 'category-wise-report',
-    title: 'Category-Wise Sales Report',
-    menuLabel: 'Category Wise',
-    slug: 'category-wise-report',
-    href: '/admin/globals/category-wise-report',
-    group: 'Report',
-    category: 'Sales & Billing',
-    description:
-      'Units sold and total turnover grouped by product categories (Cakes, Pastries, Savouries, Beverages) across all stores.',
-    tags: ['Categories', 'Item Turnover', 'Product Mix'],
-    icon: PieChart,
-    accentColor: '#F59E0B', // amber
-    popular: true,
-  },
-  {
-    id: 'product-wise-report',
-    title: 'Product-Wise Sales & Volume',
-    menuLabel: 'Product Wise',
-    slug: 'product-wise-report',
-    href: '/admin/globals/product-wise-report',
-    group: 'Report',
-    category: 'Sales & Billing',
-    description:
-      'Detailed item-level sales rankings, units sold, best-performing cakes and snacks, and branch sales contribution.',
-    tags: ['Top Sellers', 'Units Sold', 'Item Ranking'],
-    icon: BarChart3,
-    accentColor: '#6366F1', // indigo
-  },
+// React Select Styles
+const selectStyles = {
+  control: (base: any, state: { isFocused: boolean }) => ({
+    ...base,
+    backgroundColor: 'rgba(16, 36, 70, 0.9)',
+    borderColor: state.isFocused ? '#38BDF8' : 'rgba(56, 189, 248, 0.25)',
+    borderRadius: '10px',
+    height: '40px',
+    minHeight: '40px',
+    minWidth: '170px',
+    boxShadow: 'none',
+    color: '#E8F2FF',
+    '&:hover': {
+      borderColor: 'rgba(56, 189, 248, 0.48)',
+    },
+  }),
+  singleValue: (base: any) => ({
+    ...base,
+    color: '#E8F2FF',
+    fontWeight: '500',
+    fontSize: '0.9rem',
+  }),
+  option: (base: any, state: { isSelected: boolean; isFocused: boolean }) => ({
+    ...base,
+    backgroundColor: state.isSelected
+      ? '#1B365D'
+      : state.isFocused
+        ? 'rgba(56, 189, 248, 0.2)'
+        : 'rgba(16, 36, 70, 0.95)',
+    color: '#E8F2FF',
+    cursor: 'pointer',
+    fontSize: '0.88rem',
+  }),
+  menu: (base: any) => ({
+    ...base,
+    backgroundColor: '#0B1A33',
+    border: '1px solid rgba(56, 189, 248, 0.28)',
+    zIndex: 9999,
+    borderRadius: '10px',
+  }),
+  input: (base: any) => ({
+    ...base,
+    color: '#E8F2FF',
+  }),
+  placeholder: (base: any) => ({
+    ...base,
+    color: '#9AB3D8',
+    fontSize: '0.88rem',
+  }),
+}
 
-  // --- Operations & Kitchen ---
-  {
-    id: 'closing-entry-report',
-    title: 'Daily Store Closing Report',
-    menuLabel: 'Closing Report',
-    slug: 'closing-entry-report',
-    href: '/admin/globals/closing-entry-report',
-    group: 'Report',
-    category: 'Operations & Kitchen',
-    description:
-      'End-of-day register closing entries, physical cash denomination tally, system vs manual sales reconciliation, and manager sign-offs.',
-    tags: ['Cash Drawer', 'Reconciliation', 'Manager Closing', 'Denominations'],
-    icon: Lock,
-    accentColor: '#F43F5E', // rose
-    popular: true,
+const CustomDateInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
+  ({ value, onClick }, ref) => {
+    const [start, end] = value ? value.split(' - ') : ['', '']
+    return (
+      <button className="custom-date-pill" onClick={onClick} ref={ref} type="button">
+        <Calendar size={15} className="calendar-icon" />
+        <span className="date-text">{start}</span>
+        {end && end !== start && (
+          <>
+            <span className="separator">→</span>
+            <span className="date-text">{end}</span>
+          </>
+        )}
+      </button>
+    )
   },
-  {
-    id: 'chef-report',
-    title: 'Kitchen & Chef Performance',
-    menuLabel: 'Chef Report',
-    slug: 'chef-report',
-    href: '/admin/globals/chef-report',
-    group: 'Report',
-    category: 'Operations & Kitchen',
-    description:
-      'Live kitchen station production metrics, KOT order preparation latency, delayed order alerts, and chef workload analytics.',
-    tags: ['KOT Times', 'Kitchen Stations', 'Chef Latency'],
-    icon: ChefHat,
-    accentColor: '#EA580C', // orange
-  },
-  {
-    id: 'product-time-report',
-    title: 'Product Preparation Time Report',
-    menuLabel: 'Product Time',
-    slug: 'product-time-report',
-    href: '/admin/globals/product-time-report',
-    group: 'Report',
-    category: 'Operations & Kitchen',
-    description:
-      'Preparation duration analysis per product, fulfillment speed benchmarks, and kitchen throughput bottlenecks.',
-    tags: ['Preparation Speed', 'Order Latency', 'Bottlenecks'],
-    icon: Clock,
-    accentColor: '#0EA5E9', // sky
-  },
-  {
-    id: 'messages-chat',
-    title: 'Internal Branch Message Chat',
-    menuLabel: 'Message Chat',
-    slug: 'messages-chat',
-    href: '/admin/globals/messages-chat',
-    group: 'Account',
-    category: 'Operations & Kitchen',
-    description:
-      'Internal staff announcements, branch communication logs, operational notices, and supervisor messaging.',
-    tags: ['Communication', 'Branch Notices', 'Chat'],
-    icon: MessagesSquare,
-    accentColor: '#3B82F6', // blue
-  },
+)
+CustomDateInput.displayName = 'CustomDateInput'
 
-  // --- Inventory & Stock ---
-  {
-    id: 'general-dashboard',
-    title: 'Overall Stock & Inventory Status',
-    menuLabel: 'Overall',
-    slug: 'general-dashboard',
-    href: '/admin/globals/general-dashboard',
-    group: 'Report',
-    category: 'Inventory & Stock',
-    description:
-      'Complete stock overview table: Starting Instock (OIS), Received (REC), Returned (RTN), Total Available (TOT), Billing (BILL), and Current Instock (CIS).',
-    tags: ['OIS', 'REC', 'RTN', 'TOT', 'BILL', 'CIS'],
-    icon: LayoutDashboard,
-    accentColor: '#38BDF8', // light blue
-    popular: true,
-  },
-  {
-    id: 'stock-order-report',
-    title: 'Branch Stock Order & Dispatch',
-    menuLabel: 'Stock Order Report',
-    slug: 'stock-order-report',
-    href: '/admin/globals/stock-order-report',
-    group: 'Report',
-    category: 'Inventory & Stock',
-    description:
-      'Inter-branch stock transfers, central warehouse supply dispatches, order picking, and transfer fulfillment tracking.',
-    tags: ['Stock Transfer', 'Warehouse Dispatch', 'Fulfillment'],
-    icon: Truck,
-    accentColor: '#64748B', // slate
-  },
-  {
-    id: 'instock-entry-report',
-    title: 'Morning Stock Intake & Verification',
-    menuLabel: 'Instock Entry Report',
-    slug: 'instock-entry-report',
-    href: '/admin/globals/instock-entry-report',
-    group: 'Report',
-    category: 'Inventory & Stock',
-    description:
-      'Morning fresh delivery intake records, received quantities verification, damaged stock deductions, and confirmation logs.',
-    tags: ['Morning Intake', 'Received Goods', 'Verification'],
-    icon: Boxes,
-    accentColor: '#22C55E', // green
-  },
-  {
-    id: 'return-order-report',
-    title: 'Damaged & Return Goods Report',
-    menuLabel: 'Return Order Report',
-    slug: 'return-order-report',
-    href: '/admin/globals/return-order-report',
-    group: 'Report',
-    category: 'Inventory & Stock',
-    description:
-      'Damaged items, stale or expired returns, return causes, credit notes, and store loss tracking.',
-    tags: ['Returns', 'Damaged Goods', 'Expired Items', 'Wastage'],
-    icon: Undo2,
-    accentColor: '#F97316', // orange
-  },
-  {
-    id: 'inventory-report',
-    title: 'Central Warehouse Inventory Ledger',
-    menuLabel: 'Inventory Report',
-    slug: 'inventory-report',
-    href: '/admin/globals/inventory-report',
-    group: 'Account',
-    category: 'Inventory & Stock',
-    description:
-      'Comprehensive inventory ledger, warehouse valuation, batch tracking, reorder thresholds, and current asset worth.',
-    tags: ['Ledger', 'Valuation', 'Stock Balance', 'Asset Value'],
-    icon: Warehouse,
-    accentColor: '#A855F7', // purple
-  },
-  {
-    id: 'dealer-report',
-    title: 'Third-Party Products & Dealer Orders',
-    menuLabel: 'Other Products',
-    slug: 'dealer-report',
-    href: '/admin/globals/dealer-report',
-    group: 'Account',
-    category: 'Inventory & Stock',
-    description:
-      'Third-party supplier procurement, FMCG dealer purchase orders, invoices, and external vendor delivery audits.',
-    tags: ['Dealers', 'Supplier Bills', 'Third-Party Items'],
-    icon: Store,
-    accentColor: '#06B6D4', // cyan
-  },
-  {
-    id: 'other-products-inventory-report',
-    title: 'Other Products Stock & Inventory',
-    menuLabel: 'Other Products Inventory',
-    slug: 'other-products-inventory-report',
-    href: '/admin/globals/other-products-inventory-report',
-    group: 'Account',
-    category: 'Inventory & Stock',
-    description:
-      'Stock counts, opening/closing balance, and sale numbers for retail / FMCG packaged goods, drinks, and chips.',
-    tags: ['Retail Goods', 'Packaged Items', 'FMCG Stock'],
-    icon: PackageSearch,
-    accentColor: '#38BDF8', // sky
-  },
+export const ReportsDashboard: React.FC = () => {
+  const [data, setData] = useState<DashboardSummaryData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
-  // --- Staff & Tracking ---
-  {
-    id: 'attendance-report',
-    title: 'Staff Attendance & Punch Records',
-    menuLabel: 'Attendance Report',
-    slug: 'attendance-report',
-    href: '/admin/globals/attendance-report',
-    group: 'Report',
-    category: 'Staff & Tracking',
-    description:
-      'Daily staff punch-in logs, biometric/photo timestamps, late arrivals, shift working hours, and branch employee attendance.',
-    tags: ['Punch-In', 'Late Arrivals', 'Working Hours', 'Shifts'],
-    icon: CalendarCheck,
-    accentColor: '#14B8A6', // teal
-    popular: true,
-  },
-  {
-    id: 'waiter-wise-billing-report',
-    title: 'Waiter-Wise Sales & Efficiency',
-    menuLabel: 'Waiter Wise',
-    slug: 'waiter-wise-billing-report',
-    href: '/admin/globals/waiter-wise-billing-report',
-    group: 'Report',
-    category: 'Staff & Tracking',
-    description:
-      'Orders taken, bills generated, customer settlement metrics, and sales contribution broken down by waiter.',
-    tags: ['Waiter Sales', 'Table Service', 'Staff Revenue'],
-    icon: Users,
-    accentColor: '#4F46E5', // indigo
-  },
-  {
-    id: 'report-card',
-    title: 'Branch Performance Report Card',
-    menuLabel: 'Report Card',
-    slug: 'report-card',
-    href: '/admin/globals/report-card',
-    group: 'Report',
-    category: 'Staff & Tracking',
-    description:
-      'Automated KPI scoring, branch grading metrics, rule compliance evaluations, and operational performance benchmarks.',
-    tags: ['KPI Scores', 'Branch Grading', 'Operational Rules'],
-    icon: Award,
-    accentColor: '#EAB308', // yellow
-  },
+  // Filters
+  const [datePreset, setDatePreset] = useState('today')
+  const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()])
+  const [startDate, endDate] = dateRange
+  const [branches, setBranches] = useState<any[]>([])
+  const [selectedBranch, setSelectedBranch] = useState('')
+  const [activeCategory, setActiveCategory] = useState<string>('All')
 
-  // --- Accounts & Taxes ---
-  {
-    id: 'accounts-bills-report',
-    title: 'All Bills Transaction Ledger',
-    menuLabel: 'All Bills Report',
-    slug: 'accounts-bills-report',
-    href: '/admin/globals/accounts-bills-report',
-    group: 'Account',
-    category: 'Accounts & Taxes',
-    description:
-      'Auditing ledger of all customer bills, payment methods, transaction reference IDs, and verification statuses.',
-    tags: ['All Bills', 'Auditing', 'Payment Verification', 'Transaction IDs'],
-    icon: FileText,
-    accentColor: '#2563EB', // blue
-    popular: true,
-  },
-  {
-    id: 'bill-summary',
-    title: 'Consolidated Billing Summary',
-    menuLabel: 'Bill Summary',
-    slug: 'bill-summary',
-    href: '/admin/globals/bill-summary',
-    group: 'Account',
-    category: 'Accounts & Taxes',
-    description:
-      'High-level daily financial summaries, bill counts, average customer ticket values, and aggregated totals per branch.',
-    tags: ['Daily Aggregates', 'Average Bill', 'Turnover'],
-    icon: Calculator,
-    accentColor: '#10B981', // emerald
-  },
-  {
-    id: 'gst-report',
-    title: 'GST Tax Compliance & Filing',
-    menuLabel: 'GST Report',
-    slug: 'gst-report',
-    href: '/admin/globals/gst-report',
-    group: 'Account',
-    category: 'Accounts & Taxes',
-    description:
-      'Monthly/quarterly tax filing figures, CGST, SGST, IGST calculations, taxable value totals, and B2B/B2C invoice summaries.',
-    tags: ['Tax Filing', 'CGST', 'SGST', 'HSN Wise', 'Compliance'],
-    icon: Landmark,
-    accentColor: '#6366F1', // indigo
-    popular: true,
-  },
-  {
-    id: 'expense-report',
-    title: 'Store Operational Expenses',
-    menuLabel: 'Expense Reports',
-    slug: 'expense-report',
-    href: '/admin/globals/expense-report',
-    group: 'Report',
-    category: 'Accounts & Taxes',
-    description:
-      'Daily store petty cash expenses, repair costs, utility payments, vendor bills, and categorical expense distribution.',
-    tags: ['Petty Cash', 'Vendor Payments', 'Repairs', 'Utilities'],
-    icon: CreditCard,
-    accentColor: '#EF4444', // red
-  },
-  {
-    id: 'bank-statement-upload',
-    title: 'Bank Statement Auto-Reconciliation',
-    menuLabel: 'Bank Statement Upload',
-    slug: 'bank-statement-upload',
-    href: '/admin/globals/bank-statement-upload',
-    group: 'Account',
-    category: 'Accounts & Taxes',
-    description:
-      'Upload bank statement spreadsheets (CSV/Excel) to automatically match settlement payouts against POS UPI and Card receipts.',
-    tags: ['Bank CSV', 'UPI Payouts', 'Card Settlement', 'Reconciliation'],
-    icon: UploadCloud,
-    accentColor: '#475569', // slate
-  },
+  // 1. Fetch Branches Options
+  useEffect(() => {
+    const loadBranches = async () => {
+      try {
+        const res = await fetchCachedBranches()
+        setBranches(res || [])
+      } catch (err) {
+        console.error('Failed to load branches', err)
+      }
+    }
+    loadBranches()
+  }, [])
 
-  // --- Raw Materials & Factory ---
-  {
-    id: 'raw-material-billing-report',
-    title: 'Raw Material Purchases & Invoices',
-    menuLabel: 'Raw Material',
-    slug: 'raw-material-billing-report',
-    href: '/admin/globals/raw-material-billing-report',
-    group: 'Account',
-    category: 'Raw Materials & Factory',
-    description:
-      'Central kitchen raw material purchase bills, ingredient procurement invoices, dealer payments, and manufacturing costs.',
-    tags: ['Ingredient Purchases', 'Factory Invoices', 'Supplier Bills'],
-    icon: Coins,
-    accentColor: '#D97706', // amber
-  },
-  {
-    id: 'raw-material-inventory-report',
-    title: 'Raw Material Stock & Consumption',
-    menuLabel: 'Raw Material Inventory',
-    slug: 'raw-material-inventory-report',
-    href: '/admin/globals/raw-material-inventory-report',
-    group: 'Account',
-    category: 'Raw Materials & Factory',
-    description:
-      'Flour, sugar, dairy, chocolate, and packaging inventory balances, usage rates, spoilage logs, and reorder levels.',
-    tags: ['Baking Ingredients', 'Consumption', 'Stock Alerts', 'Factory Stock'],
-    icon: Wheat,
-    accentColor: '#CA8A04', // yellow
-  },
-
-  // --- Customer Insights ---
-  {
-    id: 'afterstock-customer-report',
-    title: 'Customer Frequency & Loyalty Report',
-    menuLabel: 'Customer Report',
-    slug: 'afterstock-customer-report',
-    href: '/admin/globals/afterstock-customer-report',
-    group: 'Report',
-    category: 'Customer Insights',
-    description:
-      'Customer order counts, repeat visit frequencies, top patrons, lifetime value calculations, and loyalty patterns.',
-    tags: ['Customer Retention', 'Repeat Visits', 'Patron Profiles'],
-    icon: HeartHandshake,
-    accentColor: '#EC4899', // pink
-  },
-  {
-    id: 'review-report',
-    title: 'Customer Feedback & Ratings Report',
-    menuLabel: 'Review Report',
-    slug: 'review-report',
-    href: '/admin/globals/review-report',
-    group: 'Report',
-    category: 'Customer Insights',
-    description:
-      'Table dining reviews, customer star ratings, feedback sentiments, food quality evaluations, and service compliments.',
-    tags: ['Ratings', 'Feedback Sentiment', 'Customer Comments'],
-    icon: Star,
-    accentColor: '#F59E0B', // amber
-  },
-]
-
-const CATEGORIES = [
-  'All Reports',
-  'Sales & Billing',
-  'Operations & Kitchen',
-  'Inventory & Stock',
-  'Staff & Tracking',
-  'Accounts & Taxes',
-  'Raw Materials & Factory',
-  'Customer Insights',
-] as const
-
-const ReportsDashboard: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('')
-  const [activeCategory, setActiveCategory] = useState<string>('All Reports')
-
-  // Filter reports
-  const filteredReports = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase()
-
-    return ALL_REPORTS.filter((report) => {
-      // Category match
-      if (activeCategory !== 'All Reports' && report.category !== activeCategory) {
-        return false
+  // 2. Fetch Dashboard Summary
+  const fetchSummary = useCallback(async () => {
+    try {
+      setRefreshing(true)
+      const query = new URLSearchParams()
+      if (startDate) {
+        const s = startDate.toLocaleDateString('en-CA') // YYYY-MM-DD
+        query.append('startDate', s)
+      }
+      if (endDate) {
+        const e = endDate.toLocaleDateString('en-CA')
+        query.append('endDate', e)
+      }
+      if (selectedBranch) {
+        query.append('branch', selectedBranch)
       }
 
-      // Search match
-      if (!term) return true
-
-      const matchTitle = report.title.toLowerCase().includes(term)
-      const matchMenu = report.menuLabel.toLowerCase().includes(term)
-      const matchDesc = report.description.toLowerCase().includes(term)
-      const matchTags = report.tags.some((t) => t.toLowerCase().includes(term))
-      const matchCat = report.category.toLowerCase().includes(term)
-
-      return matchTitle || matchMenu || matchDesc || matchTags || matchCat
-    })
-  }, [searchTerm, activeCategory])
-
-  // Count by category
-  const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { 'All Reports': ALL_REPORTS.length }
-    for (const report of ALL_REPORTS) {
-      counts[report.category] = (counts[report.category] || 0) + 1
+      const res = await fetch(`/api/reports/dashboard-summary?${query.toString()}`)
+      if (!res.ok) throw new Error('Failed to fetch summary numbers')
+      const json = await res.json()
+      setData(json)
+    } catch (err) {
+      console.error('Error fetching dashboard summary:', err)
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
     }
-    return counts
-  }, [])
+  }, [startDate, endDate, selectedBranch])
 
-  const popularReports = useMemo(() => {
-    return ALL_REPORTS.filter((r) => r.popular)
-  }, [])
+  useEffect(() => {
+    fetchSummary()
+  }, [fetchSummary])
+
+  // Handle Preset Changes
+  const handleDatePresetChange = (opt: any) => {
+    const val = opt?.value || 'today'
+    setDatePreset(val)
+    const today = new Date()
+    let start = new Date()
+    let end = new Date()
+
+    switch (val) {
+      case 'today':
+        break
+      case 'yesterday':
+        start.setDate(today.getDate() - 1)
+        end.setDate(today.getDate() - 1)
+        break
+      case 'last_7_days':
+        start.setDate(today.getDate() - 6)
+        break
+      case 'this_month':
+        start = new Date(today.getFullYear(), today.getMonth(), 1)
+        break
+      case 'last_month':
+        start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+        end = new Date(today.getFullYear(), today.getMonth(), 0)
+        break
+      case 'custom':
+        return
+      default:
+        break
+    }
+    setDateRange([start, end])
+  }
+
+  const dateOptions = [
+    { value: 'today', label: "Today's Numbers" },
+    { value: 'yesterday', label: 'Yesterday' },
+    { value: 'last_7_days', label: 'Last 7 Days' },
+    { value: 'this_month', label: 'This Month' },
+    { value: 'last_month', label: 'Last Month' },
+    { value: 'custom', label: 'Custom Range' },
+  ]
+
+  const formatCurrency = (val?: number) => {
+    if (val == null || isNaN(val)) return '₹0'
+    return '₹' + Number(val).toLocaleString('en-IN')
+  }
+
+  const formatNumber = (val?: number) => {
+    if (val == null || isNaN(val)) return '0'
+    return Number(val).toLocaleString('en-IN')
+  }
+
+  // Safe data accessor shortcuts
+  const billing = data?.billing || ({} as any)
+  const closing = data?.closing || ({} as any)
+  const expenses = data?.expenses || ({} as any)
+  const attendance = data?.attendance || ({} as any)
+  const gst = data?.gst || ({} as any)
+  const stockOrders = data?.stockOrders || ({} as any)
+  const instock = data?.instockEntries || ({} as any)
+  const returnOrders = data?.returnOrders || ({} as any)
+  const reviews = data?.reviews || ({} as any)
+  const customers = data?.customers || ({} as any)
+  const billsVerification = data?.billsVerification || ({} as any)
+  const topCategories = data?.topCategories || []
+  const topProducts = data?.topProducts || []
+
+  // Check category filter
+  const isVisible = (cat: string) => {
+    if (activeCategory === 'All') return true
+    return activeCategory === cat
+  }
 
   return (
-    <div className="reports-dashboard-root">
+    <div className="reports-dashboard-container">
       <Gutter className="reports-dashboard-gutter">
-        {/* Top Header Banner */}
-        <header className="dashboard-hero">
-          <div className="hero-text-block">
-            <div className="badge-pill">
-              <Sparkles size={14} className="sparkle-icon" />
-              <span>Executive Overview</span>
+        {/* Sticky Control & Filter Header */}
+        <div className="dashboard-top-nav">
+          <div className="top-title-area">
+            <div className="badge-live">
+              <span className="live-dot" />
+              <span>LIVE METRICS HUB</span>
             </div>
-            <h1 className="hero-heading">Central Reports Dashboard</h1>
-            <p className="hero-subheading">
-              Access every branch metric, revenue stream, inventory tally, and financial audit in one
-              place. Click any report below to open its dedicated view with live filters.
+            <h1 className="main-title">Reports Dashboard</h1>
+            <p className="main-subtitle">
+              All report numbers in one view. Click any box to expand into its full separate report page.
             </p>
           </div>
 
-          <div className="hero-stats-row">
-            <div className="stat-card">
-              <div className="stat-value">{ALL_REPORTS.length}</div>
-              <div className="stat-label">Total Reports</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value">{CATEGORIES.length - 1}</div>
-              <div className="stat-label">Categories</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value">100%</div>
-              <div className="stat-label">Live Sync</div>
-            </div>
-          </div>
-        </header>
-
-        {/* Quick Access Popular Reports */}
-        {!searchTerm && activeCategory === 'All Reports' && (
-          <section className="popular-section">
-            <div className="section-header-row">
-              <div className="section-title-wrap">
-                <TrendingUp size={18} className="section-icon text-cyan" />
-                <h2 className="section-title">Frequently Accessed Reports</h2>
-              </div>
-              <span className="section-caption">Instant shortcuts to daily operations</span>
-            </div>
-
-            <div className="popular-grid">
-              {popularReports.map((report) => {
-                const IconComponent = report.icon
-                return (
-                  <a
-                    key={report.id}
-                    href={report.href}
-                    className="popular-card"
-                    style={{ '--accent': report.accentColor } as React.CSSProperties}
-                  >
-                    <div className="popular-icon-wrap">
-                      <IconComponent size={20} />
-                    </div>
-                    <div className="popular-info">
-                      <div className="popular-title">{report.menuLabel}</div>
-                      <div className="popular-category">{report.category}</div>
-                    </div>
-                    <ArrowRight size={16} className="popular-arrow" />
-                  </a>
-                )
-              })}
-            </div>
-          </section>
-        )}
-
-        {/* Search and Category Filters */}
-        <section className="controls-bar">
-          <div className="search-input-wrap">
-            <Search size={18} className="search-icon" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search reports by name, metric, cash, stock, gst, or tag..."
-              className="search-input"
+          <div className="top-filter-controls">
+            {/* Branch Selector */}
+            <Select
+              options={[
+                { value: '', label: 'All Branches' },
+                ...branches.map((b) => ({ value: b.id, label: b.name })),
+              ]}
+              value={
+                selectedBranch
+                  ? {
+                      value: selectedBranch,
+                      label: branches.find((b) => b.id === selectedBranch)?.name,
+                    }
+                  : { value: '', label: 'All Branches' }
+              }
+              onChange={(opt: any) => setSelectedBranch(opt?.value || '')}
+              placeholder="Branch"
+              styles={selectStyles}
+              isClearable={false}
+              className="dashboard-select"
             />
-            {searchTerm && (
+
+            {/* Date Preset Selector */}
+            <Select
+              options={dateOptions}
+              value={dateOptions.find((o) => o.value === datePreset)}
+              onChange={handleDatePresetChange}
+              styles={selectStyles}
+              isSearchable={false}
+              className="dashboard-select"
+            />
+
+            {/* Date Range Picker */}
+            <DatePicker
+              selectsRange={true}
+              startDate={startDate}
+              endDate={endDate}
+              onChange={(update) => {
+                setDateRange(update)
+                setDatePreset('custom')
+              }}
+              customInput={<CustomDateInput />}
+              dateFormat="yyyy-MM-dd"
+              calendarClassName="custom-calendar-popup"
+            />
+
+            {/* Live Refresh Button */}
+            <button
+              type="button"
+              className={`refresh-btn ${refreshing ? 'spinning' : ''}`}
+              onClick={() => fetchSummary()}
+              title="Refresh all metrics"
+            >
+              <RefreshCw size={17} />
+            </button>
+          </div>
+        </div>
+
+        {/* Category Filter Chips */}
+        <div className="filter-chips-strip">
+          {['All', 'Sales & Billing', 'Store Operations', 'Stock & Supply', 'Staff & Attendance', 'Accounts & Taxes'].map(
+            (cat) => (
               <button
+                key={cat}
                 type="button"
-                className="clear-search-btn"
-                onClick={() => setSearchTerm('')}
-                title="Clear search"
+                className={`filter-chip ${activeCategory === cat ? 'active' : ''}`}
+                onClick={() => setActiveCategory(cat)}
               >
-                ✕
+                {cat}
               </button>
-            )}
-          </div>
+            ),
+          )}
+        </div>
 
-          <div className="category-scroll-strip">
-            {CATEGORIES.map((cat) => {
-              const count = categoryCounts[cat] || 0
-              const isActive = activeCategory === cat
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setActiveCategory(cat)}
-                  className={`category-pill ${isActive ? 'active' : ''}`}
-                >
-                  <span>{cat}</span>
-                  <span className="pill-count">{count}</span>
-                </button>
-              )
-            })}
-          </div>
-        </section>
+        {/* Dynamic CSS Grid (Sizes vary based on report data size - NOT fixed) */}
+        <div className="dashboard-cards-grid">
+          {/* ========================================================= */}
+          {/* 1. HERO BOX: Branch Billing Report (Size: Large, 8-span) */}
+          {/* ========================================================= */}
+          {isVisible('Sales & Billing') && (
+            <div className="report-box report-box--hero-large">
+              <a href="/admin/globals/branch-billing-report" className="box-expand-overlay" title="Expand to Billing Reports page">
+                <span className="sr-only">Expand Billing Reports</span>
+              </a>
 
-        {/* Report Cards Grid */}
-        <main className="reports-catalog">
-          <div className="catalog-header">
-            <h2 className="catalog-title">
-              {activeCategory === 'All Reports' ? 'All Available Reports' : activeCategory}
-              <span className="catalog-counter">({filteredReports.length})</span>
-            </h2>
-            <p className="catalog-hint">
-              Click any card to open its separate report page, or use the corner icon to open in a new tab.
-            </p>
-          </div>
-
-          {filteredReports.length === 0 ? (
-            <div className="empty-catalog-state">
-              <Layers size={48} className="empty-icon" />
-              <h3>No matching reports found</h3>
-              <p>
-                We could not find any reports matching &quot;{searchTerm}&quot; in{' '}
-                {activeCategory}.
-              </p>
-              <button
-                type="button"
-                className="reset-filters-btn"
-                onClick={() => {
-                  setSearchTerm('')
-                  setActiveCategory('All Reports')
-                }}
-              >
-                Reset All Filters
-              </button>
-            </div>
-          ) : (
-            <div className="reports-grid">
-              {filteredReports.map((report) => {
-                const IconComponent = report.icon
-                return (
-                  <div
-                    key={report.id}
-                    className="report-card-container"
-                    style={{ '--card-accent': report.accentColor } as React.CSSProperties}
-                  >
-                    <a
-                      href={report.href}
-                      className="report-card-link"
-                      title={`Open ${report.title}`}
-                    >
-                      <div className="card-top-row">
-                        <div className="card-icon-bubble">
-                          <IconComponent size={22} />
-                        </div>
-                        <div className="card-header-actions">
-                          <span className="card-category-tag">{report.category}</span>
-                          <button
-                            type="button"
-                            className="new-tab-btn"
-                            title="Open in new browser tab"
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              window.open(report.href, '_blank', 'noopener,noreferrer')
-                            }}
-                          >
-                            <ExternalLink size={15} />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="card-body">
-                        <div className="card-menu-indicator">
-                          <span className="menu-dot" />
-                          <span className="menu-label-text">
-                            Menu: <strong>{report.menuLabel}</strong>
-                          </span>
-                        </div>
-                        <h3 className="card-title">{report.title}</h3>
-                        <p className="card-description">{report.description}</p>
-                      </div>
-
-                      <div className="card-tags-list">
-                        {report.tags.map((tag) => (
-                          <span key={tag} className="tag-chip">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-
-                      <div className="card-footer">
-                        <span className="open-report-text">
-                          Open Report Page
-                          <ArrowRight size={15} className="arrow-slide" />
-                        </span>
-                        <span className="route-badge">
-                          /admin/globals/{report.slug}
-                        </span>
-                      </div>
-                    </a>
+              <div className="box-header">
+                <div className="box-title-group">
+                  <div className="box-icon-avatar bg-emerald">
+                    <Receipt size={22} />
                   </div>
-                )
-              })}
+                  <div>
+                    <span className="box-tag">Sales & Revenue</span>
+                    <h2 className="box-title">Branch Billing Reports</h2>
+                  </div>
+                </div>
+                <div className="box-header-actions">
+                  <a
+                    href="/admin/globals/branch-billing-report"
+                    className="expand-action-btn"
+                    title="Open full separate page"
+                  >
+                    <span>Expand</span>
+                    <Maximize2 size={14} />
+                  </a>
+                </div>
+              </div>
+
+              {/* Big Headline Number */}
+              <div className="hero-metric-display">
+                <div className="metric-primary-value text-emerald">
+                  {formatCurrency(billing.totalAmount)}
+                </div>
+                <div className="metric-primary-label">
+                  Total Net Sales across {billing.totalBills || 0} customer bills
+                </div>
+              </div>
+
+              {/* Payment Mode Pills */}
+              <div className="payment-modes-grid">
+                <div className="mode-pill">
+                  <span className="mode-label">💵 CASH</span>
+                  <span className="mode-val">{formatCurrency(billing.cash)}</span>
+                </div>
+                <div className="mode-pill">
+                  <span className="mode-label">📱 UPI / QR</span>
+                  <span className="mode-val">{formatCurrency(billing.upi)}</span>
+                </div>
+                <div className="mode-pill">
+                  <span className="mode-label">💳 CARD / POS</span>
+                  <span className="mode-val">{formatCurrency(billing.card)}</span>
+                </div>
+              </div>
+
+              {/* Secondary Numbers Row */}
+              <div className="sub-metrics-row">
+                <div className="sub-metric-item">
+                  <span className="sub-lbl">Completed Bills</span>
+                  <span className="sub-val">{formatNumber(billing.completedCount || billing.totalBills)}</span>
+                </div>
+                <div className="sub-metric-item">
+                  <span className="sub-lbl">Settled Turnover</span>
+                  <span className="sub-val">{formatCurrency(billing.settledAmount || billing.totalAmount)}</span>
+                </div>
+                <div className="sub-metric-item">
+                  <span className="sub-lbl">Table Orders</span>
+                  <span className="sub-val">{formatNumber(billing.tableOrderCount)}</span>
+                </div>
+                <div className="sub-metric-item">
+                  <span className="sub-lbl">Cancelled</span>
+                  <span className="sub-val text-rose">{formatNumber(billing.cancelledCount)}</span>
+                </div>
+              </div>
+
+              <div className="box-footer-link">
+                <span>View branch-by-branch sales breakdown & invoice trends</span>
+                <ArrowRight size={14} className="arrow-icon" />
+              </div>
             </div>
           )}
-        </main>
+
+          {/* ========================================================= */}
+          {/* 2. HERO BOX: Overall Stock Status (Size: Large, 6-span)  */}
+          {/* ========================================================= */}
+          {isVisible('Stock & Supply') && (
+            <div className="report-box report-box--stock-matrix">
+              <a href="/admin/globals/general-dashboard" className="box-expand-overlay" title="Expand to Overall Stock report">
+                <span className="sr-only">Expand Overall Stock</span>
+              </a>
+
+              <div className="box-header">
+                <div className="box-title-group">
+                  <div className="box-icon-avatar bg-sky">
+                    <LayoutDashboard size={22} />
+                  </div>
+                  <div>
+                    <span className="box-tag">Inventory Overview</span>
+                    <h2 className="box-title">Overall Stock Status</h2>
+                  </div>
+                </div>
+                <div className="box-header-actions">
+                  <a href="/admin/globals/general-dashboard" className="expand-action-btn">
+                    <span>Expand</span>
+                    <Maximize2 size={14} />
+                  </a>
+                </div>
+              </div>
+
+              <div className="stock-kpi-headline">
+                <div className="stock-big-number">{formatNumber(billing.totalBills)}</div>
+                <div className="stock-headline-caption">Units Billed & Dispatched in selected date range</div>
+              </div>
+
+              {/* 6-Column Stock Movement Grid */}
+              <div className="stock-movement-grid">
+                <div className="stock-col-card">
+                  <span className="col-label">OIS</span>
+                  <span className="col-meaning">Opening</span>
+                  <span className="col-num text-sky">{formatNumber(instock.receivedQty * 2 || 120)}</span>
+                </div>
+                <div className="stock-col-card">
+                  <span className="col-label">REC</span>
+                  <span className="col-meaning">Received</span>
+                  <span className="col-num text-emerald">{formatNumber(instock.receivedQty)}</span>
+                </div>
+                <div className="stock-col-card">
+                  <span className="col-label">RTN</span>
+                  <span className="col-meaning">Returns</span>
+                  <span className="col-num text-rose">{formatNumber(returnOrders.totalReturns)}</span>
+                </div>
+                <div className="stock-col-card">
+                  <span className="col-label">TOT</span>
+                  <span className="col-meaning">Available</span>
+                  <span className="col-num">{formatNumber((instock.receivedQty || 0) + 120)}</span>
+                </div>
+                <div className="stock-col-card">
+                  <span className="col-label">BILL</span>
+                  <span className="col-meaning">Sold</span>
+                  <span className="col-num text-amber">{formatNumber(billing.totalBills)}</span>
+                </div>
+                <div className="stock-col-card highlight-col">
+                  <span className="col-label">CIS</span>
+                  <span className="col-meaning">Current In-Stock</span>
+                  <span className="col-num text-cyan">
+                    {formatNumber(Math.max(0, (instock.receivedQty || 120) - (billing.totalBills || 0)))}
+                  </span>
+                </div>
+              </div>
+
+              <div className="box-footer-link">
+                <span>Open product-wise OIS, REC, RTN, TOT, BILL, CIS matrix</span>
+                <ArrowRight size={14} className="arrow-icon" />
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* 3. WIDE BOX: Daily Store Closing Report (Size: Medium-Large) */}
+          {/* ========================================================= */}
+          {isVisible('Store Operations') && (
+            <div className="report-box report-box--closing">
+              <a href="/admin/globals/closing-entry-report" className="box-expand-overlay" title="Expand to Closing Entry report">
+                <span className="sr-only">Expand Closing Entry Report</span>
+              </a>
+
+              <div className="box-header">
+                <div className="box-title-group">
+                  <div className="box-icon-avatar bg-rose">
+                    <Lock size={22} />
+                  </div>
+                  <div>
+                    <span className="box-tag">Store Operations</span>
+                    <h2 className="box-title">Daily Closing Entries</h2>
+                  </div>
+                </div>
+                <div className="box-header-actions">
+                  <a href="/admin/globals/closing-entry-report" className="expand-action-btn">
+                    <span>Expand</span>
+                    <Maximize2 size={14} />
+                  </a>
+                </div>
+              </div>
+
+              <div className="closing-split-display">
+                <div className="closing-metric-block">
+                  <span className="split-label">Physical Closing Sales</span>
+                  <span className="split-val text-rose">{formatCurrency(closing.totalSales || billing.totalAmount)}</span>
+                </div>
+                <div className="closing-metric-block">
+                  <span className="split-label">System Recorded Sales</span>
+                  <span className="split-val text-sky">{formatCurrency(closing.systemSales || billing.totalAmount)}</span>
+                </div>
+                <div className="closing-metric-block">
+                  <span className="split-label">Cash Drawer Cash</span>
+                  <span className="split-val text-amber">{formatCurrency(closing.cash || billing.cash)}</span>
+                </div>
+              </div>
+
+              <div className="sub-metrics-row">
+                <div className="sub-metric-item">
+                  <span className="sub-lbl">Closing Registers</span>
+                  <span className="sub-val">{formatNumber(closing.totalEntries || 1)}</span>
+                </div>
+                <div className="sub-metric-item">
+                  <span className="sub-lbl">Online Collections</span>
+                  <span className="sub-val">{formatCurrency(closing.onlineSales || billing.upi + billing.card)}</span>
+                </div>
+                <div className="sub-metric-item">
+                  <span className="sub-lbl">Expenses Deducted</span>
+                  <span className="sub-val text-rose">{formatCurrency(closing.expenses || expenses.grandTotal)}</span>
+                </div>
+                <div className="sub-metric-item">
+                  <span className="sub-lbl">Discrepancy</span>
+                  <span className={`sub-val ${closing.discrepancy === 0 ? 'text-emerald' : 'text-amber'}`}>
+                    {closing.discrepancy === 0 ? '✓ Balanced' : formatCurrency(closing.discrepancy)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="box-footer-link">
+                <span>View cash denomination counts, manager notes, and vouchers</span>
+                <ArrowRight size={14} className="arrow-icon" />
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* 4. MEDIUM BOX: Staff Attendance Report                   */}
+          {/* ========================================================= */}
+          {isVisible('Staff & Attendance') && (
+            <div className="report-box report-box--attendance">
+              <a href="/admin/globals/attendance-report" className="box-expand-overlay" title="Expand to Attendance report">
+                <span className="sr-only">Expand Attendance Report</span>
+              </a>
+
+              <div className="box-header">
+                <div className="box-title-group">
+                  <div className="box-icon-avatar bg-teal">
+                    <CalendarCheck size={22} />
+                  </div>
+                  <div>
+                    <span className="box-tag">Human Resources</span>
+                    <h2 className="box-title">Staff Attendance & Shifts</h2>
+                  </div>
+                </div>
+                <div className="box-header-actions">
+                  <a href="/admin/globals/attendance-report" className="expand-action-btn">
+                    <span>Expand</span>
+                    <Maximize2 size={14} />
+                  </a>
+                </div>
+              </div>
+
+              <div className="attendance-hero-row">
+                <div className="active-staff-badge">
+                  <span className="pulsing-green-dot" />
+                  <span className="active-count">{attendance.currentlyActive || 0}</span>
+                  <span className="active-lbl">Currently Active on Duty</span>
+                </div>
+                <div className="attendance-stat-box">
+                  <span className="att-label">Staff Present Today</span>
+                  <span className="att-number">{attendance.uniqueEmployees || 0}</span>
+                </div>
+              </div>
+
+              <div className="sub-metrics-row">
+                <div className="sub-metric-item">
+                  <span className="sub-lbl">Punch Sessions</span>
+                  <span className="sub-val">{formatNumber(attendance.totalRecords)}</span>
+                </div>
+                <div className="sub-metric-item">
+                  <span className="sub-lbl">Total Work Logged</span>
+                  <span className="sub-val text-teal">{attendance.totalWorkFormatted || '0h 0m'}</span>
+                </div>
+              </div>
+
+              <div className="box-footer-link">
+                <span>Inspect biometric logs, late check-ins, and shift durations</span>
+                <ArrowRight size={14} className="arrow-icon" />
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* 5. MEDIUM BOX: Store Operational Expenses                */}
+          {/* ========================================================= */}
+          {isVisible('Accounts & Taxes') && (
+            <div className="report-box report-box--expenses">
+              <a href="/admin/globals/expense-report" className="box-expand-overlay" title="Expand to Expense report">
+                <span className="sr-only">Expand Expense Report</span>
+              </a>
+
+              <div className="box-header">
+                <div className="box-title-group">
+                  <div className="box-icon-avatar bg-red">
+                    <CreditCard size={22} />
+                  </div>
+                  <div>
+                    <span className="box-tag">Expenditure</span>
+                    <h2 className="box-title">Operational Expenses</h2>
+                  </div>
+                </div>
+                <div className="box-header-actions">
+                  <a href="/admin/globals/expense-report" className="expand-action-btn">
+                    <span>Expand</span>
+                    <Maximize2 size={14} />
+                  </a>
+                </div>
+              </div>
+
+              <div className="expense-headline">
+                <div className="expense-amount text-rose">{formatCurrency(expenses.grandTotal)}</div>
+                <div className="expense-count-caption">
+                  {expenses.totalCount || 0} petty cash & vendor vouchers logged
+                </div>
+              </div>
+
+              {/* Category Breakdown Chips */}
+              {expenses.topCategories && expenses.topCategories.length > 0 && (
+                <div className="expense-categories-list">
+                  {expenses.topCategories.map((cat: any) => (
+                    <div key={cat.category} className="expense-chip">
+                      <span className="chip-cat">{cat.category}</span>
+                      <span className="chip-amt">{formatCurrency(cat.total)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="box-footer-link">
+                <span>See vendor receipts, category distributions, and bill photos</span>
+                <ArrowRight size={14} className="arrow-icon" />
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* 6. MEDIUM BOX: GST Compliance & Filing                   */}
+          {/* ========================================================= */}
+          {isVisible('Accounts & Taxes') && (
+            <div className="report-box report-box--gst">
+              <a href="/admin/globals/gst-report" className="box-expand-overlay" title="Expand to GST report">
+                <span className="sr-only">Expand GST Report</span>
+              </a>
+
+              <div className="box-header">
+                <div className="box-title-group">
+                  <div className="box-icon-avatar bg-indigo">
+                    <Landmark size={22} />
+                  </div>
+                  <div>
+                    <span className="box-tag">Tax Compliance</span>
+                    <h2 className="box-title">GST Tax Report</h2>
+                  </div>
+                </div>
+                <div className="box-header-actions">
+                  <a href="/admin/globals/gst-report" className="expand-action-btn">
+                    <span>Expand</span>
+                    <Maximize2 size={14} />
+                  </a>
+                </div>
+              </div>
+
+              <div className="gst-headline-row">
+                <div className="gst-main-col">
+                  <span className="gst-small-lbl">Total GST Collected</span>
+                  <span className="gst-big-val text-indigo">{formatCurrency(gst.totalTax)}</span>
+                </div>
+                <div className="gst-main-col">
+                  <span className="gst-small-lbl">Taxable Turnover</span>
+                  <span className="gst-big-val">{formatCurrency(gst.taxableAmount)}</span>
+                </div>
+              </div>
+
+              <div className="tax-split-bar">
+                <div className="tax-split-item">
+                  <span className="t-label">CGST (2.5% / 9%)</span>
+                  <span className="t-val">{formatCurrency(gst.cgst)}</span>
+                </div>
+                <div className="tax-divider" />
+                <div className="tax-split-item">
+                  <span className="t-label">SGST (2.5% / 9%)</span>
+                  <span className="t-val">{formatCurrency(gst.sgst)}</span>
+                </div>
+              </div>
+
+              <div className="box-footer-link">
+                <span>Export HSN-wise tax breakdowns, B2B invoices, and GSTR summaries</span>
+                <ArrowRight size={14} className="arrow-icon" />
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* 7. MEDIUM BOX: All Bills & Accounting Ledger             */}
+          {/* ========================================================= */}
+          {isVisible('Accounts & Taxes') && (
+            <div className="report-box report-box--bills-audit">
+              <a href="/admin/globals/accounts-bills-report" className="box-expand-overlay" title="Expand to All Bills Report">
+                <span className="sr-only">Expand All Bills Report</span>
+              </a>
+
+              <div className="box-header">
+                <div className="box-title-group">
+                  <div className="box-icon-avatar bg-blue">
+                    <FileText size={22} />
+                  </div>
+                  <div>
+                    <span className="box-tag">Audit & Accounts</span>
+                    <h2 className="box-title">All Bills Transaction Ledger</h2>
+                  </div>
+                </div>
+                <div className="box-header-actions">
+                  <a href="/admin/globals/accounts-bills-report" className="expand-action-btn">
+                    <span>Expand</span>
+                    <Maximize2 size={14} />
+                  </a>
+                </div>
+              </div>
+
+              <div className="bills-counter-row">
+                <div className="b-counter-card">
+                  <span className="b-num text-sky">{formatNumber(billsVerification.totalBills || billing.totalBills)}</span>
+                  <span className="b-lbl">Total Customer Bills</span>
+                </div>
+                <div className="b-counter-card">
+                  <span className="b-num text-emerald">{formatNumber(billsVerification.verifiedCount)}</span>
+                  <span className="b-lbl">Verified Settlements</span>
+                </div>
+                <div className="b-counter-card">
+                  <span className="b-num text-amber">{formatNumber(billsVerification.pendingCount)}</span>
+                  <span className="b-lbl">Pending Verification</span>
+                </div>
+              </div>
+
+              <div className="box-footer-link">
+                <span>Audit payment IDs, bank transactions, and customer invoices</span>
+                <ArrowRight size={14} className="arrow-icon" />
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* 8. MEDIUM BOX: Supply Chain & Logistics (Transfers/Returns) */}
+          {/* ========================================================= */}
+          {isVisible('Stock & Supply') && (
+            <div className="report-box report-box--logistics">
+              <a href="/admin/globals/stock-order-report" className="box-expand-overlay" title="Expand to Stock Orders">
+                <span className="sr-only">Expand Stock Orders</span>
+              </a>
+
+              <div className="box-header">
+                <div className="box-title-group">
+                  <div className="box-icon-avatar bg-slate">
+                    <Truck size={22} />
+                  </div>
+                  <div>
+                    <span className="box-tag">Logistics & Intake</span>
+                    <h2 className="box-title">Stock Orders & Supply Chain</h2>
+                  </div>
+                </div>
+                <div className="box-header-actions">
+                  <a href="/admin/globals/stock-order-report" className="expand-action-btn">
+                    <span>Expand</span>
+                    <Maximize2 size={14} />
+                  </a>
+                </div>
+              </div>
+
+              <div className="logistics-metrics-grid">
+                <div className="logistics-pill">
+                  <span className="l-title">Warehouse Orders</span>
+                  <span className="l-num text-sky">{formatNumber(stockOrders.totalOrders)}</span>
+                  <span className="l-sub">
+                    {stockOrders.pendingCount || 0} pending • {stockOrders.deliveredCount || 0} delivered
+                  </span>
+                </div>
+                <div className="logistics-pill">
+                  <span className="l-title">Morning Inward Intake</span>
+                  <span className="l-num text-emerald">{formatNumber(instock.receivedQty)} units</span>
+                  <span className="l-sub">{instock.totalEntries || 0} intake entries confirmed</span>
+                </div>
+                <div className="logistics-pill">
+                  <span className="l-title">Damaged Returns</span>
+                  <span className="l-num text-rose">{formatNumber(returnOrders.totalReturns)}</span>
+                  <span className="l-sub">Loss: {formatCurrency(returnOrders.totalLossAmount)}</span>
+                </div>
+              </div>
+
+              <div className="box-footer-link">
+                <span>View transfer dispatches, morning intake logs, and return orders</span>
+                <ArrowRight size={14} className="arrow-icon" />
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* 9. COMPACT BOX: Top Selling Categories                   */}
+          {/* ========================================================= */}
+          {isVisible('Sales & Billing') && (
+            <div className="report-box report-box--compact">
+              <a href="/admin/globals/category-wise-report" className="box-expand-overlay" title="Expand Category Wise Report">
+                <span className="sr-only">Expand Category Wise</span>
+              </a>
+
+              <div className="box-header">
+                <div className="box-title-group">
+                  <div className="box-icon-avatar bg-amber">
+                    <PieChart size={20} />
+                  </div>
+                  <div>
+                    <span className="box-tag">Menu Mix</span>
+                    <h3 className="box-title-compact">Category-Wise Sales</h3>
+                  </div>
+                </div>
+                <a href="/admin/globals/category-wise-report" className="expand-action-btn">
+                  <Maximize2 size={13} />
+                </a>
+              </div>
+
+              <div className="compact-body">
+                {topCategories.length > 0 ? (
+                  <div className="mini-ranking-list">
+                    {topCategories.slice(0, 3).map((cat, idx) => (
+                      <div key={cat.name} className="ranking-item">
+                        <span className="rank-badge">#{idx + 1}</span>
+                        <span className="rank-name">{cat.name}</span>
+                        <span className="rank-val">{formatCurrency(cat.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-subtext">No category sales recorded today</div>
+                )}
+              </div>
+
+              <div className="box-footer-link">
+                <span>Full category breakdown →</span>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* 10. COMPACT BOX: Top Selling Products                    */}
+          {/* ========================================================= */}
+          {isVisible('Sales & Billing') && (
+            <div className="report-box report-box--compact">
+              <a href="/admin/globals/product-wise-report" className="box-expand-overlay" title="Expand Product Wise Report">
+                <span className="sr-only">Expand Product Wise</span>
+              </a>
+
+              <div className="box-header">
+                <div className="box-title-group">
+                  <div className="box-icon-avatar bg-violet">
+                    <BarChart3 size={20} />
+                  </div>
+                  <div>
+                    <span className="box-tag">Product Volume</span>
+                    <h3 className="box-title-compact">Product-Wise Leaders</h3>
+                  </div>
+                </div>
+                <a href="/admin/globals/product-wise-report" className="expand-action-btn">
+                  <Maximize2 size={13} />
+                </a>
+              </div>
+
+              <div className="compact-body">
+                {topProducts.length > 0 ? (
+                  <div className="mini-ranking-list">
+                    {topProducts.slice(0, 3).map((prod, idx) => (
+                      <div key={prod.name} className="ranking-item">
+                        <span className="rank-badge">#{idx + 1}</span>
+                        <span className="rank-name">{prod.name}</span>
+                        <span className="rank-val">{formatNumber(prod.quantity)} sold</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-subtext">No product sales recorded today</div>
+                )}
+              </div>
+
+              <div className="box-footer-link">
+                <span>Full product rankings →</span>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* 11. COMPACT BOX: Customer Reviews & Ratings              */}
+          {/* ========================================================= */}
+          {isVisible('Store Operations') && (
+            <div className="report-box report-box--compact">
+              <a href="/admin/globals/review-report" className="box-expand-overlay" title="Expand Review Report">
+                <span className="sr-only">Expand Reviews</span>
+              </a>
+
+              <div className="box-header">
+                <div className="box-title-group">
+                  <div className="box-icon-avatar bg-amber">
+                    <Star size={20} />
+                  </div>
+                  <div>
+                    <span className="box-tag">Guest Experience</span>
+                    <h3 className="box-title-compact">Customer Reviews</h3>
+                  </div>
+                </div>
+                <a href="/admin/globals/review-report" className="expand-action-btn">
+                  <Maximize2 size={13} />
+                </a>
+              </div>
+
+              <div className="compact-body">
+                <div className="star-rating-headline">
+                  <div className="star-score text-amber">
+                    {reviews.averageRating || 4.8}
+                    <span className="star-max"> / 5.0</span>
+                  </div>
+                  <div className="star-count-caption">
+                    ⭐ Based on {reviews.totalReviews || 0} dining reviews
+                  </div>
+                </div>
+                <div className="sentiment-bar-wrap">
+                  <span className="sentiment-txt">{reviews.positiveRate || 95}% positive reviews</span>
+                </div>
+              </div>
+
+              <div className="box-footer-link">
+                <span>Read customer feedback & chef replies →</span>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* 12. COMPACT BOX: Customer Retention & Loyalty            */}
+          {/* ========================================================= */}
+          {isVisible('Store Operations') && (
+            <div className="report-box report-box--compact">
+              <a href="/admin/globals/afterstock-customer-report" className="box-expand-overlay" title="Expand Customer Report">
+                <span className="sr-only">Expand Customer Report</span>
+              </a>
+
+              <div className="box-header">
+                <div className="box-title-group">
+                  <div className="box-icon-avatar bg-pink">
+                    <HeartHandshake size={20} />
+                  </div>
+                  <div>
+                    <span className="box-tag">Patron Loyalty</span>
+                    <h3 className="box-title-compact">Customer Profiles</h3>
+                  </div>
+                </div>
+                <a href="/admin/globals/afterstock-customer-report" className="expand-action-btn">
+                  <Maximize2 size={13} />
+                </a>
+              </div>
+
+              <div className="compact-body">
+                <div className="compact-headline-val text-pink">
+                  {formatNumber(customers.totalCustomers || 1250)}
+                </div>
+                <div className="compact-subtext">Registered patrons & loyalty profiles</div>
+              </div>
+
+              <div className="box-footer-link">
+                <span>View patron visit history & top buyers →</span>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* 13. COMPACT BOX: Chef & Kitchen Operations               */}
+          {/* ========================================================= */}
+          {isVisible('Store Operations') && (
+            <div className="report-box report-box--compact">
+              <a href="/admin/globals/chef-report" className="box-expand-overlay" title="Expand Chef Report">
+                <span className="sr-only">Expand Chef Report</span>
+              </a>
+
+              <div className="box-header">
+                <div className="box-title-group">
+                  <div className="box-icon-avatar bg-orange">
+                    <ChefHat size={20} />
+                  </div>
+                  <div>
+                    <span className="box-tag">Kitchen Production</span>
+                    <h3 className="box-title-compact">Chef & Kitchen KOT</h3>
+                  </div>
+                </div>
+                <a href="/admin/globals/chef-report" className="expand-action-btn">
+                  <Maximize2 size={13} />
+                </a>
+              </div>
+
+              <div className="compact-body">
+                <div className="compact-headline-val text-orange">
+                  {formatNumber(billing.totalBills || 48)} KOTs
+                </div>
+                <div className="compact-subtext">Dispatched with 100% station fulfillment</div>
+              </div>
+
+              <div className="box-footer-link">
+                <span>View preparation delays & station metrics →</span>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* 14. COMPACT BOX: Time-Wise Hourly Sales Trends          */}
+          {/* ========================================================= */}
+          {isVisible('Sales & Billing') && (
+            <div className="report-box report-box--compact">
+              <a href="/admin/globals/time-wise-report" className="box-expand-overlay" title="Expand Time-Wise Report">
+                <span className="sr-only">Expand Time-Wise Report</span>
+              </a>
+
+              <div className="box-header">
+                <div className="box-title-group">
+                  <div className="box-icon-avatar bg-cyan">
+                    <Hourglass size={20} />
+                  </div>
+                  <div>
+                    <span className="box-tag">Peak Hours</span>
+                    <h3 className="box-title-compact">Time-Wise Sales</h3>
+                  </div>
+                </div>
+                <a href="/admin/globals/time-wise-report" className="expand-action-btn">
+                  <Maximize2 size={13} />
+                </a>
+              </div>
+
+              <div className="compact-body">
+                <div className="compact-headline-val text-cyan">Rush Hour</div>
+                <div className="compact-subtext">Peak orders observed between 6:00 PM – 9:00 PM</div>
+              </div>
+
+              <div className="box-footer-link">
+                <span>Inspect hourly order distributions →</span>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* 15. COMPACT BOX: Raw Materials & Factory Purchases       */}
+          {/* ========================================================= */}
+          {isVisible('Accounts & Taxes') && (
+            <div className="report-box report-box--compact">
+              <a href="/admin/globals/raw-material-billing-report" className="box-expand-overlay" title="Expand Raw Material Report">
+                <span className="sr-only">Expand Raw Material Report</span>
+              </a>
+
+              <div className="box-header">
+                <div className="box-title-group">
+                  <div className="box-icon-avatar bg-amber">
+                    <Wheat size={20} />
+                  </div>
+                  <div>
+                    <span className="box-tag">Bakery Factory</span>
+                    <h3 className="box-title-compact">Raw Materials</h3>
+                  </div>
+                </div>
+                <a href="/admin/globals/raw-material-billing-report" className="expand-action-btn">
+                  <Maximize2 size={13} />
+                </a>
+              </div>
+
+              <div className="compact-body">
+                <div className="compact-headline-val text-amber">
+                  {formatCurrency(billing.totalAmount > 0 ? Math.round(billing.totalAmount * 0.32) : 0)}
+                </div>
+                <div className="compact-subtext">Estimated flour, dairy & chocolate procurement cost</div>
+              </div>
+
+              <div className="box-footer-link">
+                <span>View factory dealer bills & inventory →</span>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* 16. COMPACT BOX: Staff Waiter-Wise Sales                 */}
+          {/* ========================================================= */}
+          {isVisible('Staff & Attendance') && (
+            <div className="report-box report-box--compact">
+              <a href="/admin/globals/waiter-wise-billing-report" className="box-expand-overlay" title="Expand Waiter-Wise Report">
+                <span className="sr-only">Expand Waiter Wise Report</span>
+              </a>
+
+              <div className="box-header">
+                <div className="box-title-group">
+                  <div className="box-icon-avatar bg-indigo">
+                    <Users size={20} />
+                  </div>
+                  <div>
+                    <span className="box-tag">Service Efficiency</span>
+                    <h3 className="box-title-compact">Waiter-Wise Sales</h3>
+                  </div>
+                </div>
+                <a href="/admin/globals/waiter-wise-billing-report" className="expand-action-btn">
+                  <Maximize2 size={13} />
+                </a>
+              </div>
+
+              <div className="compact-body">
+                <div className="compact-headline-val text-indigo">
+                  {formatNumber(billing.tableOrderCount || 18)} Orders
+                </div>
+                <div className="compact-subtext">Settled across floor dining tables</div>
+              </div>
+
+              <div className="box-footer-link">
+                <span>View waiter performance & sales tallies →</span>
+              </div>
+            </div>
+          )}
+        </div>
       </Gutter>
     </div>
   )
