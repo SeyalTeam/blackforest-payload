@@ -43,7 +43,6 @@ import ProductionRequests from './collections/ProductionRequests'
 import DealerOrders from './collections/DealerOrders'
 import { IPSettings } from './globals/IPSettings'
 import { DashboardGlobal } from './globals/Dashboard'
-import { ReportsDashboardGlobal } from './globals/ReportsDashboard'
 import { BranchBillingReportGlobal } from './globals/BranchBillingReport'
 import { AccountsBillsReportGlobal } from './globals/AccountsBillsReport'
 import { BillSummaryGlobal } from './globals/BillSummary'
@@ -53,7 +52,6 @@ import { ProductWiseReportGlobal } from './globals/ProductWiseReport'
 import { ProductTimeReportGlobal } from './globals/ProductTimeReport'
 import { ChefReportGlobal } from './globals/ChefReport'
 import { getBranchBillingReportHandler } from './endpoints/getBranchBillingReport'
-import { getReportsDashboardSummaryHandler } from './endpoints/getReportsDashboardSummary'
 import { getTallyExportHandler } from './endpoints/getTallyExport'
 import { getAccountsBillsReportHandler } from './endpoints/getAccountsBillsReport'
 import { updateBillVerificationStatusHandler } from './endpoints/updateBillVerificationStatus'
@@ -650,11 +648,6 @@ export default buildConfig({
 
   endpoints: [
     {
-      path: '/reports/dashboard-summary',
-      method: 'get',
-      handler: getReportsDashboardSummaryHandler,
-    },
-    {
       path: '/reports/branch-billing',
       method: 'get',
       handler: getBranchBillingReportHandler,
@@ -1049,7 +1042,6 @@ export default buildConfig({
   globals: [
     PaymentSettings,
     IPSettings,
-    ReportsDashboardGlobal,
     DashboardGlobal,
     TimeWiseReportGlobal,
     BranchBillingReportGlobal,
