@@ -111,7 +111,6 @@ import Kitchens from './collections/Kitchens'
 import Attendance from './collections/Attendance'
 import PunchIn from './collections/PunchIn'
 import CctvReports from './collections/CctvReports'
-import StaffMovementHistory from './collections/StaffMovementHistory'
 
 import { WidgetSettingsGlobal } from './globals/Widgets'
 import { WorkSettingsGlobal } from './globals/WorkSettings'
@@ -1133,7 +1132,6 @@ export default buildConfig({
     CallLogs,
     CctvReports,
     ReportCardRules,
-    StaffMovementHistory,
   ].map(wrapCollection),
 
 
