@@ -76,6 +76,60 @@ const toDisplayTime = (value: Date): string =>
     hour12: false,
   })
 
+class BillMutex {
+  private static locks = new Map<string, Promise<void>>()
+
+  static async runExclusive<T>(id: string, fn: () => Promise<T>): Promise<T> {
+    const key = String(id).trim()
+    const currentLock = BillMutex.locks.get(key) || Promise.resolve()
+    let release: () => void = () => {}
+    const nextLock = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    BillMutex.locks.set(
+      key,
+      currentLock
+        .catch(() => {})
+        .then(() => nextLock),
+    )
+
+    try {
+      await currentLock
+    } catch (_) {}
+
+    try {
+      return await fn()
+    } finally {
+      release()
+      if (BillMutex.locks.get(key) === nextLock) {
+        BillMutex.locks.delete(key)
+      }
+    }
+  }
+}
+
+const isRetryableError = (error: unknown): boolean => {
+  const errStr = String(error || '').toLowerCase()
+  const msg = error instanceof Error ? error.message.toLowerCase() : ''
+  const name =
+    error && typeof error === 'object' && 'name' in error
+      ? String((error as any).name).toLowerCase()
+      : ''
+  const codeName =
+    error && typeof error === 'object' && 'codeName' in error
+      ? String((error as any).codeName).toLowerCase()
+      : ''
+  return (
+    errStr.includes('writeconflict') ||
+    errStr.includes('versionerror') ||
+    errStr.includes('transienttransactionerror') ||
+    msg.includes('writeconflict') ||
+    msg.includes('versionerror') ||
+    name.includes('versionerror') ||
+    codeName.includes('writeconflict')
+  )
+}
+
 export const updateItemStatus: PayloadHandler = async (req): Promise<Response> => {
   const { payload, json } = req
   const { id } = req.routeParams as { id: string }
@@ -137,6 +191,27 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
       return Response.json({ error: 'Missing status or preparingTime' }, { status: 400 })
     }
 
+    return await BillMutex.runExclusive(id, async () => {
+      let lastError: unknown = null
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          return await executeStatusUpdate()
+        } catch (error) {
+          lastError = error
+          if (isRetryableError(error) && attempt < 2) {
+            console.warn(
+              `[updateItemStatus] Concurrency conflict on bill ${id}, retrying (attempt ${attempt + 1})...`,
+            )
+            await new Promise((resolve) => setTimeout(resolve, 60 * (attempt + 1)))
+            continue
+          }
+          throw error
+        }
+      }
+      throw lastError || new Error('Update failed after retries')
+    })
+
+    async function executeStatusUpdate(): Promise<Response> {
     // 1. Fetch the bill
     const bill = await payload.findByID({
       collection: 'billings',
@@ -488,8 +563,10 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
     })
 
     return Response.json(updatedBill, { status: 200 })
+    }
   } catch (error) {
-    console.error('Error updating item status:', error)
-    return Response.json({ error: 'Internal Server Error' }, { status: 500 })
+    console.error(`[updateItemStatus] Error updating item status for bill ${id}:`, error)
+    const errorMessage = error instanceof Error ? error.message : 'Internal Server Error'
+    return Response.json({ error: errorMessage }, { status: 500 })
   }
 }
