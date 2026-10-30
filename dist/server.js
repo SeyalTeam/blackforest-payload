@@ -26961,7 +26961,7 @@ var init_Attendance = __esm({
                 throw new Error(`An attendance record for user on ${data.dateString} already exists.`);
               }
             }
-            if (data.activities && Array.isArray(data.activities) && data.user) {
+            if (data.isLate === void 0 && originalDoc?.isLate === void 0 && data.activities && Array.isArray(data.activities) && data.user) {
               const sessions = data.activities.filter((a) => a.type === "session");
               if (sessions.length > 0) {
                 const firstSession = [...sessions].sort((a, b) => new Date(a.punchIn).getTime() - new Date(b.punchIn).getTime())[0];
@@ -27109,15 +27109,19 @@ var init_Attendance = __esm({
               }
               if (hasActive && data.user) {
                 try {
+                  const targetUserId = typeof data.user === "object" ? data.user.id : data.user;
                   const activeDocs = await req.payload.find({
                     collection: "attendance",
                     where: {
-                      user: { equals: data.user }
+                      and: [
+                        { user: { equals: targetUserId } },
+                        { "activities.status": { equals: "active" } },
+                        ...originalDoc?.id ? [{ id: { not_equals: originalDoc.id } }] : []
+                      ]
                     },
-                    limit: 100
+                    limit: 5
                   });
                   for (const doc of activeDocs.docs) {
-                    if (operation === "update" && originalDoc && doc.id === originalDoc.id) continue;
                     let needsUpdate = false;
                     const updatedActivities = (doc.activities || []).map((act) => {
                       if (act.status === "active") {
@@ -27207,7 +27211,7 @@ var init_Attendance = __esm({
                 data.dayType = void 0;
               }
             }
-            if (data.activities && Array.isArray(data.activities) && data.user) {
+            if (data.isLate === void 0 && originalDoc?.isLate === void 0 && data.activities && Array.isArray(data.activities) && data.user) {
               const sessions = data.activities.filter((a) => a.type === "session");
               if (sessions.length > 0) {
                 const firstSession = [...sessions].sort((a, b) => new Date(a.punchIn).getTime() - new Date(b.punchIn).getTime())[0];

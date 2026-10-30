@@ -85,8 +85,13 @@ const Attendance: CollectionConfig = {
           }
         }
 
-        // Calculate isLate
-        if (data.activities && Array.isArray(data.activities) && data.user) {
+        // Calculate isLate (only on first creation or if not yet determined)
+        if (
+          (data.isLate === undefined && originalDoc?.isLate === undefined) &&
+          data.activities &&
+          Array.isArray(data.activities) &&
+          data.user
+        ) {
           const sessions = data.activities.filter((a: any) => a.type === 'session');
           if (sessions.length > 0) {
             const firstSession = [...sessions].sort((a, b) => new Date(a.punchIn).getTime() - new Date(b.punchIn).getTime())[0];
@@ -254,16 +259,20 @@ const Attendance: CollectionConfig = {
           
           if (hasActive && data.user) {
             try {
+              const targetUserId = typeof data.user === 'object' ? data.user.id : data.user;
               const activeDocs = await req.payload.find({
                 collection: 'attendance',
                 where: {
-                  user: { equals: data.user }
+                  and: [
+                    { user: { equals: targetUserId } },
+                    { 'activities.status': { equals: 'active' } },
+                    ...(originalDoc?.id ? [{ id: { not_equals: originalDoc.id } }] : []),
+                  ],
                 },
-                limit: 100
-              })
+                limit: 5,
+              });
               
               for (const doc of activeDocs.docs) {
-                if (operation === 'update' && originalDoc && doc.id === originalDoc.id) continue;
                 
                 let needsUpdate = false;
                 const updatedActivities = (doc.activities || []).map((act: any) => {
@@ -370,8 +379,13 @@ const Attendance: CollectionConfig = {
         }
 
 
-        // Calculate isLate
-        if (data.activities && Array.isArray(data.activities) && data.user) {
+        // Calculate isLate (only on first creation or if not yet determined)
+        if (
+          (data.isLate === undefined && originalDoc?.isLate === undefined) &&
+          data.activities &&
+          Array.isArray(data.activities) &&
+          data.user
+        ) {
           const sessions = data.activities.filter((a: any) => a.type === 'session');
           if (sessions.length > 0) {
             const firstSession = [...sessions].sort((a, b) => new Date(a.punchIn).getTime() - new Date(b.punchIn).getTime())[0];
