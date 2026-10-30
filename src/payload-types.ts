@@ -114,6 +114,7 @@ export interface Config {
     'call-logs': CallLog;
     'cctv-reports': CctvReport;
     'report-card-rules': ReportCardRule;
+    'staff-movement-history': StaffMovementHistory;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -167,6 +168,7 @@ export interface Config {
     'call-logs': CallLogsSelect<false> | CallLogsSelect<true>;
     'cctv-reports': CctvReportsSelect<false> | CctvReportsSelect<true>;
     'report-card-rules': ReportCardRulesSelect<false> | ReportCardRulesSelect<true>;
+    'staff-movement-history': StaffMovementHistorySelect<false> | StaffMovementHistorySelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -177,7 +179,7 @@ export interface Config {
   globals: {
     'payment-settings': PaymentSetting;
     'ip-settings': IpSetting;
-    jarvis: Jarvi;
+    dashboard: Dashboard;
     'general-dashboard': GeneralDashboard;
     'time-wise-report': TimeWiseReport;
     'branch-billing-report': BranchBillingReport;
@@ -222,7 +224,7 @@ export interface Config {
   globalsSelect: {
     'payment-settings': PaymentSettingsSelect<false> | PaymentSettingsSelect<true>;
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
-    jarvis: JarvisSelect<false> | JarvisSelect<true>;
+    dashboard: DashboardSelect<false> | DashboardSelect<true>;
     'general-dashboard': GeneralDashboardSelect<false> | GeneralDashboardSelect<true>;
     'time-wise-report': TimeWiseReportSelect<false> | TimeWiseReportSelect<true>;
     'branch-billing-report': BranchBillingReportSelect<false> | BranchBillingReportSelect<true>;
@@ -2391,6 +2393,10 @@ export interface Attendance {
         capturedImage?: (string | null) | Media;
         latitude?: number | null;
         longitude?: number | null;
+        /**
+         * GPS accuracy in meters reported by device
+         */
+        accuracy?: number | null;
         id?: string | null;
       }[]
     | null;
@@ -2404,6 +2410,10 @@ export interface Attendance {
   location?: {
     latitude?: number | null;
     longitude?: number | null;
+    /**
+     * GPS accuracy in meters reported by device
+     */
+    accuracy?: number | null;
   };
   updatedAt: string;
   createdAt: string;
@@ -2726,6 +2736,50 @@ export interface ReportCardRule {
   createdAt: string;
 }
 /**
+ * High-frequency GPS telemetry breadcrumbs decoupled from attendance records and payroll cost centers.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "staff-movement-history".
+ */
+export interface StaffMovementHistory {
+  id: string;
+  /**
+   * Employee who generated this coordinate ping
+   */
+  user: string | User;
+  /**
+   * The PIN-locked branch assigned to the staff member during this session
+   */
+  branch?: (string | null) | Branch;
+  /**
+   * WGS84 Latitude
+   */
+  latitude: number;
+  /**
+   * WGS84 Longitude
+   */
+  longitude: number;
+  /**
+   * GPS accuracy uncertainty in meters (from mobile OS location API)
+   */
+  accuracy?: number | null;
+  /**
+   * Distance to assigned branch boundary/center in meters
+   */
+  distanceToBranch?: number | null;
+  /**
+   * Timestamp when location was captured
+   */
+  timestamp: string;
+  timestamp_tz: SupportedTimezones;
+  /**
+   * Origin of telemetry ping
+   */
+  source?: ('foreground' | 'background') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
@@ -2919,6 +2973,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'report-card-rules';
         value: string | ReportCardRule;
+      } | null)
+    | ({
+        relationTo: 'staff-movement-history';
+        value: string | StaffMovementHistory;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -4133,6 +4191,7 @@ export interface AttendanceSelect<T extends boolean = true> {
         capturedImage?: T;
         latitude?: T;
         longitude?: T;
+        accuracy?: T;
         id?: T;
       };
   punchIn?: T;
@@ -4147,6 +4206,7 @@ export interface AttendanceSelect<T extends boolean = true> {
     | {
         latitude?: T;
         longitude?: T;
+        accuracy?: T;
       };
   updatedAt?: T;
   createdAt?: T;
@@ -4325,6 +4385,23 @@ export interface ReportCardRulesSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "staff-movement-history_select".
+ */
+export interface StaffMovementHistorySelect<T extends boolean = true> {
+  user?: T;
+  branch?: T;
+  latitude?: T;
+  longitude?: T;
+  accuracy?: T;
+  distanceToBranch?: T;
+  timestamp?: T;
+  timestamp_tz?: T;
+  source?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents_select".
  */
 export interface PayloadLockedDocumentsSelect<T extends boolean = true> {
@@ -4408,9 +4485,9 @@ export interface IpSetting {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "jarvis".
+ * via the `definition` "dashboard".
  */
-export interface Jarvi {
+export interface Dashboard {
   id: string;
   updatedAt?: string | null;
   createdAt?: string | null;
@@ -4901,6 +4978,16 @@ export interface WidgetSetting {
     | {
         branch: string | Branch;
         enabled?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Branch-wise control for enforcing App Key validation. When enabled (default), apps must provide a valid App Key. When disabled, older app versions without an app key are allowed.
+   */
+  appKeyValidationByBranch?:
+    | {
+        branch: string | Branch;
+        requireAppKey?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -6196,9 +6283,9 @@ export interface IpSettingsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "jarvis_select".
+ * via the `definition` "dashboard_select".
  */
-export interface JarvisSelect<T extends boolean = true> {
+export interface DashboardSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
@@ -6611,6 +6698,13 @@ export interface WidgetSettingsSelect<T extends boolean = true> {
     | {
         branch?: T;
         enabled?: T;
+        id?: T;
+      };
+  appKeyValidationByBranch?:
+    | T
+    | {
+        branch?: T;
+        requireAppKey?: T;
         id?: T;
       };
   updatedAt?: T;
