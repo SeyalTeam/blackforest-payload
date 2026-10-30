@@ -43,7 +43,7 @@ import ProductionRequests from './collections/ProductionRequests'
 import DealerOrders from './collections/DealerOrders'
 import { IPSettings } from './globals/IPSettings'
 import { DashboardGlobal } from './globals/Dashboard'
-import { JarvisGlobal } from './globals/Jarvis'
+import { ReportsDashboardGlobal } from './globals/ReportsDashboard'
 import { BranchBillingReportGlobal } from './globals/BranchBillingReport'
 import { AccountsBillsReportGlobal } from './globals/AccountsBillsReport'
 import { BillSummaryGlobal } from './globals/BillSummary'
@@ -1043,7 +1043,7 @@ export default buildConfig({
   globals: [
     PaymentSettings,
     IPSettings,
-    JarvisGlobal,
+    ReportsDashboardGlobal,
     DashboardGlobal,
     TimeWiseReportGlobal,
     BranchBillingReportGlobal,

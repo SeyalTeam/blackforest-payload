@@ -1644,7 +1644,17 @@ var init_branchPins = __esm({
     "use strict";
     BRANCH_PIN_HEADER = "x-branch-pin";
     BRANCH_PIN_REGEX = /^\d{4}$/;
-    BRANCH_PIN_REQUIRED_ROLES = /* @__PURE__ */ new Set(["branch", "waiter", "cashier"]);
+    BRANCH_PIN_REQUIRED_ROLES = /* @__PURE__ */ new Set([
+      "branch",
+      "waiter",
+      "cashier",
+      "chef",
+      "kitchen",
+      "supervisor",
+      "manager",
+      "driver",
+      "factory"
+    ]);
     normalizeBranchPin = (value) => {
       if (typeof value !== "string") return null;
       const normalized = value.trim();
@@ -2327,6 +2337,38 @@ var init_Users = __esm({
                 return reqResolvedBranch.trim();
               }
               const requestBody = req?.body;
+              let headerPin = null;
+              let legacyPin = null;
+              if (req.headers && typeof req.headers.get === "function") {
+                headerPin = normalizeBranchPin(req.headers.get(BRANCH_PIN_HEADER));
+                legacyPin = normalizeBranchPin(req.headers.get("x-branch-code"));
+              }
+              const rawBranchPinFromBody = requestBody && typeof requestBody === "object" && requestBody !== null ? requestBody.branchPin : null;
+              const bodyPin = normalizeBranchPin(rawBranchPinFromBody);
+              const branchPin = headerPin || legacyPin || bodyPin;
+              if (branchPin && isValidBranchPin(branchPin)) {
+                try {
+                  const result = await req.payload.find({
+                    collection: "branches",
+                    where: {
+                      branchPin: {
+                        equals: branchPin
+                      }
+                    },
+                    depth: 0,
+                    limit: 1,
+                    pagination: false,
+                    overrideAccess: true
+                  });
+                  const pinBranchId = result.docs[0]?.id ? String(result.docs[0].id) : null;
+                  if (pinBranchId) {
+                    console.log(`[Login Branch] Branch resolved via PIN ${branchPin}: ${pinBranchId}`);
+                    return pinBranchId;
+                  }
+                } catch (error) {
+                  console.error("[Login Debug] Unable to resolve branch from branch PIN in afterLogin:", error);
+                }
+              }
               const bodyBranchId = requestBody && typeof requestBody === "object" && requestBody !== null ? getRelationshipID(requestBody.branchId) || getRelationshipID(requestBody.branch) : null;
               const headerBranchId = req.headers && typeof req.headers.get === "function" ? getRelationshipID(req.headers.get("x-branch-id")) || getRelationshipID(req.headers.get("x-branch")) : null;
               const explicitBranchId = bodyBranchId || headerBranchId;
@@ -2394,35 +2436,7 @@ var init_Users = __esm({
                 const kbId = getRelationshipID(kitchenBranches[0]);
                 if (kbId) return kbId;
               }
-              let headerPin = null;
-              let legacyPin = null;
-              if (req.headers && typeof req.headers.get === "function") {
-                headerPin = normalizeBranchPin(req.headers.get(BRANCH_PIN_HEADER));
-                legacyPin = normalizeBranchPin(req.headers.get("x-branch-code"));
-              }
-              const rawBranchPinFromBody = requestBody && typeof requestBody === "object" && requestBody !== null ? requestBody.branchPin : null;
-              const bodyPin = normalizeBranchPin(rawBranchPinFromBody);
-              const branchPin = headerPin || legacyPin || bodyPin;
-              if (!branchPin) return null;
-              if (!isValidBranchPin(branchPin)) return null;
-              try {
-                const result = await req.payload.find({
-                  collection: "branches",
-                  where: {
-                    branchPin: {
-                      equals: branchPin
-                    }
-                  },
-                  depth: 0,
-                  limit: 1,
-                  pagination: false,
-                  overrideAccess: true
-                });
-                return result.docs[0]?.id ? String(result.docs[0].id) : null;
-              } catch (error) {
-                console.error("[Login Debug] Unable to resolve branch from branch PIN in afterLogin:", error);
-                return null;
-              }
+              return null;
             };
             if (user.id) {
               const loginBranchId = await resolveLoginBranchId();
@@ -6799,7 +6813,7 @@ var init_inventory = __esm({
 });
 
 // src/endpoints/updateItemStatus.ts
-var hasOwnKey, parsePreparingTime, parseNonNegativeInteger, normalizeStoredPreparingTime, getRelationshipID2, toDisplayTime, updateItemStatus;
+var hasOwnKey, parsePreparingTime, parseNonNegativeInteger, normalizeStoredPreparingTime, getRelationshipID2, toDisplayTime, BillMutex, isRetryableError, updateItemStatus;
 var init_updateItemStatus = __esm({
   "src/endpoints/updateItemStatus.ts"() {
     "use strict";
@@ -6860,6 +6874,42 @@ var init_updateItemStatus = __esm({
       timeZone: "Asia/Kolkata",
       hour12: false
     });
+    BillMutex = class _BillMutex {
+      static locks = /* @__PURE__ */ new Map();
+      static async runExclusive(id, fn) {
+        const key = String(id).trim();
+        const currentLock = _BillMutex.locks.get(key) || Promise.resolve();
+        let release = () => {
+        };
+        const nextLock = new Promise((resolve) => {
+          release = resolve;
+        });
+        _BillMutex.locks.set(
+          key,
+          currentLock.catch(() => {
+          }).then(() => nextLock)
+        );
+        try {
+          await currentLock;
+        } catch (_) {
+        }
+        try {
+          return await fn();
+        } finally {
+          release();
+          if (_BillMutex.locks.get(key) === nextLock) {
+            _BillMutex.locks.delete(key);
+          }
+        }
+      }
+    };
+    isRetryableError = (error) => {
+      const errStr = String(error || "").toLowerCase();
+      const msg = error instanceof Error ? error.message.toLowerCase() : "";
+      const name = error && typeof error === "object" && "name" in error ? String(error.name).toLowerCase() : "";
+      const codeName = error && typeof error === "object" && "codeName" in error ? String(error.codeName).toLowerCase() : "";
+      return errStr.includes("writeconflict") || errStr.includes("versionerror") || errStr.includes("transienttransactionerror") || msg.includes("writeconflict") || msg.includes("versionerror") || name.includes("versionerror") || codeName.includes("writeconflict");
+    };
     updateItemStatus = async (req) => {
       const { payload, json } = req;
       const { id } = req.routeParams;
@@ -6909,263 +6959,285 @@ var init_updateItemStatus = __esm({
         if (!hasStatusUpdate && !hasPreparingTimeUpdate) {
           return Response.json({ error: "Missing status or preparingTime" }, { status: 400 });
         }
-        const bill = await payload.findByID({
-          collection: "billings",
-          id,
-          depth: 0,
-          overrideAccess: true
+        return await BillMutex.runExclusive(id, async () => {
+          let lastError = null;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              return await executeStatusUpdate();
+            } catch (error) {
+              lastError = error;
+              if (isRetryableError(error) && attempt < 2) {
+                console.warn(
+                  `[updateItemStatus] Concurrency conflict on bill ${id}, retrying (attempt ${attempt + 1})...`
+                );
+                await new Promise((resolve) => setTimeout(resolve, 60 * (attempt + 1)));
+                continue;
+              }
+              throw error;
+            }
+          }
+          throw lastError || new Error("Update failed after retries");
         });
-        if (!bill) {
-          return Response.json({ error: "Bill not found" }, { status: 404 });
-        }
-        const statusSequence = ["ordered", "prepared", "confirmed", "delivered"];
-        const normalizeStatus = (input) => {
-          if (!input || input === "pending") return "ordered";
-          if (input === "preparing") return "prepared";
-          return input;
-        };
-        const changeDate = /* @__PURE__ */ new Date();
-        const changedAtISO = changeDate.toISOString();
-        const changedAtDisplay = toDisplayTime(changeDate);
-        let itemFound = false;
-        let itemChanged = false;
-        let transitionError = null;
-        let validationError = null;
-        let itemStatusBefore = null;
-        let itemStatusAfter = null;
-        let preparingTimeBefore = null;
-        let preparingTimeAfter = null;
-        let itemVersionAfter = null;
-        let itemUpdatedAt = null;
-        let itemProductID = null;
-        let itemProductName = null;
-        let itemSnapshotForEvent = null;
-        const updatedItems = (bill.items || []).map((item) => {
-          if (item.id !== itemId) return item;
-          itemFound = true;
-          const currentStatus = normalizeStatus(item.status || "ordered");
-          const nextStatus = hasStatusUpdate ? normalizeStatus(status) : currentStatus;
-          const currentPreparingTime = normalizeStoredPreparingTime(item.preparingTime);
-          const nextPreparingTime = hasPreparingTimeUpdate ? parsedPreparingTime ?? null : currentPreparingTime;
-          const statusChanged2 = hasStatusUpdate && nextStatus !== currentStatus;
-          const preparingTimeChanged2 = hasPreparingTimeUpdate && nextPreparingTime !== currentPreparingTime;
-          if (!statusChanged2 && !preparingTimeChanged2) {
-            return item;
-          }
-          if (statusChanged2 && nextStatus !== "cancelled") {
-            const currentIndex = statusSequence.indexOf(currentStatus);
-            const nextIndex = statusSequence.indexOf(nextStatus);
-            if (currentIndex === -1) {
-              transitionError = `Current status "${currentStatus}" is not in the valid sequence.`;
-            } else if (nextIndex === -1) {
-              transitionError = `New status "${nextStatus}" is not in the valid sequence.`;
-            } else if (nextIndex < currentIndex) {
-              transitionError = `Cannot reverse status from "${currentStatus}" back to "${nextStatus}".`;
-            }
-          }
-          const statusOwnerField = statusChanged2 && nextStatus === "prepared" ? "preparedBy" : statusChanged2 && nextStatus === "confirmed" ? "confirmedBy" : statusChanged2 && nextStatus === "delivered" ? "deliveredBy" : null;
-          if (statusOwnerField && !actingUserID) {
-            validationError = `Missing user context. Cannot update status to "${nextStatus}" without an authenticated user or 'actorUserId' in request body.`;
-          }
-          const nextItemVersion = parseNonNegativeInteger(item.itemVersion) + 1;
-          const itemUpdateData = {
-            ...item,
-            status: hasStatusUpdate ? nextStatus : item.status,
-            itemVersion: nextItemVersion,
-            itemUpdatedAt: changedAtISO
-          };
-          if (statusChanged2) {
-            itemUpdateData[`${nextStatus}At`] = changedAtDisplay;
-            if (statusOwnerField && actingUserID) {
-              itemUpdateData[statusOwnerField] = actingUserID;
-              console.log(`[updateItemStatus] SETTING OWNER: item.${statusOwnerField} = ${actingUserID}`);
-            }
-            if (nextStatus === "delivered") {
-              if (!itemUpdateData.confirmedAt) itemUpdateData.confirmedAt = changedAtDisplay;
-              if (!itemUpdateData.confirmedBy && actingUserID) itemUpdateData.confirmedBy = actingUserID;
-              if (!itemUpdateData.preparedAt) itemUpdateData.preparedAt = changedAtDisplay;
-              if (!itemUpdateData.preparedBy && actingUserID) itemUpdateData.preparedBy = actingUserID;
-            } else if (nextStatus === "confirmed") {
-              if (!itemUpdateData.preparedAt) itemUpdateData.preparedAt = changedAtDisplay;
-              if (!itemUpdateData.preparedBy && actingUserID) itemUpdateData.preparedBy = actingUserID;
-            }
-          }
-          if (hasPreparingTimeUpdate) {
-            itemUpdateData.preparingTime = nextPreparingTime;
-          }
-          if (statusChanged2 && nextStatus === "cancelled") {
-            itemUpdateData.cancelledAt = changedAtDisplay;
-          }
-          itemChanged = true;
-          itemStatusBefore = currentStatus;
-          itemStatusAfter = hasStatusUpdate ? nextStatus : currentStatus;
-          preparingTimeBefore = currentPreparingTime;
-          preparingTimeAfter = nextPreparingTime;
-          itemVersionAfter = nextItemVersion;
-          itemUpdatedAt = changedAtISO;
-          itemProductID = getRelationshipID2(item.product);
-          itemProductName = (item.name || (typeof item.product === "object" ? item.product?.name : "") || "").toString().trim() || null;
-          itemSnapshotForEvent = itemUpdateData;
-          console.log(`[updateItemStatus] SAVING ITEM DATA for ${itemId}:`, JSON.stringify(itemUpdateData));
-          return itemUpdateData;
-        });
-        if (!itemFound) {
-          return Response.json({ error: "Item not found in bill" }, { status: 404 });
-        }
-        if (transitionError) {
-          return Response.json({ error: transitionError }, { status: 400 });
-        }
-        if (validationError) {
-          return Response.json({ error: validationError }, { status: 400 });
-        }
-        if (!itemChanged) {
-          return Response.json(bill, { status: 200 });
-        }
-        const isTableOrderBill2 = hasTableOrderValue2(bill.section) || hasTableOrderValue2(bill.tableNumber) || hasTableOrderValue2(
-          bill.tableDetails?.section
-        ) || hasTableOrderValue2(
-          bill.tableDetails?.tableNumber
-        );
-        const normalizedUpdatedItemStatuses = updatedItems.filter((item) => Boolean(item && typeof item === "object")).map((item) => normalizeStatus(item.status));
-        const isBillFinalized = bill.status === "completed" || bill.status === "settled";
-        const allCancelled = normalizedUpdatedItemStatuses.length > 0 && normalizedUpdatedItemStatuses.every((itemStatus) => itemStatus === "cancelled");
-        const activeStatuses = normalizedUpdatedItemStatuses.filter((itemStatus) => itemStatus !== "cancelled");
-        const allDelivered = activeStatuses.length > 0 && activeStatuses.every((itemStatus) => itemStatus === "delivered");
-        const allConfirmedOrDelivered = activeStatuses.length > 0 && activeStatuses.every((itemStatus) => itemStatus === "confirmed" || itemStatus === "delivered");
-        const allPreparedOrConfirmedOrDelivered = activeStatuses.length > 0 && activeStatuses.every(
-          (itemStatus) => itemStatus === "prepared" || itemStatus === "confirmed" || itemStatus === "delivered"
-        );
-        let nextBillStatus = null;
-        if (!isBillFinalized) {
-          if (allCancelled) {
-            nextBillStatus = "cancelled";
-          } else if (isTableOrderBill2) {
-            if (allDelivered) {
-              nextBillStatus = "delivered";
-            } else if (allConfirmedOrDelivered) {
-              nextBillStatus = "confirmed";
-            } else if (allPreparedOrConfirmedOrDelivered) {
-              nextBillStatus = "prepared";
-            } else {
-              nextBillStatus = "ordered";
-            }
-          }
-        }
-        const branchID = getRelationshipID2(bill.branch);
-        const kitchenID = typeof body.kitchenId === "string" && body.kitchenId.trim().length > 0 ? body.kitchenId.trim() : null;
-        const currentRealtimeSeq = parseNonNegativeInteger(bill.realtimeSeq);
-        let nextRealtimeSeq = currentRealtimeSeq;
-        const allocateSeq = () => {
-          nextRealtimeSeq += 1;
-          return nextRealtimeSeq;
-        };
-        const currentBillStatus = typeof bill.status === "string" ? normalizeStatus(bill.status) : "ordered";
-        const realtimeEvents = [];
-        const statusChanged = itemStatusBefore !== null && itemStatusAfter !== null && itemStatusBefore !== itemStatusAfter;
-        const preparingTimeChanged = preparingTimeBefore !== preparingTimeAfter;
-        const billStatusChanged = nextBillStatus !== null && nextBillStatus !== currentBillStatus;
-        const rawTableNum = (bill?.tableDetails?.tableNumber || bill?.tableNumber || bill?.tableNo || (typeof bill?.table === "object" ? bill?.table?.tableNumber : bill?.table) || "").toString().trim();
-        const rawSection = (bill?.tableDetails?.section || bill?.section || (typeof bill?.table === "object" ? bill?.table?.section : "") || "").toString().trim();
-        const resolvedTableName = rawTableNum && rawSection ? `${rawSection} - Table ${rawTableNum}` : rawTableNum ? `Table ${rawTableNum}` : rawSection || null;
-        const resolvedTableNo = rawTableNum || resolvedTableName || null;
-        const resolvedKotNumber = (bill?.kotNumber || "").toString().trim() || null;
-        const allProductNames = (updatedItems || []).map(
-          (it) => (it?.name || (typeof it?.product === "object" ? it?.product?.name : "") || "").toString().trim()
-        ).filter(Boolean);
-        if (branchID && itemUpdatedAt && itemVersionAfter !== null) {
-          if (statusChanged) {
-            realtimeEvents.push({
-              eventId: `${id}:${String(itemId)}:v${itemVersionAfter}:status`,
-              eventType: "billing_item_status_changed",
-              seq: allocateSeq(),
-              branchId: branchID,
-              kitchenId: kitchenID,
-              billingId: id,
-              itemId: String(itemId),
-              productId: itemProductID,
-              productName: itemProductName,
-              tableName: resolvedTableName,
-              tableNo: resolvedTableNo,
-              section: rawSection || null,
-              kotNumber: resolvedKotNumber,
-              statusBefore: itemStatusBefore,
-              statusAfter: itemStatusAfter,
-              itemUpdatedAt,
-              itemVersion: itemVersionAfter,
-              itemSnapshot: itemSnapshotForEvent
-            });
-          }
-          if (preparingTimeChanged) {
-            realtimeEvents.push({
-              eventId: `${id}:${String(itemId)}:v${itemVersionAfter}:preparing-time`,
-              eventType: "billing_item_preparing_time_changed",
-              seq: allocateSeq(),
-              branchId: branchID,
-              kitchenId: kitchenID,
-              billingId: id,
-              itemId: String(itemId),
-              productId: itemProductID,
-              productName: itemProductName,
-              tableName: resolvedTableName,
-              tableNo: resolvedTableNo,
-              section: rawSection || null,
-              kotNumber: resolvedKotNumber,
-              statusBefore: itemStatusBefore,
-              statusAfter: itemStatusAfter,
-              itemUpdatedAt,
-              itemVersion: itemVersionAfter,
-              itemSnapshot: itemSnapshotForEvent
-            });
-          }
-        }
-        if (branchID && billStatusChanged) {
-          realtimeEvents.push({
-            eventId: `${id}:bill-status:${nextBillStatus}:seq${nextRealtimeSeq + 1}`,
-            eventType: "billing_status_changed",
-            seq: allocateSeq(),
-            branchId: branchID,
-            kitchenId: kitchenID,
-            billingId: id,
-            itemId: String(itemId),
-            productId: itemProductID,
-            productName: allProductNames[0] || itemProductName || null,
-            productNames: allProductNames,
-            tableName: resolvedTableName,
-            tableNo: resolvedTableNo,
-            section: rawSection || null,
-            kotNumber: resolvedKotNumber,
-            statusBefore: currentBillStatus,
-            statusAfter: nextBillStatus,
-            itemUpdatedAt: itemUpdatedAt || changedAtISO,
-            itemVersion: itemVersionAfter
+        async function executeStatusUpdate() {
+          const bill = await payload.findByID({
+            collection: "billings",
+            id,
+            depth: 0,
+            overrideAccess: true
           });
+          if (!bill) {
+            return Response.json({ error: "Bill not found" }, { status: 404 });
+          }
+          const statusSequence = ["ordered", "prepared", "confirmed", "delivered"];
+          const normalizeStatus = (input) => {
+            if (!input || input === "pending") return "ordered";
+            if (input === "preparing") return "prepared";
+            return input;
+          };
+          const changeDate = /* @__PURE__ */ new Date();
+          const changedAtISO = changeDate.toISOString();
+          const changedAtDisplay = toDisplayTime(changeDate);
+          let itemFound = false;
+          let itemChanged = false;
+          let transitionError = null;
+          let validationError = null;
+          let itemStatusBefore = null;
+          let itemStatusAfter = null;
+          let preparingTimeBefore = null;
+          let preparingTimeAfter = null;
+          let itemVersionAfter = null;
+          let itemUpdatedAt = null;
+          let itemProductID = null;
+          let itemProductName = null;
+          let itemSnapshotForEvent = null;
+          const updatedItems = (bill.items || []).map((item) => {
+            if (item.id !== itemId) return item;
+            itemFound = true;
+            const currentStatus = normalizeStatus(item.status || "ordered");
+            const nextStatus = hasStatusUpdate ? normalizeStatus(status) : currentStatus;
+            const currentPreparingTime = normalizeStoredPreparingTime(item.preparingTime);
+            const nextPreparingTime = hasPreparingTimeUpdate ? parsedPreparingTime ?? null : currentPreparingTime;
+            const statusChanged2 = hasStatusUpdate && nextStatus !== currentStatus;
+            const preparingTimeChanged2 = hasPreparingTimeUpdate && nextPreparingTime !== currentPreparingTime;
+            if (!statusChanged2 && !preparingTimeChanged2) {
+              return item;
+            }
+            if (statusChanged2 && nextStatus !== "cancelled") {
+              const currentIndex = statusSequence.indexOf(currentStatus);
+              const nextIndex = statusSequence.indexOf(nextStatus);
+              if (currentIndex === -1) {
+                transitionError = `Current status "${currentStatus}" is not in the valid sequence.`;
+              } else if (nextIndex === -1) {
+                transitionError = `New status "${nextStatus}" is not in the valid sequence.`;
+              } else if (nextIndex < currentIndex) {
+                transitionError = `Cannot reverse status from "${currentStatus}" back to "${nextStatus}".`;
+              }
+            }
+            const statusOwnerField = statusChanged2 && nextStatus === "prepared" ? "preparedBy" : statusChanged2 && nextStatus === "confirmed" ? "confirmedBy" : statusChanged2 && nextStatus === "delivered" ? "deliveredBy" : null;
+            if (statusOwnerField && !actingUserID) {
+              validationError = `Missing user context. Cannot update status to "${nextStatus}" without an authenticated user or 'actorUserId' in request body.`;
+            }
+            const nextItemVersion = parseNonNegativeInteger(item.itemVersion) + 1;
+            const itemUpdateData = {
+              ...item,
+              status: hasStatusUpdate ? nextStatus : item.status,
+              itemVersion: nextItemVersion,
+              itemUpdatedAt: changedAtISO
+            };
+            if (statusChanged2) {
+              itemUpdateData[`${nextStatus}At`] = changedAtDisplay;
+              if (statusOwnerField && actingUserID) {
+                itemUpdateData[statusOwnerField] = actingUserID;
+                console.log(`[updateItemStatus] SETTING OWNER: item.${statusOwnerField} = ${actingUserID}`);
+              }
+              if (nextStatus === "delivered") {
+                if (!itemUpdateData.confirmedAt) itemUpdateData.confirmedAt = changedAtDisplay;
+                if (!itemUpdateData.confirmedBy && actingUserID) itemUpdateData.confirmedBy = actingUserID;
+                if (!itemUpdateData.preparedAt) itemUpdateData.preparedAt = changedAtDisplay;
+                if (!itemUpdateData.preparedBy && actingUserID) itemUpdateData.preparedBy = actingUserID;
+              } else if (nextStatus === "confirmed") {
+                if (!itemUpdateData.preparedAt) itemUpdateData.preparedAt = changedAtDisplay;
+                if (!itemUpdateData.preparedBy && actingUserID) itemUpdateData.preparedBy = actingUserID;
+              }
+            }
+            if (hasPreparingTimeUpdate) {
+              itemUpdateData.preparingTime = nextPreparingTime;
+            }
+            if (statusChanged2 && nextStatus === "cancelled") {
+              itemUpdateData.cancelledAt = changedAtDisplay;
+            }
+            itemChanged = true;
+            itemStatusBefore = currentStatus;
+            itemStatusAfter = hasStatusUpdate ? nextStatus : currentStatus;
+            preparingTimeBefore = currentPreparingTime;
+            preparingTimeAfter = nextPreparingTime;
+            itemVersionAfter = nextItemVersion;
+            itemUpdatedAt = changedAtISO;
+            itemProductID = getRelationshipID2(item.product);
+            itemProductName = (item.name || (typeof item.product === "object" ? item.product?.name : "") || "").toString().trim() || null;
+            itemSnapshotForEvent = itemUpdateData;
+            console.log(`[updateItemStatus] SAVING ITEM DATA for ${itemId}:`, JSON.stringify(itemUpdateData));
+            return itemUpdateData;
+          });
+          if (!itemFound) {
+            return Response.json({ error: "Item not found in bill" }, { status: 404 });
+          }
+          if (transitionError) {
+            return Response.json({ error: transitionError }, { status: 400 });
+          }
+          if (validationError) {
+            return Response.json({ error: validationError }, { status: 400 });
+          }
+          if (!itemChanged) {
+            return Response.json(bill, { status: 200 });
+          }
+          const isTableOrderBill2 = hasTableOrderValue2(bill.section) || hasTableOrderValue2(bill.tableNumber) || hasTableOrderValue2(
+            bill.tableDetails?.section
+          ) || hasTableOrderValue2(
+            bill.tableDetails?.tableNumber
+          );
+          const normalizedUpdatedItemStatuses = updatedItems.filter((item) => Boolean(item && typeof item === "object")).map((item) => normalizeStatus(item.status));
+          const isBillFinalized = bill.status === "completed" || bill.status === "settled";
+          const allCancelled = normalizedUpdatedItemStatuses.length > 0 && normalizedUpdatedItemStatuses.every((itemStatus) => itemStatus === "cancelled");
+          const activeStatuses = normalizedUpdatedItemStatuses.filter((itemStatus) => itemStatus !== "cancelled");
+          const allDelivered = activeStatuses.length > 0 && activeStatuses.every((itemStatus) => itemStatus === "delivered");
+          const allConfirmedOrDelivered = activeStatuses.length > 0 && activeStatuses.every((itemStatus) => itemStatus === "confirmed" || itemStatus === "delivered");
+          const allPreparedOrConfirmedOrDelivered = activeStatuses.length > 0 && activeStatuses.every(
+            (itemStatus) => itemStatus === "prepared" || itemStatus === "confirmed" || itemStatus === "delivered"
+          );
+          let nextBillStatus = null;
+          if (!isBillFinalized) {
+            if (allCancelled) {
+              nextBillStatus = "cancelled";
+            } else if (isTableOrderBill2) {
+              if (allDelivered) {
+                nextBillStatus = "delivered";
+              } else if (allConfirmedOrDelivered) {
+                nextBillStatus = "confirmed";
+              } else if (allPreparedOrConfirmedOrDelivered) {
+                nextBillStatus = "prepared";
+              } else {
+                nextBillStatus = "ordered";
+              }
+            }
+          }
+          const branchID = getRelationshipID2(bill.branch);
+          const kitchenID = typeof body.kitchenId === "string" && body.kitchenId.trim().length > 0 ? body.kitchenId.trim() : null;
+          const currentRealtimeSeq = parseNonNegativeInteger(bill.realtimeSeq);
+          let nextRealtimeSeq = currentRealtimeSeq;
+          const allocateSeq = () => {
+            nextRealtimeSeq += 1;
+            return nextRealtimeSeq;
+          };
+          const currentBillStatus = typeof bill.status === "string" ? normalizeStatus(bill.status) : "ordered";
+          const realtimeEvents = [];
+          const statusChanged = itemStatusBefore !== null && itemStatusAfter !== null && itemStatusBefore !== itemStatusAfter;
+          const preparingTimeChanged = preparingTimeBefore !== preparingTimeAfter;
+          const billStatusChanged = nextBillStatus !== null && nextBillStatus !== currentBillStatus;
+          const rawTableNum = (bill?.tableDetails?.tableNumber || bill?.tableNumber || bill?.tableNo || (typeof bill?.table === "object" ? bill?.table?.tableNumber : bill?.table) || "").toString().trim();
+          const rawSection = (bill?.tableDetails?.section || bill?.section || (typeof bill?.table === "object" ? bill?.table?.section : "") || "").toString().trim();
+          const resolvedTableName = rawTableNum && rawSection ? `${rawSection} - Table ${rawTableNum}` : rawTableNum ? `Table ${rawTableNum}` : rawSection || null;
+          const resolvedTableNo = rawTableNum || resolvedTableName || null;
+          const resolvedKotNumber = (bill?.kotNumber || "").toString().trim() || null;
+          const allProductNames = (updatedItems || []).map(
+            (it) => (it?.name || (typeof it?.product === "object" ? it?.product?.name : "") || "").toString().trim()
+          ).filter(Boolean);
+          if (branchID && itemUpdatedAt && itemVersionAfter !== null) {
+            if (statusChanged) {
+              realtimeEvents.push({
+                eventId: `${id}:${String(itemId)}:v${itemVersionAfter}:status`,
+                eventType: "billing_item_status_changed",
+                seq: allocateSeq(),
+                branchId: branchID,
+                kitchenId: kitchenID,
+                billingId: id,
+                itemId: String(itemId),
+                productId: itemProductID,
+                productName: itemProductName,
+                tableName: resolvedTableName,
+                tableNo: resolvedTableNo,
+                section: rawSection || null,
+                kotNumber: resolvedKotNumber,
+                statusBefore: itemStatusBefore,
+                statusAfter: itemStatusAfter,
+                itemUpdatedAt,
+                itemVersion: itemVersionAfter,
+                itemSnapshot: itemSnapshotForEvent
+              });
+            }
+            if (preparingTimeChanged) {
+              realtimeEvents.push({
+                eventId: `${id}:${String(itemId)}:v${itemVersionAfter}:preparing-time`,
+                eventType: "billing_item_preparing_time_changed",
+                seq: allocateSeq(),
+                branchId: branchID,
+                kitchenId: kitchenID,
+                billingId: id,
+                itemId: String(itemId),
+                productId: itemProductID,
+                productName: itemProductName,
+                tableName: resolvedTableName,
+                tableNo: resolvedTableNo,
+                section: rawSection || null,
+                kotNumber: resolvedKotNumber,
+                statusBefore: itemStatusBefore,
+                statusAfter: itemStatusAfter,
+                itemUpdatedAt,
+                itemVersion: itemVersionAfter,
+                itemSnapshot: itemSnapshotForEvent
+              });
+            }
+          }
+          if (branchID && billStatusChanged) {
+            realtimeEvents.push({
+              eventId: `${id}:bill-status:${nextBillStatus}:seq${nextRealtimeSeq + 1}`,
+              eventType: "billing_status_changed",
+              seq: allocateSeq(),
+              branchId: branchID,
+              kitchenId: kitchenID,
+              billingId: id,
+              itemId: String(itemId),
+              productId: itemProductID,
+              productName: allProductNames[0] || itemProductName || null,
+              productNames: allProductNames,
+              tableName: resolvedTableName,
+              tableNo: resolvedTableNo,
+              section: rawSection || null,
+              kotNumber: resolvedKotNumber,
+              statusBefore: currentBillStatus,
+              statusAfter: nextBillStatus,
+              itemUpdatedAt: itemUpdatedAt || changedAtISO,
+              itemVersion: itemVersionAfter
+            });
+          }
+          const updatedBill = await payload.update({
+            collection: "billings",
+            id,
+            data: {
+              items: updatedItems,
+              ...nextBillStatus ? { status: nextBillStatus } : {},
+              ...nextRealtimeSeq > currentRealtimeSeq ? { realtimeSeq: nextRealtimeSeq } : {}
+            },
+            depth: 0,
+            context: {
+              actingUserID,
+              skipOfferRecalculation: true,
+              skipInventoryValidation: true,
+              skipCustomerRewardProcessing: true,
+              skipOfferCounterProcessing: true,
+              skipRealtimePublish: true
+            },
+            overrideAccess: true
+          });
+          realtimeEvents.forEach((eventPayload) => {
+            publishBillingRealtimeEvent(eventPayload);
+          });
+          return Response.json(updatedBill, { status: 200 });
         }
-        const updatedBill = await payload.update({
-          collection: "billings",
-          id,
-          data: {
-            items: updatedItems,
-            ...nextBillStatus ? { status: nextBillStatus } : {},
-            ...nextRealtimeSeq > currentRealtimeSeq ? { realtimeSeq: nextRealtimeSeq } : {}
-          },
-          depth: 0,
-          context: {
-            actingUserID,
-            skipOfferRecalculation: true,
-            skipInventoryValidation: true,
-            skipCustomerRewardProcessing: true,
-            skipOfferCounterProcessing: true,
-            skipRealtimePublish: true
-          },
-          overrideAccess: true
-        });
-        realtimeEvents.forEach((eventPayload) => {
-          publishBillingRealtimeEvent(eventPayload);
-        });
-        return Response.json(updatedBill, { status: 200 });
       } catch (error) {
-        console.error("Error updating item status:", error);
-        return Response.json({ error: "Internal Server Error" }, { status: 500 });
+        console.error(`[updateItemStatus] Error updating item status for bill ${id}:`, error);
+        const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
+        return Response.json({ error: errorMessage }, { status: 500 });
       }
     };
   }
@@ -15445,14 +15517,14 @@ var init_Dashboard = __esm({
   }
 });
 
-// src/globals/Jarvis.ts
-var JarvisGlobal;
-var init_Jarvis = __esm({
-  "src/globals/Jarvis.ts"() {
+// src/globals/ReportsDashboard.ts
+var ReportsDashboardGlobal;
+var init_ReportsDashboard = __esm({
+  "src/globals/ReportsDashboard.ts"() {
     "use strict";
-    JarvisGlobal = {
-      slug: "jarvis",
-      label: "JARVIS",
+    ReportsDashboardGlobal = {
+      slug: "dashboard",
+      label: "Dashboard",
       access: {
         read: () => true
       },
@@ -15462,7 +15534,7 @@ var init_Jarvis = __esm({
           views: {
             edit: {
               root: {
-                Component: "/components/Jarvis/index.tsx#default"
+                Component: "/components/ReportsDashboard/index.tsx#default"
               }
             }
           }
@@ -26855,8 +26927,14 @@ var init_Attendance = __esm({
       },
       hooks: {
         beforeValidate: [
-          async ({ data, req, operation }) => {
+          async ({ data, req, operation, originalDoc }) => {
             if (!data) return data;
+            if (operation === "update" && originalDoc?.loginBranch) {
+              const origId = typeof originalDoc.loginBranch === "string" ? originalDoc.loginBranch : originalDoc.loginBranch?.id || originalDoc.loginBranch;
+              if (origId) {
+                data.loginBranch = origId;
+              }
+            }
             if (!data.employee && data.user) {
               try {
                 const userId = typeof data.user === "string" ? data.user : data.user.id;
@@ -27495,6 +27573,13 @@ var init_Attendance = __esm({
             {
               name: "longitude",
               type: "number"
+            },
+            {
+              name: "accuracy",
+              type: "number",
+              admin: {
+                description: "GPS accuracy in meters reported by device"
+              }
             }
           ]
         },
@@ -27551,6 +27636,13 @@ var init_Attendance = __esm({
             {
               name: "longitude",
               type: "number"
+            },
+            {
+              name: "accuracy",
+              type: "number",
+              admin: {
+                description: "GPS accuracy in meters reported by device"
+              }
             }
           ]
         }
@@ -27768,6 +27860,181 @@ var init_CctvReports = __esm({
       timestamps: true
     };
     CctvReports_default = CctvReports;
+  }
+});
+
+// src/collections/StaffMovementHistory.ts
+var StaffMovementHistory, StaffMovementHistory_default;
+var init_StaffMovementHistory = __esm({
+  "src/collections/StaffMovementHistory.ts"() {
+    "use strict";
+    init_geo();
+    StaffMovementHistory = {
+      slug: "staff-movement-history",
+      admin: {
+        useAsTitle: "timestamp",
+        defaultColumns: ["user", "branch", "timestamp", "latitude", "longitude", "accuracy", "distanceToBranch"],
+        group: "Attendance & Tracking",
+        description: "High-frequency GPS telemetry breadcrumbs decoupled from attendance records and payroll cost centers."
+      },
+      access: {
+        create: ({ req: { user } }) => !!user,
+        read: ({ req: { user } }) => {
+          if (!user) return false;
+          if (["superadmin", "admin", "company", "manager"].includes(user.role)) return true;
+          if (user.role === "branch") {
+            const branchId = typeof user.branch === "string" ? user.branch : user.branch?.id;
+            return {
+              branch: {
+                equals: branchId
+              }
+            };
+          }
+          return {
+            user: {
+              equals: user.id
+            }
+          };
+        },
+        update: () => false,
+        // Immutable append-only telemetry history
+        delete: ({ req: { user } }) => user?.role ? ["superadmin", "admin"].includes(user.role) : false
+      },
+      hooks: {
+        beforeValidate: [
+          async ({ data, req }) => {
+            if (!data) return data;
+            if (!data.user && req.user?.id) {
+              data.user = req.user.id;
+            }
+            if (!data.branch && req.user) {
+              const u = req.user;
+              const userBranch = u.lastLoginBranch || u.branch;
+              if (userBranch) {
+                data.branch = typeof userBranch === "string" ? userBranch : userBranch.id || userBranch;
+              }
+            }
+            if (!data.timestamp) {
+              data.timestamp = (/* @__PURE__ */ new Date()).toISOString();
+            }
+            if (data.branch && typeof data.latitude === "number" && typeof data.longitude === "number" && !data.distanceToBranch) {
+              try {
+                const branchId = typeof data.branch === "string" ? data.branch : data.branch.id;
+                if (branchId) {
+                  const geoSettingsResult = await req.payload.findGlobal({ slug: "branch-geo-settings" });
+                  const geoSettings = geoSettingsResult;
+                  const loc = geoSettings?.locations?.find((l) => {
+                    const bId = (typeof l.branch === "string" ? l.branch : l.branch?.id) || l.branchId;
+                    return String(bId) === String(branchId);
+                  });
+                  let branchLat = loc?.latitude;
+                  let branchLng = loc?.longitude;
+                  if (branchLat == null || branchLng == null) {
+                    const branchDoc = await req.payload.findByID({
+                      collection: "branches",
+                      id: branchId,
+                      depth: 0,
+                      overrideAccess: true
+                    });
+                    branchLat = branchDoc?.latitude;
+                    branchLng = branchDoc?.longitude;
+                  }
+                  if (branchLat != null && branchLng != null) {
+                    const bLatNum = typeof branchLat === "number" ? branchLat : parseFloat(branchLat);
+                    const bLngNum = typeof branchLng === "number" ? branchLng : parseFloat(branchLng);
+                    if (!isNaN(bLatNum) && !isNaN(bLngNum)) {
+                      data.distanceToBranch = Math.round(
+                        getDistanceFromLatLonInMeters(data.latitude, data.longitude, bLatNum, bLngNum) * 10
+                      ) / 10;
+                    }
+                  }
+                }
+              } catch (_) {
+              }
+            }
+            return data;
+          }
+        ]
+      },
+      fields: [
+        {
+          name: "user",
+          type: "relationship",
+          relationTo: "users",
+          required: true,
+          index: true,
+          admin: {
+            description: "Employee who generated this coordinate ping"
+          }
+        },
+        {
+          name: "branch",
+          type: "relationship",
+          relationTo: "branches",
+          index: true,
+          admin: {
+            description: "The PIN-locked branch assigned to the staff member during this session"
+          }
+        },
+        {
+          name: "latitude",
+          type: "number",
+          required: true,
+          admin: {
+            description: "WGS84 Latitude"
+          }
+        },
+        {
+          name: "longitude",
+          type: "number",
+          required: true,
+          admin: {
+            description: "WGS84 Longitude"
+          }
+        },
+        {
+          name: "accuracy",
+          type: "number",
+          admin: {
+            description: "GPS accuracy uncertainty in meters (from mobile OS location API)"
+          }
+        },
+        {
+          name: "distanceToBranch",
+          type: "number",
+          admin: {
+            description: "Distance to assigned branch boundary/center in meters"
+          }
+        },
+        {
+          name: "timestamp",
+          type: "date",
+          required: true,
+          index: true,
+          timezone: true,
+          admin: {
+            date: {
+              pickerAppearance: "dayAndTime",
+              displayFormat: "yyyy-MM-dd HH:mm:ss"
+            },
+            description: "Timestamp when location was captured"
+          }
+        },
+        {
+          name: "source",
+          type: "select",
+          defaultValue: "foreground",
+          options: [
+            { label: "Foreground Watcher", value: "foreground" },
+            { label: "Background Service", value: "background" }
+          ],
+          admin: {
+            description: "Origin of telemetry ping"
+          }
+        }
+      ]
+    };
+    StaffMovementHistory_default = StaffMovementHistory;
   }
 });
 
@@ -43182,7 +43449,7 @@ var init_payload_config = __esm({
     init_DealerOrders();
     init_IPSettings();
     init_Dashboard();
-    init_Jarvis();
+    init_ReportsDashboard();
     init_BranchBillingReport();
     init_AccountsBillsReport();
     init_BillSummary();
@@ -43251,6 +43518,7 @@ var init_payload_config = __esm({
     init_Attendance();
     init_PunchIn();
     init_CctvReports();
+    init_StaffMovementHistory();
     init_Widgets();
     init_WorkSettings();
     init_WorkTasks();
@@ -44098,7 +44366,7 @@ var init_payload_config = __esm({
       globals: [
         PaymentSettings,
         IPSettings,
-        JarvisGlobal,
+        ReportsDashboardGlobal,
         DashboardGlobal,
         TimeWiseReportGlobal,
         BranchBillingReportGlobal,
@@ -44188,7 +44456,8 @@ var init_payload_config = __esm({
         WaiterCalls_default,
         CallLogs_default,
         CctvReports_default,
-        ReportCardRules_default
+        ReportCardRules_default,
+        StaffMovementHistory_default
       ].map(wrapCollection),
       editor: lexicalEditor(),
       secret: process.env.PAYLOAD_SECRET || "",
