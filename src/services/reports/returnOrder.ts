@@ -72,7 +72,9 @@ type RawReturnOrderItem = {
   notes: unknown
   time: unknown
   filename: unknown
+  prefix: unknown
   imageUrl: unknown
+  proofPhoto: unknown
 }
 
 type RawReturnOrderGroup = {
@@ -83,6 +85,60 @@ type RawReturnOrderGroup = {
   count: unknown
   orderCount: unknown
   items: RawReturnOrderItem[]
+}
+
+const resolveMediaUrl = (
+  url?: string | null,
+  filename?: string | null,
+  prefix?: string | null,
+): string | undefined => {
+  if (url && typeof url === 'string') {
+    const trimmed = url.trim()
+    if (
+      trimmed.startsWith('http://') ||
+      trimmed.startsWith('https://') ||
+      trimmed.startsWith('data:')
+    ) {
+      return trimmed
+    }
+  }
+
+  if (!filename || typeof filename !== 'string') return undefined
+
+  const publicURL = process.env.NEXT_PUBLIC_S3_PUBLIC_URL || process.env.S3_PUBLIC_URL
+  if (!publicURL) {
+    return `/api/media/file/${filename}`
+  }
+
+  const cleanURL = publicURL.endsWith('/') ? publicURL.slice(0, -1) : publicURL
+  const rootPrefix = 'blackforest/uploads'
+  const docPrefix = prefix ? String(prefix).trim() : 'returnorder'
+
+  const cleanRoot = rootPrefix.replace(/^\/+|\/+$/g, '')
+  const cleanDocPrefix = docPrefix.replace(/^\/+|\/+$/g, '')
+
+  const normalizedDocPrefix =
+    cleanDocPrefix === cleanRoot
+      ? ''
+      : cleanDocPrefix.startsWith(`${cleanRoot}/`)
+        ? cleanDocPrefix.slice(cleanRoot.length + 1)
+        : cleanDocPrefix
+
+  const filenameWithoutRoot = filename.startsWith(`${cleanRoot}/`)
+    ? filename.slice(cleanRoot.length + 1)
+    : filename
+
+  const finalDocPrefix =
+    normalizedDocPrefix && filenameWithoutRoot.startsWith(`${normalizedDocPrefix}/`)
+      ? ''
+      : normalizedDocPrefix
+
+  const fullPath = [cleanRoot, finalDocPrefix, filenameWithoutRoot]
+    .filter(Boolean)
+    .join('/')
+    .replace(/\/+/g, '/')
+
+  return `${cleanURL}/${fullPath}`
 }
 
 const toNumber = (value: unknown): number => {
@@ -229,8 +285,25 @@ export const getReturnOrderReportData = async (
     {
       $lookup: {
         from: 'media',
-        localField: 'items.proofPhoto',
-        foreignField: '_id',
+        let: { proofPhoto: '$items.proofPhoto' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $ne: ['$$proofPhoto', null] },
+                  { $ne: ['$$proofPhoto', ''] },
+                  {
+                    $or: [
+                      { $eq: ['$_id', '$$proofPhoto'] },
+                      { $eq: [{ $toString: '$_id' }, { $toString: '$$proofPhoto' }] },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        ],
         as: 'mediaInfo',
       },
     },
@@ -262,6 +335,8 @@ export const getReturnOrderReportData = async (
             time: '$createdAt',
             imageUrl: '$mediaInfo.url',
             filename: '$mediaInfo.filename',
+            prefix: '$mediaInfo.prefix',
+            proofPhoto: '$items.proofPhoto',
           },
         },
       },
@@ -283,12 +358,112 @@ export const getReturnOrderReportData = async (
 
   const groupsRaw = (await ReturnOrderModel.aggregate(pipeline)) as RawReturnOrderGroup[]
 
+  // Collect any proofPhoto IDs that were not resolved via $lookup
+  const missingMediaIdSet = new Set<string>()
+  for (const group of groupsRaw) {
+    if (Array.isArray(group.items)) {
+      for (const it of group.items) {
+        const hasUrlOrFile = Boolean(it.imageUrl || it.filename)
+        if (!hasUrlOrFile && it.proofPhoto) {
+          const idStr = toNonEmptyString(it.proofPhoto)
+          if (
+            idStr &&
+            !idStr.startsWith('http://') &&
+            !idStr.startsWith('https://') &&
+            !idStr.startsWith('data:') &&
+            /^[0-9a-fA-F]{24}$/.test(idStr)
+          ) {
+            missingMediaIdSet.add(idStr)
+          }
+        }
+      }
+    }
+  }
+
+  const mediaMap = new Map<string, string>()
+  if (missingMediaIdSet.size > 0) {
+    const missingIds = Array.from(missingMediaIdSet)
+    try {
+      const mediaRes = await payload.find({
+        collection: 'media',
+        where: {
+          id: {
+            in: missingIds,
+          },
+        },
+        depth: 0,
+        pagination: false,
+        limit: missingIds.length,
+        overrideAccess: true,
+      })
+
+      for (const m of mediaRes.docs as any[]) {
+        const idStr = String(m.id || m._id)
+        const resolved = resolveMediaUrl(m.url, m.filename, m.prefix) || m.thumbnailURL
+        if (resolved) {
+          mediaMap.set(idStr, resolved)
+        }
+      }
+    } catch (e) {
+      req.payload.logger.warn({
+        err: e,
+        msg: '[ReturnOrderReport] Error batch resolving media via payload.find',
+      })
+    }
+
+    const stillMissing = missingIds.filter((id) => !mediaMap.has(id))
+    if (stillMissing.length > 0 && payload.db.collections['media']) {
+      try {
+        const MediaModel = payload.db.collections['media']
+        const mongoose = await import('mongoose')
+        const objectIds = stillMissing
+          .map((id) => {
+            try {
+              return new mongoose.Types.ObjectId(id)
+            } catch {
+              return null
+            }
+          })
+          .filter(Boolean)
+
+        const fallbackDocs = await MediaModel.find({
+          $or: [{ _id: { $in: objectIds } }, { _id: { $in: stillMissing } }],
+        }).lean()
+
+        for (const m of fallbackDocs as any[]) {
+          const idStr = String(m._id || m.id)
+          const resolved = resolveMediaUrl(m.url, m.filename, m.prefix) || m.thumbnailURL
+          if (resolved) {
+            mediaMap.set(idStr, resolved)
+          }
+        }
+      } catch (err) {
+        req.payload.logger.warn({ err, msg: '[ReturnOrderReport] Fallback media query error' })
+      }
+    }
+  }
+
   const groups: ReturnOrderReportGroup[] = groupsRaw.map((group) => {
     const items = (Array.isArray(group.items) ? [...group.items] : [])
       .sort((a, b) => new Date(toDateString(b.time)).getTime() - new Date(toDateString(a.time)).getTime())
       .map((item) => {
         const filename = toNonEmptyString(item.filename)
         const imageUrl = toNonEmptyString(item.imageUrl)
+        const prefix = toNonEmptyString(item.prefix)
+        const proofPhotoId = toNonEmptyString(item.proofPhoto)
+
+        let resolvedUrl = resolveMediaUrl(imageUrl, filename, prefix)
+        if (!resolvedUrl && proofPhotoId) {
+          if (
+            proofPhotoId.startsWith('http://') ||
+            proofPhotoId.startsWith('https://') ||
+            proofPhotoId.startsWith('data:')
+          ) {
+            resolvedUrl = proofPhotoId
+          } else if (mediaMap.has(proofPhotoId)) {
+            resolvedUrl = mediaMap.get(proofPhotoId)
+          }
+        }
 
         return {
           id: toNonEmptyString(item.id),
@@ -301,7 +476,7 @@ export const getReturnOrderReportData = async (
           subtotal: toNumber(item.subtotal),
           notes: toNonEmptyString(item.notes, '') || undefined,
           time: toDateString(item.time),
-          imageUrl: imageUrl || (filename ? `/api/media/file/${filename}` : undefined),
+          imageUrl: resolvedUrl,
         }
       })
 

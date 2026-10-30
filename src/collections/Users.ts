@@ -646,6 +646,46 @@ export const Users: CollectionConfig = {
           }
 
           const requestBody = (req as { body?: unknown } | undefined)?.body
+
+          // 1. PIN Authority: If a 4-digit branch PIN was provided in header or body, resolve it FIRST
+          let headerPin: string | null = null
+          let legacyPin: string | null = null
+          if (req.headers && typeof req.headers.get === 'function') {
+            headerPin = normalizeBranchPin(req.headers.get(BRANCH_PIN_HEADER))
+            legacyPin = normalizeBranchPin(req.headers.get('x-branch-code'))
+          }
+
+          const rawBranchPinFromBody =
+            requestBody && typeof requestBody === 'object' && requestBody !== null
+              ? (requestBody as { branchPin?: unknown }).branchPin
+              : null
+          const bodyPin = normalizeBranchPin(rawBranchPinFromBody)
+          const branchPin = headerPin || legacyPin || bodyPin
+
+          if (branchPin && isValidBranchPin(branchPin)) {
+            try {
+              const result = await req.payload.find({
+                collection: 'branches',
+                where: {
+                  branchPin: {
+                    equals: branchPin,
+                  },
+                },
+                depth: 0,
+                limit: 1,
+                pagination: false,
+                overrideAccess: true,
+              })
+              const pinBranchId = result.docs[0]?.id ? String(result.docs[0].id) : null
+              if (pinBranchId) {
+                console.log(`[Login Branch] Branch resolved via PIN ${branchPin}: ${pinBranchId}`)
+                return pinBranchId
+              }
+            } catch (error) {
+              console.error('[Login Debug] Unable to resolve branch from branch PIN in afterLogin:', error)
+            }
+          }
+
           const bodyBranchId =
             requestBody && typeof requestBody === 'object' && requestBody !== null
               ? getRelationshipID((requestBody as { branchId?: unknown }).branchId) ||
@@ -672,7 +712,7 @@ export const Users: CollectionConfig = {
             }
           }
 
-          // Check GPS coordinates from request headers or body (e.g. Flutter app sends x-latitude, x-longitude)
+          // Check GPS coordinates from request headers or body (fallback when no PIN is provided)
           let latStr: string | null = null
           let lngStr: string | null = null
           if (req.headers && typeof req.headers.get === 'function') {
@@ -731,40 +771,7 @@ export const Users: CollectionConfig = {
             if (kbId) return kbId
           }
 
-          let headerPin: string | null = null
-          let legacyPin: string | null = null
-          if (req.headers && typeof req.headers.get === 'function') {
-            headerPin = normalizeBranchPin(req.headers.get(BRANCH_PIN_HEADER))
-            legacyPin = normalizeBranchPin(req.headers.get('x-branch-code'))
-          }
-
-          const rawBranchPinFromBody =
-            requestBody && typeof requestBody === 'object' && requestBody !== null
-              ? (requestBody as { branchPin?: unknown }).branchPin
-              : null
-          const bodyPin = normalizeBranchPin(rawBranchPinFromBody)
-          const branchPin = headerPin || legacyPin || bodyPin
-          if (!branchPin) return null
-          if (!isValidBranchPin(branchPin)) return null
-
-          try {
-            const result = await req.payload.find({
-              collection: 'branches',
-              where: {
-                branchPin: {
-                  equals: branchPin,
-                },
-              },
-              depth: 0,
-              limit: 1,
-              pagination: false,
-              overrideAccess: true,
-            })
-            return result.docs[0]?.id ? String(result.docs[0].id) : null
-          } catch (error) {
-            console.error('[Login Debug] Unable to resolve branch from branch PIN in afterLogin:', error)
-            return null
-          }
+          return null
         }
 
         if (user.id) {

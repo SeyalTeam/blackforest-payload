@@ -9,8 +9,18 @@ const Attendance: CollectionConfig = {
   },
   hooks: {
     beforeValidate: [
-      async ({ data, req, operation }) => {
+      async ({ data, req, operation, originalDoc }: any) => {
         if (!data) return data;
+
+        // Protect loginBranch: Immutable after creation to preserve duty assignment
+        if (operation === 'update' && originalDoc?.loginBranch) {
+          const origId = typeof originalDoc.loginBranch === 'string'
+            ? originalDoc.loginBranch
+            : (originalDoc.loginBranch as any)?.id || originalDoc.loginBranch;
+          if (origId) {
+            data.loginBranch = origId;
+          }
+        }
         
         // Auto-populate employee from user if not set
         if (!data.employee && data.user) {
@@ -709,6 +719,13 @@ const Attendance: CollectionConfig = {
           name: 'longitude',
           type: 'number',
         },
+        {
+          name: 'accuracy',
+          type: 'number',
+          admin: {
+            description: 'GPS accuracy in meters reported by device',
+          },
+        },
       ],
     },
     // Keep old fields for backward compatibility during transition (set to hidden/optional)
@@ -764,6 +781,13 @@ const Attendance: CollectionConfig = {
         {
           name: 'longitude',
           type: 'number',
+        },
+        {
+          name: 'accuracy',
+          type: 'number',
+          admin: {
+            description: 'GPS accuracy in meters reported by device',
+          },
         },
       ],
     },

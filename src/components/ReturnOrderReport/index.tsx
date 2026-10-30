@@ -1048,13 +1048,22 @@ const ReturnOrderReport: React.FC = () => {
       {previewImage && (
         <div className="image-preview-modal" onClick={() => setPreviewImage(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <Image
-              src={previewImage}
-              alt="Return Proof"
-              width={1200}
-              height={1200}
-              style={{ objectFit: 'contain', width: '100%', height: 'auto' }}
-            />
+            <a
+              href={previewImage}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Click to open original image in new tab"
+              style={{ display: 'block', cursor: 'zoom-in' }}
+            >
+              <Image
+                src={previewImage}
+                alt="Return Proof"
+                width={1200}
+                height={1200}
+                style={{ objectFit: 'contain', width: '100%', height: 'auto' }}
+                unoptimized
+              />
+            </a>
             <button className="close-btn" onClick={() => setPreviewImage(null)}>
               &times;
             </button>
