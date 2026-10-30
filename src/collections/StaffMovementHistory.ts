@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { getDistanceFromLatLonInMeters } from '../utilities/geo'
+import { getDistanceFromLatLonInMeters, isPointInsideGeofence } from '../utilities/geo'
 
 export const StaffMovementHistory: CollectionConfig = {
   slug: 'staff-movement-history',
@@ -70,25 +70,37 @@ export const StaffMovementHistory: CollectionConfig = {
 
               let branchLat = loc?.latitude
               let branchLng = loc?.longitude
+              let branchDoc: any = null
 
               if (branchLat == null || branchLng == null) {
-                const branchDoc = await req.payload.findByID({
+                branchDoc = await req.payload.findByID({
                   collection: 'branches',
                   id: branchId,
                   depth: 0,
                   overrideAccess: true,
                 })
-                branchLat = (branchDoc as any)?.latitude
-                branchLng = (branchDoc as any)?.longitude
+                branchLat = branchDoc?.latitude
+                branchLng = branchDoc?.longitude
               }
 
               if (branchLat != null && branchLng != null) {
                 const bLatNum = typeof branchLat === 'number' ? branchLat : parseFloat(branchLat)
                 const bLngNum = typeof branchLng === 'number' ? branchLng : parseFloat(branchLng)
                 if (!isNaN(bLatNum) && !isNaN(bLngNum)) {
-                  data.distanceToBranch = Math.round(
-                    getDistanceFromLatLonInMeters(data.latitude, data.longitude, bLatNum, bLngNum) * 10,
-                  ) / 10
+                  const dist = getDistanceFromLatLonInMeters(data.latitude, data.longitude, bLatNum, bLngNum)
+                  data.distanceToBranch = Math.round(dist * 10) / 10
+
+                  // Suppress indoor telemetry while staff is inside the assigned branch boundary (Option 1)
+                  if (loc) {
+                    if (isPointInsideGeofence(data.latitude, data.longitude, loc)) {
+                      throw new Error('User is inside branch boundary; indoor movement telemetry is ignored.')
+                    }
+                  } else {
+                    const fallbackRadius = branchDoc?.radius || 100
+                    if (dist <= fallbackRadius) {
+                      throw new Error('User is inside branch boundary; indoor movement telemetry is ignored.')
+                    }
+                  }
                 }
               }
             }

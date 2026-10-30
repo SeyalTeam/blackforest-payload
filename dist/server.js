@@ -27901,8 +27901,9 @@ var init_StaffMovementHistory = __esm({
                   });
                   let branchLat = loc?.latitude;
                   let branchLng = loc?.longitude;
+                  let branchDoc = null;
                   if (branchLat == null || branchLng == null) {
-                    const branchDoc = await req.payload.findByID({
+                    branchDoc = await req.payload.findByID({
                       collection: "branches",
                       id: branchId,
                       depth: 0,
@@ -27915,9 +27916,18 @@ var init_StaffMovementHistory = __esm({
                     const bLatNum = typeof branchLat === "number" ? branchLat : parseFloat(branchLat);
                     const bLngNum = typeof branchLng === "number" ? branchLng : parseFloat(branchLng);
                     if (!isNaN(bLatNum) && !isNaN(bLngNum)) {
-                      data.distanceToBranch = Math.round(
-                        getDistanceFromLatLonInMeters(data.latitude, data.longitude, bLatNum, bLngNum) * 10
-                      ) / 10;
+                      const dist = getDistanceFromLatLonInMeters(data.latitude, data.longitude, bLatNum, bLngNum);
+                      data.distanceToBranch = Math.round(dist * 10) / 10;
+                      if (loc) {
+                        if (isPointInsideGeofence(data.latitude, data.longitude, loc)) {
+                          throw new Error("User is inside branch boundary; indoor movement telemetry is ignored.");
+                        }
+                      } else {
+                        const fallbackRadius = branchDoc?.radius || 100;
+                        if (dist <= fallbackRadius) {
+                          throw new Error("User is inside branch boundary; indoor movement telemetry is ignored.");
+                        }
+                      }
                     }
                   }
                 }
