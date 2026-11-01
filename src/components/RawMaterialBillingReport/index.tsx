@@ -1,13 +1,10 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useMemo } from 'react'
-import DatePicker from 'react-datepicker'
-import 'react-datepicker/dist/react-datepicker.css'
 import Select, { components, OptionProps, ValueContainerProps } from 'react-select'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc.js'
 import timezone from 'dayjs/plugin/timezone.js'
-import { ChevronDown, ChevronUp } from 'lucide-react'
 import { GoogleDateRangePicker } from './GoogleDateRangePicker'
 import './index.scss'
 
@@ -61,6 +58,7 @@ export type CompanyGroup = {
 type ReportData = {
   startDate: string
   endDate: string
+  viewMode?: string
   groups: CompanyGroup[]
   meta: {
     grandTotal: number
@@ -71,14 +69,52 @@ type ReportData = {
 
 const CheckboxOption = (props: OptionProps<SelectOption>) => {
   return (
-    <components.Option {...props}>
-      <input
-        type="checkbox"
-        checked={props.isSelected}
-        onChange={() => null}
-        style={{ marginRight: 8 }}
-      />
-      {props.label}
+    <components.Option {...props} className="billing-report-checkbox-option">
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          width: '100%',
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={props.isSelected}
+          readOnly
+          style={{
+            appearance: 'auto',
+            WebkitAppearance: 'checkbox',
+            MozAppearance: 'checkbox',
+            width: '16px',
+            height: '16px',
+            minWidth: '16px',
+            maxWidth: '16px',
+            minHeight: '16px',
+            maxHeight: '16px',
+            margin: 0,
+            padding: 0,
+            cursor: 'pointer',
+            accentColor: '#3b82f6',
+            flexShrink: 0,
+            display: 'inline-block',
+            pointerEvents: 'none',
+          }}
+        />
+        <span
+          style={{
+            fontSize: '13px',
+            color: 'var(--theme-text-primary)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            flex: 1,
+            lineHeight: '16px',
+          }}
+        >
+          {props.label}
+        </span>
+      </div>
     </components.Option>
   )
 }
@@ -92,7 +128,21 @@ const CustomValueContainer = ({ children, ...props }: ValueContainerProps<Select
   return (
     <components.ValueContainer {...props}>
       {hasValue && count > 0 && !isTyping && (
-        <div style={{ paddingLeft: '8px', position: 'absolute', pointerEvents: 'none' }}>
+        <div
+          style={{
+            paddingLeft: '4px',
+            position: 'absolute',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            pointerEvents: 'none',
+            color: 'var(--theme-text-primary)',
+            fontSize: '0.88rem',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            maxWidth: 'calc(100% - 40px)',
+          }}
+        >
           {count === 1 ? selected[0].label : `${count} Selected`}
         </div>
       )}
@@ -109,23 +159,44 @@ const customStyles = {
     background: 'var(--theme-elevation-50)',
     borderColor: 'var(--theme-elevation-200)',
     borderRadius: '8px',
-    padding: '2px 6px',
-    minWidth: '200px',
+    padding: '0 6px',
+    minWidth: '190px',
+    minHeight: '38px',
+    height: '38px',
     boxShadow: 'none',
     '&:hover': {
       borderColor: 'var(--theme-elevation-400)',
     },
   }),
+  valueContainer: (base: any) => ({
+    ...base,
+    padding: '0 6px',
+    height: '36px',
+    display: 'flex',
+    alignItems: 'center',
+  }),
+  indicatorsContainer: (base: any) => ({
+    ...base,
+    height: '36px',
+  }),
+  container: (base: any) => ({
+    ...base,
+    minWidth: '190px',
+  }),
   menu: (base: any) => ({
     ...base,
     background: 'var(--theme-elevation-100)',
     border: '1px solid var(--theme-elevation-200)',
+    zIndex: 99999,
   }),
   option: (base: any, state: any) => ({
     ...base,
     background: state.isFocused ? 'var(--theme-elevation-150)' : 'transparent',
     color: 'var(--theme-text-primary)',
     cursor: 'pointer',
+    padding: '8px 12px',
+    display: 'flex',
+    alignItems: 'center',
     '&:active': {
       background: 'var(--theme-elevation-200)',
     },
@@ -137,10 +208,13 @@ const customStyles = {
   placeholder: (base: any) => ({
     ...base,
     color: 'var(--theme-text-secondary)',
+    fontSize: '0.88rem',
   }),
   input: (base: any) => ({
     ...base,
     color: 'var(--theme-text-primary)',
+    margin: 0,
+    padding: 0,
   }),
 }
 
@@ -151,12 +225,163 @@ const customCategoryStyles = {
     background: 'var(--theme-elevation-50)',
     borderColor: 'var(--theme-elevation-200)',
     borderRadius: '8px',
-    padding: '2px 6px',
-    minWidth: '300px',
+    padding: '0 6px',
+    minWidth: '220px',
+    minHeight: '38px',
+    height: '38px',
     boxShadow: 'none',
     '&:hover': {
       borderColor: 'var(--theme-elevation-400)',
     },
+  }),
+  container: (base: any) => ({
+    ...base,
+    minWidth: '220px',
+  }),
+}
+
+const customStatusStyles = {
+  ...customStyles,
+  control: (base: any) => ({
+    ...base,
+    background: 'var(--theme-elevation-50)',
+    borderColor: 'var(--theme-elevation-200)',
+    borderRadius: '8px',
+    padding: '0 6px',
+    minWidth: '150px',
+    minHeight: '38px',
+    height: '38px',
+    boxShadow: 'none',
+    '&:hover': {
+      borderColor: 'var(--theme-elevation-400)',
+    },
+  }),
+  container: (base: any) => ({
+    ...base,
+    minWidth: '150px',
+  }),
+}
+
+const ColumnValueContainer = ({ children, ...props }: ValueContainerProps<SelectOption, true>) => {
+  const { getValue, selectProps } = props
+  const selected = getValue()
+  const total = selectProps.options ? (selectProps.options as any[]).length : 6
+  const count = selected.length
+
+  return (
+    <components.ValueContainer {...props}>
+      <div
+        style={{
+          paddingLeft: '4px',
+          position: 'absolute',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          pointerEvents: 'none',
+          color: 'var(--theme-text-primary)',
+          fontSize: '0.84rem',
+          fontWeight: 600,
+          whiteSpace: 'nowrap',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+        }}
+      >
+        <span>Columns:</span>
+        <span style={{ color: count === total ? '#10b981' : count === 0 ? '#ef4444' : '#3b82f6', fontWeight: 700 }}>
+          {count === total ? 'All' : count === 0 ? 'None' : `${count}/${total}`}
+        </span>
+      </div>
+      {children}
+    </components.ValueContainer>
+  )
+}
+
+const ColumnMenuList = (props: any) => {
+  const { allSelected, onSelectAll, onDeselectAll } = props.selectProps
+  return (
+    <components.MenuList {...props}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '6px 12px',
+          borderBottom: '1px solid var(--theme-elevation-200)',
+          fontSize: '0.78rem',
+          color: 'var(--theme-text-secondary)',
+        }}
+      >
+        <span style={{ fontWeight: 700, textTransform: 'uppercase' }}>Visible Columns</span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            if (allSelected) {
+              onDeselectAll()
+            } else {
+              onSelectAll()
+            }
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#3b82f6',
+            cursor: 'pointer',
+            fontSize: '0.78rem',
+            fontWeight: 600,
+            padding: 0,
+            outline: 'none',
+          }}
+        >
+          {allSelected ? 'Uncheck All' : 'Select All'}
+        </button>
+      </div>
+      {props.children}
+    </components.MenuList>
+  )
+}
+
+const customColumnStyles = {
+  ...customStyles,
+  control: (base: any) => ({
+    ...base,
+    background: 'var(--theme-elevation-50)',
+    borderColor: 'var(--theme-elevation-200)',
+    borderRadius: '6px',
+    padding: '0 4px',
+    minWidth: '150px',
+    minHeight: '34px',
+    height: '34px',
+    boxShadow: 'none',
+    cursor: 'pointer',
+    '&:hover': {
+      borderColor: 'var(--theme-elevation-400)',
+    },
+  }),
+  valueContainer: (base: any) => ({
+    ...base,
+    padding: '0 4px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+  }),
+  indicatorsContainer: (base: any) => ({
+    ...base,
+    height: '32px',
+  }),
+  container: (base: any) => ({
+    ...base,
+    minWidth: '150px',
+  }),
+  menu: (base: any) => ({
+    ...base,
+    background: 'var(--theme-elevation-100)',
+    border: '1px solid var(--theme-elevation-200)',
+    zIndex: 99999,
+    minWidth: '185px',
+    borderRadius: '8px',
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
   }),
 }
 
@@ -186,6 +411,7 @@ const RawMaterialBillingReport: React.FC = () => {
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const [selectedCategories, setSelectedCategories] = useState<string[]>(['all'])
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
+  const [viewMode, setViewMode] = useState<'single' | 'combined'>('single')
   const [showScrollBottom, setShowScrollBottom] = useState(true)
   const lastScrollY = useRef(0)
 
@@ -218,6 +444,46 @@ const RawMaterialBillingReport: React.FC = () => {
   }, [])
 
   const isStoreKeeper = userRole === 'store_keeper'
+
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('raw_material_billing_visible_columns')
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          if (Array.isArray(parsed)) return parsed
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return [
+      'bankAccount',
+      'plannedPaymentDate',
+      'notes',
+      'history',
+      'billCopy',
+      'photos',
+    ]
+  })
+
+  const handleVisibleColumnsChange = (cols: string[]) => {
+    setVisibleColumns(cols)
+    try {
+      localStorage.setItem('raw_material_billing_visible_columns', JSON.stringify(cols))
+    } catch {
+      // ignore
+    }
+  }
+
+  const columnOptions: SelectOption[] = React.useMemo(() => [
+    { value: 'bankAccount', label: 'Bank Acc No' },
+    { value: 'plannedPaymentDate', label: 'Planned Pay Date' },
+    ...(!isStoreKeeper ? [{ value: 'notes', label: 'Notes' }] : []),
+    { value: 'history', label: 'History' },
+    { value: 'billCopy', label: 'Bill Copy' },
+    { value: 'photos', label: 'Photos' },
+  ], [isStoreKeeper])
 
   const [showNotesModal, setShowNotesModal] = useState(false)
   const [notesModalItem, setNotesModalItem] = useState<RawMaterialBillingReportItem | null>(null)
@@ -423,6 +689,7 @@ const RawMaterialBillingReport: React.FC = () => {
       dealerIds: string[],
       pStart?: Date | null,
       pEnd?: Date | null,
+      currentViewMode: 'single' | 'combined' = 'single',
     ) => {
       setLoading(true)
       setError('')
@@ -432,7 +699,7 @@ const RawMaterialBillingReport: React.FC = () => {
         const companyParam = companyIds.includes('all') ? 'all' : companyIds.join(',')
         const dealerParam = dealerIds.includes('all') ? 'all' : dealerIds.join(',')
 
-        let url = `/api/reports/raw-material-billing?startDate=${startStr}&endDate=${endStr}&company=${companyParam}&dealer=${dealerParam}`
+        let url = `/api/reports/raw-material-billing?startDate=${startStr}&endDate=${endStr}&company=${companyParam}&dealer=${dealerParam}&viewMode=${currentViewMode}`
 
         if (pStart && pEnd) {
           const pStartStr = toLocalDateStr(pStart)
@@ -513,9 +780,10 @@ const RawMaterialBillingReport: React.FC = () => {
         selectedDealers,
         plannedDateRange[0],
         plannedDateRange[1],
+        viewMode,
       )
     }
-  }, [startDate, endDate, selectedCompany, selectedDealers, plannedDateRange, fetchReport])
+  }, [startDate, endDate, selectedCompany, selectedDealers, plannedDateRange, viewMode, fetchReport])
 
   const allItems = useMemo(() => {
     if (!data || !data.groups) return []
@@ -573,18 +841,68 @@ const RawMaterialBillingReport: React.FC = () => {
     let pending = 0
     let cancelled = 0
 
+    const startDay = startDate ? dayjs(toLocalDateStr(startDate)).startOf('day') : null
+    const endDay = endDate ? dayjs(toLocalDateStr(endDate)).endOf('day') : null
+    const startStr = startDate ? toLocalDateStr(startDate) : ''
+    const endStr = endDate ? toLocalDateStr(endDate) : ''
+
+    const isSubmittedInDateRange = (item: any) => {
+      if (viewMode === 'single') return true
+      const dateToCheck = item.time || item.createdAt
+      if (!dateToCheck) return true
+      const d = dayjs(dateToCheck)
+      if (startDay && endDay && ((d.isAfter(startDay) || d.isSame(startDay, 'day')) && (d.isBefore(endDay) || d.isSame(endDay, 'day')))) {
+        return true
+      }
+      const formatted = d.format('YYYY-MM-DD')
+      if (startStr && endStr && formatted >= startStr && formatted <= endStr) {
+        return true
+      }
+      const rawPrefix = String(dateToCheck).slice(0, 10)
+      if (startStr && endStr && rawPrefix >= startStr && rawPrefix <= endStr) {
+        return true
+      }
+      return false
+    }
+
     allItems.forEach((item: any) => {
       if (item.status === 'cancelled') {
         cancelled += item.amount
       } else {
-        total += item.amount
-        paid += item.paidAmount || 0
-        pending += item.amount - (item.paidAmount || 0)
+        const isCurrentPeriodBill = isSubmittedInDateRange(item)
+        if (isCurrentPeriodBill) {
+          total += item.amount
+          pending += Math.max(0, item.amount - (item.paidAmount || 0))
+        }
+
+        if (viewMode === 'combined') {
+          // In combined mode, count payments made in this date range
+          if (item.payments && item.payments.length > 0) {
+            item.payments.forEach((p: any) => {
+              if (p && p.date) {
+                const pd = dayjs(p.date)
+                const inRange = startDay && endDay
+                  ? ((pd.isAfter(startDay) || pd.isSame(startDay, 'day')) && (pd.isBefore(endDay) || pd.isSame(endDay, 'day')))
+                    || (pd.format('YYYY-MM-DD') >= startStr && pd.format('YYYY-MM-DD') <= endStr)
+                    || (String(p.date).slice(0, 10) >= startStr && String(p.date).slice(0, 10) <= endStr)
+                  : true
+                if (inRange) {
+                  paid += p.amount || 0
+                }
+              }
+            })
+          } else {
+            paid += item.paidAmount || 0
+          }
+        } else {
+          // In single mode, paid is the payments recorded on this bill
+          paid += item.paidAmount || 0
+        }
       }
     })
 
     return { total, paid, pending, cancelled }
-  }, [allItems])
+  }, [allItems, viewMode, startDate, endDate])
 
   const statusCounts = useMemo(() => {
     let total = 0
@@ -614,39 +932,6 @@ const RawMaterialBillingReport: React.FC = () => {
     return allItems.slice(start, start + pageSize)
   }, [allItems, activePage, pageSize])
 
-  const CustomInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
-    ({ value, onClick }, ref) => (
-      <button ref={ref} onClick={onClick} className={`custom-date-input ${value ? 'has-value' : ''}`} type="button">
-        {value ? value.replace(' - ', ' to ') : 'Select Date Range'}
-        <span className="icon">📅</span>
-      </button>
-    ),
-  )
-  CustomInput.displayName = 'CustomInput'
-
-  const plannedDateFilter = plannedDateRange[0] !== null || plannedDateRange[1] !== null
-
-  const CustomPlannedInput = React.forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(
-    ({ value, onClick }, ref) => (
-      <button ref={ref} onClick={onClick} className={`custom-date-input planned-filter-input ${value ? 'has-value' : ''}`} type="button" style={{ borderColor: plannedDateFilter ? '#d97706' : undefined }}>
-        {value ? `Planned: ${value}` : 'All Planned Dates'}
-        <span className="icon" style={{ color: plannedDateFilter ? '#d97706' : undefined }}>📅</span>
-      </button>
-    ),
-  )
-  CustomPlannedInput.displayName = 'CustomPlannedInput'
-
-  const dateRangeOptions = [
-    { value: 'today', label: 'Today' },
-    { value: 'yesterday', label: 'Yesterday' },
-    { value: 'thisWeek', label: 'This Week' },
-    { value: 'thisMonth', label: 'This Month' },
-    { value: 'lastMonth', label: 'Last Month' },
-    { value: 'lastQuarter', label: 'Last Quarter' },
-    { value: 'tillNow', label: 'Till Now' },
-    { value: 'custom', label: 'Custom Range' },
-  ]
-
   const companyOptions = [
     { value: 'all', label: 'All Companies' },
     ...companies.map((c) => ({ value: c.id, label: c.name })),
@@ -673,176 +958,232 @@ const RawMaterialBillingReport: React.FC = () => {
     <div className="raw-material-report-container">
       <h1 className="report-page-title">RAW MATERIAL BILLING REPORT</h1>
 
+      {/* Top Filter Bar: Placed before the 4 boxes, left aligned */}
       <div className="report-header-v2">
         <div className="header-controls">
-          {/* Row 1: Date & Calendars Filters */}
-          <div className="filter-row date-filters">
-            <GoogleDateRangePicker
-              startDate={startDate}
-              endDate={endDate}
-              presetKey={dateRangePreset}
-              onApply={(newStart, newEnd, presetKey) => {
-                setDateRange([newStart, newEnd])
-                setDateRangePreset(presetKey)
-              }}
-            />
-            <GoogleDateRangePicker
-              startDate={plannedDateRange[0]}
-              endDate={plannedDateRange[1]}
-              presetKey={plannedDatePreset}
-              presetMode="future"
-              placeholder="All Planned Dates"
-              isFilterActive={Boolean(plannedDateRange[0] || plannedDateRange[1])}
-              highlightedDates={plannedDatesWithBills}
-              onApply={(newStart, newEnd, presetKey) => {
-                setPlannedDateRange([newStart, newEnd])
-                setPlannedDatePreset(presetKey)
-              }}
-              onClear={() => {
-                setPlannedDateRange([null, null])
-                setPlannedDatePreset('')
-              }}
-            />
-          </div>
+          {/* Row 1: Billing Mode & Date Pickers */}
+          <div className="filter-row top-filter-row">
+            <div className="filter-item filter-item--mode">
+              <label className="filter-label">Billing Mode</label>
+              <div className="billing-view-toggle">
+                <button
+                  type="button"
+                  className={`billing-view-toggle-btn ${viewMode === 'single' ? 'active' : ''}`}
+                  onClick={() => {
+                    setViewMode('single')
+                    setCurrentPage(1)
+                  }}
+                  title="Single: Show only bills submitted on the selected dates"
+                >
+                  Single
+                </button>
+                <button
+                  type="button"
+                  className={`billing-view-toggle-btn ${viewMode === 'combined' ? 'active' : ''}`}
+                  onClick={() => {
+                    setViewMode('combined')
+                    setCurrentPage(1)
+                  }}
+                  title="Combined: Show bills submitted and older bills with payments on the selected dates"
+                >
+                  Combined
+                </button>
+              </div>
+            </div>
 
-          {/* Row 2: Remaining Filters */}
-          <div className="filter-row remaining-filters">
-            <Select
-              options={companyOptions}
-              isMulti
-              value={companyOptions.filter((o) => selectedCompany.includes(o.value))}
-              onChange={(newValue) => {
-                const selected = newValue ? newValue.map((x) => x.value) : []
-                const wasAll = selectedCompany.includes('all')
-                const hasAll = selected.includes('all')
+            <div className="filter-item filter-item--date">
+              <label className="filter-label">Billing Date</label>
+              <GoogleDateRangePicker
+                startDate={startDate}
+                endDate={endDate}
+                presetKey={dateRangePreset}
+                onApply={(newStart, newEnd, presetKey) => {
+                  setDateRange([newStart, newEnd])
+                  setDateRangePreset(presetKey)
+                }}
+              />
+            </div>
 
-                let final = selected
-                if (hasAll && !wasAll) {
-                  final = ['all']
-                } else if (hasAll && wasAll && selected.length > 1) {
-                  final = selected.filter((x) => x !== 'all')
-                } else if (final.length === 0) {
-                  final = ['all']
-                }
-                setSelectedCompany(final)
-              }}
-              styles={customStyles}
-              classNamePrefix="react-select"
-              placeholder="Select Company..."
-              isSearchable={true}
-              closeMenuOnSelect={false}
-              hideSelectedOptions={false}
-              components={{
-                Option: CheckboxOption,
-                ValueContainer: CustomValueContainer,
-                MultiValue,
-              }}
-            />
-            <Select
-              options={dealerOptions}
-              isMulti
-              value={dealerOptions.filter((o) => selectedDealers.includes(o.value))}
-              onChange={(newValue) => {
-                const selected = newValue ? newValue.map((x) => x.value) : []
-                const wasAll = selectedDealers.includes('all')
-                const hasAll = selected.includes('all')
-
-                let final = selected
-                if (hasAll && !wasAll) {
-                  final = ['all']
-                } else if (hasAll && wasAll && selected.length > 1) {
-                  final = selected.filter((x) => x !== 'all')
-                } else if (final.length === 0) {
-                  final = ['all']
-                }
-                setSelectedDealers(final)
-              }}
-              styles={customStyles}
-              classNamePrefix="react-select"
-              placeholder="Select Dealer..."
-              isSearchable={true}
-              closeMenuOnSelect={false}
-              hideSelectedOptions={false}
-              components={{
-                Option: CheckboxOption,
-                ValueContainer: CustomValueContainer,
-                MultiValue,
-              }}
-            />
-            <Select
-              options={categoryOptions}
-              isMulti
-              value={categoryOptions.filter((o) => selectedCategories.includes(o.value))}
-              onChange={(newValue) => {
-                const selected = newValue ? newValue.map((x) => x.value) : []
-                const wasAll = selectedCategories.includes('all')
-                const hasAll = selected.includes('all')
-
-                let final = selected
-                if (hasAll && !wasAll) {
-                  final = ['all']
-                } else if (hasAll && wasAll && selected.length > 1) {
-                  final = selected.filter((x) => x !== 'all')
-                } else if (final.length === 0) {
-                  final = ['all']
-                }
-                setSelectedCategories(final)
-              }}
-              styles={customCategoryStyles}
-              classNamePrefix="react-select"
-              placeholder="Select Category..."
-              isSearchable={true}
-              closeMenuOnSelect={false}
-              hideSelectedOptions={false}
-              components={{
-                Option: CheckboxOption,
-                ValueContainer: CustomValueContainer,
-                MultiValue,
-              }}
-            />
-            <Select
-              options={statusOptions}
-              value={statusOptions.find((o) => o.value === selectedStatus)}
-              onChange={(newValue) => {
-                setSelectedStatus(newValue ? newValue.value : 'all')
-                setCurrentPage(1)
-              }}
-              styles={customStyles}
-              classNamePrefix="react-select"
-              placeholder="Select Status..."
-              isSearchable={false}
-            />
-            {(dateRangePreset !== 'today' || plannedDateRange[0] !== null || plannedDateRange[1] !== null || !selectedCompany.includes('all') || !selectedDealers.includes('all') || !selectedCategories.includes('all') || selectedStatus !== 'all') && (
-              <button
-                type="button"
-                className="clear-all-filters-btn"
-                title="Clear all filters"
-                onClick={() => {
-                  handleDatePresetChange('today')
+            <div className="filter-item filter-item--date">
+              <label className="filter-label">Planned Payment Date</label>
+              <GoogleDateRangePicker
+                startDate={plannedDateRange[0]}
+                endDate={plannedDateRange[1]}
+                presetKey={plannedDatePreset}
+                presetMode="future"
+                placeholder="All Planned Dates"
+                isFilterActive={Boolean(plannedDateRange[0] || plannedDateRange[1])}
+                highlightedDates={plannedDatesWithBills}
+                onApply={(newStart, newEnd, presetKey) => {
+                  setPlannedDateRange([newStart, newEnd])
+                  setPlannedDatePreset(presetKey)
+                }}
+                onClear={() => {
                   setPlannedDateRange([null, null])
                   setPlannedDatePreset('')
-                  setSelectedCompany(['all'])
-                  setSelectedDealers(['all'])
-                  setSelectedCategories(['all'])
-                  setSelectedStatus('all')
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Row 2: Dropdowns & Clear Button */}
+          <div className="filter-row dropdown-filters">
+            <div className="filter-item filter-item--select">
+              <label className="filter-label">Company</label>
+              <Select
+                options={companyOptions}
+                isMulti
+                value={companyOptions.filter((o) => selectedCompany.includes(o.value))}
+                onChange={(newValue) => {
+                  const selected = newValue ? newValue.map((x) => x.value) : []
+                  const wasAll = selectedCompany.includes('all')
+                  const hasAll = selected.includes('all')
+
+                  let final = selected
+                  if (hasAll && !wasAll) {
+                    final = ['all']
+                  } else if (hasAll && wasAll && selected.length > 1) {
+                    final = selected.filter((x) => x !== 'all')
+                  } else if (final.length === 0) {
+                    final = ['all']
+                  }
+                  setSelectedCompany(final)
+                }}
+                styles={customStyles}
+                classNamePrefix="react-select"
+                placeholder="Select Company..."
+                isSearchable={true}
+                closeMenuOnSelect={false}
+                hideSelectedOptions={false}
+                components={{
+                  Option: CheckboxOption,
+                  ValueContainer: CustomValueContainer,
+                  MultiValue,
+                }}
+              />
+            </div>
+
+            <div className="filter-item filter-item--select">
+              <label className="filter-label">Dealer</label>
+              <Select
+                options={dealerOptions}
+                isMulti
+                value={dealerOptions.filter((o) => selectedDealers.includes(o.value))}
+                onChange={(newValue) => {
+                  const selected = newValue ? newValue.map((x) => x.value) : []
+                  const wasAll = selectedDealers.includes('all')
+                  const hasAll = selected.includes('all')
+
+                  let final = selected
+                  if (hasAll && !wasAll) {
+                    final = ['all']
+                  } else if (hasAll && wasAll && selected.length > 1) {
+                    final = selected.filter((x) => x !== 'all')
+                  } else if (final.length === 0) {
+                    final = ['all']
+                  }
+                  setSelectedDealers(final)
+                }}
+                styles={customStyles}
+                classNamePrefix="react-select"
+                placeholder="Select Dealer..."
+                isSearchable={true}
+                closeMenuOnSelect={false}
+                hideSelectedOptions={false}
+                components={{
+                  Option: CheckboxOption,
+                  ValueContainer: CustomValueContainer,
+                  MultiValue,
+                }}
+              />
+            </div>
+
+            <div className="filter-item filter-item--category">
+              <label className="filter-label">Category</label>
+              <Select
+                options={categoryOptions}
+                isMulti
+                value={categoryOptions.filter((o) => selectedCategories.includes(o.value))}
+                onChange={(newValue) => {
+                  const selected = newValue ? newValue.map((x) => x.value) : []
+                  const wasAll = selectedCategories.includes('all')
+                  const hasAll = selected.includes('all')
+
+                  let final = selected
+                  if (hasAll && !wasAll) {
+                    final = ['all']
+                  } else if (hasAll && wasAll && selected.length > 1) {
+                    final = selected.filter((x) => x !== 'all')
+                  } else if (final.length === 0) {
+                    final = ['all']
+                  }
+                  setSelectedCategories(final)
+                }}
+                styles={customCategoryStyles}
+                classNamePrefix="react-select"
+                placeholder="Select Category..."
+                isSearchable={true}
+                closeMenuOnSelect={false}
+                hideSelectedOptions={false}
+                components={{
+                  Option: CheckboxOption,
+                  ValueContainer: CustomValueContainer,
+                  MultiValue,
+                }}
+              />
+            </div>
+
+            <div className="filter-item filter-item--status">
+              <label className="filter-label">Status</label>
+              <Select
+                options={statusOptions}
+                value={statusOptions.find((o) => o.value === selectedStatus)}
+                onChange={(newValue) => {
+                  setSelectedStatus(newValue ? newValue.value : 'all')
                   setCurrentPage(1)
                 }}
-              >
-                ✕
-              </button>
+                styles={customStatusStyles}
+                classNamePrefix="react-select"
+                placeholder="Select Status..."
+                isSearchable={false}
+              />
+            </div>
+
+            {(dateRangePreset !== 'today' || plannedDateRange[0] !== null || plannedDateRange[1] !== null || !selectedCompany.includes('all') || !selectedDealers.includes('all') || !selectedCategories.includes('all') || selectedStatus !== 'all' || viewMode !== 'single') && (
+              <div className="filter-item filter-item--clear">
+                <label className="filter-label" style={{ visibility: 'hidden' }}>&nbsp;</label>
+                <button
+                  type="button"
+                  className="clear-all-filters-btn"
+                  title="Clear all filters"
+                  onClick={() => {
+                    handleDatePresetChange('today')
+                    setPlannedDateRange([null, null])
+                    setPlannedDatePreset('')
+                    setSelectedCompany(['all'])
+                    setSelectedDealers(['all'])
+                    setSelectedCategories(['all'])
+                    setSelectedStatus('all')
+                    setViewMode('single')
+                    setCurrentPage(1)
+                  }}
+                >
+                  ✕ Clear All Filters
+                </button>
+              </div>
             )}
           </div>
         </div>
       </div>
 
       <div className="report-content">
-        {loading && <div className="loading-state">Loading...</div>}
-        {error && <div className="error-message">{error}</div>}
+        <div className="report-table-container">
+          {loading && <div className="loading-state">Loading...</div>}
+          {error && <div className="error-message">{error}</div>}
 
-        {!loading && data && (
-          <div className="report-main-layout">
-            <div className="report-table-container" style={{ width: '85%' }}>
-              {allItems.length > 0 && (
+          {!loading && data && (
+              <>
+                {allItems.length > 0 && (
                 <div className="summary-cards-grid">
                   <div className="stock-summary-card stock-summary-card--total">
                     <div className="stock-summary-title">OVERALL TOTAL</div>
@@ -890,7 +1231,6 @@ const RawMaterialBillingReport: React.FC = () => {
                 <div className="report-table-section">
                   <div className="table-header-controls">
                     <div className="limit-selector">
-                      <span>Show </span>
                       <select
                         value={pageSize}
                         onChange={(e) => {
@@ -898,6 +1238,7 @@ const RawMaterialBillingReport: React.FC = () => {
                           setCurrentPage(1)
                         }}
                         className="page-size-select"
+                        title="Rows per page"
                       >
                         <option value={10}>10</option>
                         <option value={20}>20</option>
@@ -907,7 +1248,35 @@ const RawMaterialBillingReport: React.FC = () => {
                         <option value={500}>500</option>
                         <option value={1000}>1000</option>
                       </select>
-                      <span> entries</span>
+                    </div>
+
+                    <div className="table-column-filter">
+                      <Select
+                        options={columnOptions}
+                        isMulti
+                        value={columnOptions.filter((o) => visibleColumns.includes(o.value))}
+                        onChange={(newValue) => {
+                          const selected = newValue ? (newValue as SelectOption[]).map((x) => x.value) : []
+                          handleVisibleColumnsChange(selected)
+                        }}
+                        styles={customColumnStyles}
+                        classNamePrefix="react-select"
+                        placeholder="Columns..."
+                        isSearchable={false}
+                        closeMenuOnSelect={false}
+                        hideSelectedOptions={false}
+                        {...({
+                          allSelected: visibleColumns.length === columnOptions.length,
+                          onSelectAll: () => handleVisibleColumnsChange(columnOptions.map((o) => o.value)),
+                          onDeselectAll: () => handleVisibleColumnsChange([]),
+                        } as any)}
+                        components={{
+                          Option: CheckboxOption,
+                          ValueContainer: ColumnValueContainer,
+                          MenuList: ColumnMenuList,
+                          MultiValue: () => null,
+                        }}
+                      />
                     </div>
                   </div>
 
@@ -922,13 +1291,24 @@ const RawMaterialBillingReport: React.FC = () => {
                           <th style={{ width: '5%', textAlign: 'right' }}>Paid</th>
                           <th style={{ width: '5%', textAlign: 'right' }}>Balance</th>
                           <th style={{ width: '6%', textAlign: 'center' }}>Status</th>
-                          <th style={{ width: '10%', textAlign: 'center' }}>Bank Acc No</th>
-                          <th style={{ width: '9%', textAlign: 'center' }}>Planned Pay Date</th>
-                          {!isStoreKeeper && <th style={{ width: '4%', textAlign: 'center' }}>Notes</th>}
-                          <th style={{ width: '4%', textAlign: 'center' }}>History</th>
-                          <th style={{ width: '4%', textAlign: 'center' }}>Bill Copy</th>
-                          <th style={{ width: '4%', textAlign: 'center' }}>Photos</th>
-
+                          {visibleColumns.includes('bankAccount') && (
+                            <th style={{ width: '10%', textAlign: 'center' }}>Bank Acc No</th>
+                          )}
+                          {visibleColumns.includes('plannedPaymentDate') && (
+                            <th style={{ width: '9%', textAlign: 'center' }}>Planned Pay Date</th>
+                          )}
+                          {!isStoreKeeper && visibleColumns.includes('notes') && (
+                            <th style={{ width: '4%', textAlign: 'center' }}>Notes</th>
+                          )}
+                          {visibleColumns.includes('history') && (
+                            <th style={{ width: '4%', textAlign: 'center' }}>History</th>
+                          )}
+                          {visibleColumns.includes('billCopy') && (
+                            <th style={{ width: '4%', textAlign: 'center' }}>Bill Copy</th>
+                          )}
+                          {visibleColumns.includes('photos') && (
+                            <th style={{ width: '4%', textAlign: 'center' }}>Photos</th>
+                          )}
                         </tr>
                       </thead>
                       <tbody>
@@ -998,100 +1378,104 @@ const RawMaterialBillingReport: React.FC = () => {
                                   <span className="status-cancelled-badge">Cancelled</span>
                                 )}
                               </td>
-                              <td className="bank-account-cell" style={{ textAlign: 'center' }}>
-                                {item.dealerAccountNumber ? (
-                                  (() => {
-                                    const normalize = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
-                                    const isSameAsDealer = Boolean(
-                                      item.dealerBankName &&
-                                      item.dealerName &&
-                                      (normalize(item.dealerBankName).includes(normalize(item.dealerName)) ||
-                                       normalize(item.dealerName).includes(normalize(item.dealerBankName)))
-                                    )
-                                    const bankNameToShow = isSameAsDealer ? '' : item.dealerBankName
-                                    const subtext = [bankNameToShow, item.dealerIfscCode].filter(Boolean).join(' • ')
-                                    return (
-                                      <div>
-                                        <div style={{ fontWeight: 600, fontSize: '0.9rem', fontFamily: 'monospace' }}>
-                                          {item.dealerAccountNumber}
-                                        </div>
-                                        {subtext && (
-                                          <div style={{ fontSize: '0.72rem', color: 'var(--theme-text-secondary)', marginTop: '2px' }}>
-                                            {subtext}
+                              {visibleColumns.includes('bankAccount') && (
+                                <td className="bank-account-cell" style={{ textAlign: 'center' }}>
+                                  {item.dealerAccountNumber ? (
+                                    (() => {
+                                      const normalize = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+                                      const isSameAsDealer = Boolean(
+                                        item.dealerBankName &&
+                                        item.dealerName &&
+                                        (normalize(item.dealerBankName).includes(normalize(item.dealerName)) ||
+                                         normalize(item.dealerName).includes(normalize(item.dealerBankName)))
+                                      )
+                                      const bankNameToShow = isSameAsDealer ? '' : item.dealerBankName
+                                      const subtext = [bankNameToShow, item.dealerIfscCode].filter(Boolean).join(' • ')
+                                      return (
+                                        <div>
+                                          <div style={{ fontWeight: 600, fontSize: '0.9rem', fontFamily: 'monospace' }}>
+                                            {item.dealerAccountNumber}
                                           </div>
-                                        )}
-                                      </div>
-                                    )
-                                  })()
-                                ) : item.dealerPreferredPaymentMethod ? (
-                                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', padding: '2px 6px', borderRadius: '4px', background: 'var(--theme-elevation-150)', color: 'var(--theme-text-secondary)', fontWeight: 600 }}>
-                                    {item.dealerPreferredPaymentMethod}
-                                  </span>
-                                ) : (
-                                  <span style={{ opacity: 0.4 }}>-</span>
-                                )}
-                              </td>
-                              <td className="planned-date-cell" style={{ textAlign: 'center' }}>
-                                {item.status === 'pending' ? (
-                                  (() => {
-                                    const currentValue = tempPlannedDates[item.id] !== undefined
-                                      ? tempPlannedDates[item.id]
-                                      : (item.plannedPaymentDate ? dayjs(item.plannedPaymentDate).format('YYYY-MM-DD') : '')
-                                    const isModified = tempPlannedDates[item.id] !== undefined && tempPlannedDates[item.id] !== (item.plannedPaymentDate ? dayjs(item.plannedPaymentDate).format('YYYY-MM-DD') : '')
-                                    
-                                    return (
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
-                                        <input
-                                          type="date"
-                                          className={`planned-date-picker ${currentValue ? 'has-date' : ''}`}
-                                          value={currentValue}
-                                          onChange={(e) => {
-                                            setTempPlannedDates({
-                                              ...tempPlannedDates,
-                                              [item.id]: e.target.value,
-                                            })
-                                          }}
-                                        />
-                                        {isModified && (
-                                          <button
-                                            type="button"
-                                            className="planned-date-save-btn"
-                                            onClick={async () => {
-                                              await handlePlannedDateUpdate(item.id, currentValue)
-                                              const updated = { ...tempPlannedDates }
-                                              delete updated[item.id]
-                                              setTempPlannedDates(updated)
-                                            }}
-                                            title="Save planned payment date"
-                                            style={{
-                                              background: '#10b981',
-                                              color: '#fff',
-                                              border: 'none',
-                                              borderRadius: '4px',
-                                              padding: '4px 8px',
-                                              cursor: 'pointer',
-                                              fontSize: '0.85rem',
-                                              fontWeight: 'bold',
-                                              display: 'flex',
-                                              alignItems: 'center',
-                                              justifyContent: 'center',
-                                            }}
-                                          >
-                                            ✓
-                                          </button>
-                                        )}
-                                      </div>
-                                    )
-                                  })()
-                                ) : (
-                                  item.plannedPaymentDate ? (
-                                    <span className="planned-date-badge">
-                                      📅 {dayjs(item.plannedPaymentDate).format('DD-MM-YYYY')}
+                                          {subtext && (
+                                            <div style={{ fontSize: '0.72rem', color: 'var(--theme-text-secondary)', marginTop: '2px' }}>
+                                              {subtext}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )
+                                    })()
+                                  ) : item.dealerPreferredPaymentMethod ? (
+                                    <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', padding: '2px 6px', borderRadius: '4px', background: 'var(--theme-elevation-150)', color: 'var(--theme-text-secondary)', fontWeight: 600 }}>
+                                      {item.dealerPreferredPaymentMethod}
                                     </span>
-                                  ) : '-'
-                                )}
-                              </td>
-                              {!isStoreKeeper && (
+                                  ) : (
+                                    <span style={{ opacity: 0.4 }}>-</span>
+                                  )}
+                                </td>
+                              )}
+                              {visibleColumns.includes('plannedPaymentDate') && (
+                                <td className="planned-date-cell" style={{ textAlign: 'center' }}>
+                                  {item.status === 'pending' ? (
+                                    (() => {
+                                      const currentValue = tempPlannedDates[item.id] !== undefined
+                                        ? tempPlannedDates[item.id]
+                                        : (item.plannedPaymentDate ? dayjs(item.plannedPaymentDate).format('YYYY-MM-DD') : '')
+                                      const isModified = tempPlannedDates[item.id] !== undefined && tempPlannedDates[item.id] !== (item.plannedPaymentDate ? dayjs(item.plannedPaymentDate).format('YYYY-MM-DD') : '')
+                                      
+                                      return (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
+                                          <input
+                                            type="date"
+                                            className={`planned-date-picker ${currentValue ? 'has-date' : ''}`}
+                                            value={currentValue}
+                                            onChange={(e) => {
+                                              setTempPlannedDates({
+                                                ...tempPlannedDates,
+                                                [item.id]: e.target.value,
+                                              })
+                                            }}
+                                          />
+                                          {isModified && (
+                                            <button
+                                              type="button"
+                                              className="planned-date-save-btn"
+                                              onClick={async () => {
+                                                await handlePlannedDateUpdate(item.id, currentValue)
+                                                const updated = { ...tempPlannedDates }
+                                                delete updated[item.id]
+                                                setTempPlannedDates(updated)
+                                              }}
+                                              title="Save planned payment date"
+                                              style={{
+                                                background: '#10b981',
+                                                color: '#fff',
+                                                border: 'none',
+                                                borderRadius: '4px',
+                                                padding: '4px 8px',
+                                                cursor: 'pointer',
+                                                fontSize: '0.85rem',
+                                                fontWeight: 'bold',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                              }}
+                                            >
+                                              ✓
+                                            </button>
+                                          )}
+                                        </div>
+                                      )
+                                    })()
+                                  ) : (
+                                    item.plannedPaymentDate ? (
+                                      <span className="planned-date-badge">
+                                        📅 {dayjs(item.plannedPaymentDate).format('DD-MM-YYYY')}
+                                      </span>
+                                    ) : '-'
+                                  )}
+                                </td>
+                              )}
+                              {!isStoreKeeper && visibleColumns.includes('notes') && (
                                 <td className="notes-cell" style={{ textAlign: 'center' }}>
                                   <button
                                     type="button"
@@ -1134,74 +1518,80 @@ const RawMaterialBillingReport: React.FC = () => {
                                   </button>
                                 </td>
                               )}
-                              <td className="history-cell" style={{ textAlign: 'center' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                                  {item.status === 'pending' && (
-                                    <button
-                                      className="payment-edit-btn"
-                                      type="button"
-                                      onClick={() => {
-                                        setPaymentModalItem(item)
-                                        setPaymentAmountInput('')
-                                        setShowPaymentModal(true)
-                                      }}
-                                      title="Record partial payment"
-                                    >
-                                      📝
-                                    </button>
-                                  )}
-                                  {item.payments && item.payments.length > 0 ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => setHistoryModalItem(item)}
-                                      title="View Payment History"
-                                      className="history-view-btn"
-                                    >
-                                      ⏱️
-                                    </button>
-                                  ) : (
-                                    item.status !== 'pending' && '-'
-                                  )}
-                                </div>
-                              </td>
-                              <td className="image-cell" style={{ textAlign: 'center' }}>
-                                <button
-                                  className={`image-view-btn ${item.billCopyUrl ? 'active' : 'inactive'}`}
-                                  disabled={!item.billCopyUrl}
-                                  onClick={() => item.billCopyUrl && setPreviewImage(item.billCopyUrl)}
-                                  title={item.billCopyUrl ? 'View Bill Photo' : 'No Photo'}
-                                >
-                                  📄
-                                </button>
-                              </td>
-                              <td className="image-cell" style={{ textAlign: 'center' }}>
-                                <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                                  {item.productsPhotoUrls && item.productsPhotoUrls.length > 0 ? (
-                                    <button
-                                      className="image-view-btn active"
-                                      onClick={() => {
-                                        if (item.productsPhotoUrls?.[0]) setPreviewImage(item.productsPhotoUrls[0])
-                                      }}
-                                      title={`View Products Photo (${item.productsPhotoUrls.length})`}
-                                    >
-                                      📦
-                                    </button>
-                                  ) : (
-                                    <span style={{ opacity: 0.3 }}>-</span>
-                                  )}
-                                  {item.deliveryPersonPhotoUrl ? (
-                                    <button
-                                      className="image-view-btn active"
-                                      onClick={() => item.deliveryPersonPhotoUrl && setPreviewImage(item.deliveryPersonPhotoUrl)}
-                                      title="View Delivery Person Photo"
-                                    >
-                                      👤
-                                    </button>
-                                  ) : (
-                                    <span style={{ opacity: 0.3 }}>-</span>
-                                  )}
-                                </div>
-                              </td>
+                              {visibleColumns.includes('history') && (
+                                <td className="history-cell" style={{ textAlign: 'center' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                    {item.status === 'pending' && (
+                                      <button
+                                        className="payment-edit-btn"
+                                        type="button"
+                                        onClick={() => {
+                                          setPaymentModalItem(item)
+                                          setPaymentAmountInput('')
+                                          setShowPaymentModal(true)
+                                        }}
+                                        title="Record partial payment"
+                                      >
+                                        📝
+                                      </button>
+                                    )}
+                                    {item.payments && item.payments.length > 0 ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => setHistoryModalItem(item)}
+                                        title="View Payment History"
+                                        className="history-view-btn"
+                                      >
+                                        ⏱️
+                                      </button>
+                                    ) : (
+                                      item.status !== 'pending' && '-'
+                                    )}
+                                  </div>
+                                </td>
+                              )}
+                              {visibleColumns.includes('billCopy') && (
+                                <td className="image-cell" style={{ textAlign: 'center' }}>
+                                  <button
+                                    className={`image-view-btn ${item.billCopyUrl ? 'active' : 'inactive'}`}
+                                    disabled={!item.billCopyUrl}
+                                    onClick={() => item.billCopyUrl && setPreviewImage(item.billCopyUrl)}
+                                    title={item.billCopyUrl ? 'View Bill Photo' : 'No Photo'}
+                                  >
+                                    📄
+                                  </button>
+                                </td>
+                              )}
+                              {visibleColumns.includes('photos') && (
+                                <td className="image-cell" style={{ textAlign: 'center' }}>
+                                  <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                    {item.productsPhotoUrls && item.productsPhotoUrls.length > 0 ? (
+                                      <button
+                                        className="image-view-btn active"
+                                        onClick={() => {
+                                          if (item.productsPhotoUrls?.[0]) setPreviewImage(item.productsPhotoUrls[0])
+                                        }}
+                                        title={`View Products Photo (${item.productsPhotoUrls.length})`}
+                                      >
+                                        📦
+                                      </button>
+                                    ) : (
+                                      <span style={{ opacity: 0.3 }}>-</span>
+                                    )}
+                                    {item.deliveryPersonPhotoUrl ? (
+                                      <button
+                                        className="image-view-btn active"
+                                        onClick={() => item.deliveryPersonPhotoUrl && setPreviewImage(item.deliveryPersonPhotoUrl)}
+                                        title="View Delivery Person Photo"
+                                      >
+                                        👤
+                                      </button>
+                                    ) : (
+                                      <span style={{ opacity: 0.3 }}>-</span>
+                                    )}
+                                  </div>
+                                </td>
+                              )}
 
                             </tr>
                           )
@@ -1255,9 +1645,9 @@ const RawMaterialBillingReport: React.FC = () => {
               ) : (
                 <div className="no-data">No raw material billing entries found for selected filters.</div>
               )}
-            </div>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
 
       {previewImage && (

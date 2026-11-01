@@ -24,6 +24,7 @@ export type RawMaterialBillingReportItem = {
   productsPhotoUrls?: string[]
   deliveryPersonPhotoUrl?: string
   time: string
+  createdAt?: string
   updatedAt?: string
   status: string
   plannedPaymentDate?: string
@@ -58,6 +59,7 @@ export type RawMaterialBillingReportResult = {
   groups: CompanyGroup[]
   meta: RawMaterialBillingReportMeta
   startDate: string
+  viewMode?: string
 }
 
 type RawMaterialBillingReportArgs = {
@@ -68,6 +70,7 @@ type RawMaterialBillingReportArgs = {
   plannedEndDate?: null | string
   dealer?: null | string
   category?: null | string
+  viewMode?: null | string
 }
 
 type RawItem = {
@@ -189,8 +192,14 @@ export const getRawMaterialBillingReportData = async (
   const dealerParam = typeof args.dealer === 'string' ? args.dealer : ''
   const categoryParam = typeof args.category === 'string' ? args.category : ''
 
-  const startOfDay = dayjs.utc(startDateParam).startOf('day').toDate()
-  const endOfDay = dayjs.utc(endDateParam).endOf('day').toDate()
+  const tzStart = dayjs.tz(startDateParam, 'YYYY-MM-DD', 'Asia/Kolkata').startOf('day').toDate()
+  const utcStart = dayjs.utc(startDateParam).startOf('day').toDate()
+  const tzEnd = dayjs.tz(endDateParam, 'YYYY-MM-DD', 'Asia/Kolkata').endOf('day').toDate()
+  const utcEnd = dayjs.utc(endDateParam).endOf('day').toDate()
+
+  // Use the earliest start and latest end between IST and UTC to capture all entries regardless of timezone encoding
+  const startOfDay = tzStart < utcStart ? tzStart : utcStart
+  const endOfDay = tzEnd > utcEnd ? tzEnd : utcEnd
 
   const { companyIds } = await resolveReportCompanyScope(req, companyParam)
 
@@ -212,12 +221,19 @@ export const getRawMaterialBillingReportData = async (
 
   const plannedStartDateParam = typeof args.plannedStartDate === 'string' ? args.plannedStartDate : ''
   const plannedEndDateParam = typeof args.plannedEndDate === 'string' ? args.plannedEndDate : ''
+  const viewModeParam = (args.viewMode || 'single').toLowerCase()
 
   const matchQuery: Record<string, any> = {}
 
   if (plannedStartDateParam && plannedEndDateParam) {
-    const startPlanned = dayjs.utc(plannedStartDateParam).startOf('day').toDate()
-    const endPlanned = dayjs.utc(plannedEndDateParam).endOf('day').toDate()
+    const plannedTzStart = dayjs.tz(plannedStartDateParam, 'YYYY-MM-DD', 'Asia/Kolkata').startOf('day').toDate()
+    const plannedUtcStart = dayjs.utc(plannedStartDateParam).startOf('day').toDate()
+    const plannedTzEnd = dayjs.tz(plannedEndDateParam, 'YYYY-MM-DD', 'Asia/Kolkata').endOf('day').toDate()
+    const plannedUtcEnd = dayjs.utc(plannedEndDateParam).endOf('day').toDate()
+
+    const startPlanned = plannedTzStart < plannedUtcStart ? plannedTzStart : plannedUtcStart
+    const endPlanned = plannedTzEnd > plannedUtcEnd ? plannedTzEnd : plannedUtcEnd
+
     matchQuery.plannedPaymentDate = {
       $gte: startPlanned,
       $lte: endPlanned,
@@ -226,32 +242,83 @@ export const getRawMaterialBillingReportData = async (
     const startStr = startOfDay.toISOString()
     const endStr = endOfDay.toISOString()
 
-    matchQuery.$or = [
+    // Bill creation / submission criteria: matches bills created/uploaded on this date
+    const billCreationConditions: any[] = [
       {
         date: {
           $gte: startOfDay,
           $lte: endOfDay,
-        }
+        },
       },
       {
         date: {
           $gte: startStr,
           $lte: endStr,
-        }
+        },
       },
       {
-        'payments.date': {
+        date: {
+          $gte: startDateParam,
+          $lte: `${endDateParam}T23:59:59.999Z`,
+        },
+      },
+      {
+        createdAt: {
           $gte: startOfDay,
           $lte: endOfDay,
-        }
+        },
       },
       {
-        'payments.date': {
+        createdAt: {
           $gte: startStr,
           $lte: endStr,
-        }
-      }
+        },
+      },
+      {
+        createdAt: {
+          $gte: startDateParam,
+          $lte: `${endDateParam}T23:59:59.999Z`,
+        },
+      },
     ]
+
+    if (startDateParam === endDateParam) {
+      billCreationConditions.push({ date: { $regex: `^${startDateParam}` } })
+      billCreationConditions.push({ createdAt: { $regex: `^${startDateParam}` } })
+    }
+
+    // Payment criteria: matches bills with payments made in this date range
+    const paymentConditions: any[] = [
+      {
+        'payments.date': {
+          $gte: startOfDay,
+          $lte: endOfDay,
+        },
+      },
+      {
+        'payments.date': {
+          $gte: startStr,
+          $lte: endStr,
+        },
+      },
+      {
+        'payments.date': {
+          $gte: startDateParam,
+          $lte: `${endDateParam}T23:59:59.999Z`,
+        },
+      },
+    ]
+
+    if (startDateParam === endDateParam) {
+      paymentConditions.push({ 'payments.date': { $regex: `^${startDateParam}` } })
+    }
+
+    if (viewModeParam === 'combined') {
+      matchQuery.$or = [...billCreationConditions, ...paymentConditions]
+    } else {
+      // 'single' mode (default): only bills submitted/created in this date range
+      matchQuery.$or = billCreationConditions
+    }
   }
 
   const exprAnd: any[] = []
@@ -397,6 +464,8 @@ export const getRawMaterialBillingReportData = async (
         paidAmount: { $first: '$paidAmount' },
         payments: { $first: '$payments' },
         date: { $first: '$date' },
+        createdAt: { $first: '$createdAt' },
+        updatedAt: { $first: '$updatedAt' },
         billCopyInfo: { $first: '$billCopyInfo' },
         productsPhotoInfo: { $first: '$productsPhotoInfo' },
         deliveryPersonInfo: { $first: '$deliveryPersonInfo' },
@@ -447,7 +516,8 @@ export const getRawMaterialBillingReportData = async (
             amount: '$total',
             paidAmount: { $ifNull: ['$paidAmount', 0] },
             payments: { $ifNull: ['$payments', []] },
-            time: '$date',
+            time: { $ifNull: ['$date', '$createdAt'] },
+            createdAt: '$createdAt',
             updatedAt: '$updatedAt',
             billCopyUrl: '$billCopyInfo.url',
             billCopyFilename: '$billCopyInfo.filename',
@@ -552,7 +622,8 @@ export const getRawMaterialBillingReportData = async (
           amount: toNumber(item.amount),
           paidAmount: toNumber(item.paidAmount),
           payments,
-          time: toDateString(item.time),
+          time: toDateString(item.time || (item as any).createdAt),
+          createdAt: (item as any).createdAt ? toDateString((item as any).createdAt) : undefined,
           updatedAt: item.updatedAt ? toDateString(item.updatedAt) : undefined,
           billCopyUrl: billCopyUrl || (billCopyFilename ? `/api/media/file/${billCopyFilename}` : undefined),
           productsPhotoUrls,
@@ -593,6 +664,7 @@ export const getRawMaterialBillingReportData = async (
   return {
     startDate: startDateParam,
     endDate: endDateParam,
+    viewMode: viewModeParam,
     groups,
     meta: {
       grandTotal,

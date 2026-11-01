@@ -152,12 +152,24 @@ export const GoogleDateRangePicker: React.FC<GoogleDateRangePickerProps> = ({
 
   const popoverRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const [alignRight, setAlignRight] = useState(false)
 
   useEffect(() => {
     if (startDate) setTempStart(startDate)
     if (endDate) setTempEnd(endDate)
     if (presetKey) setSelectedPreset(presetKey)
   }, [startDate, endDate, presetKey])
+
+  useEffect(() => {
+    if (isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      if (rect.left + 640 > window.innerWidth - 16) {
+        setAlignRight(true)
+      } else {
+        setAlignRight(false)
+      }
+    }
+  }, [isOpen])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -241,7 +253,49 @@ export const GoogleDateRangePicker: React.FC<GoogleDateRangePickerProps> = ({
 
     return (
       <div className="calendar-month-block" key={m.format('YYYY-MM')}>
-        <div className="calendar-month-title">{m.format('MMM YYYY').toUpperCase()}</div>
+        <div className="calendar-month-header">
+          <span className="calendar-month-title">{m.format('MMMM YYYY').toUpperCase()}</span>
+          <div className="month-nav-group">
+            <button
+              type="button"
+              className="month-nav-btn"
+              onClick={() => setViewMonth(viewMonth.subtract(1, 'month'))}
+              title="Previous month"
+              style={{
+                width: '28px',
+                height: '28px',
+                minWidth: '28px',
+                maxWidth: '28px',
+                minHeight: '28px',
+                maxHeight: '28px',
+                padding: 0,
+                margin: 0,
+                boxSizing: 'border-box',
+              }}
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              className="month-nav-btn"
+              onClick={() => setViewMonth(viewMonth.add(1, 'month'))}
+              title="Next month"
+              style={{
+                width: '28px',
+                height: '28px',
+                minWidth: '28px',
+                maxWidth: '28px',
+                minHeight: '28px',
+                maxHeight: '28px',
+                padding: 0,
+                margin: 0,
+                boxSizing: 'border-box',
+              }}
+            >
+              ›
+            </button>
+          </div>
+        </div>
         <div className="calendar-weekdays-row">
           <span>M</span>
           <span>T</span>
@@ -296,6 +350,17 @@ export const GoogleDateRangePicker: React.FC<GoogleDateRangePickerProps> = ({
                   }`}
                   onClick={() => handleDayClick(dayDate)}
                   title={hasPlannedBill ? `Payment scheduled on ${dayObj.format('DD MMM YYYY')}` : undefined}
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    minWidth: '32px',
+                    maxWidth: '32px',
+                    minHeight: '32px',
+                    maxHeight: '32px',
+                    padding: 0,
+                    margin: '0 auto',
+                    boxSizing: 'border-box',
+                  }}
                 >
                   {dayObj.date()}
                 </button>
@@ -327,7 +392,7 @@ export const GoogleDateRangePicker: React.FC<GoogleDateRangePickerProps> = ({
 
   return (
     <div className="google-daterange-picker-wrapper">
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <div className="google-daterange-trigger-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}>
         <button
           ref={triggerRef}
           type="button"
@@ -354,7 +419,7 @@ export const GoogleDateRangePicker: React.FC<GoogleDateRangePickerProps> = ({
       </div>
 
       {isOpen && (
-        <div className="google-daterange-popover" ref={popoverRef}>
+        <div className={`google-daterange-popover ${alignRight ? 'align-right' : ''}`} ref={popoverRef}>
           <div className="popover-body">
             {/* Sidebar Presets */}
             <div className="popover-sidebar">
@@ -374,7 +439,11 @@ export const GoogleDateRangePicker: React.FC<GoogleDateRangePickerProps> = ({
             <div className="popover-main">
               {/* Top Date Inputs */}
               <div className="top-inputs-row">
-                <div className="input-group-outlined focused">
+                <div
+                  className={`input-group-outlined ${selectingStep === 'start' ? 'focused' : ''}`}
+                  onClick={() => setSelectingStep('start')}
+                  style={{ cursor: 'pointer' }}
+                >
                   <span className="floating-label">Start date</span>
                   <input
                     type="text"
@@ -384,7 +453,11 @@ export const GoogleDateRangePicker: React.FC<GoogleDateRangePickerProps> = ({
                   />
                 </div>
                 <span className="inputs-dash">–</span>
-                <div className="input-group-outlined">
+                <div
+                  className={`input-group-outlined ${selectingStep === 'end' ? 'focused' : ''}`}
+                  onClick={() => setSelectingStep('end')}
+                  style={{ cursor: 'pointer' }}
+                >
                   <span className="floating-label">End date</span>
                   <input
                     type="text"
@@ -395,26 +468,7 @@ export const GoogleDateRangePicker: React.FC<GoogleDateRangePickerProps> = ({
                 </div>
               </div>
 
-              {/* Month Navigation & Calendars */}
-              <div className="month-nav-header">
-                <button
-                  type="button"
-                  className="month-nav-btn"
-                  onClick={() => setViewMonth(viewMonth.subtract(1, 'month'))}
-                  title="Previous month"
-                >
-                  ‹
-                </button>
-                <button
-                  type="button"
-                  className="month-nav-btn"
-                  onClick={() => setViewMonth(viewMonth.add(1, 'month'))}
-                  title="Next month"
-                >
-                  ›
-                </button>
-              </div>
-
+              {/* Calendars Container */}
               <div className="calendars-scroll-container">
                 {renderMonthCalendar(month1)}
               </div>

@@ -270,6 +270,7 @@ export default function ReportGraphPage() {
   const [rawMaterialData, setRawMaterialData] = useState<any[]>([])
   const [selectedBill, setSelectedBill] = useState<any>(null)
   const [rawMaterialLoading, setRawMaterialLoading] = useState(false)
+  const [rawMaterialViewMode, setRawMaterialViewMode] = useState<'single' | 'combined'>('single')
 
   useEffect(() => {
     if (activeMenu === 'raw-material' && rawMaterialData.length > 0) {
@@ -277,12 +278,12 @@ export default function ReportGraphPage() {
       setVisibleLines(prev => ({ ...prev, cancelled: hasCancelled }))
     }
   }, [rawMaterialData, activeMenu])
-  const fetchRawMaterialData = useCallback(async (start: Date, end: Date) => {
+  const fetchRawMaterialData = useCallback(async (start: Date, end: Date, mode: 'single' | 'combined' = rawMaterialViewMode) => {
     setRawMaterialLoading(true)
     try {
       const startStr = [start.getFullYear(), String(start.getMonth() + 1).padStart(2, '0'), String(start.getDate()).padStart(2, '0')].join('-')
       const endStr = [end.getFullYear(), String(end.getMonth() + 1).padStart(2, '0'), String(end.getDate()).padStart(2, '0')].join('-')
-      const res = await fetch(`/api/reports/raw-material-billing?startDate=${startStr}&endDate=${endStr}&company=${selectedCompany}&dealer=${selectedDealer}&category=${selectedCategory}`)
+      const res = await fetch(`/api/reports/raw-material-billing?startDate=${startStr}&endDate=${endStr}&company=${selectedCompany}&dealer=${selectedDealer}&category=${selectedCategory}&viewMode=${mode}`)
       if (!res.ok) throw new Error('Failed to fetch raw material')
       const reportData = await res.json()
       
@@ -298,17 +299,29 @@ export default function ReportGraphPage() {
         const isValidDate = (dateStr: string) => {
           if (!dateStr) return false;
           const d = dayjs(dateStr);
-          return (d.isAfter(startDay) || d.isSame(startDay, 'day')) && (d.isBefore(endDay) || d.isSame(endDay, 'day'));
+          if ((d.isAfter(startDay) || d.isSame(startDay, 'day')) && (d.isBefore(endDay) || d.isSame(endDay, 'day'))) {
+            return true;
+          }
+          const formatted = d.format('YYYY-MM-DD');
+          if (formatted >= startStr && formatted <= endStr) {
+            return true;
+          }
+          const rawPrefix = String(dateStr).slice(0, 10);
+          if (rawPrefix >= startStr && rawPrefix <= endStr) {
+            return true;
+          }
+          return false;
         }
 
         const creationAmt = item.amount || 0;
         const paymentFallbackAmt = item.paidAmount || item.amount || 0;
+        const creationDate = item.time || item.createdAt || item.date;
 
         if (status === 'all' || status === 'pending' || status === 'cancelled' || status === 'paid') {
           // ALWAYS bucket by creation time if it falls in the date range, so 'Total Bill' is correct
-          if (item.time && isValidDate(item.time)) {
-            const bin = isSingleDay ? dayjs(item.time).hour().toString() : dayjs(item.time).format('YYYY-MM-DD')
-            results.push({ bin, matchedDate: item.time, matchedReason: 'creation', matchedAmount: creationAmt })
+          if (creationDate && isValidDate(creationDate)) {
+            const bin = isSingleDay ? dayjs(creationDate).hour().toString() : dayjs(creationDate).format('YYYY-MM-DD')
+            results.push({ bin, matchedDate: creationDate, matchedReason: 'creation', matchedAmount: creationAmt })
           }
         }
         
@@ -316,14 +329,14 @@ export default function ReportGraphPage() {
           // Bucket by payment times
           if (item.payments && item.payments.length > 0) {
             item.payments.forEach((p: any) => {
-              const paymentDateToUse = p.date || item.updatedAt || item.time;
+              const paymentDateToUse = p.date || item.updatedAt || creationDate;
               if (paymentDateToUse && isValidDate(paymentDateToUse)) {
                 const bin = isSingleDay ? dayjs(paymentDateToUse).hour().toString() : dayjs(paymentDateToUse).format('YYYY-MM-DD')
                 results.push({ bin, matchedDate: paymentDateToUse, matchedReason: 'payment', matchedAmount: (typeof p.amount === 'number' && p.amount > 0) ? p.amount : paymentFallbackAmt })
               }
             })
           } else {
-            const fallbackDate = item.updatedAt || item.time;
+            const fallbackDate = item.updatedAt || creationDate;
             if (item.status === 'paid' && fallbackDate && isValidDate(fallbackDate)) {
               // Fallback if marked paid but has no payments array
               const bin = isSingleDay ? dayjs(fallbackDate).hour().toString() : dayjs(fallbackDate).format('YYYY-MM-DD')
@@ -347,6 +360,25 @@ export default function ReportGraphPage() {
               group.items.forEach((item: any) => {
                 if (selectedStatus !== 'all' && item.status !== selectedStatus) return;
                 const activeHours = getActiveDates(item, selectedStatus, true)
+                if (activeHours.length === 0) {
+                  const fallbackDate = item.time || item.createdAt || item.date || ''
+                  const parsedHour = fallbackDate ? dayjs(fallbackDate).hour() : 12
+                  const safeHour = isNaN(parsedHour) ? '12' : parsedHour.toString()
+                  activeHours.push({
+                    bin: safeHour,
+                    matchedDate: fallbackDate,
+                    matchedReason: 'creation',
+                    matchedAmount: item.amount || 0,
+                  })
+                  if (item.status === 'paid' || (typeof item.paidAmount === 'number' && item.paidAmount > 0)) {
+                    activeHours.push({
+                      bin: safeHour,
+                      matchedDate: fallbackDate,
+                      matchedReason: 'payment',
+                      matchedAmount: item.paidAmount || item.amount || 0,
+                    })
+                  }
+                }
                 activeHours.forEach(({ bin: hourStrVal, matchedDate, matchedReason, matchedAmount }) => {
                   const h = parseInt(hourStrVal, 10)
                   if (isNaN(h)) return
@@ -366,7 +398,9 @@ export default function ReportGraphPage() {
             const hourStr = `${h.toString().padStart(2, '0')}:00`
             const items = hourlyItems[hourStr] || []
             const total = items.filter(i => i.matchedReason === 'creation').reduce((acc, item) => acc + item.matchedAmount, 0)
-            const pendingTotal = items.filter(i => i.matchedReason === 'creation' && i.status === 'pending').reduce((acc, item) => acc + item.matchedAmount, 0)
+            const pendingTotal = items
+              .filter(i => i.matchedReason === 'creation' && i.status !== 'cancelled' && i.status !== 'paid')
+              .reduce((acc, item) => acc + Math.max(0, (item.amount || 0) - (item.paidAmount || 0)), 0)
             const cancelledTotal = items.filter(i => i.matchedReason === 'creation' && i.status === 'cancelled').reduce((acc, item) => acc + item.matchedAmount, 0)
             const paidTotal = items.filter(i => i.matchedReason === 'payment').reduce((acc, item) => acc + item.matchedAmount, 0)
             
@@ -396,7 +430,24 @@ export default function ReportGraphPage() {
               group.items.forEach((item: any) => {
                 if (selectedStatus !== 'all' && item.status !== selectedStatus) return;
                 const activeDates = getActiveDates(item, selectedStatus, false)
-                if (activeDates.length === 0) activeDates.push({ bin: 'Unknown', matchedDate: item.time || '', matchedReason: 'creation', matchedAmount: item.amount || 0 })
+                if (activeDates.length === 0) {
+                  const fallbackDate = item.time || item.createdAt || item.date || startStr
+                  const formattedDate = dayjs(fallbackDate).format('YYYY-MM-DD')
+                  activeDates.push({
+                    bin: formattedDate && formattedDate !== 'Invalid Date' ? formattedDate : startStr,
+                    matchedDate: fallbackDate,
+                    matchedReason: 'creation',
+                    matchedAmount: item.amount || 0,
+                  })
+                  if (item.status === 'paid' || (typeof item.paidAmount === 'number' && item.paidAmount > 0)) {
+                    activeDates.push({
+                      bin: formattedDate && formattedDate !== 'Invalid Date' ? formattedDate : startStr,
+                      matchedDate: fallbackDate,
+                      matchedReason: 'payment',
+                      matchedAmount: item.paidAmount || item.amount || 0,
+                    })
+                  }
+                }
                 
                 activeDates.forEach(({ bin: key, matchedDate, matchedReason, matchedAmount }) => {
                   if (!dailyItems[key]) dailyItems[key] = []
@@ -417,7 +468,9 @@ export default function ReportGraphPage() {
         data = sortedKeys.map(key => {
           const items = dailyItems[key] || [];
           const total = items.filter(i => i.matchedReason === 'creation').reduce((acc, item) => acc + item.matchedAmount, 0)
-          const pendingTotal = items.filter(i => i.matchedReason === 'creation' && i.status === 'pending').reduce((acc, item) => acc + item.matchedAmount, 0)
+          const pendingTotal = items
+            .filter(i => i.matchedReason === 'creation' && i.status !== 'cancelled' && i.status !== 'paid')
+            .reduce((acc, item) => acc + Math.max(0, (item.amount || 0) - (item.paidAmount || 0)), 0)
           const cancelledTotal = items.filter(i => i.matchedReason === 'creation' && i.status === 'cancelled').reduce((acc, item) => acc + item.matchedAmount, 0)
           const paidTotal = items.filter(i => i.matchedReason === 'payment').reduce((acc, item) => acc + item.matchedAmount, 0)
 
@@ -467,13 +520,13 @@ export default function ReportGraphPage() {
     } finally {
       setRawMaterialLoading(false)
     }
-  }, [selectedStatus, selectedDealer, selectedCompany, selectedCategory])
+  }, [selectedStatus, selectedDealer, selectedCompany, selectedCategory, rawMaterialViewMode])
 
   useEffect(() => {
     if (activeMenu === 'raw-material' && startDate && endDate) {
-      fetchRawMaterialData(startDate, endDate)
+      fetchRawMaterialData(startDate, endDate, rawMaterialViewMode)
     }
-  }, [activeMenu, startDate, endDate, fetchRawMaterialData])
+  }, [activeMenu, startDate, endDate, rawMaterialViewMode, fetchRawMaterialData])
 
   useEffect(() => {
     if (activeMenu === 'branch-billing' && startDate && endDate) {
@@ -1186,6 +1239,57 @@ export default function ReportGraphPage() {
                 </>
               )}
             </div>
+
+            {activeMenu === 'raw-material' && (
+              <div style={{
+                display: 'flex',
+                backgroundColor: '#f3f4f6',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                padding: '3px',
+                gap: '2px',
+                alignItems: 'center'
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setRawMaterialViewMode('single')}
+                  title="Single: Show only bills submitted on selected dates"
+                  style={{
+                    padding: '6px 14px',
+                    fontSize: '13px',
+                    fontWeight: rawMaterialViewMode === 'single' ? 700 : 500,
+                    borderRadius: '6px',
+                    border: 'none',
+                    backgroundColor: rawMaterialViewMode === 'single' ? '#ffffff' : 'transparent',
+                    color: rawMaterialViewMode === 'single' ? '#111827' : '#6b7280',
+                    boxShadow: rawMaterialViewMode === 'single' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Single
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRawMaterialViewMode('combined')}
+                  title="Combined: Show submitted bills and older bills with payments on selected dates"
+                  style={{
+                    padding: '6px 14px',
+                    fontSize: '13px',
+                    fontWeight: rawMaterialViewMode === 'combined' ? 700 : 500,
+                    borderRadius: '6px',
+                    border: 'none',
+                    backgroundColor: rawMaterialViewMode === 'combined' ? '#ffffff' : 'transparent',
+                    color: rawMaterialViewMode === 'combined' ? '#111827' : '#6b7280',
+                    boxShadow: rawMaterialViewMode === 'combined' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Combined
+                </button>
+              </div>
+            )}
 
             {activeMenu === 'raw-material' && (
               <div style={{ position: 'relative' }}>
