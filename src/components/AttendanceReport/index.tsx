@@ -37,6 +37,7 @@ export type AggregatedItem = {
   employeeIdStr: string
   employeePhotoUrl?: string
   employeeSalary?: number
+  employeeWorkingHours?: number
   userRole: string
   employeeTeam: string
   branchName: string
@@ -84,6 +85,8 @@ export type AttendanceItem = {
   lastPunchOut?: string
   totalWorkSeconds: number
   totalWorkFormatted: string
+  extraSeconds?: number
+  extraHoursFormatted?: string
   totalBreakSeconds: number
   totalBreakFormatted: string
   sessionCount: number
@@ -348,7 +351,7 @@ const AttendanceReport: React.FC = () => {
       return { displayItems: items, isAggregatedView: false }
     }
 
-    const rangeDates = []
+    const rangeDates: string[] = []
     if (startDate && endDate) {
       const current = new Date(startDate)
       current.setHours(0, 0, 0, 0)
@@ -1010,17 +1013,26 @@ const AttendanceReport: React.FC = () => {
         const updatedActivities = doc.activities.map((act: any) => {
           if (act.status === 'active') {
             needsUpdate = true
-            const punchOut = new Date()
+            const now = new Date()
             let dur = 0
             if (act.punchIn) {
-               dur = Math.floor((punchOut.getTime() - new Date(act.punchIn).getTime())/1000)
+              dur = Math.floor((now.getTime() - new Date(act.punchIn).getTime()) / 1000)
             }
+            let maxSec = (selectedItemForModal.employeeWorkingHours || 12) * 3600
+            const inHour = act.punchIn ? dayjs.utc(act.punchIn).tz('Asia/Kolkata').hour() : -1
+            if ((inHour >= 23 || inHour <= 1) && !selectedItemForModal.employeeWorkingHours) {
+              maxSec = 2 * 3600 // 12:00 AM to 2:00 AM night shift
+            }
+            if (dur > maxSec) {
+              dur = maxSec
+            }
+            const punchOut = new Date(new Date(act.punchIn).getTime() + dur * 1000)
             return {
               ...act,
               status: 'closed',
               punchOut: punchOut.toISOString(),
               durationSeconds: dur,
-              punchOutType: 'auto'
+              punchOutType: 'auto',
             }
           }
           return act

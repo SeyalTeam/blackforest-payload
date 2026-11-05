@@ -242,7 +242,7 @@ export const getAttendanceReportData = async (
     })
     geoLocations = Array.isArray(geoSettings?.locations) ? geoSettings.locations : []
   } catch (e) {
-    req.payload.logger.warn({ msg: 'Failed to fetch branch-geo-settings', error: e })
+    payload?.logger?.warn({ msg: 'Failed to fetch branch-geo-settings', error: e })
   }
 
   let allBranches: any[] = []
@@ -254,7 +254,7 @@ export const getAttendanceReportData = async (
     })
     allBranches = branchesResult.docs || []
   } catch (e) {
-    req.payload.logger.warn({ msg: 'Failed to fetch branches', error: e })
+    payload?.logger?.warn({ msg: 'Failed to fetch branches', error: e })
   }
 
   const branchMap = new Map<string, { id: string; name: string; latitude?: number; longitude?: number }>()
@@ -530,34 +530,37 @@ export const getAttendanceReportData = async (
     }
   }
 
-  pipeline.push({
-    $sort: { date: -1, 'activities.punchIn': -1, createdAt: -1 },
-  })
-
   const rawDocs = await AttendanceModel.aggregate(pipeline)
+
+  rawDocs.sort((a: any, b: any) => {
+    const dateA = a.date ? new Date(a.date).getTime() : 0
+    const dateB = b.date ? new Date(b.date).getTime() : 0
+    if (dateB !== dateA) return dateB - dateA
+
+    const punchA = a.activities?.[0]?.punchIn ? new Date(a.activities[0].punchIn).getTime() : 0
+    const punchB = b.activities?.[0]?.punchIn ? new Date(b.activities[0].punchIn).getTime() : 0
+    if (punchB !== punchA) return punchB - punchA
+
+    const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+    const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+    return createdB - createdA
+  })
 
   // Collect all media IDs from capturedImage, photo, employee photo to batch fetch media URLs
   const mediaIdSet = new Set<string>()
 
   const extractMediaId = (val: unknown) => {
     if (!val) return
-    if (typeof val === 'string') {
-      const trimmed = val.trim()
-      if (
-        !trimmed.startsWith('http://') &&
-        !trimmed.startsWith('https://') &&
-        !trimmed.startsWith('/api/') &&
-        !trimmed.startsWith('data:') &&
-        /^[0-9a-fA-F]{24}$/.test(trimmed)
-      ) {
-        mediaIdSet.add(trimmed)
-      }
-    } else if (typeof val === 'object' && val !== null) {
-      const rec = val as { id?: unknown; _id?: unknown; url?: unknown; filename?: unknown }
-      if (!rec.url && !rec.filename) {
-        const idStr = toNonEmptyString(rec.id || rec._id)
-        if (idStr && /^[0-9a-fA-F]{24}$/.test(idStr)) mediaIdSet.add(idStr)
-      }
+    const idStr = toNonEmptyString(val)
+    if (
+      idStr &&
+      !idStr.startsWith('http://') &&
+      !idStr.startsWith('https://') &&
+      !idStr.startsWith('/api/') &&
+      !idStr.startsWith('data:') &&
+      /^[0-9a-fA-F]{24}$/.test(idStr)
+    ) {
+      mediaIdSet.add(idStr)
     }
   }
 
@@ -597,7 +600,7 @@ export const getAttendanceReportData = async (
         },
         depth: 0,
         pagination: false,
-        limit: 1000,
+        limit: Math.max(1000, idArray.length),
         overrideAccess: true,
       })
 
@@ -914,9 +917,31 @@ export const getAttendanceReportData = async (
       }
     }
 
-    if (hasAutoPunchOut && recordWorkSeconds > baseShiftSeconds) {
-      // If the system auto-punched them out, they do not get any extra hours
+    const firstInHour = firstPunchIn ? dayjs.utc(firstPunchIn).tz('Asia/Kolkata').hour() : -1
+    // Night shift rule: if punched in around midnight (23:00 - 01:30 IST) and no custom working hours, default night shift is 2 hours (12:00 AM to 2:00 AM)
+    if ((firstInHour >= 23 || firstInHour <= 1) && !employeeLoginTime && !employeeWorkingHours) {
+      baseShiftSeconds = 2 * 3600
+    }
+
+    if ((hasAutoPunchOut || hasActiveSession) && recordWorkSeconds > baseShiftSeconds) {
+      // If the system auto-punched them out or they forgot to punch out and session is active, do not inflate hours
       recordWorkSeconds = baseShiftSeconds
+    }
+
+    // Ensure activities display capped duration if auto-punched out or session was forgotten past shift end
+    for (const act of activities) {
+      if (act.punchOutType === 'auto' && act.punchOut && act.punchIn) {
+        const outUtc = new Date(act.punchOut)
+        // If old nightly cleanup stamped 18:29:59 UTC (11:59:59 PM IST), correct the display timestamp to shift end
+        if (outUtc.getUTCHours() === 18 && outUtc.getUTCMinutes() === 29) {
+          const cleanOut = new Date(new Date(act.punchIn).getTime() + baseShiftSeconds * 1000)
+          act.punchOut = cleanOut.toISOString()
+        }
+      }
+      if ((act.punchOutType === 'auto' || act.status === 'active') && act.durationSeconds > baseShiftSeconds) {
+        act.durationSeconds = baseShiftSeconds
+        act.durationFormatted = formatSecondsToReadable(baseShiftSeconds)
+      }
     }
 
     let extraSeconds = 0

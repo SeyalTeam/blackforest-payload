@@ -7613,9 +7613,9 @@ var init_customerRewards = __esm({
       }
       return Math.min(100, Math.max(0, value));
     };
-    isValidTimezone = (timezone31) => {
+    isValidTimezone = (timezone32) => {
       try {
-        new Intl.DateTimeFormat("en-US", { timeZone: timezone31 });
+        new Intl.DateTimeFormat("en-US", { timeZone: timezone32 });
         return true;
       } catch {
         return false;
@@ -7642,12 +7642,12 @@ var init_customerRewards = __esm({
       if (!match) return null;
       return `${match[1].padStart(2, "0")}:${match[2]}`;
     };
-    toDateKeyInTimezone = (value, timezone31) => {
+    toDateKeyInTimezone = (value, timezone32) => {
       const normalizedDate = normalizeDateString(value);
       if (!normalizedDate) return null;
       const dateValue = new Date(normalizedDate);
       const formatter = new Intl.DateTimeFormat("en-CA", {
-        timeZone: timezone31,
+        timeZone: timezone32,
         year: "numeric",
         month: "2-digit",
         day: "2-digit"
@@ -7659,9 +7659,9 @@ var init_customerRewards = __esm({
       if (!year || !month || !day) return null;
       return `${year}-${month}-${day}`;
     };
-    toCurrentDateAndMinutesInTimezone = (timezone31, now) => {
+    toCurrentDateAndMinutesInTimezone = (timezone32, now) => {
       const formatter = new Intl.DateTimeFormat("en-CA", {
-        timeZone: timezone31,
+        timeZone: timezone32,
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
@@ -8004,10 +8004,10 @@ var init_customerRewards = __esm({
         return DEFAULT_CUSTOMER_REWARD_SETTINGS;
       }
     };
-    isRandomOfferProductAvailableNow = (row, timezone31, now = /* @__PURE__ */ new Date()) => {
+    isRandomOfferProductAvailableNow = (row, timezone32, now = /* @__PURE__ */ new Date()) => {
       if (!row.enabled) return false;
       const effectiveTimezone = normalizeTimezone(
-        timezone31,
+        timezone32,
         DEFAULT_CUSTOMER_REWARD_SETTINGS.randomCustomerOfferTimezone
       );
       const nowInfo = toCurrentDateAndMinutesInTimezone(effectiveTimezone, now);
@@ -20401,7 +20401,7 @@ var init_attendance = __esm({
         });
         geoLocations = Array.isArray(geoSettings?.locations) ? geoSettings.locations : [];
       } catch (e) {
-        req.payload.logger.warn({ msg: "Failed to fetch branch-geo-settings", error: e });
+        payload?.logger?.warn({ msg: "Failed to fetch branch-geo-settings", error: e });
       }
       let allBranches = [];
       try {
@@ -20412,7 +20412,7 @@ var init_attendance = __esm({
         });
         allBranches = branchesResult.docs || [];
       } catch (e) {
-        req.payload.logger.warn({ msg: "Failed to fetch branches", error: e });
+        payload?.logger?.warn({ msg: "Failed to fetch branches", error: e });
       }
       const branchMap = /* @__PURE__ */ new Map();
       for (const b of allBranches) {
@@ -20646,24 +20646,24 @@ var init_attendance = __esm({
           });
         }
       }
-      pipeline.push({
-        $sort: { date: -1, "activities.punchIn": -1, createdAt: -1 }
-      });
       const rawDocs = await AttendanceModel.aggregate(pipeline);
+      rawDocs.sort((a, b) => {
+        const dateA = a.date ? new Date(a.date).getTime() : 0;
+        const dateB = b.date ? new Date(b.date).getTime() : 0;
+        if (dateB !== dateA) return dateB - dateA;
+        const punchA = a.activities?.[0]?.punchIn ? new Date(a.activities[0].punchIn).getTime() : 0;
+        const punchB = b.activities?.[0]?.punchIn ? new Date(b.activities[0].punchIn).getTime() : 0;
+        if (punchB !== punchA) return punchB - punchA;
+        const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return createdB - createdA;
+      });
       const mediaIdSet = /* @__PURE__ */ new Set();
       const extractMediaId = (val) => {
         if (!val) return;
-        if (typeof val === "string") {
-          const trimmed = val.trim();
-          if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://") && !trimmed.startsWith("/api/") && !trimmed.startsWith("data:") && /^[0-9a-fA-F]{24}$/.test(trimmed)) {
-            mediaIdSet.add(trimmed);
-          }
-        } else if (typeof val === "object" && val !== null) {
-          const rec = val;
-          if (!rec.url && !rec.filename) {
-            const idStr = toNonEmptyString2(rec.id || rec._id);
-            if (idStr && /^[0-9a-fA-F]{24}$/.test(idStr)) mediaIdSet.add(idStr);
-          }
+        const idStr = toNonEmptyString2(val);
+        if (idStr && !idStr.startsWith("http://") && !idStr.startsWith("https://") && !idStr.startsWith("/api/") && !idStr.startsWith("data:") && /^[0-9a-fA-F]{24}$/.test(idStr)) {
+          mediaIdSet.add(idStr);
         }
       };
       for (const doc of rawDocs) {
@@ -20698,7 +20698,7 @@ var init_attendance = __esm({
             },
             depth: 0,
             pagination: false,
-            limit: 1e3,
+            limit: Math.max(1e3, idArray.length),
             overrideAccess: true
           });
           for (const m of mediaRes.docs) {
@@ -20954,8 +20954,25 @@ var init_attendance = __esm({
             baseShiftSeconds = shiftSeconds;
           }
         }
-        if (hasAutoPunchOut && recordWorkSeconds > baseShiftSeconds) {
+        const firstInHour = firstPunchIn ? dayjs13.utc(firstPunchIn).tz("Asia/Kolkata").hour() : -1;
+        if ((firstInHour >= 23 || firstInHour <= 1) && !employeeLoginTime && !employeeWorkingHours) {
+          baseShiftSeconds = 2 * 3600;
+        }
+        if ((hasAutoPunchOut || hasActiveSession) && recordWorkSeconds > baseShiftSeconds) {
           recordWorkSeconds = baseShiftSeconds;
+        }
+        for (const act of activities) {
+          if (act.punchOutType === "auto" && act.punchOut && act.punchIn) {
+            const outUtc = new Date(act.punchOut);
+            if (outUtc.getUTCHours() === 18 && outUtc.getUTCMinutes() === 29) {
+              const cleanOut = new Date(new Date(act.punchIn).getTime() + baseShiftSeconds * 1e3);
+              act.punchOut = cleanOut.toISOString();
+            }
+          }
+          if ((act.punchOutType === "auto" || act.status === "active") && act.durationSeconds > baseShiftSeconds) {
+            act.durationSeconds = baseShiftSeconds;
+            act.durationFormatted = formatSecondsToReadable(baseShiftSeconds);
+          }
         }
         let extraSeconds = 0;
         if (recordWorkSeconds > baseShiftSeconds) {
@@ -25333,8 +25350,12 @@ var init_rawMaterialBilling = __esm({
       const companyParam = typeof args.company === "string" ? args.company : "";
       const dealerParam = typeof args.dealer === "string" ? args.dealer : "";
       const categoryParam = typeof args.category === "string" ? args.category : "";
-      const startOfDay = dayjs23.utc(startDateParam).startOf("day").toDate();
-      const endOfDay = dayjs23.utc(endDateParam).endOf("day").toDate();
+      const tzStart = dayjs23.tz(startDateParam, "YYYY-MM-DD", "Asia/Kolkata").startOf("day").toDate();
+      const utcStart = dayjs23.utc(startDateParam).startOf("day").toDate();
+      const tzEnd = dayjs23.tz(endDateParam, "YYYY-MM-DD", "Asia/Kolkata").endOf("day").toDate();
+      const utcEnd = dayjs23.utc(endDateParam).endOf("day").toDate();
+      const startOfDay = tzStart < utcStart ? tzStart : utcStart;
+      const endOfDay = tzEnd > utcEnd ? tzEnd : utcEnd;
       const { companyIds } = await resolveReportCompanyScope(req, companyParam);
       const RawMaterialBillingModel = payload.db.collections["raw-material-billings"];
       if (!RawMaterialBillingModel) {
@@ -25351,10 +25372,15 @@ var init_rawMaterialBilling = __esm({
       }
       const plannedStartDateParam = typeof args.plannedStartDate === "string" ? args.plannedStartDate : "";
       const plannedEndDateParam = typeof args.plannedEndDate === "string" ? args.plannedEndDate : "";
+      const viewModeParam = (args.viewMode || "single").toLowerCase();
       const matchQuery = {};
       if (plannedStartDateParam && plannedEndDateParam) {
-        const startPlanned = dayjs23.utc(plannedStartDateParam).startOf("day").toDate();
-        const endPlanned = dayjs23.utc(plannedEndDateParam).endOf("day").toDate();
+        const plannedTzStart = dayjs23.tz(plannedStartDateParam, "YYYY-MM-DD", "Asia/Kolkata").startOf("day").toDate();
+        const plannedUtcStart = dayjs23.utc(plannedStartDateParam).startOf("day").toDate();
+        const plannedTzEnd = dayjs23.tz(plannedEndDateParam, "YYYY-MM-DD", "Asia/Kolkata").endOf("day").toDate();
+        const plannedUtcEnd = dayjs23.utc(plannedEndDateParam).endOf("day").toDate();
+        const startPlanned = plannedTzStart < plannedUtcStart ? plannedTzStart : plannedUtcStart;
+        const endPlanned = plannedTzEnd > plannedUtcEnd ? plannedTzEnd : plannedUtcEnd;
         matchQuery.plannedPaymentDate = {
           $gte: startPlanned,
           $lte: endPlanned
@@ -25362,7 +25388,7 @@ var init_rawMaterialBilling = __esm({
       } else {
         const startStr = startOfDay.toISOString();
         const endStr = endOfDay.toISOString();
-        matchQuery.$or = [
+        const billCreationConditions = [
           {
             date: {
               $gte: startOfDay,
@@ -25376,18 +25402,62 @@ var init_rawMaterialBilling = __esm({
             }
           },
           {
-            "payments.date": {
+            date: {
+              $gte: startDateParam,
+              $lte: `${endDateParam}T23:59:59.999Z`
+            }
+          },
+          {
+            createdAt: {
               $gte: startOfDay,
               $lte: endOfDay
             }
           },
           {
-            "payments.date": {
+            createdAt: {
               $gte: startStr,
               $lte: endStr
+            }
+          },
+          {
+            createdAt: {
+              $gte: startDateParam,
+              $lte: `${endDateParam}T23:59:59.999Z`
             }
           }
         ];
+        if (startDateParam === endDateParam) {
+          billCreationConditions.push({ date: { $regex: `^${startDateParam}` } });
+          billCreationConditions.push({ createdAt: { $regex: `^${startDateParam}` } });
+        }
+        const paymentConditions = [
+          {
+            "payments.date": {
+              $gte: startOfDay,
+              $lte: endOfDay
+            }
+          },
+          {
+            "payments.date": {
+              $gte: startStr,
+              $lte: endStr
+            }
+          },
+          {
+            "payments.date": {
+              $gte: startDateParam,
+              $lte: `${endDateParam}T23:59:59.999Z`
+            }
+          }
+        ];
+        if (startDateParam === endDateParam) {
+          paymentConditions.push({ "payments.date": { $regex: `^${startDateParam}` } });
+        }
+        if (viewModeParam === "combined") {
+          matchQuery.$or = [...billCreationConditions, ...paymentConditions];
+        } else {
+          matchQuery.$or = billCreationConditions;
+        }
       }
       const exprAnd = [];
       if (selectedCompanies.length > 0) {
@@ -25528,6 +25598,8 @@ var init_rawMaterialBilling = __esm({
             paidAmount: { $first: "$paidAmount" },
             payments: { $first: "$payments" },
             date: { $first: "$date" },
+            createdAt: { $first: "$createdAt" },
+            updatedAt: { $first: "$updatedAt" },
             billCopyInfo: { $first: "$billCopyInfo" },
             productsPhotoInfo: { $first: "$productsPhotoInfo" },
             deliveryPersonInfo: { $first: "$deliveryPersonInfo" },
@@ -25578,7 +25650,8 @@ var init_rawMaterialBilling = __esm({
                 amount: "$total",
                 paidAmount: { $ifNull: ["$paidAmount", 0] },
                 payments: { $ifNull: ["$payments", []] },
-                time: "$date",
+                time: { $ifNull: ["$date", "$createdAt"] },
+                createdAt: "$createdAt",
                 updatedAt: "$updatedAt",
                 billCopyUrl: "$billCopyInfo.url",
                 billCopyFilename: "$billCopyInfo.filename",
@@ -25667,7 +25740,8 @@ var init_rawMaterialBilling = __esm({
             amount: toNumber9(item.amount),
             paidAmount: toNumber9(item.paidAmount),
             payments,
-            time: toDateString5(item.time),
+            time: toDateString5(item.time || item.createdAt),
+            createdAt: item.createdAt ? toDateString5(item.createdAt) : void 0,
             updatedAt: item.updatedAt ? toDateString5(item.updatedAt) : void 0,
             billCopyUrl: billCopyUrl || (billCopyFilename ? `/api/media/file/${billCopyFilename}` : void 0),
             productsPhotoUrls,
@@ -25702,6 +25776,7 @@ var init_rawMaterialBilling = __esm({
       return {
         startDate: startDateParam,
         endDate: endDateParam,
+        viewMode: viewModeParam,
         groups,
         meta: {
           grandTotal,
@@ -25728,7 +25803,8 @@ var init_getRawMaterialBillingReport = __esm({
           plannedEndDate: typeof req.query.plannedEndDate === "string" ? req.query.plannedEndDate : null,
           company: typeof req.query.company === "string" ? req.query.company : null,
           dealer: typeof req.query.dealer === "string" ? req.query.dealer : null,
-          category: typeof req.query.category === "string" ? req.query.category : null
+          category: typeof req.query.category === "string" ? req.query.category : null,
+          viewMode: typeof req.query.viewMode === "string" ? req.query.viewMode : null
         });
         req.payload.logger.info(`Generated Raw Material Billing Report: ${report.groups.length} company groups found`);
         return Response.json(report);
@@ -44303,24 +44379,184 @@ var init_payload_config = __esm({
 // src/cron.ts
 var cron_exports = {};
 __export(cron_exports, {
+  getExpectedShiftEnd: () => getExpectedShiftEnd,
+  runAttendanceAutoPunchOut: () => runAttendanceAutoPunchOut,
   startCronJobs: () => startCronJobs
 });
-function startCronJobs(payload) {
-  runNightlyJob(payload).catch(console.error);
-  scheduleNextNightlyJob(payload);
-}
-function scheduleNextNightlyJob(payload) {
-  const now = /* @__PURE__ */ new Date();
-  const nextMidnight = /* @__PURE__ */ new Date();
-  nextMidnight.setHours(0, 1, 0, 0);
-  if (now.getTime() >= nextMidnight.getTime()) {
-    nextMidnight.setDate(nextMidnight.getDate() + 1);
+import dayjs31 from "dayjs";
+import utc31 from "dayjs/plugin/utc.js";
+import timezone31 from "dayjs/plugin/timezone.js";
+function getExpectedShiftEnd(punchInIso, employee) {
+  const punchInDate = new Date(punchInIso);
+  const punchInDayjs = dayjs31.utc(punchInIso).tz("Asia/Kolkata");
+  if (employee?.logoutTime) {
+    const cleanLogout = String(employee.logoutTime).replace("_", ":");
+    const [outHRaw, outMRaw] = cleanLogout.split(":").map(Number);
+    let outH = isNaN(outHRaw) ? 2 : outHRaw;
+    let outM = isNaN(outMRaw) ? 0 : outMRaw;
+    let inH = 0;
+    let inM = 0;
+    if (employee.loginTime) {
+      const cleanLogin = String(employee.loginTime).replace("_", ":");
+      const [h, m] = cleanLogin.split(":").map(Number);
+      if (!isNaN(h)) inH = h;
+      if (!isNaN(m)) inM = m || 0;
+    }
+    if (inH === 12 && (punchInDayjs.hour() <= 1 || punchInDayjs.hour() >= 23)) {
+      inH = 0;
+    }
+    const year = punchInDayjs.year();
+    const month = String(punchInDayjs.month() + 1).padStart(2, "0");
+    const day = String(punchInDayjs.date()).padStart(2, "0");
+    let shiftEndDayjs = dayjs31.tz(
+      `${year}-${month}-${day} ${String(outH).padStart(2, "0")}:${String(outM).padStart(2, "0")}:00`,
+      "YYYY-MM-DD HH:mm:ss",
+      "Asia/Kolkata"
+    );
+    if (inH > outH) {
+      shiftEndDayjs = shiftEndDayjs.add(1, "day");
+    }
+    let shiftEndDate = shiftEndDayjs.toDate();
+    if (shiftEndDate.getTime() <= punchInDate.getTime()) {
+      const hours = employee.workingHours && employee.workingHours > 0 ? employee.workingHours : 2;
+      shiftEndDate = new Date(punchInDate.getTime() + hours * 3600 * 1e3);
+    }
+    const durationSeconds = Math.max(0, Math.floor((shiftEndDate.getTime() - punchInDate.getTime()) / 1e3));
+    return { punchOutDate: shiftEndDate, durationSeconds };
   }
-  const delay2 = nextMidnight.getTime() - now.getTime();
-  setTimeout(async () => {
-    await runNightlyJob(payload);
-    scheduleNextNightlyJob(payload);
-  }, delay2);
+  if (employee?.workingHours && employee.workingHours > 0) {
+    const durationSeconds = Math.floor(employee.workingHours * 3600);
+    const punchOutDate2 = new Date(punchInDate.getTime() + durationSeconds * 1e3);
+    return { punchOutDate: punchOutDate2, durationSeconds };
+  }
+  const hourIST = punchInDayjs.hour();
+  if (hourIST >= 23 || hourIST <= 1) {
+    const year = punchInDayjs.year();
+    const month = String(punchInDayjs.month() + 1).padStart(2, "0");
+    const day = String(punchInDayjs.date()).padStart(2, "0");
+    let twoAmDayjs = dayjs31.tz(`${year}-${month}-${day} 02:00:00`, "YYYY-MM-DD HH:mm:ss", "Asia/Kolkata");
+    if (hourIST >= 23) {
+      twoAmDayjs = twoAmDayjs.add(1, "day");
+    }
+    const shiftEndDate = twoAmDayjs.toDate();
+    if (shiftEndDate.getTime() > punchInDate.getTime()) {
+      const durationSeconds = Math.max(0, Math.floor((shiftEndDate.getTime() - punchInDate.getTime()) / 1e3));
+      return { punchOutDate: shiftEndDate, durationSeconds };
+    }
+  }
+  const defaultDurationSeconds = 12 * 3600;
+  const punchOutDate = new Date(punchInDate.getTime() + defaultDurationSeconds * 1e3);
+  return { punchOutDate, durationSeconds: defaultDurationSeconds };
+}
+async function resolveEmployeeMap(payload, employeeIds, userIds) {
+  const EmployeeModel = payload.db.collections["employees"];
+  const UserModel = payload.db.collections["users"];
+  const mongoose8 = await import("mongoose");
+  const toOid = (id) => {
+    try {
+      return new mongoose8.Types.ObjectId(id);
+    } catch {
+      return null;
+    }
+  };
+  const [empDocs, userDocs] = await Promise.all([
+    EmployeeModel ? EmployeeModel.find({
+      _id: { $in: Array.from(employeeIds).map(toOid).filter(Boolean) }
+    }).lean() : [],
+    UserModel ? UserModel.find({
+      _id: { $in: Array.from(userIds).map(toOid).filter(Boolean) }
+    }).lean() : []
+  ]);
+  const empMap = /* @__PURE__ */ new Map();
+  for (const e of empDocs) empMap.set(String(e._id), e);
+  const userMap = /* @__PURE__ */ new Map();
+  const pendingEmpIds = /* @__PURE__ */ new Set();
+  for (const u of userDocs) {
+    userMap.set(String(u._id), u);
+    if (u.employee && !empMap.has(String(u.employee))) {
+      pendingEmpIds.add(String(u.employee));
+    }
+  }
+  if (pendingEmpIds.size > 0 && EmployeeModel) {
+    const extraEmps = await EmployeeModel.find({
+      _id: { $in: Array.from(pendingEmpIds).map(toOid).filter(Boolean) }
+    }).lean();
+    for (const e of extraEmps) empMap.set(String(e._id), e);
+  }
+  return { empMap, userMap };
+}
+async function runAttendanceAutoPunchOut(payload) {
+  try {
+    const now = /* @__PURE__ */ new Date();
+    const AttendanceModel = payload.db.collections["attendance"];
+    if (!AttendanceModel) return;
+    const activeDocs = await AttendanceModel.find({
+      $or: [
+        { "activities.status": "active" },
+        { status: "active", punchOut: { $exists: false } },
+        { status: "active", punchOut: null }
+      ]
+    }).lean();
+    if (!activeDocs || activeDocs.length === 0) return;
+    const employeeIds = /* @__PURE__ */ new Set();
+    const userIds = /* @__PURE__ */ new Set();
+    for (const doc of activeDocs) {
+      if (doc.employee) employeeIds.add(String(doc.employee));
+      if (doc.user) userIds.add(String(doc.user));
+    }
+    const { empMap, userMap } = await resolveEmployeeMap(payload, employeeIds, userIds);
+    for (const doc of activeDocs) {
+      const user = doc.user ? userMap.get(String(doc.user)) : null;
+      const empId = String(doc.employee || user?.employee || "");
+      const employee = empMap.get(empId);
+      let needsUpdate = false;
+      const activities = Array.isArray(doc.activities) ? [...doc.activities] : [];
+      const updatedActivities = activities.map((act) => {
+        if (act.status === "active" && act.punchIn) {
+          const shift = getExpectedShiftEnd(act.punchIn, employee);
+          const autoCloseThreshold = shift.punchOutDate.getTime() + 30 * 60 * 1e3;
+          if (now.getTime() >= autoCloseThreshold) {
+            needsUpdate = true;
+            return {
+              ...act,
+              status: "closed",
+              punchOut: shift.punchOutDate.toISOString(),
+              durationSeconds: shift.durationSeconds,
+              punchOutType: "auto"
+            };
+          }
+        }
+        return act;
+      });
+      const updateData = {};
+      if (needsUpdate) {
+        updateData.activities = updatedActivities;
+        const anyStillActive = updatedActivities.some((a) => a.status === "active");
+        if (!anyStillActive) {
+          updateData.status = "closed";
+        }
+      }
+      if (doc.status === "active" && !doc.punchOut && doc.punchIn) {
+        const shift = getExpectedShiftEnd(doc.punchIn, employee);
+        if (now.getTime() >= shift.punchOutDate.getTime() + 30 * 60 * 1e3) {
+          needsUpdate = true;
+          updateData.status = "closed";
+          updateData.punchOut = shift.punchOutDate.toISOString();
+          updateData.punchOutType = "auto";
+        }
+      }
+      if (needsUpdate) {
+        await payload.update({
+          collection: "attendance",
+          id: String(doc._id || doc.id),
+          data: updateData
+        });
+        console.log(`[cron] Auto-closed session for doc ${doc._id || doc.id}`);
+      }
+    }
+  } catch (err) {
+    console.error("[cron] Error in runAttendanceAutoPunchOut:", err);
+  }
 }
 async function runNightlyJob(payload) {
   console.log("[cron] Running nightly attendance cleanup...");
@@ -44339,25 +44575,32 @@ async function runNightlyJob(payload) {
           date: { less_than: today.toISOString() }
         },
         limit: 100,
-        page
+        page,
+        depth: 0
       });
+      const employeeIds = /* @__PURE__ */ new Set();
+      const userIds = /* @__PURE__ */ new Set();
       for (const doc of result.docs) {
+        if (doc.employee) employeeIds.add(String(doc.employee));
+        if (doc.user) userIds.add(String(doc.user));
+      }
+      const { empMap, userMap } = await resolveEmployeeMap(payload, employeeIds, userIds);
+      for (const doc of result.docs) {
+        const user = doc.user ? userMap.get(String(doc.user)) : null;
+        const empId = String(doc.employee || user?.employee || "");
+        const employee = empMap.get(empId);
         let needsUpdate = false;
         const updateData = {};
         if (doc.activities && doc.activities.length > 0) {
           const updatedActivities = doc.activities.map((act) => {
             if (act.status === "active") {
               needsUpdate = true;
-              const punchOut = new Date(new Date(doc.date).getTime() + 24 * 60 * 60 * 1e3 - 1);
-              let durationSeconds = 0;
-              if (act.punchIn) {
-                durationSeconds = Math.floor((punchOut.getTime() - new Date(act.punchIn).getTime()) / 1e3);
-              }
+              const shift = getExpectedShiftEnd(act.punchIn || doc.date, employee);
               return {
                 ...act,
                 status: "closed",
-                punchOut: punchOut.toISOString(),
-                durationSeconds: durationSeconds > 0 ? durationSeconds : 0,
+                punchOut: shift.punchOutDate.toISOString(),
+                durationSeconds: shift.durationSeconds,
                 punchOutType: "auto"
               };
             }
@@ -44367,9 +44610,9 @@ async function runNightlyJob(payload) {
         }
         if (doc.status === "active" && !doc.punchOut) {
           needsUpdate = true;
-          const punchOut = new Date(new Date(doc.date).getTime() + 24 * 60 * 60 * 1e3 - 1);
+          const shift = getExpectedShiftEnd(doc.punchIn || doc.date, employee);
           updateData.status = "closed";
-          updateData.punchOut = punchOut.toISOString();
+          updateData.punchOut = shift.punchOutDate.toISOString();
           updateData.punchOutType = "auto";
         }
         if (needsUpdate) {
@@ -44378,7 +44621,7 @@ async function runNightlyJob(payload) {
             id: doc.id,
             data: updateData
           });
-          console.log(`[cron] Auto-closed sessions for attendance doc ${doc.id}`);
+          console.log(`[cron] Nightly auto-closed session for attendance doc ${doc.id}`);
         }
       }
       hasMore = result.hasNextPage;
@@ -44389,9 +44632,34 @@ async function runNightlyJob(payload) {
     console.error("[cron] Error in nightly attendance cleanup:", err);
   }
 }
+function scheduleNextNightlyJob(payload) {
+  const now = /* @__PURE__ */ new Date();
+  const nextMidnight = /* @__PURE__ */ new Date();
+  nextMidnight.setHours(0, 1, 0, 0);
+  if (now.getTime() >= nextMidnight.getTime()) {
+    nextMidnight.setDate(nextMidnight.getDate() + 1);
+  }
+  const delay2 = nextMidnight.getTime() - now.getTime();
+  setTimeout(async () => {
+    await runNightlyJob(payload);
+    await runAttendanceAutoPunchOut(payload);
+    scheduleNextNightlyJob(payload);
+  }, delay2);
+}
+function startCronJobs(payload) {
+  runNightlyJob(payload).catch(console.error);
+  runAttendanceAutoPunchOut(payload).catch(console.error);
+  setInterval(() => {
+    runAttendanceAutoPunchOut(payload).catch(console.error);
+  }, 15 * 60 * 1e3);
+  scheduleNextNightlyJob(payload);
+}
 var init_cron = __esm({
   "src/cron.ts"() {
     "use strict";
+    dayjs31.extend(utc31);
+    dayjs31.extend(timezone31);
+    dayjs31.tz.setDefault("Asia/Kolkata");
   }
 });
 
