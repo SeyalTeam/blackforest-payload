@@ -72,6 +72,15 @@ const Expenses: CollectionConfig = {
           relationTo: 'media',
           required: true,
         },
+        {
+          name: 'employee',
+          type: 'relationship',
+          relationTo: 'employees',
+          required: false,
+          admin: {
+            description: 'Employee associated with this expense item',
+          },
+        },
       ],
     },
     {

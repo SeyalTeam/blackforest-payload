@@ -20,9 +20,7 @@ const IdempotencyKeys: CollectionConfig = {
     {
       fields: ['status', 'updatedAt'],
     },
-    {
-      fields: ['expiresAt'],
-    },
+
   ],
   fields: [
     {

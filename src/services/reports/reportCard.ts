@@ -540,6 +540,7 @@ export async function calculateReportCardData(
           ],
         },
         limit: 1000,
+        depth: 0,
         pagination: false,
         overrideAccess: true,
       })
@@ -1075,6 +1076,7 @@ export async function calculateReportCardData(
           ],
         },
         limit: 500,
+        depth: 0,
         pagination: false,
         overrideAccess: true,
       })

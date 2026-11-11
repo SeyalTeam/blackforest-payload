@@ -88,6 +88,7 @@ import { updateInstockStatusHandler } from './endpoints/updateInstockStatus'
 import { InstockEntryReportGlobal } from './globals/InstockEntryReport'
 import { getDashboardStatsHandler } from './endpoints/getDashboardStats'
 import { getExpenseReportHandler } from './endpoints/getExpenseReport'
+import { updateExpenseEmployeeHandler } from './endpoints/updateExpenseEmployee'
 import { ExpenseReportGlobal } from './globals/ExpenseReport'
 import { getDealerReportHandler } from './endpoints/getDealerReport'
 import { DealerReportGlobal } from './globals/DealerReport'
@@ -775,6 +776,11 @@ export default buildConfig({
       path: '/reports/expense',
       method: 'get',
       handler: getExpenseReportHandler,
+    },
+    {
+      path: '/reports/expense/update-employee',
+      method: 'post',
+      handler: updateExpenseEmployeeHandler,
     },
     {
       path: '/reports/dealer',

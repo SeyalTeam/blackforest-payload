@@ -20,7 +20,7 @@ export function corsHeaders(
   if (
     incomingOrigin &&
     (allowedOrigins.includes(incomingOrigin) ||
-      incomingOrigin.includes("theblackforestcakes.com") ||
+      incomingOrigin.includes("theblackforestcakes.com") || incomingOrigin.includes("vseyal.com") ||
       incomingOrigin.includes("localhost") ||
       incomingOrigin.includes("127.0.0.1"))
   ) {

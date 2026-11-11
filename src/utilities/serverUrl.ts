@@ -39,7 +39,7 @@ export const getPublicServerURL = (): string => {
   if (envUrl) {
     try {
       const normalized = normalizeAbsoluteURL(envUrl)
-      if (normalized && isLocalHostname(new URL(normalized).hostname)) {
+      if (normalized) {
         return normalized
       }
     } catch (_err) {

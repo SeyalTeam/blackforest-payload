@@ -9,11 +9,16 @@ dayjs.extend(timezone)
 dayjs.tz.setDefault('Asia/Kolkata')
 
 export type ExpenseReportItem = {
+  expenseId?: string
+  detailId?: string
   amount: number
   category: string
   imageUrl?: string
   reason: string
   time: string
+  employeeId?: string
+  employeeName?: string
+  employeeRole?: string
 }
 
 export type ExpenseReportGroup = {
@@ -53,12 +58,17 @@ type ExpenseReportArgs = {
 }
 
 type RawExpenseItem = {
+  expenseId?: unknown
+  detailId?: unknown
   amount: unknown
   category: unknown
   filename?: unknown
   imageUrl?: unknown
   reason: unknown
   time: unknown
+  employeeId?: unknown
+  employeeName?: unknown
+  employeeRole?: unknown
 }
 
 type RawExpenseGroup = {
@@ -242,6 +252,31 @@ export const getExpenseReportData = async (
       },
     },
     {
+      $lookup: {
+        from: 'employees',
+        let: { empId: '$details.employee' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $or: [
+                  { $eq: ['$_id', '$$empId'] },
+                  { $eq: [{ $toString: '$_id' }, { $toString: '$$empId' }] },
+                ],
+              },
+            },
+          },
+        ],
+        as: 'employeeInfo',
+      },
+    },
+    {
+      $unwind: {
+        path: '$employeeInfo',
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
       $group: {
         _id: '$branch',
         branchName: { $first: { $ifNull: ['$branchInfo.name', 'Unknown Branch'] } },
@@ -249,12 +284,17 @@ export const getExpenseReportData = async (
         count: { $sum: 1 },
         items: {
           $push: {
+            expenseId: '$_id',
+            detailId: '$details._id',
             category: '$details.source',
             reason: '$details.reason',
             amount: '$details.amount',
             time: '$date',
             imageUrl: '$mediaInfo.url',
             filename: '$mediaInfo.filename',
+            employeeId: '$employeeInfo._id',
+            employeeName: '$employeeInfo.name',
+            employeeRole: '$employeeInfo.team',
           },
         },
       },
@@ -278,11 +318,16 @@ export const getExpenseReportData = async (
         const imageUrl = toNonEmptyString(item.imageUrl)
 
         return {
+          expenseId: toNonEmptyString(item.expenseId),
+          detailId: toNonEmptyString(item.detailId),
           category: toNonEmptyString(item.category),
           reason: toNonEmptyString(item.reason),
           amount: toNumber(item.amount),
           time: toDateString(item.time),
           imageUrl: imageUrl || (filename ? `/api/media/file/${filename}` : undefined),
+          employeeId: toNonEmptyString(item.employeeId),
+          employeeName: toNonEmptyString(item.employeeName),
+          employeeRole: toNonEmptyString(item.employeeRole),
         }
       })
 

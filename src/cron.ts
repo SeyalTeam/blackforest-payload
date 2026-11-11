@@ -234,6 +234,7 @@ async function runNightlyJob(payload: Payload) {
     const localDate = new Date(utcOffset)
     localDate.setUTCHours(0, 0, 0, 0)
     const today = new Date(localDate.getTime() - 5.5 * 60 * 60 * 1000)
+    const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
 
     let hasMore = true
     let page = 1
@@ -242,7 +243,10 @@ async function runNightlyJob(payload: Payload) {
       const result = await payload.find({
         collection: 'attendance',
         where: {
-          date: { less_than: today.toISOString() },
+          and: [
+            { date: { greater_than_equal: sevenDaysAgo.toISOString() } },
+            { date: { less_than: today.toISOString() } },
+          ],
         },
         limit: 100,
         page,

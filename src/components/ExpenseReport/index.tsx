@@ -7,7 +7,7 @@ import Select, { components, OptionProps, ValueContainerProps } from 'react-sele
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc.js'
 import timezone from 'dayjs/plugin/timezone.js'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, Download } from 'lucide-react'
 import './index.scss'
 
 dayjs.extend(utc)
@@ -22,11 +22,16 @@ type SelectOption = {
 }
 
 export type ExpenseItem = {
+  expenseId?: string
+  detailId?: string
   category: string
   reason: string
   amount: number
   time: string
   imageUrl?: string
+  employeeId?: string
+  employeeName?: string
+  employeeRole?: string
 }
 
 export type BranchGroup = {
@@ -110,11 +115,16 @@ const EXPENSE_REPORT_QUERY = `
         total
         count
         items {
+          expenseId
+          detailId
           category
           reason
           amount
           time
           imageUrl
+          employeeId
+          employeeName
+          employeeRole
         }
       }
       meta {
@@ -289,8 +299,11 @@ const ExpenseReport: React.FC = () => {
   const [dateRangePreset, setDateRangePreset] = useState<string>('today')
 
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([])
+  const [employees, setEmployees] = useState<{ id: string; name: string; role: string }[]>([])
+  const [updatingDetailId, setUpdatingDetailId] = useState<string | null>(null)
   const [selectedBranch, setSelectedBranch] = useState<string[]>(['all'])
   const [showScrollBottom, setShowScrollBottom] = useState(true)
+  const [showExportMenu, setShowExportMenu] = useState(false)
   const lastScrollY = useRef(0)
 
   useEffect(() => {
@@ -360,6 +373,148 @@ const ExpenseReport: React.FC = () => {
     const end = new Date(year, endMonth + 1, 0)
 
     return { start, end }
+  }
+
+  const escapeCsv = (val: unknown): string => {
+    if (val === null || val === undefined) return '""'
+    const str = String(val).replace(/"/g, '""')
+    return `"${str}"`
+  }
+
+  const handleExportDetailed = () => {
+    if (!data || data.groups.length === 0) return
+
+    const csvRows: string[] = []
+    const headers = [
+      'S.No',
+      'Date & Time',
+      'Branch',
+      'Category',
+      'Reason',
+      'Amount',
+      'Employee Name',
+      'Employee Role',
+    ]
+    csvRows.push(headers.join(','))
+
+    let sNo = 1
+    data.groups.forEach((group) => {
+      const itemsToExport = group.items.slice().reverse()
+      itemsToExport.forEach((item) => {
+        const formattedTime = item.time ? dayjs.utc(item.time).format('DD-MM-YYYY hh:mm A') : ''
+
+        csvRows.push(
+          [
+            sNo++,
+            escapeCsv(formattedTime),
+            escapeCsv(group.branchName),
+            escapeCsv(item.category),
+            escapeCsv(item.reason),
+            item.amount ?? 0,
+            escapeCsv(item.employeeName || '-'),
+            escapeCsv(item.employeeRole ? item.employeeRole.toUpperCase() : '-'),
+          ].join(','),
+        )
+      })
+    })
+
+    // Total Row
+    csvRows.push(
+      [
+        '',
+        '',
+        escapeCsv('TOTAL'),
+        '',
+        escapeCsv(`${data.meta.totalCount} items`),
+        data.meta.grandTotal ?? 0,
+        '',
+        '',
+      ].join(','),
+    )
+
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const catPrefix =
+      activeCategory !== 'all' ? `${activeCategory.toLowerCase().replace(/\s+/g, '_')}_` : ''
+    a.download = `expense_report_${catPrefix}${startDate ? toLocalDateStr(startDate) : ''}_to_${
+      endDate ? toLocalDateStr(endDate) : ''
+    }.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+    setShowExportMenu(false)
+  }
+
+  const handleExportSummary = () => {
+    if (!data || data.groups.length === 0) return
+
+    const csvRows: string[] = []
+
+    // Category Summary
+    csvRows.push('CATEGORY SUMMARY')
+    csvRows.push(['S.No', 'Category', 'Total Amount', 'Item Count', 'Percentage'].join(','))
+    data.meta.categoryStats.forEach((stat, idx) => {
+      csvRows.push(
+        [
+          idx + 1,
+          escapeCsv(stat.category),
+          stat.total ?? 0,
+          stat.count ?? 0,
+          escapeCsv(`${(stat.percentage ?? 0).toFixed(2)}%`),
+        ].join(','),
+      )
+    })
+    csvRows.push(
+      [
+        '',
+        escapeCsv('TOTAL'),
+        data.meta.grandTotal ?? 0,
+        data.meta.totalCount ?? 0,
+        escapeCsv('100%'),
+      ].join(','),
+    )
+
+    csvRows.push('') // Blank row
+
+    // Branch Summary
+    csvRows.push('BRANCH SUMMARY')
+    csvRows.push(['S.No', 'Branch Name', 'Total Amount', 'Item Count'].join(','))
+    data.groups.forEach((group, idx) => {
+      csvRows.push(
+        [
+          idx + 1,
+          escapeCsv(group.branchName),
+          group.total ?? 0,
+          group.count ?? 0,
+        ].join(','),
+      )
+    })
+    csvRows.push(
+      [
+        '',
+        escapeCsv('TOTAL'),
+        data.meta.grandTotal ?? 0,
+        data.meta.totalCount ?? 0,
+      ].join(','),
+    )
+
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const catPrefix =
+      activeCategory !== 'all' ? `${activeCategory.toLowerCase().replace(/\s+/g, '_')}_` : ''
+    a.download = `expense_summary_${catPrefix}${startDate ? toLocalDateStr(startDate) : ''}_to_${
+      endDate ? toLocalDateStr(endDate) : ''
+    }.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+    setShowExportMenu(false)
   }
 
   const dateRangeOptions = [
@@ -483,14 +638,27 @@ const ExpenseReport: React.FC = () => {
     }),
   }
 
-  // Fetch branches
+  // Fetch branches & employees
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
-        const branchRes = await fetch('/api/reports/branches')
+        const [branchRes, employeeRes] = await Promise.all([
+          fetch('/api/reports/branches'),
+          fetch('/api/employees?limit=1000&pagination=false&depth=0'),
+        ])
         if (branchRes.ok) {
           const json = await branchRes.json()
           setBranches(json.docs)
+        }
+        if (employeeRes && employeeRes.ok) {
+          const empJson = await employeeRes.json()
+          const docs = (empJson.docs || []).map((e: any) => ({
+            id: String(e.id || e._id),
+            name: e.name || 'Unnamed',
+            role: e.team || '',
+          }))
+          docs.sort((a: any, b: any) => a.name.localeCompare(b.name))
+          setEmployees(docs)
         }
       } catch (e) {
         console.error(e)
@@ -498,6 +666,64 @@ const ExpenseReport: React.FC = () => {
     }
     fetchMetadata()
   }, [])
+
+  const handleUpdateEmployee = async (
+    expenseId?: string,
+    detailId?: string,
+    employeeId?: string,
+  ) => {
+    if (!expenseId || !detailId) return
+
+    setUpdatingDetailId(detailId)
+    try {
+      const res = await fetch('/api/reports/expense/update-employee', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          expenseId,
+          detailId,
+          employeeId: employeeId || null,
+        }),
+      })
+
+      if (!res.ok) {
+        throw new Error(`Failed to update employee (HTTP ${res.status})`)
+      }
+
+      const json = await res.json()
+      const newEmpId = json.employeeId || ''
+      const newEmpName = json.employeeName || ''
+      const newEmpRole = json.employeeRole || ''
+
+      setData((prevData) => {
+        if (!prevData) return prevData
+        return {
+          ...prevData,
+          groups: prevData.groups.map((group) => ({
+            ...group,
+            items: group.items.map((item) => {
+              if (item.detailId === detailId) {
+                return {
+                  ...item,
+                  employeeId: newEmpId || undefined,
+                  employeeName: newEmpName || undefined,
+                  employeeRole: newEmpRole || undefined,
+                }
+              }
+              return item
+            }),
+          })),
+        }
+      })
+    } catch (err) {
+      console.error('Failed to update employee:', err)
+      alert(err instanceof Error ? err.message : 'Failed to update employee')
+    } finally {
+      setUpdatingDetailId(null)
+    }
+  }
 
   const fetchReport = React.useCallback(
     async (start: Date, end: Date, category: string, branchIds: string[]) => {
@@ -666,6 +892,27 @@ const ExpenseReport: React.FC = () => {
                 MultiValue,
               }}
             />
+            <div className="export-container">
+              <button
+                className="export-btn"
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                title="Export Report"
+                disabled={loading || !data || data.groups.length === 0}
+              >
+                <Download size={16} />
+                <span>Export</span>
+                <span className="icon">↓</span>
+              </button>
+              {showExportMenu && (
+                <div className="export-menu">
+                  <button onClick={handleExportDetailed}>Excel (Detailed)</button>
+                  <button onClick={handleExportSummary}>Excel (Summary)</button>
+                </div>
+              )}
+            </div>
+            {showExportMenu && (
+              <div className="export-backdrop" onClick={() => setShowExportMenu(false)} />
+            )}
           </div>
           <div className="category-tabs">
             {categories.map((cat) => (
@@ -723,11 +970,12 @@ const ExpenseReport: React.FC = () => {
                     <table>
                       <thead>
                         <tr>
-                          <th style={{ width: '5%' }}>S.NO</th>
-                          <th style={{ width: '15%' }}>Category</th>
-                          <th style={{ width: '17.5%' }}>Reason</th>
-                          <th style={{ width: '15%', textAlign: 'right' }}>Amount</th>
-                          <th style={{ width: '15%', textAlign: 'right' }}>Time</th>
+                          <th style={{ width: '4%' }}>S.NO</th>
+                          <th style={{ width: '13%' }}>Category</th>
+                          <th style={{ width: '15%' }}>Reason</th>
+                          <th style={{ width: '12%', textAlign: 'right' }}>Amount</th>
+                          <th style={{ width: '25%' }}>Employee (Role)</th>
+                          <th style={{ width: '16%', textAlign: 'right' }}>Time</th>
                           <th style={{ width: '15%', textAlign: 'center' }}>Image</th>
                         </tr>
                       </thead>
@@ -741,6 +989,39 @@ const ExpenseReport: React.FC = () => {
                               <td className="category-cell">{item.category}</td>
                               <td className="reason-cell">{item.reason}</td>
                               <td className="amount-cell">{item.amount.toLocaleString('en-IN')}</td>
+                              <td className="employee-cell">
+                                <div className="employee-selector-wrapper">
+                                  <select
+                                    className={`employee-select ${item.employeeId ? 'has-employee' : 'unassigned'}`}
+                                    value={item.employeeId || ''}
+                                    onChange={(e) =>
+                                      handleUpdateEmployee(
+                                        item.expenseId,
+                                        item.detailId,
+                                        e.target.value,
+                                      )
+                                    }
+                                    disabled={updatingDetailId === item.detailId}
+                                    title={
+                                      item.employeeName
+                                        ? `${item.employeeName} (${(item.employeeRole || '').toUpperCase()})`
+                                        : 'Assign Employee'
+                                    }
+                                  >
+                                    <option value="">-- Choose Employee --</option>
+                                    {employees.map((emp) => (
+                                      <option key={emp.id} value={emp.id}>
+                                        {emp.name} ({emp.role ? emp.role.toUpperCase() : 'STAFF'})
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {item.employeeRole && (
+                                    <span className="employee-role-badge">
+                                      {item.employeeRole.toUpperCase()}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
                               <td className="time-cell" title={item.time}>
                                 {dayjs.utc(item.time).format('DD-MM-YY hh:mm A')}
                               </td>

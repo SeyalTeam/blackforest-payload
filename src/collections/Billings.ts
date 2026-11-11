@@ -31,7 +31,7 @@ const BILLINGS_REST_LIST_MAX_LIMIT = 80
 const BILLINGS_REST_LIST_MAX_LIMIT_PRIVILEGED = 120
 const BILLINGS_READ_PRIVILEGED_ROLES = new Set(['superadmin', 'admin', 'company', 'account'])
 const BILLINGS_ASYNC_POST_PROCESSING_ENABLED =
-  process.env.BILLINGS_ASYNC_POST_PROCESSING === 'true'
+  process.env.BILLINGS_ASYNC_POST_PROCESSING !== 'false'
 const BILLINGS_HOOK_WARN_MS = (() => {
   const parsed = Number.parseInt(process.env.BILLINGS_HOOK_WARN_MS || '', 10)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 200
@@ -2330,20 +2330,29 @@ const Billings: CollectionConfig = {
               : null
 
         if (topLevelCustomerName || topLevelCustomerPhone || topLevelCustomerAddress) {
+          const resolvedPhone =
+            normalizePhoneNumber(customerDetails.phoneNumber ?? (customerDetails as any).phone) ??
+            topLevelCustomerPhone ??
+            undefined
           data.customerDetails = {
             ...customerDetails,
             name:
               typeof customerDetails.name === 'string' && customerDetails.name.trim().length > 0
                 ? customerDetails.name
                 : topLevelCustomerName ?? undefined,
-            phoneNumber:
-              normalizePhoneNumber(customerDetails.phoneNumber) ??
-              topLevelCustomerPhone ??
-              undefined,
+            phoneNumber: resolvedPhone,
+            phone: resolvedPhone,
             address:
               typeof customerDetails.address === 'string' && customerDetails.address.trim().length > 0
                 ? customerDetails.address
                 : topLevelCustomerAddress ?? undefined,
+          } as any
+        } else if (data.customerDetails) {
+          const rawCD = data.customerDetails as any
+          const resolvedPhone = normalizePhoneNumber(rawCD.phoneNumber ?? rawCD.phone)
+          if (resolvedPhone) {
+            rawCD.phoneNumber = resolvedPhone
+            rawCD.phone = resolvedPhone
           }
         }
 
@@ -4812,6 +4821,7 @@ const Billings: CollectionConfig = {
       fields: [
         { name: 'name', type: 'text' },
         { name: 'phoneNumber', type: 'text' },
+        { name: 'phone', type: 'text', index: true, admin: { hidden: true } },
         { name: 'address', type: 'text' },
       ],
     },

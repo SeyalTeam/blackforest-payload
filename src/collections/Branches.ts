@@ -3,6 +3,8 @@ import { isValidBranchPin } from '../utilities/branchPins'
 
 export const Branches: CollectionConfig = {
   slug: 'branches',
+  // @ts-ignore
+  defaultDepth: 0,
   admin: {
     useAsTitle: 'name',
   },
@@ -245,6 +247,7 @@ export const Branches: CollectionConfig = {
           type: 'relationship',
           relationTo: 'products',
           required: true,
+          maxDepth: 0,
         },
         {
           name: 'resetDate',

@@ -380,7 +380,7 @@ const ExpenseTrendGraph: React.FC<ExpenseTrendGraphProps> = ({ groups, preset })
                               >
                                 <span style={{ color: p.color, fontWeight: 'bold' }}>{cat}:</span>
                                 <span style={{ color: '#fff' }}>
-                                  ₹{p.value.toLocaleString('en-IN')}
+                                  ₹{p.value != null ? p.value.toLocaleString('en-IN') : 0}
                                 </span>
                               </div>
                               {Object.entries(branchData).map(([branch, amount]) => (

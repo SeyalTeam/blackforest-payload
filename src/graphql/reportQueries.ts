@@ -902,11 +902,16 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
   const ExpenseReportItemType = new graphQL.GraphQLObjectType({
     name: 'ExpenseReportItem',
     fields: {
+      expenseId: { type: graphQL.GraphQLString },
+      detailId: { type: graphQL.GraphQLString },
       category: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       reason: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       amount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       time: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       imageUrl: { type: graphQL.GraphQLString },
+      employeeId: { type: graphQL.GraphQLString },
+      employeeName: { type: graphQL.GraphQLString },
+      employeeRole: { type: graphQL.GraphQLString },
     },
   })
 

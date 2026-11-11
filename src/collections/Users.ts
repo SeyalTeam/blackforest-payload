@@ -77,11 +77,15 @@ let cachedMenuSettingsAt = 0
 
 export const Users: CollectionConfig = {
   slug: 'users',
+  // @ts-ignore
+  defaultDepth: 0,
+  maxDepth: 1,
   admin: {
     useAsTitle: 'name',
     defaultColumns: ['name', 'email', 'role', 'loginBlocked'],
   },
   auth: {
+    depth: 0,
     tokenExpiration: 2592000, // 30 Days (Global max) - We restrict staff to 14h via hooks
   },
   fields: [

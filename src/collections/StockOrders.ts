@@ -45,6 +45,9 @@ const getRelationshipID = (value: unknown): string | null => {
 
 const StockOrders: CollectionConfig = {
   slug: 'stock-orders',
+  // @ts-ignore
+  defaultDepth: 0,
+  maxDepth: 1,
   admin: {
     useAsTitle: 'invoiceNumber',
     defaultColumns: ['invoiceNumber', 'branch', 'deliveryDate', 'status', 'createdAt'],
@@ -213,34 +216,74 @@ const StockOrders: CollectionConfig = {
         if (data.items && data.items.length > 0) {
           const now = new Date().toISOString()
 
+          // 1. Collect all product IDs in a single pass
+          const productIdsToFetch: string[] = []
+          for (const item of data.items) {
+            const pId = getRelationshipID(item.product)
+            if (pId) {
+              item.product = pId
+              productIdsToFetch.push(pId)
+            }
+          }
+          const uniqueProductIds = Array.from(new Set(productIdsToFetch))
+
+          // 2. Batch fetch all products in 1 single DB query at depth 0
+          const productMap = new Map<string, any>()
+          if (uniqueProductIds.length > 0) {
+            try {
+              const productsRes = await req.payload.find({
+                collection: 'products',
+                where: {
+                  id: { in: uniqueProductIds },
+                },
+                limit: uniqueProductIds.length,
+                depth: 0,
+                overrideAccess: true,
+              })
+              for (const prod of productsRes.docs) {
+                productMap.set(String(prod.id), prod)
+              }
+            } catch (err) {
+              console.warn('[StockOrders Hook] Error batch fetching products:', err)
+            }
+          }
+
+          // 3. Map original items for fast, accurate lookup
+          const originalItemsMap = new Map<string, any>()
+          if (originalDoc?.items && Array.isArray(originalDoc.items)) {
+            for (const origIt of originalDoc.items) {
+              const origPid = getRelationshipID(origIt.product)
+              if (origPid) originalItemsMap.set(origPid, origIt)
+              if (origIt.id) originalItemsMap.set(String(origIt.id), origIt)
+            }
+          }
+
           for (let i = 0; i < data.items.length; i++) {
             const item = data.items[i]
             if (!item.product) continue
 
-            const productId = getRelationshipID(item.product)
-            if (!productId) continue
-            item.product = productId
-
-            let product = null
+            const productId = item.product
+            const product = productMap.get(productId)
             let price = 0
-            try {
-              product = await req.payload.findByID({
-                collection: 'products',
-                id: productId,
-                depth: 1,
-              })
-              if (product) {
-                item.name = product.name || (item as any)?.name || 'Product'
-                price = product?.defaultPriceDetails?.price || (item as any)?.price || 0
-              }
-            } catch (error) {
-              console.warn(`[StockOrders Hook] Product with ID ${productId} not found:`, error)
+
+            if (product) {
+              item.name = product.name || (item as any)?.name || 'Product'
+              price = product?.defaultPriceDetails?.price || (item as any)?.price || 0
             }
 
-            if (!product) {
-              const originalItem = originalDoc?.items?.[i]
-              item.name = (item as any)?.name || originalItem?.name || 'Product'
-              const originalQty = originalItem?.requiredQty || originalItem?.inStock || (item as any)?.requiredQty || (item as any)?.inStock || 0
+            const originalItem =
+              (item.id ? originalItemsMap.get(String(item.id)) : null) ||
+              originalItemsMap.get(productId) ||
+              originalDoc?.items?.[i]
+
+            if (!price) {
+              item.name = (item as any)?.name || originalItem?.name || product?.name || 'Product'
+              const originalQty =
+                originalItem?.requiredQty ||
+                originalItem?.inStock ||
+                (item as any)?.requiredQty ||
+                (item as any)?.inStock ||
+                0
               const originalAmount = originalItem?.requiredAmount || originalItem?.inStockAmount || 0
               if (originalQty > 0) {
                 price = originalAmount / originalQty
@@ -262,7 +305,6 @@ const StockOrders: CollectionConfig = {
             item.differenceAmount = item.differenceQty * price
 
             // Set timestamps and handle skipped steps
-            const originalItem = originalDoc?.items?.[i]
             if (operation === 'create') {
               if (item.requiredQty > 0) item.requiredDate = now
               if (item.sendingQty > 0) item.sendingDate = now
@@ -354,6 +396,7 @@ const StockOrders: CollectionConfig = {
       name: 'deliveryDate',
       type: 'date',
       required: true,
+      index: true,
       admin: { date: { pickerAppearance: 'dayAndTime' } },
     },
     {
@@ -525,7 +568,7 @@ const StockOrders: CollectionConfig = {
     },
 
     // REMOVED ALL total* fields — you said you calculate them in your script
-    { name: 'branch', type: 'relationship', relationTo: 'branches', required: true },
+    { name: 'branch', type: 'relationship', relationTo: 'branches', required: true, index: true },
     {
       name: 'createdBy',
       type: 'relationship',
@@ -545,6 +588,7 @@ const StockOrders: CollectionConfig = {
       name: 'status',
       type: 'select',
       defaultValue: 'ordered',
+      index: true,
       options: [
         { label: 'Ordered', value: 'ordered' },
         { label: 'Sending', value: 'sending' },

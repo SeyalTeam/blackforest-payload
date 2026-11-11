@@ -9,50 +9,11 @@ var __export = (target, all) => {
 };
 
 // src/utilities/logBuffer.ts
-var logBuffer, MAX_LOG_LINES, stripAnsi, addLog, hooked, initLogHook;
+var initLogHook;
 var init_logBuffer = __esm({
   "src/utilities/logBuffer.ts"() {
     "use strict";
-    logBuffer = [];
-    MAX_LOG_LINES = 5e3;
-    stripAnsi = (text) => {
-      return text.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, "");
-    };
-    addLog = (chunk, stream) => {
-      const cleaned = stripAnsi(chunk);
-      if (!cleaned.trim()) return;
-      const lines = cleaned.split("\n").filter((line) => line.trim());
-      lines.forEach((line) => {
-        logBuffer.push({
-          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-          text: line,
-          stream
-        });
-      });
-      while (logBuffer.length > MAX_LOG_LINES) {
-        logBuffer.shift();
-      }
-    };
-    hooked = false;
     initLogHook = () => {
-      if (hooked) return;
-      hooked = true;
-      const originalStdoutWrite = process.stdout.write;
-      process.stdout.write = function(chunk, ...args) {
-        try {
-          addLog(chunk.toString(), "stdout");
-        } catch (_e) {
-        }
-        return originalStdoutWrite.apply(process.stdout, [chunk, ...args]);
-      };
-      const originalStderrWrite = process.stderr.write;
-      process.stderr.write = function(chunk, ...args) {
-        try {
-          addLog(chunk.toString(), "stderr");
-        } catch (_e) {
-        }
-        return originalStderrWrite.apply(process.stderr, [chunk, ...args]);
-      };
     };
   }
 });
@@ -60,7 +21,7 @@ var init_logBuffer = __esm({
 // src/realtime/wsGateway.ts
 import { randomUUID } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
-var parsePositiveInteger, WS_ENDPOINT_PATH, KOT_TOPIC, HEARTBEAT_PING_MS, HEARTBEAT_TIMEOUT_MS, REPLAY_RETENTION_MS, MAX_CONNECTIONS_PER_USER, MAX_TOTAL_CONNECTIONS, MAX_PAYLOAD_BYTES, INCLUDE_ITEM_SNAPSHOT, BRANCH_SCOPED_ROLES, realtimeState, WORKER_ID, BUS_COLLECTION, ACTIVE_CONNS_COLLECTION, getMongoDb, publishToBus, busChangeStream, isClusterInitialized, deliverBusCallSignal, deliverBusChatEvent, deliverBusBillingEvent, deliverBusSessionTermination, startBusListener, initCrossWorkerCluster, parseRelationshipID, parseRelationshipIDs, parseJSONMessage, normalizeBearerToken, decodeJWTExpiryMs, readHeaderValue, toHeaderObject, nowISO, closeSocket, encodeJSON, ensurePayloadSize, sendServerMessage, sendSystemMessage, removeConnection, pruneEventBuffers, matchesSubscription, canAccessBranch, canAccessKitchen, scheduleTokenExpiry, startHeartbeatLoop, resolveAllowedBranchIDs, resolveAllowedKitchenIDs, authenticateRequest, validateKitchenSubscription, sendSubscriptionNack, sendUnsubscribeNack, handleReplay, handleSubscribe, handleUnsubscribe, registerConnection, enforceConnectionLimits, isMongoId, recordCallEventToDb, getTodayDateStringIST, checkActivitiesPunchedIn, isUserPunchedIn, activeLiveCalls, terminateActiveCallsForUser, handleCallSignal, bootSocket, rejectUpgrade, isRealtimePath, createRealtimeGateway, publishBillingRealtimeEvent, publishChatRealtimeEvent, terminateUserSession, getRealtimeEndpointPath;
+var parsePositiveInteger, WS_ENDPOINT_PATH, KOT_TOPIC, HEARTBEAT_PING_MS, HEARTBEAT_TIMEOUT_MS, REPLAY_RETENTION_MS, MAX_CONNECTIONS_PER_USER, MAX_TOTAL_CONNECTIONS, MAX_PAYLOAD_BYTES, INCLUDE_ITEM_SNAPSHOT, BRANCH_SCOPED_ROLES, realtimeState, WORKER_ID, BUS_COLLECTION, ACTIVE_CONNS_COLLECTION, getMongoDb, publishToBus, busChangeStream, isClusterInitialized, deliverBusCallSignal, deliverBusChatEvent, deliverBusBillingEvent, deliverBusSessionTermination, deliverBusChefCategoryEvent, startBusListener, initCrossWorkerCluster, parseRelationshipID, parseRelationshipIDs, parseJSONMessage, normalizeBearerToken, decodeJWTExpiryMs, readHeaderValue, toHeaderObject, nowISO, closeSocket, encodeJSON, ensurePayloadSize, sendServerMessage, sendSystemMessage, removeConnection, pruneEventBuffers, matchesSubscription, canAccessBranch, canAccessKitchen, scheduleTokenExpiry, startHeartbeatLoop, resolveAllowedBranchIDs, resolveAllowedKitchenIDs, authenticateRequest, validateKitchenSubscription, sendSubscriptionNack, sendUnsubscribeNack, handleReplay, handleSubscribe, handleUnsubscribe, registerConnection, enforceConnectionLimits, isMongoId, recordCallEventToDb, getTodayDateStringIST, checkActivitiesPunchedIn, isUserPunchedIn, activeLiveCalls, terminateActiveCallsForUser, handleCallSignal, bootSocket, rejectUpgrade, isRealtimePath, createRealtimeGateway, publishBillingRealtimeEvent, publishChatRealtimeEvent, terminateUserSession, publishChefCategoryUpdate, getRealtimeEndpointPath;
 var init_wsGateway = __esm({
   "src/realtime/wsGateway.ts"() {
     "use strict";
@@ -179,6 +140,25 @@ var init_wsGateway = __esm({
         }
       }
     };
+    deliverBusChefCategoryEvent = (payload, targetUserId) => {
+      if (targetUserId) {
+        const connIDs = realtimeState.connectionsByUserID.get(targetUserId);
+        if (connIDs && connIDs.size > 0) {
+          for (const connID of connIDs) {
+            const connection = realtimeState.connections.get(connID);
+            if (connection && connection.socket.readyState === WebSocket.OPEN) {
+              sendServerMessage(connection, payload);
+            }
+          }
+        }
+      } else {
+        for (const connection of realtimeState.connections.values()) {
+          if (connection.socket.readyState === WebSocket.OPEN) {
+            sendServerMessage(connection, payload);
+          }
+        }
+      }
+    };
     startBusListener = (db) => {
       try {
         const busColl = db.collection(BUS_COLLECTION);
@@ -198,6 +178,8 @@ var init_wsGateway = __esm({
                 doc.targetUserId || doc.payload?.userId,
                 doc.payload?.reason || "Session terminated"
               );
+            } else if (doc.channel === "chef_category") {
+              deliverBusChefCategoryEvent(doc.payload, doc.targetUserId);
             }
           } catch (err) {
             console.error("[wsGateway] Error handling bus change event:", err);
@@ -1485,6 +1467,30 @@ var init_wsGateway = __esm({
         payload: { userId: normalizedUserId, reason, eventType }
       });
     };
+    publishChefCategoryUpdate = (input) => {
+      const event = {
+        eventType: "chef_categories_updated",
+        targetUserId: input.targetUserId || null,
+        claimedByChefId: input.claimedByChefId || null,
+        claimedByChefName: input.claimedByChefName || null,
+        categoryId: input.categoryId || null,
+        categoryName: input.categoryName || null,
+        action: input.action,
+        kitchenCategoryIds: input.kitchenCategoryIds || [],
+        stockCategoryIds: input.stockCategoryIds || [],
+        removedCategoryIds: input.removedCategoryIds || [],
+        addedCategoryIds: input.addedCategoryIds || [],
+        timestamp: nowISO()
+      };
+      const safePayload = ensurePayloadSize(event);
+      if (!safePayload) return;
+      deliverBusChefCategoryEvent(safePayload, input.targetUserId);
+      publishToBus({
+        channel: "chef_category",
+        targetUserId: input.targetUserId || null,
+        payload: safePayload
+      });
+    };
     process.on("beforeExit", () => {
       const db = getMongoDb();
       if (db) {
@@ -1798,11 +1804,15 @@ var init_Users = __esm({
     cachedMenuSettingsAt = 0;
     Users = {
       slug: "users",
+      // @ts-ignore
+      defaultDepth: 0,
+      maxDepth: 1,
       admin: {
         useAsTitle: "name",
         defaultColumns: ["name", "email", "role", "loginBlocked"]
       },
       auth: {
+        depth: 0,
         tokenExpiration: 2592e3
         // 30 Days (Global max) - We restrict staff to 14h via hooks
       },
@@ -3078,11 +3088,46 @@ var init_Users = __esm({
                   for (const other of assignments) {
                     const otherId = getRelationshipID(other.chef);
                     if (otherId && otherId !== currentChefId) {
-                      if (currentChefKitchenCats.length > 0) {
-                        const otherK = getRelationshipIDs(other.kitchenCategories);
-                        other.kitchenCategories = otherK.filter(
-                          (id) => !currentChefKitchenCats.includes(id)
-                        );
+                      const otherK = getRelationshipIDs(other.kitchenCategories);
+                      const otherS = getRelationshipIDs(other.stockCategories);
+                      const removedKitchen = otherK.filter((id) => currentChefKitchenCats.includes(id));
+                      const removedStock = otherS.filter((id) => currentChefStockCats.includes(id));
+                      if (removedKitchen.length > 0 || removedStock.length > 0) {
+                        const newOtherK = otherK.filter((id) => !currentChefKitchenCats.includes(id));
+                        const newOtherS = otherS.filter((id) => !currentChefStockCats.includes(id));
+                        other.kitchenCategories = newOtherK;
+                        other.stockCategories = newOtherS;
+                        try {
+                          await req.payload.update({
+                            collection: "users",
+                            id: otherId,
+                            data: {
+                              ...removedKitchen.length > 0 ? { categories: newOtherK } : {},
+                              ...removedStock.length > 0 ? { stockCategories: newOtherS } : {}
+                            },
+                            context: {
+                              ...req.context || {},
+                              fromChefUserSync: true,
+                              skipChefCategorySync: true
+                            },
+                            overrideAccess: true
+                          });
+                        } catch (updateErr) {
+                          console.error(`[Users afterChange] Error stripping claimed categories from chef ${otherId}:`, updateErr);
+                        }
+                        try {
+                          publishChefCategoryUpdate({
+                            targetUserId: otherId,
+                            claimedByChefId: currentChefId,
+                            claimedByChefName: doc.name || doc.username || "Another Chef",
+                            action: "removed",
+                            kitchenCategoryIds: newOtherK,
+                            stockCategoryIds: newOtherS,
+                            removedCategoryIds: [...removedKitchen, ...removedStock]
+                          });
+                        } catch (wsErr) {
+                          console.error(`[Users afterChange] Error emitting WS event to chef ${otherId}:`, wsErr);
+                        }
                       }
                     }
                   }
@@ -3105,6 +3150,18 @@ var init_Users = __esm({
                     },
                     overrideAccess: true
                   });
+                  try {
+                    publishChefCategoryUpdate({
+                      targetUserId: currentChefId,
+                      claimedByChefId: currentChefId,
+                      claimedByChefName: doc.name || doc.username || "Chef",
+                      action: "assigned",
+                      kitchenCategoryIds: currentChefKitchenCats,
+                      stockCategoryIds: currentChefStockCats
+                    });
+                  } catch (wsErr) {
+                    console.error(`[Users afterChange] Error emitting WS for current chef ${currentChefId}:`, wsErr);
+                  }
                 } catch (err) {
                   console.error("[Users afterChange] Error updating chef-settings global:", err);
                 }
@@ -3149,6 +3206,8 @@ var init_Branches = __esm({
     init_branchPins();
     Branches = {
       slug: "branches",
+      // @ts-ignore
+      defaultDepth: 0,
       admin: {
         useAsTitle: "name"
       },
@@ -3369,7 +3428,8 @@ var init_Branches = __esm({
               name: "product",
               type: "relationship",
               relationTo: "products",
-              required: true
+              required: true,
+              maxDepth: 0
             },
             {
               name: "resetDate",
@@ -7286,7 +7346,7 @@ var init_serverUrl = __esm({
       if (envUrl) {
         try {
           const normalized = normalizeAbsoluteURL(envUrl);
-          if (normalized && isLocalHostname(new URL(normalized).hostname)) {
+          if (normalized) {
             return normalized;
           }
         } catch (_err) {
@@ -8103,7 +8163,7 @@ var init_Billings = __esm({
     BILLINGS_REST_LIST_MAX_LIMIT = 80;
     BILLINGS_REST_LIST_MAX_LIMIT_PRIVILEGED = 120;
     BILLINGS_READ_PRIVILEGED_ROLES = /* @__PURE__ */ new Set(["superadmin", "admin", "company", "account"]);
-    BILLINGS_ASYNC_POST_PROCESSING_ENABLED = process.env.BILLINGS_ASYNC_POST_PROCESSING === "true";
+    BILLINGS_ASYNC_POST_PROCESSING_ENABLED = process.env.BILLINGS_ASYNC_POST_PROCESSING !== "false";
     BILLINGS_HOOK_WARN_MS = (() => {
       const parsed = Number.parseInt(process.env.BILLINGS_HOOK_WARN_MS || "", 10);
       return Number.isFinite(parsed) && parsed > 0 ? parsed : 200;
@@ -9695,12 +9755,21 @@ var init_Billings = __esm({
               );
               const topLevelCustomerAddress = typeof rawData.customerAddress === "string" && rawData.customerAddress.trim().length > 0 ? rawData.customerAddress.trim() : typeof rawData.address === "string" && rawData.address.trim().length > 0 ? rawData.address.trim() : null;
               if (topLevelCustomerName || topLevelCustomerPhone || topLevelCustomerAddress) {
+                const resolvedPhone = normalizePhoneNumber(customerDetails.phoneNumber ?? customerDetails.phone) ?? topLevelCustomerPhone ?? void 0;
                 data.customerDetails = {
                   ...customerDetails,
                   name: typeof customerDetails.name === "string" && customerDetails.name.trim().length > 0 ? customerDetails.name : topLevelCustomerName ?? void 0,
-                  phoneNumber: normalizePhoneNumber(customerDetails.phoneNumber) ?? topLevelCustomerPhone ?? void 0,
+                  phoneNumber: resolvedPhone,
+                  phone: resolvedPhone,
                   address: typeof customerDetails.address === "string" && customerDetails.address.trim().length > 0 ? customerDetails.address : topLevelCustomerAddress ?? void 0
                 };
+              } else if (data.customerDetails) {
+                const rawCD = data.customerDetails;
+                const resolvedPhone = normalizePhoneNumber(rawCD.phoneNumber ?? rawCD.phone);
+                if (resolvedPhone) {
+                  rawCD.phoneNumber = resolvedPhone;
+                  rawCD.phone = resolvedPhone;
+                }
               }
               const hasTableDetails = isTableOrderBill(data, originalDoc);
               const branchID = getBranchIDFromBillingData(data, originalDoc);
@@ -11693,6 +11762,7 @@ var init_Billings = __esm({
           fields: [
             { name: "name", type: "text" },
             { name: "phoneNumber", type: "text" },
+            { name: "phone", type: "text", index: true, admin: { hidden: true } },
             { name: "address", type: "text" }
           ]
         },
@@ -13588,6 +13658,15 @@ var init_Expenses = __esm({
               type: "relationship",
               relationTo: "media",
               required: true
+            },
+            {
+              name: "employee",
+              type: "relationship",
+              relationTo: "employees",
+              required: false,
+              admin: {
+                description: "Employee associated with this expense item"
+              }
             }
           ]
         },
@@ -13755,6 +13834,9 @@ var init_StockOrders = __esm({
     };
     StockOrders = {
       slug: "stock-orders",
+      // @ts-ignore
+      defaultDepth: 0,
+      maxDepth: 1,
       admin: {
         useAsTitle: "invoiceNumber",
         defaultColumns: ["invoiceNumber", "branch", "deliveryDate", "status", "createdAt"]
@@ -13890,32 +13972,57 @@ var init_StockOrders = __esm({
             }
             if (data.items && data.items.length > 0) {
               const now = (/* @__PURE__ */ new Date()).toISOString();
+              const productIdsToFetch = [];
+              for (const item of data.items) {
+                const pId = getRelationshipID5(item.product);
+                if (pId) {
+                  item.product = pId;
+                  productIdsToFetch.push(pId);
+                }
+              }
+              const uniqueProductIds = Array.from(new Set(productIdsToFetch));
+              const productMap = /* @__PURE__ */ new Map();
+              if (uniqueProductIds.length > 0) {
+                try {
+                  const productsRes = await req.payload.find({
+                    collection: "products",
+                    where: {
+                      id: { in: uniqueProductIds }
+                    },
+                    limit: uniqueProductIds.length,
+                    depth: 0,
+                    overrideAccess: true
+                  });
+                  for (const prod of productsRes.docs) {
+                    productMap.set(String(prod.id), prod);
+                  }
+                } catch (err) {
+                  console.warn("[StockOrders Hook] Error batch fetching products:", err);
+                }
+              }
+              const originalItemsMap = /* @__PURE__ */ new Map();
+              if (originalDoc?.items && Array.isArray(originalDoc.items)) {
+                for (const origIt of originalDoc.items) {
+                  const origPid = getRelationshipID5(origIt.product);
+                  if (origPid) originalItemsMap.set(origPid, origIt);
+                  if (origIt.id) originalItemsMap.set(String(origIt.id), origIt);
+                }
+              }
               for (let i = 0; i < data.items.length; i++) {
                 const item = data.items[i];
                 if (!item.product) continue;
-                const productId = getRelationshipID5(item.product);
-                if (!productId) continue;
-                item.product = productId;
-                let product = null;
+                const productId = item.product;
+                const product = productMap.get(productId);
                 let price = 0;
-                try {
-                  product = await req.payload.findByID({
-                    collection: "products",
-                    id: productId,
-                    depth: 1
-                  });
-                  if (product) {
-                    item.name = product.name || item?.name || "Product";
-                    price = product?.defaultPriceDetails?.price || item?.price || 0;
-                  }
-                } catch (error) {
-                  console.warn(`[StockOrders Hook] Product with ID ${productId} not found:`, error);
+                if (product) {
+                  item.name = product.name || item?.name || "Product";
+                  price = product?.defaultPriceDetails?.price || item?.price || 0;
                 }
-                if (!product) {
-                  const originalItem2 = originalDoc?.items?.[i];
-                  item.name = item?.name || originalItem2?.name || "Product";
-                  const originalQty = originalItem2?.requiredQty || originalItem2?.inStock || item?.requiredQty || item?.inStock || 0;
-                  const originalAmount = originalItem2?.requiredAmount || originalItem2?.inStockAmount || 0;
+                const originalItem = (item.id ? originalItemsMap.get(String(item.id)) : null) || originalItemsMap.get(productId) || originalDoc?.items?.[i];
+                if (!price) {
+                  item.name = item?.name || originalItem?.name || product?.name || "Product";
+                  const originalQty = originalItem?.requiredQty || originalItem?.inStock || item?.requiredQty || item?.inStock || 0;
+                  const originalAmount = originalItem?.requiredAmount || originalItem?.inStockAmount || 0;
                   if (originalQty > 0) {
                     price = originalAmount / originalQty;
                   } else {
@@ -13930,7 +14037,6 @@ var init_StockOrders = __esm({
                 item.receivedAmount = (item.receivedQty || 0) * price;
                 item.differenceQty = (item.requiredQty || 0) - (item.receivedQty || 0);
                 item.differenceAmount = item.differenceQty * price;
-                const originalItem = originalDoc?.items?.[i];
                 if (operation === "create") {
                   if (item.requiredQty > 0) item.requiredDate = now;
                   if (item.sendingQty > 0) item.sendingDate = now;
@@ -14005,6 +14111,7 @@ var init_StockOrders = __esm({
           name: "deliveryDate",
           type: "date",
           required: true,
+          index: true,
           admin: { date: { pickerAppearance: "dayAndTime" } }
         },
         {
@@ -14167,7 +14274,7 @@ var init_StockOrders = __esm({
           ]
         },
         // REMOVED ALL total* fields — you said you calculate them in your script
-        { name: "branch", type: "relationship", relationTo: "branches", required: true },
+        { name: "branch", type: "relationship", relationTo: "branches", required: true, index: true },
         {
           name: "createdBy",
           type: "relationship",
@@ -14187,6 +14294,7 @@ var init_StockOrders = __esm({
           name: "status",
           type: "select",
           defaultValue: "ordered",
+          index: true,
           options: [
             { label: "Ordered", value: "ordered" },
             { label: "Sending", value: "sending" },
@@ -20715,10 +20823,10 @@ var init_attendance = __esm({
         if (missingIds.length > 0 && payload.db.collections["media"]) {
           try {
             const MediaModel = payload.db.collections["media"];
-            const mongoose8 = await import("mongoose");
+            const mongoose9 = await import("mongoose");
             const objectIds = missingIds.map((id) => {
               try {
-                return new mongoose8.Types.ObjectId(id);
+                return new mongoose9.Types.ObjectId(id);
               } catch {
                 return null;
               }
@@ -23900,6 +24008,31 @@ var init_expense = __esm({
           }
         },
         {
+          $lookup: {
+            from: "employees",
+            let: { empId: "$details.employee" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $or: [
+                      { $eq: ["$_id", "$$empId"] },
+                      { $eq: [{ $toString: "$_id" }, { $toString: "$$empId" }] }
+                    ]
+                  }
+                }
+              }
+            ],
+            as: "employeeInfo"
+          }
+        },
+        {
+          $unwind: {
+            path: "$employeeInfo",
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        {
           $group: {
             _id: "$branch",
             branchName: { $first: { $ifNull: ["$branchInfo.name", "Unknown Branch"] } },
@@ -23907,12 +24040,17 @@ var init_expense = __esm({
             count: { $sum: 1 },
             items: {
               $push: {
+                expenseId: "$_id",
+                detailId: "$details._id",
                 category: "$details.source",
                 reason: "$details.reason",
                 amount: "$details.amount",
                 time: "$date",
                 imageUrl: "$mediaInfo.url",
-                filename: "$mediaInfo.filename"
+                filename: "$mediaInfo.filename",
+                employeeId: "$employeeInfo._id",
+                employeeName: "$employeeInfo.name",
+                employeeRole: "$employeeInfo.team"
               }
             }
           }
@@ -23931,11 +24069,16 @@ var init_expense = __esm({
           const filename2 = toNonEmptyString3(item.filename);
           const imageUrl = toNonEmptyString3(item.imageUrl);
           return {
+            expenseId: toNonEmptyString3(item.expenseId),
+            detailId: toNonEmptyString3(item.detailId),
             category: toNonEmptyString3(item.category),
             reason: toNonEmptyString3(item.reason),
             amount: toNumber5(item.amount),
             time: toDateString2(item.time),
-            imageUrl: imageUrl || (filename2 ? `/api/media/file/${filename2}` : void 0)
+            imageUrl: imageUrl || (filename2 ? `/api/media/file/${filename2}` : void 0),
+            employeeId: toNonEmptyString3(item.employeeId),
+            employeeName: toNonEmptyString3(item.employeeName),
+            employeeRole: toNonEmptyString3(item.employeeRole)
           };
         });
         return {
@@ -24003,6 +24146,108 @@ var init_getExpenseReport = __esm({
   }
 });
 
+// src/endpoints/updateExpenseEmployee.ts
+import mongoose7 from "mongoose";
+var updateExpenseEmployeeHandler;
+var init_updateExpenseEmployee = __esm({
+  "src/endpoints/updateExpenseEmployee.ts"() {
+    "use strict";
+    updateExpenseEmployeeHandler = async (req) => {
+      const { payload } = req;
+      if (!req.user) {
+        return Response.json({ message: "Unauthorized" }, { status: 401 });
+      }
+      try {
+        const body = await req.json();
+        const { expenseId, detailId, employeeId } = body || {};
+        if (!expenseId || !detailId) {
+          return Response.json({ message: "expenseId and detailId are required" }, { status: 400 });
+        }
+        let employeeDoc = null;
+        if (employeeId && typeof employeeId === "string" && employeeId.trim().length > 0) {
+          employeeDoc = await payload.findByID({
+            collection: "employees",
+            id: employeeId,
+            depth: 0,
+            overrideAccess: true
+          });
+        }
+        const resolvedEmployeeId = employeeDoc ? employeeDoc.id : null;
+        const ExpenseModel = payload.db.collections["expenses"];
+        if (ExpenseModel) {
+          const matchCriteria = [];
+          if (mongoose7.Types.ObjectId.isValid(expenseId)) {
+            matchCriteria.push({ _id: new mongoose7.Types.ObjectId(expenseId) });
+          }
+          matchCriteria.push({ _id: expenseId });
+          const detailMatchCriteria = [];
+          if (mongoose7.Types.ObjectId.isValid(detailId)) {
+            detailMatchCriteria.push({ "details._id": new mongoose7.Types.ObjectId(detailId) });
+          }
+          detailMatchCriteria.push({ "details._id": detailId });
+          detailMatchCriteria.push({ "details.id": detailId });
+          const empValue = resolvedEmployeeId ? mongoose7.Types.ObjectId.isValid(resolvedEmployeeId) ? new mongoose7.Types.ObjectId(resolvedEmployeeId) : resolvedEmployeeId : null;
+          await ExpenseModel.updateOne(
+            {
+              $or: matchCriteria,
+              $and: [{ $or: detailMatchCriteria }]
+            },
+            {
+              $set: {
+                "details.$.employee": empValue
+              }
+            }
+          );
+        }
+        try {
+          const expenseDoc = await payload.findByID({
+            collection: "expenses",
+            id: expenseId,
+            depth: 0,
+            overrideAccess: true
+          });
+          if (expenseDoc && Array.isArray(expenseDoc.details)) {
+            const updatedDetails = expenseDoc.details.map((d) => {
+              const currentId = String(d.id || d._id);
+              if (currentId === String(detailId)) {
+                return {
+                  ...d,
+                  employee: resolvedEmployeeId || null
+                };
+              }
+              return d;
+            });
+            await payload.update({
+              collection: "expenses",
+              id: expenseId,
+              data: {
+                details: updatedDetails
+              },
+              overrideAccess: true
+            });
+          }
+        } catch (err) {
+          req.payload.logger.warn(`Payload update fallback note: ${err}`);
+        }
+        return Response.json({
+          success: true,
+          expenseId,
+          detailId,
+          employeeId: resolvedEmployeeId,
+          employeeName: employeeDoc ? employeeDoc.name : null,
+          employeeRole: employeeDoc ? employeeDoc.team || null : null
+        });
+      } catch (error) {
+        payload.logger.error(error);
+        return Response.json(
+          { message: error instanceof Error ? error.message : "Error updating employee" },
+          { status: 500 }
+        );
+      }
+    };
+  }
+});
+
 // src/globals/ExpenseReport.ts
 var ExpenseReportGlobal;
 var init_ExpenseReport = __esm({
@@ -24032,7 +24277,7 @@ var init_ExpenseReport = __esm({
 });
 
 // src/services/reports/dealer.ts
-import mongoose7 from "mongoose";
+import mongoose8 from "mongoose";
 import dayjs21 from "dayjs";
 import utc21 from "dayjs/plugin/utc.js";
 import timezone21 from "dayjs/plugin/timezone.js";
@@ -24142,12 +24387,12 @@ var init_dealer = __esm({
       }
       if (selectedBranches.length > 0) {
         matchQuery.branch = {
-          $in: selectedBranches.map((id) => new mongoose7.Types.ObjectId(id))
+          $in: selectedBranches.map((id) => new mongoose8.Types.ObjectId(id))
         };
       }
       if (selectedDealers.length > 0) {
         matchQuery.dealer = {
-          $in: selectedDealers.map((id) => new mongoose7.Types.ObjectId(id))
+          $in: selectedDealers.map((id) => new mongoose8.Types.ObjectId(id))
         };
       }
       const pipeline = [
@@ -26100,10 +26345,10 @@ var init_returnOrder = __esm({
         if (stillMissing.length > 0 && payload.db.collections["media"]) {
           try {
             const MediaModel = payload.db.collections["media"];
-            const mongoose8 = await import("mongoose");
+            const mongoose9 = await import("mongoose");
             const objectIds = stillMissing.map((id) => {
               try {
-                return new mongoose8.Types.ObjectId(id);
+                return new mongoose9.Types.ObjectId(id);
               } catch {
                 return null;
               }
@@ -35842,11 +36087,16 @@ var init_reportQueries = __esm({
       const ExpenseReportItemType = new graphQL.GraphQLObjectType({
         name: "ExpenseReportItem",
         fields: {
+          expenseId: { type: graphQL.GraphQLString },
+          detailId: { type: graphQL.GraphQLString },
           category: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
           reason: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
           amount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
           time: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
-          imageUrl: { type: graphQL.GraphQLString }
+          imageUrl: { type: graphQL.GraphQLString },
+          employeeId: { type: graphQL.GraphQLString },
+          employeeName: { type: graphQL.GraphQLString },
+          employeeRole: { type: graphQL.GraphQLString }
         }
       });
       const ExpenseReportGroupType = new graphQL.GraphQLObjectType({
@@ -36540,9 +36790,6 @@ var init_IdempotencyKeys = __esm({
         },
         {
           fields: ["status", "updatedAt"]
-        },
-        {
-          fields: ["expiresAt"]
         }
       ],
       fields: [
@@ -40245,6 +40492,7 @@ var getRelationshipID14, getRelationshipIDs2, enforceOneCategoryOneChef, syncAct
 var init_ChefSettings = __esm({
   "src/globals/ChefSettings.ts"() {
     "use strict";
+    init_wsGateway();
     getRelationshipID14 = (value) => {
       if (!value) return null;
       if (typeof value === "string") return value.trim();
@@ -40557,6 +40805,15 @@ var init_ChefSettings = __esm({
                   },
                   overrideAccess: true
                 });
+                try {
+                  publishChefCategoryUpdate({
+                    targetUserId: chefId,
+                    action: "assigned",
+                    kitchenCategoryIds: targetCats,
+                    stockCategoryIds: targetStockCats
+                  });
+                } catch (_) {
+                }
               } catch (err) {
                 console.error(`[ChefSettings afterChange] Error syncing chef ${chefId}:`, err);
               }
@@ -40582,6 +40839,7 @@ var init_ChefSettings = __esm({
                       (id) => !kitchenCategories.includes(id)
                     );
                     if (updatedOtherCatIds.length !== otherCatIds.length) {
+                      const removedIds = otherCatIds.filter((id) => kitchenCategories.includes(id));
                       await req.payload.update({
                         collection: "users",
                         id: otherChef.id,
@@ -40595,11 +40853,79 @@ var init_ChefSettings = __esm({
                         },
                         overrideAccess: true
                       });
+                      try {
+                        publishChefCategoryUpdate({
+                          targetUserId: String(otherChef.id),
+                          claimedByChefId: chefId,
+                          claimedByChefName: entry.chefName || "Another Chef",
+                          action: "removed",
+                          kitchenCategoryIds: updatedOtherCatIds,
+                          stockCategoryIds: getRelationshipIDs2(otherChef.stockCategories),
+                          removedCategoryIds: removedIds
+                        });
+                      } catch (_) {
+                      }
                     }
                   }
                 } catch (err) {
                   console.error(
                     `[ChefSettings afterChange] Error reassigning kitchen categories for chef ${chefId}:`,
+                    err
+                  );
+                }
+              }
+              if (stockCategories.length > 0) {
+                try {
+                  const conflictingStockChefs = await req.payload.find({
+                    collection: "users",
+                    where: {
+                      and: [
+                        { id: { not_equals: chefId } },
+                        { stockCategories: { in: stockCategories } }
+                      ]
+                    },
+                    depth: 0,
+                    limit: 100,
+                    pagination: false,
+                    overrideAccess: true
+                  });
+                  for (const otherChef of conflictingStockChefs.docs) {
+                    const otherStockCatIds = getRelationshipIDs2(otherChef.stockCategories);
+                    const updatedOtherStockCatIds = otherStockCatIds.filter(
+                      (id) => !stockCategories.includes(id)
+                    );
+                    if (updatedOtherStockCatIds.length !== otherStockCatIds.length) {
+                      const removedStockIds = otherStockCatIds.filter((id) => stockCategories.includes(id));
+                      await req.payload.update({
+                        collection: "users",
+                        id: otherChef.id,
+                        data: {
+                          stockCategories: updatedOtherStockCatIds
+                        },
+                        context: {
+                          ...req.context || {},
+                          fromChefSettingsSync: true,
+                          skipChefCategorySync: true
+                        },
+                        overrideAccess: true
+                      });
+                      try {
+                        publishChefCategoryUpdate({
+                          targetUserId: String(otherChef.id),
+                          claimedByChefId: chefId,
+                          claimedByChefName: entry.chefName || "Another Chef",
+                          action: "removed",
+                          kitchenCategoryIds: getRelationshipIDs2(otherChef.categories),
+                          stockCategoryIds: updatedOtherStockCatIds,
+                          removedCategoryIds: removedStockIds
+                        });
+                      } catch (_) {
+                      }
+                    }
+                  }
+                } catch (err) {
+                  console.error(
+                    `[ChefSettings afterChange] Error reassigning stock categories for chef ${chefId}:`,
                     err
                   );
                 }
@@ -41161,6 +41487,7 @@ async function calculateReportCardData(req, params) {
           ]
         },
         limit: 1e3,
+        depth: 0,
         pagination: false,
         overrideAccess: true
       });
@@ -41599,6 +41926,7 @@ async function calculateReportCardData(req, params) {
           ]
         },
         limit: 500,
+        depth: 0,
         pagination: false,
         overrideAccess: true
       });
@@ -43371,6 +43699,7 @@ var init_payload_config = __esm({
     init_InstockEntryReport();
     init_getDashboardStats();
     init_getExpenseReport();
+    init_updateExpenseEmployee();
     init_ExpenseReport();
     init_getDealerReport();
     init_DealerReport();
@@ -43978,6 +44307,11 @@ var init_payload_config = __esm({
           handler: getExpenseReportHandler
         },
         {
+          path: "/reports/expense/update-employee",
+          method: "post",
+          handler: updateExpenseEmployeeHandler
+        },
+        {
           path: "/reports/dealer",
           method: "get",
           handler: getDealerReportHandler
@@ -44451,10 +44785,10 @@ function getExpectedShiftEnd(punchInIso, employee) {
 async function resolveEmployeeMap(payload, employeeIds, userIds) {
   const EmployeeModel = payload.db.collections["employees"];
   const UserModel = payload.db.collections["users"];
-  const mongoose8 = await import("mongoose");
+  const mongoose9 = await import("mongoose");
   const toOid = (id) => {
     try {
-      return new mongoose8.Types.ObjectId(id);
+      return new mongoose9.Types.ObjectId(id);
     } catch {
       return null;
     }
@@ -44566,13 +44900,17 @@ async function runNightlyJob(payload) {
     const localDate = new Date(utcOffset);
     localDate.setUTCHours(0, 0, 0, 0);
     const today = new Date(localDate.getTime() - 5.5 * 60 * 60 * 1e3);
+    const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1e3);
     let hasMore = true;
     let page = 1;
     while (hasMore) {
       const result = await payload.find({
         collection: "attendance",
         where: {
-          date: { less_than: today.toISOString() }
+          and: [
+            { date: { greater_than_equal: sevenDaysAgo.toISOString() } },
+            { date: { less_than: today.toISOString() } }
+          ]
         },
         limit: 100,
         page,
