@@ -12,7 +12,7 @@ import {
   isValidBranchPin,
   normalizeBranchPin,
 } from '../utilities/branchPins'
-import { terminateUserSession } from '../realtime/wsGateway'
+import { terminateUserSession, publishChefCategoryUpdate } from '../realtime/wsGateway'
 
 const getRelationshipID = (value: unknown): string | null => {
   if (!value) return null
@@ -1663,16 +1663,59 @@ export const Users: CollectionConfig = {
                 stockCategories: currentChefStockCats,
               }
 
-              // Enforce "one category one chef only" in chef-settings assignments too:
-              // Strip current chef's categories from all other chefs in the global settings
+              // Enforce "one category one chef only":
+              // Strip current chef's categories from all other chefs in global settings AND users collection,
+              // and notify them immediately via WebSocket so the category is removed from their screen!
               for (const other of assignments) {
                 const otherId = getRelationshipID(other.chef)
                 if (otherId && otherId !== currentChefId) {
-                  if (currentChefKitchenCats.length > 0) {
-                    const otherK = getRelationshipIDs(other.kitchenCategories)
-                    other.kitchenCategories = otherK.filter(
-                      (id) => !currentChefKitchenCats.includes(id),
-                    )
+                  const otherK = getRelationshipIDs(other.kitchenCategories)
+                  const otherS = getRelationshipIDs(other.stockCategories)
+
+                  const removedKitchen = otherK.filter((id) => currentChefKitchenCats.includes(id))
+                  const removedStock = otherS.filter((id) => currentChefStockCats.includes(id))
+
+                  if (removedKitchen.length > 0 || removedStock.length > 0) {
+                    const newOtherK = otherK.filter((id) => !currentChefKitchenCats.includes(id))
+                    const newOtherS = otherS.filter((id) => !currentChefStockCats.includes(id))
+
+                    other.kitchenCategories = newOtherK
+                    other.stockCategories = newOtherS
+
+                    // 1. Update the other chef's user document in the database
+                    try {
+                      await req.payload.update({
+                        collection: 'users',
+                        id: otherId,
+                        data: {
+                          ...(removedKitchen.length > 0 ? { categories: newOtherK } : {}),
+                          ...(removedStock.length > 0 ? { stockCategories: newOtherS } : {}),
+                        },
+                        context: {
+                          ...(req.context || {}),
+                          fromChefUserSync: true,
+                          skipChefCategorySync: true,
+                        },
+                        overrideAccess: true,
+                      })
+                    } catch (updateErr) {
+                      console.error(`[Users afterChange] Error stripping claimed categories from chef ${otherId}:`, updateErr)
+                    }
+
+                    // 2. Emit WebSocket event to the other chef's mobile app immediately
+                    try {
+                      publishChefCategoryUpdate({
+                        targetUserId: otherId,
+                        claimedByChefId: currentChefId,
+                        claimedByChefName: doc.name || doc.username || 'Another Chef',
+                        action: 'removed',
+                        kitchenCategoryIds: newOtherK,
+                        stockCategoryIds: newOtherS,
+                        removedCategoryIds: [...removedKitchen, ...removedStock],
+                      })
+                    } catch (wsErr) {
+                      console.error(`[Users afterChange] Error emitting WS event to chef ${otherId}:`, wsErr)
+                    }
                   }
                 }
               }
@@ -1697,6 +1740,20 @@ export const Users: CollectionConfig = {
                 },
                 overrideAccess: true,
               })
+
+              // 3. Emit WebSocket event confirming the current chef's active categories
+              try {
+                publishChefCategoryUpdate({
+                  targetUserId: currentChefId,
+                  claimedByChefId: currentChefId,
+                  claimedByChefName: doc.name || doc.username || 'Chef',
+                  action: 'assigned',
+                  kitchenCategoryIds: currentChefKitchenCats,
+                  stockCategoryIds: currentChefStockCats,
+                })
+              } catch (wsErr) {
+                console.error(`[Users afterChange] Error emitting WS for current chef ${currentChefId}:`, wsErr)
+              }
             } catch (err) {
               console.error('[Users afterChange] Error updating chef-settings global:', err)
             }

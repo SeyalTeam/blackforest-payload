@@ -1,4 +1,5 @@
 import type { GlobalConfig, Where } from 'payload'
+import { publishChefCategoryUpdate } from '../realtime/wsGateway'
 
 const getRelationshipID = (value: unknown): string | null => {
   if (!value) return null
@@ -414,6 +415,16 @@ export const ChefSettingsGlobal: GlobalConfig = {
               },
               overrideAccess: true,
             })
+
+            // Notify chef via WebSocket of their assigned categories
+            try {
+              publishChefCategoryUpdate({
+                targetUserId: chefId,
+                action: 'assigned',
+                kitchenCategoryIds: targetCats,
+                stockCategoryIds: targetStockCats,
+              })
+            } catch (_) {}
           } catch (err) {
             console.error(`[ChefSettings afterChange] Error syncing chef ${chefId}:`, err)
           }
@@ -443,6 +454,7 @@ export const ChefSettingsGlobal: GlobalConfig = {
                   (id) => !kitchenCategories.includes(id),
                 )
                 if (updatedOtherCatIds.length !== otherCatIds.length) {
+                  const removedIds = otherCatIds.filter((id) => kitchenCategories.includes(id))
                   await req.payload.update({
                     collection: 'users',
                     id: otherChef.id,
@@ -456,11 +468,84 @@ export const ChefSettingsGlobal: GlobalConfig = {
                     },
                     overrideAccess: true,
                   })
+
+                  // Notify other chef via WebSocket that categories were claimed
+                  try {
+                    publishChefCategoryUpdate({
+                      targetUserId: String(otherChef.id),
+                      claimedByChefId: chefId,
+                      claimedByChefName: entry.chefName || 'Another Chef',
+                      action: 'removed',
+                      kitchenCategoryIds: updatedOtherCatIds,
+                      stockCategoryIds: getRelationshipIDs((otherChef as any).stockCategories),
+                      removedCategoryIds: removedIds,
+                    })
+                  } catch (_) {}
                 }
               }
             } catch (err) {
               console.error(
                 `[ChefSettings afterChange] Error reassigning kitchen categories for chef ${chefId}:`,
+                err,
+              )
+            }
+          }
+
+          // 3. Enforce exclusive stock category assignment in users collection:
+          if (stockCategories.length > 0) {
+            try {
+              const conflictingStockChefs = await req.payload.find({
+                collection: 'users',
+                where: {
+                  and: [
+                    { id: { not_equals: chefId } },
+                    { stockCategories: { in: stockCategories } },
+                  ],
+                },
+                depth: 0,
+                limit: 100,
+                pagination: false,
+                overrideAccess: true,
+              })
+
+              for (const otherChef of conflictingStockChefs.docs) {
+                const otherStockCatIds = getRelationshipIDs((otherChef as any).stockCategories)
+                const updatedOtherStockCatIds = otherStockCatIds.filter(
+                  (id) => !stockCategories.includes(id),
+                )
+                if (updatedOtherStockCatIds.length !== otherStockCatIds.length) {
+                  const removedStockIds = otherStockCatIds.filter((id) => stockCategories.includes(id))
+                  await req.payload.update({
+                    collection: 'users',
+                    id: otherChef.id,
+                    data: {
+                      stockCategories: updatedOtherStockCatIds,
+                    },
+                    context: {
+                      ...(req.context || {}),
+                      fromChefSettingsSync: true,
+                      skipChefCategorySync: true,
+                    },
+                    overrideAccess: true,
+                  })
+
+                  // Notify other chef via WebSocket that stock categories were claimed
+                  try {
+                    publishChefCategoryUpdate({
+                      targetUserId: String(otherChef.id),
+                      claimedByChefId: chefId,
+                      claimedByChefName: entry.chefName || 'Another Chef',
+                      action: 'removed',
+                      kitchenCategoryIds: getRelationshipIDs(otherChef.categories),
+                      stockCategoryIds: updatedOtherStockCatIds,
+                      removedCategoryIds: removedStockIds,
+                    })
+                  } catch (_) {}
+                }
+              }
+            } catch (err) {
+              console.error(
+                `[ChefSettings afterChange] Error reassigning stock categories for chef ${chefId}:`,
                 err,
               )
             }

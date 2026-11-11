@@ -170,7 +170,7 @@ const BUS_COLLECTION = 'realtime_bus'
 const ACTIVE_CONNS_COLLECTION = 'active_connections'
 
 type RealtimeBusMessage = {
-  channel: 'call_signal' | 'chat' | 'billing' | 'session_terminate'
+  channel: 'call_signal' | 'chat' | 'billing' | 'session_terminate' | 'chef_category'
   createdAt: Date
   fromWorkerId: string
   payload: Record<string, unknown>
@@ -283,6 +283,26 @@ const deliverBusSessionTermination = (userId: string, reason: string): void => {
   }
 }
 
+const deliverBusChefCategoryEvent = (payload: Record<string, unknown>, targetUserId?: string | null): void => {
+  if (targetUserId) {
+    const connIDs = realtimeState.connectionsByUserID.get(targetUserId)
+    if (connIDs && connIDs.size > 0) {
+      for (const connID of connIDs) {
+        const connection = realtimeState.connections.get(connID)
+        if (connection && connection.socket.readyState === WebSocket.OPEN) {
+          sendServerMessage(connection, payload)
+        }
+      }
+    }
+  } else {
+    for (const connection of realtimeState.connections.values()) {
+      if (connection.socket.readyState === WebSocket.OPEN) {
+        sendServerMessage(connection, payload)
+      }
+    }
+  }
+}
+
 const startBusListener = (db: any): void => {
   try {
     const busColl = db.collection(BUS_COLLECTION)
@@ -304,6 +324,8 @@ const startBusListener = (db: any): void => {
             doc.targetUserId || (doc.payload?.userId as string),
             (doc.payload?.reason as string) || 'Session terminated',
           )
+        } else if (doc.channel === 'chef_category') {
+          deliverBusChefCategoryEvent(doc.payload, doc.targetUserId)
         }
       } catch (err) {
         console.error('[wsGateway] Error handling bus change event:', err)
@@ -1907,6 +1929,49 @@ export const terminateUserSession = (
     channel: 'session_terminate',
     targetUserId: normalizedUserId,
     payload: { userId: normalizedUserId, reason, eventType },
+  })
+}
+
+export type ChefCategoryUpdateInput = {
+  targetUserId?: string | null
+  claimedByChefId?: string | null
+  claimedByChefName?: string | null
+  categoryId?: string | null
+  categoryName?: string | null
+  action: 'claimed' | 'removed' | 'assigned' | 'updated'
+  kitchenCategoryIds?: string[]
+  stockCategoryIds?: string[]
+  removedCategoryIds?: string[]
+  addedCategoryIds?: string[]
+}
+
+export const publishChefCategoryUpdate = (input: ChefCategoryUpdateInput): void => {
+  const event = {
+    eventType: 'chef_categories_updated',
+    targetUserId: input.targetUserId || null,
+    claimedByChefId: input.claimedByChefId || null,
+    claimedByChefName: input.claimedByChefName || null,
+    categoryId: input.categoryId || null,
+    categoryName: input.categoryName || null,
+    action: input.action,
+    kitchenCategoryIds: input.kitchenCategoryIds || [],
+    stockCategoryIds: input.stockCategoryIds || [],
+    removedCategoryIds: input.removedCategoryIds || [],
+    addedCategoryIds: input.addedCategoryIds || [],
+    timestamp: nowISO(),
+  }
+
+  const safePayload = ensurePayloadSize(event)
+  if (!safePayload) return
+
+  // Deliver locally to connected clients
+  deliverBusChefCategoryEvent(safePayload, input.targetUserId)
+
+  // Broadcast to other cluster workers
+  publishToBus({
+    channel: 'chef_category',
+    targetUserId: input.targetUserId || null,
+    payload: safePayload,
   })
 }
 
