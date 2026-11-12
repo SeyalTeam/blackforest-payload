@@ -12,6 +12,7 @@ export type OtherProductsInventoryItem = {
   productId: string
   productName: string
   variantName?: string
+  unit?: string
   stockCount: number
   standardStockLevel?: number
   minimumStockLevel?: number
@@ -259,6 +260,24 @@ export const getOtherProductsInventoryReportData = async (
         branchName: { $first: { $ifNull: ['$branchInfo.name', 'Unknown Branch'] } },
         dealerName: { $first: { $ifNull: ['$dealerInfo.companyName', { $ifNull: ['$dealerInfo.name', 'Unknown Dealer'] }] } },
         productName: { $first: { $ifNull: ['$productInfo.name', 'Unknown Product'] } },
+        productUnit: {
+          $first: {
+            $ifNull: [
+              '$productInfo.unit',
+              {
+                $ifNull: [
+                  '$productInfo.defaultPriceDetails.unit',
+                  {
+                    $ifNull: [
+                      { $arrayElemAt: ['$productInfo.variants.unit', 0] },
+                      ''
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
         stockCount: { $sum: { $ifNull: ['$productsList.quantity', 0] } },
         standardStockLevel: { $first: '$productInfo.standardStockLevel' },
         minimumStockLevel: { $first: '$productInfo.minimumStockLevel' },
@@ -280,6 +299,7 @@ export const getOtherProductsInventoryReportData = async (
           $push: {
             productId: { $toString: '$_id.product' },
             productName: '$productName',
+            unit: '$productUnit',
             stockCount: '$stockCount',
             standardStockLevel: '$standardStockLevel',
             minimumStockLevel: '$minimumStockLevel',
@@ -317,6 +337,8 @@ export const getOtherProductsInventoryReportData = async (
 
     ;(Array.isArray(group.items) ? group.items : []).forEach((item: any) => {
       const baseName = toNonEmptyString(item.productName, 'Unknown Product').trim()
+      const rawUnit = toNonEmptyString(item.unit).trim()
+      const baseUnit = rawUnit || 'pcs'
       const variants = Array.isArray(item.variants) ? item.variants : []
       const baseStock = toNumber(item.stockCount)
       const baseValue = toNumber(item.totalValue)
@@ -339,10 +361,25 @@ export const getOtherProductsInventoryReportData = async (
             return
           }
           totalProductsCount += 1
+
+          const variantUnit = toNonEmptyString(v.unit, baseUnit).trim()
+          const vName = toNonEmptyString(v.name).trim()
+
+          let formattedProductName = baseName
+          if (vName) {
+            formattedProductName = `${baseName} (${vName})`
+            if (variantUnit && !new RegExp(`\\b${variantUnit}\\b`, 'i').test(formattedProductName)) {
+              formattedProductName = `${formattedProductName} (${variantUnit})`
+            }
+          } else if (variantUnit && !new RegExp(`\\b${variantUnit}\\b`, 'i').test(formattedProductName)) {
+            formattedProductName = `${formattedProductName} (${variantUnit})`
+          }
+
           items.push({
             productId: `${toNonEmptyString(item.productId)}-v${vIdx}`,
-            productName: `${baseName} (${v.name})`,
+            productName: formattedProductName,
             variantName: v.name,
+            unit: variantUnit,
             stockCount: baseStock,
             standardStockLevel:
               v.standardStockLevel !== undefined && v.standardStockLevel !== null
@@ -378,9 +415,15 @@ export const getOtherProductsInventoryReportData = async (
         })
       } else {
         totalProductsCount += 1
+        let formattedProductName = baseName
+        if (baseUnit && !new RegExp(`\\b${baseUnit}\\b`, 'i').test(formattedProductName)) {
+          formattedProductName = `${baseName} (${baseUnit})`
+        }
+
         items.push({
           productId: toNonEmptyString(item.productId),
-          productName: baseName,
+          productName: formattedProductName,
+          unit: baseUnit,
           stockCount: baseStock,
           standardStockLevel:
             item.standardStockLevel !== undefined && item.standardStockLevel !== null

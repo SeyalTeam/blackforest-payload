@@ -21,6 +21,7 @@ export type OtherProductsInventoryItem = {
   productId: string
   productName: string
   variantName?: string
+  unit?: string
   stockCount: number
   standardStockLevel?: number
   minimumStockLevel?: number
@@ -39,6 +40,7 @@ export type OtherProductsInventoryItem = {
   lastBillingDate: string
   dealerName?: string
   branchName?: string
+  branchId?: string
   purchaseFrequency?: string
 }
 
@@ -64,15 +66,16 @@ const customSelectStyles = {
     ...provided,
     backgroundColor: 'var(--theme-elevation-50)',
     borderColor: state.isFocused ? 'var(--theme-elevation-400)' : 'var(--theme-elevation-200)',
-    borderRadius: '8px',
-    padding: '2px 4px',
+    borderRadius: '6px',
+    padding: '0 2px',
     boxShadow: 'none',
-    minWidth: '220px',
-    maxWidth: '280px',
-    height: '42px',
-    minHeight: '42px',
-    maxHeight: '42px',
+    minWidth: '150px',
+    maxWidth: '220px',
+    height: '38px',
+    minHeight: '38px',
+    maxHeight: '38px',
     overflow: 'hidden',
+    fontSize: '0.88rem',
     cursor: 'pointer',
     '&:hover': {
       borderColor: 'var(--theme-elevation-400)',
@@ -80,18 +83,41 @@ const customSelectStyles = {
   }),
   valueContainer: (provided: any) => ({
     ...provided,
-    height: '38px',
-    maxHeight: '38px',
+    height: '36px',
+    maxHeight: '36px',
     overflow: 'hidden',
     flexWrap: 'nowrap',
+    padding: '0 8px',
+  }),
+  clearIndicator: (provided: any) => ({
+    ...provided,
+    padding: '2px 4px',
+    cursor: 'pointer',
+    color: 'var(--theme-text-secondary)',
+    '&:hover': { color: 'var(--theme-text-primary)' },
+  }),
+  dropdownIndicator: (provided: any) => ({
+    ...provided,
+    padding: '2px 4px',
+    cursor: 'pointer',
+    color: 'var(--theme-text-secondary)',
+    '&:hover': { color: 'var(--theme-text-primary)' },
+  }),
+  indicatorSeparator: (provided: any) => ({
+    ...provided,
+    backgroundColor: 'var(--theme-elevation-200)',
+    margin: '6px 0',
   }),
   menu: (provided: any) => ({
     ...provided,
     backgroundColor: 'var(--theme-elevation-100)',
     border: '1px solid var(--theme-elevation-200)',
-    borderRadius: '8px',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+    borderRadius: '6px',
+    boxShadow: '0 4px 14px rgba(0, 0, 0, 0.3)',
     zIndex: 1050,
+    minWidth: '220px',
+    width: 'max-content',
+    maxWidth: '320px',
   }),
   option: (provided: any, state: any) => ({
     ...provided,
@@ -101,6 +127,8 @@ const customSelectStyles = {
         ? 'var(--theme-elevation-150)'
         : 'transparent',
     color: 'var(--theme-text-primary)',
+    fontSize: '0.88rem',
+    padding: '7px 12px',
     cursor: 'pointer',
     '&:active': {
       backgroundColor: 'var(--theme-elevation-200)',
@@ -113,10 +141,13 @@ const customSelectStyles = {
   singleValue: (provided: any) => ({
     ...provided,
     color: 'var(--theme-text-primary)',
+    fontSize: '0.88rem',
+    fontWeight: '500',
   }),
   input: (provided: any) => ({
     ...provided,
     color: 'var(--theme-text-primary)',
+    fontSize: '0.88rem',
   }),
 }
 
@@ -139,11 +170,12 @@ const CustomValueContainer = (props: ValueContainerProps<SelectOption, true>) =>
       <span
         style={{
           color: 'var(--theme-text-primary)',
-          paddingLeft: '4px',
+          paddingLeft: '2px',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
-          fontSize: '0.95rem',
+          fontSize: '0.88rem',
+          fontWeight: '500',
         }}
       >
         {labelText}
@@ -162,9 +194,53 @@ const CustomOption = (props: OptionProps<SelectOption, true>) => {
 
   return (
     <components.Option {...props}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <input type="checkbox" checked={checked} onChange={() => {}} style={{ cursor: 'pointer' }} />
-        <span>{label}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '16px',
+            height: '16px',
+            minWidth: '16px',
+            minHeight: '16px',
+            maxWidth: '16px',
+            maxHeight: '16px',
+            borderRadius: '3px',
+            border: checked ? '1px solid #10b981' : '1px solid var(--theme-elevation-300)',
+            backgroundColor: checked ? '#10b981' : 'transparent',
+            color: '#ffffff',
+            flexShrink: 0,
+            transition: 'all 0.15s ease',
+          }}
+        >
+          {checked && (
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+        </span>
+        <span
+          style={{
+            color: 'var(--theme-text-primary)',
+            fontSize: '0.88rem',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            flex: 1,
+          }}
+        >
+          {label}
+        </span>
       </div>
     </components.Option>
   )
@@ -182,7 +258,7 @@ const OtherProductsInventoryReport: React.FC = () => {
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const [selectedCategories, setSelectedCategories] = useState<string[]>(['all'])
   const [products, setProducts] = useState<
-    { id: string; name: string; dealerIds: string[]; companyIds: string[]; categoryId?: string; packSize?: number; variants?: any[] }[]
+    { id: string; name: string; unit?: string; dealerIds: string[]; companyIds: string[]; categoryId?: string; packSize?: number; variants?: any[] }[]
   >([])
   const [selectedProducts, setSelectedProducts] = useState<string[]>(['all'])
   const [selectedFrequency, setSelectedFrequency] = useState<string>('all')
@@ -248,9 +324,11 @@ const OtherProductsInventoryReport: React.FC = () => {
               }
 
               const categoryId = p.category ? (typeof p.category === 'string' ? p.category : p.category.id || p.category._id || '') : ''
+              const unit = (p.defaultPriceDetails?.unit || p.unit || p.variants?.[0]?.unit || 'pcs').trim()
               return {
                 id: p.id,
                 name: (p.name || 'Unknown Product').trim(),
+                unit,
                 dealerIds,
                 companyIds,
                 categoryId,
@@ -349,13 +427,20 @@ const OtherProductsInventoryReport: React.FC = () => {
     const options: SelectOption[] = [{ value: 'all', label: 'All Products' }]
 
     filteredProducts.forEach((p) => {
-      options.push({ value: p.id, label: p.name })
+      const pUnit = (p.unit || '').trim()
+      const pLabel = pUnit && !new RegExp(`\\b${pUnit}\\b`, 'i').test(p.name) ? `${p.name} (${pUnit})` : p.name
+      options.push({ value: p.id, label: pLabel })
       if (Array.isArray(p.variants) && p.variants.length > 0) {
         p.variants.forEach((v: any) => {
           if (v.name) {
+            const vUnit = (v.unit || pUnit || '').trim()
+            let vLabel = `  ↳ ${p.name} (${v.name})`
+            if (vUnit && !new RegExp(`\\b${vUnit}\\b`, 'i').test(vLabel)) {
+              vLabel = `${vLabel} (${vUnit})`
+            }
             options.push({
               value: p.id,
-              label: `  ↳ ${p.name} (${v.name})`,
+              label: vLabel,
             })
           }
         })
@@ -444,7 +529,9 @@ const OtherProductsInventoryReport: React.FC = () => {
     const flat: OtherProductsInventoryItem[] = []
     data.groups.forEach((g) => {
       if (Array.isArray(g.items)) {
-        flat.push(...g.items)
+        g.items.forEach((item) => {
+          flat.push({ ...item, branchId: g.branchId })
+        })
       }
     })
     return flat.sort((a, b) => b.totalValue - a.totalValue)
@@ -537,12 +624,13 @@ const OtherProductsInventoryReport: React.FC = () => {
                 }}
                 style={{
                   height: '38px',
-                  padding: '0 12px',
-                  borderRadius: '4px',
+                  padding: '0 10px',
+                  borderRadius: '6px',
                   border: '1px solid var(--theme-elevation-200)',
-                  backgroundColor: 'var(--theme-elevation-0)',
-                  color: 'var(--theme-elevation-800)',
-                  fontSize: '0.875rem',
+                  backgroundColor: 'var(--theme-elevation-50)',
+                  color: 'var(--theme-text-primary)',
+                  fontSize: '0.88rem',
+                  minWidth: '140px',
                   cursor: 'pointer',
                 }}
               >
@@ -613,26 +701,35 @@ const OtherProductsInventoryReport: React.FC = () => {
                   <table>
                     <thead>
                       <tr>
-                        <th style={{ width: '4%' }}>S.NO</th>
-                        <th style={{ width: '26%' }}>Product Name</th>
-                        <th style={{ width: '12%', textAlign: 'center' }}>Pack Size</th>
-                        <th style={{ width: '12%', textAlign: 'right' }}>Stock Count</th>
-                        <th style={{ width: '10%', textAlign: 'right' }}>STD</th>
-                        <th style={{ width: '10%', textAlign: 'right' }}>MIN</th>
-                        <th style={{ width: '10%', textAlign: 'right' }}>MAX</th>
-                        <th style={{ width: '16%', textAlign: 'right' }}>Total Value (₹)</th>
-                        <th style={{ width: '10%', textAlign: 'center' }}>Action</th>
+                        <th style={{ width: '50px', textAlign: 'center' }}>S.NO</th>
+                        <th style={{ width: '220px' }}>Product Name</th>
+                        <th style={{ width: '90px', textAlign: 'center' }}>Pack Size</th>
+                        <th style={{ width: '110px', textAlign: 'right' }}>Stock Count</th>
+                        <th style={{ width: '80px', textAlign: 'right' }}>STD</th>
+                        <th style={{ width: '80px', textAlign: 'right' }}>MIN</th>
+                        <th style={{ width: '80px', textAlign: 'right' }}>MAX</th>
+                        <th style={{ width: '140px', textAlign: 'right' }}>Total Value (₹)</th>
+                        <th style={{ width: '95px', textAlign: 'center' }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {paginatedItems.map((item, idx) => (
                         <tr key={`${item.productId}-${idx}`}>
-                          <td style={{ opacity: 0.5, fontSize: '0.8rem' }}>
+                          <td className="sno-cell" style={{ textAlign: 'center' }}>
                             {(activePage - 1) * pageSize + idx + 1}
                           </td>
                           <td className="product-cell">
-                            <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                              <span>{item.productName}</span>
+                            <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+                                {(() => {
+                                  const name = item.productName || 'Unknown Product'
+                                  const unit = (item.unit || '').trim()
+                                  if (unit && !new RegExp(`\\b${unit}\\b`, 'i').test(name)) {
+                                    return `${name} (${unit})`
+                                  }
+                                  return name
+                                })()}
+                              </span>
                               {item.purchaseFrequency && (
                                 <span
                                   style={{
@@ -641,7 +738,7 @@ const OtherProductsInventoryReport: React.FC = () => {
                                     padding: '1px 6px',
                                     borderRadius: '4px',
                                     fontSize: '0.72rem',
-                                    fontWeight: 500,
+                                    fontWeight: 600,
                                     textTransform: 'capitalize',
                                   }}
                                 >
@@ -675,7 +772,7 @@ const OtherProductsInventoryReport: React.FC = () => {
                             {item.packSize ? (
                               <>{item.packSize}</>
                             ) : Array.isArray(item.variants) && item.variants.length > 0 ? (
-                              <span style={{ fontSize: '0.78rem' }}>
+                              <span style={{ fontSize: '0.85rem' }}>
                                 {item.variants.map((v: any) => `${v.name || ''}`).join(', ')}
                               </span>
                             ) : (
@@ -703,6 +800,7 @@ const OtherProductsInventoryReport: React.FC = () => {
                             <Button 
                               buttonStyle="secondary" 
                               size="small" 
+                              className="make-zero-btn"
                               onClick={() => handleResetStock(item.productId, item.branchId || selectedBranch[0])}
                             >
                               Make Zero
@@ -713,15 +811,15 @@ const OtherProductsInventoryReport: React.FC = () => {
                     </tbody>
                     <tfoot>
                       <tr style={{ fontWeight: 700 }}>
-                        <td colSpan={2} style={{ textAlign: 'right' }}>Total:</td>
+                        <td colSpan={2} style={{ textAlign: 'right', fontSize: '1.1rem' }}>Total:</td>
                         <td></td>
-                        <td style={{ textAlign: 'right', fontWeight: 700 }}>
+                        <td className="quantity-cell" style={{ textAlign: 'right', fontWeight: 700, fontSize: '1.2rem' }}>
                           {data.meta.grandTotalStockCount.toLocaleString('en-IN')}
                         </td>
                         <td></td>
                         <td></td>
                         <td></td>
-                        <td style={{ textAlign: 'right', fontWeight: 700, color: '#10b981' }}>
+                        <td className="value-cell" style={{ textAlign: 'right', fontWeight: 700, fontSize: '1.2rem', color: '#10b981' }}>
                           ₹{data.meta.grandTotalValue.toLocaleString('en-IN')}
                         </td>
                         <td></td>

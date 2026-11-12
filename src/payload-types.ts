@@ -1429,6 +1429,7 @@ export interface Billing {
   customerDetails?: {
     name?: string | null;
     phoneNumber?: string | null;
+    phone?: string | null;
     address?: string | null;
   };
   status?: ('ordered' | 'prepared' | 'confirmed' | 'delivered' | 'completed' | 'settled' | 'cancelled') | null;
@@ -1541,6 +1542,10 @@ export interface Expense {
     reason: string;
     amount: number;
     image: string | Media;
+    /**
+     * Employee associated with this expense item
+     */
+    employee?: (string | null) | Employee;
     id?: string | null;
   }[];
   total: number;
@@ -3609,6 +3614,7 @@ export interface BillingsSelect<T extends boolean = true> {
     | {
         name?: T;
         phoneNumber?: T;
+        phone?: T;
         address?: T;
       };
   status?: T;
@@ -3723,6 +3729,7 @@ export interface ExpensesSelect<T extends boolean = true> {
         reason?: T;
         amount?: T;
         image?: T;
+        employee?: T;
         id?: T;
       };
   total?: T;

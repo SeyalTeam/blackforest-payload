@@ -24957,6 +24957,24 @@ var init_otherProductsInventory = __esm({
             branchName: { $first: { $ifNull: ["$branchInfo.name", "Unknown Branch"] } },
             dealerName: { $first: { $ifNull: ["$dealerInfo.companyName", { $ifNull: ["$dealerInfo.name", "Unknown Dealer"] }] } },
             productName: { $first: { $ifNull: ["$productInfo.name", "Unknown Product"] } },
+            productUnit: {
+              $first: {
+                $ifNull: [
+                  "$productInfo.unit",
+                  {
+                    $ifNull: [
+                      "$productInfo.defaultPriceDetails.unit",
+                      {
+                        $ifNull: [
+                          { $arrayElemAt: ["$productInfo.variants.unit", 0] },
+                          ""
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
             stockCount: { $sum: { $ifNull: ["$productsList.quantity", 0] } },
             standardStockLevel: { $first: "$productInfo.standardStockLevel" },
             minimumStockLevel: { $first: "$productInfo.minimumStockLevel" },
@@ -24978,6 +24996,7 @@ var init_otherProductsInventory = __esm({
               $push: {
                 productId: { $toString: "$_id.product" },
                 productName: "$productName",
+                unit: "$productUnit",
                 stockCount: "$stockCount",
                 standardStockLevel: "$standardStockLevel",
                 minimumStockLevel: "$minimumStockLevel",
@@ -25009,6 +25028,8 @@ var init_otherProductsInventory = __esm({
         const items = [];
         (Array.isArray(group.items) ? group.items : []).forEach((item) => {
           const baseName = toNonEmptyString5(item.productName, "Unknown Product").trim();
+          const rawUnit = toNonEmptyString5(item.unit).trim();
+          const baseUnit = rawUnit || "pcs";
           const variants = Array.isArray(item.variants) ? item.variants : [];
           const baseStock = toNumber7(item.stockCount);
           const baseValue = toNumber7(item.totalValue);
@@ -25023,10 +25044,22 @@ var init_otherProductsInventory = __esm({
                 return;
               }
               totalProductsCount += 1;
+              const variantUnit = toNonEmptyString5(v.unit, baseUnit).trim();
+              const vName = toNonEmptyString5(v.name).trim();
+              let formattedProductName = baseName;
+              if (vName) {
+                formattedProductName = `${baseName} (${vName})`;
+                if (variantUnit && !new RegExp(`\\b${variantUnit}\\b`, "i").test(formattedProductName)) {
+                  formattedProductName = `${formattedProductName} (${variantUnit})`;
+                }
+              } else if (variantUnit && !new RegExp(`\\b${variantUnit}\\b`, "i").test(formattedProductName)) {
+                formattedProductName = `${formattedProductName} (${variantUnit})`;
+              }
               items.push({
                 productId: `${toNonEmptyString5(item.productId)}-v${vIdx}`,
-                productName: `${baseName} (${v.name})`,
+                productName: formattedProductName,
                 variantName: v.name,
+                unit: variantUnit,
                 stockCount: baseStock,
                 standardStockLevel: v.standardStockLevel !== void 0 && v.standardStockLevel !== null ? toNumber7(v.standardStockLevel) : item.standardStockLevel !== void 0 && item.standardStockLevel !== null ? toNumber7(item.standardStockLevel) : void 0,
                 minimumStockLevel: v.minimumStockLevel !== void 0 && v.minimumStockLevel !== null ? toNumber7(v.minimumStockLevel) : item.minimumStockLevel !== void 0 && item.minimumStockLevel !== null ? toNumber7(item.minimumStockLevel) : void 0,
@@ -25042,9 +25075,14 @@ var init_otherProductsInventory = __esm({
             });
           } else {
             totalProductsCount += 1;
+            let formattedProductName = baseName;
+            if (baseUnit && !new RegExp(`\\b${baseUnit}\\b`, "i").test(formattedProductName)) {
+              formattedProductName = `${baseName} (${baseUnit})`;
+            }
             items.push({
               productId: toNonEmptyString5(item.productId),
-              productName: baseName,
+              productName: formattedProductName,
+              unit: baseUnit,
               stockCount: baseStock,
               standardStockLevel: item.standardStockLevel !== void 0 && item.standardStockLevel !== null ? toNumber7(item.standardStockLevel) : void 0,
               minimumStockLevel: item.minimumStockLevel !== void 0 && item.minimumStockLevel !== null ? toNumber7(item.minimumStockLevel) : void 0,
@@ -25419,11 +25457,21 @@ var init_rawMaterialInventory = __esm({
                 return;
               }
               totalRawMaterialsCount++;
+              const variantUnit = toNonEmptyString6(v.unit || baseUnit, "-").trim();
+              let formattedName = baseName;
+              if (v.name) {
+                formattedName = `${baseName} (${v.name})`;
+                if (variantUnit && variantUnit !== "-" && !new RegExp(`\\b${variantUnit}\\b`, "i").test(formattedName)) {
+                  formattedName = `${formattedName} (${variantUnit})`;
+                }
+              } else if (variantUnit && variantUnit !== "-" && !new RegExp(`\\b${variantUnit}\\b`, "i").test(formattedName)) {
+                formattedName = `${formattedName} (${variantUnit})`;
+              }
               items.push({
                 rawMaterialId: `${toNonEmptyString6(item.rawMaterialId)}-v${vIdx}`,
-                rawMaterialName: `${baseName} (${v.name})`,
+                rawMaterialName: formattedName,
                 variantName: v.name,
-                unit: toNonEmptyString6(v.unit || baseUnit, "-"),
+                unit: variantUnit,
                 stockCount: baseStock,
                 standardStockLevel: v.standardStockLevel !== void 0 && v.standardStockLevel !== null ? toNumber8(v.standardStockLevel) : item.standardStockLevel !== void 0 && item.standardStockLevel !== null ? toNumber8(item.standardStockLevel) : void 0,
                 minimumStockLevel: v.minimumStockLevel !== void 0 && v.minimumStockLevel !== null ? toNumber8(v.minimumStockLevel) : item.minimumStockLevel !== void 0 && item.minimumStockLevel !== null ? toNumber8(item.minimumStockLevel) : void 0,
@@ -25439,9 +25487,14 @@ var init_rawMaterialInventory = __esm({
             });
           } else {
             totalRawMaterialsCount++;
+            const u = toNonEmptyString6(baseUnit, "").trim();
+            let formattedName = baseName;
+            if (u && u !== "-" && !new RegExp(`\\b${u}\\b`, "i").test(formattedName)) {
+              formattedName = `${formattedName} (${u})`;
+            }
             items.push({
               rawMaterialId: toNonEmptyString6(item.rawMaterialId),
-              rawMaterialName: baseName,
+              rawMaterialName: formattedName,
               unit: baseUnit,
               stockCount: baseStock,
               standardStockLevel: item.standardStockLevel !== void 0 && item.standardStockLevel !== null ? toNumber8(item.standardStockLevel) : void 0,

@@ -63,15 +63,16 @@ const customSelectStyles = {
     ...provided,
     backgroundColor: 'var(--theme-elevation-50)',
     borderColor: state.isFocused ? 'var(--theme-elevation-400)' : 'var(--theme-elevation-200)',
-    borderRadius: '8px',
-    padding: '2px 4px',
+    borderRadius: '6px',
+    padding: '0 2px',
     boxShadow: 'none',
-    minWidth: '220px',
-    maxWidth: '280px',
-    height: '42px',
-    minHeight: '42px',
-    maxHeight: '42px',
+    minWidth: '150px',
+    maxWidth: '220px',
+    height: '38px',
+    minHeight: '38px',
+    maxHeight: '38px',
     overflow: 'hidden',
+    fontSize: '0.88rem',
     cursor: 'pointer',
     '&:hover': {
       borderColor: 'var(--theme-elevation-400)',
@@ -79,18 +80,41 @@ const customSelectStyles = {
   }),
   valueContainer: (provided: any) => ({
     ...provided,
-    height: '38px',
-    maxHeight: '38px',
+    height: '36px',
+    maxHeight: '36px',
     overflow: 'hidden',
     flexWrap: 'nowrap',
+    padding: '0 8px',
+  }),
+  clearIndicator: (provided: any) => ({
+    ...provided,
+    padding: '2px 4px',
+    cursor: 'pointer',
+    color: 'var(--theme-text-secondary)',
+    '&:hover': { color: 'var(--theme-text-primary)' },
+  }),
+  dropdownIndicator: (provided: any) => ({
+    ...provided,
+    padding: '2px 4px',
+    cursor: 'pointer',
+    color: 'var(--theme-text-secondary)',
+    '&:hover': { color: 'var(--theme-text-primary)' },
+  }),
+  indicatorSeparator: (provided: any) => ({
+    ...provided,
+    backgroundColor: 'var(--theme-elevation-200)',
+    margin: '6px 0',
   }),
   menu: (provided: any) => ({
     ...provided,
     backgroundColor: 'var(--theme-elevation-100)',
     border: '1px solid var(--theme-elevation-200)',
-    borderRadius: '8px',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+    borderRadius: '6px',
+    boxShadow: '0 4px 14px rgba(0, 0, 0, 0.3)',
     zIndex: 1050,
+    minWidth: '220px',
+    width: 'max-content',
+    maxWidth: '320px',
   }),
   option: (provided: any, state: any) => ({
     ...provided,
@@ -100,6 +124,8 @@ const customSelectStyles = {
         ? 'var(--theme-elevation-150)'
         : 'transparent',
     color: 'var(--theme-text-primary)',
+    fontSize: '0.88rem',
+    padding: '7px 12px',
     cursor: 'pointer',
     '&:active': {
       backgroundColor: 'var(--theme-elevation-200)',
@@ -112,10 +138,13 @@ const customSelectStyles = {
   singleValue: (provided: any) => ({
     ...provided,
     color: 'var(--theme-text-primary)',
+    fontSize: '0.88rem',
+    fontWeight: '500',
   }),
   input: (provided: any) => ({
     ...provided,
     color: 'var(--theme-text-primary)',
+    fontSize: '0.88rem',
   }),
 }
 
@@ -138,11 +167,12 @@ const CustomValueContainer = (props: ValueContainerProps<SelectOption, true>) =>
       <span
         style={{
           color: 'var(--theme-text-primary)',
-          paddingLeft: '4px',
+          paddingLeft: '2px',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
-          fontSize: '0.95rem',
+          fontSize: '0.88rem',
+          fontWeight: '500',
         }}
       >
         {labelText}
@@ -161,9 +191,53 @@ const CustomOption = (props: OptionProps<SelectOption, true>) => {
 
   return (
     <components.Option {...props}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <input type="checkbox" checked={checked} onChange={() => {}} style={{ cursor: 'pointer' }} />
-        <span>{label}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '16px',
+            height: '16px',
+            minWidth: '16px',
+            minHeight: '16px',
+            maxWidth: '16px',
+            maxHeight: '16px',
+            borderRadius: '3px',
+            border: checked ? '1px solid #10b981' : '1px solid var(--theme-elevation-300)',
+            backgroundColor: checked ? '#10b981' : 'transparent',
+            color: '#ffffff',
+            flexShrink: 0,
+            transition: 'all 0.15s ease',
+          }}
+        >
+          {checked && (
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+        </span>
+        <span
+          style={{
+            color: 'var(--theme-text-primary)',
+            fontSize: '0.88rem',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            flex: 1,
+          }}
+        >
+          {label}
+        </span>
       </div>
     </components.Option>
   )
@@ -179,7 +253,7 @@ const RawMaterialInventoryReport: React.FC = () => {
   const [dealers, setDealers] = useState<{ id: string; name: string }[]>([])
   const [selectedDealers, setSelectedDealers] = useState<string[]>(['all'])
   const [rawMaterials, setRawMaterials] = useState<
-    { id: string; name: string; dealerIds: string[]; companyIds: string[]; packSize?: number; variants?: any[] }[]
+    { id: string; name: string; unit?: string; dealerIds: string[]; companyIds: string[]; packSize?: number; variants?: any[] }[]
   >([])
   const [selectedRawMaterials, setSelectedRawMaterials] = useState<string[]>(['all'])
   const [selectedFrequency, setSelectedFrequency] = useState<string>('all')
@@ -237,6 +311,7 @@ const RawMaterialInventoryReport: React.FC = () => {
               return {
                 id: r.id,
                 name: (r.name || 'Unknown Raw Material').trim(),
+                unit: (r.unit || '').trim(),
                 dealerIds,
                 companyIds,
                 packSize: r.packSize,
@@ -306,13 +381,20 @@ const RawMaterialInventoryReport: React.FC = () => {
     const options: SelectOption[] = [{ value: 'all', label: 'All Raw Materials' }]
 
     filteredRms.forEach((r) => {
-      options.push({ value: r.id, label: r.name })
+      const rUnit = (r.unit || '').trim()
+      const rLabel = rUnit && rUnit !== '-' && !new RegExp(`\\b${rUnit}\\b`, 'i').test(r.name) ? `${r.name} (${rUnit})` : r.name
+      options.push({ value: r.id, label: rLabel })
       if (Array.isArray(r.variants) && r.variants.length > 0) {
         r.variants.forEach((v: any) => {
           if (v.name) {
+            const vUnit = (v.unit || rUnit || '').trim()
+            let vLabel = `  ↳ ${r.name} (${v.name})`
+            if (vUnit && vUnit !== '-' && !new RegExp(`\\b${vUnit}\\b`, 'i').test(vLabel)) {
+              vLabel = `${vLabel} (${vUnit})`
+            }
             options.push({
               value: r.id,
-              label: `  ↳ ${r.name} (${v.name})`,
+              label: vLabel,
             })
           }
         })
@@ -320,7 +402,7 @@ const RawMaterialInventoryReport: React.FC = () => {
     })
 
     return options
-  }, [rawMaterials, selectedDealers])
+  }, [rawMaterials, selectedDealers, selectedBranch])
 
   const handleBranchChange = (selected: readonly SelectOption[]) => {
     if (!selected || selected.length === 0) {
@@ -456,12 +538,13 @@ const RawMaterialInventoryReport: React.FC = () => {
                 }}
                 style={{
                   height: '38px',
-                  padding: '0 12px',
-                  borderRadius: '4px',
+                  padding: '0 10px',
+                  borderRadius: '6px',
                   border: '1px solid var(--theme-elevation-200)',
-                  backgroundColor: 'var(--theme-elevation-0)',
-                  color: 'var(--theme-elevation-800)',
-                  fontSize: '0.875rem',
+                  backgroundColor: 'var(--theme-elevation-50)',
+                  color: 'var(--theme-text-primary)',
+                  fontSize: '0.88rem',
+                  minWidth: '140px',
                   cursor: 'pointer',
                 }}
               >
@@ -526,25 +609,34 @@ const RawMaterialInventoryReport: React.FC = () => {
                   <table>
                     <thead>
                       <tr>
-                        <th style={{ width: '4%' }}>S.NO</th>
-                        <th style={{ width: '26%' }}>Raw Material Name</th>
-                        <th style={{ width: '12%', textAlign: 'center' }}>Pack Size</th>
-                        <th style={{ width: '12%', textAlign: 'right' }}>Stock Count</th>
-                        <th style={{ width: '10%', textAlign: 'right' }}>STD</th>
-                        <th style={{ width: '10%', textAlign: 'right' }}>MIN</th>
-                        <th style={{ width: '10%', textAlign: 'right' }}>MAX</th>
-                        <th style={{ width: '16%', textAlign: 'right' }}>Total Value (₹)</th>
+                        <th style={{ width: '50px', textAlign: 'center' }}>S.NO</th>
+                        <th style={{ width: '230px' }}>Raw Material Name</th>
+                        <th style={{ width: '90px', textAlign: 'center' }}>Pack Size</th>
+                        <th style={{ width: '110px', textAlign: 'right' }}>Stock Count</th>
+                        <th style={{ width: '85px', textAlign: 'right' }}>STD</th>
+                        <th style={{ width: '85px', textAlign: 'right' }}>MIN</th>
+                        <th style={{ width: '85px', textAlign: 'right' }}>MAX</th>
+                        <th style={{ width: '140px', textAlign: 'right' }}>Total Value (₹)</th>
                       </tr>
                     </thead>
                     <tbody>
                       {paginatedItems.map((item, idx) => (
                         <tr key={`${item.rawMaterialId}-${idx}`}>
-                          <td style={{ opacity: 0.5, fontSize: '0.8rem' }}>
+                          <td className="sno-cell" style={{ textAlign: 'center' }}>
                             {(activePage - 1) * pageSize + idx + 1}
                           </td>
                           <td className="raw-material-cell">
-                            <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                              <span>{item.rawMaterialName}</span>
+                            <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+                                {(() => {
+                                  const name = item.rawMaterialName || 'Unknown Raw Material'
+                                  const unit = (item.unit || '').trim()
+                                  if (unit && unit !== '-' && !new RegExp(`\\b${unit}\\b`, 'i').test(name)) {
+                                    return `${name} (${unit})`
+                                  }
+                                  return name
+                                })()}
+                              </span>
                               {item.dealerName && item.dealerName !== 'Unknown Dealer' && (
                                 <span
                                   style={{
@@ -553,7 +645,7 @@ const RawMaterialInventoryReport: React.FC = () => {
                                     padding: '1px 6px',
                                     borderRadius: '4px',
                                     fontSize: '0.72rem',
-                                    fontWeight: 500,
+                                    fontWeight: 600,
                                   }}
                                 >
                                   {item.dealerName}
@@ -567,7 +659,7 @@ const RawMaterialInventoryReport: React.FC = () => {
                                     padding: '1px 6px',
                                     borderRadius: '4px',
                                     fontSize: '0.72rem',
-                                    fontWeight: 500,
+                                    fontWeight: 600,
                                     textTransform: 'capitalize',
                                   }}
                                 >
@@ -591,7 +683,7 @@ const RawMaterialInventoryReport: React.FC = () => {
                                       fontSize: '0.72rem',
                                     }}
                                   >
-                                    Variant: {v.name} {v.weight ? `(${v.weight} ${v.unit || item.unit})` : ''}
+                                    Variant: {v.name}
                                   </span>
                                 ))}
                               </div>
@@ -599,51 +691,30 @@ const RawMaterialInventoryReport: React.FC = () => {
                           </td>
                           <td className="quantity-cell" style={{ textAlign: 'center' }}>
                             {item.packSize ? (
-                              <>
-                                {item.packSize}
-                                {item.unit && <span className="unit-label"> {item.unit}</span>}
-                              </>
+                              <>{item.packSize}</>
                             ) : Array.isArray(item.variants) && item.variants.length > 0 ? (
-                              <span style={{ fontSize: '0.78rem' }}>
-                                {item.variants.map((v: any) => `${v.weight || ''} ${v.unit || item.unit}`).join(', ')}
+                              <span style={{ fontSize: '0.85rem' }}>
+                                {item.variants.map((v: any) => `${v.name || ''}`).join(', ')}
                               </span>
                             ) : (
                               '-'
                             )}
                           </td>
-                          <td className="quantity-cell">
-                            {item.stockCount.toLocaleString('en-IN')}
-                            {item.unit && <span className="unit-label"> {item.unit}</span>}
+                          <td className="quantity-cell">{item.stockCount.toLocaleString('en-IN')}</td>
+                          <td className="quantity-cell" style={{ textAlign: 'right' }}>
+                            {item.standardStockLevel !== undefined && item.standardStockLevel !== null
+                              ? item.standardStockLevel.toLocaleString('en-IN')
+                              : '-'}
                           </td>
                           <td className="quantity-cell" style={{ textAlign: 'right' }}>
-                            {item.standardStockLevel !== undefined && item.standardStockLevel !== null ? (
-                              <>
-                                {item.standardStockLevel.toLocaleString('en-IN')}
-                                {item.unit && <span className="unit-label"> {item.unit}</span>}
-                              </>
-                            ) : (
-                              '-'
-                            )}
+                            {item.minimumStockLevel !== undefined && item.minimumStockLevel !== null
+                              ? item.minimumStockLevel.toLocaleString('en-IN')
+                              : '-'}
                           </td>
                           <td className="quantity-cell" style={{ textAlign: 'right' }}>
-                            {item.minimumStockLevel !== undefined && item.minimumStockLevel !== null ? (
-                              <>
-                                {item.minimumStockLevel.toLocaleString('en-IN')}
-                                {item.unit && <span className="unit-label"> {item.unit}</span>}
-                              </>
-                            ) : (
-                              '-'
-                            )}
-                          </td>
-                          <td className="quantity-cell" style={{ textAlign: 'right' }}>
-                            {item.maximumStockLevel !== undefined && item.maximumStockLevel !== null ? (
-                              <>
-                                {item.maximumStockLevel.toLocaleString('en-IN')}
-                                {item.unit && <span className="unit-label"> {item.unit}</span>}
-                              </>
-                            ) : (
-                              '-'
-                            )}
+                            {item.maximumStockLevel !== undefined && item.maximumStockLevel !== null
+                              ? item.maximumStockLevel.toLocaleString('en-IN')
+                              : '-'}
                           </td>
                           <td className="value-cell">₹{item.totalValue.toLocaleString('en-IN')}</td>
                         </tr>
@@ -651,15 +722,15 @@ const RawMaterialInventoryReport: React.FC = () => {
                     </tbody>
                     <tfoot>
                       <tr style={{ fontWeight: 700 }}>
-                        <td colSpan={2} style={{ textAlign: 'right' }}>Total:</td>
+                        <td colSpan={2} style={{ textAlign: 'right', fontSize: '1.1rem' }}>Total:</td>
                         <td></td>
-                        <td style={{ textAlign: 'right', fontWeight: 700 }}>
+                        <td className="quantity-cell" style={{ textAlign: 'right', fontWeight: 700, fontSize: '1.2rem' }}>
                           {data.meta.grandTotalStockCount.toLocaleString('en-IN')}
                         </td>
                         <td></td>
                         <td></td>
                         <td></td>
-                        <td style={{ textAlign: 'right', fontWeight: 700, color: '#10b981' }}>
+                        <td className="value-cell" style={{ textAlign: 'right', fontWeight: 700, fontSize: '1.2rem', color: '#10b981' }}>
                           ₹{data.meta.grandTotalValue.toLocaleString('en-IN')}
                         </td>
                       </tr>

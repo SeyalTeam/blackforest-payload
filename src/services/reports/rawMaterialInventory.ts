@@ -303,11 +303,22 @@ export const getRawMaterialInventoryReportData = async (
             return
           }
           totalRawMaterialsCount++
+          const variantUnit = toNonEmptyString(v.unit || baseUnit, '-').trim()
+          let formattedName = baseName
+          if (v.name) {
+            formattedName = `${baseName} (${v.name})`
+            if (variantUnit && variantUnit !== '-' && !new RegExp(`\\b${variantUnit}\\b`, 'i').test(formattedName)) {
+              formattedName = `${formattedName} (${variantUnit})`
+            }
+          } else if (variantUnit && variantUnit !== '-' && !new RegExp(`\\b${variantUnit}\\b`, 'i').test(formattedName)) {
+            formattedName = `${formattedName} (${variantUnit})`
+          }
+
           items.push({
             rawMaterialId: `${toNonEmptyString(item.rawMaterialId)}-v${vIdx}`,
-            rawMaterialName: `${baseName} (${v.name})`,
+            rawMaterialName: formattedName,
             variantName: v.name,
-            unit: toNonEmptyString(v.unit || baseUnit, '-'),
+            unit: variantUnit,
             stockCount: baseStock,
             standardStockLevel:
               v.standardStockLevel !== undefined && v.standardStockLevel !== null
@@ -343,9 +354,15 @@ export const getRawMaterialInventoryReportData = async (
         })
       } else {
         totalRawMaterialsCount++
+        const u = toNonEmptyString(baseUnit, '').trim()
+        let formattedName = baseName
+        if (u && u !== '-' && !new RegExp(`\\b${u}\\b`, 'i').test(formattedName)) {
+          formattedName = `${formattedName} (${u})`
+        }
+
         items.push({
           rawMaterialId: toNonEmptyString(item.rawMaterialId),
-          rawMaterialName: baseName,
+          rawMaterialName: formattedName,
           unit: baseUnit,
           stockCount: baseStock,
           standardStockLevel:

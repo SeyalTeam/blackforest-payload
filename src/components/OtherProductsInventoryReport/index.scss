@@ -1,53 +1,76 @@
 .other-products-inventory-container {
-  padding: 1.5rem;
-  padding-bottom: 5rem;
+  padding: 20px 2.5rem 4rem 20px;
   background: var(--theme-elevation-0);
   min-height: 100vh;
+  width: 100%;
+  margin: 0;
   color: var(--theme-text-primary);
+
+  input[type='checkbox'] {
+    all: revert !important;
+    width: 14px !important;
+    height: 14px !important;
+    min-height: 14px !important;
+    max-height: 14px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    cursor: pointer !important;
+  }
 
   .report-header {
     position: sticky;
     top: 0;
-    z-index: 1000;
+    z-index: 100;
     background: var(--theme-elevation-0);
-    padding: 1.5rem 0;
-    margin-bottom: 2rem;
+    padding: 0.5rem 0;
+    margin-bottom: 1rem;
     border-bottom: 1px solid var(--theme-elevation-100);
+    width: 100%;
 
     .report-title-row {
-      margin-bottom: 1.25rem;
+      margin-bottom: 0.5rem;
+      text-align: left;
 
       h1 {
         margin: 0;
-        font-size: 1.75rem;
+        font-size: 1.35rem;
         font-weight: 700;
         color: var(--theme-text-primary);
         letter-spacing: -0.02em;
+        text-align: left;
       }
     }
 
     .header-controls {
       display: flex;
       flex-direction: column;
-      gap: 1.5rem;
+      gap: 0.75rem;
+      width: 100%;
+      align-items: flex-start;
 
       .filter-controls-group {
         display: flex;
-        gap: 1.5rem;
-        align-items: flex-end;
+        gap: 0.65rem;
+        align-items: flex-start;
+        justify-content: flex-start;
         flex-wrap: wrap;
+        width: 100%;
+        margin: 0;
+        padding: 0;
 
         .filter-item {
           display: flex;
           flex-direction: column;
-          gap: 0.35rem;
+          gap: 0.25rem;
+          align-items: flex-start;
 
           .filter-label {
-            font-size: 0.85rem;
+            font-size: 0.72rem;
             font-weight: 600;
             color: var(--theme-text-secondary);
             text-transform: uppercase;
             letter-spacing: 0.05em;
+            text-align: left;
           }
         }
       }
@@ -57,18 +80,20 @@
   .summary-cards-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 15px;
-    margin-bottom: 25px;
-    width: 100%;
+    gap: 14px;
+    margin-bottom: 20px;
+    width: 945px;
+    min-width: 945px;
+    max-width: 100%;
   }
 
   .stock-summary-card {
     overflow: hidden;
-    min-height: 120px;
+    min-height: 100px;
     background: var(--theme-elevation-50);
     border: 1px solid var(--theme-elevation-200);
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     display: flex;
     flex-direction: column;
 
@@ -89,10 +114,10 @@
   }
 
   .stock-summary-title {
-    padding: 0.8rem 1rem;
+    padding: 0.55rem 0.85rem;
     font-size: 0.95rem;
     font-weight: 800;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
     line-height: 1.2;
     text-align: center;
     text-transform: uppercase;
@@ -104,9 +129,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 1rem 0.8rem;
+    padding: 0.85rem 0.85rem;
     color: var(--theme-text-primary);
-    font-size: 2rem;
+    font-size: 2.2rem;
     font-weight: 700;
     line-height: 1;
     text-align: center;
@@ -115,13 +140,16 @@
 
   .report-table-section {
     background: var(--theme-elevation-50);
-    border-radius: 12px;
-    padding: 1.5rem;
+    border-radius: 10px;
+    padding: 1.25rem;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    width: 50%;
+    width: fit-content;
+    min-width: 945px;
+    max-width: 100%;
+    margin-right: 3rem;
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1rem;
 
     .table-header-controls {
       display: flex;
@@ -131,8 +159,8 @@
       .limit-selector {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
-        font-size: 0.9rem;
+        gap: 0.4rem;
+        font-size: 0.8rem;
         color: var(--theme-text-secondary);
 
         .page-size-select {
@@ -140,8 +168,9 @@
           border: 1px solid var(--theme-elevation-200);
           color: var(--theme-text-primary);
           border-radius: 6px;
-          padding: 4px 8px;
+          padding: 3px 6px;
           font-family: inherit;
+          font-size: 0.8rem;
           font-weight: 600;
           cursor: pointer;
           outline: none;
@@ -154,20 +183,29 @@
     }
 
     .report-items-table {
+      width: 100%;
+      overflow-x: auto;
+      border-radius: 6px;
+      border: 1px solid var(--theme-elevation-200);
+
       table {
-        width: 100%;
+        width: 945px;
+        min-width: 945px;
+        table-layout: fixed;
         border-collapse: collapse;
-        font-size: 0.9rem;
+        font-size: 0.95rem;
 
         th {
           text-align: left;
           color: var(--theme-text-secondary);
-          font-weight: 600;
-          padding: 0.75rem 1rem;
+          font-weight: 700;
+          padding: 0.65rem 0.75rem;
           border-bottom: 1px solid var(--theme-elevation-150);
           border-right: 1px solid var(--theme-elevation-150);
-          font-size: 0.8rem;
+          font-size: 0.82rem;
           text-transform: uppercase;
+          background: var(--theme-elevation-50);
+          white-space: nowrap;
 
           &:last-child {
             border-right: none;
@@ -175,7 +213,7 @@
         }
 
         tr {
-          transition: background-color 0.2s;
+          transition: background-color 0.15s ease;
 
           &:nth-child(even) {
             background: rgba(0, 0, 0, 0.02);
@@ -187,37 +225,63 @@
         }
 
         td {
-          padding: 0.75rem 1rem;
+          padding: 0.65rem 0.75rem;
           border-bottom: 1px solid var(--theme-elevation-100);
           border-right: 1px solid var(--theme-elevation-100);
           color: var(--theme-text-primary);
+          vertical-align: middle;
 
           &:last-child {
             border-right: none;
           }
 
+          &.sno-cell {
+            font-weight: 700;
+            text-align: center;
+            font-size: 1.1rem;
+            color: var(--theme-text-primary);
+          }
+
           &.product-cell {
-            font-weight: 600;
+            font-weight: 700;
             font-size: 0.95rem;
+            word-break: break-word;
+            overflow-wrap: break-word;
           }
 
           &.quantity-cell {
             font-weight: 700;
             text-align: right;
-            font-size: 1.05rem;
+            font-size: 1.2rem;
+            white-space: nowrap;
           }
 
           &.value-cell {
             font-weight: 700;
             text-align: right;
-            font-size: 1.15rem;
+            font-size: 1.2rem;
             color: #10b981;
+            white-space: nowrap;
           }
         }
 
         tfoot td {
           border-top: 2px solid var(--theme-elevation-200);
+          padding: 0.65rem 0.75rem;
+          font-size: 1.2rem;
+          font-weight: 700;
         }
+      }
+
+      .btn,
+      button {
+        padding: 2px 8px !important;
+        font-size: 0.72rem !important;
+        min-height: unset !important;
+        height: 24px !important;
+        line-height: 1 !important;
+        border-radius: 4px !important;
+        white-space: nowrap;
       }
     }
   }
@@ -226,29 +290,29 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-top: 1rem;
-    padding-top: 1.5rem;
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
     border-top: 1px solid var(--theme-elevation-100);
 
     .pagination-info {
-      font-size: 0.85rem;
+      font-size: 0.78rem;
       color: var(--theme-text-secondary);
     }
 
     .pagination-buttons {
       display: flex;
       align-items: center;
-      gap: 0.35rem;
+      gap: 0.25rem;
 
       .pagination-btn {
-        min-width: 32px;
-        height: 32px;
-        padding: 0 8px;
-        border-radius: 6px;
+        min-width: 28px;
+        height: 28px;
+        padding: 0 6px;
+        border-radius: 4px;
         border: 1px solid var(--theme-elevation-250);
         background: var(--theme-elevation-100);
         color: var(--theme-text-primary);
-        font-size: 0.85rem;
+        font-size: 0.78rem;
         font-weight: 600;
         cursor: pointer;
 
@@ -269,9 +333,9 @@
   .no-data,
   .loading-state,
   .error-message {
-    padding: 3rem;
+    padding: 2.5rem;
     text-align: center;
     color: var(--theme-text-secondary);
-    font-size: 1.1rem;
+    font-size: 0.95rem;
   }
 }
