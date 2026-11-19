@@ -50,56 +50,61 @@ CustomInput.displayName = 'CustomInput'
 const customStyles = {
   control: (base: any, state: { isFocused: boolean }) => ({
     ...base,
-    backgroundColor: 'rgba(16, 36, 70, 0.9)',
-    borderColor: state.isFocused ? '#38BDF8' : 'rgba(56, 189, 248, 0.24)',
+    backgroundColor: 'var(--theme-input-bg, #ffffff)',
+    borderColor: state.isFocused ? '#0284c7' : 'var(--theme-elevation-200, #cbd5e1)',
     borderRadius: '10px',
     height: '40px',
     minHeight: '40px',
     minWidth: '150px',
-    boxShadow: 'none',
-    color: '#E8F2FF',
+    boxShadow: state.isFocused ? '0 0 0 2px rgba(2, 132, 199, 0.2)' : 'none',
+    color: 'var(--theme-text-primary, #0f172a)',
+    cursor: 'pointer',
     '&:hover': {
-      borderColor: 'rgba(56, 189, 248, 0.48)',
+      borderColor: '#0284c7',
     },
   }),
   singleValue: (base: any) => ({
     ...base,
-    color: '#E8F2FF',
-    fontWeight: '500',
+    color: 'var(--theme-text-primary, #0f172a)',
+    fontWeight: '600',
+    fontSize: '0.85rem',
   }),
   option: (base: any, state: { isSelected: boolean; isFocused: boolean }) => ({
     ...base,
     backgroundColor: state.isSelected
-      ? '#1B365D'
+      ? '#0284c7'
       : state.isFocused
-        ? 'rgba(56, 189, 248, 0.2)'
-        : 'rgba(16, 36, 70, 0.95)',
-    color: '#E8F2FF',
+        ? 'var(--theme-elevation-100, #f1f5f9)'
+        : 'var(--theme-elevation-0, #ffffff)',
+    color: state.isSelected ? '#ffffff' : 'var(--theme-text-primary, #0f172a)',
     cursor: 'pointer',
+    fontSize: '0.85rem',
   }),
   menu: (base: any) => ({
     ...base,
-    backgroundColor: '#0B1A33',
-    border: '1px solid rgba(56, 189, 248, 0.28)',
+    backgroundColor: 'var(--theme-elevation-0, #ffffff)',
+    border: '1px solid var(--theme-elevation-200, #cbd5e1)',
+    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
     zIndex: 9999,
     borderRadius: '10px',
   }),
   input: (base: any) => ({
     ...base,
-    color: '#E8F2FF',
+    color: 'var(--theme-text-primary, #0f172a)',
   }),
   placeholder: (base: any) => ({
     ...base,
-    color: '#9AB3D8',
+    color: 'var(--theme-text-secondary, #64748b)',
+    fontSize: '0.85rem',
   }),
   indicatorSeparator: () => ({
     display: 'none',
   }),
   dropdownIndicator: (base: any) => ({
     ...base,
-    color: '#9AB3D8',
+    color: 'var(--theme-text-secondary, #64748b)',
     '&:hover': {
-      color: '#E8F2FF',
+      color: '#0284c7',
     },
   }),
 }

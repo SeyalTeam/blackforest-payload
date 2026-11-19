@@ -1,6 +1,8 @@
 import { default as default_9c4c60e4f20d2fcb9e26d5fbef4e001d } from '../../../components/BillDetailView/index.tsx'
 import { default as default_6bdd80618eae92cdce2b8046cb4be299 } from '../../../components/CustomerBillsTable/index.tsx'
 import { default as default_c9b8fc77ab62df5bf3ccb6b43b5cff8c } from '../../../components/ReportCardRuleFormula/index.tsx'
+import { DatabaseSyncActions as DatabaseSyncActions_c607ba53b7fc1a0e2dad9bf4d4915261 } from '../../../components/DatabaseSyncActions/index.tsx'
+import { default as default_89efe52f05b72d7ac385ebb758734c64 } from '../../../components/AllReport/index.tsx'
 import { default as default_504fe7b162195b3bfa67a928adf73866 } from '../../../components/Dashboard/index.tsx'
 import { default as default_5284cc26339bd05719b498953bd82b2a } from '../../../components/TimeWiseReport/index.tsx'
 import { default as default_03027a027fbfaef5e61d32f942503808 } from '../../../components/BranchBillingReport/index.tsx'
@@ -37,12 +39,17 @@ import { default as default_3005347841fa10396ea6b3f07ad955e3 } from '../../../co
 import { default as default_b07b651643e9d499f934280c75fe9e9c } from '../../../components/MessageChat/index.tsx'
 import { KotTimeRowLabel as KotTimeRowLabel_58da7ac8fde1c469974277b2989eced7 } from '../../../components/KotTimeRowLabel/index.tsx'
 import { ChefRowLabel as ChefRowLabel_2b435c2e758764fa8160bdf8b653a3b9 } from '../../../components/ChefRowLabel/index.tsx'
+import { default as default_9d3655b89916d2f940cbc55b66e28263 } from '../../../components/AdminCollapsedNavBehavior/index.tsx'
+import { default as default_e04ce9e34c25e17bc4d7f3780386b59d } from '../../../components/AdminCollectionsNavLink/index.tsx'
 import { S3ClientUploadHandler as S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24 } from '@payloadcms/storage-s3/client'
+import { default as default_3e31c6c50203f25bd6944666d9840ba6 } from '../../../components/AdminCollectionsDashboard/index.tsx'
 
 export const importMap = {
   "/components/BillDetailView/index.tsx#default": default_9c4c60e4f20d2fcb9e26d5fbef4e001d,
   "/components/CustomerBillsTable/index.tsx#default": default_6bdd80618eae92cdce2b8046cb4be299,
   "/components/ReportCardRuleFormula/index.tsx#default": default_c9b8fc77ab62df5bf3ccb6b43b5cff8c,
+  "/components/DatabaseSyncActions/index.tsx#DatabaseSyncActions": DatabaseSyncActions_c607ba53b7fc1a0e2dad9bf4d4915261,
+  "/components/AllReport/index.tsx#default": default_89efe52f05b72d7ac385ebb758734c64,
   "/components/Dashboard/index.tsx#default": default_504fe7b162195b3bfa67a928adf73866,
   "/components/TimeWiseReport/index.tsx#default": default_5284cc26339bd05719b498953bd82b2a,
   "/components/BranchBillingReport/index.tsx#default": default_03027a027fbfaef5e61d32f942503808,
@@ -79,5 +86,8 @@ export const importMap = {
   "/components/MessageChat/index.tsx#default": default_b07b651643e9d499f934280c75fe9e9c,
   "/components/KotTimeRowLabel/index.tsx#KotTimeRowLabel": KotTimeRowLabel_58da7ac8fde1c469974277b2989eced7,
   "/components/ChefRowLabel/index.tsx#ChefRowLabel": ChefRowLabel_2b435c2e758764fa8160bdf8b653a3b9,
-  "@payloadcms/storage-s3/client#S3ClientUploadHandler": S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24
+  "/components/AdminCollapsedNavBehavior/index.tsx#default": default_9d3655b89916d2f940cbc55b66e28263,
+  "/components/AdminCollectionsNavLink/index.tsx#default": default_e04ce9e34c25e17bc4d7f3780386b59d,
+  "@payloadcms/storage-s3/client#S3ClientUploadHandler": S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24,
+  "/components/AdminCollectionsDashboard/index.tsx#default": default_3e31c6c50203f25bd6944666d9840ba6
 }

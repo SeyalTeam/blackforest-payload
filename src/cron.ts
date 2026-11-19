@@ -1,3 +1,18 @@
+
+function sanitizeActivityItem(act: any) {
+  if (!act || typeof act !== "object") return act
+  const clean = { ...act }
+  if (clean.capturedImage) {
+    if (typeof clean.capturedImage === "object") {
+      clean.capturedImage = clean.capturedImage.id || clean.capturedImage._id || undefined
+    } else if (typeof clean.capturedImage === "string" && clean.capturedImage.trim()) {
+      clean.capturedImage = clean.capturedImage.trim()
+    } else {
+      delete clean.capturedImage
+    }
+  }
+  return clean
+}
 import type { Payload } from 'payload'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc.js'
@@ -173,7 +188,8 @@ export async function runAttendanceAutoPunchOut(payload: Payload) {
       const activities = Array.isArray(doc.activities) ? [...doc.activities] : []
 
       const updatedActivities = activities.map((act: any) => {
-        if (act.status === 'active' && act.punchIn) {
+        const clean = sanitizeActivityItem(act)
+        if (clean.status === 'active' && clean.punchIn) {
           const shift = getExpectedShiftEnd(act.punchIn, employee)
           // Grace period: 30 minutes after scheduled shift end
           const autoCloseThreshold = shift.punchOutDate.getTime() + 30 * 60 * 1000
@@ -181,7 +197,7 @@ export async function runAttendanceAutoPunchOut(payload: Payload) {
           if (now.getTime() >= autoCloseThreshold) {
             needsUpdate = true
             return {
-              ...act,
+              ...clean,
               status: 'closed',
               punchOut: shift.punchOutDate.toISOString(),
               durationSeconds: shift.durationSeconds,
@@ -189,7 +205,7 @@ export async function runAttendanceAutoPunchOut(payload: Payload) {
             }
           }
         }
-        return act
+        return clean
       })
 
       const updateData: any = {}
@@ -272,19 +288,20 @@ async function runNightlyJob(payload: Payload) {
 
         if (doc.activities && doc.activities.length > 0) {
           const updatedActivities = doc.activities.map((act: any) => {
-            if (act.status === 'active') {
+            const clean = sanitizeActivityItem(act)
+            if (clean.status === 'active') {
               needsUpdate = true
-              const shift = getExpectedShiftEnd(act.punchIn || doc.date, employee)
+              const shift = getExpectedShiftEnd(clean.punchIn || doc.date, employee)
 
               return {
-                ...act,
+                ...clean,
                 status: 'closed',
                 punchOut: shift.punchOutDate.toISOString(),
                 durationSeconds: shift.durationSeconds,
                 punchOutType: 'auto',
               }
             }
-            return act
+            return clean
           })
           if (needsUpdate) updateData.activities = updatedActivities
         }
@@ -332,6 +349,48 @@ function scheduleNextNightlyJob(payload: Payload) {
   }, delay)
 }
 
+let lastSyncMinuteRan = ''
+
+function normalizeTimeString(timeStr?: string): string {
+  if (!timeStr) return '03:00'
+  const trimmed = timeStr.trim().toUpperCase()
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i)
+  if (!match) return trimmed
+  let hours = parseInt(match[1], 10)
+  const minutes = match[2]
+  const meridian = match[3]?.toUpperCase()
+
+  if (meridian === 'PM' && hours < 12) hours += 12
+  if (meridian === 'AM' && hours === 12) hours = 0
+
+  return `${String(hours).padStart(2, '0')}:${minutes}`
+}
+
+async function checkAndRunDatabaseSync(payload: Payload) {
+  try {
+    const settings = await payload.findGlobal({
+      slug: 'database-sync-settings' as any,
+    })
+
+    if (!settings || !(settings as any).enabled) return
+
+    const nowKol = dayjs().tz('Asia/Kolkata')
+    const currentHHmm = nowKol.format('HH:mm')
+    const rawTarget = ((settings as any).syncTime || '03:00').trim()
+    const targetHHmm = normalizeTimeString(rawTarget)
+
+    // If current time matches configured time and hasn't run yet in this minute
+    if (currentHHmm === targetHHmm && lastSyncMinuteRan !== currentHHmm) {
+      lastSyncMinuteRan = currentHHmm
+      console.log(`[cron] Scheduled database sync triggered at ${currentHHmm} IST (configured: ${rawTarget})`)
+      const { executeDatabaseSync } = await import('./utilities/databaseSync')
+      await executeDatabaseSync(payload)
+    }
+  } catch (err) {
+    console.error('[cron] Error checking database sync schedule:', err)
+  }
+}
+
 export function startCronJobs(payload: Payload) {
   // 1. Initial cleanup on boot
   runNightlyJob(payload).catch(console.error)
@@ -344,4 +403,9 @@ export function startCronJobs(payload: Payload) {
 
   // 3. Nightly midnight job
   scheduleNextNightlyJob(payload)
+
+  // 4. Check database sync schedule every minute
+  setInterval(() => {
+    checkAndRunDatabaseSync(payload).catch(console.error)
+  }, 60 * 1000)
 }

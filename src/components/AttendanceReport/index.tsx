@@ -18,6 +18,8 @@ export type AttendanceActivity = {
   type: 'session' | 'break'
   punchIn: string
   punchOut?: string
+  punchInType?: 'manual' | 'auto'
+  punchOutType?: 'manual' | 'auto'
   status: 'active' | 'closed'
   durationSeconds: number
   durationFormatted: string
@@ -82,7 +84,9 @@ export type AttendanceItem = {
   loginBranchId?: string
   loginBranchName?: string
   firstPunchIn?: string
+  firstPunchInType?: 'manual' | 'auto'
   lastPunchOut?: string
+  lastPunchOutType?: 'manual' | 'auto'
   totalWorkSeconds: number
   totalWorkFormatted: string
   extraSeconds?: number
@@ -91,6 +95,7 @@ export type AttendanceItem = {
   totalBreakFormatted: string
   sessionCount: number
   breakCount: number
+  dayType?: string
   status: 'active' | 'on_break' | 'closed'
   activities: AttendanceActivity[]
 }
@@ -172,7 +177,9 @@ const ATTENDANCE_REPORT_QUERY = `
         loginBranchId
         loginBranchName
         firstPunchIn
+        firstPunchInType
         lastPunchOut
+        lastPunchOutType
         totalWorkSeconds
         totalWorkFormatted
         extraSeconds
@@ -181,12 +188,15 @@ const ATTENDANCE_REPORT_QUERY = `
         totalBreakFormatted
         sessionCount
         breakCount
+        dayType
         status
         activities {
           id
           type
           punchIn
           punchOut
+          punchInType
+          punchOutType
           status
           durationSeconds
           durationFormatted
@@ -331,9 +341,53 @@ const AttendanceReport: React.FC = () => {
   const [employees, setEmployees] = useState<{ id: string; name: string; team?: string }[]>([])
   const [selectedEmployee, setSelectedEmployee] = useState<string[]>(['all'])
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
+  const [selectedPunchType, setSelectedPunchType] = useState<string>('all')
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [selectedItemForModal, setSelectedItemForModal] = useState<AttendanceItem | null>(null)
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
+
+  const getPunchInType = (item: any): 'auto' | 'manual' => {
+    if (item.firstPunchInType) return item.firstPunchInType
+    if (Array.isArray(item.activities)) {
+      const session = item.activities.find((a: any) => a.type === 'session' && a.punchIn === item.firstPunchIn)
+      if (session?.punchInType === 'auto') return 'auto'
+      const firstAct = item.activities.find((a: any) => a.type === 'session')
+      if (firstAct?.punchInType === 'auto') return 'auto'
+    }
+    return 'manual'
+  }
+
+  const getPunchOutType = (item: any): 'auto' | 'manual' => {
+    if (item.lastPunchOutType) return item.lastPunchOutType
+    if (Array.isArray(item.activities)) {
+      const session = item.activities.find((a: any) => a.type === 'session' && a.punchOut === item.lastPunchOut)
+      if (session?.punchOutType === 'auto') return 'auto'
+      const anyAuto = item.activities.some((a: any) => a.punchOutType === 'auto')
+      if (anyAuto) return 'auto'
+    }
+    return 'manual'
+  }
+
+  const getDayTypeDisplay = (item: AttendanceItem) => {
+    let dt = item.dayType
+    if (!dt && item.totalWorkSeconds > 0) {
+      const dutySec = (item.employeeWorkingHours || 12) * 3600
+      dt = item.totalWorkSeconds >= dutySec - 900 ? 'full_day' : 'half_day'
+    }
+    if (dt === 'full_day') return { label: 'Full Day', className: 'full-day' }
+    if (dt === 'half_day') return { label: 'Half Day', className: 'half-day' }
+    if (dt === 'week_off') return { label: 'Week Off', className: 'other' }
+    if (dt === 'on_leave') return { label: 'On Leave', className: 'other' }
+    if (dt === 'holiday') return { label: 'Holiday', className: 'other' }
+    return null
+  }
+
+  const getStatusDisplayLabel = (item: AttendanceItem) => {
+    if (item.status === 'active') return 'ON WORK'
+    if (item.status === 'on_break') return 'ON BREAK'
+    const info = getDayTypeDisplay(item)
+    return info ? info.label : '-'
+  }
 
   const { displayItems, isAggregatedView } = useMemo(() => {
     if (!data) return { displayItems: [], isAggregatedView: false }
@@ -342,8 +396,26 @@ const AttendanceReport: React.FC = () => {
     const isMulti = startStr && endStr && startStr !== endStr
     const isSingleEmployeeSelected = selectedEmployee.length === 1 && selectedEmployee[0] !== 'all'
 
+    let items = data.items
+
+    if (selectedPunchType !== 'all') {
+      items = items.filter((item) => {
+        const inType = getPunchInType(item)
+        const outType = getPunchOutType(item)
+        const hasAutoOut = item.activities?.some((a: any) => a.punchOutType === 'auto') || outType === 'auto'
+        const hasManualOut = item.activities?.some((a: any) => a.punchOut && a.punchOutType !== 'auto') || (item.lastPunchOut && outType === 'manual')
+        const hasAutoIn = item.activities?.some((a: any) => a.punchInType === 'auto') || inType === 'auto'
+        const hasManualIn = item.activities?.some((a: any) => a.punchIn && a.punchInType !== 'auto') || (item.firstPunchIn && inType === 'manual')
+
+        if (selectedPunchType === 'manual_punch_in') return hasManualIn
+        if (selectedPunchType === 'auto_punch_in') return hasAutoIn
+        if (selectedPunchType === 'manual_punch_out') return hasManualOut
+        if (selectedPunchType === 'auto_punch_out') return hasAutoOut
+        return true
+      })
+    }
+
     if (!isMulti || isSingleEmployeeSelected) {
-      let items = data.items
       if (isSingleEmployeeSelected) {
         const empId = selectedEmployee[0]
         items = items.filter(item => item.employeeObjectId === empId || item.userId === empId)
@@ -369,7 +441,7 @@ const AttendanceReport: React.FC = () => {
     }
 
     const grouped: Record<string, AggregatedItem & { totalShiftSeconds: number; totalExtraSeconds: number }> = {}
-    data.items.forEach(item => {
+    items.forEach(item => {
       const key = item.employeeId || item.userId || item.employeeName
       if (!grouped[key]) {
         grouped[key] = {
@@ -473,7 +545,7 @@ const AttendanceReport: React.FC = () => {
 
     aggregatedList.sort((a,b) => b.totalWorkSeconds - a.totalWorkSeconds)
     return { displayItems: aggregatedList, isAggregatedView: true }
-  }, [data, startDate, endDate, selectedEmployee])
+  }, [data, startDate, endDate, selectedEmployee, selectedPunchType])
 
   const calcTotals = useMemo(() => {
     let totPresent = 0
@@ -531,9 +603,17 @@ const AttendanceReport: React.FC = () => {
 
   const statusOptions: SelectOption[] = [
     { value: 'all', label: 'All Status' },
-    { value: 'active', label: '🟢 Active / Clocked In' },
+    { value: 'active', label: '🟢 On Work' },
     { value: 'on_break', label: '🟡 On Break' },
-    { value: 'closed', label: '⚪ Clocked Out' },
+    { value: 'closed', label: '⚪ Closed' },
+  ]
+
+  const punchTypeOptions: SelectOption[] = [
+    { value: 'all', label: 'All Punch Types' },
+    { value: 'manual_punch_in', label: 'Manual Punch In' },
+    { value: 'manual_punch_out', label: 'Manual Punch Out' },
+    { value: 'auto_punch_in', label: 'Auto Punch In' },
+    { value: 'auto_punch_out', label: 'Auto Punch Out' },
   ]
 
   const dateRangeOptions = [
@@ -765,10 +845,10 @@ const AttendanceReport: React.FC = () => {
     const csvRows: string[] = []
     const headers = isAggregatedView ? [
       'S.NO', 'EMPLOYEE NAME (ID)', 'BRANCH', 'PRESENT', 'LEAVE', 'SALARY AMOUNT', 'DUTY HRS', 'TOTAL WORK HOURS', 'EXTRA HOURS',
-      'AVG FIRST IN', 'AVG LAST OUT', 'TOTAL SESSIONS', 'TOTAL BREAK TIME', 'AVG WORK/DAY'
+      'AVG PUNCH IN', 'AVG PUNCH OUT', 'TOTAL SESSIONS', 'TOTAL BREAK TIME', 'AVG WORK/DAY'
     ] : [
       'S.NO', 'EMPLOYEE NAME (ID)', 'ROLE', 'BRANCH',
-      'FIRST IN', 'LAST OUT', 'SESSIONS', 'BREAK TIME', 'DUTY HRS', 'TOTAL WORK HOURS', 'EXTRA HOURS', 'STATUS'
+      'PUNCH IN', 'PUNCH OUT', 'SESSIONS', 'BREAK TIME', 'DUTY HRS', 'TOTAL WORK HOURS', 'EXTRA HOURS', 'STATUS'
     ]
     csvRows.push(headers.join(','))
 
@@ -810,7 +890,7 @@ const AttendanceReport: React.FC = () => {
             `"${item.employeeWorkingHours ? item.employeeWorkingHours + 'h' : '-'}"`,
             `"${item.totalWorkFormatted}"`,
             `"${item.extraHoursFormatted || '-'}"`,
-            `"${item.status.toUpperCase()}"`,
+            `"${getStatusDisplayLabel(item).toUpperCase()}"`,
           ].join(',')
         )
       }
@@ -854,10 +934,10 @@ const AttendanceReport: React.FC = () => {
     const csvRows: string[] = []
     const headers = isAggregatedView ? [
       'S.NO', 'EMPLOYEE NAME (ID)', 'BRANCH', 'PRESENT', 'LEAVE', 'SALARY AMOUNT', 'DUTY HRS', 'TOTAL WORK HOURS', 'EXTRA HOURS',
-      'AVG FIRST IN', 'AVG LAST OUT', 'TOTAL SESSIONS', 'TOTAL BREAK TIME', 'AVG WORK/DAY'
+      'AVG PUNCH IN', 'AVG PUNCH OUT', 'TOTAL SESSIONS', 'TOTAL BREAK TIME', 'AVG WORK/DAY'
     ] : [
       'S.NO', 'EMPLOYEE NAME (ID)', 'ROLE', 'BRANCH',
-      'FIRST IN', 'LAST OUT', 'SESSIONS', 'BREAK TIME', 'DUTY HRS', 'TOTAL WORK HOURS', 'EXTRA HOURS', 'STATUS'
+      'PUNCH IN', 'PUNCH OUT', 'SESSIONS', 'BREAK TIME', 'DUTY HRS', 'TOTAL WORK HOURS', 'EXTRA HOURS', 'STATUS'
     ]
 
     // Group items by role
@@ -912,7 +992,7 @@ const AttendanceReport: React.FC = () => {
               `"${item.employeeWorkingHours ? item.employeeWorkingHours + 'h' : '-'}"`,
               `"${item.totalWorkFormatted}"`,
               `"${item.extraHoursFormatted || '-'}"`,
-              `"${item.status.toUpperCase()}"`,
+              `"${getStatusDisplayLabel(item).toUpperCase()}"`,
             ].join(',')
           )
         }
@@ -962,6 +1042,7 @@ const AttendanceReport: React.FC = () => {
     setActiveRoleFilter('all')
     setSelectedEmployee(['all'])
     setSelectedStatus('all')
+    setSelectedPunchType('all')
     setShowExportMenu(false)
   }
 
@@ -1066,10 +1147,50 @@ const AttendanceReport: React.FC = () => {
       {/* Header & Filters */}
       <div className="report-header">
         <div className="title-row">
-          <h1>
-            👥 Attendance Report
-            {data && <span className="title-badge">{data.items.length} Records</span>}
-          </h1>
+          <div className="title-left">
+            <h1>
+              👥 Attendance Report
+              {data && <span className="title-badge">{data.items.length} Records</span>}
+            </h1>
+            <div className="title-actions">
+              <div className="export-container">
+                <button
+                  className="export-btn"
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                  title="Export Report"
+                  type="button"
+                >
+                  <span>Export</span>
+                  <span>↓</span>
+                </button>
+
+                {showExportMenu && (
+                  <div className="export-menu">
+                    <button onClick={handleExportCsv}>Excel (CSV)</button>
+                    <button onClick={handleExportRoleBasedCsv}>Role Based (CSV)</button>
+                  </div>
+                )}
+              </div>
+              {showExportMenu && <div className="export-backdrop" onClick={() => setShowExportMenu(false)} />}
+
+              <button className="reset-btn" onClick={() => fetchReport()} title="Refresh Report" type="button">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M23 4v6h-6"></path>
+                  <path d="M1 20v-6h6"></path>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="filters-bar">
@@ -1212,44 +1333,18 @@ const AttendanceReport: React.FC = () => {
           </div>
 
           <div className="filter-group">
-            <div className="export-container">
-              <button
-                className="export-btn"
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                title="Export Report"
-                type="button"
-              >
-                <span>Export</span>
-                <span>↓</span>
-              </button>
-
-              {showExportMenu && (
-                <div className="export-menu">
-                  <button onClick={handleExportCsv}>Excel (CSV)</button>
-                  <button onClick={handleExportRoleBasedCsv}>Role Based (CSV)</button>
-                </div>
-              )}
-            </div>
-            {showExportMenu && <div className="export-backdrop" onClick={() => setShowExportMenu(false)} />}
-          </div>
-
-          <div className="filter-group">
-            <button className="reset-btn" onClick={resetFilters} title="Reset Filters" type="button">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M23 4v6h-6"></path>
-                <path d="M1 20v-6h6"></path>
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-              </svg>
-            </button>
+            <Select<SelectOption, false>
+              instanceId="attendance-punch-type-select"
+              options={punchTypeOptions}
+              value={punchTypeOptions.find((o) => o.value === selectedPunchType)}
+              onChange={(option) => {
+                if (option) setSelectedPunchType(option.value)
+              }}
+              styles={customStyles}
+              classNamePrefix="react-select"
+              placeholder="Punch Type..."
+              isSearchable={false}
+            />
           </div>
         </div>
       </div>
@@ -1366,8 +1461,8 @@ const AttendanceReport: React.FC = () => {
                     <th className="text-center">DUTY HRS</th>
                     <th className="text-center">TOTAL WORK</th>
                     <th className="text-center">EXTRA HOURS</th>
-                    <th className="text-center">AVG FIRST IN</th>
-                    <th className="text-center">AVG LAST OUT</th>
+                    <th className="text-center">AVG PUNCH IN</th>
+                    <th className="text-center">AVG PUNCH OUT</th>
                     <th className="text-center">TOTAL SESSIONS</th>
                     <th className="text-center">TOTAL BREAK</th>
                     <th className="text-center">AVG WORK/DAY</th>
@@ -1377,8 +1472,8 @@ const AttendanceReport: React.FC = () => {
                     <th style={{ width: '200px' }}>EMPLOYEE (ID)</th>
                     <th style={{ width: '100px' }}>ROLE</th>
                     <th style={{ width: '90px' }}>BRANCH</th>
-                    <th className="text-center">FIRST IN</th>
-                    <th className="text-center">LAST OUT</th>
+                    <th className="text-center">PUNCH IN</th>
+                    <th className="text-center">PUNCH OUT</th>
                     <th className="text-center">BREAKS</th>
                     <th className="text-center">DUTY HRS</th>
                     <th className="text-center">WORK HOURS</th>
@@ -1474,12 +1569,30 @@ const AttendanceReport: React.FC = () => {
                               {(item.branchName || '').substring(0, 3).toUpperCase()}
                             </strong>
                           </td>
-                          <td className="text-center">{formatTime(item.firstPunchIn)}</td>
+                          <td className="text-center">
+                            {item.firstPunchIn ? (
+                              <div className="punch-cell">
+                                <span className="punch-time">{formatTime(item.firstPunchIn)}</span>
+                                <span className="punch-indicator">
+                                  {getPunchInType(item) === 'auto' ? 'Auto Punch In' : 'Manual Punch In'}
+                                </span>
+                              </div>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
                           <td className="text-center">
                             {item.status === 'active' ? (
                               <span style={{ color: '#10b981', fontWeight: 600 }}>Active Now</span>
+                            ) : item.lastPunchOut ? (
+                              <div className="punch-cell">
+                                <span className="punch-time">{formatTime(item.lastPunchOut)}</span>
+                                <span className="punch-indicator">
+                                  {getPunchOutType(item) === 'auto' ? 'Auto Punch Out' : 'Manual Punch Out'}
+                                </span>
+                              </div>
                             ) : (
-                              formatTime(item.lastPunchOut)
+                              '-'
                             )}
                           </td>
                           <td className="text-center" style={{ color: 'var(--theme-text-secondary)' }}>
@@ -1495,14 +1608,32 @@ const AttendanceReport: React.FC = () => {
                             </span>
                           </td>
                           <td className="text-center">
-                            <span className={`status-pill ${item.status}`}>
-                              <span className="dot" />
-                              {item.status === 'active'
-                                ? 'Clocked In'
-                                : item.status === 'on_break'
-                                  ? 'On Break'
-                                  : 'Clocked Out'}
-                            </span>
+                            {item.status === 'active' ? (
+                              <span className="status-pill active on-work">
+                                <span className="dot" />
+                                ON WORK
+                              </span>
+                            ) : item.status === 'on_break' ? (
+                              <span className="status-pill on_break">
+                                <span className="dot" />
+                                ON BREAK
+                              </span>
+                            ) : (
+                              (() => {
+                                const info = getDayTypeDisplay(item)
+                                return info ? (
+                                  <span className={`status-pill ${info.className}`}>
+                                    <span className="dot" />
+                                    {info.label}
+                                  </span>
+                                ) : (
+                                  <span className="status-pill other">
+                                    <span className="dot" />
+                                    -
+                                  </span>
+                                )
+                              })()
+                            )}
                           </td>
                           <td className="text-center" onClick={(e) => e.stopPropagation()}>
                             <button

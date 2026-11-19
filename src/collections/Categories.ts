@@ -120,12 +120,15 @@ const Categories: CollectionConfig = {
       relationTo: 'departments',
       required: false,
       admin: {
-        condition: (data) => data.company && data.company.length > 0,
+        condition: (data) =>
+          Array.isArray(data?.company) ? data.company.length > 0 : Boolean(data?.company),
       },
       filterOptions: ({ data }): false | Where => {
         // Sync version; no Promise needed here as it's not async
-        if (!data?.company || data.company.length === 0) return false
-        return { company: { in: data.company } }
+        if (!data?.company) return false
+        const companyList = Array.isArray(data.company) ? data.company : [data.company]
+        if (companyList.length === 0) return false
+        return { company: { in: companyList } }
       },
     },
   ],

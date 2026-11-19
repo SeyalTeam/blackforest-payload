@@ -63,6 +63,7 @@ aside.nav,
 }
 
 .nav-group.Report .nav__link,
+.nav-group.Account .nav__link,
 .nav-group.Chef .nav__link {
   display: flex;
   align-items: center;
@@ -70,6 +71,7 @@ aside.nav,
 }
 
 .nav-group.Report .nav__link::before,
+.nav-group.Account .nav__link::before,
 .nav-group.Chef .nav__link::before {
   content: '';
   display: inline-block;
@@ -85,6 +87,10 @@ aside.nav,
   mask-size: contain;
   -webkit-mask-image: var(--report-icon, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3C/svg%3E"));
   mask-image: var(--report-icon, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3C/svg%3E"));
+}
+
+.nav-group.Report .nav__link[href*='globals/all-report'] {
+  --report-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3Cline x1='16' y1='13' x2='8' y2='13'/%3E%3Cline x1='16' y1='17' x2='8' y2='17'/%3E%3Cpolyline points='10 9 9 9 8 9'/%3E%3C/svg%3E");
 }
 
 .nav-group.Report .nav__link[href*='globals/general-dashboard'] {
@@ -199,6 +205,46 @@ aside.nav,
   --settings-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='7' y='2' width='10' height='20' rx='2'/%3E%3Cline x1='12' y1='18' x2='12' y2='18'/%3E%3Cpath d='M12 6v7'/%3E%3Cpolyline points='9.5 10.5 12 13 14.5 10.5'/%3E%3C/svg%3E");
 }
 
+.nav-group.Settings .nav__link[href*='globals/app-version-settings'] {
+  --settings-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2v20'/%3E%3Cpath d='M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'/%3E%3C/svg%3E");
+}
+
+.nav-group.Settings .nav__link[href*='globals/payment-settings'] {
+  --settings-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='1' y='4' width='22' height='16' rx='2' ry='2'/%3E%3Cline x1='1' y1='10' x2='23' y2='10'/%3E%3C/svg%3E");
+}
+
+.nav-group.Settings .nav__link[href*='globals/work-settings'] {
+  --settings-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='7' width='20' height='14' rx='2' ry='2'/%3E%3Cpath d='M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16'/%3E%3C/svg%3E");
+}
+
+.nav-group.Settings .nav__link[href*='globals/app-working-hours'] {
+  --settings-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpolyline points='12 6 12 12 16 14'/%3E%3C/svg%3E");
+}
+
+.nav-group.Settings .nav__link[href*='globals/kot-time'] {
+  --settings-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='13' r='8'/%3E%3Cpath d='M12 9v4l2 2'/%3E%3Cpath d='M5 3L2 6'/%3E%3Cpath d='M22 6l-3-3'/%3E%3Cpath d='M6.38 18.7 4 21'/%3E%3Cpath d='M17.64 18.67 20 21'/%3E%3C/svg%3E");
+}
+
+.nav-group.Settings .nav__link[href*='globals/chef-settings'] {
+  --settings-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z'/%3E%3Cline x1='6' y1='17' x2='18' y2='17'/%3E%3C/svg%3E");
+}
+
+.nav-group.Settings .nav__link[href*='globals/database-sync-settings'] {
+  --settings-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cellipse cx='12' cy='5' rx='9' ry='3'/%3E%3Cpath d='M21 12c0 1.66-4 3-9 3s-9-1.34-9-3'/%3E%3Cpath d='M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5'/%3E%3C/svg%3E");
+}
+
+.nav-group.Settings .nav__link[href*='globals/menu-settings'] {
+  --settings-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='3' y1='12' x2='21' y2='12'/%3E%3Cline x1='3' y1='6' x2='21' y2='6'/%3E%3Cline x1='3' y1='18' x2='21' y2='18'/%3E%3C/svg%3E");
+}
+
+.nav-group.Settings .nav__link[href*='collections/report-card-rules'] {
+  --settings-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='4' y1='21' x2='4' y2='14'/%3E%3Cline x1='4' y1='10' x2='4' y2='3'/%3E%3Cline x1='12' y1='21' x2='12' y2='12'/%3E%3Cline x1='12' y1='8' x2='12' y2='3'/%3E%3Cline x1='20' y1='21' x2='20' y2='16'/%3E%3Cline x1='20' y1='12' x2='20' y2='3'/%3E%3Cline x1='1' y1='14' x2='7' y2='14'/%3E%3Cline x1='9' y1='8' x2='15' y2='8'/%3E%3Cline x1='17' y1='16' x2='23' y2='16'/%3E%3C/svg%3E");
+}
+
+.nav-group.Settings .nav__link[href*='collections/apk-files'] {
+  --settings-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='2' width='14' height='20' rx='2' ry='2'/%3E%3Cline x1='12' y1='18' x2='12.01' y2='18'/%3E%3C/svg%3E");
+}
+
 .nav__link:hover,
 .nav__link:focus-visible {
   background: var(--theme-elevation-50) !important;
@@ -230,8 +276,8 @@ aside.nav,
 }
 
 .nav-group--collections-shortcut {
-  margin-bottom: 12px !important;
-  order: 40;
+  margin-bottom: 16px !important;
+  order: 1 !important;
 }
 
 .nav-group--collections-shortcut .nav__link {
@@ -258,26 +304,21 @@ aside.nav,
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 8v13H3V8'/%3E%3Cpath d='M1 3h22v5H1z'/%3E%3Cpath d='M10 12h4'/%3E%3C/svg%3E");
 }
 
-/* Enforce requested sidebar order: Report -> Inventory/Org -> Settings -> Collections */
-.nav-group.Chef {
-  order: -2 !important;
+/* Enforce requested sidebar order: Collections -> Report -> Account -> Settings */
+.nav-group--collections-shortcut {
+  order: 1 !important;
 }
 
 .nav-group.Report {
-  order: -1 !important;
+  order: 2 !important;
 }
 
-.nav-group.Inventory,
-.nav-group.Organization {
-  order: 5 !important;
+.nav-group.Account {
+  order: 3 !important;
 }
 
 .nav-group.Settings {
-  order: 30 !important;
-}
-
-.nav-group.Others {
-  order: 35 !important;
+  order: 4 !important;
 }
 
 .nav-group.Work .nav__link {
@@ -399,6 +440,9 @@ aside.nav,
     .nav__link::before,
   .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
     .nav-group.Report
+    .nav__link::before,
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
+    .nav-group.Account
     .nav__link::before,
   .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
     .nav-group.Settings

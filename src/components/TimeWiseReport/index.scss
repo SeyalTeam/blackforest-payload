@@ -44,6 +44,8 @@
       }
 
       .date-picker-wrapper {
+        width: 100%;
+
         .react-datepicker-wrapper {
           width: 100%;
         }
@@ -343,6 +345,45 @@
     border-radius: 12px;
     border: 1px solid var(--theme-error-200);
     text-align: center;
+  }
+
+  .report-graph-section {
+    width: 100%;
+
+    .report-graph-card,
+    .report-heatmap-card {
+      transition: all 0.2s ease-in-out;
+    }
+
+    table {
+      border-collapse: separate;
+      border-spacing: 2px;
+      font-size: 12px;
+
+      th,
+      td {
+        transition: background-color 0.15s ease;
+      }
+    }
+
+    /* Custom scrollbar for heatmap table */
+    .report-heatmap-card::-webkit-scrollbar {
+      height: 6px;
+    }
+
+    .report-heatmap-card::-webkit-scrollbar-track {
+      background: var(--theme-elevation-100);
+      border-radius: 4px;
+    }
+
+    .report-heatmap-card::-webkit-scrollbar-thumb {
+      background: var(--theme-elevation-300);
+      border-radius: 4px;
+    }
+
+    .report-heatmap-card::-webkit-scrollbar-thumb:hover {
+      background: var(--theme-elevation-400);
+    }
   }
 }
 

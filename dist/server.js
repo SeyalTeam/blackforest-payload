@@ -2320,7 +2320,7 @@ var init_Users = __esm({
                 cachedMenuSettingsAt = now;
               }
               const menuSettings = cachedMenuSettings;
-              const roleConfig = menuSettings?.roleMenus?.find((r) => r.role === doc.role);
+              const roleConfig = Array.isArray(menuSettings?.roleMenus) ? menuSettings.roleMenus.find((r) => r?.role === doc?.role) : null;
               if (roleConfig) {
                 doc.allowedCollections = roleConfig.visibleCollections || [];
                 doc.allowedGlobals = roleConfig.visibleGlobals || [];
@@ -2655,7 +2655,7 @@ var init_Users = __esm({
               ]);
               const ipSettingsData = ipSettings;
               const geoSettings = geoSettingsResult;
-              const restriction = ipSettingsData.roleRestrictions?.find((r) => r.role === user.role);
+              const restriction = Array.isArray(ipSettingsData?.roleRestrictions) ? ipSettingsData.roleRestrictions.find((r) => r?.role === user?.role) : null;
               let forwarded = null;
               let privateIpHeader = null;
               if (req.headers && typeof req.headers.get === "function") {
@@ -2669,7 +2669,7 @@ var init_Users = __esm({
                   typeof user.branch === "string" ? user.branch : user.branch.id
                 );
                 console.log(`[Login Debug] User Branch ID: ${userBranchId}, Public IP: ${publicIp}`);
-                if (geoSettings?.locations) {
+                if (Array.isArray(geoSettings?.locations)) {
                   const branchGeo = geoSettings.locations.find((loc) => {
                     const locBranchId = String(
                       (typeof loc.branch === "string" ? loc.branch : loc.branch?.id) || ""
@@ -2737,7 +2737,7 @@ var init_Users = __esm({
                   slug: "branch-geo-settings"
                 });
                 const geoSettings = geoSettingsResult;
-                if (geoSettings?.locations) {
+                if (Array.isArray(geoSettings?.locations)) {
                   const userBranchId = String(
                     typeof user.branch === "string" ? user.branch : user.branch.id
                   );
@@ -3206,10 +3206,9 @@ var init_Branches = __esm({
     init_branchPins();
     Branches = {
       slug: "branches",
-      // @ts-ignore
-      defaultDepth: 0,
       admin: {
-        useAsTitle: "name"
+        useAsTitle: "name",
+        defaultColumns: ["name", "company", "branchPin", "status"]
       },
       hooks: {
         beforeChange: [
@@ -3756,11 +3755,13 @@ var init_Categories = __esm({
           relationTo: "departments",
           required: false,
           admin: {
-            condition: (data) => data.company && data.company.length > 0
+            condition: (data) => Array.isArray(data?.company) ? data.company.length > 0 : Boolean(data?.company)
           },
           filterOptions: ({ data }) => {
-            if (!data?.company || data.company.length === 0) return false;
-            return { company: { in: data.company } };
+            if (!data?.company) return false;
+            const companyList = Array.isArray(data.company) ? data.company : [data.company];
+            if (companyList.length === 0) return false;
+            return { company: { in: companyList } };
           }
         }
       ],
@@ -15595,6 +15596,34 @@ var init_IPSettings = __esm({
   }
 });
 
+// src/globals/AllReport.ts
+var AllReportGlobal;
+var init_AllReport = __esm({
+  "src/globals/AllReport.ts"() {
+    "use strict";
+    AllReportGlobal = {
+      slug: "all-report",
+      label: "All Report",
+      access: {
+        read: () => true
+      },
+      admin: {
+        group: "Report",
+        components: {
+          views: {
+            edit: {
+              root: {
+                Component: "/components/AllReport/index.tsx#default"
+              }
+            }
+          }
+        }
+      },
+      fields: []
+    };
+  }
+});
+
 // src/globals/Dashboard.ts
 var DashboardGlobal;
 var init_Dashboard = __esm({
@@ -20915,7 +20944,9 @@ var init_attendance = __esm({
         let sessionCount = 0;
         let breakCount = 0;
         let firstPunchIn = void 0;
+        let firstPunchInType = void 0;
         let lastPunchOut = void 0;
+        let lastPunchOutType = void 0;
         let hasActiveSession = false;
         let hasActiveBreak = false;
         if (activitiesRaw.length === 0 && doc.punchIn) {
@@ -20935,7 +20966,8 @@ var init_attendance = __esm({
             status: isAct ? "active" : "closed",
             durationSeconds: dur,
             durationFormatted: formatSecondsToReadable(dur),
-            punchOutType: doc.punchOutType,
+            punchInType: doc.punchInType || "manual",
+            punchOutType: doc.punchOutType || "manual",
             ipAddress: toNonEmptyString2(doc.ipAddress),
             device: toNonEmptyString2(doc.device),
             capturedImageUrl,
@@ -20947,7 +20979,9 @@ var init_attendance = __esm({
           sessionCount = 1;
           recordWorkSeconds = dur;
           firstPunchIn = pIn;
+          firstPunchInType = doc.punchInType || "manual";
           lastPunchOut = pOut;
+          lastPunchOutType = doc.punchOutType || "manual";
           if (isAct) hasActiveSession = true;
         } else {
           for (const act of activitiesRaw) {
@@ -20970,6 +21004,8 @@ var init_attendance = __esm({
             const actLat = typeof act.latitude === "number" ? act.latitude : act.latitude ? Number(act.latitude) : void 0;
             const actLng = typeof act.longitude === "number" ? act.longitude : act.longitude ? Number(act.longitude) : void 0;
             const matchedActBranch = resolveBranchFromCoords(actLat, actLng);
+            const actPunchInType = act.punchInType || "manual";
+            const actPunchOutType = act.punchOutType || "manual";
             activities.push({
               id: toNonEmptyString2(act.id || act._id),
               type: actType,
@@ -20978,7 +21014,8 @@ var init_attendance = __esm({
               status: isAct ? "active" : "closed",
               durationSeconds: dur,
               durationFormatted: formatSecondsToReadable(dur),
-              punchOutType: act.punchOutType,
+              punchInType: actPunchInType,
+              punchOutType: actPunchOutType,
               ipAddress: toNonEmptyString2(act.ipAddress),
               device: toNonEmptyString2(act.device),
               capturedImageUrl,
@@ -21006,10 +21043,12 @@ var init_attendance = __esm({
               if (isAct) hasActiveSession = true;
               if (!firstPunchIn || new Date(pIn).getTime() < new Date(firstPunchIn).getTime()) {
                 firstPunchIn = pIn;
+                firstPunchInType = actPunchInType;
               }
               if (pOut) {
                 if (!lastPunchOut || new Date(pOut).getTime() > new Date(lastPunchOut).getTime()) {
                   lastPunchOut = pOut;
+                  lastPunchOutType = actPunchOutType;
                 }
               }
             } else {
@@ -21029,6 +21068,10 @@ var init_attendance = __esm({
           if (statusParam === "active" && status !== "active") continue;
           if (statusParam === "closed" && status !== "closed") continue;
           if (statusParam === "on_break" && status !== "on_break") continue;
+          if (statusParam === "manual_punch_in" && firstPunchInType !== "manual") continue;
+          if (statusParam === "auto_punch_in" && firstPunchInType !== "auto") continue;
+          if (statusParam === "manual_punch_out" && lastPunchOutType !== "manual") continue;
+          if (statusParam === "auto_punch_out" && lastPunchOutType !== "auto") continue;
         }
         const sessionActs = activities.filter((a) => a.type === "session");
         const activeSessionWithBranch = sessionActs.slice().reverse().find((a) => a.status === "active" && a.branchName);
@@ -21066,9 +21109,6 @@ var init_attendance = __esm({
         if ((firstInHour >= 23 || firstInHour <= 1) && !employeeLoginTime && !employeeWorkingHours) {
           baseShiftSeconds = 2 * 3600;
         }
-        if ((hasAutoPunchOut || hasActiveSession) && recordWorkSeconds > baseShiftSeconds) {
-          recordWorkSeconds = baseShiftSeconds;
-        }
         for (const act of activities) {
           if (act.punchOutType === "auto" && act.punchOut && act.punchIn) {
             const outUtc = new Date(act.punchOut);
@@ -21077,14 +21117,22 @@ var init_attendance = __esm({
               act.punchOut = cleanOut.toISOString();
             }
           }
-          if ((act.punchOutType === "auto" || act.status === "active") && act.durationSeconds > baseShiftSeconds) {
+          if ((act.punchOutType === "auto" || act.status === "active") && act.durationSeconds > 16 * 3600) {
             act.durationSeconds = baseShiftSeconds;
             act.durationFormatted = formatSecondsToReadable(baseShiftSeconds);
           }
         }
+        recordWorkSeconds = activities.filter((a) => a.type === "session").reduce((sum, a) => sum + (a.durationSeconds || 0), 0);
         let extraSeconds = 0;
         if (recordWorkSeconds > baseShiftSeconds) {
           extraSeconds = recordWorkSeconds - baseShiftSeconds;
+        }
+        let dayType = doc.dayType || void 0;
+        if (!dayType && recordWorkSeconds > 0) {
+          const requiredHoursSec = employeeWorkingHours && employeeWorkingHours > 0 ? employeeWorkingHours * 3600 : baseShiftSeconds;
+          if (status === "closed") {
+            dayType = recordWorkSeconds >= requiredHoursSec - 900 ? "full_day" : "half_day";
+          }
         }
         const item = {
           id,
@@ -21094,6 +21142,7 @@ var init_attendance = __esm({
           employeeLoginTime,
           employeeLogoutTime,
           dateString: dateStr,
+          dayType,
           userId,
           employeeObjectId,
           userName,
@@ -21109,7 +21158,9 @@ var init_attendance = __esm({
           loginBranchId: loginBranchId || void 0,
           loginBranchName: loginBranchName !== "Unassigned" ? loginBranchName : void 0,
           firstPunchIn,
+          firstPunchInType,
           lastPunchOut: hasActiveSession ? void 0 : lastPunchOut,
+          lastPunchOutType: hasActiveSession ? void 0 : lastPunchOutType,
           totalWorkSeconds: recordWorkSeconds,
           totalWorkFormatted: formatSecondsToReadable(recordWorkSeconds),
           extraSeconds: extraSeconds > 0 ? extraSeconds : 0,
@@ -36694,7 +36745,9 @@ var init_reportQueries = __esm({
                             loginBranchId: { type: graphQL.GraphQLString },
                             loginBranchName: { type: graphQL.GraphQLString },
                             firstPunchIn: { type: graphQL.GraphQLString },
+                            firstPunchInType: { type: graphQL.GraphQLString },
                             lastPunchOut: { type: graphQL.GraphQLString },
+                            lastPunchOutType: { type: graphQL.GraphQLString },
                             totalWorkSeconds: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
                             totalWorkFormatted: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
                             extraSeconds: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
@@ -36703,6 +36756,7 @@ var init_reportQueries = __esm({
                             totalBreakFormatted: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
                             sessionCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
                             breakCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                            dayType: { type: graphQL.GraphQLString },
                             status: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
                             activities: {
                               type: new graphQL.GraphQLNonNull(
@@ -36715,6 +36769,8 @@ var init_reportQueries = __esm({
                                         type: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
                                         punchIn: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
                                         punchOut: { type: graphQL.GraphQLString },
+                                        punchInType: { type: graphQL.GraphQLString },
+                                        punchOutType: { type: graphQL.GraphQLString },
                                         status: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
                                         durationSeconds: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
                                         durationFormatted: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
@@ -37334,6 +37390,619 @@ var init_CallLogs = __esm({
       timestamps: true
     };
     CallLogs_default = CallLogs;
+  }
+});
+
+// src/globals/DatabaseSyncSettings.ts
+var DatabaseSyncSettings;
+var init_DatabaseSyncSettings = __esm({
+  "src/globals/DatabaseSyncSettings.ts"() {
+    "use strict";
+    DatabaseSyncSettings = {
+      slug: "database-sync-settings",
+      label: "Database Sync Settings",
+      admin: {
+        group: "Settings",
+        description: "Sync selected collections from DB 2 into DB 1 at a scheduled time or on demand."
+      },
+      access: {
+        read: () => true,
+        update: ({ req }) => req.user?.role === "superadmin" || !req.user?.role
+        // allow superadmin or dev
+      },
+      fields: [
+        {
+          type: "ui",
+          name: "syncActions",
+          admin: {
+            components: {
+              Field: "/components/DatabaseSyncActions/index.tsx#DatabaseSyncActions"
+            }
+          }
+        },
+        {
+          type: "row",
+          fields: [
+            {
+              name: "enabled",
+              type: "checkbox",
+              label: "Enable Automated Daily Sync",
+              defaultValue: false,
+              admin: {
+                width: "50%"
+              }
+            },
+            {
+              name: "syncTime",
+              type: "text",
+              label: "Daily Sync Time (IST - 24hr format HH:mm)",
+              defaultValue: "03:00",
+              admin: {
+                placeholder: "03:00",
+                width: "50%",
+                description: "Example: 03:00 for 3:00 AM, 04:00 for 4:00 AM, 23:00 for 11:00 PM"
+              }
+            }
+          ]
+        },
+        {
+          type: "row",
+          fields: [
+            {
+              name: "sourceDbUri",
+              type: "text",
+              label: "Source Database URL (DB 2 - Pull From)",
+              required: false,
+              admin: {
+                placeholder: "mongodb+srv://user:pass@cluster.mongodb.net/source_db",
+                description: "The MongoDB connection string of DB 2"
+              }
+            },
+            {
+              name: "targetDbUri",
+              type: "text",
+              label: "Target Database URL (DB 1 - Push To)",
+              required: false,
+              admin: {
+                placeholder: "mongodb+srv://user:pass@cluster.mongodb.net/target_db (leave blank to use current project DB)",
+                description: "Leave blank to automatically use current project database"
+              }
+            }
+          ]
+        },
+        {
+          type: "row",
+          fields: [
+            {
+              name: "syncMode",
+              type: "select",
+              label: "Sync Strategy / Duplicate Handling",
+              defaultValue: "insert_only",
+              options: [
+                {
+                  label: "Only New Records (Skip existing - Do NOT overwrite already synced data)",
+                  value: "insert_only"
+                },
+                {
+                  label: "Upsert (Insert new and update modified records)",
+                  value: "upsert"
+                }
+              ],
+              admin: {
+                width: "50%",
+                description: "Determines whether already synced records should be skipped or updated"
+              }
+            },
+            {
+              name: "syncMedia",
+              type: "checkbox",
+              label: "Sync Associated Images & Media",
+              defaultValue: true,
+              admin: {
+                width: "50%",
+                description: "Ensures uploaded raw material images and attachments are preserved in DB1"
+              }
+            }
+          ]
+        },
+        {
+          name: "collections",
+          type: "select",
+          hasMany: true,
+          label: "Select Collections to Sync",
+          required: false,
+          options: [
+            { label: "Raw Materials (raw-materials)", value: "raw-materials" },
+            { label: "Raw Material Categories (raw-material-categories)", value: "raw-material-categories" },
+            { label: "Raw Material Dealers (raw-material-dealers)", value: "raw-material-dealers" },
+            { label: "Raw Material Billings (raw-material-billings)", value: "raw-material-billings" },
+            { label: "Raw Material Instock Entries (raw-material-instock-entries)", value: "raw-material-instock-entries" },
+            { label: "Products (products)", value: "products" },
+            { label: "Categories (categories)", value: "categories" },
+            { label: "Dealers (dealers)", value: "dealers" },
+            { label: "Dealer Billings (dealer-billings)", value: "dealer-billings" },
+            { label: "Dealer Orders (dealer-orders)", value: "dealer-orders" },
+            { label: "Customers (customers)", value: "customers" },
+            { label: "Billing Customers (billing-customers)", value: "billing-customers" },
+            { label: "Billings (billings)", value: "billings" },
+            { label: "Branches (branches)", value: "branches" },
+            { label: "Companies (companies)", value: "companies" },
+            { label: "Departments (departments)", value: "departments" },
+            { label: "Employees (employees)", value: "employees" },
+            { label: "Users (users)", value: "users" },
+            { label: "Stock Orders (stock-orders)", value: "stock-orders" },
+            { label: "Stock Alerts (stock-alerts)", value: "stock-alerts" },
+            { label: "Instock Entries (instock-entries)", value: "instock-entries" },
+            { label: "Cakes (cakes)", value: "cakes" },
+            { label: "Tables (tables)", value: "tables" },
+            { label: "Kitchens (kitchens)", value: "kitchens" },
+            { label: "Attendance (attendance)", value: "attendance" },
+            { label: "Punch In (punch-in)", value: "punch-in" },
+            { label: "Expenses (expenses)", value: "expenses" },
+            { label: "Closing Entries (closing-entries)", value: "closing-entries" },
+            { label: "Return Order (return-order)", value: "return-order" },
+            { label: "Reviews (reviews)", value: "reviews" },
+            { label: "Media / Uploads (media)", value: "media" }
+          ],
+          admin: {
+            description: "Choose which collections should be copied from DB 2 to DB 1."
+          }
+        },
+        {
+          type: "row",
+          fields: [
+            {
+              name: "lastSyncAt",
+              type: "date",
+              label: "Last Synced At",
+              admin: {
+                readOnly: true,
+                width: "50%"
+              }
+            },
+            {
+              name: "lastSyncStatus",
+              type: "select",
+              label: "Last Sync Status",
+              defaultValue: "idle",
+              options: [
+                { label: "Idle / Waiting", value: "idle" },
+                { label: "In Progress", value: "in_progress" },
+                { label: "Success", value: "success" },
+                { label: "Failed", value: "failed" }
+              ],
+              admin: {
+                readOnly: true,
+                width: "50%"
+              }
+            }
+          ]
+        },
+        {
+          name: "lastSyncLog",
+          type: "textarea",
+          label: "Last Sync Activity / Summary Log",
+          admin: {
+            readOnly: true,
+            rows: 6,
+            description: "Detailed report of the last sync run (records inserted, skipped, or failed)"
+          }
+        }
+      ]
+    };
+  }
+});
+
+// src/utilities/databaseSync.ts
+var databaseSync_exports = {};
+__export(databaseSync_exports, {
+  executeDatabaseSync: () => executeDatabaseSync,
+  getDatabaseCollectionCounts: () => getDatabaseCollectionCounts,
+  resolveCollectionName: () => resolveCollectionName
+});
+import { MongoClient } from "mongodb";
+function resolveCollectionName(availableNames, slug) {
+  if (availableNames.includes(slug)) return slug;
+  const lowerSlug = slug.toLowerCase();
+  let match = availableNames.find((n) => n.toLowerCase() === lowerSlug);
+  if (match) return match;
+  const normSlug = lowerSlug.replace(/[-_]/g, "");
+  match = availableNames.find((n) => n.toLowerCase().replace(/[-_]/g, "") === normSlug);
+  if (match) return match;
+  const pluralForms = [
+    normSlug + "s",
+    normSlug + "es",
+    normSlug.replace(/y$/, "ies"),
+    lowerSlug + "s",
+    lowerSlug + "es"
+  ];
+  match = availableNames.find(
+    (n) => pluralForms.includes(n.toLowerCase().replace(/[-_]/g, "")) || pluralForms.includes(n.toLowerCase())
+  );
+  if (match) return match;
+  const singularForms = [
+    normSlug.replace(/s$/, ""),
+    normSlug.replace(/es$/, ""),
+    normSlug.replace(/ies$/, "y")
+  ];
+  match = availableNames.find(
+    (n) => singularForms.includes(n.toLowerCase().replace(/[-_]/g, "")) || singularForms.includes(n.toLowerCase())
+  );
+  if (match) return match;
+  return slug;
+}
+function getDatabaseInstance(client, uri) {
+  try {
+    const withoutProtocol = uri.replace(/^mongodb(\+srv)?:\/\//, "");
+    const pathAndQuery = withoutProtocol.split("/")[1];
+    if (pathAndQuery) {
+      const dbName = pathAndQuery.split("?")[0];
+      if (dbName && dbName.trim()) {
+        return client.db(dbName.trim());
+      }
+    }
+  } catch {
+  }
+  return client.db();
+}
+async function getDatabaseCollectionCounts(payload, sourceDbUri, targetDbUri, customCollections) {
+  const settings = await payload.findGlobal({ slug: "database-sync-settings" });
+  const srcUri = sourceDbUri || settings?.sourceDbUri;
+  const tgtUri = targetDbUri || settings?.targetDbUri || process.env.DATABASE_URI || process.env.MONGODB_URI;
+  if (!srcUri || !tgtUri) {
+    return {
+      success: false,
+      counts: {},
+      error: "Please enter both DB 2 and DB 1 URLs to inspect collection counts."
+    };
+  }
+  const collections = (customCollections && customCollections.length > 0 ? customCollections : null) || settings?.collections || [
+    "attendance",
+    "raw-materials",
+    "raw-material-categories",
+    "products",
+    "categories",
+    "dealers",
+    "media"
+  ];
+  let sourceClient = null;
+  let targetClient = null;
+  const counts = {};
+  try {
+    sourceClient = new MongoClient(srcUri, { connectTimeoutMS: 1e4 });
+    targetClient = new MongoClient(tgtUri, { connectTimeoutMS: 1e4 });
+    await Promise.all([sourceClient.connect(), targetClient.connect()]);
+    const sourceDb = getDatabaseInstance(sourceClient, srcUri);
+    const targetDb = getDatabaseInstance(targetClient, tgtUri);
+    const [srcList, tgtList] = await Promise.all([
+      sourceDb.listCollections().toArray(),
+      targetDb.listCollections().toArray()
+    ]);
+    const srcColls = srcList.map((c) => c.name);
+    const tgtColls = tgtList.map((c) => c.name);
+    console.log("[db-sync] Source DB collections:", srcColls);
+    console.log("[db-sync] Target DB collections:", tgtColls);
+    for (const slug of collections) {
+      const srcName = resolveCollectionName(srcColls, slug);
+      const tgtName = resolveCollectionName(tgtColls, slug);
+      const [db2Count, db1Count] = await Promise.all([
+        sourceDb.collection(srcName).countDocuments().catch(() => 0),
+        targetDb.collection(tgtName).countDocuments().catch(() => 0)
+      ]);
+      counts[slug] = {
+        db2Count,
+        db1Count,
+        matchedCollection: srcName !== slug ? srcName : void 0
+      };
+    }
+    return {
+      success: true,
+      counts,
+      sourceDbName: sourceDb.databaseName,
+      targetDbName: targetDb.databaseName
+    };
+  } catch (err) {
+    return { success: false, counts: {}, error: err?.message || String(err) };
+  } finally {
+    if (sourceClient) await sourceClient.close().catch(() => {
+    });
+    if (targetClient) await targetClient.close().catch(() => {
+    });
+  }
+}
+async function executeDatabaseSync(payload, customOptions) {
+  const settings = await payload.findGlobal({
+    slug: "database-sync-settings"
+  });
+  const sourceDbUri = customOptions?.sourceDbUri || settings?.sourceDbUri;
+  const targetDbUri = customOptions?.targetDbUri || settings?.targetDbUri || process.env.DATABASE_URI || process.env.MONGODB_URI;
+  const collections = customOptions?.collections || settings?.collections || [];
+  const syncMode = customOptions?.syncMode || settings?.syncMode || "insert_only";
+  const syncMedia = customOptions?.syncMedia ?? settings?.syncMedia !== false;
+  if (!sourceDbUri) {
+    const errorMsg = "Source Database URI (DB 2) is not configured in Settings.";
+    await updateSyncStatus(payload, "failed", errorMsg);
+    return {
+      success: false,
+      message: errorMsg,
+      details: {},
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  if (!targetDbUri) {
+    const errorMsg = "Target Database URI (DB 1) is not configured or resolved.";
+    await updateSyncStatus(payload, "failed", errorMsg);
+    return {
+      success: false,
+      message: errorMsg,
+      details: {},
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  if (!collections || collections.length === 0) {
+    const errorMsg = "No collections selected for synchronization.";
+    await updateSyncStatus(payload, "idle", errorMsg);
+    return {
+      success: true,
+      message: errorMsg,
+      details: {},
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  await updateSyncStatus(payload, "in_progress", "Syncing in progress...");
+  let sourceClient = null;
+  let targetClient = null;
+  const details = {};
+  try {
+    sourceClient = new MongoClient(sourceDbUri, { connectTimeoutMS: 15e3 });
+    targetClient = new MongoClient(targetDbUri, { connectTimeoutMS: 15e3 });
+    await Promise.all([sourceClient.connect(), targetClient.connect()]);
+    const sourceDb = getDatabaseInstance(sourceClient, sourceDbUri);
+    const targetDb = getDatabaseInstance(targetClient, targetDbUri);
+    const [sourceCollsList, targetCollsList] = await Promise.all([
+      sourceDb.listCollections().toArray(),
+      targetDb.listCollections().toArray()
+    ]);
+    const sourceCollNames = sourceCollsList.map((c) => c.name);
+    const targetCollNames = targetCollsList.map((c) => c.name);
+    const collectionsToProcess = [...collections];
+    if (syncMedia && !collectionsToProcess.includes("media")) {
+      collectionsToProcess.push("media");
+    }
+    const referencedMediaIds = /* @__PURE__ */ new Set();
+    for (const slug of collectionsToProcess) {
+      const sourceColName = resolveCollectionName(sourceCollNames, slug);
+      const targetColName = resolveCollectionName(targetCollNames, slug);
+      const sourceCollection = sourceDb.collection(sourceColName);
+      const targetCollection = targetDb.collection(targetColName);
+      try {
+        const targetCountBefore = await targetCollection.countDocuments().catch(() => 0);
+        const sourceDocs = await sourceCollection.find({}).toArray();
+        let inserted = 0;
+        let skipped = 0;
+        if (sourceDocs.length > 0) {
+          if (syncMode === "insert_only") {
+            const sourceIds = sourceDocs.map((d) => d._id);
+            const existingInTarget = await targetCollection.find({ _id: { $in: sourceIds } }, { projection: { _id: 1 } }).toArray();
+            const existingIdSet = new Set(existingInTarget.map((d) => String(d._id)));
+            const docsToInsert = sourceDocs.filter((d) => !existingIdSet.has(String(d._id)));
+            skipped = sourceDocs.length - docsToInsert.length;
+            if (docsToInsert.length > 0) {
+              await targetCollection.insertMany(docsToInsert, { ordered: false });
+              inserted = docsToInsert.length;
+            }
+          } else {
+            const bulkOps = sourceDocs.map((doc) => ({
+              updateOne: {
+                filter: { _id: doc._id },
+                update: { $set: doc },
+                upsert: true
+              }
+            }));
+            if (bulkOps.length > 0) {
+              const res = await targetCollection.bulkWrite(bulkOps, { ordered: false });
+              inserted = (res.upsertedCount || 0) + (res.modifiedCount || 0);
+              skipped = (res.matchedCount || 0) - (res.modifiedCount || 0);
+            }
+          }
+          if (syncMedia && slug !== "media") {
+            for (const doc of sourceDocs) {
+              extractMediaIds(doc, referencedMediaIds);
+            }
+          }
+        }
+        const targetCountAfter = await targetCollection.countDocuments().catch(() => targetCountBefore + inserted);
+        details[slug] = {
+          sourceCount: sourceDocs.length,
+          targetCountBefore,
+          inserted,
+          skipped,
+          targetCountAfter,
+          matchedCollection: sourceColName !== slug ? sourceColName : void 0
+        };
+      } catch (colErr) {
+        console.error(`[db-sync] Error syncing collection ${slug}:`, colErr);
+        details[slug] = {
+          sourceCount: 0,
+          targetCountBefore: 0,
+          inserted: 0,
+          skipped: 0,
+          targetCountAfter: 0,
+          errors: colErr?.message || String(colErr)
+        };
+      }
+    }
+    if (syncMedia && referencedMediaIds.size > 0) {
+      try {
+        const mediaColNameSource = resolveCollectionName(sourceCollNames, "media");
+        const mediaColNameTarget = resolveCollectionName(targetCollNames, "media");
+        const sourceMediaCol = sourceDb.collection(mediaColNameSource);
+        const targetMediaCol = targetDb.collection(mediaColNameTarget);
+        const mediaIdsArray = Array.from(referencedMediaIds);
+        const existingMediaInTarget = await targetMediaCol.find({ _id: { $in: mediaIdsArray } }, { projection: { _id: 1 } }).toArray();
+        const existingMediaSet = new Set(existingMediaInTarget.map((m) => String(m._id)));
+        const missingMediaIds = mediaIdsArray.filter((id) => !existingMediaSet.has(String(id)));
+        if (missingMediaIds.length > 0) {
+          const mediaDocsToSync = await sourceMediaCol.find({ _id: { $in: missingMediaIds } }).toArray();
+          if (mediaDocsToSync.length > 0) {
+            await targetMediaCol.insertMany(mediaDocsToSync, { ordered: false });
+            details["media (images & files)"] = {
+              sourceCount: mediaDocsToSync.length,
+              targetCountBefore: existingMediaInTarget.length,
+              inserted: mediaDocsToSync.length,
+              skipped: existingMediaInTarget.length,
+              targetCountAfter: existingMediaInTarget.length + mediaDocsToSync.length
+            };
+          }
+        }
+      } catch (mediaErr) {
+        console.error("[db-sync] Error syncing referenced media:", mediaErr);
+      }
+    }
+    const summaryLines = Object.entries(details).map(
+      ([k, v]) => `\u2022 ${k.toUpperCase()}${v.matchedCollection ? ` (table: ${v.matchedCollection})` : ""}:
+    DB 2 (Source): ${v.sourceCount} items
+    DB 1 (Before): ${v.targetCountBefore} items
+    Newly Added to DB 1: +${v.inserted}
+    Already in DB 1 (Skipped): ${v.skipped}
+    DB 1 Total Now: ${v.targetCountAfter} items${v.errors ? `
+    Error: ${v.errors}` : ""}`
+    );
+    const finalSummary = `=== Sync Finished: ${(/* @__PURE__ */ new Date()).toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata"
+    })} ===
+Strategy: ${syncMode === "insert_only" ? "Insert Only (Existing DB 1 records preserved without overwrite)" : "Upsert (New added + Changed updated)"}
+
+${summaryLines.join("\n\n")}`;
+    await updateSyncStatus(payload, "success", finalSummary);
+    return {
+      success: true,
+      message: "Synchronization completed successfully.",
+      details,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  } catch (err) {
+    const errorMsg = `Sync failed: ${err?.message || String(err)}`;
+    console.error("[db-sync] Sync execution failed:", err);
+    await updateSyncStatus(payload, "failed", errorMsg);
+    return {
+      success: false,
+      message: errorMsg,
+      details,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  } finally {
+    if (sourceClient) await sourceClient.close().catch(() => {
+    });
+    if (targetClient) await targetClient.close().catch(() => {
+    });
+  }
+}
+function extractMediaIds(obj, set) {
+  if (!obj || typeof obj !== "object") return;
+  for (const [key, val] of Object.entries(obj)) {
+    if ((key === "image" || key === "media" || key === "photo" || key === "attachment" || key === "capturedImage") && val) {
+      if (typeof val === "string" && val.length === 24) {
+        set.add(val);
+      } else if (typeof val === "object" && val._id) {
+        set.add(String(val._id));
+      } else if (typeof val === "object" && val.id) {
+        set.add(String(val.id));
+      }
+    } else if (typeof val === "object") {
+      extractMediaIds(val, set);
+    }
+  }
+}
+async function updateSyncStatus(payload, status, logText) {
+  try {
+    await payload.updateGlobal({
+      slug: "database-sync-settings",
+      data: {
+        lastSyncStatus: status,
+        lastSyncLog: logText,
+        ...status === "success" || status === "failed" ? { lastSyncAt: (/* @__PURE__ */ new Date()).toISOString() } : {}
+      }
+    });
+  } catch (err) {
+    console.error("[db-sync] Failed to update sync status in global settings:", err);
+  }
+}
+var init_databaseSync = __esm({
+  "src/utilities/databaseSync.ts"() {
+    "use strict";
+  }
+});
+
+// src/endpoints/triggerDatabaseSync.ts
+var triggerDatabaseSyncHandler;
+var init_triggerDatabaseSync = __esm({
+  "src/endpoints/triggerDatabaseSync.ts"() {
+    "use strict";
+    init_databaseSync();
+    triggerDatabaseSyncHandler = async (req) => {
+      const { payload, user } = req;
+      if (user && user.role !== "superadmin" && user.role !== "admin") {
+        return Response.json({ error: "Unauthorized. Only admins can trigger database sync." }, { status: 403 });
+      }
+      try {
+        let customOptions = {};
+        if (req.json) {
+          try {
+            customOptions = await req.json();
+          } catch {
+          }
+        }
+        const result = await executeDatabaseSync(payload, customOptions);
+        return Response.json(result, { status: result.success ? 200 : 500 });
+      } catch (error) {
+        console.error("[triggerDatabaseSyncHandler] Error:", error);
+        return Response.json(
+          {
+            success: false,
+            error: error?.message || "Internal server error during database sync"
+          },
+          { status: 500 }
+        );
+      }
+    };
+  }
+});
+
+// src/endpoints/checkDatabaseSyncCounts.ts
+var checkDatabaseSyncCountsHandler;
+var init_checkDatabaseSyncCounts = __esm({
+  "src/endpoints/checkDatabaseSyncCounts.ts"() {
+    "use strict";
+    init_databaseSync();
+    checkDatabaseSyncCountsHandler = async (req) => {
+      const { payload } = req;
+      try {
+        let sourceDbUri;
+        let targetDbUri;
+        let collections;
+        if (req.json) {
+          try {
+            const body = await req.json();
+            sourceDbUri = body?.sourceDbUri;
+            targetDbUri = body?.targetDbUri;
+            collections = body?.collections;
+          } catch {
+          }
+        }
+        const result = await getDatabaseCollectionCounts(payload, sourceDbUri, targetDbUri, collections);
+        return Response.json(result, { status: result.success ? 200 : 400 });
+      } catch (error) {
+        console.error("[checkDatabaseSyncCountsHandler] Error:", error);
+        return Response.json(
+          {
+            success: false,
+            error: error?.message || "Failed to inspect database collection counts"
+          },
+          { status: 500 }
+        );
+      }
+    };
   }
 });
 
@@ -38917,6 +39586,7 @@ var init_MenuSettings = __esm({
               options: [
                 { label: "IP Settings", value: "ip-settings" },
                 { label: "Jarvis", value: "jarvis" },
+                { label: "All Report", value: "all-report" },
                 { label: "Overall (Dashboard)", value: "general-dashboard" },
                 { label: "Time Wise Report", value: "time-wise-report" },
                 { label: "Branch Billing Report", value: "branch-billing-report" },
@@ -43706,6 +44376,7 @@ var init_payload_config = __esm({
     init_ProductionRequests();
     init_DealerOrders();
     init_IPSettings();
+    init_AllReport();
     init_Dashboard();
     init_BranchBillingReport();
     init_AccountsBillsReport();
@@ -43810,6 +44481,9 @@ var init_payload_config = __esm({
     init_idempotencyRetention();
     init_WaiterCalls();
     init_CallLogs();
+    init_DatabaseSyncSettings();
+    init_triggerDatabaseSync();
+    init_checkDatabaseSyncCounts();
     init_ReportCardRules();
     init_readQueries();
     init_TimeWiseReport();
@@ -44181,15 +44855,17 @@ var init_payload_config = __esm({
           ]
         },
         components: {
-          /* views: {
+          views: {
             dashboard: {
-              Component: '/components/AdminCollectionsDashboard/index.tsx#default',
-            },
+              Component: "/components/AdminCollectionsDashboard/index.tsx#default",
+              exact: true,
+              path: "/"
+            }
           },
           beforeNavLinks: [
-            '/components/AdminCollapsedNavBehavior/index.tsx#default',
-            '/components/AdminCollectionsNavLink/index.tsx#default',
-          ], */
+            "/components/AdminCollapsedNavBehavior/index.tsx#default",
+            "/components/AdminCollectionsNavLink/index.tsx#default"
+          ]
         }
       },
       // ✅ Clean CORS + CSRF
@@ -44199,6 +44875,7 @@ var init_payload_config = __esm({
         // standalone frontend (dev)
         "http://127.0.0.1",
         process.env.FRONTEND_URL || "",
+        "https://app.theblackforestcakes.com",
         "https://blackforest-api.vseyal.com",
         "https://admin.theblackforestcakes.com",
         "https://superadmin.theblackforestcakes.com",
@@ -44210,6 +44887,7 @@ var init_payload_config = __esm({
         // standalone frontend (dev)
         "http://127.0.0.1",
         process.env.FRONTEND_URL || "",
+        "https://app.theblackforestcakes.com",
         "https://blackforest-api.vseyal.com",
         "https://admin.theblackforestcakes.com",
         "https://superadmin.theblackforestcakes.com",
@@ -44623,11 +45301,23 @@ var init_payload_config = __esm({
           path: "/reports/report-card-data",
           method: "get",
           handler: getReportCardDataHandler
+        },
+        {
+          path: "/trigger-database-sync",
+          method: "post",
+          handler: triggerDatabaseSyncHandler
+        },
+        {
+          path: "/check-database-sync-counts",
+          method: "post",
+          handler: checkDatabaseSyncCountsHandler
         }
       ],
       globals: [
+        DatabaseSyncSettings,
         PaymentSettings,
         IPSettings,
+        AllReportGlobal,
         DashboardGlobal,
         TimeWiseReportGlobal,
         BranchBillingReportGlobal,
@@ -44773,6 +45463,20 @@ __export(cron_exports, {
 import dayjs31 from "dayjs";
 import utc31 from "dayjs/plugin/utc.js";
 import timezone31 from "dayjs/plugin/timezone.js";
+function sanitizeActivityItem(act) {
+  if (!act || typeof act !== "object") return act;
+  const clean = { ...act };
+  if (clean.capturedImage) {
+    if (typeof clean.capturedImage === "object") {
+      clean.capturedImage = clean.capturedImage.id || clean.capturedImage._id || void 0;
+    } else if (typeof clean.capturedImage === "string" && clean.capturedImage.trim()) {
+      clean.capturedImage = clean.capturedImage.trim();
+    } else {
+      delete clean.capturedImage;
+    }
+  }
+  return clean;
+}
 function getExpectedShiftEnd(punchInIso, employee) {
   const punchInDate = new Date(punchInIso);
   const punchInDayjs = dayjs31.utc(punchInIso).tz("Asia/Kolkata");
@@ -44899,13 +45603,14 @@ async function runAttendanceAutoPunchOut(payload) {
       let needsUpdate = false;
       const activities = Array.isArray(doc.activities) ? [...doc.activities] : [];
       const updatedActivities = activities.map((act) => {
-        if (act.status === "active" && act.punchIn) {
+        const clean = sanitizeActivityItem(act);
+        if (clean.status === "active" && clean.punchIn) {
           const shift = getExpectedShiftEnd(act.punchIn, employee);
           const autoCloseThreshold = shift.punchOutDate.getTime() + 30 * 60 * 1e3;
           if (now.getTime() >= autoCloseThreshold) {
             needsUpdate = true;
             return {
-              ...act,
+              ...clean,
               status: "closed",
               punchOut: shift.punchOutDate.toISOString(),
               durationSeconds: shift.durationSeconds,
@@ -44913,7 +45618,7 @@ async function runAttendanceAutoPunchOut(payload) {
             };
           }
         }
-        return act;
+        return clean;
       });
       const updateData = {};
       if (needsUpdate) {
@@ -44984,18 +45689,19 @@ async function runNightlyJob(payload) {
         const updateData = {};
         if (doc.activities && doc.activities.length > 0) {
           const updatedActivities = doc.activities.map((act) => {
-            if (act.status === "active") {
+            const clean = sanitizeActivityItem(act);
+            if (clean.status === "active") {
               needsUpdate = true;
-              const shift = getExpectedShiftEnd(act.punchIn || doc.date, employee);
+              const shift = getExpectedShiftEnd(clean.punchIn || doc.date, employee);
               return {
-                ...act,
+                ...clean,
                 status: "closed",
                 punchOut: shift.punchOutDate.toISOString(),
                 durationSeconds: shift.durationSeconds,
                 punchOutType: "auto"
               };
             }
-            return act;
+            return clean;
           });
           if (needsUpdate) updateData.activities = updatedActivities;
         }
@@ -45037,6 +45743,38 @@ function scheduleNextNightlyJob(payload) {
     scheduleNextNightlyJob(payload);
   }, delay2);
 }
+function normalizeTimeString3(timeStr) {
+  if (!timeStr) return "03:00";
+  const trimmed = timeStr.trim().toUpperCase();
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+  if (!match) return trimmed;
+  let hours = parseInt(match[1], 10);
+  const minutes = match[2];
+  const meridian = match[3]?.toUpperCase();
+  if (meridian === "PM" && hours < 12) hours += 12;
+  if (meridian === "AM" && hours === 12) hours = 0;
+  return `${String(hours).padStart(2, "0")}:${minutes}`;
+}
+async function checkAndRunDatabaseSync(payload) {
+  try {
+    const settings = await payload.findGlobal({
+      slug: "database-sync-settings"
+    });
+    if (!settings || !settings.enabled) return;
+    const nowKol = dayjs31().tz("Asia/Kolkata");
+    const currentHHmm = nowKol.format("HH:mm");
+    const rawTarget = (settings.syncTime || "03:00").trim();
+    const targetHHmm = normalizeTimeString3(rawTarget);
+    if (currentHHmm === targetHHmm && lastSyncMinuteRan !== currentHHmm) {
+      lastSyncMinuteRan = currentHHmm;
+      console.log(`[cron] Scheduled database sync triggered at ${currentHHmm} IST (configured: ${rawTarget})`);
+      const { executeDatabaseSync: executeDatabaseSync2 } = await Promise.resolve().then(() => (init_databaseSync(), databaseSync_exports));
+      await executeDatabaseSync2(payload);
+    }
+  } catch (err) {
+    console.error("[cron] Error checking database sync schedule:", err);
+  }
+}
 function startCronJobs(payload) {
   runNightlyJob(payload).catch(console.error);
   runAttendanceAutoPunchOut(payload).catch(console.error);
@@ -45044,13 +45782,18 @@ function startCronJobs(payload) {
     runAttendanceAutoPunchOut(payload).catch(console.error);
   }, 15 * 60 * 1e3);
   scheduleNextNightlyJob(payload);
+  setInterval(() => {
+    checkAndRunDatabaseSync(payload).catch(console.error);
+  }, 60 * 1e3);
 }
+var lastSyncMinuteRan;
 var init_cron = __esm({
   "src/cron.ts"() {
     "use strict";
     dayjs31.extend(utc31);
     dayjs31.extend(timezone31);
     dayjs31.tz.setDefault("Asia/Kolkata");
+    lastSyncMinuteRan = "";
   }
 });
 

@@ -40,6 +40,8 @@ const PUBLIC_EXEMPT_PREFIXES = [
   "/api/graphql-playground",
   "/api/widgets/app-key-settings",
   "/api/branches",
+  "/api/companies",
+  "/api/categories",
 ];
 
 let cachedGatekeeper: {
@@ -171,11 +173,13 @@ export async function middleware(request: NextRequest) {
 
     const isTrustedAdminOrigin =
       origin.includes("theblackforestcakes.com") ||
+      origin.includes("vseyal.com") ||
       origin.includes("localhost") ||
       origin.includes("127.0.0.1");
 
     const isTrustedAdminReferer =
       referer.includes("theblackforestcakes.com") ||
+      referer.includes("vseyal.com") ||
       referer.includes("/admin") ||
       referer.includes("localhost") ||
       referer.includes("127.0.0.1");

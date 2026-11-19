@@ -175,8 +175,10 @@ export interface Config {
     defaultIDType: string;
   };
   globals: {
+    'database-sync-settings': DatabaseSyncSetting;
     'payment-settings': PaymentSetting;
     'ip-settings': IpSetting;
+    'all-report': AllReport;
     'general-dashboard': GeneralDashboard;
     'time-wise-report': TimeWiseReport;
     'branch-billing-report': BranchBillingReport;
@@ -219,8 +221,10 @@ export interface Config {
     'chef-settings': ChefSetting;
   };
   globalsSelect: {
+    'database-sync-settings': DatabaseSyncSettingsSelect<false> | DatabaseSyncSettingsSelect<true>;
     'payment-settings': PaymentSettingsSelect<false> | PaymentSettingsSelect<true>;
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
+    'all-report': AllReportSelect<false> | AllReportSelect<true>;
     'general-dashboard': GeneralDashboardSelect<false> | GeneralDashboardSelect<true>;
     'time-wise-report': TimeWiseReportSelect<false> | TimeWiseReportSelect<true>;
     'branch-billing-report': BranchBillingReportSelect<false> | BranchBillingReportSelect<true>;
@@ -4371,6 +4375,82 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   createdAt?: T;
 }
 /**
+ * Sync selected collections from DB 2 into DB 1 at a scheduled time or on demand.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "database-sync-settings".
+ */
+export interface DatabaseSyncSetting {
+  id: string;
+  enabled?: boolean | null;
+  /**
+   * Example: 03:00 for 3:00 AM, 04:00 for 4:00 AM, 23:00 for 11:00 PM
+   */
+  syncTime?: string | null;
+  /**
+   * The MongoDB connection string of DB 2
+   */
+  sourceDbUri?: string | null;
+  /**
+   * Leave blank to automatically use current project database
+   */
+  targetDbUri?: string | null;
+  /**
+   * Determines whether already synced records should be skipped or updated
+   */
+  syncMode?: ('insert_only' | 'upsert') | null;
+  /**
+   * Ensures uploaded raw material images and attachments are preserved in DB1
+   */
+  syncMedia?: boolean | null;
+  /**
+   * Choose which collections should be copied from DB 2 to DB 1.
+   */
+  collections?:
+    | (
+        | 'raw-materials'
+        | 'raw-material-categories'
+        | 'raw-material-dealers'
+        | 'raw-material-billings'
+        | 'raw-material-instock-entries'
+        | 'products'
+        | 'categories'
+        | 'dealers'
+        | 'dealer-billings'
+        | 'dealer-orders'
+        | 'customers'
+        | 'billing-customers'
+        | 'billings'
+        | 'branches'
+        | 'companies'
+        | 'departments'
+        | 'employees'
+        | 'users'
+        | 'stock-orders'
+        | 'stock-alerts'
+        | 'instock-entries'
+        | 'cakes'
+        | 'tables'
+        | 'kitchens'
+        | 'attendance'
+        | 'punch-in'
+        | 'expenses'
+        | 'closing-entries'
+        | 'return-order'
+        | 'reviews'
+        | 'media'
+      )[]
+    | null;
+  lastSyncAt?: string | null;
+  lastSyncStatus?: ('idle' | 'in_progress' | 'success' | 'failed') | null;
+  /**
+   * Detailed report of the last sync run (records inserted, skipped, or failed)
+   */
+  lastSyncLog?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payment-settings".
  */
@@ -4418,6 +4498,15 @@ export interface IpSetting {
         id?: string | null;
       }[]
     | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "all-report".
+ */
+export interface AllReport {
+  id: string;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -6037,6 +6126,7 @@ export interface MenuSetting {
           | (
               | 'ip-settings'
               | 'jarvis'
+              | 'all-report'
               | 'general-dashboard'
               | 'time-wise-report'
               | 'branch-billing-report'
@@ -6172,6 +6262,25 @@ export interface ChefSetting {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "database-sync-settings_select".
+ */
+export interface DatabaseSyncSettingsSelect<T extends boolean = true> {
+  enabled?: T;
+  syncTime?: T;
+  sourceDbUri?: T;
+  targetDbUri?: T;
+  syncMode?: T;
+  syncMedia?: T;
+  collections?: T;
+  lastSyncAt?: T;
+  lastSyncStatus?: T;
+  lastSyncLog?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payment-settings_select".
  */
 export interface PaymentSettingsSelect<T extends boolean = true> {
@@ -6206,6 +6315,15 @@ export interface IpSettingsSelect<T extends boolean = true> {
             };
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "all-report_select".
+ */
+export interface AllReportSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

@@ -3,10 +3,9 @@ import { isValidBranchPin } from '../utilities/branchPins'
 
 export const Branches: CollectionConfig = {
   slug: 'branches',
-  // @ts-ignore
-  defaultDepth: 0,
   admin: {
     useAsTitle: 'name',
+    defaultColumns: ['name', 'company', 'branchPin', 'status'],
   },
   hooks: {
     beforeChange: [

@@ -618,7 +618,9 @@ export const Users: CollectionConfig = {
             cachedMenuSettingsAt = now
           }
           const menuSettings = cachedMenuSettings
-          const roleConfig = menuSettings?.roleMenus?.find((r: any) => r.role === doc.role)
+          const roleConfig = Array.isArray(menuSettings?.roleMenus)
+            ? menuSettings.roleMenus.find((r: any) => r?.role === doc?.role)
+            : null
           if (roleConfig) {
             doc.allowedCollections = roleConfig.visibleCollections || []
             doc.allowedGlobals = roleConfig.visibleGlobals || []
@@ -1046,7 +1048,9 @@ export const Users: CollectionConfig = {
           const ipSettingsData = ipSettings as IpSetting
           const geoSettings = geoSettingsResult as any
 
-          const restriction = ipSettingsData.roleRestrictions?.find((r) => r.role === user.role)
+          const restriction = Array.isArray(ipSettingsData?.roleRestrictions)
+            ? ipSettingsData.roleRestrictions.find((r) => r?.role === user?.role)
+            : null
 
           // Detect IPs
           let forwarded: string | null = null
@@ -1067,7 +1071,7 @@ export const Users: CollectionConfig = {
             console.log(`[Login Debug] User Branch ID: ${userBranchId}, Public IP: ${publicIp}`)
 
             // A. Check Branch-specific IP from BranchGeoSettings (New)
-            if (geoSettings?.locations) {
+            if (Array.isArray(geoSettings?.locations)) {
               const branchGeo = geoSettings.locations.find((loc: any) => {
                 const locBranchId = String(
                   (typeof loc.branch === 'string' ? loc.branch : loc.branch?.id) || '',
@@ -1163,7 +1167,7 @@ export const Users: CollectionConfig = {
             })
             const geoSettings = geoSettingsResult as any
 
-            if (geoSettings?.locations) {
+            if (Array.isArray(geoSettings?.locations)) {
               const userBranchId = String(
                 typeof user.branch === 'string' ? user.branch : (user.branch as { id: string }).id,
               )

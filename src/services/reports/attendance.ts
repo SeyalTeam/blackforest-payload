@@ -18,6 +18,7 @@ export type AttendanceReportActivity = {
   type: 'session' | 'break'
   punchIn: string
   punchOut?: string
+  punchInType?: 'manual' | 'auto'
   punchOutType?: 'manual' | 'auto'
   status: 'active' | 'closed'
   durationSeconds: number
@@ -54,7 +55,9 @@ export type AttendanceReportItem = {
   loginBranchId?: string
   loginBranchName?: string
   firstPunchIn?: string
+  firstPunchInType?: 'manual' | 'auto'
   lastPunchOut?: string
+  lastPunchOutType?: 'manual' | 'auto'
   totalWorkSeconds: number
   totalWorkFormatted: string
   extraSeconds: number
@@ -63,6 +66,7 @@ export type AttendanceReportItem = {
   totalBreakFormatted: string
   sessionCount: number
   breakCount: number
+  dayType?: string
   status: 'active' | 'on_break' | 'closed'
   activities: AttendanceReportActivity[]
 }
@@ -738,7 +742,9 @@ export const getAttendanceReportData = async (
     let sessionCount = 0
     let breakCount = 0
     let firstPunchIn: string | undefined = undefined
+    let firstPunchInType: 'manual' | 'auto' | undefined = undefined
     let lastPunchOut: string | undefined = undefined
+    let lastPunchOutType: 'manual' | 'auto' | undefined = undefined
     let hasActiveSession = false
     let hasActiveBreak = false
 
@@ -765,7 +771,8 @@ export const getAttendanceReportData = async (
         status: isAct ? 'active' : 'closed',
         durationSeconds: dur,
         durationFormatted: formatSecondsToReadable(dur),
-        punchOutType: doc.punchOutType,
+        punchInType: doc.punchInType || 'manual',
+        punchOutType: doc.punchOutType || 'manual',
         ipAddress: toNonEmptyString(doc.ipAddress),
         device: toNonEmptyString(doc.device),
         capturedImageUrl,
@@ -777,7 +784,9 @@ export const getAttendanceReportData = async (
       sessionCount = 1
       recordWorkSeconds = dur
       firstPunchIn = pIn
+      firstPunchInType = doc.punchInType || 'manual'
       lastPunchOut = pOut
+      lastPunchOutType = doc.punchOutType || 'manual'
       if (isAct) hasActiveSession = true
     } else {
       for (const act of activitiesRaw) {
@@ -805,6 +814,9 @@ export const getAttendanceReportData = async (
         const actLng = typeof act.longitude === 'number' ? act.longitude : (act.longitude ? Number(act.longitude) : undefined)
         const matchedActBranch = resolveBranchFromCoords(actLat, actLng)
 
+        const actPunchInType = act.punchInType || 'manual'
+        const actPunchOutType = act.punchOutType || 'manual'
+
         activities.push({
           id: toNonEmptyString(act.id || act._id),
           type: actType,
@@ -813,7 +825,8 @@ export const getAttendanceReportData = async (
           status: isAct ? 'active' : 'closed',
           durationSeconds: dur,
           durationFormatted: formatSecondsToReadable(dur),
-          punchOutType: act.punchOutType,
+          punchInType: actPunchInType,
+          punchOutType: actPunchOutType,
           ipAddress: toNonEmptyString(act.ipAddress),
           device: toNonEmptyString(act.device),
           capturedImageUrl,
@@ -846,10 +859,12 @@ export const getAttendanceReportData = async (
           if (isAct) hasActiveSession = true
           if (!firstPunchIn || new Date(pIn).getTime() < new Date(firstPunchIn).getTime()) {
             firstPunchIn = pIn
+            firstPunchInType = actPunchInType
           }
           if (pOut) {
             if (!lastPunchOut || new Date(pOut).getTime() > new Date(lastPunchOut).getTime()) {
               lastPunchOut = pOut
+              lastPunchOutType = actPunchOutType
             }
           }
         } else {
@@ -867,11 +882,15 @@ export const getAttendanceReportData = async (
       status = 'active'
     }
 
-    // Status filter check
+    // Status / Punch filter check
     if (statusParam && statusParam !== 'all') {
       if (statusParam === 'active' && status !== 'active') continue
       if (statusParam === 'closed' && status !== 'closed') continue
       if (statusParam === 'on_break' && status !== 'on_break') continue
+      if (statusParam === 'manual_punch_in' && firstPunchInType !== 'manual') continue
+      if (statusParam === 'auto_punch_in' && firstPunchInType !== 'auto') continue
+      if (statusParam === 'manual_punch_out' && lastPunchOutType !== 'manual') continue
+      if (statusParam === 'auto_punch_out' && lastPunchOutType !== 'auto') continue
     }
 
     // Determine current branch where user is:
@@ -923,12 +942,7 @@ export const getAttendanceReportData = async (
       baseShiftSeconds = 2 * 3600
     }
 
-    if ((hasAutoPunchOut || hasActiveSession) && recordWorkSeconds > baseShiftSeconds) {
-      // If the system auto-punched them out or they forgot to punch out and session is active, do not inflate hours
-      recordWorkSeconds = baseShiftSeconds
-    }
-
-    // Ensure activities display capped duration if auto-punched out or session was forgotten past shift end
+    // Handle extreme runaway sessions (>16 hours) where user forgot to punch out overnight
     for (const act of activities) {
       if (act.punchOutType === 'auto' && act.punchOut && act.punchIn) {
         const outUtc = new Date(act.punchOut)
@@ -938,15 +952,31 @@ export const getAttendanceReportData = async (
           act.punchOut = cleanOut.toISOString()
         }
       }
-      if ((act.punchOutType === 'auto' || act.status === 'active') && act.durationSeconds > baseShiftSeconds) {
+      // Only cap extreme runaway sessions (>16 hours) caused by forgotten overnight punchouts
+      if ((act.punchOutType === 'auto' || act.status === 'active') && act.durationSeconds > 16 * 3600) {
         act.durationSeconds = baseShiftSeconds
         act.durationFormatted = formatSecondsToReadable(baseShiftSeconds)
       }
     }
 
+    // Re-sum actual session work seconds after runaway protection
+    recordWorkSeconds = activities
+      .filter((a) => a.type === 'session')
+      .reduce((sum, a) => sum + (a.durationSeconds || 0), 0)
+
     let extraSeconds = 0
     if (recordWorkSeconds > baseShiftSeconds) {
       extraSeconds = recordWorkSeconds - baseShiftSeconds
+    }
+
+    let dayType: string | undefined = doc.dayType || undefined
+    if (!dayType && recordWorkSeconds > 0) {
+      const requiredHoursSec = (employeeWorkingHours && employeeWorkingHours > 0)
+        ? employeeWorkingHours * 3600
+        : baseShiftSeconds
+      if (status === 'closed') {
+        dayType = recordWorkSeconds >= (requiredHoursSec - 900) ? 'full_day' : 'half_day'
+      }
     }
 
     const item: AttendanceReportItem = {
@@ -957,6 +987,7 @@ export const getAttendanceReportData = async (
       employeeLoginTime,
       employeeLogoutTime,
       dateString: dateStr,
+      dayType,
       userId,
       employeeObjectId,
       userName,
@@ -972,7 +1003,9 @@ export const getAttendanceReportData = async (
       loginBranchId: loginBranchId || undefined,
       loginBranchName: loginBranchName !== 'Unassigned' ? loginBranchName : undefined,
       firstPunchIn,
+      firstPunchInType,
       lastPunchOut: hasActiveSession ? undefined : lastPunchOut,
+      lastPunchOutType: hasActiveSession ? undefined : lastPunchOutType,
       totalWorkSeconds: recordWorkSeconds,
       totalWorkFormatted: formatSecondsToReadable(recordWorkSeconds),
       extraSeconds: extraSeconds > 0 ? extraSeconds : 0,

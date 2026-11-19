@@ -40,12 +40,54 @@
 }
 
 [data-theme='light'] {
-  --theme-bg: #eceff4;
-  --theme-text-primary: #1b365d;
+  --theme-bg: #f8fafc;
+  --theme-elevation-0: #ffffff;
+  --theme-elevation-50: #f8fafc;
+  --theme-elevation-100: #f1f5f9;
+  --theme-elevation-150: #e2e8f0;
+  --theme-elevation-200: #cbd5e1;
+  --theme-elevation-300: #94a3b8;
+  --theme-elevation-400: #64748b;
+  --theme-elevation-500: #475569;
+  --theme-elevation-600: #334155;
+  --theme-elevation-700: #1e293b;
+  --theme-elevation-800: #0f172a;
+  --theme-elevation-900: #020617;
+  --theme-text: #0f172a;
+  --theme-text-primary: #0f172a;
+  --theme-text-secondary: #475569;
+  --theme-text-invert: #ffffff;
+  --theme-border-color: #e2e8f0;
+  --theme-input-bg: #ffffff;
+  --theme-bg-input: #ffffff;
+  --theme-success-500: #10b981;
+  --theme-error-500: #ef4444;
+  --theme-info-500: #0284c7;
+  --theme-info-750: #0369a1;
+
+  // Nav specific (Light Premium Modern Theme)
   --nav-bg: #ffffff;
-  --nav-text: #1b365d;
-  --nav-label: #64748b;
-  --nav-border: rgba(0, 0, 0, 0.1);
+  --nav-text: #1e293b;
+  --nav-label: #0284c7;
+  --nav-border: #e2e8f0;
+
+  html,
+  body {
+    background: #f8fafc !important;
+    color: #0f172a !important;
+  }
+
+  .template-default,
+  .template-default__wrap,
+  .template-default__gutter,
+  .payload__root,
+  .template-default__main,
+  main,
+  .collection-edit,
+  .render-fields-to-table {
+    background: #f8fafc !important;
+    color: #0f172a !important;
+  }
 }
 
 [data-theme='dark'] {
@@ -112,14 +154,48 @@ aside.nav,
     }
   }
 
-  // --- REORDERING LOGIC ---
-  // Move "Report" group to top using :has() selector
-  // We check for ANY of the report links to ensure the group is targeted
-  // regardless of which specific report is active or if DOM structure varies.
+  // --- REORDERING & VISIBILITY LOGIC ---
+  // Hide all groups by default, strictly displaying only the 4 specified sections:
+  // 1. Collections (Single button shortcut)
+  // 2. Report
+  // 3. Account
+  // 4. Settings
+  .nav-group {
+    display: none !important;
+  }
+
+  // 1. Collections Single Button
+  .nav-group--collections-shortcut {
+    display: block !important;
+    order: 1 !important;
+  }
+
+  // 2. Report Group
+  .nav-group.Report,
   .nav-group:has(a[href*='branch-wise-report']),
   .nav-group:has(a[href*='category-wise-report']),
-  .nav-group:has(a[href*='product-wise-report']) {
-    order: -1 !important;
+  .nav-group:has(a[href*='product-wise-report']),
+  .nav-group:has(a[href*='all-report']) {
+    display: block !important;
+    order: 2 !important;
+  }
+
+  // 3. Account Group
+  .nav-group.Account,
+  .nav-group:has(a[href*='gst-report']),
+  .nav-group:has(a[href*='bank-statement']),
+  .nav-group:has(a[href*='accounts-bills-report']),
+  .nav-group:has(a[href*='dealer-report']) {
+    display: block !important;
+    order: 3 !important;
+  }
+
+  // 4. Settings Group
+  .nav-group.Settings,
+  .nav-group:has(a[href*='settings']),
+  .nav-group:has(a[href*='network-status']) {
+    display: block !important;
+    order: 4 !important;
   }
 
   // Margin spacing
@@ -134,42 +210,50 @@ aside.nav,
   .nav__link,
   .nav-group__link,
   a {
-    font-size: 16px !important;
-    line-height: 1.6 !important;
-    padding: 10px 12px !important; // Increased padding slightly
+    font-size: 15px !important;
+    line-height: 1.5 !important;
+    padding: 10px 14px !important;
     position: relative;
     display: flex;
     align-items: center;
-    border-radius: 8px; // Rounded corners from image
-    transition: all 0.2s ease;
+    border-radius: 10px;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     color: var(--nav-text) !important;
     border: 1px solid transparent;
+    margin: 2px 8px !important;
+
+    [data-theme='light'] & {
+      color: #334155 !important;
+      font-weight: 600;
+    }
 
     span {
-      font-size: 16px !important;
-      white-space: nowrap; // Prevent wrapping
+      font-size: 15px !important;
+      white-space: nowrap;
       transition: opacity 0.2s;
     }
 
     &:hover {
       background: rgba(56, 189, 248, 0.12) !important;
-      [data-theme='light'] & {
-        background: rgba(27, 54, 93, 0.05) !important;
-      }
-      color: var(--theme-text-primary) !important;
-      [data-theme='light'] & {
-        color: var(--bf-primary-navy) !important;
-      }
+      color: #ffffff !important;
       border-color: rgba(56, 189, 248, 0.3);
+
+      [data-theme='light'] & {
+        background: #f0f9ff !important;
+        color: #0284c7 !important;
+        border-color: #bae6fd !important;
+        box-shadow: 0 2px 8px rgba(2, 132, 199, 0.1) !important;
+        transform: translateX(2px);
+      }
     }
 
     // ICON MIXIN
     &::before {
       content: '';
       display: inline-block;
-      width: 20px; // Slightly larger icon
-      height: 20px;
-      margin-right: 14px; // Increased space
+      width: 18px;
+      height: 18px;
+      margin-right: 12px;
       background-color: currentColor;
 
       -webkit-mask-repeat: no-repeat;
@@ -193,15 +277,25 @@ aside.nav,
   a[aria-current='page'],
   a.active {
     background: rgba(56, 189, 248, 0.18) !important;
-    [data-theme='light'] & {
-      background: rgba(56, 189, 248, 0.1) !important;
-    }
     color: var(--theme-text-primary) !important;
-    [data-theme='light'] & {
-      color: var(--bf-primary-navy) !important;
-    }
     border-color: rgba(56, 189, 248, 0.4);
     box-shadow: inset 3px 0 0 #38bdf8;
+
+    [data-theme='light'] & {
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+      color: #ffffff !important;
+      font-weight: 700 !important;
+      border: 1px solid #0284c7 !important;
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+
+      &::before {
+        background-color: #ffffff !important;
+      }
+
+      span {
+        color: #ffffff !important;
+      }
+    }
   }
 
   // --- ICONS MAPPING ---
@@ -276,6 +370,11 @@ aside.nav,
   }
 
   // 10. REPORTS - Distinct Icons
+
+  a[href*='globals/all-report']::before {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3Cline x1='16' y1='13' x2='8' y2='13'/%3E%3Cline x1='16' y1='17' x2='8' y2='17'/%3E%3Cpolyline points='10 9 9 9 8 9'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3Cline x1='16' y1='13' x2='8' y2='13'/%3E%3Cline x1='16' y1='17' x2='8' y2='17'/%3E%3Cpolyline points='10 9 9 9 8 9'/%3E%3C/svg%3E");
+  }
 
   // A. Branch Billing -> Bar Chart (Comparing multiple entities)
   a[href*='globals/branch-billing-report']::before,
@@ -484,6 +583,9 @@ aside.sidebar,
 .react-datepicker__navigation-icon::before {
   border-color: #c7d1df !important;
 }
+
+// Collections Hub Big Grid Styling
+@import '../../components/AdminCollectionsDashboard/index.scss';
 
 .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
   border-color: #ffffff !important;

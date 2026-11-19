@@ -1554,7 +1554,9 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
                         loginBranchId: { type: graphQL.GraphQLString },
                         loginBranchName: { type: graphQL.GraphQLString },
                         firstPunchIn: { type: graphQL.GraphQLString },
+                        firstPunchInType: { type: graphQL.GraphQLString },
                         lastPunchOut: { type: graphQL.GraphQLString },
+                        lastPunchOutType: { type: graphQL.GraphQLString },
                         totalWorkSeconds: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
                         totalWorkFormatted: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
                         extraSeconds: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
@@ -1563,6 +1565,7 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
                         totalBreakFormatted: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
                         sessionCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
                         breakCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+                        dayType: { type: graphQL.GraphQLString },
                         status: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
                         activities: {
                           type: new graphQL.GraphQLNonNull(
@@ -1575,6 +1578,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
                                     type: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
                                     punchIn: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
                                     punchOut: { type: graphQL.GraphQLString },
+                                    punchInType: { type: graphQL.GraphQLString },
+                                    punchOutType: { type: graphQL.GraphQLString },
                                     status: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
                                     durationSeconds: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
                                     durationFormatted: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },

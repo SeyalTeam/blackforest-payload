@@ -91,6 +91,7 @@ export const MenuSettingsGlobal: GlobalConfig = {
           options: [
             { label: 'IP Settings', value: 'ip-settings' },
             { label: 'Jarvis', value: 'jarvis' },
+            { label: 'All Report', value: 'all-report' },
             { label: 'Overall (Dashboard)', value: 'general-dashboard' },
             { label: 'Time Wise Report', value: 'time-wise-report' },
             { label: 'Branch Billing Report', value: 'branch-billing-report' },

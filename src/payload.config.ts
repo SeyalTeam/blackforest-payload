@@ -42,6 +42,7 @@ import RawMaterialInstockEntries from './collections/RawMaterialInstockEntries'
 import ProductionRequests from './collections/ProductionRequests'
 import DealerOrders from './collections/DealerOrders'
 import { IPSettings } from './globals/IPSettings'
+import { AllReportGlobal } from './globals/AllReport'
 import { DashboardGlobal } from './globals/Dashboard'
 import { BranchBillingReportGlobal } from './globals/BranchBillingReport'
 import { AccountsBillsReportGlobal } from './globals/AccountsBillsReport'
@@ -147,6 +148,9 @@ import { getIdempotencyMetricsHandler } from './endpoints/getIdempotencyMetrics'
 import { setupIdempotencyRetention } from './utilities/idempotencyRetention'
 import WaiterCalls from './collections/WaiterCalls'
 import CallLogs from './collections/CallLogs'
+import { DatabaseSyncSettings } from './globals/DatabaseSyncSettings'
+import { triggerDatabaseSyncHandler } from './endpoints/triggerDatabaseSync'
+import { checkDatabaseSyncCountsHandler } from './endpoints/checkDatabaseSyncCounts'
 import ReportCardRules from './collections/ReportCardRules'
 import { readGraphQLQueries } from './graphql/readQueries'
 import { TimeWiseReportGlobal } from './globals/TimeWiseReport'
@@ -598,15 +602,17 @@ export default buildConfig({
       ],
     },
     components: {
-      /* views: {
+      views: {
         dashboard: {
           Component: '/components/AdminCollectionsDashboard/index.tsx#default',
+          exact: true,
+          path: '/',
         },
       },
       beforeNavLinks: [
         '/components/AdminCollapsedNavBehavior/index.tsx#default',
         '/components/AdminCollectionsNavLink/index.tsx#default',
-      ], */
+      ],
     },
   },
 
@@ -616,6 +622,7 @@ export default buildConfig({
     'http://localhost:3001', // standalone frontend (dev)
     'http://127.0.0.1',
     process.env.FRONTEND_URL || '',
+    'https://app.theblackforestcakes.com',
     'https://blackforest-api.vseyal.com',
     'https://admin.theblackforestcakes.com',
     'https://superadmin.theblackforestcakes.com',
@@ -627,6 +634,7 @@ export default buildConfig({
     'http://localhost:3001', // standalone frontend (dev)
     'http://127.0.0.1',
     process.env.FRONTEND_URL || '',
+    'https://app.theblackforestcakes.com',
     'https://blackforest-api.vseyal.com',
     'https://admin.theblackforestcakes.com',
     'https://superadmin.theblackforestcakes.com',
@@ -1042,11 +1050,23 @@ export default buildConfig({
       method: 'get',
       handler: getReportCardDataHandler,
     },
+    {
+      path: '/trigger-database-sync',
+      method: 'post',
+      handler: triggerDatabaseSyncHandler,
+    },
+    {
+      path: '/check-database-sync-counts',
+      method: 'post',
+      handler: checkDatabaseSyncCountsHandler,
+    },
   ],
 
   globals: [
+    DatabaseSyncSettings,
     PaymentSettings,
     IPSettings,
+    AllReportGlobal,
     DashboardGlobal,
     TimeWiseReportGlobal,
     BranchBillingReportGlobal,
