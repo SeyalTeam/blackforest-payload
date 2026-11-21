@@ -389,6 +389,25 @@ const AttendanceReport: React.FC = () => {
     return info ? info.label : '-'
   }
 
+  const getDailySalary = (item: AttendanceItem): number => {
+    const base = item.employeeSalary || 0
+    if (!base) return 0
+    if (item.status === 'active' || item.status === 'on_break') {
+      return Math.round(base / 30)
+    }
+    const info = getDayTypeDisplay(item)
+    if (info?.label === 'Half Day') {
+      return Math.round((base / 30) * 0.5)
+    }
+    if (info?.label === 'Week Off' || info?.label === 'On Leave' || info?.label === 'Holiday') {
+      return 0
+    }
+    if (item.totalWorkSeconds === 0) {
+      return 0
+    }
+    return Math.round(base / 30)
+  }
+
   const { displayItems, isAggregatedView } = useMemo(() => {
     if (!data) return { displayItems: [], isAggregatedView: false }
     const startStr = startDate ? toLocalDateStr(startDate) : ''
@@ -573,6 +592,7 @@ const AttendanceReport: React.FC = () => {
         totBreakSec += (item.totalBreakSeconds || 0)
         totWorkSec += ws
         if (item.status === 'active') totActive++
+        totSalary += getDailySalary(item)
       }
     })
 
@@ -848,7 +868,7 @@ const AttendanceReport: React.FC = () => {
       'AVG PUNCH IN', 'AVG PUNCH OUT', 'TOTAL SESSIONS', 'TOTAL BREAK TIME', 'AVG WORK/DAY'
     ] : [
       'S.NO', 'EMPLOYEE NAME (ID)', 'ROLE', 'BRANCH',
-      'PUNCH IN', 'PUNCH OUT', 'SESSIONS', 'BREAK TIME', 'DUTY HRS', 'TOTAL WORK HOURS', 'EXTRA HOURS', 'STATUS'
+      'PUNCH IN', 'PUNCH OUT', 'SESSIONS', 'BREAK TIME', 'DUTY HRS', 'TOTAL WORK HOURS', 'EXTRA HOURS', 'SALARY', 'STATUS'
     ]
     csvRows.push(headers.join(','))
 
@@ -890,6 +910,7 @@ const AttendanceReport: React.FC = () => {
             `"${item.employeeWorkingHours ? item.employeeWorkingHours + 'h' : '-'}"`,
             `"${item.totalWorkFormatted}"`,
             `"${item.extraHoursFormatted || '-'}"`,
+            getDailySalary(item),
             `"${getStatusDisplayLabel(item).toUpperCase()}"`,
           ].join(',')
         )
@@ -897,22 +918,44 @@ const AttendanceReport: React.FC = () => {
     })
 
     // Totals row
-    csvRows.push(
-      [
-        '',
-        '"OVERALL TOTAL"',
-        '',
-        `"${data?.totals.uniqueEmployees || 0} Unique Staff"`,
-        '',
-        '',
-        '',
-        '',
-        '',
-        `"${data?.totals.totalBreakFormatted || ''}"`,
-        `"${data?.totals.totalWorkFormatted || ''}"`,
-        `"${data?.totals.currentlyActive || 0} Active Now"`,
-      ].join(',')
-    )
+    if (isAggregatedView) {
+      csvRows.push(
+        [
+          '',
+          '"OVERALL TOTAL"',
+          '',
+          calcTotals.totPresent,
+          calcTotals.totLeave,
+          calcTotals.totSalary,
+          '',
+          `"${calcTotals.totWorkFormatted}"`,
+          `"${calcTotals.totExtraFormatted}"`,
+          '',
+          '',
+          '',
+          `"${calcTotals.totBreakFormatted}"`,
+          '',
+        ].join(',')
+      )
+    } else {
+      csvRows.push(
+        [
+          '',
+          '"OVERALL TOTAL"',
+          '',
+          `"${data?.totals.uniqueEmployees || 0} Unique Staff"`,
+          '',
+          '',
+          '',
+          `"${calcTotals.totBreakFormatted || ''}"`,
+          '',
+          `"${calcTotals.totWorkFormatted || ''}"`,
+          `"${calcTotals.totExtraFormatted || ''}"`,
+          calcTotals.totSalary,
+          `"${calcTotals.totActive || 0} Active Now"`,
+        ].join(',')
+      )
+    }
 
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -937,7 +980,7 @@ const AttendanceReport: React.FC = () => {
       'AVG PUNCH IN', 'AVG PUNCH OUT', 'TOTAL SESSIONS', 'TOTAL BREAK TIME', 'AVG WORK/DAY'
     ] : [
       'S.NO', 'EMPLOYEE NAME (ID)', 'ROLE', 'BRANCH',
-      'PUNCH IN', 'PUNCH OUT', 'SESSIONS', 'BREAK TIME', 'DUTY HRS', 'TOTAL WORK HOURS', 'EXTRA HOURS', 'STATUS'
+      'PUNCH IN', 'PUNCH OUT', 'SESSIONS', 'BREAK TIME', 'DUTY HRS', 'TOTAL WORK HOURS', 'EXTRA HOURS', 'SALARY', 'STATUS'
     ]
 
     // Group items by role
@@ -992,6 +1035,7 @@ const AttendanceReport: React.FC = () => {
               `"${item.employeeWorkingHours ? item.employeeWorkingHours + 'h' : '-'}"`,
               `"${item.totalWorkFormatted}"`,
               `"${item.extraHoursFormatted || '-'}"`,
+              getDailySalary(item),
               `"${getStatusDisplayLabel(item).toUpperCase()}"`,
             ].join(',')
           )
@@ -1001,22 +1045,44 @@ const AttendanceReport: React.FC = () => {
     })
 
     // Totals row
-    csvRows.push(
-      [
-        '',
-        '"OVERALL TOTAL"',
-        '',
-        `"${data?.totals.uniqueEmployees || 0} Unique Staff"`,
-        '',
-        '',
-        '',
-        '',
-        '',
-        `"${data?.totals.totalBreakFormatted || ''}"`,
-        `"${data?.totals.totalWorkFormatted || ''}"`,
-        `"${data?.totals.currentlyActive || 0} Active Now"`,
-      ].join(',')
-    )
+    if (isAggregatedView) {
+      csvRows.push(
+        [
+          '',
+          '"OVERALL TOTAL"',
+          '',
+          calcTotals.totPresent,
+          calcTotals.totLeave,
+          calcTotals.totSalary,
+          '',
+          `"${calcTotals.totWorkFormatted}"`,
+          `"${calcTotals.totExtraFormatted}"`,
+          '',
+          '',
+          '',
+          `"${calcTotals.totBreakFormatted}"`,
+          '',
+        ].join(',')
+      )
+    } else {
+      csvRows.push(
+        [
+          '',
+          '"OVERALL TOTAL"',
+          '',
+          `"${data?.totals.uniqueEmployees || 0} Unique Staff"`,
+          '',
+          '',
+          '',
+          `"${calcTotals.totBreakFormatted || ''}"`,
+          '',
+          `"${calcTotals.totWorkFormatted || ''}"`,
+          `"${calcTotals.totExtraFormatted || ''}"`,
+          calcTotals.totSalary,
+          `"${calcTotals.totActive || 0} Active Now"`,
+        ].join(',')
+      )
+    }
 
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -1478,6 +1544,7 @@ const AttendanceReport: React.FC = () => {
                     <th className="text-center">DUTY HRS</th>
                     <th className="text-center">WORK HOURS</th>
                     <th className="text-center">EXTRA HOURS</th>
+                    <th className="text-center">SALARY</th>
                     <th className="text-center">STATUS</th>
                     <th className="text-center">ACTIONS</th>
                   </>
@@ -1608,6 +1675,22 @@ const AttendanceReport: React.FC = () => {
                             </span>
                           </td>
                           <td className="text-center">
+                            {item.employeeSalary ? (
+                              <div>
+                                <strong style={{ color: 'var(--theme-text-primary)' }}>
+                                  ₹{getDailySalary(item)}
+                                </strong>
+                                {getDayTypeDisplay(item)?.label === 'Half Day' && (
+                                  <span style={{ fontSize: '0.68rem', color: 'var(--theme-warning-700, #f59e0b)', display: 'block', fontWeight: 600 }}>
+                                    (0.5 Day)
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span style={{ color: 'var(--theme-text-secondary)' }}>-</span>
+                            )}
+                          </td>
+                          <td className="text-center">
                             {item.status === 'active' ? (
                               <span className="status-pill active on-work">
                                 <span className="dot" />
@@ -1653,7 +1736,7 @@ const AttendanceReport: React.FC = () => {
                 })
               ) : (
                 <tr>
-                  <td colSpan={13} className="no-data">
+                  <td colSpan={isAggregatedView ? 14 : 13} className="no-data">
                     No attendance records found for the selected criteria.
                   </td>
                 </tr>
@@ -1666,7 +1749,7 @@ const AttendanceReport: React.FC = () => {
                     <td colSpan={3} style={{ textAlign: 'right', paddingRight: '1rem' }}><strong>TOTAL ({displayItems.length} Employees)</strong></td>
                     <td><strong>{calcTotals.totPresent}</strong></td>
                     <td><strong>{calcTotals.totLeave}</strong></td>
-                    <td><strong>₹{calcTotals.totSalary}</strong></td>
+                    <td><strong>₹{calcTotals.totSalary.toLocaleString()}</strong></td>
                     <td></td>
                     <td className="text-center work-hours-cell" style={{ color: 'var(--theme-success-600)' }}><strong>{calcTotals.totWorkFormatted}</strong></td>
                     <td className="text-center"><strong style={{ color: 'var(--theme-warning-700)' }}>{calcTotals.totExtraFormatted}</strong></td>
@@ -1681,6 +1764,7 @@ const AttendanceReport: React.FC = () => {
                     <td></td>
                     <td className="text-center work-hours-cell" style={{ color: 'var(--theme-success-600)' }}><strong>{calcTotals.totWorkFormatted}</strong></td>
                     <td className="text-center"><strong style={{ color: 'var(--theme-error-600)' }}>{calcTotals.totExtraFormatted}</strong></td>
+                    <td className="text-center"><strong style={{ color: 'var(--theme-text-primary)' }}>₹{calcTotals.totSalary.toLocaleString()}</strong></td>
                     <td className="text-center"><strong style={{ color: '#10b981' }}>{calcTotals.totActive} Active</strong></td>
                     <td></td>
                   </tr>

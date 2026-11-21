@@ -142,6 +142,34 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
         return true
       }
 
+      // Chef Sub-Type Filtering (Kitchen Chef vs Stock Chef vs Both)
+      if (matchesRole && (taskRole === 'chef' || normalizedRole === 'chef' || userRole === 'chef')) {
+        const targetChefType = (task.chefType || 'both').toLowerCase()
+        if (targetChefType !== 'both') {
+          const isUserKitchen = Boolean(
+            (req.user as any).isKitchen ||
+            (req.user as any).kitchen ||
+            url.searchParams.get('isKitchen') === 'true' ||
+            url.searchParams.get('chefType') === 'kitchen' ||
+            (employeeDoc && (employeeDoc.isKitchen || employeeDoc.team?.toLowerCase().includes('kitchen')))
+          )
+          const isUserStock = Boolean(
+            (req.user as any).isStock ||
+            (req.user as any).stockCategories?.length ||
+            url.searchParams.get('isStock') === 'true' ||
+            url.searchParams.get('chefType') === 'stock' ||
+            (employeeDoc && (employeeDoc.isStock || employeeDoc.team?.toLowerCase().includes('stock')))
+          )
+
+          if (targetChefType === 'kitchen' && !isUserKitchen && isUserStock) {
+            return false
+          }
+          if (targetChefType === 'stock' && !isUserStock && isUserKitchen) {
+            return false
+          }
+        }
+      }
+
       return matchesInd || matchesRole
     })
 
@@ -238,6 +266,14 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
               isMatch = docDateStr >= mondayString && docDateStr <= sundayString
             } else if (taskFreq === 'monthly') {
               isMatch = docDateStr.startsWith(currentMonthStr)
+            } else if (taskFreq === 'random') {
+              if (docDateStr === dateString && tItem.completedAt) {
+                const compTime = new Date(tItem.completedAt).getTime()
+                const intervalUnit = (task.randomIntervalUnit || 'hours').toLowerCase()
+                const intervalVal = Number(task.randomIntervalValue) || 2
+                const intervalMs = (intervalUnit === 'minutes' ? intervalVal : intervalVal * 60) * 60 * 1000
+                isMatch = (Date.now() - compTime) < intervalMs
+              }
             } else {
               isMatch = docDateStr === dateString
             }
@@ -274,6 +310,14 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
             isMatch = docDateStr >= mondayString && docDateStr <= sundayString
           } else if (taskFreq === 'monthly') {
             isMatch = docDateStr.startsWith(currentMonthStr)
+          } else if (taskFreq === 'random') {
+            if (docDateStr === dateString && doc.completedAt) {
+              const compTime = new Date(doc.completedAt).getTime()
+              const intervalUnit = (task.randomIntervalUnit || 'hours').toLowerCase()
+              const intervalVal = Number(task.randomIntervalValue) || 2
+              const intervalMs = (intervalUnit === 'minutes' ? intervalVal : intervalVal * 60) * 60 * 1000
+              isMatch = (Date.now() - compTime) < intervalMs
+            }
           } else {
             isMatch = docDateStr === dateString
           }
@@ -318,6 +362,10 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
         yesText: task.yesText || null,
         priority: task.priority || 'medium',
         frequency: taskFreq,
+        randomIntervalValue: task.randomIntervalValue || 2,
+        randomIntervalUnit: task.randomIntervalUnit || 'hours',
+        chefType: task.chefType || 'both',
+        allowMultiplePhotos: task.allowMultiplePhotos !== false,
         isDaily: taskFreq === 'daily',
         requiresPhoto: Boolean(task.requiresPhoto),
         assignmentType: task.assignmentType || 'role',

@@ -3336,6 +3336,7 @@ const Billings: CollectionConfig = {
                 : rawSection || null
             const resolvedTableNo = rawTableNum || resolvedTableName || null
             const resolvedKotNumber = ((doc as any)?.kotNumber || '').toString().trim() || null
+            const docCreatedByID = getRelationshipID(doc.createdBy) || (typeof doc.createdBy === 'string' ? doc.createdBy : null) || null
 
             const allItemProductNames = curItems
               .map((it: any) => (it?.name || (typeof it?.product === 'object' ? it?.product?.name : '') || '').toString().trim())
@@ -3382,6 +3383,8 @@ const Billings: CollectionConfig = {
                   itemUpdatedAt: curItem?.itemUpdatedAt || new Date().toISOString(),
                   itemVersion: curItem?.itemVersion || 1,
                   timestamp: new Date().toISOString(),
+                  createdBy: docCreatedByID,
+                  waiterId: docCreatedByID,
                 })
               }
             }
@@ -3403,6 +3406,8 @@ const Billings: CollectionConfig = {
                 productName: allItemProductNames[0] || null,
                 productNames: allItemProductNames,
                 timestamp: new Date().toISOString(),
+                createdBy: docCreatedByID,
+                waiterId: docCreatedByID,
               })
             }
           }

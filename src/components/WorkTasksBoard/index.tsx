@@ -60,7 +60,11 @@ export type TaskItem = {
   assignedEmployee?: any
   assignedUser?: any
   dueDate?: string
-  frequency?: 'daily' | 'weekly' | 'monthly' | 'hourly'
+  frequency?: 'daily' | 'weekly' | 'monthly' | 'hourly' | 'random'
+  randomIntervalValue?: number
+  randomIntervalUnit?: 'hours' | 'minutes'
+  chefType?: 'kitchen' | 'stock' | 'both'
+  allowMultiplePhotos?: boolean
   order?: number
   requiresPhoto?: boolean
   completedBy?: any[]
@@ -678,7 +682,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
       })
     } catch (err) {
       console.error('Error toggling task completion:', err)
-      fetchTasks() // Revert on error
+      fetchData() // Revert on error
     }
   }
 
@@ -1254,15 +1258,15 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
 
                       {/* Card Title */}
                       <div className="card-title" style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                        {viewMode === 'individual' && col.employeeId && (
+                        {viewMode === 'individual' && (col as any).employeeId && (
                           <input
                             type="checkbox"
                             checked={(task.completedBy || []).some(
-                              (emp) => (typeof emp === 'string' ? emp : emp.id) === col.employeeId
+                              (emp) => (typeof emp === 'string' ? emp : emp.id) === (col as any).employeeId
                             )}
                             onClick={(e) => {
                               e.stopPropagation()
-                              toggleTaskCompletion(task, col.employeeId)
+                              toggleTaskCompletion(task, (col as any).employeeId)
                             }}
                             title="Mark as Done for this Employee"
                             style={{ marginTop: '2px', cursor: 'pointer', transform: 'scale(1.2)' }}
@@ -1285,29 +1289,35 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                             title={`Recurrence: ${task.frequency || 'Daily'}`}
                             style={{
                               backgroundColor:
-                                task.frequency === 'hourly'
-                                  ? 'rgba(14, 165, 233, 0.18)'
-                                  : task.frequency === 'weekly'
-                                    ? 'rgba(168, 85, 247, 0.18)'
-                                    : task.frequency === 'monthly'
-                                      ? 'rgba(249, 115, 22, 0.18)'
-                                      : 'rgba(100, 116, 139, 0.2)',
+                                task.frequency === 'random'
+                                  ? 'rgba(236, 72, 153, 0.18)'
+                                  : task.frequency === 'hourly'
+                                    ? 'rgba(14, 165, 233, 0.18)'
+                                    : task.frequency === 'weekly'
+                                      ? 'rgba(168, 85, 247, 0.18)'
+                                      : task.frequency === 'monthly'
+                                        ? 'rgba(249, 115, 22, 0.18)'
+                                        : 'rgba(100, 116, 139, 0.2)',
                               color:
-                                task.frequency === 'hourly'
-                                  ? '#38bdf8'
-                                  : task.frequency === 'weekly'
-                                    ? '#c084fc'
-                                    : task.frequency === 'monthly'
-                                      ? '#fb923c'
-                                      : '#94a3b8',
+                                task.frequency === 'random'
+                                  ? '#ec4899'
+                                  : task.frequency === 'hourly'
+                                    ? '#38bdf8'
+                                    : task.frequency === 'weekly'
+                                      ? '#c084fc'
+                                      : task.frequency === 'monthly'
+                                        ? '#fb923c'
+                                        : '#94a3b8',
                               border: `1px solid ${
-                                task.frequency === 'hourly'
-                                  ? 'rgba(56, 189, 248, 0.3)'
-                                  : task.frequency === 'weekly'
-                                    ? 'rgba(192, 132, 252, 0.3)'
-                                    : task.frequency === 'monthly'
-                                      ? 'rgba(251, 146, 60, 0.3)'
-                                      : 'rgba(148, 163, 184, 0.25)'
+                                task.frequency === 'random'
+                                  ? 'rgba(236, 72, 153, 0.35)'
+                                  : task.frequency === 'hourly'
+                                    ? 'rgba(56, 189, 248, 0.3)'
+                                    : task.frequency === 'weekly'
+                                      ? 'rgba(192, 132, 252, 0.3)'
+                                      : task.frequency === 'monthly'
+                                        ? 'rgba(251, 146, 60, 0.3)'
+                                        : 'rgba(148, 163, 184, 0.25)'
                               }`,
                               fontWeight: 600,
                               fontSize: '11px',
@@ -1320,11 +1330,35 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                           >
                             <Clock size={11} />
                             <span>
-                              {task.frequency
-                                ? task.frequency.charAt(0).toUpperCase() + task.frequency.slice(1)
-                                : 'Daily'}
+                              {task.frequency === 'random'
+                                ? `🎲 Random (${task.randomIntervalValue || 2}${task.randomIntervalUnit === 'minutes' ? 'm' : 'h'})`
+                                : task.frequency
+                                  ? task.frequency.charAt(0).toUpperCase() + task.frequency.slice(1)
+                                  : 'Daily'}
                             </span>
                           </span>
+
+                          {/* Chef Target Badge if applicable */}
+                          {task.chefType && task.chefType !== 'both' && (
+                            <span
+                              className="badge-item badge-chef"
+                              title={`Chef Target: ${task.chefType === 'kitchen' ? 'Kitchen Chef' : 'Stock Chef'}`}
+                              style={{
+                                backgroundColor: task.chefType === 'kitchen' ? 'rgba(16, 185, 129, 0.18)' : 'rgba(245, 158, 11, 0.18)',
+                                color: task.chefType === 'kitchen' ? '#10b981' : '#f59e0b',
+                                border: `1px solid ${task.chefType === 'kitchen' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+                                fontWeight: 600,
+                                fontSize: '11px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                              }}
+                            >
+                              <span>{task.chefType === 'kitchen' ? '🔪 Kitchen Chef' : '📦 Stock Chef'}</span>
+                            </span>
+                          )}
 
                           {/* Description Icon */}
                           {task.description && (
@@ -1942,6 +1976,30 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                     </div>
                   </div>
 
+                  {/* Chef Sub-Type (Kitchen, Stock, Both) when Chef Role is selected */}
+                  {(activeModalCard.assignedRole || '').toLowerCase() === 'chef' && (
+                    <div className="meta-group">
+                      <span className="meta-title">Chef Target</span>
+                      <div className="meta-value-chips">
+                        <select
+                          style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ccc', fontWeight: 600 }}
+                          value={activeModalCard.chefType || 'both'}
+                          disabled={!isSuperAdmin}
+                          onChange={(e) =>
+                            setActiveModalCard({
+                              ...activeModalCard,
+                              chefType: e.target.value as any,
+                            })
+                          }
+                        >
+                          <option value="both">🍳 All / Both Chefs (Kitchen & Stock)</option>
+                          <option value="kitchen">🔪 Kitchen Chef Only</option>
+                          <option value="stock">📦 Stock / Prep Chef Only</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Individual Assignee */}
                   <div className="meta-group">
                     <span className="meta-title">Assigned Individual</span>
@@ -2074,7 +2132,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                     </div>
                   </div>
 
-                  {/* Recurrence Frequency (Daily, Weekly, Monthly, Hourly) */}
+                  {/* Recurrence Frequency (Daily, Weekly, Monthly, Hourly, Random) */}
                   <div className="meta-group">
                     <span className="meta-title">Recurrence</span>
                     <div className="meta-value-chips">
@@ -2093,14 +2151,55 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                         <option value="weekly">📅 Weekly</option>
                         <option value="monthly">🗓️ Monthly</option>
                         <option value="hourly">⏰ Hourly</option>
+                        <option value="random">🎲 Randomly</option>
                       </select>
                     </div>
                   </div>
 
+                  {/* Random Interval Configuration */}
+                  {activeModalCard.frequency === 'random' && (
+                    <div className="meta-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span className="meta-title">Random Interval</span>
+                      <div className="meta-value-chips" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input
+                          type="number"
+                          min={1}
+                          max={1440}
+                          value={activeModalCard.randomIntervalValue ?? 2}
+                          disabled={!isSuperAdmin}
+                          style={{ width: '70px', padding: '4px 8px', borderRadius: '4px', border: '1px solid #ccc', fontWeight: 600 }}
+                          onChange={(e) =>
+                            setActiveModalCard({
+                              ...activeModalCard,
+                              randomIntervalValue: parseInt(e.target.value, 10) || 1,
+                            })
+                          }
+                        />
+                        <select
+                          style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ccc', fontWeight: 600 }}
+                          value={activeModalCard.randomIntervalUnit || 'hours'}
+                          disabled={!isSuperAdmin}
+                          onChange={(e) =>
+                            setActiveModalCard({
+                              ...activeModalCard,
+                              randomIntervalUnit: e.target.value as any,
+                            })
+                          }
+                        >
+                          <option value="hours">Hours</option>
+                          <option value="minutes">Minutes</option>
+                        </select>
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#6b7280' }}>
+                        Triggers randomly within each cycle window (e.g. within 2 hours, triggers at random time).
+                      </span>
+                    </div>
+                  )}
+
                   {/* Photo Proof Required Toggle */}
                   <div className="meta-group">
                     <span className="meta-title">Photo Proof</span>
-                    <div className="meta-value-chips">
+                    <div className="meta-value-chips" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
                       <label
                         style={{
                           display: 'inline-flex',
@@ -2138,6 +2237,32 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                           <span>Require Photo</span>
                         </span>
                       </label>
+
+                      {activeModalCard.requiresPhoto && (
+                        <label
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            cursor: isSuperAdmin ? 'pointer' : 'default',
+                            fontSize: '12px',
+                            color: '#374151',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={activeModalCard.allowMultiplePhotos !== false}
+                            disabled={!isSuperAdmin}
+                            onChange={(e) =>
+                              setActiveModalCard({
+                                ...activeModalCard,
+                                allowMultiplePhotos: e.target.checked,
+                              })
+                            }
+                          />
+                          <span>Allow / Require Multiple Photos</span>
+                        </label>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2199,7 +2324,7 @@ export default function WorkTasksBoard({ isStandalone = false }: WorkTasksBoardP
                 {/* Employee Progress Section */}
                 {(() => {
                   let targetEmps: any[] = []
-                  if (activeModalCard.assignedRole && activeModalCard.assignmentType !== 'unassigned') {
+                  if (activeModalCard.assignedRole && (activeModalCard.assignmentType as string) !== 'unassigned') {
                      const roleClean = activeModalCard.assignedRole.toLowerCase().replace(/[\s_-]+/g, '')
                      targetEmps = employees.filter(e => (e.team || '').toLowerCase().replace(/[\s_-]+/g, '') === roleClean)
                   } else if (activeModalCard.assignedEmployee) {

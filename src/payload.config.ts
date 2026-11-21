@@ -27,6 +27,7 @@ import Employees from './collections/Employees'
 import Tasks from './collections/Tasks'
 import TaskColumns from './collections/TaskColumns'
 import TaskCompletions from './collections/TaskCompletions'
+import TaskPhotoAudits from './collections/TaskPhotoAudits'
 import Billings from './collections/Billings'
 import { MessageThreads } from './collections/MessageThreads'
 import { Messages } from './collections/Messages'
@@ -173,6 +174,7 @@ import { getPublicServerURL } from './utilities/serverUrl'
 import ManagerClosingReplies from './collections/ManagerClosingReplies'
 import { getMyDailyTasksHandler } from './endpoints/getMyDailyTasks'
 import { toggleDailyTaskHandler } from './endpoints/toggleDailyTask'
+import { submitTaskAuditHandler } from './endpoints/submitTaskAudit'
 import { startWorkHandler } from './endpoints/startWork'
 import { completeWorkHandler } from './endpoints/completeWork'
 import { KotTimeGlobal } from './globals/KotTime'
@@ -540,9 +542,8 @@ const dbAdapter =
   dbMode === 'mongo'
     ? mongooseAdapter({
         url: mongoConnectionString,
-        autoIndex: true,
-        ensureIndexes: false,
         connectOptions: {
+          autoIndex: true,
           maxPoolSize: process.env.MONGODB_MAX_POOL_SIZE ? parseInt(process.env.MONGODB_MAX_POOL_SIZE) : 100,
           minPoolSize: process.env.MONGODB_MIN_POOL_SIZE ? parseInt(process.env.MONGODB_MIN_POOL_SIZE) : 10,
           maxIdleTimeMS: 20000,
@@ -1001,6 +1002,16 @@ export default buildConfig({
       handler: toggleDailyTaskHandler,
     },
     {
+      path: '/daily-tasks/submit-audit',
+      method: 'post',
+      handler: submitTaskAuditHandler,
+    },
+    {
+      path: '/tasks/submit-audit',
+      method: 'post',
+      handler: submitTaskAuditHandler,
+    },
+    {
       path: '/attendance/start-work',
       method: 'post',
       handler: startWorkHandler,
@@ -1127,6 +1138,7 @@ export default buildConfig({
     Tasks,
     TaskColumns,
     TaskCompletions,
+    TaskPhotoAudits,
     MessageThreads,
     MessageAttachments,
     Messages,

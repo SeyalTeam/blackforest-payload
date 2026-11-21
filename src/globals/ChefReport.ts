@@ -2,7 +2,7 @@ import { GlobalConfig } from 'payload'
 
 export const ChefReportGlobal: GlobalConfig = {
   slug: 'chef-report',
-  label: 'Chef Report',
+  label: 'Chef',
   access: {
     read: () => true,
   },

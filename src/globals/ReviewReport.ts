@@ -2,7 +2,7 @@ import { GlobalConfig } from 'payload'
 
 export const ReviewReportGlobal: GlobalConfig = {
   slug: 'review-report',
-  label: 'Review Report',
+  label: 'Review',
   access: {
     read: () => true,
   },

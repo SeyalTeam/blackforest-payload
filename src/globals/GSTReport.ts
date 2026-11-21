@@ -2,7 +2,7 @@ import { GlobalConfig } from 'payload'
 
 export const GSTReportGlobal: GlobalConfig = {
   slug: 'gst-report',
-  label: 'GST Report',
+  label: 'GST',
   access: {
     read: () => true,
   },

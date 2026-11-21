@@ -2,7 +2,7 @@ import { GlobalConfig } from 'payload'
 
 export const InstockEntryReportGlobal: GlobalConfig = {
   slug: 'instock-entry-report',
-  label: 'Instock Entry Report',
+  label: 'Instock Entry',
   access: {
     read: () => true,
   },

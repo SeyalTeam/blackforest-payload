@@ -100,6 +100,7 @@ export const toggleDailyTaskHandler: PayloadHandler = async (req): Promise<Respo
 
     let updatedDoc: any = null
     let isTaskCompleted = false
+    let taskStatus = 'yes'
     let taskCompletedAt: string | null = null
     let savedPhoto: any = null
     let savedPhotoUrl: string | null = null

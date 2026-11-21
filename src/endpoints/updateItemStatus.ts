@@ -416,6 +416,7 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
     }
 
     const branchID = getRelationshipID((bill as { branch?: unknown }).branch)
+    const billCreatedByID = getRelationshipID((bill as { createdBy?: unknown }).createdBy)
     const kitchenID =
       typeof body.kitchenId === 'string' && body.kitchenId.trim().length > 0
         ? body.kitchenId.trim()
@@ -487,6 +488,8 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
           itemUpdatedAt,
           itemVersion: itemVersionAfter,
           itemSnapshot: itemSnapshotForEvent,
+          createdBy: billCreatedByID,
+          waiterId: billCreatedByID,
         })
       }
 
@@ -510,6 +513,8 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
           itemUpdatedAt,
           itemVersion: itemVersionAfter,
           itemSnapshot: itemSnapshotForEvent,
+          createdBy: billCreatedByID,
+          waiterId: billCreatedByID,
         })
       }
     }
@@ -534,6 +539,8 @@ export const updateItemStatus: PayloadHandler = async (req): Promise<Response> =
         statusAfter: nextBillStatus,
         itemUpdatedAt: itemUpdatedAt || changedAtISO,
         itemVersion: itemVersionAfter,
+        createdBy: billCreatedByID,
+        waiterId: billCreatedByID,
       })
     }
 

@@ -2,7 +2,7 @@ import { GlobalConfig } from 'payload'
 
 export const BranchBillingReportGlobal: GlobalConfig = {
   slug: 'branch-billing-report',
-  label: 'Billing Reports',
+  label: 'Billing',
   access: {
     read: () => true,
   },

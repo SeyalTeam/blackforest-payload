@@ -10,6 +10,7 @@ dayjs.tz.setDefault('Asia/Kolkata')
 
 export type BranchBillingReportStat = {
   sNo: number
+  branchId?: string
   branchName: string
   gstMode: string
   totalBills: number
@@ -23,6 +24,10 @@ export type BranchBillingReportStat = {
   settledAmount: number
   cancelledCount: number
   cancelledAmount: number
+  tableOrderCount?: number
+  tableOrderAmount?: number
+  nonTableOrderCount?: number
+  nonTableOrderAmount?: number
   gstInclusiveAmount: number
   gstExclusiveAmount: number
   gstInclusiveTaxableAmount: number
@@ -54,6 +59,25 @@ export type BranchBillingReportTotals = {
   totalExpenses: number
   totalReturns: number
   totalClosingSales: number
+  totalStockOrderReceivedAmount: number
+  stockOrderOrderedAmount?: number
+  stockOrderChefPreparedAmount?: number
+  stockOrderSupervisorConfirmedAmount?: number
+  stockOrderDriverPickedAmount?: number
+  stockOrderIcingOrderedAmount?: number
+  stockOrderBakeryOrderedAmount?: number
+  stockOrderIcingChefPreparedAmount?: number
+  stockOrderBakeryChefPreparedAmount?: number
+  stockOrderIcingSupervisorConfirmedAmount?: number
+  stockOrderBakerySupervisorConfirmedAmount?: number
+  stockOrderIcingDriverPickedAmount?: number
+  stockOrderBakeryDriverPickedAmount?: number
+  stockOrderIcingReceivedAmount?: number
+  stockOrderBakeryReceivedAmount?: number
+  totalSalary: number
+  totalDealerBillingAmount?: number
+  monthlySalary?: number
+  employeeCount?: number
 }
 
 export type TrendPoint = {
@@ -63,7 +87,13 @@ export type TrendPoint = {
   totalBills: number
   totalExpense: number
   totalReturn: number
-  branchesData?: { branchId: string; amount: number; billCount: number }[]
+  totalStockOrder?: number
+  totalDealerBilling?: number
+  tableOrderAmount?: number
+  tableOrderBills?: number
+  nonTableOrderAmount?: number
+  nonTableOrderBills?: number
+  branchesData?: { branchId: string; amount: number; billCount: number; tableOrderAmount?: number; nonTableOrderAmount?: number }[]
 }
 
 export type BranchBillingSummary = {
@@ -615,15 +645,328 @@ export const getBranchBillingReportData = async (
   ])
   const totalClosingSales = closingStats[0]?.total ?? 0
 
+  // Calculate Stock Orders Stages (Order, Chef Prepared, Supervisor Confirmed, Driver Picked, Branch Received)
+  const StockOrderModel = payload.db.collections['stock-orders']
+  const stockOrderStats = StockOrderModel
+    ? await StockOrderModel.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: utcStart, $lte: utcEnd },
+            ...branchFilter,
+          },
+        },
+        { $unwind: '$items' },
+        {
+          $lookup: {
+            from: 'products',
+            let: { prodId: '$items.product' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $or: [
+                      { $eq: ['$_id', '$$prodId'] },
+                      { $eq: [{ $toString: '$_id' }, { $toString: '$$prodId' }] },
+                    ],
+                  },
+                },
+              },
+            ],
+            as: 'productDoc',
+          },
+        },
+        { $unwind: { path: '$productDoc', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: 'categories',
+            let: { catId: '$productDoc.category' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $or: [
+                      { $eq: ['$_id', '$$catId'] },
+                      { $eq: [{ $toString: '$_id' }, { $toString: '$$catId' }] },
+                    ],
+                  },
+                },
+              },
+            ],
+            as: 'categoryDoc',
+          },
+        },
+        { $unwind: { path: '$categoryDoc', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: 'departments',
+            let: { deptId: '$categoryDoc.department' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $or: [
+                      { $eq: ['$_id', '$$deptId'] },
+                      { $eq: [{ $toString: '$_id' }, { $toString: '$$deptId' }] },
+                    ],
+                  },
+                },
+              },
+            ],
+            as: 'deptDoc',
+          },
+        },
+        { $unwind: { path: '$deptDoc', preserveNullAndEmptyArrays: true } },
+        {
+          $addFields: {
+            isIcingDept: {
+              $or: [
+                {
+                  $regexMatch: {
+                    input: { $ifNull: ['$deptDoc.name', ''] },
+                    regex: 'icing',
+                    options: 'i',
+                  },
+                },
+                {
+                  $regexMatch: {
+                    input: { $ifNull: ['$categoryDoc.name', ''] },
+                    regex: 'icing',
+                    options: 'i',
+                  },
+                },
+                { $eq: ['$categoryDoc.isCake', true] },
+              ],
+            },
+          },
+        },
+        {
+          $addFields: {
+            deptGroup: {
+              $cond: ['$isIcingDept', 'ICING', 'BAKERY'],
+            },
+            itemReceivedVal: {
+              $ifNull: [
+                '$items.receivedAmount',
+                {
+                  $multiply: [
+                    { $ifNull: ['$items.receivedQty', 0] },
+                    { $ifNull: ['$items.price', 0] },
+                  ],
+                },
+              ],
+            },
+            itemOrderedVal: {
+              $ifNull: [
+                '$items.requiredAmount',
+                {
+                  $multiply: [
+                    { $ifNull: ['$items.requiredQty', 0] },
+                    { $ifNull: ['$items.price', 0] },
+                  ],
+                },
+              ],
+            },
+            itemChefPreparedVal: {
+              $ifNull: [
+                '$items.sendingAmount',
+                {
+                  $multiply: [
+                    { $ifNull: ['$items.sendingQty', 0] },
+                    { $ifNull: ['$items.price', 0] },
+                  ],
+                },
+              ],
+            },
+            itemSupervisorConfirmedVal: {
+              $ifNull: [
+                '$items.confirmedAmount',
+                {
+                  $multiply: [
+                    { $ifNull: ['$items.confirmedQty', 0] },
+                    { $ifNull: ['$items.price', 0] },
+                  ],
+                },
+              ],
+            },
+            itemDriverPickedVal: {
+              $ifNull: [
+                '$items.pickedAmount',
+                {
+                  $multiply: [
+                    { $ifNull: ['$items.pickedQty', 0] },
+                    { $ifNull: ['$items.price', 0] },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalReceived: { $sum: '$itemReceivedVal' },
+            totalOrdered: { $sum: '$itemOrderedVal' },
+            totalChefPrepared: { $sum: '$itemChefPreparedVal' },
+            totalSupervisorConfirmed: { $sum: '$itemSupervisorConfirmedVal' },
+            totalDriverPicked: { $sum: '$itemDriverPickedVal' },
+
+            icingReceived: {
+              $sum: { $cond: [{ $eq: ['$deptGroup', 'ICING'] }, '$itemReceivedVal', 0] },
+            },
+            bakeryReceived: {
+              $sum: { $cond: [{ $eq: ['$deptGroup', 'BAKERY'] }, '$itemReceivedVal', 0] },
+            },
+
+            icingOrdered: {
+              $sum: { $cond: [{ $eq: ['$deptGroup', 'ICING'] }, '$itemOrderedVal', 0] },
+            },
+            bakeryOrdered: {
+              $sum: { $cond: [{ $eq: ['$deptGroup', 'BAKERY'] }, '$itemOrderedVal', 0] },
+            },
+
+            icingChefPrepared: {
+              $sum: { $cond: [{ $eq: ['$deptGroup', 'ICING'] }, '$itemChefPreparedVal', 0] },
+            },
+            bakeryChefPrepared: {
+              $sum: { $cond: [{ $eq: ['$deptGroup', 'BAKERY'] }, '$itemChefPreparedVal', 0] },
+            },
+
+            icingSupervisorConfirmed: {
+              $sum: { $cond: [{ $eq: ['$deptGroup', 'ICING'] }, '$itemSupervisorConfirmedVal', 0] },
+            },
+            bakerySupervisorConfirmed: {
+              $sum: { $cond: [{ $eq: ['$deptGroup', 'BAKERY'] }, '$itemSupervisorConfirmedVal', 0] },
+            },
+
+            icingDriverPicked: {
+              $sum: { $cond: [{ $eq: ['$deptGroup', 'ICING'] }, '$itemDriverPickedVal', 0] },
+            },
+            bakeryDriverPicked: {
+              $sum: { $cond: [{ $eq: ['$deptGroup', 'BAKERY'] }, '$itemDriverPickedVal', 0] },
+            },
+          },
+        },
+      ])
+    : []
+  const totalStockOrderReceivedAmount = stockOrderStats[0]?.totalReceived ?? stockOrderStats[0]?.total ?? 0
+  const stockOrderOrderedAmount = stockOrderStats[0]?.totalOrdered ?? 0
+  const stockOrderChefPreparedAmount = stockOrderStats[0]?.totalChefPrepared ?? 0
+  const stockOrderSupervisorConfirmedAmount = stockOrderStats[0]?.totalSupervisorConfirmed ?? 0
+  const stockOrderDriverPickedAmount = stockOrderStats[0]?.totalDriverPicked ?? 0
+
+  const stockOrderIcingOrderedAmount = stockOrderStats[0]?.icingOrdered ?? 0
+  const stockOrderBakeryOrderedAmount = stockOrderStats[0]?.bakeryOrdered ?? 0
+  const stockOrderIcingChefPreparedAmount = stockOrderStats[0]?.icingChefPrepared ?? 0
+  const stockOrderBakeryChefPreparedAmount = stockOrderStats[0]?.bakeryChefPrepared ?? 0
+  const stockOrderIcingSupervisorConfirmedAmount = stockOrderStats[0]?.icingSupervisorConfirmed ?? 0
+  const stockOrderBakerySupervisorConfirmedAmount = stockOrderStats[0]?.bakerySupervisorConfirmed ?? 0
+  const stockOrderIcingDriverPickedAmount = stockOrderStats[0]?.icingDriverPicked ?? 0
+  const stockOrderBakeryDriverPickedAmount = stockOrderStats[0]?.bakeryDriverPicked ?? 0
+  const stockOrderIcingReceivedAmount = stockOrderStats[0]?.icingReceived ?? 0
+  const stockOrderBakeryReceivedAmount = stockOrderStats[0]?.bakeryReceived ?? 0
+
+  // Calculate Employees Salary
+  const EmployeeModel = payload.db.collections['employees']
+  const UserModel = payload.db.collections['users']
+
+  let empIdsForBranch: any[] = []
+  if (branchIds && branchIds.length > 0 && UserModel) {
+    const usersWithBranch = await UserModel.find(
+      {
+        branch: { $in: branchIds },
+        employee: { $exists: true, $ne: null },
+      },
+      { employee: 1 },
+    ).lean()
+    empIdsForBranch = usersWithBranch.map((u: any) => u.employee).filter(Boolean)
+  }
+
+  const empMatch: any = {
+    status: { $ne: 'inactive' },
+  }
+  if (branchIds && branchIds.length > 0) {
+    empMatch.$or = [
+      { branch: { $in: branchIds } },
+      ...(empIdsForBranch.length > 0 ? [{ _id: { $in: empIdsForBranch } }] : []),
+    ]
+  }
+
+  const empSalaryStats = EmployeeModel
+    ? await EmployeeModel.aggregate([
+        { $match: empMatch },
+        {
+          $group: {
+            _id: null,
+            monthlySalary: { $sum: { $ifNull: ['$salary', 0] } },
+            count: { $sum: 1 },
+          },
+        },
+      ])
+    : []
+
+  const monthlySalary = empSalaryStats[0]?.monthlySalary ?? 0
+  const employeeCount = empSalaryStats[0]?.count ?? 0
+
+  // Prorate salary based on selected date range
+  const daysDiff = Math.max(1, dayjs(endDateParam).diff(dayjs(startDateParam), 'day') + 1)
+  let totalSalary = monthlySalary
+  if (daysDiff < 28) {
+    totalSalary = Math.round((monthlySalary / 30) * daysDiff)
+  } else {
+    const monthsCount = Math.max(1, Math.round(daysDiff / 30))
+    totalSalary = monthlySalary * monthsCount
+  }
+
+  // Calculate Other Products (Dealer Billings - Paid Amount Only)
+  const DealerBillingModel = payload.db.collections['dealer-billings']
+  const dealerBillingStats = DealerBillingModel
+    ? await DealerBillingModel.aggregate([
+        {
+          $match: {
+            date: { $gte: utcStart, $lte: utcEnd },
+            status: { $ne: 'cancelled' },
+            ...branchFilter,
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: { $ifNull: ['$paidAmount', 0] } },
+          },
+        },
+      ])
+    : []
+  const totalDealerBillingAmount = dealerBillingStats[0]?.total ?? 0
+
   const totals: BranchBillingReportTotals = {
     ...totalsWithoutExpenses,
     totalExpenses,
     totalReturns,
     totalClosingSales,
+    totalStockOrderReceivedAmount,
+    stockOrderOrderedAmount,
+    stockOrderChefPreparedAmount,
+    stockOrderSupervisorConfirmedAmount,
+    stockOrderDriverPickedAmount,
+    stockOrderIcingOrderedAmount,
+    stockOrderBakeryOrderedAmount,
+    stockOrderIcingChefPreparedAmount,
+    stockOrderBakeryChefPreparedAmount,
+    stockOrderIcingSupervisorConfirmedAmount,
+    stockOrderBakerySupervisorConfirmedAmount,
+    stockOrderIcingDriverPickedAmount,
+    stockOrderBakeryDriverPickedAmount,
+    stockOrderIcingReceivedAmount,
+    stockOrderBakeryReceivedAmount,
+    totalSalary,
+    totalDealerBillingAmount,
+    monthlySalary,
+    employeeCount,
   }
 
   const statsWithSn: BranchBillingReportStat[] = stats.map((item, index) => ({
     ...item,
+    branchId: String(item._id || ''),
     sNo: index + 1,
   }))
 
@@ -631,7 +974,7 @@ export const getBranchBillingReportData = async (
   const trendPeriod = args.trendPeriod ?? '12months'
   const now = dayjs().tz('Asia/Kolkata')
   
-  let granularity: 'month' | 'day' | 'hour' = 'month'
+  let granularity: 'month' | 'day' | 'hour' | 'year' = 'month'
   let trendStartDate = now.subtract(11, 'month').startOf('month')
   let pointsCount = 12
 
@@ -641,8 +984,23 @@ export const getBranchBillingReportData = async (
     pointsCount = 24
   } else if (trendPeriod === 'daily') {
     granularity = 'day'
-    trendStartDate = dayjs(startOfDay).tz('Asia/Kolkata')
+    trendStartDate = dayjs(startOfDay).tz('Asia/Kolkata').startOf('day')
     pointsCount = dayjs(endOfDay).tz('Asia/Kolkata').diff(trendStartDate, 'day') + 1
+  } else if (trendPeriod === 'monthly') {
+    const startDayjs = dayjs(startOfDay).tz('Asia/Kolkata')
+    const endDayjs = dayjs(endOfDay).tz('Asia/Kolkata')
+    const diffMonths = endDayjs.diff(startDayjs.startOf('month'), 'month') + 1
+    const diffYears = endDayjs.year() - startDayjs.year() + 1
+
+    if (diffMonths > 24) {
+      granularity = 'year'
+      trendStartDate = startDayjs.startOf('year')
+      pointsCount = Math.max(1, diffYears)
+    } else {
+      granularity = 'month'
+      trendStartDate = startDayjs.startOf('month')
+      pointsCount = Math.max(1, diffMonths)
+    }
   } else if (trendPeriod === 'thisMonth') {
     trendStartDate = now.startOf('month')
     pointsCount = now.date()
@@ -678,8 +1036,8 @@ export const getBranchBillingReportData = async (
     }
   }
 
-  if (trendPeriod === 'hourly' || trendPeriod === 'daily') {
-    trendMatch.createdAt = { $gte: trendStartDate.toDate(), $lte: dayjs(endOfDay).tz('Asia/Kolkata').toDate() }
+  if (trendPeriod === 'hourly' || trendPeriod === 'daily' || trendPeriod === 'monthly') {
+    trendMatch.createdAt = { $gte: startOfDay, $lte: endOfDay }
   }
 
   const needsTrendData = requestedFields.length === 0 || requestedFields.includes('trendData') || requestedFields.includes('summary')
@@ -689,8 +1047,8 @@ export const getBranchBillingReportData = async (
     date: { $gte: trendStartDate.toDate() },
     ...branchFilter,
   }
-  if (trendPeriod === 'hourly' || trendPeriod === 'daily') {
-    expenseTrendMatch.date = { $gte: trendStartDate.toDate(), $lte: dayjs(endOfDay).tz('Asia/Kolkata').toDate() }
+  if (trendPeriod === 'hourly' || trendPeriod === 'daily' || trendPeriod === 'monthly') {
+    expenseTrendMatch.date = { $gte: startOfDay, $lte: endOfDay }
   }
 
   // Aggregate Returns for the same trend period
@@ -698,24 +1056,62 @@ export const getBranchBillingReportData = async (
     createdAt: { $gte: trendStartDate.toDate() },
     ...branchFilter,
   }
-  if (trendPeriod === 'hourly' || trendPeriod === 'daily') {
-    returnTrendMatch.createdAt = { $gte: trendStartDate.toDate(), $lte: dayjs(endOfDay).tz('Asia/Kolkata').toDate() }
+  if (trendPeriod === 'hourly' || trendPeriod === 'daily' || trendPeriod === 'monthly') {
+    returnTrendMatch.createdAt = { $gte: startOfDay, $lte: endOfDay }
   }
 
-  const [rawTrendStats, rawExpenseTrendStats, rawReturnTrendStats] = await Promise.all([
+  // Aggregate Stock Orders for the same trend period
+  const stockOrderTrendMatch: any = {
+    createdAt: { $gte: trendStartDate.toDate() },
+    ...branchFilter,
+  }
+  if (trendPeriod === 'hourly' || trendPeriod === 'daily' || trendPeriod === 'monthly') {
+    stockOrderTrendMatch.createdAt = { $gte: startOfDay, $lte: endOfDay }
+  }
+
+  // Aggregate Dealer Billings for the same trend period
+  const dealerBillingTrendMatch: any = {
+    createdAt: { $gte: trendStartDate.toDate() },
+    ...branchFilter,
+  }
+  if (trendPeriod === 'hourly' || trendPeriod === 'daily' || trendPeriod === 'monthly') {
+    dealerBillingTrendMatch.createdAt = { $gte: startOfDay, $lte: endOfDay }
+  }
+
+  const [rawTrendStats, rawExpenseTrendStats, rawReturnTrendStats, rawStockOrderTrendStats, rawDealerBillingTrendStats] = await Promise.all([
     needsTrendData ? BillingModel.aggregate([
       { $match: trendMatch },
       {
         $group: {
           _id: {
             year: granularity === 'hour' ? null : { $year: { $add: ['$createdAt', 19800000] } },
-            month: granularity === 'hour' ? null : { $month: { $add: ['$createdAt', 19800000] } },
+            month: (granularity === 'hour' || granularity === 'year') ? null : { $month: { $add: ['$createdAt', 19800000] } },
             day: granularity === 'day' ? { $dayOfMonth: { $add: ['$createdAt', 19800000] } } : null,
             hour: granularity === 'hour' ? { $hour: { $add: ['$createdAt', 19800000] } } : null,
             branch: '$branch',
           },
           totalAmount: { $sum: '$totalAmount' },
           totalBills: { $sum: 1 },
+          tableOrderAmount: {
+            $sum: {
+              $cond: [hasTableOrderReferenceExpression, '$totalAmount', 0],
+            },
+          },
+          tableOrderBills: {
+            $sum: {
+              $cond: [hasTableOrderReferenceExpression, 1, 0],
+            },
+          },
+          nonTableOrderAmount: {
+            $sum: {
+              $cond: [{ $not: [hasTableOrderReferenceExpression] }, '$totalAmount', 0],
+            },
+          },
+          nonTableOrderBills: {
+            $sum: {
+              $cond: [{ $not: [hasTableOrderReferenceExpression] }, 1, 0],
+            },
+          },
         },
       },
       { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1, '_id.hour': 1 } },
@@ -727,7 +1123,7 @@ export const getBranchBillingReportData = async (
         $group: {
           _id: {
             year: granularity === 'hour' ? null : { $year: '$date' },
-            month: granularity === 'hour' ? null : { $month: '$date' },
+            month: (granularity === 'hour' || granularity === 'year') ? null : { $month: '$date' },
             day: granularity === 'day' ? { $dayOfMonth: '$date' } : null,
             hour: granularity === 'hour' ? { $hour: '$date' } : null,
           },
@@ -742,7 +1138,7 @@ export const getBranchBillingReportData = async (
         $group: {
           _id: {
             year: granularity === 'hour' ? null : { $year: { $add: ['$createdAt', 19800000] } },
-            month: granularity === 'hour' ? null : { $month: { $add: ['$createdAt', 19800000] } },
+            month: (granularity === 'hour' || granularity === 'year') ? null : { $month: { $add: ['$createdAt', 19800000] } },
             day: granularity === 'day' ? { $dayOfMonth: { $add: ['$createdAt', 19800000] } } : null,
             hour: granularity === 'hour' ? { $hour: { $add: ['$createdAt', 19800000] } } : null,
           },
@@ -750,15 +1146,102 @@ export const getBranchBillingReportData = async (
         },
       },
       { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1, '_id.hour': 1 } },
-    ]) : Promise.resolve([])
+    ]) : Promise.resolve([]),
+    needsTrendData && StockOrderModel ? StockOrderModel.aggregate([
+      { $match: stockOrderTrendMatch },
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id: {
+            year: granularity === 'hour' ? null : { $year: { $add: ['$createdAt', 19800000] } },
+            month: (granularity === 'hour' || granularity === 'year') ? null : { $month: { $add: ['$createdAt', 19800000] } },
+            day: granularity === 'day' ? { $dayOfMonth: { $add: ['$createdAt', 19800000] } } : null,
+            hour: granularity === 'hour' ? { $hour: { $add: ['$createdAt', 19800000] } } : null,
+          },
+          totalStockOrder: {
+            $sum: {
+              $ifNull: [
+                '$items.receivedAmount',
+                {
+                  $multiply: [
+                    { $ifNull: ['$items.receivedQty', 0] },
+                    { $ifNull: ['$items.price', 0] },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1, '_id.hour': 1 } },
+    ]) : Promise.resolve([]),
+    needsTrendData && DealerBillingModel ? DealerBillingModel.aggregate([
+      { $match: dealerBillingTrendMatch },
+      {
+        $group: {
+          _id: {
+            year: granularity === 'hour' ? null : { $year: { $add: ['$createdAt', 19800000] } },
+            month: (granularity === 'hour' || granularity === 'year') ? null : { $month: { $add: ['$createdAt', 19800000] } },
+            day: granularity === 'day' ? { $dayOfMonth: { $add: ['$createdAt', 19800000] } } : null,
+            hour: granularity === 'hour' ? { $hour: { $add: ['$createdAt', 19800000] } } : null,
+          },
+          totalDealerBilling: { $sum: { $ifNull: ['$paidAmount', 0] } },
+        },
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1, '_id.hour': 1 } },
+    ]) : Promise.resolve([]),
   ])
+
+  // Hourly range calculation: from first bill hour to till now / last bill
+  if (granularity === 'hour') {
+    const hoursWithData = rawTrendStats
+      .map((s) => s._id.hour)
+      .filter((h): h is number => typeof h === 'number')
+
+    const isToday = dayjs(startOfDay).tz('Asia/Kolkata').isSame(now, 'day')
+    const isYesterday = dayjs(startOfDay).tz('Asia/Kolkata').isSame(now.subtract(1, 'day'), 'day')
+
+    let startHour = 9
+    let endHour = 22
+
+    if (isToday) {
+      if (hoursWithData.length > 0) {
+        startHour = Math.min(...hoursWithData)
+        // First bill hour to till now (current hour)
+        endHour = Math.max(now.hour(), ...hoursWithData)
+      } else {
+        startHour = Math.min(now.hour(), 9)
+        endHour = Math.max(now.hour(), startHour)
+      }
+    } else if (isYesterday) {
+      if (hoursWithData.length > 0) {
+        startHour = Math.min(...hoursWithData)
+        endHour = Math.max(...hoursWithData)
+      } else {
+        startHour = 9
+        endHour = 22
+      }
+    } else {
+      if (hoursWithData.length > 0) {
+        startHour = Math.min(...hoursWithData)
+        endHour = Math.max(...hoursWithData)
+      } else {
+        startHour = 9
+        endHour = 22
+      }
+    }
+
+    trendStartDate = dayjs(startOfDay).tz('Asia/Kolkata').hour(startHour).minute(0).second(0).millisecond(0)
+    pointsCount = Math.max(1, endHour - startHour + 1)
+  }
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   const trendData: TrendPoint[] = []
 
   for (let i = 0; i < pointsCount; i += 1) {
     let d = trendStartDate
-    if (granularity === 'month') d = trendStartDate.add(i, 'month')
+    if (granularity === 'year') d = trendStartDate.add(i, 'year')
+    else if (granularity === 'month') d = trendStartDate.add(i, 'month')
     else if (granularity === 'day') d = trendStartDate.add(i, 'day')
     else if (granularity === 'hour') d = trendStartDate.add(i, 'hour')
 
@@ -770,40 +1253,51 @@ export const getBranchBillingReportData = async (
     const foundItems = rawTrendStats.filter(
       (s) =>
         (granularity === 'hour' || s._id.year === year) &&
-        (granularity === 'hour' || s._id.month === month) &&
-        (granularity === 'month' || granularity === 'hour' || s._id.day === day) &&
+        (granularity === 'hour' || granularity === 'year' || s._id.month === month) &&
+        (granularity === 'month' || granularity === 'year' || granularity === 'hour' || s._id.day === day) &&
         (granularity !== 'hour' || s._id.hour === hour),
     )
     const totalAmount = foundItems.reduce((acc, curr) => acc + curr.totalAmount, 0)
     const totalBills = foundItems.reduce((acc, curr) => acc + curr.totalBills, 0)
-    const branchesData = foundItems.map(item => ({ branchId: String(item._id.branch), amount: item.totalAmount, billCount: item.totalBills }))
+    const tableOrderAmount = foundItems.reduce((acc, curr) => acc + (curr.tableOrderAmount || 0), 0)
+    const tableOrderBills = foundItems.reduce((acc, curr) => acc + (curr.tableOrderBills || 0), 0)
+    const nonTableOrderAmount = foundItems.reduce((acc, curr) => acc + (curr.nonTableOrderAmount || 0), 0)
+    const nonTableOrderBills = foundItems.reduce((acc, curr) => acc + (curr.nonTableOrderBills || 0), 0)
+    const branchesData = foundItems.map(item => ({
+      branchId: String(item._id.branch),
+      amount: item.totalAmount,
+      billCount: item.totalBills,
+      tableOrderAmount: item.tableOrderAmount || 0,
+      nonTableOrderAmount: item.nonTableOrderAmount || 0,
+    }))
 
-    const foundExpense = rawExpenseTrendStats.find(
-      (s) =>
-        (granularity === 'hour' || s._id.year === year) &&
-        (granularity === 'hour' || s._id.month === month) &&
-        (granularity === 'month' || granularity === 'hour' || s._id.day === day) &&
-        (granularity !== 'hour' || s._id.hour === hour),
-    )
+    const matchFilter = (s: any) =>
+      (granularity === 'hour' || s._id.year === year) &&
+      (granularity === 'hour' || granularity === 'year' || s._id.month === month) &&
+      (granularity === 'month' || granularity === 'year' || granularity === 'hour' || s._id.day === day) &&
+      (granularity !== 'hour' || s._id.hour === hour)
 
-    const foundReturn = rawReturnTrendStats.find(
-      (s) =>
-        (granularity === 'hour' || s._id.year === year) &&
-        (granularity === 'hour' || s._id.month === month) &&
-        (granularity === 'month' || granularity === 'hour' || s._id.day === day) &&
-        (granularity !== 'hour' || s._id.hour === hour),
-    )
+    const foundExpense = rawExpenseTrendStats.find(matchFilter)
+    const foundReturn = rawReturnTrendStats.find(matchFilter)
+    const foundStockOrder = rawStockOrderTrendStats.find(matchFilter)
+    const foundDealerBilling = rawDealerBillingTrendStats.find(matchFilter)
 
-    const dayInitials = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
     let label = ''
     let fullLabel = ''
 
-    if (granularity === 'month') {
-      label = monthNames[month - 1]
+    if (granularity === 'year') {
+      label = String(year)
+      fullLabel = `Year ${year}`
+    } else if (granularity === 'month') {
+      const spansMultipleYears =
+        trendStartDate.year() !== trendStartDate.add(pointsCount - 1, 'month').year()
+      label = spansMultipleYears
+        ? `${monthNames[month - 1]} '${String(year).slice(-2)}`
+        : monthNames[month - 1]
       fullLabel = `${monthNames[month - 1]} ${year}`
     } else if (granularity === 'day') {
-      label = `${d.date()}|${dayInitials[d.day()]}`
-      fullLabel = `${monthNames[month - 1]} ${d.date()}`
+      label = d.format('D MMM')
+      fullLabel = d.format('D MMMM YYYY')
     } else if (granularity === 'hour') {
       label = d.format('h A')
       fullLabel = `${monthNames[month - 1]} ${d.date()}, ${d.format('h A')}`
@@ -816,6 +1310,12 @@ export const getBranchBillingReportData = async (
       totalBills,
       totalExpense: foundExpense?.totalExpense ?? 0,
       totalReturn: foundReturn?.totalReturn ?? 0,
+      totalStockOrder: foundStockOrder?.totalStockOrder ?? 0,
+      totalDealerBilling: foundDealerBilling?.totalDealerBilling ?? 0,
+      tableOrderAmount,
+      tableOrderBills,
+      nonTableOrderAmount,
+      nonTableOrderBills,
       branchesData,
     })
   }

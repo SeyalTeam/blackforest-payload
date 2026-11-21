@@ -57,6 +57,8 @@ export type BillingRealtimePublishInput = {
   tableName?: string | null
   tableNo?: string | null
   timestamp?: string
+  createdBy?: string | null
+  waiterId?: string | null
 }
 
 export type ChatRealtimePublishInput = {
@@ -95,6 +97,8 @@ type BillingRealtimeEvent = {
   tableNo?: string | null
   timestamp: string
   topic: typeof KOT_TOPIC
+  createdBy?: string | null
+  waiterId?: string | null
 }
 
 type StoredEvent = BillingRealtimeEvent & {
@@ -1800,6 +1804,8 @@ export const publishBillingRealtimeEvent = (
       typeof input.itemVersion === 'number' && Number.isFinite(input.itemVersion)
         ? input.itemVersion
         : null,
+    createdBy: input.createdBy?.trim() || null,
+    waiterId: input.waiterId?.trim() || null,
     ...(INCLUDE_ITEM_SNAPSHOT
       ? {
           itemSnapshot: input.itemSnapshot ?? null,

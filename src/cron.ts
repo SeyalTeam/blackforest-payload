@@ -3,10 +3,23 @@ function sanitizeActivityItem(act: any) {
   if (!act || typeof act !== "object") return act
   const clean = { ...act }
   if (clean.capturedImage) {
-    if (typeof clean.capturedImage === "object") {
-      clean.capturedImage = clean.capturedImage.id || clean.capturedImage._id || undefined
-    } else if (typeof clean.capturedImage === "string" && clean.capturedImage.trim()) {
-      clean.capturedImage = clean.capturedImage.trim()
+    let imgId: string | undefined
+    if (typeof clean.capturedImage === 'string') {
+      imgId = clean.capturedImage.trim()
+    } else if (clean.capturedImage && typeof clean.capturedImage === 'object') {
+      if (typeof clean.capturedImage._id === 'string' || typeof clean.capturedImage._id === 'object') {
+        imgId = String(clean.capturedImage._id)
+      } else if (typeof clean.capturedImage.id === 'string') {
+        imgId = clean.capturedImage.id
+      } else if (typeof clean.capturedImage.toHexString === 'function') {
+        imgId = clean.capturedImage.toHexString()
+      } else if (typeof clean.capturedImage.toString === 'function') {
+        const s = clean.capturedImage.toString()
+        if (s !== '[object Object]') imgId = s
+      }
+    }
+    if (imgId && /^[0-9a-fA-F]{24}$/.test(imgId)) {
+      clean.capturedImage = imgId
     } else {
       delete clean.capturedImage
     }

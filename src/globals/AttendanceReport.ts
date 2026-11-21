@@ -2,7 +2,7 @@ import { GlobalConfig } from 'payload'
 
 export const AttendanceReportGlobal: GlobalConfig = {
   slug: 'attendance-report',
-  label: 'Attendance Report',
+  label: 'Attendance',
   access: {
     read: () => true,
   },

@@ -83,6 +83,7 @@ export interface Config {
     tasks: Task;
     'task-columns': TaskColumn;
     'task-completions': TaskCompletion;
+    'task-photo-audits': TaskPhotoAudit;
     'message-threads': MessageThread;
     'message-attachments': MessageAttachment;
     messages: Message;
@@ -136,6 +137,7 @@ export interface Config {
     tasks: TasksSelect<false> | TasksSelect<true>;
     'task-columns': TaskColumnsSelect<false> | TaskColumnsSelect<true>;
     'task-completions': TaskCompletionsSelect<false> | TaskCompletionsSelect<true>;
+    'task-photo-audits': TaskPhotoAuditsSelect<false> | TaskPhotoAuditsSelect<true>;
     'message-threads': MessageThreadsSelect<false> | MessageThreadsSelect<true>;
     'message-attachments': MessageAttachmentsSelect<false> | MessageAttachmentsSelect<true>;
     messages: MessagesSelect<false> | MessagesSelect<true>;
@@ -1096,6 +1098,10 @@ export interface Task {
         | 'store_keeper'
       )
     | null;
+  /**
+   * Specify whether this task applies to Kitchen Chefs, Stock Chefs, or Both.
+   */
+  chefType?: ('both' | 'kitchen' | 'stock') | null;
   assignedEmployee?: (string | null) | Employee;
   assignedUser?: (string | null) | User;
   dueDate?: string | null;
@@ -1117,9 +1123,17 @@ export interface Task {
     | null;
   completedBy?: (string | Employee)[] | null;
   /**
-   * How often this task recurs (Daily, Weekly, Monthly, or Hourly).
+   * How often this task recurs (Daily, Weekly, Monthly, Hourly, or Randomly).
    */
-  frequency?: ('daily' | 'weekly' | 'monthly' | 'hourly') | null;
+  frequency?: ('daily' | 'weekly' | 'monthly' | 'hourly' | 'random') | null;
+  /**
+   * E.g. 2 for 2 hours or 90 for 90 minutes interval.
+   */
+  randomIntervalValue?: number | null;
+  /**
+   * Unit of time for random recurrence interval.
+   */
+  randomIntervalUnit?: ('hours' | 'minutes') | null;
   /**
    * If checked, this task recurs every day on the employee tracker app.
    */
@@ -1128,6 +1142,10 @@ export interface Task {
    * If checked, the employee must capture and upload a photo from their camera before completing this task.
    */
   requiresPhoto?: boolean | null;
+  /**
+   * Allow / require capturing multiple proof photos (e.g. multi-angle kitchen cleaning inspection).
+   */
+  allowMultiplePhotos?: boolean | null;
   /**
    * Uncheck to temporarily disable this task from appearing on employee apps.
    */
@@ -1189,7 +1207,7 @@ export interface TaskCompletion {
     | {
         task: string | Task;
         taskTitle?: string | null;
-        frequency?: ('daily' | 'weekly' | 'monthly' | 'hourly') | null;
+        frequency?: ('daily' | 'weekly' | 'monthly' | 'hourly' | 'random') | null;
         status?: ('yes' | 'no' | 'no_complaint') | null;
         completed?: boolean | null;
         completedAt?: string | null;
@@ -1202,6 +1220,35 @@ export interface TaskCompletion {
         id?: string | null;
       }[]
     | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "task-photo-audits".
+ */
+export interface TaskPhotoAudit {
+  id: string;
+  task: string | Task;
+  taskTitle?: string | null;
+  branch?: (string | null) | Branch;
+  employee?: (string | null) | Employee;
+  user?: (string | null) | User;
+  role?: string | null;
+  chefType?: ('kitchen' | 'stock' | 'both') | null;
+  photos?:
+    | {
+        photo?: (string | null) | Media;
+        photoUrl?: string | null;
+        caption?: string | null;
+        capturedAt?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  photoCount?: number | null;
+  notes?: string | null;
+  status?: ('submitted' | 'verified' | 'flagged') | null;
+  submittedAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2812,6 +2859,10 @@ export interface PayloadLockedDocument {
         value: string | TaskCompletion;
       } | null)
     | ({
+        relationTo: 'task-photo-audits';
+        value: string | TaskPhotoAudit;
+      } | null)
+    | ({
         relationTo: 'message-threads';
         value: string | MessageThread;
       } | null)
@@ -3398,6 +3449,7 @@ export interface TasksSelect<T extends boolean = true> {
   priority?: T;
   assignmentType?: T;
   assignedRole?: T;
+  chefType?: T;
   assignedEmployee?: T;
   assignedUser?: T;
   dueDate?: T;
@@ -3419,8 +3471,11 @@ export interface TasksSelect<T extends boolean = true> {
       };
   completedBy?: T;
   frequency?: T;
+  randomIntervalValue?: T;
+  randomIntervalUnit?: T;
   isDaily?: T;
   requiresPhoto?: T;
+  allowMultiplePhotos?: T;
   isActive?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -3466,6 +3521,34 @@ export interface TaskCompletionsSelect<T extends boolean = true> {
         notes?: T;
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "task-photo-audits_select".
+ */
+export interface TaskPhotoAuditsSelect<T extends boolean = true> {
+  task?: T;
+  taskTitle?: T;
+  branch?: T;
+  employee?: T;
+  user?: T;
+  role?: T;
+  chefType?: T;
+  photos?:
+    | T
+    | {
+        photo?: T;
+        photoUrl?: T;
+        caption?: T;
+        capturedAt?: T;
+        id?: T;
+      };
+  photoCount?: T;
+  notes?: T;
+  status?: T;
+  submittedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

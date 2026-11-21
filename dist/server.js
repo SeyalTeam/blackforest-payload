@@ -1364,6 +1364,8 @@ var init_wsGateway = __esm({
         productNames: Array.isArray(input.productNames) && input.productNames.length > 0 ? input.productNames : null,
         itemUpdatedAt: input.itemUpdatedAt ?? null,
         itemVersion: typeof input.itemVersion === "number" && Number.isFinite(input.itemVersion) ? input.itemVersion : null,
+        createdBy: input.createdBy?.trim() || null,
+        waiterId: input.waiterId?.trim() || null,
         ...INCLUDE_ITEM_SNAPSHOT ? {
           itemSnapshot: input.itemSnapshot ?? null
         } : {}
@@ -6117,6 +6119,22 @@ var init_Tasks = __esm({
           }
         },
         {
+          name: "chefType",
+          type: "select",
+          label: "Chef Sub-Type",
+          defaultValue: "both",
+          options: [
+            { label: "All / Both Chefs (Kitchen & Stock)", value: "both" },
+            { label: "Kitchen Chef Only", value: "kitchen" },
+            { label: "Stock / Prep Chef Only", value: "stock" }
+          ],
+          admin: {
+            position: "sidebar",
+            condition: (data) => (data?.assignedRole || "").toLowerCase() === "chef",
+            description: "Specify whether this task applies to Kitchen Chefs, Stock Chefs, or Both."
+          }
+        },
+        {
           name: "assignedEmployee",
           type: "relationship",
           relationTo: "employees",
@@ -6253,11 +6271,38 @@ var init_Tasks = __esm({
             { label: "Daily", value: "daily" },
             { label: "Weekly", value: "weekly" },
             { label: "Monthly", value: "monthly" },
-            { label: "Hourly", value: "hourly" }
+            { label: "Hourly", value: "hourly" },
+            { label: "Randomly", value: "random" }
           ],
           admin: {
             position: "sidebar",
-            description: "How often this task recurs (Daily, Weekly, Monthly, or Hourly)."
+            description: "How often this task recurs (Daily, Weekly, Monthly, Hourly, or Randomly)."
+          }
+        },
+        {
+          name: "randomIntervalValue",
+          type: "number",
+          label: "Random Interval Time Value",
+          defaultValue: 2,
+          admin: {
+            position: "sidebar",
+            condition: (data) => data?.frequency === "random",
+            description: "E.g. 2 for 2 hours or 90 for 90 minutes interval."
+          }
+        },
+        {
+          name: "randomIntervalUnit",
+          type: "select",
+          label: "Random Interval Unit",
+          defaultValue: "hours",
+          options: [
+            { label: "Hours", value: "hours" },
+            { label: "Minutes", value: "minutes" }
+          ],
+          admin: {
+            position: "sidebar",
+            condition: (data) => data?.frequency === "random",
+            description: "Unit of time for random recurrence interval."
           }
         },
         {
@@ -6278,6 +6323,17 @@ var init_Tasks = __esm({
           admin: {
             position: "sidebar",
             description: "If checked, the employee must capture and upload a photo from their camera before completing this task."
+          }
+        },
+        {
+          name: "allowMultiplePhotos",
+          type: "checkbox",
+          defaultValue: true,
+          label: "Allow Multiple Photos",
+          admin: {
+            position: "sidebar",
+            condition: (data) => Boolean(data?.requiresPhoto),
+            description: "Allow / require capturing multiple proof photos (e.g. multi-angle kitchen cleaning inspection)."
           }
         },
         {
@@ -6592,7 +6648,8 @@ var init_TaskCompletions = __esm({
                     { label: "Daily", value: "daily" },
                     { label: "Weekly", value: "weekly" },
                     { label: "Monthly", value: "monthly" },
-                    { label: "Hourly", value: "hourly" }
+                    { label: "Hourly", value: "hourly" },
+                    { label: "Random", value: "random" }
                   ],
                   defaultValue: "daily",
                   admin: { width: "12%" }
@@ -6653,6 +6710,153 @@ var init_TaskCompletions = __esm({
       timestamps: true
     };
     TaskCompletions_default = TaskCompletions;
+  }
+});
+
+// src/collections/TaskPhotoAudits.ts
+var TaskPhotoAudits, TaskPhotoAudits_default;
+var init_TaskPhotoAudits = __esm({
+  "src/collections/TaskPhotoAudits.ts"() {
+    "use strict";
+    TaskPhotoAudits = {
+      slug: "task-photo-audits",
+      admin: {
+        useAsTitle: "taskTitle",
+        group: "Work",
+        defaultColumns: ["taskTitle", "branch", "employee", "photoCount", "status", "submittedAt"]
+      },
+      access: {
+        read: () => true,
+        create: () => true,
+        update: ({ req: { user } }) => Boolean(user),
+        delete: ({ req: { user } }) => user?.role === "superadmin" || user?.role === "admin"
+      },
+      fields: [
+        {
+          name: "task",
+          type: "relationship",
+          relationTo: "tasks",
+          required: true,
+          label: "Associated Task"
+        },
+        {
+          name: "taskTitle",
+          type: "text",
+          label: "Task Title"
+        },
+        {
+          name: "branch",
+          type: "relationship",
+          relationTo: "branches",
+          label: "Branch"
+        },
+        {
+          name: "employee",
+          type: "relationship",
+          relationTo: "employees",
+          label: "Employee / Chef"
+        },
+        {
+          name: "user",
+          type: "relationship",
+          relationTo: "users",
+          label: "User Account"
+        },
+        {
+          name: "role",
+          type: "text",
+          label: "Role",
+          defaultValue: "chef"
+        },
+        {
+          name: "chefType",
+          type: "select",
+          label: "Chef Sub-Type",
+          options: [
+            { label: "Kitchen Chef", value: "kitchen" },
+            { label: "Stock Chef", value: "stock" },
+            { label: "Both / Other", value: "both" }
+          ],
+          defaultValue: "kitchen"
+        },
+        {
+          name: "photos",
+          type: "array",
+          label: "Audit Photos (Multiple)",
+          fields: [
+            {
+              name: "photo",
+              type: "relationship",
+              relationTo: "media",
+              label: "Media File"
+            },
+            {
+              name: "photoUrl",
+              type: "text",
+              label: "Direct Photo URL"
+            },
+            {
+              name: "caption",
+              type: "text",
+              label: "Caption / Section (e.g. Counter, Stove, Sink, Floor)"
+            },
+            {
+              name: "capturedAt",
+              type: "date",
+              label: "Captured Timestamp"
+            }
+          ]
+        },
+        {
+          name: "photoCount",
+          type: "number",
+          label: "Total Photos Count",
+          defaultValue: 0
+        },
+        {
+          name: "notes",
+          type: "textarea",
+          label: "Chef Notes / Remarks"
+        },
+        {
+          name: "status",
+          type: "select",
+          defaultValue: "submitted",
+          options: [
+            { label: "Submitted", value: "submitted" },
+            { label: "Verified / Approved", value: "verified" },
+            { label: "Flagged / Needs Attention", value: "flagged" }
+          ],
+          admin: {
+            position: "sidebar"
+          }
+        },
+        {
+          name: "submittedAt",
+          type: "date",
+          label: "Submission Timestamp",
+          admin: {
+            position: "sidebar"
+          }
+        }
+      ],
+      hooks: {
+        beforeChange: [
+          ({ data }) => {
+            if (data) {
+              if (!data.submittedAt) {
+                data.submittedAt = (/* @__PURE__ */ new Date()).toISOString();
+              }
+              if (Array.isArray(data.photos)) {
+                data.photoCount = data.photos.length;
+              }
+            }
+            return data;
+          }
+        ]
+      }
+    };
+    TaskPhotoAudits_default = TaskPhotoAudits;
   }
 });
 
@@ -7183,6 +7387,7 @@ var init_updateItemStatus = __esm({
             }
           }
           const branchID = getRelationshipID2(bill.branch);
+          const billCreatedByID = getRelationshipID2(bill.createdBy);
           const kitchenID = typeof body.kitchenId === "string" && body.kitchenId.trim().length > 0 ? body.kitchenId.trim() : null;
           const currentRealtimeSeq = parseNonNegativeInteger(bill.realtimeSeq);
           let nextRealtimeSeq = currentRealtimeSeq;
@@ -7223,7 +7428,9 @@ var init_updateItemStatus = __esm({
                 statusAfter: itemStatusAfter,
                 itemUpdatedAt,
                 itemVersion: itemVersionAfter,
-                itemSnapshot: itemSnapshotForEvent
+                itemSnapshot: itemSnapshotForEvent,
+                createdBy: billCreatedByID,
+                waiterId: billCreatedByID
               });
             }
             if (preparingTimeChanged) {
@@ -7245,7 +7452,9 @@ var init_updateItemStatus = __esm({
                 statusAfter: itemStatusAfter,
                 itemUpdatedAt,
                 itemVersion: itemVersionAfter,
-                itemSnapshot: itemSnapshotForEvent
+                itemSnapshot: itemSnapshotForEvent,
+                createdBy: billCreatedByID,
+                waiterId: billCreatedByID
               });
             }
           }
@@ -7268,7 +7477,9 @@ var init_updateItemStatus = __esm({
               statusBefore: currentBillStatus,
               statusAfter: nextBillStatus,
               itemUpdatedAt: itemUpdatedAt || changedAtISO,
-              itemVersion: itemVersionAfter
+              itemVersion: itemVersionAfter,
+              createdBy: billCreatedByID,
+              waiterId: billCreatedByID
             });
           }
           const updatedBill = await payload.update({
@@ -10495,6 +10706,7 @@ var init_Billings = __esm({
                 const resolvedTableName = rawTableNum && rawSection ? `${rawSection} - Table ${rawTableNum}` : rawTableNum ? `Table ${rawTableNum}` : rawSection || null;
                 const resolvedTableNo = rawTableNum || resolvedTableName || null;
                 const resolvedKotNumber = (doc?.kotNumber || "").toString().trim() || null;
+                const docCreatedByID = getRelationshipID4(doc.createdBy) || (typeof doc.createdBy === "string" ? doc.createdBy : null) || null;
                 const allItemProductNames = curItems.map((it) => (it?.name || (typeof it?.product === "object" ? it?.product?.name : "") || "").toString().trim()).filter(Boolean);
                 const prevItemMap = /* @__PURE__ */ new Map();
                 prevItems.forEach((pi, idx) => {
@@ -10528,7 +10740,9 @@ var init_Billings = __esm({
                       statusAfter,
                       itemUpdatedAt: curItem?.itemUpdatedAt || (/* @__PURE__ */ new Date()).toISOString(),
                       itemVersion: curItem?.itemVersion || 1,
-                      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+                      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+                      createdBy: docCreatedByID,
+                      waiterId: docCreatedByID
                     });
                   }
                 }
@@ -10548,7 +10762,9 @@ var init_Billings = __esm({
                     kotNumber: resolvedKotNumber,
                     productName: allItemProductNames[0] || null,
                     productNames: allItemProductNames,
-                    timestamp: (/* @__PURE__ */ new Date()).toISOString()
+                    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+                    createdBy: docCreatedByID,
+                    waiterId: docCreatedByID
                   });
                 }
               }
@@ -15603,7 +15819,7 @@ var init_AllReport = __esm({
     "use strict";
     AllReportGlobal = {
       slug: "all-report",
-      label: "All Report",
+      label: "All",
       access: {
         read: () => true
       },
@@ -15661,7 +15877,7 @@ var init_BranchBillingReport = __esm({
     "use strict";
     BranchBillingReportGlobal = {
       slug: "branch-billing-report",
-      label: "Billing Reports",
+      label: "Billing",
       access: {
         read: () => true
       },
@@ -15689,7 +15905,7 @@ var init_AccountsBillsReport = __esm({
     "use strict";
     AccountsBillsReportGlobal = {
       slug: "accounts-bills-report",
-      label: "All Bills Report",
+      label: "All Bills",
       access: {
         read: () => true
       },
@@ -15745,7 +15961,7 @@ var init_GSTReport = __esm({
     "use strict";
     GSTReportGlobal = {
       slug: "gst-report",
-      label: "GST Report",
+      label: "GST",
       access: {
         read: () => true
       },
@@ -15861,7 +16077,7 @@ var init_ChefReport = __esm({
     "use strict";
     ChefReportGlobal = {
       slug: "chef-report",
-      label: "Chef Report",
+      label: "Chef",
       access: {
         read: () => true
       },
@@ -16493,14 +16709,303 @@ var init_branchBilling = __esm({
         { $group: { _id: null, total: { $sum: "$totalSales" } } }
       ]);
       const totalClosingSales = closingStats[0]?.total ?? 0;
+      const StockOrderModel = payload.db.collections["stock-orders"];
+      const stockOrderStats = StockOrderModel ? await StockOrderModel.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: utcStart, $lte: utcEnd },
+            ...branchFilter
+          }
+        },
+        { $unwind: "$items" },
+        {
+          $lookup: {
+            from: "products",
+            let: { prodId: "$items.product" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $or: [
+                      { $eq: ["$_id", "$$prodId"] },
+                      { $eq: [{ $toString: "$_id" }, { $toString: "$$prodId" }] }
+                    ]
+                  }
+                }
+              }
+            ],
+            as: "productDoc"
+          }
+        },
+        { $unwind: { path: "$productDoc", preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: "categories",
+            let: { catId: "$productDoc.category" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $or: [
+                      { $eq: ["$_id", "$$catId"] },
+                      { $eq: [{ $toString: "$_id" }, { $toString: "$$catId" }] }
+                    ]
+                  }
+                }
+              }
+            ],
+            as: "categoryDoc"
+          }
+        },
+        { $unwind: { path: "$categoryDoc", preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: "departments",
+            let: { deptId: "$categoryDoc.department" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $or: [
+                      { $eq: ["$_id", "$$deptId"] },
+                      { $eq: [{ $toString: "$_id" }, { $toString: "$$deptId" }] }
+                    ]
+                  }
+                }
+              }
+            ],
+            as: "deptDoc"
+          }
+        },
+        { $unwind: { path: "$deptDoc", preserveNullAndEmptyArrays: true } },
+        {
+          $addFields: {
+            isIcingDept: {
+              $or: [
+                {
+                  $regexMatch: {
+                    input: { $ifNull: ["$deptDoc.name", ""] },
+                    regex: "icing",
+                    options: "i"
+                  }
+                },
+                {
+                  $regexMatch: {
+                    input: { $ifNull: ["$categoryDoc.name", ""] },
+                    regex: "icing",
+                    options: "i"
+                  }
+                },
+                { $eq: ["$categoryDoc.isCake", true] }
+              ]
+            }
+          }
+        },
+        {
+          $addFields: {
+            deptGroup: {
+              $cond: ["$isIcingDept", "ICING", "BAKERY"]
+            },
+            itemReceivedVal: {
+              $ifNull: [
+                "$items.receivedAmount",
+                {
+                  $multiply: [
+                    { $ifNull: ["$items.receivedQty", 0] },
+                    { $ifNull: ["$items.price", 0] }
+                  ]
+                }
+              ]
+            },
+            itemOrderedVal: {
+              $ifNull: [
+                "$items.requiredAmount",
+                {
+                  $multiply: [
+                    { $ifNull: ["$items.requiredQty", 0] },
+                    { $ifNull: ["$items.price", 0] }
+                  ]
+                }
+              ]
+            },
+            itemChefPreparedVal: {
+              $ifNull: [
+                "$items.sendingAmount",
+                {
+                  $multiply: [
+                    { $ifNull: ["$items.sendingQty", 0] },
+                    { $ifNull: ["$items.price", 0] }
+                  ]
+                }
+              ]
+            },
+            itemSupervisorConfirmedVal: {
+              $ifNull: [
+                "$items.confirmedAmount",
+                {
+                  $multiply: [
+                    { $ifNull: ["$items.confirmedQty", 0] },
+                    { $ifNull: ["$items.price", 0] }
+                  ]
+                }
+              ]
+            },
+            itemDriverPickedVal: {
+              $ifNull: [
+                "$items.pickedAmount",
+                {
+                  $multiply: [
+                    { $ifNull: ["$items.pickedQty", 0] },
+                    { $ifNull: ["$items.price", 0] }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalReceived: { $sum: "$itemReceivedVal" },
+            totalOrdered: { $sum: "$itemOrderedVal" },
+            totalChefPrepared: { $sum: "$itemChefPreparedVal" },
+            totalSupervisorConfirmed: { $sum: "$itemSupervisorConfirmedVal" },
+            totalDriverPicked: { $sum: "$itemDriverPickedVal" },
+            icingReceived: {
+              $sum: { $cond: [{ $eq: ["$deptGroup", "ICING"] }, "$itemReceivedVal", 0] }
+            },
+            bakeryReceived: {
+              $sum: { $cond: [{ $eq: ["$deptGroup", "BAKERY"] }, "$itemReceivedVal", 0] }
+            },
+            icingOrdered: {
+              $sum: { $cond: [{ $eq: ["$deptGroup", "ICING"] }, "$itemOrderedVal", 0] }
+            },
+            bakeryOrdered: {
+              $sum: { $cond: [{ $eq: ["$deptGroup", "BAKERY"] }, "$itemOrderedVal", 0] }
+            },
+            icingChefPrepared: {
+              $sum: { $cond: [{ $eq: ["$deptGroup", "ICING"] }, "$itemChefPreparedVal", 0] }
+            },
+            bakeryChefPrepared: {
+              $sum: { $cond: [{ $eq: ["$deptGroup", "BAKERY"] }, "$itemChefPreparedVal", 0] }
+            },
+            icingSupervisorConfirmed: {
+              $sum: { $cond: [{ $eq: ["$deptGroup", "ICING"] }, "$itemSupervisorConfirmedVal", 0] }
+            },
+            bakerySupervisorConfirmed: {
+              $sum: { $cond: [{ $eq: ["$deptGroup", "BAKERY"] }, "$itemSupervisorConfirmedVal", 0] }
+            },
+            icingDriverPicked: {
+              $sum: { $cond: [{ $eq: ["$deptGroup", "ICING"] }, "$itemDriverPickedVal", 0] }
+            },
+            bakeryDriverPicked: {
+              $sum: { $cond: [{ $eq: ["$deptGroup", "BAKERY"] }, "$itemDriverPickedVal", 0] }
+            }
+          }
+        }
+      ]) : [];
+      const totalStockOrderReceivedAmount = stockOrderStats[0]?.totalReceived ?? stockOrderStats[0]?.total ?? 0;
+      const stockOrderOrderedAmount = stockOrderStats[0]?.totalOrdered ?? 0;
+      const stockOrderChefPreparedAmount = stockOrderStats[0]?.totalChefPrepared ?? 0;
+      const stockOrderSupervisorConfirmedAmount = stockOrderStats[0]?.totalSupervisorConfirmed ?? 0;
+      const stockOrderDriverPickedAmount = stockOrderStats[0]?.totalDriverPicked ?? 0;
+      const stockOrderIcingOrderedAmount = stockOrderStats[0]?.icingOrdered ?? 0;
+      const stockOrderBakeryOrderedAmount = stockOrderStats[0]?.bakeryOrdered ?? 0;
+      const stockOrderIcingChefPreparedAmount = stockOrderStats[0]?.icingChefPrepared ?? 0;
+      const stockOrderBakeryChefPreparedAmount = stockOrderStats[0]?.bakeryChefPrepared ?? 0;
+      const stockOrderIcingSupervisorConfirmedAmount = stockOrderStats[0]?.icingSupervisorConfirmed ?? 0;
+      const stockOrderBakerySupervisorConfirmedAmount = stockOrderStats[0]?.bakerySupervisorConfirmed ?? 0;
+      const stockOrderIcingDriverPickedAmount = stockOrderStats[0]?.icingDriverPicked ?? 0;
+      const stockOrderBakeryDriverPickedAmount = stockOrderStats[0]?.bakeryDriverPicked ?? 0;
+      const stockOrderIcingReceivedAmount = stockOrderStats[0]?.icingReceived ?? 0;
+      const stockOrderBakeryReceivedAmount = stockOrderStats[0]?.bakeryReceived ?? 0;
+      const EmployeeModel = payload.db.collections["employees"];
+      const UserModel = payload.db.collections["users"];
+      let empIdsForBranch = [];
+      if (branchIds && branchIds.length > 0 && UserModel) {
+        const usersWithBranch = await UserModel.find(
+          {
+            branch: { $in: branchIds },
+            employee: { $exists: true, $ne: null }
+          },
+          { employee: 1 }
+        ).lean();
+        empIdsForBranch = usersWithBranch.map((u) => u.employee).filter(Boolean);
+      }
+      const empMatch = {
+        status: { $ne: "inactive" }
+      };
+      if (branchIds && branchIds.length > 0) {
+        empMatch.$or = [
+          { branch: { $in: branchIds } },
+          ...empIdsForBranch.length > 0 ? [{ _id: { $in: empIdsForBranch } }] : []
+        ];
+      }
+      const empSalaryStats = EmployeeModel ? await EmployeeModel.aggregate([
+        { $match: empMatch },
+        {
+          $group: {
+            _id: null,
+            monthlySalary: { $sum: { $ifNull: ["$salary", 0] } },
+            count: { $sum: 1 }
+          }
+        }
+      ]) : [];
+      const monthlySalary = empSalaryStats[0]?.monthlySalary ?? 0;
+      const employeeCount = empSalaryStats[0]?.count ?? 0;
+      const daysDiff = Math.max(1, dayjs6(endDateParam).diff(dayjs6(startDateParam), "day") + 1);
+      let totalSalary = monthlySalary;
+      if (daysDiff < 28) {
+        totalSalary = Math.round(monthlySalary / 30 * daysDiff);
+      } else {
+        const monthsCount = Math.max(1, Math.round(daysDiff / 30));
+        totalSalary = monthlySalary * monthsCount;
+      }
+      const DealerBillingModel = payload.db.collections["dealer-billings"];
+      const dealerBillingStats = DealerBillingModel ? await DealerBillingModel.aggregate([
+        {
+          $match: {
+            date: { $gte: utcStart, $lte: utcEnd },
+            status: { $ne: "cancelled" },
+            ...branchFilter
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: { $ifNull: ["$paidAmount", 0] } }
+          }
+        }
+      ]) : [];
+      const totalDealerBillingAmount = dealerBillingStats[0]?.total ?? 0;
       const totals = {
         ...totalsWithoutExpenses,
         totalExpenses,
         totalReturns,
-        totalClosingSales
+        totalClosingSales,
+        totalStockOrderReceivedAmount,
+        stockOrderOrderedAmount,
+        stockOrderChefPreparedAmount,
+        stockOrderSupervisorConfirmedAmount,
+        stockOrderDriverPickedAmount,
+        stockOrderIcingOrderedAmount,
+        stockOrderBakeryOrderedAmount,
+        stockOrderIcingChefPreparedAmount,
+        stockOrderBakeryChefPreparedAmount,
+        stockOrderIcingSupervisorConfirmedAmount,
+        stockOrderBakerySupervisorConfirmedAmount,
+        stockOrderIcingDriverPickedAmount,
+        stockOrderBakeryDriverPickedAmount,
+        stockOrderIcingReceivedAmount,
+        stockOrderBakeryReceivedAmount,
+        totalSalary,
+        totalDealerBillingAmount,
+        monthlySalary,
+        employeeCount
       };
       const statsWithSn = stats.map((item, index) => ({
         ...item,
+        branchId: String(item._id || ""),
         sNo: index + 1
       }));
       const trendPeriod = args.trendPeriod ?? "12months";
@@ -16514,8 +17019,22 @@ var init_branchBilling = __esm({
         pointsCount = 24;
       } else if (trendPeriod === "daily") {
         granularity = "day";
-        trendStartDate = dayjs6(startOfDay).tz("Asia/Kolkata");
+        trendStartDate = dayjs6(startOfDay).tz("Asia/Kolkata").startOf("day");
         pointsCount = dayjs6(endOfDay).tz("Asia/Kolkata").diff(trendStartDate, "day") + 1;
+      } else if (trendPeriod === "monthly") {
+        const startDayjs = dayjs6(startOfDay).tz("Asia/Kolkata");
+        const endDayjs = dayjs6(endOfDay).tz("Asia/Kolkata");
+        const diffMonths = endDayjs.diff(startDayjs.startOf("month"), "month") + 1;
+        const diffYears = endDayjs.year() - startDayjs.year() + 1;
+        if (diffMonths > 24) {
+          granularity = "year";
+          trendStartDate = startDayjs.startOf("year");
+          pointsCount = Math.max(1, diffYears);
+        } else {
+          granularity = "month";
+          trendStartDate = startDayjs.startOf("month");
+          pointsCount = Math.max(1, diffMonths);
+        }
       } else if (trendPeriod === "thisMonth") {
         trendStartDate = now.startOf("month");
         pointsCount = now.date();
@@ -16548,38 +17067,72 @@ var init_branchBilling = __esm({
           trendMatch.$expr = { $not: hasTableOrderReferenceExpression };
         }
       }
-      if (trendPeriod === "hourly" || trendPeriod === "daily") {
-        trendMatch.createdAt = { $gte: trendStartDate.toDate(), $lte: dayjs6(endOfDay).tz("Asia/Kolkata").toDate() };
+      if (trendPeriod === "hourly" || trendPeriod === "daily" || trendPeriod === "monthly") {
+        trendMatch.createdAt = { $gte: startOfDay, $lte: endOfDay };
       }
       const needsTrendData = requestedFields.length === 0 || requestedFields.includes("trendData") || requestedFields.includes("summary");
       const expenseTrendMatch = {
         date: { $gte: trendStartDate.toDate() },
         ...branchFilter
       };
-      if (trendPeriod === "hourly" || trendPeriod === "daily") {
-        expenseTrendMatch.date = { $gte: trendStartDate.toDate(), $lte: dayjs6(endOfDay).tz("Asia/Kolkata").toDate() };
+      if (trendPeriod === "hourly" || trendPeriod === "daily" || trendPeriod === "monthly") {
+        expenseTrendMatch.date = { $gte: startOfDay, $lte: endOfDay };
       }
       const returnTrendMatch = {
         createdAt: { $gte: trendStartDate.toDate() },
         ...branchFilter
       };
-      if (trendPeriod === "hourly" || trendPeriod === "daily") {
-        returnTrendMatch.createdAt = { $gte: trendStartDate.toDate(), $lte: dayjs6(endOfDay).tz("Asia/Kolkata").toDate() };
+      if (trendPeriod === "hourly" || trendPeriod === "daily" || trendPeriod === "monthly") {
+        returnTrendMatch.createdAt = { $gte: startOfDay, $lte: endOfDay };
       }
-      const [rawTrendStats, rawExpenseTrendStats, rawReturnTrendStats] = await Promise.all([
+      const stockOrderTrendMatch = {
+        createdAt: { $gte: trendStartDate.toDate() },
+        ...branchFilter
+      };
+      if (trendPeriod === "hourly" || trendPeriod === "daily" || trendPeriod === "monthly") {
+        stockOrderTrendMatch.createdAt = { $gte: startOfDay, $lte: endOfDay };
+      }
+      const dealerBillingTrendMatch = {
+        createdAt: { $gte: trendStartDate.toDate() },
+        ...branchFilter
+      };
+      if (trendPeriod === "hourly" || trendPeriod === "daily" || trendPeriod === "monthly") {
+        dealerBillingTrendMatch.createdAt = { $gte: startOfDay, $lte: endOfDay };
+      }
+      const [rawTrendStats, rawExpenseTrendStats, rawReturnTrendStats, rawStockOrderTrendStats, rawDealerBillingTrendStats] = await Promise.all([
         needsTrendData ? BillingModel.aggregate([
           { $match: trendMatch },
           {
             $group: {
               _id: {
                 year: granularity === "hour" ? null : { $year: { $add: ["$createdAt", 198e5] } },
-                month: granularity === "hour" ? null : { $month: { $add: ["$createdAt", 198e5] } },
+                month: granularity === "hour" || granularity === "year" ? null : { $month: { $add: ["$createdAt", 198e5] } },
                 day: granularity === "day" ? { $dayOfMonth: { $add: ["$createdAt", 198e5] } } : null,
                 hour: granularity === "hour" ? { $hour: { $add: ["$createdAt", 198e5] } } : null,
                 branch: "$branch"
               },
               totalAmount: { $sum: "$totalAmount" },
-              totalBills: { $sum: 1 }
+              totalBills: { $sum: 1 },
+              tableOrderAmount: {
+                $sum: {
+                  $cond: [hasTableOrderReferenceExpression, "$totalAmount", 0]
+                }
+              },
+              tableOrderBills: {
+                $sum: {
+                  $cond: [hasTableOrderReferenceExpression, 1, 0]
+                }
+              },
+              nonTableOrderAmount: {
+                $sum: {
+                  $cond: [{ $not: [hasTableOrderReferenceExpression] }, "$totalAmount", 0]
+                }
+              },
+              nonTableOrderBills: {
+                $sum: {
+                  $cond: [{ $not: [hasTableOrderReferenceExpression] }, 1, 0]
+                }
+              }
             }
           },
           { $sort: { "_id.year": 1, "_id.month": 1, "_id.day": 1, "_id.hour": 1 } }
@@ -16591,7 +17144,7 @@ var init_branchBilling = __esm({
             $group: {
               _id: {
                 year: granularity === "hour" ? null : { $year: "$date" },
-                month: granularity === "hour" ? null : { $month: "$date" },
+                month: granularity === "hour" || granularity === "year" ? null : { $month: "$date" },
                 day: granularity === "day" ? { $dayOfMonth: "$date" } : null,
                 hour: granularity === "hour" ? { $hour: "$date" } : null
               },
@@ -16606,7 +17159,7 @@ var init_branchBilling = __esm({
             $group: {
               _id: {
                 year: granularity === "hour" ? null : { $year: { $add: ["$createdAt", 198e5] } },
-                month: granularity === "hour" ? null : { $month: { $add: ["$createdAt", 198e5] } },
+                month: granularity === "hour" || granularity === "year" ? null : { $month: { $add: ["$createdAt", 198e5] } },
                 day: granularity === "day" ? { $dayOfMonth: { $add: ["$createdAt", 198e5] } } : null,
                 hour: granularity === "hour" ? { $hour: { $add: ["$createdAt", 198e5] } } : null
               },
@@ -16614,13 +17167,91 @@ var init_branchBilling = __esm({
             }
           },
           { $sort: { "_id.year": 1, "_id.month": 1, "_id.day": 1, "_id.hour": 1 } }
+        ]) : Promise.resolve([]),
+        needsTrendData && StockOrderModel ? StockOrderModel.aggregate([
+          { $match: stockOrderTrendMatch },
+          { $unwind: "$items" },
+          {
+            $group: {
+              _id: {
+                year: granularity === "hour" ? null : { $year: { $add: ["$createdAt", 198e5] } },
+                month: granularity === "hour" || granularity === "year" ? null : { $month: { $add: ["$createdAt", 198e5] } },
+                day: granularity === "day" ? { $dayOfMonth: { $add: ["$createdAt", 198e5] } } : null,
+                hour: granularity === "hour" ? { $hour: { $add: ["$createdAt", 198e5] } } : null
+              },
+              totalStockOrder: {
+                $sum: {
+                  $ifNull: [
+                    "$items.receivedAmount",
+                    {
+                      $multiply: [
+                        { $ifNull: ["$items.receivedQty", 0] },
+                        { $ifNull: ["$items.price", 0] }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          { $sort: { "_id.year": 1, "_id.month": 1, "_id.day": 1, "_id.hour": 1 } }
+        ]) : Promise.resolve([]),
+        needsTrendData && DealerBillingModel ? DealerBillingModel.aggregate([
+          { $match: dealerBillingTrendMatch },
+          {
+            $group: {
+              _id: {
+                year: granularity === "hour" ? null : { $year: { $add: ["$createdAt", 198e5] } },
+                month: granularity === "hour" || granularity === "year" ? null : { $month: { $add: ["$createdAt", 198e5] } },
+                day: granularity === "day" ? { $dayOfMonth: { $add: ["$createdAt", 198e5] } } : null,
+                hour: granularity === "hour" ? { $hour: { $add: ["$createdAt", 198e5] } } : null
+              },
+              totalDealerBilling: { $sum: { $ifNull: ["$paidAmount", 0] } }
+            }
+          },
+          { $sort: { "_id.year": 1, "_id.month": 1, "_id.day": 1, "_id.hour": 1 } }
         ]) : Promise.resolve([])
       ]);
+      if (granularity === "hour") {
+        const hoursWithData = rawTrendStats.map((s) => s._id.hour).filter((h) => typeof h === "number");
+        const isToday = dayjs6(startOfDay).tz("Asia/Kolkata").isSame(now, "day");
+        const isYesterday = dayjs6(startOfDay).tz("Asia/Kolkata").isSame(now.subtract(1, "day"), "day");
+        let startHour = 9;
+        let endHour = 22;
+        if (isToday) {
+          if (hoursWithData.length > 0) {
+            startHour = Math.min(...hoursWithData);
+            endHour = Math.max(now.hour(), ...hoursWithData);
+          } else {
+            startHour = Math.min(now.hour(), 9);
+            endHour = Math.max(now.hour(), startHour);
+          }
+        } else if (isYesterday) {
+          if (hoursWithData.length > 0) {
+            startHour = Math.min(...hoursWithData);
+            endHour = Math.max(...hoursWithData);
+          } else {
+            startHour = 9;
+            endHour = 22;
+          }
+        } else {
+          if (hoursWithData.length > 0) {
+            startHour = Math.min(...hoursWithData);
+            endHour = Math.max(...hoursWithData);
+          } else {
+            startHour = 9;
+            endHour = 22;
+          }
+        }
+        trendStartDate = dayjs6(startOfDay).tz("Asia/Kolkata").hour(startHour).minute(0).second(0).millisecond(0);
+        pointsCount = Math.max(1, endHour - startHour + 1);
+      }
       const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
       const trendData = [];
       for (let i = 0; i < pointsCount; i += 1) {
         let d = trendStartDate;
-        if (granularity === "month") d = trendStartDate.add(i, "month");
+        if (granularity === "year") d = trendStartDate.add(i, "year");
+        else if (granularity === "month") d = trendStartDate.add(i, "month");
         else if (granularity === "day") d = trendStartDate.add(i, "day");
         else if (granularity === "hour") d = trendStartDate.add(i, "hour");
         const year = d.year();
@@ -16628,26 +17259,38 @@ var init_branchBilling = __esm({
         const day = granularity === "day" || granularity === "hour" ? d.date() : null;
         const hour = granularity === "hour" ? d.hour() : null;
         const foundItems = rawTrendStats.filter(
-          (s) => (granularity === "hour" || s._id.year === year) && (granularity === "hour" || s._id.month === month) && (granularity === "month" || granularity === "hour" || s._id.day === day) && (granularity !== "hour" || s._id.hour === hour)
+          (s) => (granularity === "hour" || s._id.year === year) && (granularity === "hour" || granularity === "year" || s._id.month === month) && (granularity === "month" || granularity === "year" || granularity === "hour" || s._id.day === day) && (granularity !== "hour" || s._id.hour === hour)
         );
         const totalAmount = foundItems.reduce((acc, curr) => acc + curr.totalAmount, 0);
         const totalBills = foundItems.reduce((acc, curr) => acc + curr.totalBills, 0);
-        const branchesData = foundItems.map((item) => ({ branchId: String(item._id.branch), amount: item.totalAmount, billCount: item.totalBills }));
-        const foundExpense = rawExpenseTrendStats.find(
-          (s) => (granularity === "hour" || s._id.year === year) && (granularity === "hour" || s._id.month === month) && (granularity === "month" || granularity === "hour" || s._id.day === day) && (granularity !== "hour" || s._id.hour === hour)
-        );
-        const foundReturn = rawReturnTrendStats.find(
-          (s) => (granularity === "hour" || s._id.year === year) && (granularity === "hour" || s._id.month === month) && (granularity === "month" || granularity === "hour" || s._id.day === day) && (granularity !== "hour" || s._id.hour === hour)
-        );
-        const dayInitials = ["S", "M", "T", "W", "T", "F", "S"];
+        const tableOrderAmount = foundItems.reduce((acc, curr) => acc + (curr.tableOrderAmount || 0), 0);
+        const tableOrderBills = foundItems.reduce((acc, curr) => acc + (curr.tableOrderBills || 0), 0);
+        const nonTableOrderAmount = foundItems.reduce((acc, curr) => acc + (curr.nonTableOrderAmount || 0), 0);
+        const nonTableOrderBills = foundItems.reduce((acc, curr) => acc + (curr.nonTableOrderBills || 0), 0);
+        const branchesData = foundItems.map((item) => ({
+          branchId: String(item._id.branch),
+          amount: item.totalAmount,
+          billCount: item.totalBills,
+          tableOrderAmount: item.tableOrderAmount || 0,
+          nonTableOrderAmount: item.nonTableOrderAmount || 0
+        }));
+        const matchFilter = (s) => (granularity === "hour" || s._id.year === year) && (granularity === "hour" || granularity === "year" || s._id.month === month) && (granularity === "month" || granularity === "year" || granularity === "hour" || s._id.day === day) && (granularity !== "hour" || s._id.hour === hour);
+        const foundExpense = rawExpenseTrendStats.find(matchFilter);
+        const foundReturn = rawReturnTrendStats.find(matchFilter);
+        const foundStockOrder = rawStockOrderTrendStats.find(matchFilter);
+        const foundDealerBilling = rawDealerBillingTrendStats.find(matchFilter);
         let label = "";
         let fullLabel = "";
-        if (granularity === "month") {
-          label = monthNames[month - 1];
+        if (granularity === "year") {
+          label = String(year);
+          fullLabel = `Year ${year}`;
+        } else if (granularity === "month") {
+          const spansMultipleYears = trendStartDate.year() !== trendStartDate.add(pointsCount - 1, "month").year();
+          label = spansMultipleYears ? `${monthNames[month - 1]} '${String(year).slice(-2)}` : monthNames[month - 1];
           fullLabel = `${monthNames[month - 1]} ${year}`;
         } else if (granularity === "day") {
-          label = `${d.date()}|${dayInitials[d.day()]}`;
-          fullLabel = `${monthNames[month - 1]} ${d.date()}`;
+          label = d.format("D MMM");
+          fullLabel = d.format("D MMMM YYYY");
         } else if (granularity === "hour") {
           label = d.format("h A");
           fullLabel = `${monthNames[month - 1]} ${d.date()}, ${d.format("h A")}`;
@@ -16659,6 +17302,12 @@ var init_branchBilling = __esm({
           totalBills,
           totalExpense: foundExpense?.totalExpense ?? 0,
           totalReturn: foundReturn?.totalReturn ?? 0,
+          totalStockOrder: foundStockOrder?.totalStockOrder ?? 0,
+          totalDealerBilling: foundDealerBilling?.totalDealerBilling ?? 0,
+          tableOrderAmount,
+          tableOrderBills,
+          nonTableOrderAmount,
+          nonTableOrderBills,
           branchesData
         });
       }
@@ -20329,7 +20978,7 @@ var init_ClosingEntryReport = __esm({
     "use strict";
     ClosingEntryReportGlobal = {
       slug: "closing-entry-report",
-      label: "Closing Report",
+      label: "Closing",
       // Label in the sidebar
       access: {
         read: () => true
@@ -20418,7 +21067,7 @@ var init_AttendanceReport = __esm({
     "use strict";
     AttendanceReportGlobal = {
       slug: "attendance-report",
-      label: "Attendance Report",
+      label: "Attendance",
       access: {
         read: () => true
       },
@@ -21269,7 +21918,7 @@ var init_InventoryReport = __esm({
     "use strict";
     InventoryReportGlobal = {
       slug: "inventory-report",
-      label: "Inventory Report",
+      label: "Inventory",
       access: {
         read: () => true
       },
@@ -21626,7 +22275,7 @@ var init_StockOrderReport = __esm({
     "use strict";
     StockOrderReportGlobal = {
       slug: "stock-order-report",
-      label: "Stock Order Report",
+      label: "Stock Order",
       access: {
         read: () => true
       },
@@ -22398,7 +23047,7 @@ var init_AfterstockCustomerReport = __esm({
     "use strict";
     AfterstockCustomerReportGlobal = {
       slug: "afterstock-customer-report",
-      label: "Customer Report",
+      label: "Customer",
       access: {
         read: () => true
       },
@@ -22524,7 +23173,7 @@ var init_ReviewReport = __esm({
     "use strict";
     ReviewReportGlobal = {
       slug: "review-report",
-      label: "Review Report",
+      label: "Review",
       access: {
         read: () => true
       },
@@ -23733,7 +24382,7 @@ var init_InstockEntryReport = __esm({
     "use strict";
     InstockEntryReportGlobal = {
       slug: "instock-entry-report",
-      label: "Instock Entry Report",
+      label: "Instock Entry",
       access: {
         read: () => true
       },
@@ -24306,7 +24955,7 @@ var init_ExpenseReport = __esm({
     "use strict";
     ExpenseReportGlobal = {
       slug: "expense-report",
-      label: "Expense Reports",
+      label: "Expense",
       access: {
         read: () => true
       },
@@ -26580,7 +27229,7 @@ var init_ReturnOrderReport = __esm({
     "use strict";
     ReturnOrderReportGlobal = {
       slug: "return-order-report",
-      label: "Return Order Report",
+      label: "Return Order",
       access: {
         read: () => true
       },
@@ -34386,6 +35035,7 @@ ${signalLine}` : signalLine;
           overrideAccess: true
         });
         try {
+          const billCreatedByID = getRelationshipId(matchedBill?.createdBy) || null;
           publishBillingRealtimeEvent({
             eventId: `${matchedBill.id}:waiter-call:${Date.now()}`,
             eventType: "waiter_call_received",
@@ -34393,6 +35043,11 @@ ${signalLine}` : signalLine;
             branchId,
             billingId: String(matchedBill.id),
             statusAfter: "waiter_calling",
+            tableName: resolvedTableNumber,
+            tableNo: resolvedTableNumber,
+            section: resolvedSection,
+            createdBy: billCreatedByID,
+            waiterId: billCreatedByID,
             timestamp: (/* @__PURE__ */ new Date()).toISOString()
           });
         } catch (wsErr) {
@@ -35532,13 +36187,33 @@ var init_reportQueries = __esm({
           nonGstAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
           totalExpenses: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
           totalReturns: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
-          totalClosingSales: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) }
+          totalClosingSales: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+          totalStockOrderReceivedAmount: { type: graphQL.GraphQLFloat },
+          stockOrderOrderedAmount: { type: graphQL.GraphQLFloat },
+          stockOrderChefPreparedAmount: { type: graphQL.GraphQLFloat },
+          stockOrderSupervisorConfirmedAmount: { type: graphQL.GraphQLFloat },
+          stockOrderDriverPickedAmount: { type: graphQL.GraphQLFloat },
+          stockOrderIcingOrderedAmount: { type: graphQL.GraphQLFloat },
+          stockOrderBakeryOrderedAmount: { type: graphQL.GraphQLFloat },
+          stockOrderIcingChefPreparedAmount: { type: graphQL.GraphQLFloat },
+          stockOrderBakeryChefPreparedAmount: { type: graphQL.GraphQLFloat },
+          stockOrderIcingSupervisorConfirmedAmount: { type: graphQL.GraphQLFloat },
+          stockOrderBakerySupervisorConfirmedAmount: { type: graphQL.GraphQLFloat },
+          stockOrderIcingDriverPickedAmount: { type: graphQL.GraphQLFloat },
+          stockOrderBakeryDriverPickedAmount: { type: graphQL.GraphQLFloat },
+          stockOrderIcingReceivedAmount: { type: graphQL.GraphQLFloat },
+          stockOrderBakeryReceivedAmount: { type: graphQL.GraphQLFloat },
+          totalSalary: { type: graphQL.GraphQLFloat },
+          totalDealerBillingAmount: { type: graphQL.GraphQLFloat },
+          monthlySalary: { type: graphQL.GraphQLFloat },
+          employeeCount: { type: graphQL.GraphQLInt }
         }
       });
       const BranchBillingStatType = new graphQL.GraphQLObjectType({
         name: "BranchBillingReportStat",
         fields: {
           sNo: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
+          branchId: { type: graphQL.GraphQLString },
           branchName: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
           gstMode: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
           totalBills: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
@@ -35552,6 +36227,10 @@ var init_reportQueries = __esm({
           settledAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
           cancelledCount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
           cancelledAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+          tableOrderCount: { type: graphQL.GraphQLInt },
+          tableOrderAmount: { type: graphQL.GraphQLFloat },
+          nonTableOrderCount: { type: graphQL.GraphQLInt },
+          nonTableOrderAmount: { type: graphQL.GraphQLFloat },
           gstInclusiveAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
           gstExclusiveAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
           gstInclusiveTaxableAmount: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
@@ -35564,7 +36243,9 @@ var init_reportQueries = __esm({
         fields: {
           branchId: { type: graphQL.GraphQLString },
           amount: { type: graphQL.GraphQLFloat },
-          billCount: { type: graphQL.GraphQLInt }
+          billCount: { type: graphQL.GraphQLInt },
+          tableOrderAmount: { type: graphQL.GraphQLFloat },
+          nonTableOrderAmount: { type: graphQL.GraphQLFloat }
         }
       });
       const BranchBillingTrendPointType = new graphQL.GraphQLObjectType({
@@ -35576,6 +36257,12 @@ var init_reportQueries = __esm({
           totalBills: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLInt) },
           totalExpense: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
           totalReturn: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
+          totalStockOrder: { type: graphQL.GraphQLFloat },
+          totalDealerBilling: { type: graphQL.GraphQLFloat },
+          tableOrderAmount: { type: graphQL.GraphQLFloat },
+          tableOrderBills: { type: graphQL.GraphQLInt },
+          nonTableOrderAmount: { type: graphQL.GraphQLFloat },
+          nonTableOrderBills: { type: graphQL.GraphQLInt },
           branchesData: { type: new graphQL.GraphQLList(new graphQL.GraphQLNonNull(TrendBranchDataType)) }
         }
       });
@@ -38976,7 +39663,7 @@ var init_TimeWiseReport = __esm({
     "use strict";
     TimeWiseReportGlobal = {
       slug: "time-wise-report",
-      label: "Time-Wise Report",
+      label: "Time-Wise",
       access: {
         read: () => true
       },
@@ -40272,6 +40959,23 @@ var init_getMyDailyTasks = __esm({
           if (assignmentType === "unassigned") {
             return true;
           }
+          if (matchesRole && (taskRole === "chef" || normalizedRole === "chef" || userRole === "chef")) {
+            const targetChefType = (task.chefType || "both").toLowerCase();
+            if (targetChefType !== "both") {
+              const isUserKitchen = Boolean(
+                req.user.isKitchen || req.user.kitchen || url.searchParams.get("isKitchen") === "true" || url.searchParams.get("chefType") === "kitchen" || employeeDoc && (employeeDoc.isKitchen || employeeDoc.team?.toLowerCase().includes("kitchen"))
+              );
+              const isUserStock = Boolean(
+                req.user.isStock || req.user.stockCategories?.length || url.searchParams.get("isStock") === "true" || url.searchParams.get("chefType") === "stock" || employeeDoc && (employeeDoc.isStock || employeeDoc.team?.toLowerCase().includes("stock"))
+              );
+              if (targetChefType === "kitchen" && !isUserKitchen && isUserStock) {
+                return false;
+              }
+              if (targetChefType === "stock" && !isUserStock && isUserKitchen) {
+                return false;
+              }
+            }
+          }
           return matchesInd || matchesRole;
         });
         const [yStr, mStr, dStr] = dateString.split("-");
@@ -40345,6 +41049,14 @@ var init_getMyDailyTasks = __esm({
                   isMatch = docDateStr >= mondayString && docDateStr <= sundayString;
                 } else if (taskFreq === "monthly") {
                   isMatch = docDateStr.startsWith(currentMonthStr);
+                } else if (taskFreq === "random") {
+                  if (docDateStr === dateString && tItem.completedAt) {
+                    const compTime = new Date(tItem.completedAt).getTime();
+                    const intervalUnit = (task.randomIntervalUnit || "hours").toLowerCase();
+                    const intervalVal = Number(task.randomIntervalValue) || 2;
+                    const intervalMs = (intervalUnit === "minutes" ? intervalVal : intervalVal * 60) * 60 * 1e3;
+                    isMatch = Date.now() - compTime < intervalMs;
+                  }
                 } else {
                   isMatch = docDateStr === dateString;
                 }
@@ -40373,6 +41085,14 @@ var init_getMyDailyTasks = __esm({
                 isMatch = docDateStr >= mondayString && docDateStr <= sundayString;
               } else if (taskFreq === "monthly") {
                 isMatch = docDateStr.startsWith(currentMonthStr);
+              } else if (taskFreq === "random") {
+                if (docDateStr === dateString && doc.completedAt) {
+                  const compTime = new Date(doc.completedAt).getTime();
+                  const intervalUnit = (task.randomIntervalUnit || "hours").toLowerCase();
+                  const intervalVal = Number(task.randomIntervalValue) || 2;
+                  const intervalMs = (intervalUnit === "minutes" ? intervalVal : intervalVal * 60) * 60 * 1e3;
+                  isMatch = Date.now() - compTime < intervalMs;
+                }
               } else {
                 isMatch = docDateStr === dateString;
               }
@@ -40396,6 +41116,10 @@ var init_getMyDailyTasks = __esm({
             yesText: task.yesText || null,
             priority: task.priority || "medium",
             frequency: taskFreq,
+            randomIntervalValue: task.randomIntervalValue || 2,
+            randomIntervalUnit: task.randomIntervalUnit || "hours",
+            chefType: task.chefType || "both",
+            allowMultiplePhotos: task.allowMultiplePhotos !== false,
             isDaily: taskFreq === "daily",
             requiresPhoto: Boolean(task.requiresPhoto),
             assignmentType: task.assignmentType || "role",
@@ -40568,6 +41292,7 @@ var init_toggleDailyTask = __esm({
         });
         let updatedDoc = null;
         let isTaskCompleted = false;
+        let taskStatus = "yes";
         let taskCompletedAt = null;
         let savedPhoto = null;
         let savedPhotoUrl = null;
@@ -40765,6 +41490,200 @@ var init_toggleDailyTask = __esm({
         });
         return Response.json(
           { success: false, message: error.message || "Internal server error" },
+          { status: 500 }
+        );
+      }
+    };
+  }
+});
+
+// src/endpoints/submitTaskAudit.ts
+var submitTaskAuditHandler;
+var init_submitTaskAudit = __esm({
+  "src/endpoints/submitTaskAudit.ts"() {
+    "use strict";
+    submitTaskAuditHandler = async (req) => {
+      if (!req.user) {
+        return Response.json({ success: false, message: "Unauthorized" }, { status: 401 });
+      }
+      try {
+        let body = {};
+        try {
+          body = await req.json?.();
+        } catch (_e) {
+        }
+        const {
+          taskId,
+          photos = [],
+          notes,
+          branchId: explicitBranchId,
+          chefType: explicitChefType,
+          status: explicitStatus
+        } = body || {};
+        if (!taskId) {
+          return Response.json({ success: false, message: "Missing required field: taskId" }, { status: 400 });
+        }
+        let taskDoc = null;
+        try {
+          taskDoc = await req.payload.findByID({
+            collection: "tasks",
+            id: taskId,
+            depth: 0
+          });
+        } catch (e) {
+          return Response.json({ success: false, message: "Task not found" }, { status: 404 });
+        }
+        const taskTitle = taskDoc?.title || "Task";
+        const taskFrequency = taskDoc?.frequency || "random";
+        let employeeId = null;
+        let branchId = explicitBranchId || null;
+        let chefType = explicitChefType || taskDoc?.chefType || "kitchen";
+        const userEmp = req.user.employee;
+        if (userEmp) {
+          employeeId = typeof userEmp === "string" ? userEmp : userEmp.id;
+        }
+        if (!employeeId) {
+          const empSearch = await req.payload.find({
+            collection: "employees",
+            where: {
+              or: [
+                { phoneNumber: { equals: req.user.phone || req.user.phoneNumber || "__none__" } },
+                { employeeId: { equals: req.user.employeeId || "__none__" } }
+              ]
+            },
+            limit: 1
+          });
+          if (empSearch.docs.length > 0) {
+            employeeId = String(empSearch.docs[0].id);
+          }
+        }
+        if (!branchId && req.user.branch) {
+          const ub = req.user.branch;
+          branchId = typeof ub === "string" ? ub : ub.id;
+        }
+        if (!branchId && employeeId) {
+          try {
+            const emp = await req.payload.findByID({
+              collection: "employees",
+              id: employeeId,
+              depth: 0
+            });
+            if (emp?.branch) {
+              branchId = typeof emp.branch === "string" ? emp.branch : emp.branch.id;
+            }
+          } catch (_e) {
+          }
+        }
+        const normalizedPhotos = (Array.isArray(photos) ? photos : []).map((item) => {
+          if (typeof item === "string") {
+            return {
+              photoUrl: item,
+              capturedAt: (/* @__PURE__ */ new Date()).toISOString()
+            };
+          }
+          return {
+            photo: item.photo || item.photoId || item.id || void 0,
+            photoUrl: item.photoUrl || item.url || "",
+            caption: item.caption || "",
+            capturedAt: item.capturedAt || (/* @__PURE__ */ new Date()).toISOString()
+          };
+        });
+        const auditData = {
+          task: taskId,
+          taskTitle,
+          branch: branchId || void 0,
+          employee: employeeId || void 0,
+          user: req.user.id,
+          role: (req.user.role || "chef").toLowerCase(),
+          chefType,
+          photos: normalizedPhotos,
+          photoCount: normalizedPhotos.length,
+          notes: notes || "",
+          status: explicitStatus || "submitted",
+          submittedAt: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        const createdAudit = await req.payload.create({
+          collection: "task-photo-audits",
+          data: auditData
+        });
+        const primaryPhotoId = normalizedPhotos[0]?.photo || null;
+        const primaryPhotoUrl = normalizedPhotos[0]?.photoUrl || "";
+        const d = /* @__PURE__ */ new Date();
+        const utcOffset = d.getTime() + 5.5 * 60 * 60 * 1e3;
+        const localDate = new Date(utcOffset);
+        const year = localDate.getUTCFullYear();
+        const month = String(localDate.getUTCMonth() + 1).padStart(2, "0");
+        const day = String(localDate.getUTCDate()).padStart(2, "0");
+        const dateString = `${year}-${month}-${day}`;
+        try {
+          const existingQuery = await req.payload.find({
+            collection: "task-completions",
+            where: {
+              and: [
+                { dateString: { equals: dateString } },
+                ...branchId ? [{ branch: { equals: branchId } }] : []
+              ]
+            },
+            limit: 1
+          });
+          const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+          const taskEntry = {
+            task: taskId,
+            taskTitle,
+            frequency: taskFrequency,
+            status: "yes",
+            completed: true,
+            completedAt: nowIso,
+            photo: primaryPhotoId || void 0,
+            photoUrl: primaryPhotoUrl || void 0,
+            notes: notes || `Audit photos submitted (${normalizedPhotos.length} photos)`
+          };
+          if (existingQuery.docs.length > 0) {
+            const doc = existingQuery.docs[0];
+            const currentTasks = Array.isArray(doc.tasks) ? [...doc.tasks] : [];
+            const existingIdx = currentTasks.findIndex((t) => {
+              const tId = typeof t.task === "string" ? t.task : t.task?.id;
+              return tId === taskId;
+            });
+            if (existingIdx !== -1) {
+              currentTasks[existingIdx] = {
+                ...currentTasks[existingIdx],
+                ...taskEntry
+              };
+            } else {
+              currentTasks.push(taskEntry);
+            }
+            await req.payload.update({
+              collection: "task-completions",
+              id: doc.id,
+              data: {
+                tasks: currentTasks
+              }
+            });
+          } else {
+            await req.payload.create({
+              collection: "task-completions",
+              data: {
+                dateString,
+                branch: branchId || void 0,
+                user: req.user.id,
+                completed: true,
+                tasks: [taskEntry]
+              }
+            });
+          }
+        } catch (completionErr) {
+          console.error("Error synchronizing task completion record:", completionErr);
+        }
+        return Response.json({
+          success: true,
+          message: "Cleaning audit photos submitted and task completed successfully",
+          audit: createdAudit
+        });
+      } catch (error) {
+        console.error("Error in submitTaskAuditHandler:", error);
+        return Response.json(
+          { success: false, message: error.message || "Internal Server Error" },
           { status: 500 }
         );
       }
@@ -44361,6 +45280,7 @@ var init_payload_config = __esm({
     init_Tasks();
     init_TaskColumns();
     init_TaskCompletions();
+    init_TaskPhotoAudits();
     init_Billings();
     init_MessageThreads();
     init_Messages();
@@ -44506,6 +45426,7 @@ var init_payload_config = __esm({
     init_ManagerClosingReplies();
     init_getMyDailyTasks();
     init_toggleDailyTask();
+    init_submitTaskAudit();
     init_startWork();
     init_completeWork();
     init_KotTime();
@@ -44802,9 +45723,8 @@ var init_payload_config = __esm({
     }
     dbAdapter = dbMode === "mongo" ? mongooseAdapter({
       url: mongoConnectionString,
-      autoIndex: true,
-      ensureIndexes: false,
       connectOptions: {
+        autoIndex: true,
         maxPoolSize: process.env.MONGODB_MAX_POOL_SIZE ? parseInt(process.env.MONGODB_MAX_POOL_SIZE) : 100,
         minPoolSize: process.env.MONGODB_MIN_POOL_SIZE ? parseInt(process.env.MONGODB_MIN_POOL_SIZE) : 10,
         maxIdleTimeMS: 2e4,
@@ -45253,6 +46173,16 @@ var init_payload_config = __esm({
           handler: toggleDailyTaskHandler
         },
         {
+          path: "/daily-tasks/submit-audit",
+          method: "post",
+          handler: submitTaskAuditHandler
+        },
+        {
+          path: "/tasks/submit-audit",
+          method: "post",
+          handler: submitTaskAuditHandler
+        },
+        {
           path: "/attendance/start-work",
           method: "post",
           handler: startWorkHandler
@@ -45377,6 +46307,7 @@ var init_payload_config = __esm({
         Tasks_default,
         TaskColumns_default,
         TaskCompletions_default,
+        TaskPhotoAudits_default,
         MessageThreads,
         MessageAttachments,
         Messages,
@@ -45467,10 +46398,23 @@ function sanitizeActivityItem(act) {
   if (!act || typeof act !== "object") return act;
   const clean = { ...act };
   if (clean.capturedImage) {
-    if (typeof clean.capturedImage === "object") {
-      clean.capturedImage = clean.capturedImage.id || clean.capturedImage._id || void 0;
-    } else if (typeof clean.capturedImage === "string" && clean.capturedImage.trim()) {
-      clean.capturedImage = clean.capturedImage.trim();
+    let imgId;
+    if (typeof clean.capturedImage === "string") {
+      imgId = clean.capturedImage.trim();
+    } else if (clean.capturedImage && typeof clean.capturedImage === "object") {
+      if (typeof clean.capturedImage._id === "string" || typeof clean.capturedImage._id === "object") {
+        imgId = String(clean.capturedImage._id);
+      } else if (typeof clean.capturedImage.id === "string") {
+        imgId = clean.capturedImage.id;
+      } else if (typeof clean.capturedImage.toHexString === "function") {
+        imgId = clean.capturedImage.toHexString();
+      } else if (typeof clean.capturedImage.toString === "function") {
+        const s = clean.capturedImage.toString();
+        if (s !== "[object Object]") imgId = s;
+      }
+    }
+    if (imgId && /^[0-9a-fA-F]{24}$/.test(imgId)) {
+      clean.capturedImage = imgId;
     } else {
       delete clean.capturedImage;
     }

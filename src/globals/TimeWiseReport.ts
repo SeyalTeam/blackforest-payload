@@ -2,7 +2,7 @@ import { GlobalConfig } from 'payload'
 
 export const TimeWiseReportGlobal: GlobalConfig = {
   slug: 'time-wise-report',
-  label: 'Time-Wise Report',
+  label: 'Time-Wise',
   access: {
     read: () => true,
   },

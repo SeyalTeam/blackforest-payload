@@ -131,6 +131,22 @@ export const Tasks: CollectionConfig = {
       },
     },
     {
+      name: 'chefType',
+      type: 'select',
+      label: 'Chef Sub-Type',
+      defaultValue: 'both',
+      options: [
+        { label: 'All / Both Chefs (Kitchen & Stock)', value: 'both' },
+        { label: 'Kitchen Chef Only', value: 'kitchen' },
+        { label: 'Stock / Prep Chef Only', value: 'stock' },
+      ],
+      admin: {
+        position: 'sidebar',
+        condition: (data) => (data?.assignedRole || '').toLowerCase() === 'chef',
+        description: 'Specify whether this task applies to Kitchen Chefs, Stock Chefs, or Both.',
+      },
+    },
+    {
       name: 'assignedEmployee',
       type: 'relationship',
       relationTo: 'employees',
@@ -268,10 +284,37 @@ export const Tasks: CollectionConfig = {
         { label: 'Weekly', value: 'weekly' },
         { label: 'Monthly', value: 'monthly' },
         { label: 'Hourly', value: 'hourly' },
+        { label: 'Randomly', value: 'random' },
       ],
       admin: {
         position: 'sidebar',
-        description: 'How often this task recurs (Daily, Weekly, Monthly, or Hourly).',
+        description: 'How often this task recurs (Daily, Weekly, Monthly, Hourly, or Randomly).',
+      },
+    },
+    {
+      name: 'randomIntervalValue',
+      type: 'number',
+      label: 'Random Interval Time Value',
+      defaultValue: 2,
+      admin: {
+        position: 'sidebar',
+        condition: (data) => data?.frequency === 'random',
+        description: 'E.g. 2 for 2 hours or 90 for 90 minutes interval.',
+      },
+    },
+    {
+      name: 'randomIntervalUnit',
+      type: 'select',
+      label: 'Random Interval Unit',
+      defaultValue: 'hours',
+      options: [
+        { label: 'Hours', value: 'hours' },
+        { label: 'Minutes', value: 'minutes' },
+      ],
+      admin: {
+        position: 'sidebar',
+        condition: (data) => data?.frequency === 'random',
+        description: 'Unit of time for random recurrence interval.',
       },
     },
     {
@@ -292,6 +335,17 @@ export const Tasks: CollectionConfig = {
       admin: {
         position: 'sidebar',
         description: 'If checked, the employee must capture and upload a photo from their camera before completing this task.',
+      },
+    },
+    {
+      name: 'allowMultiplePhotos',
+      type: 'checkbox',
+      defaultValue: true,
+      label: 'Allow Multiple Photos',
+      admin: {
+        position: 'sidebar',
+        condition: (data) => Boolean(data?.requiresPhoto),
+        description: 'Allow / require capturing multiple proof photos (e.g. multi-angle kitchen cleaning inspection).',
       },
     },
     {

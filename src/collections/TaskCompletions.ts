@@ -225,6 +225,7 @@ export const TaskCompletions: CollectionConfig = {
                 { label: 'Weekly', value: 'weekly' },
                 { label: 'Monthly', value: 'monthly' },
                 { label: 'Hourly', value: 'hourly' },
+                { label: 'Random', value: 'random' },
               ],
               defaultValue: 'daily',
               admin: { width: '12%' },

@@ -2,7 +2,7 @@ import { GlobalConfig } from 'payload'
 
 export const ExpenseReportGlobal: GlobalConfig = {
   slug: 'expense-report',
-  label: 'Expense Reports',
+  label: 'Expense',
   access: {
     read: () => true,
   },

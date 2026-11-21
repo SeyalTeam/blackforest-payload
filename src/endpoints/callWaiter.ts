@@ -311,6 +311,7 @@ export const callWaiterHandler: PayloadHandler = async (req): Promise<Response> 
     })
 
     try {
+      const billCreatedByID = getRelationshipId((matchedBill as any)?.createdBy) || null
       publishBillingRealtimeEvent({
         eventId: `${matchedBill.id}:waiter-call:${Date.now()}`,
         eventType: 'waiter_call_received',
@@ -318,6 +319,11 @@ export const callWaiterHandler: PayloadHandler = async (req): Promise<Response> 
         branchId,
         billingId: String(matchedBill.id),
         statusAfter: 'waiter_calling',
+        tableName: resolvedTableNumber,
+        tableNo: resolvedTableNumber,
+        section: resolvedSection,
+        createdBy: billCreatedByID,
+        waiterId: billCreatedByID,
         timestamp: new Date().toISOString(),
       })
     } catch (wsErr) {
