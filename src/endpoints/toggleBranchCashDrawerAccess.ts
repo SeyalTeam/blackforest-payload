@@ -51,6 +51,7 @@ export const toggleBranchCashDrawerAccessHandler: PayloadHandler = async (req): 
         data: {
           isAccountantCashDrawerEnabled: enabled,
         } as any,
+        overrideAccess: true,
       })
 
       return Response.json({

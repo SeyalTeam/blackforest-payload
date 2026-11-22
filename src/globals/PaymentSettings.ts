@@ -8,6 +8,10 @@ export const PaymentSettings: GlobalConfig = {
   },
   access: {
     read: () => true,
+    update: ({ req }) => {
+      if (!req.user) return false
+      return ['superadmin', 'admin', 'manager', 'company', 'branch', 'account', 'accountant'].includes(req.user.role)
+    },
   },
   fields: [
     {

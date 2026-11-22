@@ -1,8 +1,27 @@
 import type { CollectionConfig } from 'payload'
 import { isValidBranchPin } from '../utilities/branchPins'
+import { toggleBranchCashDrawerAccessHandler } from '../endpoints/toggleBranchCashDrawerAccess'
+import { toggleBranchClosingAccessHandler } from '../endpoints/toggleBranchClosingAccess'
 
 export const Branches: CollectionConfig = {
   slug: 'branches',
+  endpoints: [
+    {
+      path: '/toggle-cashdrawer-access',
+      method: 'post',
+      handler: toggleBranchCashDrawerAccessHandler,
+    },
+    {
+      path: '/toggle-cashdrawer-access',
+      method: 'get',
+      handler: toggleBranchCashDrawerAccessHandler,
+    },
+    {
+      path: '/toggle-closing-access',
+      method: 'post',
+      handler: toggleBranchClosingAccessHandler,
+    },
+  ],
   admin: {
     useAsTitle: 'name',
     defaultColumns: ['name', 'company', 'branchPin', 'status'],
