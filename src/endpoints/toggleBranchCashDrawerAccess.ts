@@ -1,7 +1,7 @@
 import { PayloadHandler } from 'payload'
 
 export const toggleBranchCashDrawerAccessHandler: PayloadHandler = async (req): Promise<Response> => {
-  const allowedRoles = ['superadmin', 'admin', 'manager', 'company', 'branch']
+  const allowedRoles = ['superadmin', 'admin', 'manager', 'company', 'branch', 'account']
   if (!req.user || !allowedRoles.includes(req.user.role)) {
     return Response.json({ message: 'Unauthorized' }, { status: 401 })
   }
@@ -27,6 +27,39 @@ export const toggleBranchCashDrawerAccessHandler: PayloadHandler = async (req): 
 
     const branchId = body?.branchId || body?.id
     const enabled = body?.enabled !== undefined ? Boolean(body.enabled) : (body?.isCashDrawerEnabled !== undefined ? Boolean(body.isCashDrawerEnabled) : true)
+
+    // Handle Accountant role cash drawer check or toggle
+    if (branchId === 'account' || branchId === 'accountant') {
+      if (req.method === 'GET' || body?.checkOnly === true) {
+        const paymentSettings: any = await req.payload.findGlobal({
+          slug: 'payment-settings',
+        })
+        return Response.json({
+          success: true,
+          branchId: 'accountant',
+          isCashDrawerEnabled: paymentSettings?.isAccountantCashDrawerEnabled === true,
+        })
+      }
+
+      // Toggle action - restricted strictly to Owner / Admin / Superadmin
+      if (req.user.role !== 'superadmin' && req.user.role !== 'admin') {
+        return Response.json({ message: 'Forbidden: Only Owner/Admin can toggle Accountant cash drawer access' }, { status: 403 })
+      }
+
+      await req.payload.updateGlobal({
+        slug: 'payment-settings',
+        data: {
+          isAccountantCashDrawerEnabled: enabled,
+        } as any,
+      })
+
+      return Response.json({
+        success: true,
+        message: `Accountant cash drawer access ${enabled ? 'enabled' : 'locked'} successfully`,
+        branchId: 'accountant',
+        isCashDrawerEnabled: enabled,
+      })
+    }
 
     if (!branchId) {
       return Response.json({ message: 'Missing branchId parameter' }, { status: 400 })

@@ -131,7 +131,7 @@ export const completeWorkHandler: PayloadHandler = async (req): Promise<Response
           id: compSearch.docs[0].id,
           data: {
             notes: (compSearch.docs[0] as any).notes || `Work completed at ${nowIso}`,
-          },
+          } as any,
           overrideAccess: true,
         })
       }

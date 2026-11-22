@@ -175,6 +175,12 @@ import ManagerClosingReplies from './collections/ManagerClosingReplies'
 import { getMyDailyTasksHandler } from './endpoints/getMyDailyTasks'
 import { toggleDailyTaskHandler } from './endpoints/toggleDailyTask'
 import { submitTaskAuditHandler } from './endpoints/submitTaskAudit'
+import {
+  getLiveStaffForCheckingHandler,
+  triggerCheckingAuditHandler,
+  getPendingAuditForAppHandler,
+} from './endpoints/checkingEndpoints'
+import { CheckingReportGlobal } from './globals/CheckingReport'
 import { startWorkHandler } from './endpoints/startWork'
 import { completeWorkHandler } from './endpoints/completeWork'
 import { KotTimeGlobal } from './globals/KotTime'
@@ -992,6 +998,11 @@ export default buildConfig({
       handler: toggleBranchCashDrawerAccessHandler,
     },
     {
+      path: '/branches/toggle-cashdrawer-access',
+      method: 'get',
+      handler: toggleBranchCashDrawerAccessHandler,
+    },
+    {
       path: '/daily-tasks/my-tasks',
       method: 'get',
       handler: getMyDailyTasksHandler,
@@ -1010,6 +1021,21 @@ export default buildConfig({
       path: '/tasks/submit-audit',
       method: 'post',
       handler: submitTaskAuditHandler,
+    },
+    {
+      path: '/checking/live-staff',
+      method: 'get',
+      handler: getLiveStaffForCheckingHandler,
+    },
+    {
+      path: '/checking/trigger',
+      method: 'post',
+      handler: triggerCheckingAuditHandler,
+    },
+    {
+      path: '/checking/pending-audit',
+      method: 'get',
+      handler: getPendingAuditForAppHandler,
     },
     {
       path: '/attendance/start-work',
@@ -1093,6 +1119,7 @@ export default buildConfig({
     WaiterWiseBillingReportGlobal,
     ReportCardGlobal,
     AttendanceReportGlobal,
+    CheckingReportGlobal,
     InventoryReportGlobal,
     StockOrderReportGlobal,
     AfterstockCustomerReportGlobal,

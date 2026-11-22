@@ -146,25 +146,31 @@ export const getMyDailyTasksHandler: PayloadHandler = async (req): Promise<Respo
       if (matchesRole && (taskRole === 'chef' || normalizedRole === 'chef' || userRole === 'chef')) {
         const targetChefType = (task.chefType || 'both').toLowerCase()
         if (targetChefType !== 'both') {
+          const reqChefType = (url.searchParams.get('chefType') || '').toLowerCase().trim()
+          if (reqChefType === 'kitchen' && targetChefType === 'stock') {
+            return false
+          }
+          if (reqChefType === 'stock' && targetChefType === 'kitchen') {
+            return false
+          }
+
           const isUserKitchen = Boolean(
             (req.user as any).isKitchen ||
             (req.user as any).kitchen ||
             url.searchParams.get('isKitchen') === 'true' ||
-            url.searchParams.get('chefType') === 'kitchen' ||
             (employeeDoc && (employeeDoc.isKitchen || employeeDoc.team?.toLowerCase().includes('kitchen')))
           )
           const isUserStock = Boolean(
             (req.user as any).isStock ||
             (req.user as any).stockCategories?.length ||
             url.searchParams.get('isStock') === 'true' ||
-            url.searchParams.get('chefType') === 'stock' ||
             (employeeDoc && (employeeDoc.isStock || employeeDoc.team?.toLowerCase().includes('stock')))
           )
 
-          if (targetChefType === 'kitchen' && !isUserKitchen && isUserStock) {
+          if (targetChefType === 'kitchen' && !isUserKitchen) {
             return false
           }
-          if (targetChefType === 'stock' && !isUserStock && isUserKitchen) {
+          if (targetChefType === 'stock' && !isUserStock) {
             return false
           }
         }

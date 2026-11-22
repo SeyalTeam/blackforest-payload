@@ -12,32 +12,37 @@ export const submitTaskAuditHandler: PayloadHandler = async (req): Promise<Respo
     } catch (_e) {}
 
     const {
+      auditId,
       taskId,
+      taskTitle: explicitTaskTitle,
       photos = [],
       notes,
+      role: explicitRole,
       branchId: explicitBranchId,
       chefType: explicitChefType,
       status: explicitStatus,
     } = body || {}
 
-    if (!taskId) {
-      return Response.json({ success: false, message: 'Missing required field: taskId' }, { status: 400 })
-    }
-
-    // 1. Fetch Task Details
+    // 1. Fetch Task Details (if taskId is provided)
     let taskDoc: any = null
-    try {
-      taskDoc = await req.payload.findByID({
-        collection: 'tasks',
-        id: taskId,
-        depth: 0,
-      })
-    } catch (e) {
-      return Response.json({ success: false, message: 'Task not found' }, { status: 404 })
-    }
+    let taskTitle = explicitTaskTitle || 'Cleaning Audit'
+    let taskFrequency = 'random'
 
-    const taskTitle = taskDoc?.title || 'Task'
-    const taskFrequency = taskDoc?.frequency || 'random'
+    if (taskId) {
+      try {
+        taskDoc = await req.payload.findByID({
+          collection: 'tasks',
+          id: taskId,
+          depth: 0,
+        })
+        if (taskDoc) {
+          taskTitle = taskDoc.title || taskTitle
+          taskFrequency = taskDoc.frequency || 'random'
+        }
+      } catch (e) {
+        // Continue if taskId is an ad-hoc identifier
+      }
+    }
 
     // 2. Resolve employee and branch
     let employeeId: string | null = null
@@ -99,14 +104,34 @@ export const submitTaskAuditHandler: PayloadHandler = async (req): Promise<Respo
       }
     })
 
-    // 3. Create TaskPhotoAudit record
+    // 3. Create or Update TaskPhotoAudit record
+    let targetAuditId: string | null = auditId || null
+    if (!targetAuditId && (employeeId || req.user.id)) {
+      try {
+        const pendingSearch = await req.payload.find({
+          collection: 'task-photo-audits',
+          where: {
+            and: [
+              ...(employeeId ? [{ employee: { equals: employeeId } }] : [{ user: { equals: req.user.id } }]),
+              { status: { equals: 'pending' } },
+            ],
+          },
+          sort: '-createdAt',
+          limit: 1,
+        })
+        if (pendingSearch.docs.length > 0) {
+          targetAuditId = String(pendingSearch.docs[0].id)
+        }
+      } catch (_e) {}
+    }
+
     const auditData: any = {
-      task: taskId,
+      task: taskId || undefined,
       taskTitle: taskTitle,
       branch: branchId || undefined,
       employee: employeeId || undefined,
       user: req.user.id,
-      role: (req.user.role || 'chef').toLowerCase(),
+      role: (explicitRole || req.user.role || 'chef').toLowerCase(),
       chefType: chefType,
       photos: normalizedPhotos,
       photoCount: normalizedPhotos.length,
@@ -115,10 +140,19 @@ export const submitTaskAuditHandler: PayloadHandler = async (req): Promise<Respo
       submittedAt: new Date().toISOString(),
     }
 
-    const createdAudit = await (req.payload.create as any)({
-      collection: 'task-photo-audits',
-      data: auditData,
-    })
+    let createdAudit: any = null
+    if (targetAuditId) {
+      createdAudit = await (req.payload.update as any)({
+        collection: 'task-photo-audits',
+        id: targetAuditId,
+        data: auditData,
+      })
+    } else {
+      createdAudit = await (req.payload.create as any)({
+        collection: 'task-photo-audits',
+        data: auditData,
+      })
+    }
 
     // 4. Also mark completion in TaskCompletions so daily tasks dashboard & tracker reflect it
     const primaryPhotoId = normalizedPhotos[0]?.photo || null

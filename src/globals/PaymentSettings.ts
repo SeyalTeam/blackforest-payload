@@ -86,5 +86,14 @@ export const PaymentSettings: GlobalConfig = {
         },
       ],
     },
+    {
+      name: 'isAccountantCashDrawerEnabled',
+      label: 'Accountant Cash Drawer Access',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        description: 'When enabled by the Owner/Admin, allows the Accountant role in Tracker App to open the cash drawer.',
+      },
+    },
   ],
 }

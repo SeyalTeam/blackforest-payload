@@ -18,7 +18,7 @@ export const TaskPhotoAudits: CollectionConfig = {
       name: 'task',
       type: 'relationship',
       relationTo: 'tasks',
-      required: true,
+      required: false,
       label: 'Associated Task',
     },
     {
@@ -105,6 +105,7 @@ export const TaskPhotoAudits: CollectionConfig = {
       type: 'select',
       defaultValue: 'submitted',
       options: [
+        { label: 'Pending / Waiting for Reply', value: 'pending' },
         { label: 'Submitted', value: 'submitted' },
         { label: 'Verified / Approved', value: 'verified' },
         { label: 'Flagged / Needs Attention', value: 'flagged' },
