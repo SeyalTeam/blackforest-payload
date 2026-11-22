@@ -112,6 +112,25 @@
 
 // 1. LEFT NAVIGATION BAR
 aside.nav,
+aside.nav *,
+.nav,
+.nav *,
+.nav__scroll,
+.nav__scroll *,
+.nav__wrap,
+.nav__wrap * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+
+  &::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+  }
+}
+
+aside.nav,
 .nav {
   width: 290px !important;
   min-width: 290px !important;
@@ -352,11 +371,47 @@ aside.nav,
   .nav__link--active,
   .nav-group__link--active,
   a[aria-current='page'],
-  a.active {
-    background: rgba(56, 189, 248, 0.18) !important;
-    color: var(--theme-text-primary) !important;
-    border-color: rgba(56, 189, 248, 0.4);
-    box-shadow: inset 3px 0 0 #38bdf8;
+  a.active,
+  .nav__link.active,
+  .nav-group__link.active {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    border: 1px solid #0284c7 !important;
+    box-shadow: 0 4px 14px rgba(2, 132, 199, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+
+    &::before,
+    &::after {
+      background-color: #ffffff !important;
+      color: #ffffff !important;
+      fill: #ffffff !important;
+    }
+
+    span,
+    .nav__link-label {
+      color: #ffffff !important;
+    }
+
+    &:hover,
+    &:focus,
+    &:focus-visible {
+      background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%) !important;
+      color: #ffffff !important;
+      border-color: #38bdf8 !important;
+      box-shadow: 0 6px 18px rgba(2, 132, 199, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+
+      &::before,
+      &::after {
+        background-color: #ffffff !important;
+        color: #ffffff !important;
+        fill: #ffffff !important;
+      }
+
+      span,
+      .nav__link-label {
+        color: #ffffff !important;
+      }
+    }
 
     [data-theme='light'] & {
       background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
@@ -365,12 +420,37 @@ aside.nav,
       border: 1px solid #0284c7 !important;
       box-shadow: 0 4px 14px rgba(2, 132, 199, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
 
-      &::before {
+      &::before,
+      &::after {
         background-color: #ffffff !important;
+        color: #ffffff !important;
+        fill: #ffffff !important;
       }
 
-      span {
+      span,
+      .nav__link-label {
         color: #ffffff !important;
+      }
+
+      &:hover,
+      &:focus,
+      &:focus-visible {
+        background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%) !important;
+        color: #ffffff !important;
+        border-color: #38bdf8 !important;
+        box-shadow: 0 6px 18px rgba(2, 132, 199, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+
+        &::before,
+        &::after {
+          background-color: #ffffff !important;
+          color: #ffffff !important;
+          fill: #ffffff !important;
+        }
+
+        span,
+        .nav__link-label {
+          color: #ffffff !important;
+        }
       }
     }
   }
@@ -763,8 +843,8 @@ aside.nav,
     }
 
     .nav__scroll {
-      padding-left: 8px !important;
-      padding-right: 8px !important;
+      padding-left: 6px !important;
+      padding-right: 6px !important;
     }
 
     .nav-group__toggle {
@@ -783,39 +863,86 @@ aside.nav,
     .nav__link,
     .nav-group__link,
     a {
-      justify-content: center !important;
+      display: flex !important;
+      flex-direction: column !important;
       align-items: center !important;
-      gap: 0 !important;
-      min-height: 48px !important;
-      padding: 10px 0 !important;
+      justify-content: center !important;
+      gap: 3px !important;
+      min-height: 56px !important;
+      padding: 7px 4px !important;
       margin: 4px 0 !important;
+      border-radius: 8px !important;
+      max-width: 100% !important;
+      text-align: center !important;
 
       .nav__link-label,
       span {
-        position: absolute !important;
-        width: 1px !important;
-        height: 1px !important;
-        margin: -1px !important;
+        position: static !important;
+        width: 100% !important;
+        max-width: 74px !important;
+        height: auto !important;
+        margin: 0 !important;
         padding: 0 !important;
         overflow: hidden !important;
-        clip: rect(0, 0, 0, 0) !important;
+        clip: auto !important;
         border: 0 !important;
         white-space: nowrap !important;
+        text-overflow: ellipsis !important;
+        font-size: 9px !important;
+        line-height: 1.15 !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.02em !important;
+        display: block !important;
+        text-align: center !important;
+        color: inherit !important;
       }
 
       &::before {
         margin: 0 !important;
-        width: 22px !important;
-        height: 22px !important;
+        width: 20px !important;
+        height: 20px !important;
         display: inline-block !important;
         opacity: 1 !important;
         visibility: visible !important;
         flex-shrink: 0 !important;
       }
 
-      &.active::before,
-      &[aria-current='page']::before {
-        background-color: #ffffff !important;
+      &.active,
+      &.nav__link--active,
+      &[aria-current='page'] {
+        background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+        color: #ffffff !important;
+        border: 1px solid #0284c7 !important;
+
+        &::before {
+          background-color: #ffffff !important;
+          color: #ffffff !important;
+          fill: #ffffff !important;
+        }
+
+        .nav__link-label,
+        span {
+          color: #ffffff !important;
+        }
+
+        &:hover,
+        &:focus {
+          background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%) !important;
+          color: #ffffff !important;
+          border-color: #38bdf8 !important;
+
+          &::before {
+            background-color: #ffffff !important;
+            color: #ffffff !important;
+            fill: #ffffff !important;
+          }
+
+          .nav__link-label,
+          span {
+            color: #ffffff !important;
+          }
+        }
       }
     }
 
@@ -828,6 +955,15 @@ aside.nav,
       justify-content: center !important;
       padding-top: 10px !important;
     }
+  }
+
+  // Spacing between sidebar and page content to prevent content sticking to menu
+  .template-default__wrap,
+  .template-default__main,
+  main,
+  .template-default__gutter {
+    padding-left: 28px !important;
+    padding-right: 28px !important;
   }
 }
 

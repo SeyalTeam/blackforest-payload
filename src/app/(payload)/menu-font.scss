@@ -1,6 +1,25 @@
 /* Payload admin sidebar: pure black, larger text, and one-click Collections entry. */
 
 aside.nav,
+aside.nav *,
+.nav,
+.nav *,
+.nav__scroll,
+.nav__scroll *,
+.nav__wrap,
+.nav__wrap * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+
+  &::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+  }
+}
+
+aside.nav,
 .nav {
   width: 290px;
   min-width: 290px;
@@ -354,19 +373,74 @@ aside.nav,
 }
 
 .nav__link.active,
+.nav__link--active,
+.nav-group__link--active,
 .nav__link:has(.nav__link-indicator),
-.nav__link[aria-current='page'] {
-  background: #1267c7 !important;
+.nav__link[aria-current='page'],
+a.active,
+a[aria-current='page'] {
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
   color: #ffffff !important;
+  border: 1px solid #0284c7 !important;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.32) !important;
+
+  .nav__link-label,
+  span {
+    color: #ffffff !important;
+  }
+
+  &::before,
+  &::after {
+    background-color: #ffffff !important;
+    color: #ffffff !important;
+    fill: #ffffff !important;
+  }
+
+  &:hover,
+  &:focus,
+  &:focus-visible {
+    background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%) !important;
+    color: #ffffff !important;
+    border-color: #38bdf8 !important;
+    box-shadow: 0 6px 18px rgba(2, 132, 199, 0.45) !important;
+
+    .nav__link-label,
+    span {
+      color: #ffffff !important;
+    }
+
+    &::before,
+    &::after {
+      background-color: #ffffff !important;
+      color: #ffffff !important;
+      fill: #ffffff !important;
+    }
+  }
 }
 
-.nav__link.active .nav__link-label,
-.nav__link:has(.nav__link-indicator) .nav__link-label,
-.nav__link[aria-current='page'] .nav__link-label,
-.nav__link.active span,
-.nav__link:has(.nav__link-indicator) span,
-.nav__link[aria-current='page'] span {
+.nav-group.Report .nav__link.active::before,
+.nav-group.Report .nav__link--active::before,
+.nav-group.Report .nav__link[aria-current='page']::before,
+.nav-group.Report .nav__link.active:hover::before,
+.nav-group.Account .nav__link.active::before,
+.nav-group.Account .nav__link--active::before,
+.nav-group.Account .nav__link[aria-current='page']::before,
+.nav-group.Account .nav__link.active:hover::before,
+.nav-group.Settings .nav__link.active::before,
+.nav-group.Settings .nav__link--active::before,
+.nav-group.Settings .nav__link[aria-current='page']::before,
+.nav-group.Settings .nav__link.active:hover::before,
+.nav-group.Chef .nav__link.active::before,
+.nav-group.Chef .nav__link--active::before,
+.nav-group.Chef .nav__link[aria-current='page']::before,
+.nav-group.Chef .nav__link.active:hover::before,
+.nav-group--collections-shortcut .nav__link.active::before,
+.nav-group--collections-shortcut .nav__link--active::before,
+.nav-group--collections-shortcut .nav__link[aria-current='page']::before,
+.nav-group--collections-shortcut .nav__link.active:hover::before {
+  background-color: #ffffff !important;
   color: #ffffff !important;
+  fill: #ffffff !important;
 }
 
 .nav__link-indicator {
@@ -527,10 +601,17 @@ aside.nav,
   }
 
   .template-default.template-default--nav-hydrated:not(.template-default--nav-open) .nav__link {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
     justify-content: center !important;
-    gap: 0 !important;
-    min-height: 48px;
-    padding: 10px 8px !important;
+    gap: 3px !important;
+    min-height: 56px !important;
+    padding: 7px 4px !important;
+    margin: 4px 0 !important;
+    border-radius: 8px !important;
+    max-width: 100% !important;
+    text-align: center !important;
   }
 
   .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
@@ -539,15 +620,25 @@ aside.nav,
   .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
     .nav__link
     span {
-    position: absolute !important;
-    width: 1px !important;
-    height: 1px !important;
-    margin: -1px !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 74px !important;
+    height: auto !important;
+    margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
-    clip: rect(0, 0, 0, 0) !important;
+    clip: auto !important;
     border: 0 !important;
     white-space: nowrap !important;
+    text-overflow: ellipsis !important;
+    font-size: 9px !important;
+    line-height: 1.15 !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.02em !important;
+    display: block !important;
+    text-align: center !important;
+    color: inherit !important;
   }
 
   .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
@@ -566,16 +657,49 @@ aside.nav,
     .nav-group--collections-shortcut
     .nav__link::before {
     margin: 0 !important;
-    width: 22px;
-    height: 22px;
+    width: 20px !important;
+    height: 20px !important;
     display: inline-block !important; /* Ensure visibility */
     opacity: 1 !important; /* Prevent any unintended fading */
+    flex-shrink: 0 !important;
   }
 
-  /* Ensure active icons have high contrast in collapsed rail */
-  .template-default.template-default--nav-hydrated:not(.template-default--nav-open) .nav__link.active::before,
-  .template-default.template-default--nav-hydrated:not(.template-default--nav-open) .nav__link[aria-current='page']::before {
-    background-color: #ffffff !important;
+  /* Ensure active icons have pure white color in collapsed rail and retain contrast on hover */
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open) .nav__link.active,
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open) .nav__link--active,
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open) .nav__link[aria-current='page'] {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+    color: #ffffff !important;
+    border: 1px solid #0284c7 !important;
+
+    &::before {
+      background-color: #ffffff !important;
+      color: #ffffff !important;
+      fill: #ffffff !important;
+    }
+
+    .nav__link-label,
+    span {
+      color: #ffffff !important;
+    }
+
+    &:hover,
+    &:focus {
+      background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%) !important;
+      color: #ffffff !important;
+      border-color: #38bdf8 !important;
+
+      &::before {
+        background-color: #ffffff !important;
+        color: #ffffff !important;
+        fill: #ffffff !important;
+      }
+
+      .nav__link-label,
+      span {
+        color: #ffffff !important;
+      }
+    }
   }
 
   .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
