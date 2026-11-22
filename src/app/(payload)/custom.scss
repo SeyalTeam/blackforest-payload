@@ -123,6 +123,14 @@ aside.nav,
   z-index: 25 !important;
   text-transform: uppercase !important;
   overflow-x: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+
+  &::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
 
   [data-theme='light'] & {
     box-shadow: 4px 0 24px rgba(15, 23, 42, 0.08), 1px 0 0 rgba(0, 0, 0, 0.06) !important;
@@ -135,6 +143,17 @@ aside.nav,
     padding-bottom: 20px;
     overflow-x: hidden !important;
     overscroll-behavior-x: none !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: contain !important;
+    scroll-behavior: auto !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+
+    &::-webkit-scrollbar {
+      display: none !important;
+      width: 0 !important;
+      height: 0 !important;
+    }
 
     // --- SECTION SEPARATORS ---
     // Apply line and spacing to ALL groups (Reports, Collections, Globals, etc)
@@ -163,45 +182,56 @@ aside.nav,
   }
 
   // --- REORDERING & VISIBILITY LOGIC ---
-  // Hide all groups by default, strictly displaying only the 4 specified sections:
-  // 1. Collections (Single button shortcut)
-  // 2. Report
-  // 3. Account
-  // 4. Settings
+  // Requested sidebar order:
+  // 1. Report
+  // 2. Account
+  // 3. Settings
+  // 4. Collections (inline in sidebar after Settings, without separate dashboard page)
+
+  // Default: All nav groups display inline in sidebar and appear after Settings
   .nav-group {
+    display: block !important;
+    order: 4 !important;
+  }
+
+  // Hide the old single shortcut button
+  .nav-group--collections-shortcut {
     display: none !important;
   }
 
-  // 1. Collections Single Button
-  .nav-group--collections-shortcut {
-    display: block !important;
-    order: 1 !important;
-  }
-
-  // 2. Report Group
+  // 1. Report Group
   .nav-group.Report,
   .nav-group:has(a[href*='branch-wise-report']),
   .nav-group:has(a[href*='category-wise-report']),
   .nav-group:has(a[href*='product-wise-report']),
   .nav-group:has(a[href*='all-report']) {
     display: block !important;
-    order: 2 !important;
+    order: 1 !important;
   }
 
-  // 3. Account Group
+  // 2. Account Group
   .nav-group.Account,
   .nav-group:has(a[href*='gst-report']),
   .nav-group:has(a[href*='bank-statement']),
   .nav-group:has(a[href*='accounts-bills-report']),
   .nav-group:has(a[href*='dealer-report']) {
     display: block !important;
-    order: 3 !important;
+    order: 2 !important;
   }
 
-  // 4. Settings Group
+  // 3. Settings Group
   .nav-group.Settings,
   .nav-group:has(a[href*='settings']),
   .nav-group:has(a[href*='network-status']) {
+    display: block !important;
+    order: 3 !important;
+  }
+
+  // 4. Collections and other collection groups (Inventory, Work, Billing, etc.)
+  .nav-group.Collections,
+  .nav-group.Inventory,
+  .nav-group.Work,
+  .nav-group:not(.Report):not(.Account):not(.Settings) {
     display: block !important;
     order: 4 !important;
   }

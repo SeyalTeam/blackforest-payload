@@ -132,13 +132,15 @@ const AdminCollectionsDashboard = (props: AdminViewServerProps) => {
       groupName = FALLBACK_GROUP_MAPPING[collection.slug] || 'Other Collections'
     }
 
-    const canCreate = permissions?.collections?.[collection.slug]?.create?.permission ?? true
+    const canCreate = (permissions?.collections?.[collection.slug]?.create as any)?.permission ?? true
+
+    const rawPlural = typeof collection.labels?.plural === 'function'
+      ? collection.labels.plural({ i18n, t: i18n.t })
+      : collection.labels?.plural || collection.slug
+    const resolvedLabel = typeof rawPlural === 'string' ? rawPlural : (rawPlural as any)?.en || collection.slug
 
     const entity: CollectionItem = {
-      label:
-        typeof collection.labels?.plural === 'function'
-          ? collection.labels.plural({ i18n, t: i18n.t })
-          : collection.labels?.plural || collection.slug,
+      label: resolvedLabel,
       slug: collection.slug,
       canCreate: canCreate,
       group: groupName,

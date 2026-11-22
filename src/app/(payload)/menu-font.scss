@@ -12,6 +12,14 @@ aside.nav,
   transition: width 0.2s ease;
   text-transform: uppercase !important;
   overflow-x: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+
+  &::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
 
   [data-theme='light'] & {
     box-shadow: 4px 0 24px rgba(15, 23, 42, 0.08), 1px 0 0 rgba(0, 0, 0, 0.06) !important;
@@ -23,6 +31,17 @@ aside.nav,
   padding-bottom: 20px !important;
   overflow-x: hidden !important;
   overscroll-behavior-x: none !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: contain !important;
+  scroll-behavior: auto !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+
+  &::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
 }
 
 .nav__wrap {
@@ -354,49 +373,31 @@ aside.nav,
 }
 
 .nav-group--collections-shortcut {
-  margin-bottom: 16px !important;
-  order: 1 !important;
+  display: none !important;
 }
 
-.nav-group--collections-shortcut .nav__link {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  font-weight: 600;
-}
-
-.nav-group--collections-shortcut .nav__link::before {
-  content: '';
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  background-color: currentColor;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  mask-position: center;
-  -webkit-mask-size: contain;
-  mask-size: contain;
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 8v13H3V8'/%3E%3Cpath d='M1 3h22v5H1z'/%3E%3Cpath d='M10 12h4'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 8v13H3V8'/%3E%3Cpath d='M1 3h22v5H1z'/%3E%3Cpath d='M10 12h4'/%3E%3C/svg%3E");
-}
-
-/* Enforce requested sidebar order: Collections -> Report -> Account -> Settings */
-.nav-group--collections-shortcut {
-  order: 1 !important;
-}
-
+/* Enforce requested sidebar order: Report -> Account -> Settings -> Collections */
 .nav-group.Report {
-  order: 2 !important;
+  order: 1 !important;
+  display: block !important;
 }
 
 .nav-group.Account {
-  order: 3 !important;
+  order: 2 !important;
+  display: block !important;
 }
 
 .nav-group.Settings {
+  order: 3 !important;
+  display: block !important;
+}
+
+.nav-group.Collections,
+.nav-group.Inventory,
+.nav-group.Work,
+.nav-group:not(.Report):not(.Account):not(.Settings) {
   order: 4 !important;
+  display: block !important;
 }
 
 .nav-group.Work .nav__link {

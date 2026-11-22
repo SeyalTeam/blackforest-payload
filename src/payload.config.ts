@@ -603,16 +603,8 @@ export default buildConfig({
       ],
     },
     components: {
-      views: {
-        dashboard: {
-          Component: '/components/AdminCollectionsDashboard/index.tsx#default',
-          exact: true,
-          path: '/',
-        },
-      },
       beforeNavLinks: [
         '/components/AdminCollapsedNavBehavior/index.tsx#default',
-        '/components/AdminCollectionsNavLink/index.tsx#default',
       ],
     },
   },
