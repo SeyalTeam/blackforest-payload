@@ -565,20 +565,20 @@ a[aria-current='page'] {
   }
 
   .template-default.template-default--nav-hydrated:not(.template-default--nav-open) {
-    grid-template-columns: 86px auto !important;
+    grid-template-columns: 104px auto !important;
   }
 
   .template-default.template-default--nav-hydrated:not(.template-default--nav-open) .nav {
-    width: 86px !important;
-    min-width: 86px !important;
-    max-width: 86px !important;
+    width: 104px !important;
+    min-width: 104px !important;
+    max-width: 104px !important;
     opacity: 1 !important;
     overflow-x: hidden !important;
   }
 
   .template-default.template-default--nav-hydrated:not(.template-default--nav-open) .nav__scroll {
-    padding-left: 8px !important;
-    padding-right: 8px !important;
+    padding-left: 5px !important;
+    padding-right: 5px !important;
   }
 
   .template-default.template-default--nav-hydrated:not(.template-default--nav-open)
@@ -605,8 +605,8 @@ a[aria-current='page'] {
     flex-direction: column !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 3px !important;
-    min-height: 56px !important;
+    gap: 4px !important;
+    min-height: 60px !important;
     padding: 7px 4px !important;
     margin: 4px 0 !important;
     border-radius: 8px !important;
@@ -622,20 +622,22 @@ a[aria-current='page'] {
     span {
     position: static !important;
     width: 100% !important;
-    max-width: 74px !important;
+    max-width: 94px !important;
     height: auto !important;
     margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
+    padding: 0 2px !important;
+    overflow: visible !important;
     clip: auto !important;
     border: 0 !important;
-    white-space: nowrap !important;
-    text-overflow: ellipsis !important;
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+    text-overflow: clip !important;
     font-size: 9px !important;
     line-height: 1.15 !important;
     font-weight: 700 !important;
     text-transform: uppercase !important;
-    letter-spacing: 0.02em !important;
+    letter-spacing: 0.01em !important;
     display: block !important;
     text-align: center !important;
     color: inherit !important;
@@ -664,23 +666,32 @@ a[aria-current='page'] {
     flex-shrink: 0 !important;
   }
 
-  /* Ensure active icons have pure white color in collapsed rail and retain contrast on hover */
+  /* Ensure active icons and labels have pure white color in collapsed rail and retain contrast on hover */
   .template-default.template-default--nav-hydrated:not(.template-default--nav-open) .nav__link.active,
   .template-default.template-default--nav-hydrated:not(.template-default--nav-open) .nav__link--active,
-  .template-default.template-default--nav-hydrated:not(.template-default--nav-open) .nav__link[aria-current='page'] {
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open) .nav-group__link--active,
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open) .nav__link[aria-current='page'],
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open) .nav__link:has(.nav__link-indicator),
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open) a.active,
+  .template-default.template-default--nav-hydrated:not(.template-default--nav-open) a[aria-current='page'] {
     background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
     color: #ffffff !important;
     border: 1px solid #0284c7 !important;
 
-    &::before {
-      background-color: #ffffff !important;
-      color: #ffffff !important;
-      fill: #ffffff !important;
-    }
-
+    &,
+    *,
     .nav__link-label,
     span {
       color: #ffffff !important;
+      fill: #ffffff !important;
+      -webkit-text-fill-color: #ffffff !important;
+    }
+
+    &::before,
+    &::after {
+      background-color: #ffffff !important;
+      color: #ffffff !important;
+      fill: #ffffff !important;
     }
 
     &:hover,
@@ -689,15 +700,20 @@ a[aria-current='page'] {
       color: #ffffff !important;
       border-color: #38bdf8 !important;
 
-      &::before {
-        background-color: #ffffff !important;
-        color: #ffffff !important;
-        fill: #ffffff !important;
-      }
-
+      &,
+      *,
       .nav__link-label,
       span {
         color: #ffffff !important;
+        fill: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+      }
+
+      &::before,
+      &::after {
+        background-color: #ffffff !important;
+        color: #ffffff !important;
+        fill: #ffffff !important;
       }
     }
   }

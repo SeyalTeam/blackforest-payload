@@ -831,20 +831,20 @@ aside.nav,
   }
 
   .template-default.template-default--nav-hydrated:not(.template-default--nav-open) {
-    grid-template-columns: 86px auto !important;
+    grid-template-columns: 104px auto !important;
 
     aside.nav,
     .nav {
-      width: 86px !important;
-      min-width: 86px !important;
-      max-width: 86px !important;
+      width: 104px !important;
+      min-width: 104px !important;
+      max-width: 104px !important;
       opacity: 1 !important;
       overflow-x: hidden !important;
     }
 
     .nav__scroll {
-      padding-left: 6px !important;
-      padding-right: 6px !important;
+      padding-left: 5px !important;
+      padding-right: 5px !important;
     }
 
     .nav-group__toggle {
@@ -867,8 +867,8 @@ aside.nav,
       flex-direction: column !important;
       align-items: center !important;
       justify-content: center !important;
-      gap: 3px !important;
-      min-height: 56px !important;
+      gap: 4px !important;
+      min-height: 60px !important;
       padding: 7px 4px !important;
       margin: 4px 0 !important;
       border-radius: 8px !important;
@@ -879,20 +879,22 @@ aside.nav,
       span {
         position: static !important;
         width: 100% !important;
-        max-width: 74px !important;
+        max-width: 94px !important;
         height: auto !important;
         margin: 0 !important;
-        padding: 0 !important;
-        overflow: hidden !important;
+        padding: 0 2px !important;
+        overflow: visible !important;
         clip: auto !important;
         border: 0 !important;
-        white-space: nowrap !important;
-        text-overflow: ellipsis !important;
+        white-space: normal !important;
+        word-break: normal !important;
+        overflow-wrap: break-word !important;
+        text-overflow: clip !important;
         font-size: 9px !important;
         line-height: 1.15 !important;
         font-weight: 700 !important;
         text-transform: uppercase !important;
-        letter-spacing: 0.02em !important;
+        letter-spacing: 0.01em !important;
         display: block !important;
         text-align: center !important;
         color: inherit !important;
@@ -910,20 +912,28 @@ aside.nav,
 
       &.active,
       &.nav__link--active,
-      &[aria-current='page'] {
+      &[aria-current='page'],
+      &[data-active='true'],
+      &:has(.nav__link-indicator) {
         background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
         color: #ffffff !important;
         border: 1px solid #0284c7 !important;
+        box-shadow: 0 4px 14px rgba(2, 132, 199, 0.32) !important;
 
-        &::before {
+        &,
+        *,
+        span,
+        .nav__link-label {
+          color: #ffffff !important;
+          fill: #ffffff !important;
+          -webkit-text-fill-color: #ffffff !important;
+        }
+
+        &::before,
+        &::after {
           background-color: #ffffff !important;
           color: #ffffff !important;
           fill: #ffffff !important;
-        }
-
-        .nav__link-label,
-        span {
-          color: #ffffff !important;
         }
 
         &:hover,
@@ -932,15 +942,70 @@ aside.nav,
           color: #ffffff !important;
           border-color: #38bdf8 !important;
 
-          &::before {
+          &,
+          *,
+          span,
+          .nav__link-label {
+            color: #ffffff !important;
+            fill: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+          }
+
+          &::before,
+          &::after {
             background-color: #ffffff !important;
             color: #ffffff !important;
             fill: #ffffff !important;
           }
+        }
+      }
+    }
 
-          .nav__link-label,
-          span {
+    // Explicit light mode override for active items
+    [data-theme='light'] & {
+      .nav__link.active,
+      .nav__link--active,
+      .nav-group__link--active,
+      .nav__link[aria-current='page'],
+      .nav__link:has(.nav__link-indicator),
+      a.active,
+      a[aria-current='page'],
+      [aria-current='page'] {
+        background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+        color: #ffffff !important;
+
+        &,
+        *,
+        span,
+        .nav__link-label {
+          color: #ffffff !important;
+          fill: #ffffff !important;
+          -webkit-text-fill-color: #ffffff !important;
+        }
+
+        &::before,
+        &::after {
+          background-color: #ffffff !important;
+          color: #ffffff !important;
+          fill: #ffffff !important;
+        }
+
+        &:hover,
+        &:focus {
+          &,
+          *,
+          span,
+          .nav__link-label {
             color: #ffffff !important;
+            fill: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+          }
+
+          &::before,
+          &::after {
+            background-color: #ffffff !important;
+            color: #ffffff !important;
+            fill: #ffffff !important;
           }
         }
       }
