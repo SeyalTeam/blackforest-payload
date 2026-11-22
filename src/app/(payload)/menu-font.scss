@@ -372,30 +372,52 @@ aside.nav,
   background: var(--nav-text) !important;
 }
 
-.nav-group--collections-shortcut {
+.nav-group {
   display: none !important;
 }
 
-/* Enforce requested sidebar order: Report -> Account -> Settings -> Collections */
-.nav-group.Report {
-  order: 1 !important;
+.nav-group--collections-shortcut {
   display: block !important;
+  margin-bottom: 16px !important;
+  order: 1 !important;
 }
 
-.nav-group.Account {
+.nav-group--collections-shortcut .nav__link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-weight: 600;
+}
+
+.nav-group--collections-shortcut .nav__link::before {
+  content: '';
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 8v13H3V8'/%3E%3Cpath d='M1 3h22v5H1z'/%3E%3Cpath d='M10 12h4'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 8v13H3V8'/%3E%3Cpath d='M1 3h22v5H1z'/%3E%3Cpath d='M10 12h4'/%3E%3C/svg%3E");
+}
+
+/* Enforce requested sidebar order: Collections -> Report -> Account -> Settings */
+.nav-group.Report {
   order: 2 !important;
   display: block !important;
 }
 
-.nav-group.Settings {
+.nav-group.Account {
   order: 3 !important;
   display: block !important;
 }
 
-.nav-group.Collections,
-.nav-group.Inventory,
-.nav-group.Work,
-.nav-group:not(.Report):not(.Account):not(.Settings) {
+.nav-group.Settings {
   order: 4 !important;
   display: block !important;
 }

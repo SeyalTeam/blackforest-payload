@@ -182,56 +182,45 @@ aside.nav,
   }
 
   // --- REORDERING & VISIBILITY LOGIC ---
-  // Requested sidebar order:
-  // 1. Report
-  // 2. Account
-  // 3. Settings
-  // 4. Collections (inline in sidebar after Settings, without separate dashboard page)
-
-  // Default: All nav groups display inline in sidebar and appear after Settings
+  // Hide all groups by default, strictly displaying only the 4 specified sections:
+  // 1. Collections (Single button shortcut leading to dedicated dashboard)
+  // 2. Report
+  // 3. Account
+  // 4. Settings
   .nav-group {
-    display: block !important;
-    order: 4 !important;
-  }
-
-  // Hide the old single shortcut button
-  .nav-group--collections-shortcut {
     display: none !important;
   }
 
-  // 1. Report Group
+  // 1. Collections Single Button Shortcut
+  .nav-group--collections-shortcut {
+    display: block !important;
+    order: 1 !important;
+  }
+
+  // 2. Report Group
   .nav-group.Report,
   .nav-group:has(a[href*='branch-wise-report']),
   .nav-group:has(a[href*='category-wise-report']),
   .nav-group:has(a[href*='product-wise-report']),
   .nav-group:has(a[href*='all-report']) {
     display: block !important;
-    order: 1 !important;
+    order: 2 !important;
   }
 
-  // 2. Account Group
+  // 3. Account Group
   .nav-group.Account,
   .nav-group:has(a[href*='gst-report']),
   .nav-group:has(a[href*='bank-statement']),
   .nav-group:has(a[href*='accounts-bills-report']),
   .nav-group:has(a[href*='dealer-report']) {
     display: block !important;
-    order: 2 !important;
-  }
-
-  // 3. Settings Group
-  .nav-group.Settings,
-  .nav-group:has(a[href*='settings']),
-  .nav-group:has(a[href*='network-status']) {
-    display: block !important;
     order: 3 !important;
   }
 
-  // 4. Collections and other collection groups (Inventory, Work, Billing, etc.)
-  .nav-group.Collections,
-  .nav-group.Inventory,
-  .nav-group.Work,
-  .nav-group:not(.Report):not(.Account):not(.Settings) {
+  // 4. Settings Group
+  .nav-group.Settings,
+  .nav-group:has(a[href*='settings']),
+  .nav-group:has(a[href*='network-status']) {
     display: block !important;
     order: 4 !important;
   }
