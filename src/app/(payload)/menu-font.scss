@@ -31,9 +31,7 @@ aside.nav,
   padding-bottom: 20px !important;
   overflow-x: hidden !important;
   overscroll-behavior-x: none !important;
-  overflow-y: auto !important;
-  overscroll-behavior-y: contain !important;
-  scroll-behavior: auto !important;
+  overflow-y: visible !important;
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
 
@@ -50,6 +48,7 @@ aside.nav,
   display: flex;
   flex-direction: column;
   overflow-x: hidden !important;
+  overflow-y: visible !important;
 }
 
 .nav-group {
@@ -57,12 +56,14 @@ aside.nav,
   max-width: 100%;
   margin-bottom: 10px !important;
   overflow-x: hidden !important;
+  overflow-y: visible !important;
 }
 
 .nav-group__toggle {
   width: 100%;
   padding: 8px 12px !important;
   border-radius: 10px;
+  cursor: pointer !important;
 }
 
 .nav-group__label {
