@@ -403,7 +403,10 @@ export const Users: CollectionConfig = {
             role,
           ),
       },
-      filterOptions: ({ siblingData }) => {
+      filterOptions: ({ siblingData, req }) => {
+        if (req?.context?.syncFromEmployee) {
+          return true
+        }
         const role = (siblingData as { role?: string }).role
         if (
           !role ||

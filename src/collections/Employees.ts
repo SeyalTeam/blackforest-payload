@@ -235,7 +235,7 @@ const Employees: CollectionConfig = {
     afterChange: [
       async ({ doc, previousDoc, req }) => {
         // If team (role) has changed, update the associated User record
-        if (doc.team !== previousDoc?.team) {
+        if (doc.team && (!previousDoc || doc.team !== previousDoc?.team)) {
           const usersRes = await req.payload.find({
             collection: 'users',
             where: {
@@ -245,21 +245,29 @@ const Employees: CollectionConfig = {
             },
             depth: 0,
             overrideAccess: true,
+            req,
           })
 
           if (usersRes.docs && usersRes.docs.length > 0) {
             for (const user of usersRes.docs) {
-              try {
-                await req.payload.update({
-                  collection: 'users',
-                  id: user.id,
-                  data: {
-                    role: doc.team,
-                  },
-                  overrideAccess: true,
-                })
-              } catch (e) {
-                console.error(`Failed to sync role to user ${user.id}:`, e)
+              if (user.role !== doc.team) {
+                try {
+                  await req.payload.update({
+                    collection: 'users',
+                    id: user.id,
+                    data: {
+                      role: doc.team,
+                    },
+                    req,
+                    context: {
+                      ...(req.context || {}),
+                      syncFromEmployee: true,
+                    },
+                    overrideAccess: true,
+                  })
+                } catch (e) {
+                  console.error(`Failed to sync role to user ${user.id}:`, e)
+                }
               }
             }
           }

@@ -196,6 +196,7 @@ export interface Config {
     'waiter-wise-billing-report': WaiterWiseBillingReport;
     'report-card': ReportCard;
     'attendance-report': AttendanceReport;
+    'checking-report': CheckingReport;
     'inventory-report': InventoryReport;
     'stock-order-report': StockOrderReport;
     'afterstock-customer-report': AfterstockCustomerReport;
@@ -242,6 +243,7 @@ export interface Config {
     'waiter-wise-billing-report': WaiterWiseBillingReportSelect<false> | WaiterWiseBillingReportSelect<true>;
     'report-card': ReportCardSelect<false> | ReportCardSelect<true>;
     'attendance-report': AttendanceReportSelect<false> | AttendanceReportSelect<true>;
+    'checking-report': CheckingReportSelect<false> | CheckingReportSelect<true>;
     'inventory-report': InventoryReportSelect<false> | InventoryReportSelect<true>;
     'stock-order-report': StockOrderReportSelect<false> | StockOrderReportSelect<true>;
     'afterstock-customer-report': AfterstockCustomerReportSelect<false> | AfterstockCustomerReportSelect<true>;
@@ -1229,7 +1231,7 @@ export interface TaskCompletion {
  */
 export interface TaskPhotoAudit {
   id: string;
-  task: string | Task;
+  task?: (string | null) | Task;
   taskTitle?: string | null;
   branch?: (string | null) | Branch;
   employee?: (string | null) | Employee;
@@ -1247,7 +1249,7 @@ export interface TaskPhotoAudit {
     | null;
   photoCount?: number | null;
   notes?: string | null;
-  status?: ('submitted' | 'verified' | 'flagged') | null;
+  status?: ('pending' | 'submitted' | 'verified' | 'flagged') | null;
   submittedAt?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -4555,6 +4557,10 @@ export interface PaymentSetting {
     paymentPageClientId: string;
     environment: 'sandbox' | 'production';
   };
+  /**
+   * When enabled by the Owner/Admin, allows the Accountant role in Tracker App to open the cash drawer.
+   */
+  isAccountantCashDrawerEnabled?: boolean | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -4724,6 +4730,15 @@ export interface ReportCard {
  * via the `definition` "attendance-report".
  */
 export interface AttendanceReport {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "checking-report".
+ */
+export interface CheckingReport {
   id: string;
   updatedAt?: string | null;
   createdAt?: string | null;
@@ -6376,6 +6391,7 @@ export interface PaymentSettingsSelect<T extends boolean = true> {
         paymentPageClientId?: T;
         environment?: T;
       };
+  isAccountantCashDrawerEnabled?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
@@ -6542,6 +6558,15 @@ export interface ReportCardSelect<T extends boolean = true> {
  * via the `definition` "attendance-report_select".
  */
 export interface AttendanceReportSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "checking-report_select".
+ */
+export interface CheckingReportSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
