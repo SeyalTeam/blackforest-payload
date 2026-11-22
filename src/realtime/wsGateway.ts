@@ -1201,7 +1201,7 @@ const recordCallEventToDb = async (params: {
         })
       }
     } else {
-      let initialStatus = 'missed'
+      let initialStatus: 'connected' | 'missed' | 'declined' | 'busy' | 'offline' | 'ended' = 'missed'
       if (params.signalType === 'answer') initialStatus = 'connected'
       else if (params.signalType === 'rejected' || params.signalType === 'declined') initialStatus = 'declined'
       else if (params.signalType === 'busy') initialStatus = 'busy'

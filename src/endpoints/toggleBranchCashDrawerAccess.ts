@@ -1,7 +1,7 @@
 import { PayloadHandler } from 'payload'
 
 export const toggleBranchCashDrawerAccessHandler: PayloadHandler = async (req): Promise<Response> => {
-  const allowedRoles = ['superadmin', 'admin', 'manager', 'company', 'branch', 'account']
+  const allowedRoles = ['superadmin', 'admin', 'manager', 'company', 'branch', 'account', 'accountant']
   if (!req.user || !allowedRoles.includes(req.user.role)) {
     return Response.json({ message: 'Unauthorized' }, { status: 401 })
   }
