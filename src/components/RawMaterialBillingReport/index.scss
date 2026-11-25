@@ -601,6 +601,10 @@
     }
   }
 
+  .image-preview-modal {
+    z-index: 3500 !important;
+  }
+
   .image-preview-modal .modal-content {
     padding: 0;
     background: transparent;

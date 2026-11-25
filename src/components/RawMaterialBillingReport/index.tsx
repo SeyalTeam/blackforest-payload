@@ -2158,17 +2158,6 @@ const RawMaterialBillingReport: React.FC = () => {
         </div>
       </div>
 
-      {previewImage && (
-        <div className="image-preview-modal" onClick={() => setPreviewImage(null)} role="presentation">
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <img src={previewImage} alt="Attachment Preview" />
-            <button type="button" className="close-btn" onClick={() => setPreviewImage(null)}>
-              ×
-            </button>
-          </div>
-        </div>
-      )}
-
       {previewMaterials && (
         <div className="materials-modal-overlay" onClick={() => setPreviewMaterials(null)} role="presentation">
           <div className="materials-modal-content" onClick={(e) => e.stopPropagation()}>
@@ -3204,6 +3193,18 @@ const RawMaterialBillingReport: React.FC = () => {
                 {isSavingNote ? 'Saving...' : 'Save Note'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preview Image Modal - rendered at root level on top of all modals */}
+      {previewImage && (
+        <div className="image-preview-modal" onClick={() => setPreviewImage(null)} role="presentation">
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <img src={previewImage} alt="Attachment Preview" />
+            <button type="button" className="close-btn" onClick={() => setPreviewImage(null)}>
+              ×
+            </button>
           </div>
         </div>
       )}
