@@ -38,6 +38,30 @@ export type ClosingEntryDetail = {
   systemCash: number
   systemUpi: number
   systemCard: number
+  verification?: {
+    overallStatus?: 'pending' | 'partially_verified' | 'verified' | 'rejected'
+    accountant?: {
+      status?: 'pending' | 'verified' | 'rejected' | 'skipped'
+      notes?: string
+      verifiedByName?: string
+      verifiedByRole?: string
+      verifiedAt?: string
+    }
+    watcher?: {
+      status?: 'pending' | 'verified' | 'rejected' | 'skipped'
+      notes?: string
+      verifiedByName?: string
+      verifiedByRole?: string
+      verifiedAt?: string
+    }
+    manager?: {
+      status?: 'pending' | 'verified' | 'rejected' | 'skipped'
+      notes?: string
+      verifiedByName?: string
+      verifiedByRole?: string
+      verifiedAt?: string
+    }
+  }
 }
 
 export type ClosingEntryStat = {
@@ -71,6 +95,30 @@ export type ClosingEntryStat = {
   systemCash: number
   systemUpi: number
   systemCard: number
+  verification?: {
+    overallStatus?: 'pending' | 'partially_verified' | 'verified' | 'rejected'
+    accountant?: {
+      status?: 'pending' | 'verified' | 'rejected' | 'skipped'
+      notes?: string
+      verifiedByName?: string
+      verifiedByRole?: string
+      verifiedAt?: string
+    }
+    watcher?: {
+      status?: 'pending' | 'verified' | 'rejected' | 'skipped'
+      notes?: string
+      verifiedByName?: string
+      verifiedByRole?: string
+      verifiedAt?: string
+    }
+    manager?: {
+      status?: 'pending' | 'verified' | 'rejected' | 'skipped'
+      notes?: string
+      verifiedByName?: string
+      verifiedByRole?: string
+      verifiedAt?: string
+    }
+  }
 }
 
 export type ClosingEntryTotals = {
@@ -90,6 +138,30 @@ export type ClosingEntryTotals = {
   systemCash: number
   systemUpi: number
   systemCard: number
+  verification?: {
+    overallStatus?: 'pending' | 'partially_verified' | 'verified' | 'rejected'
+    accountant?: {
+      status?: 'pending' | 'verified' | 'rejected' | 'skipped'
+      notes?: string
+      verifiedByName?: string
+      verifiedByRole?: string
+      verifiedAt?: string
+    }
+    watcher?: {
+      status?: 'pending' | 'verified' | 'rejected' | 'skipped'
+      notes?: string
+      verifiedByName?: string
+      verifiedByRole?: string
+      verifiedAt?: string
+    }
+    manager?: {
+      status?: 'pending' | 'verified' | 'rejected' | 'skipped'
+      notes?: string
+      verifiedByName?: string
+      verifiedByRole?: string
+      verifiedAt?: string
+    }
+  }
 }
 
 export type ClosingEntryReportResult = {
@@ -303,6 +375,7 @@ const normalizeEntry = (entry: RawClosingEntryItem): ClosingEntryDetail => {
     systemUpi: 0,
     systemCard: 0,
     notes: toNonEmptyString(entry.notes),
+    verification: (entry as any).verification,
   }
 }
 
@@ -375,6 +448,7 @@ export const getClosingEntryReportData = async (
             card: '$creditCard',
             denominations: '$denominations',
             notes: '$notes',
+            verification: '$verification',
           },
         },
         systemSales: { $sum: '$systemSales' },

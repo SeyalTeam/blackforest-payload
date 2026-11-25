@@ -114,6 +114,100 @@ const Expenses: CollectionConfig = {
         description: 'Name of the cashier who created/submitted the expense.',
       },
     },
+    {
+      name: 'notes',
+      type: 'textarea',
+      required: false,
+      admin: {
+        description: 'Remarks or notes for this expense.',
+      },
+    },
+    {
+      name: 'verification',
+      type: 'group',
+      fields: [
+        {
+          name: 'overallStatus',
+          type: 'select',
+          options: [
+            { label: 'Pending', value: 'pending' },
+            { label: 'Partially Verified', value: 'partially_verified' },
+            { label: 'Verified', value: 'verified' },
+            { label: 'Rejected', value: 'rejected' },
+          ],
+          defaultValue: 'pending',
+        },
+        {
+          name: 'accountant',
+          type: 'group',
+          fields: [
+            {
+              name: 'status',
+              type: 'select',
+              options: [
+                { label: 'Pending', value: 'pending' },
+                { label: 'Verified', value: 'verified' },
+                { label: 'Rejected', value: 'rejected' },
+                { label: 'Skipped', value: 'skipped' },
+              ],
+              defaultValue: 'pending',
+            },
+            { name: 'notes', type: 'textarea' },
+            { name: 'verifiedBy', type: 'relationship', relationTo: 'users' },
+            { name: 'verifiedByName', type: 'text' },
+            { name: 'verifiedByRole', type: 'text' },
+            { name: 'verifiedAt', type: 'date' },
+            { name: 'skipReason', type: 'text' },
+          ],
+        },
+        {
+          name: 'watcher',
+          type: 'group',
+          fields: [
+            {
+              name: 'status',
+              type: 'select',
+              options: [
+                { label: 'Pending', value: 'pending' },
+                { label: 'Verified', value: 'verified' },
+                { label: 'Rejected', value: 'rejected' },
+                { label: 'Skipped', value: 'skipped' },
+              ],
+              defaultValue: 'pending',
+            },
+            { name: 'notes', type: 'textarea' },
+            { name: 'verifiedBy', type: 'relationship', relationTo: 'users' },
+            { name: 'verifiedByName', type: 'text' },
+            { name: 'verifiedByRole', type: 'text' },
+            { name: 'verifiedAt', type: 'date' },
+            { name: 'skipReason', type: 'text' },
+          ],
+        },
+        {
+          name: 'manager',
+          type: 'group',
+          fields: [
+            {
+              name: 'status',
+              type: 'select',
+              options: [
+                { label: 'Pending', value: 'pending' },
+                { label: 'Verified', value: 'verified' },
+                { label: 'Rejected', value: 'rejected' },
+                { label: 'Skipped', value: 'skipped' },
+              ],
+              defaultValue: 'pending',
+            },
+            { name: 'notes', type: 'textarea' },
+            { name: 'verifiedBy', type: 'relationship', relationTo: 'users' },
+            { name: 'verifiedByName', type: 'text' },
+            { name: 'verifiedByRole', type: 'text' },
+            { name: 'verifiedAt', type: 'date' },
+            { name: 'skipReason', type: 'text' },
+          ],
+        },
+      ],
+    },
   ],
   hooks: {
     beforeChange: [

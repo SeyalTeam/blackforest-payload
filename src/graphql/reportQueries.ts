@@ -426,6 +426,10 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       systemUpi: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       systemCard: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
       notes: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+      verificationJson: {
+        type: graphQL.GraphQLString,
+        resolve: (entry: any) => (entry.verification ? JSON.stringify(entry.verification) : null),
+      },
       denominations: { type: new graphQL.GraphQLNonNull(ClosingEntryReportDenominationsType) },
       expenseDetails: {
         type: new graphQL.GraphQLNonNull(
@@ -944,6 +948,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       employeeId: { type: graphQL.GraphQLString },
       employeeName: { type: graphQL.GraphQLString },
       employeeRole: { type: graphQL.GraphQLString },
+      notes: { type: graphQL.GraphQLString },
+      verificationJson: { type: graphQL.GraphQLString },
     },
   })
 
@@ -1028,6 +1034,7 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
       notes: { type: graphQL.GraphQLString },
       time: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
       imageUrl: { type: graphQL.GraphQLString },
+      verificationJson: { type: graphQL.GraphQLString },
     },
   })
 

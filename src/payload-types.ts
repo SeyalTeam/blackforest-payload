@@ -179,6 +179,7 @@ export interface Config {
   globals: {
     'database-sync-settings': DatabaseSyncSetting;
     'payment-settings': PaymentSetting;
+    'report-verification-settings': ReportVerificationSetting;
     'ip-settings': IpSetting;
     'all-report': AllReport;
     'general-dashboard': GeneralDashboard;
@@ -226,6 +227,7 @@ export interface Config {
   globalsSelect: {
     'database-sync-settings': DatabaseSyncSettingsSelect<false> | DatabaseSyncSettingsSelect<true>;
     'payment-settings': PaymentSettingsSelect<false> | PaymentSettingsSelect<true>;
+    'report-verification-settings': ReportVerificationSettingsSelect<false> | ReportVerificationSettingsSelect<true>;
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
     'all-report': AllReportSelect<false> | AllReportSelect<true>;
     'general-dashboard': GeneralDashboardSelect<false> | GeneralDashboardSelect<true>;
@@ -673,6 +675,33 @@ export interface ClosingEntry {
    * Notes from the accounts team about this closing
    */
   notes?: string | null;
+  verification?: {
+    overallStatus?: ('pending' | 'partially_verified' | 'verified' | 'rejected') | null;
+    accountant?: {
+      status?: ('pending' | 'verified' | 'rejected' | 'skipped') | null;
+      notes?: string | null;
+      verifiedBy?: (string | null) | User;
+      verifiedByName?: string | null;
+      verifiedByRole?: string | null;
+      verifiedAt?: string | null;
+    };
+    watcher?: {
+      status?: ('pending' | 'verified' | 'rejected' | 'skipped') | null;
+      notes?: string | null;
+      verifiedBy?: (string | null) | User;
+      verifiedByName?: string | null;
+      verifiedByRole?: string | null;
+      verifiedAt?: string | null;
+    };
+    manager?: {
+      status?: ('pending' | 'verified' | 'rejected' | 'skipped') | null;
+      notes?: string | null;
+      verifiedBy?: (string | null) | User;
+      verifiedByName?: string | null;
+      verifiedByRole?: string | null;
+      verifiedAt?: string | null;
+    };
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -1751,6 +1780,37 @@ export interface DealerBilling {
    */
   cashierName?: string | null;
   plannedPaymentDate?: string | null;
+  /**
+   * Notes or remarks for this dealer / other product bill
+   */
+  notes?: string | null;
+  verification?: {
+    overallStatus?: ('pending' | 'partially_verified' | 'verified' | 'rejected') | null;
+    accountant?: {
+      status?: ('pending' | 'verified' | 'rejected' | 'skipped') | null;
+      notes?: string | null;
+      verifiedBy?: (string | null) | User;
+      verifiedByName?: string | null;
+      verifiedByRole?: string | null;
+      verifiedAt?: string | null;
+    };
+    watcher?: {
+      status?: ('pending' | 'verified' | 'rejected' | 'skipped') | null;
+      notes?: string | null;
+      verifiedBy?: (string | null) | User;
+      verifiedByName?: string | null;
+      verifiedByRole?: string | null;
+      verifiedAt?: string | null;
+    };
+    manager?: {
+      status?: ('pending' | 'verified' | 'rejected' | 'skipped') | null;
+      notes?: string | null;
+      verifiedBy?: (string | null) | User;
+      verifiedByName?: string | null;
+      verifiedByRole?: string | null;
+      verifiedAt?: string | null;
+    };
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -1807,6 +1867,33 @@ export interface RawMaterialBilling {
    * Notes or remarks for this raw material bill
    */
   notes?: string | null;
+  verification?: {
+    overallStatus?: ('pending' | 'partially_verified' | 'verified' | 'rejected') | null;
+    accountant?: {
+      status?: ('pending' | 'verified' | 'rejected' | 'skipped') | null;
+      notes?: string | null;
+      verifiedBy?: (string | null) | User;
+      verifiedByName?: string | null;
+      verifiedByRole?: string | null;
+      verifiedAt?: string | null;
+    };
+    watcher?: {
+      status?: ('pending' | 'verified' | 'rejected' | 'skipped') | null;
+      notes?: string | null;
+      verifiedBy?: (string | null) | User;
+      verifiedByName?: string | null;
+      verifiedByRole?: string | null;
+      verifiedAt?: string | null;
+    };
+    manager?: {
+      status?: ('pending' | 'verified' | 'rejected' | 'skipped') | null;
+      notes?: string | null;
+      verifiedBy?: (string | null) | User;
+      verifiedByName?: string | null;
+      verifiedByRole?: string | null;
+      verifiedAt?: string | null;
+    };
+  };
   createdBy?: (string | null) | User;
   createdByName?: string | null;
   createdByRole?: string | null;
@@ -3801,6 +3888,41 @@ export interface ClosingEntriesSelect<T extends boolean = true> {
   net?: T;
   branch?: T;
   notes?: T;
+  verification?:
+    | T
+    | {
+        overallStatus?: T;
+        accountant?:
+          | T
+          | {
+              status?: T;
+              notes?: T;
+              verifiedBy?: T;
+              verifiedByName?: T;
+              verifiedByRole?: T;
+              verifiedAt?: T;
+            };
+        watcher?:
+          | T
+          | {
+              status?: T;
+              notes?: T;
+              verifiedBy?: T;
+              verifiedByName?: T;
+              verifiedByRole?: T;
+              verifiedAt?: T;
+            };
+        manager?:
+          | T
+          | {
+              status?: T;
+              notes?: T;
+              verifiedBy?: T;
+              verifiedByName?: T;
+              verifiedByRole?: T;
+              verifiedAt?: T;
+            };
+      };
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3945,6 +4067,42 @@ export interface DealerBillingsSelect<T extends boolean = true> {
   cashierId?: T;
   cashierName?: T;
   plannedPaymentDate?: T;
+  notes?: T;
+  verification?:
+    | T
+    | {
+        overallStatus?: T;
+        accountant?:
+          | T
+          | {
+              status?: T;
+              notes?: T;
+              verifiedBy?: T;
+              verifiedByName?: T;
+              verifiedByRole?: T;
+              verifiedAt?: T;
+            };
+        watcher?:
+          | T
+          | {
+              status?: T;
+              notes?: T;
+              verifiedBy?: T;
+              verifiedByName?: T;
+              verifiedByRole?: T;
+              verifiedAt?: T;
+            };
+        manager?:
+          | T
+          | {
+              status?: T;
+              notes?: T;
+              verifiedBy?: T;
+              verifiedByName?: T;
+              verifiedByRole?: T;
+              verifiedAt?: T;
+            };
+      };
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3990,6 +4148,41 @@ export interface RawMaterialBillingsSelect<T extends boolean = true> {
   status?: T;
   plannedPaymentDate?: T;
   notes?: T;
+  verification?:
+    | T
+    | {
+        overallStatus?: T;
+        accountant?:
+          | T
+          | {
+              status?: T;
+              notes?: T;
+              verifiedBy?: T;
+              verifiedByName?: T;
+              verifiedByRole?: T;
+              verifiedAt?: T;
+            };
+        watcher?:
+          | T
+          | {
+              status?: T;
+              notes?: T;
+              verifiedBy?: T;
+              verifiedByName?: T;
+              verifiedByRole?: T;
+              verifiedAt?: T;
+            };
+        manager?:
+          | T
+          | {
+              status?: T;
+              notes?: T;
+              verifiedBy?: T;
+              verifiedByName?: T;
+              verifiedByRole?: T;
+              verifiedAt?: T;
+            };
+      };
   createdBy?: T;
   createdByName?: T;
   createdByRole?: T;
@@ -4561,6 +4754,40 @@ export interface PaymentSetting {
    * When enabled by the Owner/Admin, allows the Accountant role in Tracker App to open the cash drawer.
    */
   isAccountantCashDrawerEnabled?: boolean | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "report-verification-settings".
+ */
+export interface ReportVerificationSetting {
+  id: string;
+  rawMaterial?: {
+    requireAccountant?: boolean | null;
+    requireWatcher?: boolean | null;
+    requireManager?: boolean | null;
+  };
+  closingEntry?: {
+    requireAccountant?: boolean | null;
+    requireWatcher?: boolean | null;
+    requireManager?: boolean | null;
+  };
+  stockOrder?: {
+    requireAccountant?: boolean | null;
+    requireWatcher?: boolean | null;
+    requireManager?: boolean | null;
+  };
+  returnOrder?: {
+    requireAccountant?: boolean | null;
+    requireWatcher?: boolean | null;
+    requireManager?: boolean | null;
+  };
+  otherProducts?: {
+    requireAccountant?: boolean | null;
+    requireWatcher?: boolean | null;
+    requireManager?: boolean | null;
+  };
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -6392,6 +6619,50 @@ export interface PaymentSettingsSelect<T extends boolean = true> {
         environment?: T;
       };
   isAccountantCashDrawerEnabled?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "report-verification-settings_select".
+ */
+export interface ReportVerificationSettingsSelect<T extends boolean = true> {
+  rawMaterial?:
+    | T
+    | {
+        requireAccountant?: T;
+        requireWatcher?: T;
+        requireManager?: T;
+      };
+  closingEntry?:
+    | T
+    | {
+        requireAccountant?: T;
+        requireWatcher?: T;
+        requireManager?: T;
+      };
+  stockOrder?:
+    | T
+    | {
+        requireAccountant?: T;
+        requireWatcher?: T;
+        requireManager?: T;
+      };
+  returnOrder?:
+    | T
+    | {
+        requireAccountant?: T;
+        requireWatcher?: T;
+        requireManager?: T;
+      };
+  otherProducts?:
+    | T
+    | {
+        requireAccountant?: T;
+        requireWatcher?: T;
+        requireManager?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

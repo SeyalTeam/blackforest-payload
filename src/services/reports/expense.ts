@@ -19,6 +19,9 @@ export type ExpenseReportItem = {
   employeeId?: string
   employeeName?: string
   employeeRole?: string
+  notes?: string
+  verification?: unknown
+  verificationJson?: string | null
 }
 
 export type ExpenseReportGroup = {
@@ -69,6 +72,8 @@ type RawExpenseItem = {
   employeeId?: unknown
   employeeName?: unknown
   employeeRole?: unknown
+  notes?: unknown
+  verification?: unknown
 }
 
 type RawExpenseGroup = {
@@ -295,6 +300,8 @@ export const getExpenseReportData = async (
             employeeId: '$employeeInfo._id',
             employeeName: '$employeeInfo.name',
             employeeRole: '$employeeInfo.team',
+            notes: '$notes',
+            verification: '$verification',
           },
         },
       },
@@ -328,6 +335,9 @@ export const getExpenseReportData = async (
           employeeId: toNonEmptyString(item.employeeId),
           employeeName: toNonEmptyString(item.employeeName),
           employeeRole: toNonEmptyString(item.employeeRole),
+          notes: toNonEmptyString(item.notes, '') || undefined,
+          verification: (item as any).verification || undefined,
+          verificationJson: (item as any).verification ? JSON.stringify((item as any).verification) : null,
         }
       })
 

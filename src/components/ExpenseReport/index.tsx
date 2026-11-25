@@ -7,7 +7,17 @@ import Select, { components, OptionProps, ValueContainerProps } from 'react-sele
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc.js'
 import timezone from 'dayjs/plugin/timezone.js'
-import { ChevronDown, ChevronUp, Download } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronUp,
+  Download,
+  ShieldCheck,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  SkipForward,
+  Mail,
+} from 'lucide-react'
 import './index.scss'
 
 dayjs.extend(utc)
@@ -21,6 +31,24 @@ type SelectOption = {
   label: string
 }
 
+export type VerificationStepStatus = 'pending' | 'verified' | 'rejected' | 'skipped'
+export type OverallVerificationStatus = 'pending' | 'partially_verified' | 'verified' | 'rejected'
+
+export interface VerificationStepData {
+  status?: VerificationStepStatus
+  notes?: string
+  verifiedByName?: string
+  verifiedByRole?: string
+  verifiedAt?: string
+}
+
+export interface BillVerificationData {
+  overallStatus?: OverallVerificationStatus
+  accountant?: VerificationStepData
+  watcher?: VerificationStepData
+  manager?: VerificationStepData
+}
+
 export type ExpenseItem = {
   expenseId?: string
   detailId?: string
@@ -32,6 +60,9 @@ export type ExpenseItem = {
   employeeId?: string
   employeeName?: string
   employeeRole?: string
+  notes?: string
+  verification?: BillVerificationData
+  verificationJson?: string | null
 }
 
 export type BranchGroup = {
@@ -70,6 +101,16 @@ type ExpenseReportQueryResponse = {
   }[]
 }
 
+const columnOptions: SelectOption[] = [
+  { value: 'category', label: 'Category' },
+  { value: 'reason', label: 'Reason' },
+  { value: 'amount', label: 'Amount' },
+  { value: 'employee', label: 'Employee (Role)' },
+  { value: 'time', label: 'Time' },
+  { value: 'verification', label: 'Verification' },
+  { value: 'image', label: 'Image' },
+]
+
 const CheckboxOption = (props: OptionProps<SelectOption>) => {
   return (
     <components.Option {...props}>
@@ -82,6 +123,128 @@ const CheckboxOption = (props: OptionProps<SelectOption>) => {
       {props.label}
     </components.Option>
   )
+}
+
+const ColumnValueContainer = ({ children, ...props }: ValueContainerProps<SelectOption, true>) => {
+  const { getValue, selectProps } = props
+  const selected = getValue()
+  const total = selectProps.options ? (selectProps.options as any[]).length : 7
+  const count = selected.length
+
+  return (
+    <components.ValueContainer {...props}>
+      <div
+        style={{
+          paddingLeft: '4px',
+          position: 'absolute',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          pointerEvents: 'none',
+          color: 'var(--theme-text-primary)',
+          fontSize: '0.84rem',
+          fontWeight: 600,
+          whiteSpace: 'nowrap',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+        }}
+      >
+        <span>Columns:</span>
+        <span style={{ color: count === total ? '#10b981' : count === 0 ? '#ef4444' : '#3b82f6', fontWeight: 700 }}>
+          {count === total ? 'All' : count === 0 ? 'None' : `${count}/${total}`}
+        </span>
+      </div>
+      {children}
+    </components.ValueContainer>
+  )
+}
+
+const ColumnMenuList = (props: any) => {
+  const { allSelected, onSelectAll, onDeselectAll } = props.selectProps
+  return (
+    <components.MenuList {...props}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '6px 12px',
+          borderBottom: '1px solid var(--theme-elevation-200)',
+          fontSize: '0.78rem',
+          color: 'var(--theme-text-secondary)',
+        }}
+      >
+        <span style={{ fontWeight: 700, textTransform: 'uppercase' }}>Visible Columns</span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            if (allSelected) {
+              onDeselectAll()
+            } else {
+              onSelectAll()
+            }
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#3b82f6',
+            cursor: 'pointer',
+            fontSize: '0.78rem',
+            fontWeight: 600,
+            padding: 0,
+            outline: 'none',
+          }}
+        >
+          {allSelected ? 'Uncheck All' : 'Select All'}
+        </button>
+      </div>
+      {props.children}
+    </components.MenuList>
+  )
+}
+
+const customColumnStyles = {
+  control: (base: any) => ({
+    ...base,
+    background: 'var(--theme-elevation-50)',
+    borderColor: 'var(--theme-elevation-200)',
+    borderRadius: '6px',
+    padding: '0 4px',
+    minWidth: '150px',
+    minHeight: '34px',
+    height: '34px',
+    boxShadow: 'none',
+    cursor: 'pointer',
+    '&:hover': {
+      borderColor: 'var(--theme-elevation-400)',
+    },
+  }),
+  valueContainer: (base: any) => ({
+    ...base,
+    padding: '0 4px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+  }),
+  indicatorsContainer: (base: any) => ({
+    ...base,
+    height: '32px',
+  }),
+  menu: (base: any) => ({
+    ...base,
+    background: 'var(--theme-elevation-50)',
+    border: '1px solid var(--theme-elevation-200)',
+    zIndex: 9999,
+  }),
+  option: (base: any, state: any) => ({
+    ...base,
+    backgroundColor: state.isFocused ? 'var(--theme-elevation-150)' : 'transparent',
+    color: 'var(--theme-text-primary)',
+    cursor: 'pointer',
+    fontSize: '0.85rem',
+  }),
 }
 
 const CustomValueContainer = ({ children, ...props }: ValueContainerProps<SelectOption, true>) => {
@@ -125,6 +288,8 @@ const EXPENSE_REPORT_QUERY = `
           employeeId
           employeeName
           employeeRole
+          notes
+          verificationJson
         }
       }
       meta {
@@ -297,6 +462,211 @@ const ExpenseReport: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<string>('all')
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [dateRangePreset, setDateRangePreset] = useState<string>('today')
+
+  const [pageSize, setPageSize] = useState<number>(50)
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('expense_report_visible_columns')
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return columnOptions.map((o) => o.value)
+  })
+
+  const handleVisibleColumnsChange = (cols: string[]) => {
+    setVisibleColumns(cols)
+    try {
+      localStorage.setItem('expense_report_visible_columns', JSON.stringify(cols))
+    } catch {
+      // ignore
+    }
+  }
+
+  const [userRole, setUserRole] = useState<string>('')
+  const isAdmin = ['superadmin', 'admin'].includes(userRole)
+  const [verificationSettings, setVerificationSettings] = useState<{
+    requireAccountant: boolean
+    requireWatcher: boolean
+    requireManager: boolean
+  }>({
+    requireAccountant: true,
+    requireWatcher: true,
+    requireManager: true,
+  })
+  const [tempSettings, setTempSettings] = useState(verificationSettings)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [isSavingSettings, setIsSavingSettings] = useState(false)
+
+  const [showVerificationModal, setShowVerificationModal] = useState(false)
+  const [verificationModalItem, setVerificationModalItem] = useState<ExpenseItem | null>(null)
+  const [activeStepTab, setActiveStepTab] = useState<'accountant' | 'watcher' | 'manager'>('accountant')
+  const [stepNotes, setStepNotes] = useState<{ accountant: string; watcher: string; manager: string }>({
+    accountant: '',
+    watcher: '',
+    manager: '',
+  })
+  const [stepSkipReason, setStepSkipReason] = useState<{ accountant: string; watcher: string; manager: string }>({
+    accountant: '',
+    watcher: '',
+    manager: '',
+  })
+  const [isSubmittingVerification, setIsSubmittingVerification] = useState(false)
+
+  useEffect(() => {
+    const fetchUserAndSettings = async () => {
+      try {
+        const meRes = await fetch('/api/users/me')
+        if (meRes.ok) {
+          const meData = await meRes.json()
+          if (meData?.user?.role) {
+            setUserRole(meData.user.role)
+          }
+        }
+      } catch (e) {
+        console.error('Failed to fetch user', e)
+      }
+
+      try {
+        const setRes = await fetch('/api/reports/verification-settings')
+        if (setRes.ok) {
+          const setData = await setRes.json()
+          if (setData?.settings?.expense) {
+            setVerificationSettings(setData.settings.expense)
+            setTempSettings(setData.settings.expense)
+          }
+        }
+      } catch (e) {
+        console.error('Failed to fetch verification settings', e)
+      }
+    }
+
+    fetchUserAndSettings()
+  }, [])
+
+  const openVerificationModal = (item: ExpenseItem) => {
+    setVerificationModalItem(item)
+    setStepNotes({
+      accountant: item.verification?.accountant?.notes || '',
+      watcher: item.verification?.watcher?.notes || '',
+      manager: item.verification?.manager?.notes || '',
+    })
+    setStepSkipReason({
+      accountant: '',
+      watcher: '',
+      manager: '',
+    })
+
+    if (userRole === 'account') {
+      setActiveStepTab('accountant')
+    } else if (userRole === 'watcher') {
+      setActiveStepTab('watcher')
+    } else if (userRole === 'manager') {
+      setActiveStepTab('manager')
+    } else {
+      const ver = item.verification
+      if (!ver?.accountant?.status || ver.accountant.status === 'pending') {
+        setActiveStepTab('accountant')
+      } else if (!ver?.watcher?.status || ver.watcher.status === 'pending') {
+        setActiveStepTab('watcher')
+      } else {
+        setActiveStepTab('manager')
+      }
+    }
+    setShowVerificationModal(true)
+  }
+
+  const handleVerificationSubmit = async (
+    targetId: string,
+    step: 'accountant' | 'watcher' | 'manager',
+    status: 'verified' | 'rejected' | 'skipped',
+  ) => {
+    setIsSubmittingVerification(true)
+    try {
+      const notesText = stepNotes[step]
+      const skipReasonText = stepSkipReason[step]
+      const res = await fetch('/api/expenses/update-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expenseId: targetId,
+          step,
+          status,
+          notes: notesText,
+          skipReason: skipReasonText,
+        }),
+      })
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || `Failed to update verification (HTTP ${res.status})`)
+      }
+
+      const json = await res.json()
+
+      if (data) {
+        const updatedGroups = data.groups.map((group) => {
+          const updatedItems = group.items.map((i) => {
+            if (i.expenseId === targetId) {
+              return {
+                ...i,
+                verification: json.verification,
+                notes: json.notes || i.notes,
+              }
+            }
+            return i
+          })
+          return { ...group, items: updatedItems }
+        })
+        setData({ ...data, groups: updatedGroups })
+      }
+
+      if (verificationModalItem && verificationModalItem.expenseId === targetId) {
+        setVerificationModalItem((prev) =>
+          prev
+            ? {
+                ...prev,
+                verification: json.verification,
+                notes: json.notes || prev.notes,
+              }
+            : null,
+        )
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error updating verification')
+    } finally {
+      setIsSubmittingVerification(false)
+    }
+  }
+
+  const handleSaveVerificationSettings = async () => {
+    setIsSavingSettings(true)
+    try {
+      const res = await fetch('/api/reports/verification-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expense: tempSettings,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.message || 'Failed to save settings')
+      }
+      setVerificationSettings(tempSettings)
+      setShowSettingsModal(false)
+      alert('Verification rules updated successfully!')
+    } catch (e: any) {
+      alert(e.message || 'Failed to save verification rules')
+    } finally {
+      setIsSavingSettings(false)
+    }
+  }
 
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([])
   const [employees, setEmployees] = useState<{ id: string; name: string; role: string }[]>([])
@@ -763,6 +1133,22 @@ const ExpenseReport: React.FC = () => {
         const report = json.data?.expenseReport
         if (!report) throw new Error('No report data returned from GraphQL')
 
+        if (Array.isArray(report.groups)) {
+          report.groups.forEach((g: any) => {
+            if (Array.isArray(g.items)) {
+              g.items.forEach((it: any) => {
+                if (it.verificationJson) {
+                  try {
+                    it.verification = JSON.parse(it.verificationJson)
+                  } catch (e) {
+                    it.verification = undefined
+                  }
+                }
+              })
+            }
+          })
+        }
+
         setData(report)
       } catch (err) {
         console.error(err)
@@ -955,105 +1341,341 @@ const ExpenseReport: React.FC = () => {
                   </div>
                 </div>
               )}
-              {data.groups.map((group) => (
-                <div key={group._id} className="branch-section">
-                  <div className="branch-header">
-                    <div className="branch-info">
-                      <h2>{group.branchName}</h2>
-                      <span className="item-count">{group.count} items</span>
-                    </div>
-                    <div className="branch-total" style={{ color: getStableColor(activeCategory) }}>
-                      {group.total.toLocaleString('en-IN')}
-                    </div>
+              {data.groups.length > 0 && (
+                <div className="table-header-controls" style={{ marginBottom: '16px' }}>
+                  <div className="limit-selector">
+                    <span>Show </span>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => setPageSize(Number(e.target.value))}
+                      className="page-size-select"
+                    >
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                      <option value={250}>250</option>
+                      <option value={500}>500</option>
+                      <option value={1000}>1000</option>
+                    </select>
+                    <span> entries</span>
                   </div>
-                  <div className="branch-items-table">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th style={{ width: '4%' }}>S.NO</th>
-                          <th style={{ width: '13%' }}>Category</th>
-                          <th style={{ width: '15%' }}>Reason</th>
-                          <th style={{ width: '12%', textAlign: 'right' }}>Amount</th>
-                          <th style={{ width: '25%' }}>Employee (Role)</th>
-                          <th style={{ width: '16%', textAlign: 'right' }}>Time</th>
-                          <th style={{ width: '15%', textAlign: 'center' }}>Image</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {group.items
-                          .slice()
-                          .reverse()
-                          .map((item, idx) => (
-                            <tr key={idx}>
-                              <td style={{ opacity: 0.5, fontSize: '0.8rem' }}>{idx + 1}</td>
-                              <td className="category-cell">{item.category}</td>
-                              <td className="reason-cell">{item.reason}</td>
-                              <td className="amount-cell">{item.amount.toLocaleString('en-IN')}</td>
-                              <td className="employee-cell">
-                                <div className="employee-selector-wrapper">
-                                  <select
-                                    className={`employee-select ${item.employeeId ? 'has-employee' : 'unassigned'}`}
-                                    value={item.employeeId || ''}
-                                    onChange={(e) =>
-                                      handleUpdateEmployee(
-                                        item.expenseId,
-                                        item.detailId,
-                                        e.target.value,
-                                      )
-                                    }
-                                    disabled={updatingDetailId === item.detailId}
-                                    title={
-                                      item.employeeName
-                                        ? `${item.employeeName} (${(item.employeeRole || '').toUpperCase()})`
-                                        : 'Assign Employee'
-                                    }
-                                  >
-                                    <option value="">-- Choose Employee --</option>
-                                    {employees.map((emp) => (
-                                      <option key={emp.id} value={emp.id}>
-                                        {emp.name} ({emp.role ? emp.role.toUpperCase() : 'STAFF'})
-                                      </option>
-                                    ))}
-                                  </select>
-                                  {item.employeeRole && (
-                                    <span className="employee-role-badge">
-                                      {item.employeeRole.toUpperCase()}
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="time-cell" title={item.time}>
-                                {dayjs.utc(item.time).format('DD-MM-YY hh:mm A')}
-                              </td>
-                              <td className="image-cell" style={{ textAlign: 'center' }}>
-                                <button
-                                  className={`image-view-btn ${item.imageUrl ? 'active' : 'inactive'}`}
-                                  disabled={!item.imageUrl}
-                                  onClick={() => item.imageUrl && setPreviewImage(item.imageUrl)}
-                                  title={item.imageUrl ? 'View Image' : 'No Image'}
-                                >
-                                  <svg
-                                    width="20"
-                                    height="20"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  >
-                                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                                    <circle cx="12" cy="13" r="4"></circle>
-                                  </svg>
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
+
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      className="verification-settings-btn"
+                      onClick={() => {
+                        setTempSettings(verificationSettings)
+                        setShowSettingsModal(true)
+                      }}
+                      title="Configure 3-Step Verification Rules (Enable/Disable Steps)"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 12px',
+                        background: 'var(--theme-elevation-100)',
+                        border: '1px solid var(--theme-elevation-200)',
+                        borderRadius: '6px',
+                        color: 'var(--theme-text-primary)',
+                        cursor: 'pointer',
+                        fontSize: '0.84rem',
+                        fontWeight: 600,
+                      }}
+                    >
+                      ⚙️ Verification Rules
+                    </button>
+                  )}
+
+                  <div className="table-column-filter">
+                    <Select
+                      options={columnOptions}
+                      isMulti
+                      value={columnOptions.filter((o) => visibleColumns.includes(o.value))}
+                      onChange={(newValue) => {
+                        const selected = newValue ? (newValue as SelectOption[]).map((x) => x.value) : []
+                        handleVisibleColumnsChange(selected)
+                      }}
+                      styles={customColumnStyles}
+                      classNamePrefix="react-select"
+                      placeholder="Columns..."
+                      isSearchable={false}
+                      closeMenuOnSelect={false}
+                      hideSelectedOptions={false}
+                      {...({
+                        allSelected: visibleColumns.length === columnOptions.length,
+                        onSelectAll: () => handleVisibleColumnsChange(columnOptions.map((o) => o.value)),
+                        onDeselectAll: () => handleVisibleColumnsChange([]),
+                      } as any)}
+                      components={{
+                        Option: CheckboxOption,
+                        ValueContainer: ColumnValueContainer,
+                        MenuList: ColumnMenuList,
+                        MultiValue,
+                      }}
+                    />
                   </div>
                 </div>
-              ))}
+              )}
+
+              {data.groups.map((group) => {
+                const reversedItems = group.items.slice().reverse()
+                const displayedItems = reversedItems.slice(0, pageSize)
+
+                return (
+                  <div key={group._id} className="branch-section">
+                    <div className="branch-header">
+                      <div className="branch-info">
+                        <h2>{group.branchName}</h2>
+                        <span className="item-count">{group.count} items</span>
+                      </div>
+                      <div className="branch-total" style={{ color: getStableColor(activeCategory) }}>
+                        {group.total.toLocaleString('en-IN')}
+                      </div>
+                    </div>
+                    <div className="branch-items-table">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th style={{ width: '4%' }}>S.NO</th>
+                            {visibleColumns.includes('category') && <th style={{ width: '13%' }}>Category</th>}
+                            {visibleColumns.includes('reason') && <th style={{ width: '15%' }}>Reason</th>}
+                            {visibleColumns.includes('amount') && <th style={{ width: '11%', textAlign: 'right' }}>Amount</th>}
+                            {visibleColumns.includes('employee') && <th style={{ width: '20%' }}>Employee (Role)</th>}
+                            {visibleColumns.includes('time') && <th style={{ width: '12%', textAlign: 'right' }}>Time</th>}
+                            {visibleColumns.includes('verification') && <th style={{ width: '16%', textAlign: 'center', minWidth: '130px' }}>VERIFICATION</th>}
+                            {visibleColumns.includes('image') && <th style={{ width: '9%', textAlign: 'center' }}>Image</th>}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {displayedItems.map((item, idx) => (
+                            <tr key={idx}>
+                              <td style={{ opacity: 0.5, fontSize: '0.8rem' }}>{idx + 1}</td>
+                              {visibleColumns.includes('category') && (
+                                <td className="category-cell">{item.category}</td>
+                              )}
+                              {visibleColumns.includes('reason') && (
+                                <td className="reason-cell">{item.reason}</td>
+                              )}
+                              {visibleColumns.includes('amount') && (
+                                <td className="amount-cell">{item.amount.toLocaleString('en-IN')}</td>
+                              )}
+                              {visibleColumns.includes('employee') && (
+                                <td className="employee-cell">
+                                  <div className="employee-selector-wrapper">
+                                    <select
+                                      className={`employee-select ${item.employeeId ? 'has-employee' : 'unassigned'}`}
+                                      value={item.employeeId || ''}
+                                      onChange={(e) =>
+                                        handleUpdateEmployee(
+                                          item.expenseId,
+                                          item.detailId,
+                                          e.target.value,
+                                        )
+                                      }
+                                      disabled={updatingDetailId === item.detailId}
+                                      title={
+                                        item.employeeName
+                                          ? `${item.employeeName} (${(item.employeeRole || '').toUpperCase()})`
+                                          : 'Assign Employee'
+                                      }
+                                    >
+                                      <option value="">-- Choose Employee --</option>
+                                      {employees.map((emp) => (
+                                        <option key={emp.id} value={emp.id}>
+                                          {emp.name} ({emp.role ? emp.role.toUpperCase() : 'STAFF'})
+                                        </option>
+                                      ))}
+                                    </select>
+                                    {item.employeeRole && (
+                                      <span className="employee-role-badge">
+                                        {item.employeeRole.toUpperCase()}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                              )}
+                              {visibleColumns.includes('time') && (
+                                <td className="time-cell" title={item.time}>
+                                  {dayjs.utc(item.time).format('DD-MM-YY hh:mm A')}
+                                </td>
+                              )}
+                              {visibleColumns.includes('verification') && (
+                                <td className="verification-cell" style={{ textAlign: 'center' }}>
+                                  {userRole === 'account' ? (
+                                    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                                      <button
+                                        type="button"
+                                        className={`ver-role-action-btn ver-${item.verification?.accountant?.status || 'pending'}`}
+                                        onClick={() => openVerificationModal(item)}
+                                        title={item.verification?.accountant?.notes ? `Accountant Note: ${item.verification.accountant.notes}` : 'Click to Verify (Accountant)'}
+                                      >
+                                        {item.verification?.accountant?.status === 'verified' ? '✓ Verified (Acc)' :
+                                         item.verification?.accountant?.status === 'rejected' ? '✕ Rejected (Acc)' :
+                                         item.verification?.accountant?.status === 'skipped' ? '↷ Skipped (Acc)' : 'Verify (Acc)'}
+                                      </button>
+                                      {(item.verification?.accountant?.notes || (!item.verification?.watcher?.notes && !item.verification?.manager?.notes && item.notes)) && (
+                                        <span
+                                          className="ver-note-icon-btn"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            openVerificationModal(item)
+                                          }}
+                                          title={`Accountant Note: ${item.verification?.accountant?.notes || item.notes}`}
+                                        >
+                                          <Mail size={14} fill="#2563eb" color="#1e3a8a" strokeWidth={1.8} />
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : userRole === 'watcher' ? (
+                                    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                                      <button
+                                        type="button"
+                                        className={`ver-role-action-btn ver-${item.verification?.watcher?.status || 'pending'}`}
+                                        onClick={() => openVerificationModal(item)}
+                                        title={item.verification?.watcher?.notes ? `Watcher Note: ${item.verification.watcher.notes}` : 'Click to Verify (Watcher)'}
+                                      >
+                                        {item.verification?.watcher?.status === 'verified' ? '✓ Verified (Wat)' :
+                                         item.verification?.watcher?.status === 'rejected' ? '✕ Rejected (Wat)' :
+                                         item.verification?.watcher?.status === 'skipped' ? '↷ Skipped (Wat)' : 'Verify (Wat)'}
+                                      </button>
+                                      {item.verification?.watcher?.notes && (
+                                        <span
+                                          className="ver-note-icon-btn"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            openVerificationModal(item)
+                                          }}
+                                          title={`Watcher Note: ${item.verification.watcher.notes}`}
+                                        >
+                                          <Mail size={14} fill="#2563eb" color="#1e3a8a" strokeWidth={1.8} />
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : userRole === 'manager' ? (
+                                    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                                      <button
+                                        type="button"
+                                        className={`ver-role-action-btn ver-${item.verification?.manager?.status || 'pending'}`}
+                                        onClick={() => openVerificationModal(item)}
+                                        title={item.verification?.manager?.notes ? `Manager Note: ${item.verification.manager.notes}` : 'Click to Verify (Manager)'}
+                                      >
+                                        {item.verification?.manager?.status === 'verified' ? '✓ Verified (Mgr)' :
+                                         item.verification?.manager?.status === 'rejected' ? '✕ Rejected (Mgr)' :
+                                         item.verification?.manager?.status === 'skipped' ? '↷ Skipped (Mgr)' : 'Verify (Mgr)'}
+                                      </button>
+                                      {item.verification?.manager?.notes && (
+                                        <span
+                                          className="ver-note-icon-btn"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            openVerificationModal(item)
+                                          }}
+                                          title={`Manager Note: ${item.verification.manager.notes}`}
+                                        >
+                                          <Mail size={14} fill="#2563eb" color="#1e3a8a" strokeWidth={1.8} />
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div
+                                      className="verification-cell-container"
+                                      onClick={() => openVerificationModal(item)}
+                                      title="Click to view/update 3-Step Verification details"
+                                      style={{ cursor: 'pointer' }}
+                                    >
+                                      <div className="verification-chips" style={{ display: 'flex', gap: '4px', alignItems: 'flex-start', justifyContent: 'center' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                          <span
+                                            className={`ver-chip ver-${item.verification?.accountant?.status || 'pending'} ${!verificationSettings.requireAccountant ? 'ver-disabled' : ''}`}
+                                            title={`Accountant Step: ${item.verification?.accountant?.status || 'pending'}${item.verification?.accountant?.verifiedByName ? ` (${item.verification.accountant.verifiedByName})` : ''}`}
+                                          >
+                                            {item.verification?.accountant?.status === 'verified' ? '✓' : item.verification?.accountant?.status === 'rejected' ? '✕' : item.verification?.accountant?.status === 'skipped' ? '↷' : '○'} Acc
+                                          </span>
+                                          {(item.verification?.accountant?.notes || (!item.verification?.watcher?.notes && !item.verification?.manager?.notes && item.notes)) && (
+                                            <span
+                                              className="ver-note-icon-btn"
+                                              title={`Accountant Note: ${item.verification?.accountant?.notes || item.notes}`}
+                                            >
+                                              <Mail size={12} fill="#2563eb" color="#1e3a8a" strokeWidth={1.8} />
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                          <span
+                                            className={`ver-chip ver-${item.verification?.watcher?.status || 'pending'} ${!verificationSettings.requireWatcher ? 'ver-disabled' : ''}`}
+                                            title={`Watcher Step: ${item.verification?.watcher?.status || 'pending'}${item.verification?.watcher?.verifiedByName ? ` (${item.verification.watcher.verifiedByName})` : ''}`}
+                                          >
+                                            {item.verification?.watcher?.status === 'verified' ? '✓' : item.verification?.watcher?.status === 'rejected' ? '✕' : item.verification?.watcher?.status === 'skipped' ? '↷' : '○'} Wat
+                                          </span>
+                                          {item.verification?.watcher?.notes && (
+                                            <span
+                                              className="ver-note-icon-btn"
+                                              title={`Watcher Note: ${item.verification.watcher.notes}`}
+                                            >
+                                              <Mail size={12} fill="#2563eb" color="#1e3a8a" strokeWidth={1.8} />
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                          <span
+                                            className={`ver-chip ver-${item.verification?.manager?.status || 'pending'} ${!verificationSettings.requireManager ? 'ver-disabled' : ''}`}
+                                            title={`Manager Step: ${item.verification?.manager?.status || 'pending'}${item.verification?.manager?.verifiedByName ? ` (${item.verification.manager.verifiedByName})` : ''}`}
+                                          >
+                                            {item.verification?.manager?.status === 'verified' ? '✓' : item.verification?.manager?.status === 'rejected' ? '✕' : item.verification?.manager?.status === 'skipped' ? '↷' : '○'} Mgr
+                                          </span>
+                                          {item.verification?.manager?.notes && (
+                                            <span
+                                              className="ver-note-icon-btn"
+                                              title={`Manager Note: ${item.verification.manager.notes}`}
+                                            >
+                                              <Mail size={12} fill="#2563eb" color="#1e3a8a" strokeWidth={1.8} />
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </td>
+                              )}
+                              {visibleColumns.includes('image') && (
+                                <td className="image-cell" style={{ textAlign: 'center' }}>
+                                  <button
+                                    className={`image-view-btn ${item.imageUrl ? 'active' : 'inactive'}`}
+                                    disabled={!item.imageUrl}
+                                    onClick={() => item.imageUrl && setPreviewImage(item.imageUrl)}
+                                    title={item.imageUrl ? 'View Image' : 'No Image'}
+                                  >
+                                    <svg
+                                      width="20"
+                                      height="20"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                                      <circle cx="12" cy="13" r="4"></circle>
+                                    </svg>
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {reversedItems.length > pageSize && (
+                        <div style={{ padding: '8px 12px', fontSize: '0.85rem', color: 'var(--theme-text-secondary)', textAlign: 'right' }}>
+                          Showing {pageSize} of {reversedItems.length} entries
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
               {data.groups.length === 0 && <div className="no-data">No expenses found.</div>}
             </div>
 
@@ -1072,6 +1694,300 @@ const ExpenseReport: React.FC = () => {
           <ExpenseTrendGraph groups={data.groups} preset={dateRangePreset} />
         )}
       </div>
+
+      {/* 3-Step Verification Dialog Modal */}
+      {showVerificationModal && verificationModalItem && (
+        <div className="image-preview-modal" onClick={() => setShowVerificationModal(false)}>
+          <div
+            className="modal-content"
+            style={{
+              padding: '2rem',
+              background: 'var(--theme-elevation-100)',
+              width: '90%',
+              maxWidth: '650px',
+              borderRadius: '12px',
+              boxShadow: '0 12px 40px rgba(0, 0, 0, 0.45)',
+              border: '1px solid var(--theme-elevation-200)',
+              color: 'var(--theme-text-primary)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--theme-elevation-200)', paddingBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ShieldCheck size={22} color="#10b981" />
+                <h3 style={{ margin: 0, fontSize: '1.25rem' }}>3-Step Verification & Remarks</h3>
+              </div>
+              <button
+                type="button"
+                className="close-btn"
+                onClick={() => setShowVerificationModal(false)}
+                style={{ position: 'static', background: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--theme-text-secondary)' }}
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Expense Info Summary */}
+            <div style={{ background: 'var(--theme-elevation-50)', padding: '12px', borderRadius: '8px', marginBottom: '16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', fontSize: '0.85rem' }}>
+              <div>
+                <span style={{ color: 'var(--theme-text-secondary)', display: 'block' }}>Category:</span>
+                <strong>{verificationModalItem.category}</strong>
+              </div>
+              <div>
+                <span style={{ color: 'var(--theme-text-secondary)', display: 'block' }}>Reason:</span>
+                <strong>{verificationModalItem.reason}</strong>
+              </div>
+              <div>
+                <span style={{ color: 'var(--theme-text-secondary)', display: 'block' }}>Amount:</span>
+                <strong style={{ color: '#10b981' }}>₹{verificationModalItem.amount.toLocaleString('en-IN')}</strong>
+              </div>
+              <div>
+                <span style={{ color: 'var(--theme-text-secondary)', display: 'block' }}>Employee:</span>
+                <strong>{verificationModalItem.employeeName ? `${verificationModalItem.employeeName} (${(verificationModalItem.employeeRole || '').toUpperCase()})` : 'Unassigned'}</strong>
+              </div>
+              <div>
+                <span style={{ color: 'var(--theme-text-secondary)', display: 'block' }}>Overall Status:</span>
+                <strong style={{ textTransform: 'capitalize' }}>{verificationModalItem.verification?.overallStatus || 'Pending'}</strong>
+              </div>
+            </div>
+
+            {/* Photo Preview inside modal */}
+            {verificationModalItem.imageUrl && (
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
+                <button
+                  type="button"
+                  onClick={() => setPreviewImage(verificationModalItem.imageUrl!)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--theme-elevation-250)', background: 'var(--theme-elevation-50)', color: 'var(--theme-text-primary)', cursor: 'pointer', fontSize: '0.85rem' }}
+                >
+                  📸 View Expense Receipt
+                </button>
+              </div>
+            )}
+
+            {/* Step Selection Tabs */}
+            {isAdmin && (
+              <div className="verification-step-tabs">
+                {(['accountant', 'watcher', 'manager'] as const).map((stepKey) => {
+                  const stepLabel = stepKey === 'accountant' ? '1. Accountant' : stepKey === 'watcher' ? '2. Watcher' : '3. Manager'
+                  const stepData = verificationModalItem.verification?.[stepKey]
+                  const status = stepData?.status || 'pending'
+                  const isRequired = stepKey === 'accountant' ? verificationSettings.requireAccountant : stepKey === 'watcher' ? verificationSettings.requireWatcher : verificationSettings.requireManager
+
+                  return (
+                    <button
+                      key={stepKey}
+                      type="button"
+                      className={`step-tab-btn ${activeStepTab === stepKey ? 'active' : ''}`}
+                      onClick={() => setActiveStepTab(stepKey)}
+                    >
+                      <span className="step-status-icon">
+                        {status === 'verified' ? '✓' : status === 'rejected' ? '✕' : status === 'skipped' ? '↷' : '○'}
+                      </span>
+                      <span>{stepLabel}</span>
+                      {!isRequired && <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>(Optional)</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Step Card Content */}
+            {(['accountant', 'watcher', 'manager'] as const).map((stepKey) => {
+              if (isAdmin && activeStepTab !== stepKey) return null
+              if (!isAdmin) {
+                if (userRole === 'account' && stepKey !== 'accountant') return null
+                if (userRole === 'watcher' && stepKey !== 'watcher') return null
+                if (userRole === 'manager' && stepKey !== 'manager') return null
+              }
+
+              const stepTitle = stepKey === 'accountant' ? 'Step 1: Accountant / Office Admin Verification' :
+                                stepKey === 'watcher' ? 'Step 2: Watcher (CCTV) Verification' : 'Step 3: Manager Approval & Verification'
+              const stepData = verificationModalItem.verification?.[stepKey]
+              const currentStatus = stepData?.status || 'pending'
+              const canEditThisStep = isAdmin || (stepKey === 'accountant' && userRole === 'account') || (stepKey === 'watcher' && userRole === 'watcher') || (stepKey === 'manager' && userRole === 'manager')
+
+              return (
+                <div key={stepKey} className="verification-step-card">
+                  <div className="step-card-header">
+                    <span className="step-title">
+                      {stepTitle}
+                    </span>
+                    <span className={`ver-chip ver-${currentStatus}`}>
+                      {currentStatus}
+                    </span>
+                  </div>
+
+                  {stepData?.verifiedByName && (
+                    <div className="step-meta-info">
+                      Updated by <strong>{stepData.verifiedByName}</strong> ({stepData.verifiedByRole || 'Admin'}) on {dayjs(stepData.verifiedAt).format('DD-MM-YYYY hh:mm A')}
+                    </div>
+                  )}
+
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 600 }}>
+                      Remarks / Notes for {stepKey}:
+                    </label>
+                    <textarea
+                      className="step-textarea"
+                      rows={3}
+                      placeholder={`Enter ${stepKey} remarks, observations, or verification notes...`}
+                      value={stepNotes[stepKey]}
+                      onChange={(e) => setStepNotes({ ...stepNotes, [stepKey]: e.target.value })}
+                      disabled={!canEditThisStep || isSubmittingVerification}
+                    />
+                  </div>
+
+                  {/* Skip reason input for admins */}
+                  {isAdmin && (
+                    <div style={{ marginBottom: '12px' }}>
+                      <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: '4px', color: 'var(--theme-text-secondary)' }}>
+                        Skip Reason (required if skipping step, e.g. &quot;Manager on leave today&quot;):
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Reason for skipping this step..."
+                        value={stepSkipReason[stepKey]}
+                        onChange={(e) => setStepSkipReason({ ...stepSkipReason, [stepKey]: e.target.value })}
+                        style={{ width: '100%', padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--theme-elevation-250)', background: 'var(--theme-elevation-0)', color: 'var(--theme-text-primary)', fontSize: '0.85rem' }}
+                      />
+                    </div>
+                  )}
+
+                  {canEditThisStep && (
+                    <div className="step-actions">
+                      <button
+                        type="button"
+                        className="ver-btn ver-btn--reject"
+                        onClick={() => handleVerificationSubmit(verificationModalItem.expenseId || '', stepKey, 'rejected')}
+                        disabled={isSubmittingVerification}
+                      >
+                        <XCircle size={15} /> Flag / Reject
+                      </button>
+
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          className="ver-btn ver-btn--skip"
+                          onClick={() => {
+                            if (!stepSkipReason[stepKey]?.trim()) {
+                              alert('Please enter a skip reason first (e.g. "Manager not available today").')
+                              return
+                            }
+                            handleVerificationSubmit(verificationModalItem.expenseId || '', stepKey, 'skipped')
+                          }}
+                          disabled={isSubmittingVerification}
+                        >
+                          <SkipForward size={15} /> Skip Step
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        className="ver-btn ver-btn--approve"
+                        onClick={() => handleVerificationSubmit(verificationModalItem.expenseId || '', stepKey, 'verified')}
+                        disabled={isSubmittingVerification}
+                      >
+                        <CheckCircle2 size={15} /> Verify & Approve
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Verification Rules Setup Modal */}
+      {showSettingsModal && (
+        <div className="image-preview-modal" onClick={() => setShowSettingsModal(false)}>
+          <div
+            className="modal-content"
+            style={{
+              padding: '2rem',
+              background: 'var(--theme-elevation-100)',
+              width: '90%',
+              maxWidth: '500px',
+              borderRadius: '12px',
+              boxShadow: '0 12px 40px rgba(0, 0, 0, 0.45)',
+              border: '1px solid var(--theme-elevation-200)',
+              color: 'var(--theme-text-primary)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--theme-elevation-200)', paddingBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1.3rem' }}>⚙️</span>
+                <h3 style={{ margin: 0, fontSize: '1.2rem' }}>Expense Report Verification Rules</h3>
+              </div>
+              <button
+                type="button"
+                className="close-btn"
+                onClick={() => setShowSettingsModal(false)}
+                style={{ position: 'static', background: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--theme-text-secondary)' }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <p style={{ fontSize: '0.88rem', color: 'var(--theme-text-secondary)', marginBottom: '1.25rem' }}>
+              Configure which verification steps are mandatory for expenses:
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '1.5rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '0.95rem' }}>
+                <input
+                  type="checkbox"
+                  checked={tempSettings.requireAccountant}
+                  onChange={(e) => setTempSettings({ ...tempSettings, requireAccountant: e.target.checked })}
+                  style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
+                />
+                <span><strong>Step 1:</strong> Require Accountant / Office Admin Verification</span>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '0.95rem' }}>
+                <input
+                  type="checkbox"
+                  checked={tempSettings.requireWatcher}
+                  onChange={(e) => setTempSettings({ ...tempSettings, requireWatcher: e.target.checked })}
+                  style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
+                />
+                <span><strong>Step 2:</strong> Require Watcher (CCTV) Verification</span>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '0.95rem' }}>
+                <input
+                  type="checkbox"
+                  checked={tempSettings.requireManager}
+                  onChange={(e) => setTempSettings({ ...tempSettings, requireManager: e.target.checked })}
+                  style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
+                />
+                <span><strong>Step 3:</strong> Require Manager Verification</span>
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '1px solid var(--theme-elevation-200)', paddingTop: '1rem' }}>
+              <button
+                type="button"
+                onClick={() => setShowSettingsModal(false)}
+                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--theme-elevation-300)', background: 'transparent', color: 'var(--theme-text-secondary)', cursor: 'pointer', fontSize: '0.9rem' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveVerificationSettings}
+                disabled={isSavingSettings}
+                style={{ padding: '8px 18px', borderRadius: '6px', border: 'none', background: '#10b981', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}
+              >
+                {isSavingSettings ? 'Saving...' : 'Save Rules'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {previewImage && (
         <div className="image-preview-modal" onClick={() => setPreviewImage(null)}>

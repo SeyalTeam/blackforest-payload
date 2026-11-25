@@ -206,6 +206,160 @@ const RawMaterialBillings: CollectionConfig = {
       },
     },
     {
+      name: 'verification',
+      type: 'group',
+      label: 'Three-Step Verification',
+      fields: [
+        {
+          name: 'overallStatus',
+          type: 'select',
+          label: 'Overall Verification Status',
+          defaultValue: 'pending',
+          options: [
+            { label: 'Pending', value: 'pending' },
+            { label: 'Partially Verified', value: 'partially_verified' },
+            { label: 'Fully Verified', value: 'verified' },
+            { label: 'Rejected', value: 'rejected' },
+          ],
+          admin: {
+            readOnly: true,
+          },
+        },
+        {
+          name: 'accountant',
+          type: 'group',
+          label: 'Accountant / Office Admin Verification (Step 1)',
+          fields: [
+            {
+              name: 'status',
+              type: 'select',
+              defaultValue: 'pending',
+              options: [
+                { label: 'Pending', value: 'pending' },
+                { label: 'Verified', value: 'verified' },
+                { label: 'Rejected', value: 'rejected' },
+                { label: 'Skipped', value: 'skipped' },
+              ],
+            },
+            {
+              name: 'notes',
+              type: 'textarea',
+              label: 'Accountant Notes',
+            },
+            {
+              name: 'verifiedBy',
+              type: 'relationship',
+              relationTo: 'users',
+              admin: { readOnly: true },
+            },
+            {
+              name: 'verifiedByName',
+              type: 'text',
+              admin: { readOnly: true },
+            },
+            {
+              name: 'verifiedByRole',
+              type: 'text',
+              admin: { readOnly: true },
+            },
+            {
+              name: 'verifiedAt',
+              type: 'date',
+              admin: { readOnly: true },
+            },
+          ],
+        },
+        {
+          name: 'watcher',
+          type: 'group',
+          label: 'Watcher Verification (Step 2)',
+          fields: [
+            {
+              name: 'status',
+              type: 'select',
+              defaultValue: 'pending',
+              options: [
+                { label: 'Pending', value: 'pending' },
+                { label: 'Verified', value: 'verified' },
+                { label: 'Rejected', value: 'rejected' },
+                { label: 'Skipped', value: 'skipped' },
+              ],
+            },
+            {
+              name: 'notes',
+              type: 'textarea',
+              label: 'Watcher Notes',
+            },
+            {
+              name: 'verifiedBy',
+              type: 'relationship',
+              relationTo: 'users',
+              admin: { readOnly: true },
+            },
+            {
+              name: 'verifiedByName',
+              type: 'text',
+              admin: { readOnly: true },
+            },
+            {
+              name: 'verifiedByRole',
+              type: 'text',
+              admin: { readOnly: true },
+            },
+            {
+              name: 'verifiedAt',
+              type: 'date',
+              admin: { readOnly: true },
+            },
+          ],
+        },
+        {
+          name: 'manager',
+          type: 'group',
+          label: 'Manager Verification (Step 3)',
+          fields: [
+            {
+              name: 'status',
+              type: 'select',
+              defaultValue: 'pending',
+              options: [
+                { label: 'Pending', value: 'pending' },
+                { label: 'Verified', value: 'verified' },
+                { label: 'Rejected', value: 'rejected' },
+                { label: 'Skipped', value: 'skipped' },
+              ],
+            },
+            {
+              name: 'notes',
+              type: 'textarea',
+              label: 'Manager Notes',
+            },
+            {
+              name: 'verifiedBy',
+              type: 'relationship',
+              relationTo: 'users',
+              admin: { readOnly: true },
+            },
+            {
+              name: 'verifiedByName',
+              type: 'text',
+              admin: { readOnly: true },
+            },
+            {
+              name: 'verifiedByRole',
+              type: 'text',
+              admin: { readOnly: true },
+            },
+            {
+              name: 'verifiedAt',
+              type: 'date',
+              admin: { readOnly: true },
+            },
+          ],
+        },
+      ],
+    },
+    {
       name: 'createdBy',
       type: 'relationship',
       relationTo: 'users',
@@ -291,6 +445,42 @@ const RawMaterialBillings: CollectionConfig = {
         } else if (data.paidAmount !== undefined && data.total !== undefined && data.paidAmount >= data.total) {
           data.status = 'paid'
         }
+        // Recalculate verification overallStatus if verification object is present
+        if (data.verification) {
+          const acc = data.verification.accountant?.status || 'pending'
+          const wat = data.verification.watcher?.status || 'pending'
+          const mgr = data.verification.manager?.status || 'pending'
+
+          if (acc === 'rejected' || wat === 'rejected' || mgr === 'rejected') {
+            data.verification.overallStatus = 'rejected'
+          } else if (
+            (acc === 'verified' || acc === 'skipped') &&
+            (wat === 'verified' || wat === 'skipped') &&
+            (mgr === 'verified' || mgr === 'skipped')
+          ) {
+            data.verification.overallStatus = 'verified'
+          } else if (
+            acc === 'verified' || acc === 'skipped' ||
+            wat === 'verified' || wat === 'skipped' ||
+            mgr === 'verified' || mgr === 'skipped'
+          ) {
+            data.verification.overallStatus = 'partially_verified'
+          } else {
+            data.verification.overallStatus = 'pending'
+          }
+        }
+
+        // Ensure that payments or status === 'paid' cannot be recorded unless verifications are satisfied,
+        // unless overridden by superadmin or admin
+        const isTryingToPay = data.status === 'paid' || (data.payments && data.payments.length > 0 && data.paidAmount > 0)
+        if (isTryingToPay && operation !== 'create') {
+          const userRole = req.user?.role
+          const isSuperOrAdmin = userRole === 'superadmin' || userRole === 'admin'
+          if (!isSuperOrAdmin && data.verification && data.verification.overallStatus !== 'verified') {
+            throw new Error('Payment cannot be processed. All required verification steps (Accountant, Watcher, Manager) must be completed or skipped first.')
+          }
+        }
+
         return data
       },
     ],

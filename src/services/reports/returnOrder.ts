@@ -21,6 +21,8 @@ export type ReturnOrderReportItem = {
   notes?: string
   time: string
   imageUrl?: string
+  verification?: any
+  verificationJson?: string | null
 }
 
 export type ReturnOrderReportGroup = {
@@ -75,6 +77,7 @@ type RawReturnOrderItem = {
   prefix: unknown
   imageUrl: unknown
   proofPhoto: unknown
+  verification?: unknown
 }
 
 type RawReturnOrderGroup = {
@@ -337,6 +340,7 @@ export const getReturnOrderReportData = async (
             filename: '$mediaInfo.filename',
             prefix: '$mediaInfo.prefix',
             proofPhoto: '$items.proofPhoto',
+            verification: '$verification',
           },
         },
       },
@@ -477,6 +481,8 @@ export const getReturnOrderReportData = async (
           notes: toNonEmptyString(item.notes, '') || undefined,
           time: toDateString(item.time),
           imageUrl: resolvedUrl,
+          verification: (item as any).verification || undefined,
+          verificationJson: (item as any).verification ? JSON.stringify((item as any).verification) : null,
         }
       })
 

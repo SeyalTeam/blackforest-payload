@@ -32,6 +32,31 @@ export type DealerReportItem = {
   status: string
   plannedPaymentDate?: string
   products?: DealerReportProductItem[]
+  notes?: string
+  verification?: {
+    overallStatus: 'pending' | 'partially_verified' | 'verified' | 'rejected'
+    accountant?: {
+      status?: 'pending' | 'verified' | 'rejected' | 'skipped'
+      notes?: string
+      verifiedByName?: string
+      verifiedByRole?: string
+      verifiedAt?: string
+    }
+    watcher?: {
+      status?: 'pending' | 'verified' | 'rejected' | 'skipped'
+      notes?: string
+      verifiedByName?: string
+      verifiedByRole?: string
+      verifiedAt?: string
+    }
+    manager?: {
+      status?: 'pending' | 'verified' | 'rejected' | 'skipped'
+      notes?: string
+      verifiedByName?: string
+      verifiedByRole?: string
+      verifiedAt?: string
+    }
+  }
 }
 
 export type DealerReportGroup = {
@@ -62,6 +87,7 @@ type DealerReportArgs = {
   dealer?: null | string
   plannedStartDate?: null | string
   plannedEndDate?: null | string
+  viewMode?: null | string
 }
 
 type RawDealerItem = {
@@ -87,6 +113,8 @@ type RawDealerItem = {
   productsListResolvedProducts?: unknown
   dealerAccountNumber?: unknown
   plannedPaymentDate?: unknown
+  notes?: unknown
+  verification?: unknown
 }
 
 type RawDealerGroup = {
@@ -199,6 +227,7 @@ export const getDealerReportData = async (
 
   const plannedStartDateParam = typeof args.plannedStartDate === 'string' ? args.plannedStartDate : ''
   const plannedEndDateParam = typeof args.plannedEndDate === 'string' ? args.plannedEndDate : ''
+  const viewModeParam = (args.viewMode || 'single').toLowerCase()
 
   const matchQuery: Record<string, any> = {}
 
@@ -210,9 +239,32 @@ export const getDealerReportData = async (
       $lte: endPlanned,
     }
   } else {
-    matchQuery.date = {
-      $gte: startOfDay,
-      $lte: endOfDay,
+    const billCreationConditions = [
+      {
+        date: {
+          $gte: startOfDay,
+          $lte: endOfDay,
+        },
+      },
+    ]
+
+    const paymentConditions = [
+      {
+        'payments.date': {
+          $gte: startOfDay,
+          $lte: endOfDay,
+        },
+      },
+    ]
+
+    if (startDateParam === endDateParam) {
+      paymentConditions.push({ 'payments.date': { $regex: `^${startDateParam}` } } as any)
+    }
+
+    if (viewModeParam === 'combined') {
+      matchQuery.$or = [...billCreationConditions, ...paymentConditions]
+    } else {
+      matchQuery.$or = billCreationConditions
     }
   }
 
@@ -346,6 +398,8 @@ export const getDealerReportData = async (
             productsPhotoInfo: '$productsInfo',
             status: { $ifNull: ['$status', 'pending'] },
             plannedPaymentDate: '$plannedPaymentDate',
+            notes: { $ifNull: ['$notes', ''] },
+            verification: '$verification',
             productsList: '$productsList',
             productsListMedia: '$productsListMedia',
             productsListResolvedProducts: {
@@ -519,6 +573,13 @@ export const getDealerReportData = async (
           status: toNonEmptyString(item.status, 'pending'),
           plannedPaymentDate: item.plannedPaymentDate ? toDateString(item.plannedPaymentDate) : undefined,
           products,
+          notes: toNonEmptyString((item as any).notes, ''),
+          verification: (item as any).verification || {
+            overallStatus: 'pending',
+            accountant: { status: 'pending' },
+            watcher: { status: 'pending' },
+            manager: { status: 'pending' },
+          },
         }
       })
 

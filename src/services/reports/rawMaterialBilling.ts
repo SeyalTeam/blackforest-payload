@@ -29,6 +29,30 @@ export type RawMaterialBillingReportItem = {
   status: string
   plannedPaymentDate?: string
   notes?: string
+  verification?: {
+    overallStatus?: 'pending' | 'partially_verified' | 'verified' | 'rejected'
+    accountant?: {
+      status?: 'pending' | 'verified' | 'rejected' | 'skipped'
+      notes?: string
+      verifiedByName?: string
+      verifiedByRole?: string
+      verifiedAt?: string
+    }
+    watcher?: {
+      status?: 'pending' | 'verified' | 'rejected' | 'skipped'
+      notes?: string
+      verifiedByName?: string
+      verifiedByRole?: string
+      verifiedAt?: string
+    }
+    manager?: {
+      status?: 'pending' | 'verified' | 'rejected' | 'skipped'
+      notes?: string
+      verifiedByName?: string
+      verifiedByRole?: string
+      verifiedAt?: string
+    }
+  }
   rawMaterials?: {
     name: string
     quantity: number
@@ -37,6 +61,7 @@ export type RawMaterialBillingReportItem = {
     numberOfPackages?: number
     totalAmount?: number
     category?: string
+    photoUrl?: string
   }[]
 }
 
@@ -94,6 +119,7 @@ type RawItem = {
   updatedAt?: unknown
   status: unknown
   plannedPaymentDate?: unknown
+  verification?: unknown
   rawMaterialsList?: {
     rawMaterialName?: string
     packageSize?: number
@@ -442,6 +468,20 @@ export const getRawMaterialBillingReportData = async (
         preserveNullAndEmptyArrays: true,
       },
     },
+    {
+      $lookup: {
+        from: 'media',
+        localField: 'materialInfo.images.0.image',
+        foreignField: '_id',
+        as: 'materialDefaultPhotoInfo',
+      },
+    },
+    {
+      $unwind: {
+        path: '$materialDefaultPhotoInfo',
+        preserveNullAndEmptyArrays: true,
+      },
+    },
     ...(selectedCategories.length > 0
       ? [
           {
@@ -472,6 +512,7 @@ export const getRawMaterialBillingReportData = async (
         status: { $first: '$status' },
         plannedPaymentDate: { $first: '$plannedPaymentDate' },
         notes: { $first: '$notes' },
+        verification: { $first: '$verification' },
         rawMaterialsList: {
           $push: {
             $cond: {
@@ -487,8 +528,8 @@ export const getRawMaterialBillingReportData = async (
                 variants: '$materialInfo.variants',
                 packSize: '$materialInfo.packSize',
                 category: '$materialInfo.category',
-                photoUrl: '$itemPhotoInfo.url',
-                photoFilename: '$itemPhotoInfo.filename',
+                photoUrl: { $ifNull: ['$itemPhotoInfo.url', '$materialDefaultPhotoInfo.url'] },
+                photoFilename: { $ifNull: ['$itemPhotoInfo.filename', '$materialDefaultPhotoInfo.filename'] },
               },
               else: '$$REMOVE',
             },
@@ -536,6 +577,7 @@ export const getRawMaterialBillingReportData = async (
             status: { $ifNull: ['$status', 'pending'] },
             plannedPaymentDate: '$plannedPaymentDate',
             notes: '$notes',
+            verification: '$verification',
             rawMaterialsList: '$rawMaterialsList',
           },
         },
@@ -581,18 +623,26 @@ export const getRawMaterialBillingReportData = async (
           numberOfPackages?: number
           totalAmount?: number
           category?: string
+          photoUrl?: string
         }[] = []
         if (Array.isArray(item.rawMaterialsList)) {
-          item.rawMaterialsList.forEach((m) => {
+          item.rawMaterialsList.forEach((m: any) => {
             if (m && typeof m === 'object') {
+              const itemPhotoUrl =
+                toNonEmptyString(m.photoUrl) ||
+                (m.photoFilename ? `/api/media/file/${m.photoFilename}` : '') ||
+                (typeof m.photo === 'object' && m.photo?.url ? m.photo.url : '') ||
+                undefined
+
               rawMaterials.push({
-                name: toNonEmptyString(m.rawMaterialName, 'Unknown Material').trim(),
+                name: toNonEmptyString(m.rawMaterialName || m.name, 'Unknown Material').trim(),
                 quantity: toNumber(m.quantity),
                 unit: toNonEmptyString(m.unit, 'kg'),
                 packageSize: m.packageSize !== undefined ? toNumber(m.packageSize) : undefined,
                 numberOfPackages: m.numberOfPackages !== undefined ? toNumber(m.numberOfPackages) : undefined,
                 totalAmount: m.totalAmount !== undefined ? toNumber(m.totalAmount) : undefined,
                 category: m.category ? toNonEmptyString(m.category) : undefined,
+                photoUrl: itemPhotoUrl || (productsPhotoUrls.length > 0 ? productsPhotoUrls[0] : undefined),
               })
             }
           })
@@ -631,6 +681,7 @@ export const getRawMaterialBillingReportData = async (
           status: toNonEmptyString(item.status, 'pending'),
           plannedPaymentDate: item.plannedPaymentDate ? toDateString(item.plannedPaymentDate) : undefined,
           notes: toNonEmptyString((item as any).notes, ''),
+          verification: (item as any).verification,
           rawMaterials,
         }
       })

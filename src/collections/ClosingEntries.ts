@@ -135,6 +135,160 @@ const ClosingEntries: CollectionConfig = {
         description: 'Notes from the accounts team about this closing',
       },
     },
+    {
+      name: 'verification',
+      type: 'group',
+      label: 'Three-Step Verification',
+      fields: [
+        {
+          name: 'overallStatus',
+          type: 'select',
+          label: 'Overall Verification Status',
+          defaultValue: 'pending',
+          options: [
+            { label: 'Pending', value: 'pending' },
+            { label: 'Partially Verified', value: 'partially_verified' },
+            { label: 'Fully Verified', value: 'verified' },
+            { label: 'Rejected', value: 'rejected' },
+          ],
+          admin: {
+            readOnly: true,
+          },
+        },
+        {
+          name: 'accountant',
+          type: 'group',
+          label: 'Accountant / Office Admin Verification (Step 1)',
+          fields: [
+            {
+              name: 'status',
+              type: 'select',
+              defaultValue: 'pending',
+              options: [
+                { label: 'Pending', value: 'pending' },
+                { label: 'Verified', value: 'verified' },
+                { label: 'Rejected', value: 'rejected' },
+                { label: 'Skipped', value: 'skipped' },
+              ],
+            },
+            {
+              name: 'notes',
+              type: 'textarea',
+              label: 'Accountant Notes',
+            },
+            {
+              name: 'verifiedBy',
+              type: 'relationship',
+              relationTo: 'users',
+              admin: { readOnly: true },
+            },
+            {
+              name: 'verifiedByName',
+              type: 'text',
+              admin: { readOnly: true },
+            },
+            {
+              name: 'verifiedByRole',
+              type: 'text',
+              admin: { readOnly: true },
+            },
+            {
+              name: 'verifiedAt',
+              type: 'date',
+              admin: { readOnly: true },
+            },
+          ],
+        },
+        {
+          name: 'watcher',
+          type: 'group',
+          label: 'Watcher Verification (Step 2)',
+          fields: [
+            {
+              name: 'status',
+              type: 'select',
+              defaultValue: 'pending',
+              options: [
+                { label: 'Pending', value: 'pending' },
+                { label: 'Verified', value: 'verified' },
+                { label: 'Rejected', value: 'rejected' },
+                { label: 'Skipped', value: 'skipped' },
+              ],
+            },
+            {
+              name: 'notes',
+              type: 'textarea',
+              label: 'Watcher Notes',
+            },
+            {
+              name: 'verifiedBy',
+              type: 'relationship',
+              relationTo: 'users',
+              admin: { readOnly: true },
+            },
+            {
+              name: 'verifiedByName',
+              type: 'text',
+              admin: { readOnly: true },
+            },
+            {
+              name: 'verifiedByRole',
+              type: 'text',
+              admin: { readOnly: true },
+            },
+            {
+              name: 'verifiedAt',
+              type: 'date',
+              admin: { readOnly: true },
+            },
+          ],
+        },
+        {
+          name: 'manager',
+          type: 'group',
+          label: 'Manager Verification (Step 3)',
+          fields: [
+            {
+              name: 'status',
+              type: 'select',
+              defaultValue: 'pending',
+              options: [
+                { label: 'Pending', value: 'pending' },
+                { label: 'Verified', value: 'verified' },
+                { label: 'Rejected', value: 'rejected' },
+                { label: 'Skipped', value: 'skipped' },
+              ],
+            },
+            {
+              name: 'notes',
+              type: 'textarea',
+              label: 'Manager Notes',
+            },
+            {
+              name: 'verifiedBy',
+              type: 'relationship',
+              relationTo: 'users',
+              admin: { readOnly: true },
+            },
+            {
+              name: 'verifiedByName',
+              type: 'text',
+              admin: { readOnly: true },
+            },
+            {
+              name: 'verifiedByRole',
+              type: 'text',
+              admin: { readOnly: true },
+            },
+            {
+              name: 'verifiedAt',
+              type: 'date',
+              admin: { readOnly: true },
+            },
+          ],
+        },
+      ],
+    },
   ],
 
   hooks: {
@@ -454,6 +608,29 @@ const ClosingEntries: CollectionConfig = {
           (doc.expenses || 0) -
           (doc.returnTotal || 0) -
           (doc.stockOrders || 0)
+
+        // ------------------------------------------
+        // 7️⃣ VERIFICATION STATUS CALCULATION
+        // ------------------------------------------
+        if (data.verification) {
+          const acc = data.verification.accountant?.status || 'pending'
+          const wat = data.verification.watcher?.status || 'pending'
+          const mgr = data.verification.manager?.status || 'pending'
+
+          if (acc === 'rejected' || wat === 'rejected' || mgr === 'rejected') {
+            data.verification.overallStatus = 'rejected'
+          } else if (
+            (acc === 'verified' || acc === 'skipped') &&
+            (wat === 'verified' || wat === 'skipped') &&
+            (mgr === 'verified' || mgr === 'skipped')
+          ) {
+            data.verification.overallStatus = 'verified'
+          } else if (acc !== 'pending' || wat !== 'pending' || mgr !== 'pending') {
+            data.verification.overallStatus = 'partially_verified'
+          } else {
+            data.verification.overallStatus = 'pending'
+          }
+        }
 
         return data
       },

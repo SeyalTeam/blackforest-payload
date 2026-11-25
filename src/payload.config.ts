@@ -61,6 +61,7 @@ import { updateBillTransactionIdHandler } from './endpoints/updateBillTransactio
 import { getCategoryWiseReportHandler } from './endpoints/getCategoryWiseReport'
 import { getCategoryWiseReportPDFHandler } from './endpoints/getCategoryWiseReportPDF'
 import { PaymentSettings } from './globals/PaymentSettings'
+import { ReportVerificationSettings } from './globals/ReportVerificationSettings'
 import { createPaymentSessionHandler } from './endpoints/createPaymentSession'
 import { getProductWiseReportHandler } from './endpoints/getProductWiseReport'
 import { getProductPreparationBillDetailsHandler } from './endpoints/getProductPreparationBillDetails'
@@ -1102,6 +1103,7 @@ export default buildConfig({
   globals: [
     DatabaseSyncSettings,
     PaymentSettings,
+    ReportVerificationSettings,
     IPSettings,
     AllReportGlobal,
     DashboardGlobal,
