@@ -585,7 +585,7 @@ const DealerReport: React.FC = () => {
               return {
                 ...i,
                 verification: json.verification,
-                notes: json.notes || i.notes,
+                notes: typeof json.notes === 'string' ? json.notes : '',
               }
             }
             return i
@@ -601,11 +601,13 @@ const DealerReport: React.FC = () => {
             ? {
                 ...prev,
                 verification: json.verification,
-                notes: json.notes || prev.notes,
+                notes: typeof json.notes === 'string' ? json.notes : '',
               }
             : null,
         )
       }
+
+      setShowVerificationModal(false)
     } catch (err: any) {
       alert(err.message || 'Error updating verification')
     } finally {
@@ -1557,14 +1559,14 @@ const DealerReport: React.FC = () => {
                                          item.verification?.accountant?.status === 'rejected' ? '✕ Rejected (Acc)' :
                                          item.verification?.accountant?.status === 'skipped' ? '↷ Skipped (Acc)' : 'Verify (Acc)'}
                                       </button>
-                                      {(item.verification?.accountant?.notes || item.notes) && (
+                                      {Boolean(item.verification?.accountant?.notes?.trim()) && (
                                         <span
                                           className="ver-note-icon-btn"
                                           onClick={(e) => {
                                             e.stopPropagation()
                                             openVerificationModal(item)
                                           }}
-                                          title={`Accountant Note: ${item.verification?.accountant?.notes || item.notes}`}
+                                          title={`Accountant Note: ${item.verification?.accountant?.notes}`}
                                         >
                                           <Mail size={14} fill="#2563eb" color="#1e3a8a" strokeWidth={1.8} />
                                         </span>
@@ -1634,10 +1636,10 @@ const DealerReport: React.FC = () => {
                                           >
                                             {item.verification?.accountant?.status === 'verified' ? '✓' : item.verification?.accountant?.status === 'rejected' ? '✕' : item.verification?.accountant?.status === 'skipped' ? '↷' : '○'} Acc
                                           </span>
-                                          {(item.verification?.accountant?.notes || (!item.verification?.watcher?.notes && !item.verification?.manager?.notes && item.notes)) && (
+                                          {Boolean(item.verification?.accountant?.notes?.trim()) && (
                                             <span
                                               className="ver-note-icon-btn"
-                                              title={`Accountant Note: ${item.verification?.accountant?.notes || item.notes}`}
+                                              title={`Accountant Note: ${item.verification?.accountant?.notes}`}
                                             >
                                               <Mail size={12} fill="#2563eb" color="#1e3a8a" strokeWidth={1.8} />
                                             </span>

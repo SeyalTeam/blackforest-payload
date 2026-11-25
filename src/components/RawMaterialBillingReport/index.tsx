@@ -620,7 +620,7 @@ const RawMaterialBillingReport: React.FC = () => {
               return {
                 ...i,
                 verification: json.verification,
-                notes: json.notes || i.notes,
+                notes: typeof json.notes === 'string' ? json.notes : '',
               }
             }
             return i
@@ -636,11 +636,13 @@ const RawMaterialBillingReport: React.FC = () => {
             ? {
                 ...prev,
                 verification: json.verification,
-                notes: json.notes || prev.notes,
+                notes: typeof json.notes === 'string' ? json.notes : '',
               }
             : null,
         )
       }
+
+      setShowVerificationModal(false)
     } catch (err: any) {
       alert(err.message || 'Error updating verification')
     } finally {
@@ -1822,14 +1824,14 @@ const RawMaterialBillingReport: React.FC = () => {
                                           ? '✕ Rejected'
                                           : 'Verify (Acc)'}
                                       </button>
-                                      {(item.verification?.accountant?.notes || item.notes) && (
+                                      {Boolean(item.verification?.accountant?.notes?.trim()) && (
                                         <span
                                           className="ver-note-icon-btn"
                                           onClick={(e) => {
                                             e.stopPropagation()
                                             openVerificationModal(item)
                                           }}
-                                          title={`Accountant Note: ${item.verification?.accountant?.notes || item.notes}`}
+                                          title={`Accountant Note: ${item.verification?.accountant?.notes}`}
                                         >
                                           <Mail size={14} fill="#2563eb" color="#1e3a8a" strokeWidth={1.8} />
                                         </span>
@@ -1930,10 +1932,10 @@ const RawMaterialBillingReport: React.FC = () => {
                                               ? '✕ Acc'
                                               : '○ Acc'}
                                           </span>
-                                          {(item.verification?.accountant?.notes || (!item.verification?.watcher?.notes && !item.verification?.manager?.notes && item.notes)) && (
+                                          {Boolean(item.verification?.accountant?.notes?.trim()) && (
                                             <span
                                               className="ver-note-icon-btn"
-                                              title={`Accountant Note: ${item.verification?.accountant?.notes || item.notes}`}
+                                              title={`Accountant Note: ${item.verification?.accountant?.notes}`}
                                             >
                                               <Mail size={12} fill="#2563eb" color="#1e3a8a" strokeWidth={1.8} />
                                             </span>

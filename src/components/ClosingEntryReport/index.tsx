@@ -781,7 +781,7 @@ const ClosingEntryReport: React.FC = () => {
               return {
                 ...entry,
                 verification: newVerification,
-                notes: json.notes || entry.notes,
+                notes: typeof json.notes === 'string' ? json.notes : '',
               }
             }
             return entry
@@ -797,7 +797,7 @@ const ClosingEntryReport: React.FC = () => {
           entry: {
             ...verificationModalEntry.entry,
             verification: newVerification,
-            notes: json.notes || verificationModalEntry.entry.notes,
+            notes: typeof json.notes === 'string' ? json.notes : '',
           },
         })
       }
