@@ -870,6 +870,34 @@ const ReturnOrderReport: React.FC = () => {
       <div className="report-header-v2">
         <div className="header-controls">
           <div className="date-controls">
+            {isAdmin && (
+              <button
+                type="button"
+                className="verification-settings-btn"
+                onClick={() => {
+                  setTempSettings(verificationSettings)
+                  setShowSettingsModal(true)
+                }}
+                title="Configure 3-Step Verification Rules (Enable/Disable Steps)"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 14px',
+                  background: 'var(--theme-elevation-100)',
+                  border: '1px solid var(--theme-elevation-200)',
+                  borderRadius: '6px',
+                  color: 'var(--theme-text-primary)',
+                  cursor: 'pointer',
+                  fontSize: '0.84rem',
+                  fontWeight: 600,
+                  height: '38px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                ⚙️ Verification Rules
+              </button>
+            )}
             <Select
               options={dateRangeOptions}
               value={dateRangeOptions.find((o) => o.value === dateRangePreset)}
@@ -996,33 +1024,6 @@ const ReturnOrderReport: React.FC = () => {
                     </select>
                     <span> entries</span>
                   </div>
-
-                  {isAdmin && (
-                    <button
-                      type="button"
-                      className="verification-settings-btn"
-                      onClick={() => {
-                        setTempSettings(verificationSettings)
-                        setShowSettingsModal(true)
-                      }}
-                      title="Configure 3-Step Verification Rules (Enable/Disable Steps)"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '6px 12px',
-                        background: 'var(--theme-elevation-100)',
-                        border: '1px solid var(--theme-elevation-200)',
-                        borderRadius: '6px',
-                        color: 'var(--theme-text-primary)',
-                        cursor: 'pointer',
-                        fontSize: '0.84rem',
-                        fontWeight: 600,
-                      }}
-                    >
-                      ⚙️ Verification Rules
-                    </button>
-                  )}
 
                   <div className="table-column-filter">
                     <Select

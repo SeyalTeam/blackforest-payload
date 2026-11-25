@@ -1595,6 +1595,33 @@ export interface ReturnOrder {
    * Name of the cashier who created/submitted the return order.
    */
   cashierName?: string | null;
+  verification?: {
+    overallStatus?: ('pending' | 'partially_verified' | 'verified' | 'rejected') | null;
+    accountant?: {
+      status?: ('pending' | 'verified' | 'rejected' | 'skipped') | null;
+      notes?: string | null;
+      verifiedBy?: (string | null) | User;
+      verifiedByName?: string | null;
+      verifiedByRole?: string | null;
+      verifiedAt?: string | null;
+    };
+    watcher?: {
+      status?: ('pending' | 'verified' | 'rejected' | 'skipped') | null;
+      notes?: string | null;
+      verifiedBy?: (string | null) | User;
+      verifiedByName?: string | null;
+      verifiedByRole?: string | null;
+      verifiedAt?: string | null;
+    };
+    manager?: {
+      status?: ('pending' | 'verified' | 'rejected' | 'skipped') | null;
+      notes?: string | null;
+      verifiedBy?: (string | null) | User;
+      verifiedByName?: string | null;
+      verifiedByRole?: string | null;
+      verifiedAt?: string | null;
+    };
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -1640,6 +1667,40 @@ export interface Expense {
    * Name of the cashier who created/submitted the expense.
    */
   cashierName?: string | null;
+  /**
+   * Remarks or notes for this expense.
+   */
+  notes?: string | null;
+  verification?: {
+    overallStatus?: ('pending' | 'partially_verified' | 'verified' | 'rejected') | null;
+    accountant?: {
+      status?: ('pending' | 'verified' | 'rejected' | 'skipped') | null;
+      notes?: string | null;
+      verifiedBy?: (string | null) | User;
+      verifiedByName?: string | null;
+      verifiedByRole?: string | null;
+      verifiedAt?: string | null;
+      skipReason?: string | null;
+    };
+    watcher?: {
+      status?: ('pending' | 'verified' | 'rejected' | 'skipped') | null;
+      notes?: string | null;
+      verifiedBy?: (string | null) | User;
+      verifiedByName?: string | null;
+      verifiedByRole?: string | null;
+      verifiedAt?: string | null;
+      skipReason?: string | null;
+    };
+    manager?: {
+      status?: ('pending' | 'verified' | 'rejected' | 'skipped') | null;
+      notes?: string | null;
+      verifiedBy?: (string | null) | User;
+      verifiedByName?: string | null;
+      verifiedByRole?: string | null;
+      verifiedAt?: string | null;
+      skipReason?: string | null;
+    };
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -3850,6 +3911,41 @@ export interface ReturnOrdersSelect<T extends boolean = true> {
   notes?: T;
   cashierId?: T;
   cashierName?: T;
+  verification?:
+    | T
+    | {
+        overallStatus?: T;
+        accountant?:
+          | T
+          | {
+              status?: T;
+              notes?: T;
+              verifiedBy?: T;
+              verifiedByName?: T;
+              verifiedByRole?: T;
+              verifiedAt?: T;
+            };
+        watcher?:
+          | T
+          | {
+              status?: T;
+              notes?: T;
+              verifiedBy?: T;
+              verifiedByName?: T;
+              verifiedByRole?: T;
+              verifiedAt?: T;
+            };
+        manager?:
+          | T
+          | {
+              status?: T;
+              notes?: T;
+              verifiedBy?: T;
+              verifiedByName?: T;
+              verifiedByRole?: T;
+              verifiedAt?: T;
+            };
+      };
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3947,6 +4043,45 @@ export interface ExpensesSelect<T extends boolean = true> {
   date?: T;
   cashierId?: T;
   cashierName?: T;
+  notes?: T;
+  verification?:
+    | T
+    | {
+        overallStatus?: T;
+        accountant?:
+          | T
+          | {
+              status?: T;
+              notes?: T;
+              verifiedBy?: T;
+              verifiedByName?: T;
+              verifiedByRole?: T;
+              verifiedAt?: T;
+              skipReason?: T;
+            };
+        watcher?:
+          | T
+          | {
+              status?: T;
+              notes?: T;
+              verifiedBy?: T;
+              verifiedByName?: T;
+              verifiedByRole?: T;
+              verifiedAt?: T;
+              skipReason?: T;
+            };
+        manager?:
+          | T
+          | {
+              status?: T;
+              notes?: T;
+              verifiedBy?: T;
+              verifiedByName?: T;
+              verifiedByRole?: T;
+              verifiedAt?: T;
+              skipReason?: T;
+            };
+      };
   updatedAt?: T;
   createdAt?: T;
 }
@@ -4784,6 +4919,11 @@ export interface ReportVerificationSetting {
     requireManager?: boolean | null;
   };
   otherProducts?: {
+    requireAccountant?: boolean | null;
+    requireWatcher?: boolean | null;
+    requireManager?: boolean | null;
+  };
+  expense?: {
     requireAccountant?: boolean | null;
     requireWatcher?: boolean | null;
     requireManager?: boolean | null;
@@ -6657,6 +6797,13 @@ export interface ReportVerificationSettingsSelect<T extends boolean = true> {
         requireManager?: T;
       };
   otherProducts?:
+    | T
+    | {
+        requireAccountant?: T;
+        requireWatcher?: T;
+        requireManager?: T;
+      };
+  expense?:
     | T
     | {
         requireAccountant?: T;
