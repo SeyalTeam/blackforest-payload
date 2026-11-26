@@ -456,15 +456,23 @@ const RawMaterialBillingReport: React.FC = () => {
   const isManager = userRole === 'manager' || isAdmin
 
   const [verificationSettings, setVerificationSettings] = useState<{
+    effectiveFrom?: string | null
     requireAccountant: boolean
     requireWatcher: boolean
     requireManager: boolean
   }>({
+    effectiveFrom: null,
     requireAccountant: true,
     requireWatcher: true,
     requireManager: true,
   })
-  const [tempSettings, setTempSettings] = useState({
+  const [tempSettings, setTempSettings] = useState<{
+    effectiveFrom?: string | null
+    requireAccountant: boolean
+    requireWatcher: boolean
+    requireManager: boolean
+  }>({
+    effectiveFrom: null,
     requireAccountant: true,
     requireWatcher: true,
     requireManager: true,
@@ -526,6 +534,13 @@ const RawMaterialBillingReport: React.FC = () => {
   const isStoreKeeper = userRole === 'store_keeper'
 
   const isBillFullyVerified = (item: RawMaterialBillingReportItem) => {
+    if (verificationSettings.effectiveFrom) {
+      const billDate = dayjs(item.time).tz('Asia/Kolkata').format('YYYY-MM-DD')
+      const effDate = dayjs(verificationSettings.effectiveFrom).format('YYYY-MM-DD')
+      if (billDate < effDate) {
+        return true
+      }
+    }
     const ver = item.verification
     const reqAcc = verificationSettings.requireAccountant
     const reqWat = verificationSettings.requireWatcher
@@ -539,16 +554,23 @@ const RawMaterialBillingReport: React.FC = () => {
   }
 
   const getPendingVerificationSteps = (item: RawMaterialBillingReportItem) => {
+    if (verificationSettings.effectiveFrom) {
+      const billDate = dayjs(item.time).tz('Asia/Kolkata').format('YYYY-MM-DD')
+      const effDate = dayjs(verificationSettings.effectiveFrom).format('YYYY-MM-DD')
+      if (billDate < effDate) {
+        return []
+      }
+    }
     const pending: string[] = []
     const ver = item.verification
+    if (verificationSettings.requireManager && ver?.manager?.status !== 'verified' && ver?.manager?.status !== 'skipped') {
+      pending.push('Manager')
+    }
     if (verificationSettings.requireAccountant && ver?.accountant?.status !== 'verified' && ver?.accountant?.status !== 'skipped') {
       pending.push('Accountant')
     }
     if (verificationSettings.requireWatcher && ver?.watcher?.status !== 'verified' && ver?.watcher?.status !== 'skipped') {
       pending.push('Watcher')
-    }
-    if (verificationSettings.requireManager && ver?.manager?.status !== 'verified' && ver?.manager?.status !== 'skipped') {
-      pending.push('Manager')
     }
     return pending
   }
@@ -566,20 +588,20 @@ const RawMaterialBillingReport: React.FC = () => {
       manager: '',
     })
 
-    if (userRole === 'account') {
+    if (userRole === 'manager') {
+      setActiveStepTab('manager')
+    } else if (userRole === 'account') {
       setActiveStepTab('accountant')
     } else if (userRole === 'watcher') {
       setActiveStepTab('watcher')
-    } else if (userRole === 'manager') {
-      setActiveStepTab('manager')
     } else {
       const ver = item.verification
-      if (!ver?.accountant?.status || ver.accountant.status === 'pending') {
-        setActiveStepTab('accountant')
-      } else if (!ver?.watcher?.status || ver.watcher.status === 'pending') {
-        setActiveStepTab('watcher')
-      } else {
+      if (!ver?.manager?.status || ver.manager.status === 'pending') {
         setActiveStepTab('manager')
+      } else if (!ver?.accountant?.status || ver.accountant.status === 'pending') {
+        setActiveStepTab('accountant')
+      } else {
+        setActiveStepTab('watcher')
       }
     }
     setShowVerificationModal(true)
@@ -1911,6 +1933,39 @@ const RawMaterialBillingReport: React.FC = () => {
                                       title="Click to view or update 3-step verification"
                                     >
                                       <div className="verification-chips" style={{ display: 'flex', gap: '4px', alignItems: 'flex-start', justifyContent: 'center' }}>
+                                        {/* Step 1: Manager */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                          <span
+                                            className={`ver-chip ${
+                                              !verificationSettings.requireManager
+                                                ? 'ver-disabled'
+                                                : `ver-${item.verification?.manager?.status || 'pending'}`
+                                            }`}
+                                            title={`Manager: ${
+                                              !verificationSettings.requireManager
+                                                ? 'Disabled'
+                                                : item.verification?.manager?.status || 'Pending'
+                                            }${item.verification?.manager?.verifiedByName ? ` (${item.verification.manager.verifiedByName})` : ''}`}
+                                          >
+                                            {item.verification?.manager?.status === 'verified'
+                                              ? '✓ Mgr'
+                                              : item.verification?.manager?.status === 'skipped'
+                                              ? '⏭ Mgr'
+                                              : item.verification?.manager?.status === 'rejected'
+                                              ? '✕ Mgr'
+                                              : '○ Mgr'}
+                                          </span>
+                                          {Boolean(item.verification?.manager?.notes?.trim()) && (
+                                            <span
+                                              className="ver-note-icon-btn"
+                                              title={`Manager Note: ${item.verification?.manager?.notes}`}
+                                            >
+                                              <Mail size={12} fill="#2563eb" color="#1e3a8a" strokeWidth={1.8} />
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        {/* Step 2: Accountant */}
                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                                           <span
                                             className={`ver-chip ${
@@ -1942,6 +1997,7 @@ const RawMaterialBillingReport: React.FC = () => {
                                           )}
                                         </div>
 
+                                        {/* Step 3: Watcher */}
                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                                           <span
                                             className={`ver-chip ${
@@ -1963,41 +2019,10 @@ const RawMaterialBillingReport: React.FC = () => {
                                               ? '✕ Wat'
                                               : '○ Wat'}
                                           </span>
-                                          {item.verification?.watcher?.notes && (
+                                          {Boolean(item.verification?.watcher?.notes?.trim()) && (
                                             <span
                                               className="ver-note-icon-btn"
-                                              title={`Watcher Note: ${item.verification.watcher.notes}`}
-                                            >
-                                              <Mail size={12} fill="#2563eb" color="#1e3a8a" strokeWidth={1.8} />
-                                            </span>
-                                          )}
-                                        </div>
-
-                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                                          <span
-                                            className={`ver-chip ${
-                                              !verificationSettings.requireManager
-                                                ? 'ver-disabled'
-                                                : `ver-${item.verification?.manager?.status || 'pending'}`
-                                            }`}
-                                            title={`Manager: ${
-                                              !verificationSettings.requireManager
-                                                ? 'Disabled'
-                                                : item.verification?.manager?.status || 'Pending'
-                                            }${item.verification?.manager?.verifiedByName ? ` (${item.verification.manager.verifiedByName})` : ''}`}
-                                          >
-                                            {item.verification?.manager?.status === 'verified'
-                                              ? '✓ Mgr'
-                                              : item.verification?.manager?.status === 'skipped'
-                                              ? '⏭ Mgr'
-                                              : item.verification?.manager?.status === 'rejected'
-                                              ? '✕ Mgr'
-                                              : '○ Mgr'}
-                                          </span>
-                                          {item.verification?.manager?.notes && (
-                                            <span
-                                              className="ver-note-icon-btn"
-                                              title={`Manager Note: ${item.verification.manager.notes}`}
+                                              title={`Watcher Note: ${item.verification?.watcher?.notes}`}
                                             >
                                               <Mail size={12} fill="#2563eb" color="#1e3a8a" strokeWidth={1.8} />
                                             </span>
@@ -2534,6 +2559,23 @@ const RawMaterialBillingReport: React.FC = () => {
               <div className="verification-step-tabs">
                 <button
                   type="button"
+                  className={`step-tab-btn ${activeStepTab === 'manager' ? 'active' : ''}`}
+                  onClick={() => setActiveStepTab('manager')}
+                >
+                  <span className="step-status-icon">
+                    {verificationModalItem.verification?.manager?.status === 'verified'
+                      ? '✅'
+                      : verificationModalItem.verification?.manager?.status === 'skipped'
+                      ? '⏭️'
+                      : verificationModalItem.verification?.manager?.status === 'rejected'
+                      ? '❌'
+                      : '⚪'}
+                  </span>
+                  Step 1: Manager
+                </button>
+
+                <button
+                  type="button"
                   className={`step-tab-btn ${activeStepTab === 'accountant' ? 'active' : ''}`}
                   onClick={() => setActiveStepTab('accountant')}
                 >
@@ -2544,9 +2586,14 @@ const RawMaterialBillingReport: React.FC = () => {
                       ? '⏭️'
                       : verificationModalItem.verification?.accountant?.status === 'rejected'
                       ? '❌'
+                      : !isAdmin &&
+                        verificationSettings.requireManager &&
+                        verificationModalItem.verification?.manager?.status !== 'verified' &&
+                        verificationModalItem.verification?.manager?.status !== 'skipped'
+                      ? '🔒'
                       : '⚪'}
                   </span>
-                  Step 1: Accountant
+                  Step 2: Accountant
                 </button>
 
                 <button
@@ -2568,39 +2615,111 @@ const RawMaterialBillingReport: React.FC = () => {
                       ? '🔒'
                       : '⚪'}
                   </span>
-                  Step 2: Watcher
-                </button>
-
-                <button
-                  type="button"
-                  className={`step-tab-btn ${activeStepTab === 'manager' ? 'active' : ''}`}
-                  onClick={() => setActiveStepTab('manager')}
-                >
-                  <span className="step-status-icon">
-                    {verificationModalItem.verification?.manager?.status === 'verified'
-                      ? '✅'
-                      : verificationModalItem.verification?.manager?.status === 'skipped'
-                      ? '⏭️'
-                      : verificationModalItem.verification?.manager?.status === 'rejected'
-                      ? '❌'
-                      : !isAdmin &&
-                        verificationSettings.requireWatcher &&
-                        verificationModalItem.verification?.watcher?.status !== 'verified' &&
-                        verificationModalItem.verification?.watcher?.status !== 'skipped'
-                      ? '🔒'
-                      : '⚪'}
-                  </span>
-                  Step 3: Manager
+                  Step 3: Watcher
                 </button>
               </div>
             )}
 
-            {/* TAB CONTENT: STEP 1 - ACCOUNTANT */}
+            {/* TAB CONTENT: STEP 1 - MANAGER */}
+            {(userRole === 'manager' || (isAdmin && activeStepTab === 'manager')) && (
+              <div className="verification-step-card">
+                <div className="step-card-header">
+                  <div className="step-title">
+                    <span>Step 1: Manager Approval & Verification</span>
+                  </div>
+                  <span
+                    className={`ver-chip ver-${verificationModalItem.verification?.manager?.status || 'pending'}`}
+                  >
+                    {verificationModalItem.verification?.manager?.status || 'Pending'}
+                  </span>
+                </div>
+
+                {!verificationSettings.requireManager && (
+                  <div style={{ fontSize: '0.8rem', color: '#f59e0b', marginBottom: '10px' }}>
+                    ⚠️ Note: Manager verification is currently disabled in Verification Rules.
+                  </div>
+                )}
+
+                {verificationModalItem.verification?.manager?.verifiedAt && (
+                  <div className="step-meta-info">
+                    Verified by: <strong>{verificationModalItem.verification.manager.verifiedByName || 'Unknown'}</strong> (
+                    {verificationModalItem.verification.manager.verifiedByRole || 'Manager'}) on{' '}
+                    {dayjs(verificationModalItem.verification.manager.verifiedAt).format('DD-MM-YYYY hh:mm A')}
+                  </div>
+                )}
+
+                <div style={{ marginBottom: '8px', fontSize: '0.85rem', color: 'var(--theme-text-secondary)' }}>
+                  Manager Remarks / Sign-off:
+                </div>
+                <textarea
+                  className="step-textarea"
+                  rows={4}
+                  value={stepNotes.manager}
+                  onChange={(e) => setStepNotes({ ...stepNotes, manager: e.target.value })}
+                  placeholder="Enter manager sign-off remarks, payment clearance notes..."
+                  disabled={!isManager}
+                />
+
+                {isAdmin && (
+                  <div style={{ marginTop: '10px' }}>
+                    <input
+                      type="text"
+                      className="step-textarea"
+                      style={{ padding: '6px 10px', fontSize: '0.82rem' }}
+                      placeholder="Optional reason for skipping (e.g., Manager not available today)"
+                      value={stepSkipReason.manager}
+                      onChange={(e) => setStepSkipReason({ ...stepSkipReason, manager: e.target.value })}
+                    />
+                  </div>
+                )}
+
+                <div className="step-actions">
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      className="ver-btn ver-btn--skip"
+                      disabled={isSubmittingVerification}
+                      onClick={() => handleVerificationSubmit(verificationModalItem.id, 'manager', 'skipped')}
+                      title="Skip manager approval (e.g., if manager is not available today)"
+                    >
+                      ⏭️ Skip Step
+                    </button>
+                  )}
+                  {isManager && (
+                    <>
+                      <button
+                        type="button"
+                        className="ver-btn ver-btn--reject"
+                        disabled={isSubmittingVerification}
+                        onClick={() => handleVerificationSubmit(verificationModalItem.id, 'manager', 'rejected')}
+                      >
+                        ❌ Reject
+                      </button>
+                      <button
+                        type="button"
+                        className="ver-btn ver-btn--approve"
+                        disabled={isSubmittingVerification}
+                        onClick={() => handleVerificationSubmit(verificationModalItem.id, 'manager', 'verified')}
+                      >
+                        {isSubmittingVerification ? 'Saving...' : '✓ Verify & Approve (Manager)'}
+                      </button>
+                    </>
+                  )}
+                  {!isManager && (
+                    <span style={{ fontSize: '0.8rem', color: 'var(--theme-text-secondary)', alignSelf: 'center' }}>
+                      🔒 Only Manager or Office Admin can verify this step.
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT: STEP 2 - ACCOUNTANT */}
             {(userRole === 'account' || (isAdmin && activeStepTab === 'accountant')) && (
               <div className="verification-step-card">
                 <div className="step-card-header">
                   <div className="step-title">
-                    <span>Step 1: Accountant / Office Admin Verification</span>
+                    <span>Step 2: Accountant / Office Admin Verification</span>
                   </div>
                   <span
                     className={`ver-chip ver-${verificationModalItem.verification?.accountant?.status || 'pending'}`}
@@ -2614,6 +2733,26 @@ const RawMaterialBillingReport: React.FC = () => {
                     ⚠️ Note: Accountant verification is currently disabled in Verification Rules.
                   </div>
                 )}
+
+                {/* Sequential check notice */}
+                {!isAdmin &&
+                  verificationSettings.requireManager &&
+                  verificationModalItem.verification?.manager?.status !== 'verified' &&
+                  verificationModalItem.verification?.manager?.status !== 'skipped' && (
+                    <div
+                      style={{
+                        padding: '10px 14px',
+                        background: 'rgba(245, 158, 11, 0.1)',
+                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                        borderRadius: '6px',
+                        color: '#f59e0b',
+                        fontSize: '0.85rem',
+                        marginBottom: '14px',
+                      }}
+                    >
+                      🔒 <strong>Step Locked:</strong> Step 1 (Manager) must be verified or skipped before Accountant verification can proceed.
+                    </div>
+                  )}
 
                 {verificationModalItem.verification?.accountant?.verifiedAt && (
                   <div className="step-meta-info">
@@ -2632,7 +2771,13 @@ const RawMaterialBillingReport: React.FC = () => {
                   value={stepNotes.accountant}
                   onChange={(e) => setStepNotes({ ...stepNotes, accountant: e.target.value })}
                   placeholder="Enter invoice verification notes, pricing confirmation, etc..."
-                  disabled={!isAccountant}
+                  disabled={
+                    !isAccountant ||
+                    (!isAdmin &&
+                      verificationSettings.requireManager &&
+                      verificationModalItem.verification?.manager?.status !== 'verified' &&
+                      verificationModalItem.verification?.manager?.status !== 'skipped')
+                  }
                 />
 
                 {isAdmin && (
@@ -2660,26 +2805,30 @@ const RawMaterialBillingReport: React.FC = () => {
                       ⏭️ Skip Step
                     </button>
                   )}
-                  {isAccountant && (
-                    <>
-                      <button
-                        type="button"
-                        className="ver-btn ver-btn--reject"
-                        disabled={isSubmittingVerification}
-                        onClick={() => handleVerificationSubmit(verificationModalItem.id, 'accountant', 'rejected')}
-                      >
-                        ❌ Reject
-                      </button>
-                      <button
-                        type="button"
-                        className="ver-btn ver-btn--approve"
-                        disabled={isSubmittingVerification}
-                        onClick={() => handleVerificationSubmit(verificationModalItem.id, 'accountant', 'verified')}
-                      >
-                        {isSubmittingVerification ? 'Saving...' : '✓ Verify & Approve (Accountant)'}
-                      </button>
-                    </>
-                  )}
+                  {isAccountant &&
+                    (isAdmin ||
+                      !verificationSettings.requireManager ||
+                      verificationModalItem.verification?.manager?.status === 'verified' ||
+                      verificationModalItem.verification?.manager?.status === 'skipped') && (
+                      <>
+                        <button
+                          type="button"
+                          className="ver-btn ver-btn--reject"
+                          disabled={isSubmittingVerification}
+                          onClick={() => handleVerificationSubmit(verificationModalItem.id, 'accountant', 'rejected')}
+                        >
+                          ❌ Reject
+                        </button>
+                        <button
+                          type="button"
+                          className="ver-btn ver-btn--approve"
+                          disabled={isSubmittingVerification}
+                          onClick={() => handleVerificationSubmit(verificationModalItem.id, 'accountant', 'verified')}
+                        >
+                          {isSubmittingVerification ? 'Saving...' : '✓ Verify & Approve (Accountant)'}
+                        </button>
+                      </>
+                    )}
                   {!isAccountant && (
                     <span style={{ fontSize: '0.8rem', color: 'var(--theme-text-secondary)', alignSelf: 'center' }}>
                       🔒 Only Accountant or Office Admin can verify this step.
@@ -2689,12 +2838,12 @@ const RawMaterialBillingReport: React.FC = () => {
               </div>
             )}
 
-            {/* TAB CONTENT: STEP 2 - WATCHER */}
+            {/* TAB CONTENT: STEP 3 - WATCHER */}
             {(userRole === 'watcher' || (isAdmin && activeStepTab === 'watcher')) && (
               <div className="verification-step-card">
                 <div className="step-card-header">
                   <div className="step-title">
-                    <span>Step 2: Watcher (CCTV) Verification</span>
+                    <span>Step 3: Watcher (CCTV) Verification</span>
                   </div>
                   <span
                     className={`ver-chip ver-${verificationModalItem.verification?.watcher?.status || 'pending'}`}
@@ -2725,7 +2874,7 @@ const RawMaterialBillingReport: React.FC = () => {
                         marginBottom: '14px',
                       }}
                     >
-                      🔒 <strong>Step Locked:</strong> Step 1 (Accountant / Office Admin) must be verified or skipped before Watcher verification can proceed.
+                      🔒 <strong>Step Locked:</strong> Step 2 (Accountant / Office Admin) must be verified or skipped before Watcher verification can proceed.
                     </div>
                   )}
 
@@ -2812,130 +2961,6 @@ const RawMaterialBillingReport: React.FC = () => {
                 </div>
               </div>
             )}
-
-            {/* TAB CONTENT: STEP 3 - MANAGER */}
-            {(userRole === 'manager' || (isAdmin && activeStepTab === 'manager')) && (
-              <div className="verification-step-card">
-                <div className="step-card-header">
-                  <div className="step-title">
-                    <span>Step 3: Manager Approval & Verification</span>
-                  </div>
-                  <span
-                    className={`ver-chip ver-${verificationModalItem.verification?.manager?.status || 'pending'}`}
-                  >
-                    {verificationModalItem.verification?.manager?.status || 'Pending'}
-                  </span>
-                </div>
-
-                {!verificationSettings.requireManager && (
-                  <div style={{ fontSize: '0.8rem', color: '#f59e0b', marginBottom: '10px' }}>
-                    ⚠️ Note: Manager verification is currently disabled in Verification Rules.
-                  </div>
-                )}
-
-                {/* Sequential check notice */}
-                {!isAdmin &&
-                  verificationSettings.requireWatcher &&
-                  verificationModalItem.verification?.watcher?.status !== 'verified' &&
-                  verificationModalItem.verification?.watcher?.status !== 'skipped' && (
-                    <div
-                      style={{
-                        padding: '10px 14px',
-                        background: 'rgba(245, 158, 11, 0.1)',
-                        border: '1px solid rgba(245, 158, 11, 0.3)',
-                        borderRadius: '6px',
-                        color: '#f59e0b',
-                        fontSize: '0.85rem',
-                        marginBottom: '14px',
-                      }}
-                    >
-                      🔒 <strong>Step Locked:</strong> Step 2 (Watcher) must be verified or skipped before Manager verification can proceed.
-                    </div>
-                  )}
-
-                {verificationModalItem.verification?.manager?.verifiedAt && (
-                  <div className="step-meta-info">
-                    Verified by: <strong>{verificationModalItem.verification.manager.verifiedByName || 'Unknown'}</strong> (
-                    {verificationModalItem.verification.manager.verifiedByRole || 'Manager'}) on{' '}
-                    {dayjs(verificationModalItem.verification.manager.verifiedAt).format('DD-MM-YYYY hh:mm A')}
-                  </div>
-                )}
-
-                <div style={{ marginBottom: '8px', fontSize: '0.85rem', color: 'var(--theme-text-secondary)' }}>
-                  Manager Remarks / Sign-off:
-                </div>
-                <textarea
-                  className="step-textarea"
-                  rows={4}
-                  value={stepNotes.manager}
-                  onChange={(e) => setStepNotes({ ...stepNotes, manager: e.target.value })}
-                  placeholder="Enter manager sign-off remarks, payment clearance notes..."
-                  disabled={
-                    !isManager ||
-                    (!isAdmin &&
-                      verificationSettings.requireWatcher &&
-                      verificationModalItem.verification?.watcher?.status !== 'verified' &&
-                      verificationModalItem.verification?.watcher?.status !== 'skipped')
-                  }
-                />
-
-                {isAdmin && (
-                  <div style={{ marginTop: '10px' }}>
-                    <input
-                      type="text"
-                      className="step-textarea"
-                      style={{ padding: '6px 10px', fontSize: '0.82rem' }}
-                      placeholder="Optional reason for skipping (e.g., Manager not available today)"
-                      value={stepSkipReason.manager}
-                      onChange={(e) => setStepSkipReason({ ...stepSkipReason, manager: e.target.value })}
-                    />
-                  </div>
-                )}
-
-                <div className="step-actions">
-                  {isAdmin && (
-                    <button
-                      type="button"
-                      className="ver-btn ver-btn--skip"
-                      disabled={isSubmittingVerification}
-                      onClick={() => handleVerificationSubmit(verificationModalItem.id, 'manager', 'skipped')}
-                      title="Skip manager approval (e.g., if manager is not available today)"
-                    >
-                      ⏭️ Skip Manager (Not Available)
-                    </button>
-                  )}
-                  {isManager &&
-                    (isAdmin ||
-                      !verificationSettings.requireWatcher ||
-                      verificationModalItem.verification?.watcher?.status === 'verified' ||
-                      verificationModalItem.verification?.watcher?.status === 'skipped') && (
-                      <>
-                        <button
-                          type="button"
-                          className="ver-btn ver-btn--reject"
-                          disabled={isSubmittingVerification}
-                          onClick={() => handleVerificationSubmit(verificationModalItem.id, 'manager', 'rejected')}
-                        >
-                          ❌ Reject
-                        </button>
-                        <button
-                          type="button"
-                          className="ver-btn ver-btn--approve"
-                          disabled={isSubmittingVerification}
-                          onClick={() => handleVerificationSubmit(verificationModalItem.id, 'manager', 'verified')}
-                        >
-                          {isSubmittingVerification ? 'Saving...' : '✓ Approve & Clear for Payment'}
-                        </button>
-                      </>
-                    )}
-                  {!isManager && (
-                    <span style={{ fontSize: '0.8rem', color: 'var(--theme-text-secondary)', alignSelf: 'center' }}>
-                      🔒 Only Manager or Office Admin can verify this step.
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -2976,7 +3001,60 @@ const RawMaterialBillingReport: React.FC = () => {
               Configure which verification steps are mandatory before payments can be unlocked. If a manager or watcher is not available today, you can disable their requirement here, or skip individual bills in the verification modal.
             </div>
 
+            {/* Effective From Date */}
+            <div style={{ marginBottom: '16px', background: 'var(--theme-elevation-50)', padding: '12px', borderRadius: '8px', border: '1px solid var(--theme-elevation-200)' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: '6px' }}>
+                📅 Effective From Date (விதிகள் தொடங்கும் தேதி):
+              </label>
+              <input
+                type="date"
+                value={tempSettings.effectiveFrom ? dayjs(tempSettings.effectiveFrom).format('YYYY-MM-DD') : ''}
+                onChange={(e) => setTempSettings({ ...tempSettings, effectiveFrom: e.target.value || null })}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--theme-elevation-250)',
+                  background: 'var(--theme-elevation-0)',
+                  color: 'var(--theme-text-primary)',
+                  fontSize: '0.9rem',
+                  width: '100%',
+                  maxWidth: '220px',
+                }}
+              />
+              <div style={{ fontSize: '0.78rem', color: 'var(--theme-text-secondary)', marginTop: '4px' }}>
+                தேர்ந்தெடுக்கப்பட்ட இந்தத் தேதியிலிருந்து பதிவாகும் பில்களுக்கு மட்டுமே வெரிஃபிகேஷன் விதிகள் செயல்படும்.
+              </div>
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '10px',
+                  cursor: 'pointer',
+                  padding: '10px 12px',
+                  background: 'var(--theme-elevation-50)',
+                  borderRadius: '6px',
+                  border: '1px solid var(--theme-elevation-200)',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={tempSettings.requireManager}
+                  onChange={(e) => setTempSettings({ ...tempSettings, requireManager: e.target.checked })}
+                  style={{ marginTop: '2px' }}
+                />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>
+                    Step 1: Manager Approval & Verification
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--theme-text-secondary)', marginTop: '2px' }}>
+                    Requires final review and sign-off by Branch / Office Manager before payments can be made.
+                  </div>
+                </div>
+              </label>
+
               <label
                 style={{
                   display: 'flex',
@@ -2997,7 +3075,7 @@ const RawMaterialBillingReport: React.FC = () => {
                 />
                 <div>
                   <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>
-                    Step 1: Accountant / Office Admin Verification
+                    Step 2: Accountant / Office Admin Verification
                   </div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--theme-text-secondary)', marginTop: '2px' }}>
                     Requires invoice amounts, totals, and bill verification by Accountant or Office Admin.
@@ -3025,38 +3103,10 @@ const RawMaterialBillingReport: React.FC = () => {
                 />
                 <div>
                   <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>
-                    Step 2: Watcher (CCTV) Verification
+                    Step 3: Watcher (CCTV) Verification
                   </div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--theme-text-secondary)', marginTop: '2px' }}>
                     Requires CCTV physical gate entry and goods receipt check by the Watcher team.
-                  </div>
-                </div>
-              </label>
-
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '10px',
-                  cursor: 'pointer',
-                  padding: '10px 12px',
-                  background: 'var(--theme-elevation-50)',
-                  borderRadius: '6px',
-                  border: '1px solid var(--theme-elevation-200)',
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={tempSettings.requireManager}
-                  onChange={(e) => setTempSettings({ ...tempSettings, requireManager: e.target.checked })}
-                  style={{ marginTop: '2px' }}
-                />
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>
-                    Step 3: Manager Approval & Verification
-                  </div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--theme-text-secondary)', marginTop: '2px' }}>
-                    Requires final review and sign-off by Branch / Office Manager before payments can be made.
                   </div>
                 </div>
               </label>

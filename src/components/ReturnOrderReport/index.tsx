@@ -474,20 +474,20 @@ const ReturnOrderReport: React.FC = () => {
       manager: '',
     })
 
-    if (userRole === 'account') {
+    if (userRole === 'manager') {
+      setActiveStepTab('manager')
+    } else if (userRole === 'account') {
       setActiveStepTab('accountant')
     } else if (userRole === 'watcher') {
       setActiveStepTab('watcher')
-    } else if (userRole === 'manager') {
-      setActiveStepTab('manager')
     } else {
       const ver = item.verification
-      if (!ver?.accountant?.status || ver.accountant.status === 'pending') {
-        setActiveStepTab('accountant')
-      } else if (!ver?.watcher?.status || ver.watcher.status === 'pending') {
-        setActiveStepTab('watcher')
-      } else {
+      if (!ver?.manager?.status || ver.manager.status === 'pending') {
         setActiveStepTab('manager')
+      } else if (!ver?.accountant?.status || ver.accountant.status === 'pending') {
+        setActiveStepTab('accountant')
+      } else {
+        setActiveStepTab('watcher')
       }
     }
     setShowVerificationModal(true)
@@ -1213,6 +1213,24 @@ const ReturnOrderReport: React.FC = () => {
                                       style={{ cursor: 'pointer' }}
                                     >
                                       <div className="verification-chips" style={{ display: 'flex', gap: '4px', alignItems: 'flex-start', justifyContent: 'center' }}>
+                                        {/* Step 1: Manager */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                          <span
+                                            className={`ver-chip ver-${item.verification?.manager?.status || 'pending'} ${!verificationSettings.requireManager ? 'ver-disabled' : ''}`}
+                                            title={`Manager Step: ${item.verification?.manager?.status || 'pending'}${item.verification?.manager?.verifiedByName ? ` (${item.verification.manager.verifiedByName})` : ''}`}
+                                          >
+                                            {item.verification?.manager?.status === 'verified' ? '✓' : item.verification?.manager?.status === 'rejected' ? '✕' : item.verification?.manager?.status === 'skipped' ? '↷' : '○'} Mgr
+                                          </span>
+                                          {Boolean(item.verification?.manager?.notes?.trim()) && (
+                                            <span
+                                              className="ver-note-icon-btn"
+                                              title={`Manager Note: ${item.verification?.manager?.notes}`}
+                                            >
+                                              <Mail size={12} fill="#2563eb" color="#1e3a8a" strokeWidth={1.8} />
+                                            </span>
+                                          )}
+                                        </div>
+                                        {/* Step 2: Accountant */}
                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                                           <span
                                             className={`ver-chip ver-${item.verification?.accountant?.status || 'pending'} ${!verificationSettings.requireAccountant ? 'ver-disabled' : ''}`}
@@ -1229,6 +1247,7 @@ const ReturnOrderReport: React.FC = () => {
                                             </span>
                                           )}
                                         </div>
+                                        {/* Step 3: Watcher */}
                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                                           <span
                                             className={`ver-chip ver-${item.verification?.watcher?.status || 'pending'} ${!verificationSettings.requireWatcher ? 'ver-disabled' : ''}`}
@@ -1236,26 +1255,10 @@ const ReturnOrderReport: React.FC = () => {
                                           >
                                             {item.verification?.watcher?.status === 'verified' ? '✓' : item.verification?.watcher?.status === 'rejected' ? '✕' : item.verification?.watcher?.status === 'skipped' ? '↷' : '○'} Wat
                                           </span>
-                                          {item.verification?.watcher?.notes && (
+                                          {Boolean(item.verification?.watcher?.notes?.trim()) && (
                                             <span
                                               className="ver-note-icon-btn"
-                                              title={`Watcher Note: ${item.verification.watcher.notes}`}
-                                            >
-                                              <Mail size={12} fill="#2563eb" color="#1e3a8a" strokeWidth={1.8} />
-                                            </span>
-                                          )}
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                                          <span
-                                            className={`ver-chip ver-${item.verification?.manager?.status || 'pending'} ${!verificationSettings.requireManager ? 'ver-disabled' : ''}`}
-                                            title={`Manager Step: ${item.verification?.manager?.status || 'pending'}${item.verification?.manager?.verifiedByName ? ` (${item.verification.manager.verifiedByName})` : ''}`}
-                                          >
-                                            {item.verification?.manager?.status === 'verified' ? '✓' : item.verification?.manager?.status === 'rejected' ? '✕' : item.verification?.manager?.status === 'skipped' ? '↷' : '○'} Mgr
-                                          </span>
-                                          {item.verification?.manager?.notes && (
-                                            <span
-                                              className="ver-note-icon-btn"
-                                              title={`Manager Note: ${item.verification.manager.notes}`}
+                                              title={`Watcher Note: ${item.verification?.watcher?.notes}`}
                                             >
                                               <Mail size={12} fill="#2563eb" color="#1e3a8a" strokeWidth={1.8} />
                                             </span>
@@ -1407,11 +1410,11 @@ const ReturnOrderReport: React.FC = () => {
             {/* Step Selection Tabs */}
             {isAdmin && (
               <div className="verification-step-tabs">
-                {(['accountant', 'watcher', 'manager'] as const).map((stepKey) => {
-                  const stepLabel = stepKey === 'accountant' ? '1. Accountant' : stepKey === 'watcher' ? '2. Watcher' : '3. Manager'
+                {(['manager', 'accountant', 'watcher'] as const).map((stepKey) => {
+                  const stepLabel = stepKey === 'manager' ? '1. Manager' : stepKey === 'accountant' ? '2. Accountant' : '3. Watcher'
                   const stepData = verificationModalItem.verification?.[stepKey]
                   const status = stepData?.status || 'pending'
-                  const isRequired = stepKey === 'accountant' ? verificationSettings.requireAccountant : stepKey === 'watcher' ? verificationSettings.requireWatcher : verificationSettings.requireManager
+                  const isRequired = stepKey === 'manager' ? verificationSettings.requireManager : stepKey === 'accountant' ? verificationSettings.requireAccountant : verificationSettings.requireWatcher
 
                   return (
                     <button
@@ -1432,16 +1435,16 @@ const ReturnOrderReport: React.FC = () => {
             )}
 
             {/* Step Card Content */}
-            {(['accountant', 'watcher', 'manager'] as const).map((stepKey) => {
+            {(['manager', 'accountant', 'watcher'] as const).map((stepKey) => {
               if (isAdmin && activeStepTab !== stepKey) return null
               if (!isAdmin) {
+                if (userRole === 'manager' && stepKey !== 'manager') return null
                 if (userRole === 'account' && stepKey !== 'accountant') return null
                 if (userRole === 'watcher' && stepKey !== 'watcher') return null
-                if (userRole === 'manager' && stepKey !== 'manager') return null
               }
 
-              const stepTitle = stepKey === 'accountant' ? 'Step 1: Accountant / Office Admin Verification' :
-                                stepKey === 'watcher' ? 'Step 2: Watcher (CCTV) Verification' : 'Step 3: Manager Approval & Verification'
+              const stepTitle = stepKey === 'manager' ? 'Step 1: Manager Approval & Verification' :
+                                stepKey === 'accountant' ? 'Step 2: Accountant / Office Admin Verification' : 'Step 3: Watcher (CCTV) Verification'
               const stepData = verificationModalItem.verification?.[stepKey]
               const currentStatus = stepData?.status || 'pending'
               const canEditThisStep = isAdmin || (stepKey === 'accountant' && userRole === 'account') || (stepKey === 'watcher' && userRole === 'watcher') || (stepKey === 'manager' && userRole === 'manager')
@@ -1578,11 +1581,21 @@ const ReturnOrderReport: React.FC = () => {
               <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '0.95rem' }}>
                 <input
                   type="checkbox"
+                  checked={tempSettings.requireManager}
+                  onChange={(e) => setTempSettings({ ...tempSettings, requireManager: e.target.checked })}
+                  style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
+                />
+                <span><strong>Step 1:</strong> Require Manager Verification</span>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '0.95rem' }}>
+                <input
+                  type="checkbox"
                   checked={tempSettings.requireAccountant}
                   onChange={(e) => setTempSettings({ ...tempSettings, requireAccountant: e.target.checked })}
                   style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
                 />
-                <span><strong>Step 1:</strong> Require Accountant / Office Admin Verification</span>
+                <span><strong>Step 2:</strong> Require Accountant / Office Admin Verification</span>
               </label>
 
               <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '0.95rem' }}>
@@ -1592,17 +1605,7 @@ const ReturnOrderReport: React.FC = () => {
                   onChange={(e) => setTempSettings({ ...tempSettings, requireWatcher: e.target.checked })}
                   style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
                 />
-                <span><strong>Step 2:</strong> Require Watcher (CCTV) Verification</span>
-              </label>
-
-              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '0.95rem' }}>
-                <input
-                  type="checkbox"
-                  checked={tempSettings.requireManager}
-                  onChange={(e) => setTempSettings({ ...tempSettings, requireManager: e.target.checked })}
-                  style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
-                />
-                <span><strong>Step 3:</strong> Require Manager Verification</span>
+                <span><strong>Step 3:</strong> Require Watcher (CCTV) Verification</span>
               </label>
             </div>
 

@@ -4,31 +4,37 @@ import configPromise from '@payload-config'
 
 const DEFAULT_SETTINGS = {
   rawMaterial: {
+    effectiveFrom: null,
     requireAccountant: true,
     requireWatcher: true,
     requireManager: true,
   },
   closingEntry: {
+    effectiveFrom: null,
     requireAccountant: true,
     requireWatcher: true,
     requireManager: true,
   },
   stockOrder: {
+    effectiveFrom: null,
     requireAccountant: true,
     requireWatcher: true,
     requireManager: true,
   },
   returnOrder: {
+    effectiveFrom: null,
     requireAccountant: true,
     requireWatcher: true,
     requireManager: true,
   },
   otherProducts: {
+    effectiveFrom: null,
     requireAccountant: true,
     requireWatcher: true,
     requireManager: true,
   },
   expense: {
+    effectiveFrom: null,
     requireAccountant: true,
     requireWatcher: true,
     requireManager: true,
@@ -46,31 +52,37 @@ export async function GET() {
       success: true,
       settings: {
         rawMaterial: {
+          effectiveFrom: settings?.rawMaterial?.effectiveFrom ?? null,
           requireAccountant: settings?.rawMaterial?.requireAccountant ?? true,
           requireWatcher: settings?.rawMaterial?.requireWatcher ?? true,
           requireManager: settings?.rawMaterial?.requireManager ?? true,
         },
         closingEntry: {
+          effectiveFrom: settings?.closingEntry?.effectiveFrom ?? null,
           requireAccountant: settings?.closingEntry?.requireAccountant ?? true,
           requireWatcher: settings?.closingEntry?.requireWatcher ?? true,
           requireManager: settings?.closingEntry?.requireManager ?? true,
         },
         stockOrder: {
+          effectiveFrom: settings?.stockOrder?.effectiveFrom ?? null,
           requireAccountant: settings?.stockOrder?.requireAccountant ?? true,
           requireWatcher: settings?.stockOrder?.requireWatcher ?? true,
           requireManager: settings?.stockOrder?.requireManager ?? true,
         },
         returnOrder: {
+          effectiveFrom: settings?.returnOrder?.effectiveFrom ?? null,
           requireAccountant: settings?.returnOrder?.requireAccountant ?? true,
           requireWatcher: settings?.returnOrder?.requireWatcher ?? true,
           requireManager: settings?.returnOrder?.requireManager ?? true,
         },
         otherProducts: {
+          effectiveFrom: settings?.otherProducts?.effectiveFrom ?? null,
           requireAccountant: settings?.otherProducts?.requireAccountant ?? true,
           requireWatcher: settings?.otherProducts?.requireWatcher ?? true,
           requireManager: settings?.otherProducts?.requireManager ?? true,
         },
         expense: {
+          effectiveFrom: settings?.expense?.effectiveFrom ?? null,
           requireAccountant: settings?.expense?.requireAccountant ?? true,
           requireWatcher: settings?.expense?.requireWatcher ?? true,
           requireManager: settings?.expense?.requireManager ?? true,

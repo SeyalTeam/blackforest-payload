@@ -20,6 +20,12 @@ export const ReportVerificationSettings: GlobalConfig = {
       label: 'Raw Material Report Verification Rules',
       fields: [
         {
+          name: 'effectiveFrom',
+          type: 'date',
+          label: 'Effective From Date',
+          required: false,
+        },
+        {
           name: 'requireAccountant',
           type: 'checkbox',
           label: 'Require Accountant / Office Admin Verification (Step 1)',
@@ -44,6 +50,12 @@ export const ReportVerificationSettings: GlobalConfig = {
       type: 'group',
       label: 'Closing Entry Verification Rules',
       fields: [
+        {
+          name: 'effectiveFrom',
+          type: 'date',
+          label: 'Effective From Date',
+          required: false,
+        },
         {
           name: 'requireAccountant',
           type: 'checkbox',
@@ -70,6 +82,12 @@ export const ReportVerificationSettings: GlobalConfig = {
       label: 'Stock Order Verification Rules',
       fields: [
         {
+          name: 'effectiveFrom',
+          type: 'date',
+          label: 'Effective From Date',
+          required: false,
+        },
+        {
           name: 'requireAccountant',
           type: 'checkbox',
           label: 'Require Accountant / Office Admin Verification (Step 1)',
@@ -94,6 +112,12 @@ export const ReportVerificationSettings: GlobalConfig = {
       type: 'group',
       label: 'Return Order Verification Rules',
       fields: [
+        {
+          name: 'effectiveFrom',
+          type: 'date',
+          label: 'Effective From Date',
+          required: false,
+        },
         {
           name: 'requireAccountant',
           type: 'checkbox',
@@ -120,6 +144,12 @@ export const ReportVerificationSettings: GlobalConfig = {
       label: 'Other Products Report Verification Rules',
       fields: [
         {
+          name: 'effectiveFrom',
+          type: 'date',
+          label: 'Effective From Date',
+          required: false,
+        },
+        {
           name: 'requireAccountant',
           type: 'checkbox',
           label: 'Require Accountant / Office Admin Verification (Step 1)',
@@ -144,6 +174,12 @@ export const ReportVerificationSettings: GlobalConfig = {
       type: 'group',
       label: 'Expense Report Verification Rules',
       fields: [
+        {
+          name: 'effectiveFrom',
+          type: 'date',
+          label: 'Effective From Date',
+          required: false,
+        },
         {
           name: 'requireAccountant',
           type: 'checkbox',
