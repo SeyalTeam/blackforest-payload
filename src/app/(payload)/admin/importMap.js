@@ -2,6 +2,7 @@ import { default as default_9c4c60e4f20d2fcb9e26d5fbef4e001d } from '../../../co
 import { default as default_6bdd80618eae92cdce2b8046cb4be299 } from '../../../components/CustomerBillsTable/index.tsx'
 import { default as default_c9b8fc77ab62df5bf3ccb6b43b5cff8c } from '../../../components/ReportCardRuleFormula/index.tsx'
 import { DatabaseSyncActions as DatabaseSyncActions_c607ba53b7fc1a0e2dad9bf4d4915261 } from '../../../components/DatabaseSyncActions/index.tsx'
+import { ReportDatabaseActions as ReportDatabaseActions_157b6d39981378d6a5bfd196c97acbad } from '../../../components/ReportDatabaseActions/index.tsx'
 import { default as default_89efe52f05b72d7ac385ebb758734c64 } from '../../../components/AllReport/index.tsx'
 import { default as default_504fe7b162195b3bfa67a928adf73866 } from '../../../components/Dashboard/index.tsx'
 import { default as default_5284cc26339bd05719b498953bd82b2a } from '../../../components/TimeWiseReport/index.tsx'
@@ -50,6 +51,7 @@ export const importMap = {
   "/components/CustomerBillsTable/index.tsx#default": default_6bdd80618eae92cdce2b8046cb4be299,
   "/components/ReportCardRuleFormula/index.tsx#default": default_c9b8fc77ab62df5bf3ccb6b43b5cff8c,
   "/components/DatabaseSyncActions/index.tsx#DatabaseSyncActions": DatabaseSyncActions_c607ba53b7fc1a0e2dad9bf4d4915261,
+  "/components/ReportDatabaseActions/index.tsx#ReportDatabaseActions": ReportDatabaseActions_157b6d39981378d6a5bfd196c97acbad,
   "/components/AllReport/index.tsx#default": default_89efe52f05b72d7ac385ebb758734c64,
   "/components/Dashboard/index.tsx#default": default_504fe7b162195b3bfa67a928adf73866,
   "/components/TimeWiseReport/index.tsx#default": default_5284cc26339bd05719b498953bd82b2a,

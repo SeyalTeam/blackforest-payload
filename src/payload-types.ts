@@ -178,6 +178,7 @@ export interface Config {
   };
   globals: {
     'database-sync-settings': DatabaseSyncSetting;
+    'report-database-settings': ReportDatabaseSetting;
     'payment-settings': PaymentSetting;
     'report-verification-settings': ReportVerificationSetting;
     'ip-settings': IpSetting;
@@ -226,6 +227,7 @@ export interface Config {
   };
   globalsSelect: {
     'database-sync-settings': DatabaseSyncSettingsSelect<false> | DatabaseSyncSettingsSelect<true>;
+    'report-database-settings': ReportDatabaseSettingsSelect<false> | ReportDatabaseSettingsSelect<true>;
     'payment-settings': PaymentSettingsSelect<false> | PaymentSettingsSelect<true>;
     'report-verification-settings': ReportVerificationSettingsSelect<false> | ReportVerificationSettingsSelect<true>;
     'ip-settings': IpSettingsSelect<false> | IpSettingsSelect<true>;
@@ -4864,6 +4866,56 @@ export interface DatabaseSyncSetting {
   createdAt?: string | null;
 }
 /**
+ * Read-only Second DB routing for reports: enter a Second DB MongoDB connection string and choose which reports should load their data from it.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "report-database-settings".
+ */
+export interface ReportDatabaseSetting {
+  id: string;
+  /**
+   * When enabled, only the reports selected below will read data from the Second DB. Unselected reports continue using the primary DB.
+   */
+  enabled?: boolean | null;
+  /**
+   * MongoDB URI of the second database used strictly for reading selected reports.
+   */
+  secondDbUri?: string | null;
+  /**
+   * Choose which reports should query the Second DB instead of the primary DB.
+   */
+  selectedReports?:
+    | (
+        | 'attendance'
+        | 'branch-billing'
+        | 'time-wise'
+        | 'category-wise'
+        | 'product-wise'
+        | 'product-time'
+        | 'closing-entry'
+        | 'waiter-wise'
+        | 'inventory'
+        | 'stock-order'
+        | 'afterstock-customer'
+        | 'instock-entry'
+        | 'accounts-bills'
+        | 'other-products-inventory'
+        | 'raw-material-inventory'
+        | 'raw-material-billing'
+        | 'review'
+        | 'expense'
+        | 'dealer'
+        | 'return-order'
+        | 'report-card'
+        | 'tally-export'
+        | 'dashboard'
+        | 'checking'
+      )[]
+    | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payment-settings".
  */
@@ -6653,6 +6705,7 @@ export interface MenuSetting {
               | 'raw-material-billing-report'
               | 'raw-material-inventory-report'
               | 'report-card'
+              | 'report-database-settings'
               | 'report-graph'
               | 'report-verification-settings'
               | 'return-order-report'
@@ -6781,6 +6834,18 @@ export interface DatabaseSyncSettingsSelect<T extends boolean = true> {
   lastSyncAt?: T;
   lastSyncStatus?: T;
   lastSyncLog?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "report-database-settings_select".
+ */
+export interface ReportDatabaseSettingsSelect<T extends boolean = true> {
+  enabled?: T;
+  secondDbUri?: T;
+  selectedReports?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

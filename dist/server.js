@@ -10706,12 +10706,12 @@ var init_Billings = __esm({
               );
               const hasCustomerPhone = Boolean(normalizedPhoneNumber);
               if (isBillingFinalizedStatus(effectiveStatus)) {
-                let settingsCache = null;
+                let settingsCache2 = null;
                 const getSettings = async () => {
-                  if (!settingsCache) {
-                    settingsCache = await getCustomerRewardSettings(req.payload);
+                  if (!settingsCache2) {
+                    settingsCache2 = await getCustomerRewardSettings(req.payload);
                   }
-                  return settingsCache;
+                  return settingsCache2;
                 };
                 let customerCache = null;
                 let customerResolved = false;
@@ -11077,12 +11077,12 @@ var init_Billings = __esm({
                     });
                   }
                   try {
-                    let settingsCache = null;
+                    let settingsCache2 = null;
                     const getSettings = async () => {
-                      if (!settingsCache) {
-                        settingsCache = await getCustomerRewardSettings(req.payload);
+                      if (!settingsCache2) {
+                        settingsCache2 = await getCustomerRewardSettings(req.payload);
                       }
-                      return settingsCache;
+                      return settingsCache2;
                     };
                     const existingCustomers = await req.payload.find({
                       collection: "customers",
@@ -22638,10 +22638,10 @@ var init_attendance = __esm({
         if (missingIds.length > 0 && payload.db.collections["media"]) {
           try {
             const MediaModel = payload.db.collections["media"];
-            const mongoose9 = await import("mongoose");
+            const mongoose10 = await import("mongoose");
             const objectIds = missingIds.map((id) => {
               try {
-                return new mongoose9.Types.ObjectId(id);
+                return new mongoose10.Types.ObjectId(id);
               } catch {
                 return null;
               }
@@ -28291,10 +28291,10 @@ var init_returnOrder = __esm({
         if (stillMissing.length > 0 && payload.db.collections["media"]) {
           try {
             const MediaModel = payload.db.collections["media"];
-            const mongoose9 = await import("mongoose");
+            const mongoose10 = await import("mongoose");
             const objectIds = stillMissing.map((id) => {
               try {
-                return new mongoose9.Types.ObjectId(id);
+                return new mongoose10.Types.ObjectId(id);
               } catch {
                 return null;
               }
@@ -37328,6 +37328,271 @@ var init_timeWise = __esm({
   }
 });
 
+// src/utilities/reportSecondDb.ts
+import { mongooseAdapter } from "@payloadcms/db-mongodb";
+import { MongoClient } from "mongodb";
+import mongoose9 from "mongoose";
+import { defaultBeginTransaction } from "payload";
+function invalidateReportDatabaseSettingsCache() {
+  settingsCache = null;
+}
+function isValidMongoUri(uri) {
+  const trimmed = uri.trim();
+  return trimmed.startsWith("mongodb://") || trimmed.startsWith("mongodb+srv://");
+}
+async function getReportDatabaseSettings(payload) {
+  const now = Date.now();
+  if (settingsCache && now - settingsCache.fetchedAt < SETTINGS_CACHE_TTL_MS) {
+    return settingsCache;
+  }
+  try {
+    const doc = await payload.findGlobal({
+      slug: "report-database-settings",
+      depth: 0,
+      overrideAccess: true
+    });
+    const enabled = Boolean(doc?.enabled);
+    const secondDbUri = typeof doc?.secondDbUri === "string" ? doc.secondDbUri.trim() : "";
+    const rawReports = Array.isArray(doc?.selectedReports) ? doc.selectedReports : [];
+    const selectedReports = new Set(
+      rawReports.filter((item) => typeof item === "string" && item.length > 0)
+    );
+    settingsCache = {
+      enabled,
+      secondDbUri,
+      selectedReports,
+      fetchedAt: now
+    };
+  } catch {
+    settingsCache = {
+      enabled: false,
+      secondDbUri: "",
+      selectedReports: /* @__PURE__ */ new Set(),
+      fetchedAt: now
+    };
+  }
+  return settingsCache;
+}
+function createReadOnlyError(operation) {
+  return new Error(`Second DB is read-only for reports; "${operation}" is not allowed.`);
+}
+async function buildSecondaryPayload(primaryPayload, secondDbUri) {
+  if (!isValidMongoUri(secondDbUri)) {
+    throw new Error("Invalid Second DB MongoDB URI. Must start with mongodb:// or mongodb+srv://");
+  }
+  const connection = await mongoose9.createConnection(secondDbUri, {
+    autoIndex: false,
+    maxPoolSize: 20,
+    minPoolSize: 1,
+    maxIdleTimeMS: 3e4,
+    serverSelectionTimeoutMS: 1e4,
+    connectTimeoutMS: 1e4,
+    socketTimeoutMS: 45e3,
+    retryReads: true
+  }).asPromise();
+  const secondaryPayload = Object.assign(
+    Object.create(Object.getPrototypeOf(primaryPayload)),
+    primaryPayload
+  );
+  const adapterFactory = mongooseAdapter({
+    url: secondDbUri,
+    ensureIndexes: false
+  });
+  const adapter = adapterFactory.init({ payload: secondaryPayload });
+  adapter.connection = connection;
+  adapter.init();
+  try {
+    const client = connection.getClient();
+    if (!client?.options?.replicaSet) {
+      adapter.transactionOptions = false;
+      adapter.beginTransaction = defaultBeginTransaction();
+    }
+  } catch {
+    adapter.transactionOptions = false;
+    adapter.beginTransaction = defaultBeginTransaction();
+  }
+  secondaryPayload.db = adapter;
+  secondaryPayload.create = async () => {
+    throw createReadOnlyError("create");
+  };
+  secondaryPayload.update = async () => {
+    throw createReadOnlyError("update");
+  };
+  secondaryPayload.delete = async () => {
+    throw createReadOnlyError("delete");
+  };
+  secondaryPayload.updateGlobal = async () => {
+    throw createReadOnlyError("updateGlobal");
+  };
+  return secondaryPayload;
+}
+async function getSecondaryPayload(primaryPayload, secondDbUri) {
+  const normalizedUri = secondDbUri.trim();
+  if (secondaryCache && secondaryCache.uri === normalizedUri && secondaryCache.connection.readyState === 1) {
+    return secondaryCache.payload;
+  }
+  if (pendingSecondaryConnect && pendingSecondaryConnect.uri === normalizedUri) {
+    return pendingSecondaryConnect.promise;
+  }
+  const previousCache = secondaryCache;
+  const connectPromise = (async () => {
+    const payload = await buildSecondaryPayload(primaryPayload, normalizedUri);
+    const connection = payload.db.connection;
+    if (previousCache && previousCache.connection !== connection) {
+      previousCache.connection.close().catch(() => {
+      });
+    }
+    secondaryCache = {
+      uri: normalizedUri,
+      connection,
+      payload
+    };
+    return payload;
+  })();
+  pendingSecondaryConnect = { uri: normalizedUri, promise: connectPromise };
+  try {
+    return await connectPromise;
+  } finally {
+    if (pendingSecondaryConnect?.promise === connectPromise) {
+      pendingSecondaryConnect = null;
+    }
+  }
+}
+async function getReportRequest(req, reportKey) {
+  const settings = await getReportDatabaseSettings(req.payload);
+  if (!settings.enabled || !settings.secondDbUri || !settings.selectedReports.has(reportKey)) {
+    return req;
+  }
+  const secondaryPayload = await getSecondaryPayload(req.payload, settings.secondDbUri);
+  return Object.assign(Object.create(Object.getPrototypeOf(req)), req, {
+    payload: secondaryPayload
+  });
+}
+function withReportSecondDb(reportKey, handler) {
+  return async (req) => {
+    let effectiveReq;
+    try {
+      effectiveReq = await getReportRequest(req, reportKey);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      req.payload.logger.error({
+        msg: `[ReportSecondDb] Failed to connect to Second DB for report "${reportKey}"`,
+        error: message
+      });
+      return Response.json(
+        {
+          error: `Failed to connect to Second DB for "${reportKey}": ${message}`
+        },
+        { status: 503 }
+      );
+    }
+    return handler(effectiveReq);
+  };
+}
+async function testSecondDbConnection(secondDbUri) {
+  const uri = secondDbUri.trim();
+  if (!uri) {
+    return { success: false, error: "Please enter a Second DB MongoDB connection string." };
+  }
+  if (!isValidMongoUri(uri)) {
+    return {
+      success: false,
+      error: "Invalid MongoDB URI. Must start with mongodb:// or mongodb+srv://"
+    };
+  }
+  let client = null;
+  try {
+    client = new MongoClient(uri, {
+      connectTimeoutMS: 1e4,
+      serverSelectionTimeoutMS: 1e4
+    });
+    await client.connect();
+    const db = client.db();
+    const collectionInfos = await db.listCollections().toArray();
+    const collectionNames = collectionInfos.map((c) => c.name).sort();
+    const keyCollections = [
+      "attendance",
+      "attendances",
+      "billings",
+      "branches",
+      "employees",
+      "users",
+      "expenses",
+      "closing-entries",
+      "stock-orders",
+      "return-orders",
+      "products",
+      "categories",
+      "dealers",
+      "dealer-billings",
+      "reviews"
+    ];
+    const targetList = collectionNames.filter((name) => keyCollections.includes(name));
+    const listToCount = targetList.length > 0 ? targetList : collectionNames.slice(0, 15);
+    const counts = await Promise.all(
+      listToCount.map(async (name) => {
+        try {
+          const count = await db.collection(name).countDocuments();
+          return { name, count };
+        } catch {
+          return { name, count: 0 };
+        }
+      })
+    );
+    return {
+      success: true,
+      dbName: db.databaseName,
+      collections: counts
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  } finally {
+    if (client) {
+      await client.close().catch(() => {
+      });
+    }
+  }
+}
+var REPORT_DATA_SOURCE_OPTIONS, SETTINGS_CACHE_TTL_MS, settingsCache, secondaryCache, pendingSecondaryConnect;
+var init_reportSecondDb = __esm({
+  "src/utilities/reportSecondDb.ts"() {
+    "use strict";
+    REPORT_DATA_SOURCE_OPTIONS = [
+      { label: "Attendance Report", value: "attendance" },
+      { label: "Branch Billing Report", value: "branch-billing" },
+      { label: "Time Wise Report", value: "time-wise" },
+      { label: "Category Wise Report", value: "category-wise" },
+      { label: "Product Wise Report", value: "product-wise" },
+      { label: "Product Time / Preparation Report", value: "product-time" },
+      { label: "Closing Entry Report", value: "closing-entry" },
+      { label: "Waiter Wise Billing Report", value: "waiter-wise" },
+      { label: "Inventory Report", value: "inventory" },
+      { label: "Stock Order Report", value: "stock-order" },
+      { label: "Afterstock Customer Report", value: "afterstock-customer" },
+      { label: "Instock Entry Report", value: "instock-entry" },
+      { label: "Accounts Bills Report", value: "accounts-bills" },
+      { label: "Other Products Inventory Report", value: "other-products-inventory" },
+      { label: "Raw Material Inventory Report", value: "raw-material-inventory" },
+      { label: "Raw Material Billing Report", value: "raw-material-billing" },
+      { label: "Review Report", value: "review" },
+      { label: "Expense Report", value: "expense" },
+      { label: "Dealer Report", value: "dealer" },
+      { label: "Return Order Report", value: "return-order" },
+      { label: "Report Card", value: "report-card" },
+      { label: "Tally Export", value: "tally-export" },
+      { label: "Dashboard Stats", value: "dashboard" },
+      { label: "Checking Report (Live Staff)", value: "checking" }
+    ];
+    SETTINGS_CACHE_TTL_MS = 5e3;
+    settingsCache = null;
+    secondaryCache = null;
+    pendingSecondaryConnect = null;
+  }
+});
+
 // src/graphql/reportQueries.ts
 var reportGraphQLQueries;
 var init_reportQueries = __esm({
@@ -37345,6 +37610,7 @@ var init_reportQueries = __esm({
     init_attendance();
     init_stockOrder();
     init_timeWise();
+    init_reportSecondDb();
     reportGraphQLQueries = (graphQL) => {
       const BranchBillingFilterInputType = new graphQL.GraphQLInputObjectType({
         name: "BranchBillingReportFilterInput",
@@ -38346,7 +38612,8 @@ var init_reportQueries = __esm({
             const requestedFields = info?.fieldNodes?.[0]?.selectionSet?.selections?.map(
               (node) => node.name?.value
             ) || [];
-            return getBranchBillingReportData(context.req, args.filter || {}, requestedFields);
+            const req = await getReportRequest(context.req, "branch-billing");
+            return getBranchBillingReportData(req, args.filter || {}, requestedFields);
           }
         },
         closingEntryReport: {
@@ -38360,7 +38627,8 @@ var init_reportQueries = __esm({
             if (!context.req) {
               throw new Error("Request context is missing");
             }
-            return getClosingEntryReportData(context.req, args.filter || {});
+            const req = await getReportRequest(context.req, "closing-entry");
+            return getClosingEntryReportData(req, args.filter || {});
           }
         },
         inventoryReport: {
@@ -38374,7 +38642,8 @@ var init_reportQueries = __esm({
             if (!context.req) {
               throw new Error("Request context is missing");
             }
-            return getInventoryReportData(context.req, args.filter || {});
+            const req = await getReportRequest(context.req, "inventory");
+            return getInventoryReportData(req, args.filter || {});
           }
         },
         categoryWiseReport: {
@@ -38388,7 +38657,8 @@ var init_reportQueries = __esm({
             if (!context.req) {
               throw new Error("Request context is missing");
             }
-            const report = await getCategoryWiseReportData(context.req, args.filter || {});
+            const req = await getReportRequest(context.req, "category-wise");
+            const report = await getCategoryWiseReportData(req, args.filter || {});
             return {
               ...report,
               stats: report.stats.map((stat) => ({
@@ -38420,7 +38690,8 @@ var init_reportQueries = __esm({
             if (!context.req) {
               throw new Error("Request context is missing");
             }
-            const report = await getProductWiseReportData(context.req, args.filter || {});
+            const req = await getReportRequest(context.req, "product-wise");
+            const report = await getProductWiseReportData(req, args.filter || {});
             return {
               ...report,
               stats: report.stats.map((stat) => ({
@@ -38452,7 +38723,8 @@ var init_reportQueries = __esm({
             if (!context.req) {
               throw new Error("Request context is missing");
             }
-            return getProductPreparationBillDetailsData(context.req, args.filter || {});
+            const req = await getReportRequest(context.req, "product-time");
+            return getProductPreparationBillDetailsData(req, args.filter || {});
           }
         },
         waiterWiseReport: {
@@ -38466,7 +38738,8 @@ var init_reportQueries = __esm({
             if (!context.req) {
               throw new Error("Request context is missing");
             }
-            return getWaiterWiseBillingReportData(context.req, args.filter || {});
+            const req = await getReportRequest(context.req, "waiter-wise");
+            return getWaiterWiseBillingReportData(req, args.filter || {});
           }
         },
         expenseReport: {
@@ -38480,7 +38753,8 @@ var init_reportQueries = __esm({
             if (!context.req) {
               throw new Error("Request context is missing");
             }
-            return getExpenseReportData(context.req, args.filter || {});
+            const req = await getReportRequest(context.req, "expense");
+            return getExpenseReportData(req, args.filter || {});
           }
         },
         returnOrderReport: {
@@ -38494,7 +38768,8 @@ var init_reportQueries = __esm({
             if (!context.req) {
               throw new Error("Request context is missing");
             }
-            return getReturnOrderReportData(context.req, args.filter || {});
+            const req = await getReportRequest(context.req, "return-order");
+            return getReturnOrderReportData(req, args.filter || {});
           }
         },
         stockOrderReport: {
@@ -38508,7 +38783,8 @@ var init_reportQueries = __esm({
             if (!context.req) {
               throw new Error("Request context is missing");
             }
-            return getStockOrderReportData(context.req, args.filter || {});
+            const req = await getReportRequest(context.req, "stock-order");
+            return getStockOrderReportData(req, args.filter || {});
           }
         },
         timeWiseReport: {
@@ -38595,7 +38871,8 @@ var init_reportQueries = __esm({
             if (!context.req) {
               throw new Error("Request context is missing");
             }
-            return getTimeWiseReportData(context.req, args.filter || {});
+            const req = await getReportRequest(context.req, "time-wise");
+            return getTimeWiseReportData(req, args.filter || {});
           }
         },
         attendanceReport: {
@@ -38756,7 +39033,8 @@ var init_reportQueries = __esm({
             if (!context.req) {
               throw new Error("Request context is missing");
             }
-            return getAttendanceReportData(context.req, args.filter || {});
+            const req = await getReportRequest(context.req, "attendance");
+            return getAttendanceReportData(req, args.filter || {});
           }
         }
       };
@@ -39482,6 +39760,79 @@ var init_DatabaseSyncSettings = __esm({
   }
 });
 
+// src/globals/ReportDatabaseSettings.ts
+var ReportDatabaseSettings;
+var init_ReportDatabaseSettings = __esm({
+  "src/globals/ReportDatabaseSettings.ts"() {
+    "use strict";
+    init_reportSecondDb();
+    ReportDatabaseSettings = {
+      slug: "report-database-settings",
+      label: "Report Database Settings",
+      admin: {
+        group: "Settings",
+        description: "Read-only Second DB routing for reports: enter a Second DB MongoDB connection string and choose which reports should load their data from it."
+      },
+      access: {
+        read: () => true,
+        update: ({ req }) => req.user?.role === "superadmin" || !req.user?.role
+      },
+      hooks: {
+        afterChange: [
+          ({ doc }) => {
+            invalidateReportDatabaseSettingsCache();
+            return doc;
+          }
+        ]
+      },
+      fields: [
+        {
+          type: "ui",
+          name: "reportDbActions",
+          admin: {
+            components: {
+              Field: "/components/ReportDatabaseActions/index.tsx#ReportDatabaseActions"
+            }
+          }
+        },
+        {
+          name: "enabled",
+          type: "checkbox",
+          label: "Enable Second DB for Selected Reports (Read-Only)",
+          defaultValue: false,
+          admin: {
+            description: "When enabled, only the reports selected below will read data from the Second DB. Unselected reports continue using the primary DB."
+          }
+        },
+        {
+          name: "secondDbUri",
+          type: "text",
+          label: "Second DB MongoDB Connection String",
+          required: false,
+          admin: {
+            placeholder: "mongodb+srv://user:pass@cluster.mongodb.net/second_db",
+            description: "MongoDB URI of the second database used strictly for reading selected reports."
+          }
+        },
+        {
+          name: "selectedReports",
+          type: "select",
+          hasMany: true,
+          label: "Select Reports to Show Data From Second DB",
+          required: false,
+          options: REPORT_DATA_SOURCE_OPTIONS.map((opt) => ({
+            label: opt.label,
+            value: opt.value
+          })),
+          admin: {
+            description: "Choose which reports should query the Second DB instead of the primary DB."
+          }
+        }
+      ]
+    };
+  }
+});
+
 // src/utilities/databaseSync.ts
 var databaseSync_exports = {};
 __export(databaseSync_exports, {
@@ -39489,7 +39840,7 @@ __export(databaseSync_exports, {
   getDatabaseCollectionCounts: () => getDatabaseCollectionCounts,
   resolveCollectionName: () => resolveCollectionName
 });
-import { MongoClient } from "mongodb";
+import { MongoClient as MongoClient2 } from "mongodb";
 function resolveCollectionName(availableNames, slug) {
   if (availableNames.includes(slug)) return slug;
   const lowerSlug = slug.toLowerCase();
@@ -39558,8 +39909,8 @@ async function getDatabaseCollectionCounts(payload, sourceDbUri, targetDbUri, cu
   let targetClient = null;
   const counts = {};
   try {
-    sourceClient = new MongoClient(srcUri, { connectTimeoutMS: 1e4 });
-    targetClient = new MongoClient(tgtUri, { connectTimeoutMS: 1e4 });
+    sourceClient = new MongoClient2(srcUri, { connectTimeoutMS: 1e4 });
+    targetClient = new MongoClient2(tgtUri, { connectTimeoutMS: 1e4 });
     await Promise.all([sourceClient.connect(), targetClient.connect()]);
     const sourceDb = getDatabaseInstance(sourceClient, srcUri);
     const targetDb = getDatabaseInstance(targetClient, tgtUri);
@@ -39643,8 +39994,8 @@ async function executeDatabaseSync(payload, customOptions) {
   let targetClient = null;
   const details = {};
   try {
-    sourceClient = new MongoClient(sourceDbUri, { connectTimeoutMS: 15e3 });
-    targetClient = new MongoClient(targetDbUri, { connectTimeoutMS: 15e3 });
+    sourceClient = new MongoClient2(sourceDbUri, { connectTimeoutMS: 15e3 });
+    targetClient = new MongoClient2(targetDbUri, { connectTimeoutMS: 15e3 });
     await Promise.all([sourceClient.connect(), targetClient.connect()]);
     const sourceDb = getDatabaseInstance(sourceClient, sourceDbUri);
     const targetDb = getDatabaseInstance(targetClient, targetDbUri);
@@ -39853,6 +40204,40 @@ var init_triggerDatabaseSync = __esm({
           },
           { status: 500 }
         );
+      }
+    };
+  }
+});
+
+// src/endpoints/testReportSecondDb.ts
+var testReportSecondDbHandler;
+var init_testReportSecondDb = __esm({
+  "src/endpoints/testReportSecondDb.ts"() {
+    "use strict";
+    init_reportSecondDb();
+    testReportSecondDbHandler = async (req) => {
+      try {
+        let secondDbUri = "";
+        try {
+          const body = req.json ? await req.json() : {};
+          if (typeof body?.secondDbUri === "string") {
+            secondDbUri = body.secondDbUri.trim();
+          }
+        } catch {
+        }
+        if (!secondDbUri) {
+          const settings = await req.payload.findGlobal({
+            slug: "report-database-settings",
+            depth: 0,
+            overrideAccess: true
+          });
+          secondDbUri = typeof settings?.secondDbUri === "string" ? settings.secondDbUri.trim() : "";
+        }
+        const result = await testSecondDbConnection(secondDbUri);
+        return Response.json(result, { status: result.success ? 200 : 400 });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return Response.json({ success: false, error: message }, { status: 500 });
       }
     };
   }
@@ -46622,7 +47007,7 @@ __export(payload_config_exports, {
   default: () => payload_config_default
 });
 import { s3Storage } from "@payloadcms/storage-s3";
-import { mongooseAdapter } from "@payloadcms/db-mongodb";
+import { mongooseAdapter as mongooseAdapter2 } from "@payloadcms/db-mongodb";
 import { postgresAdapter } from "@payloadcms/db-postgres";
 import { lexicalEditor } from "@payloadcms/richtext-lexical";
 import path4 from "path";
@@ -46772,7 +47157,10 @@ var init_payload_config = __esm({
     init_WaiterCalls();
     init_CallLogs();
     init_DatabaseSyncSettings();
+    init_ReportDatabaseSettings();
     init_triggerDatabaseSync();
+    init_testReportSecondDb();
+    init_reportSecondDb();
     init_checkDatabaseSyncCounts();
     init_ReportCardRules();
     init_readQueries();
@@ -47093,7 +47481,7 @@ var init_payload_config = __esm({
         );
       }
     }
-    dbAdapter = dbMode === "mongo" ? mongooseAdapter({
+    dbAdapter = dbMode === "mongo" ? mongooseAdapter2({
       url: mongoConnectionString,
       connectOptions: {
         autoIndex: true,
@@ -47135,6 +47523,7 @@ var init_payload_config = __esm({
     }
     allGlobals = [
       DatabaseSyncSettings,
+      ReportDatabaseSettings,
       PaymentSettings,
       ReportVerificationSettings,
       IPSettings,
@@ -47300,7 +47689,7 @@ var init_payload_config = __esm({
         {
           path: "/reports/branch-billing",
           method: "get",
-          handler: getBranchBillingReportHandler
+          handler: withReportSecondDb("branch-billing", getBranchBillingReportHandler)
         },
         {
           path: "/create-payment-session",
@@ -47310,72 +47699,72 @@ var init_payload_config = __esm({
         {
           path: "/reports/tally-export",
           method: "get",
-          handler: getTallyExportHandler
+          handler: withReportSecondDb("tally-export", getTallyExportHandler)
         },
         {
           path: "/reports/time-wise",
           method: "get",
-          handler: getTimeWiseReportHandler
+          handler: withReportSecondDb("time-wise", getTimeWiseReportHandler)
         },
         {
           path: "/reports/category-wise",
           method: "get",
-          handler: getCategoryWiseReportHandler
+          handler: withReportSecondDb("category-wise", getCategoryWiseReportHandler)
         },
         {
           path: "/reports/category-wise/export-pdf",
           method: "get",
-          handler: getCategoryWiseReportPDFHandler
+          handler: withReportSecondDb("category-wise", getCategoryWiseReportPDFHandler)
         },
         {
           path: "/reports/product-wise",
           method: "get",
-          handler: getProductWiseReportHandler
+          handler: withReportSecondDb("product-wise", getProductWiseReportHandler)
         },
         {
           path: "/reports/product-preparation-bill-details",
           method: "get",
-          handler: getProductPreparationBillDetailsHandler
+          handler: withReportSecondDb("product-time", getProductPreparationBillDetailsHandler)
         },
         {
           path: "/reports/closing-entry",
           method: "get",
-          handler: getClosingEntryReportHandler
+          handler: withReportSecondDb("closing-entry", getClosingEntryReportHandler)
         },
         {
           path: "/reports/waiter-wise",
           method: "get",
-          handler: getWaiterWiseBillingReportHandler
+          handler: withReportSecondDb("waiter-wise", getWaiterWiseBillingReportHandler)
         },
         {
           path: "/reports/attendance",
           method: "get",
-          handler: getAttendanceReportHandler
+          handler: withReportSecondDb("attendance", getAttendanceReportHandler)
         },
         {
           path: "/reports/inventory",
           method: "get",
-          handler: getInventoryReportHandler
+          handler: withReportSecondDb("inventory", getInventoryReportHandler)
         },
         {
           path: "/reports/stock-order",
           method: "get",
-          handler: getStockOrderReportHandler
+          handler: withReportSecondDb("stock-order", getStockOrderReportHandler)
         },
         {
           path: "/reports/afterstock-customer",
           method: "get",
-          handler: getAfterstockCustomerReportHandler
+          handler: withReportSecondDb("afterstock-customer", getAfterstockCustomerReportHandler)
         },
         {
           path: "/reports/instock-entry",
           method: "get",
-          handler: getInstockEntryReportHandler
+          handler: withReportSecondDb("instock-entry", getInstockEntryReportHandler)
         },
         {
           path: "/reports/accounts-bills",
           method: "get",
-          handler: getAccountsBillsReportHandler
+          handler: withReportSecondDb("accounts-bills", getAccountsBillsReportHandler)
         },
         {
           path: "/reports/accounts-bills/update-verification",
@@ -47390,7 +47779,7 @@ var init_payload_config = __esm({
         {
           path: "/reports/other-products-inventory",
           method: "get",
-          handler: getOtherProductsInventoryReportHandler
+          handler: withReportSecondDb("other-products-inventory", getOtherProductsInventoryReportHandler)
         },
         {
           path: "/reports/other-products-inventory/reset",
@@ -47400,7 +47789,7 @@ var init_payload_config = __esm({
         {
           path: "/reports/raw-material-inventory",
           method: "get",
-          handler: getRawMaterialInventoryReportHandler
+          handler: withReportSecondDb("raw-material-inventory", getRawMaterialInventoryReportHandler)
         },
         {
           path: "/instock-params/update-status",
@@ -47411,7 +47800,7 @@ var init_payload_config = __esm({
         {
           path: "/reports/review",
           method: "get",
-          handler: getReviewReportHandler
+          handler: withReportSecondDb("review", getReviewReportHandler)
         },
         {
           path: "/inventory/reset",
@@ -47421,12 +47810,12 @@ var init_payload_config = __esm({
         {
           path: "/dashboard-stats",
           method: "get",
-          handler: getDashboardStatsHandler
+          handler: withReportSecondDb("dashboard", getDashboardStatsHandler)
         },
         {
           path: "/reports/expense",
           method: "get",
-          handler: getExpenseReportHandler
+          handler: withReportSecondDb("expense", getExpenseReportHandler)
         },
         {
           path: "/reports/expense/update-employee",
@@ -47436,17 +47825,17 @@ var init_payload_config = __esm({
         {
           path: "/reports/dealer",
           method: "get",
-          handler: getDealerReportHandler
+          handler: withReportSecondDb("dealer", getDealerReportHandler)
         },
         {
           path: "/reports/raw-material-billing",
           method: "get",
-          handler: getRawMaterialBillingReportHandler
+          handler: withReportSecondDb("raw-material-billing", getRawMaterialBillingReportHandler)
         },
         {
           path: "/reports/return-order",
           method: "get",
-          handler: getReturnOrderReportHandler
+          handler: withReportSecondDb("return-order", getReturnOrderReportHandler)
         },
         {
           path: "/reports/branches",
@@ -47661,7 +48050,7 @@ var init_payload_config = __esm({
         {
           path: "/checking/live-staff",
           method: "get",
-          handler: getLiveStaffForCheckingHandler
+          handler: withReportSecondDb("checking", getLiveStaffForCheckingHandler)
         },
         {
           path: "/checking/trigger",
@@ -47721,7 +48110,7 @@ var init_payload_config = __esm({
         {
           path: "/reports/report-card-data",
           method: "get",
-          handler: getReportCardDataHandler
+          handler: withReportSecondDb("report-card", getReportCardDataHandler)
         },
         {
           path: "/trigger-database-sync",
@@ -47732,6 +48121,11 @@ var init_payload_config = __esm({
           path: "/check-database-sync-counts",
           method: "post",
           handler: checkDatabaseSyncCountsHandler
+        },
+        {
+          path: "/test-report-second-db",
+          method: "post",
+          handler: testReportSecondDbHandler
         }
       ],
       globals: allGlobals.map(wrapGlobal),
@@ -47883,10 +48277,10 @@ function getExpectedShiftEnd(punchInIso, employee) {
 async function resolveEmployeeMap(payload, employeeIds, userIds) {
   const EmployeeModel = payload.db.collections["employees"];
   const UserModel = payload.db.collections["users"];
-  const mongoose9 = await import("mongoose");
+  const mongoose10 = await import("mongoose");
   const toOid = (id) => {
     try {
-      return new mongoose9.Types.ObjectId(id);
+      return new mongoose10.Types.ObjectId(id);
     } catch {
       return null;
     }

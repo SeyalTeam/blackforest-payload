@@ -498,7 +498,7 @@ const RawMaterialBillingReport: React.FC = () => {
     watcher: '',
     manager: '',
   })
-  const [activeStepTab, setActiveStepTab] = useState<'accountant' | 'watcher' | 'manager'>('accountant')
+  const [activeStepTab, setActiveStepTab] = useState<'manager' | 'accountant' | 'watcher'>('manager')
 
   const [selectedVerificationFilter, setSelectedVerificationFilter] = useState<string>('all')
 

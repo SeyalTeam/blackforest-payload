@@ -407,7 +407,7 @@ const DealerReport: React.FC = () => {
   // 3-Step Verification Modal State
   const [showVerificationModal, setShowVerificationModal] = useState(false)
   const [verificationModalItem, setVerificationModalItem] = useState<DealerReportItem | null>(null)
-  const [activeStepTab, setActiveStepTab] = useState<'accountant' | 'watcher' | 'manager'>('accountant')
+  const [activeStepTab, setActiveStepTab] = useState<'manager' | 'accountant' | 'watcher'>('manager')
   const [stepNotes, setStepNotes] = useState<{ accountant: string; watcher: string; manager: string }>({
     accountant: '',
     watcher: '',
@@ -1981,6 +1981,18 @@ const DealerReport: React.FC = () => {
               const currentStatus = stepData?.status || 'pending'
               const canEditThisStep = isAdmin || (stepKey === 'accountant' && userRole === 'account') || (stepKey === 'watcher' && userRole === 'watcher') || (stepKey === 'manager' && userRole === 'manager')
 
+              const isStepLocked =
+                !isAdmin &&
+                verificationSettings.flowType !== 'any' &&
+                ((stepKey === 'accountant' &&
+                  verificationSettings.requireManager &&
+                  verificationModalItem.verification?.manager?.status !== 'verified' &&
+                  verificationModalItem.verification?.manager?.status !== 'skipped') ||
+                 (stepKey === 'watcher' &&
+                  verificationSettings.requireAccountant &&
+                  verificationModalItem.verification?.accountant?.status !== 'verified' &&
+                  verificationModalItem.verification?.accountant?.status !== 'skipped'))
+
               return (
                 <div key={stepKey} className="verification-step-card">
                   <div className="step-card-header">
@@ -1991,6 +2003,25 @@ const DealerReport: React.FC = () => {
                       {currentStatus}
                     </span>
                   </div>
+
+                  {isStepLocked && (
+                    <div
+                      style={{
+                        padding: '10px 14px',
+                        background: 'rgba(245, 158, 11, 0.1)',
+                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                        borderRadius: '6px',
+                        color: '#f59e0b',
+                        fontSize: '0.85rem',
+                        marginBottom: '14px',
+                      }}
+                    >
+                      🔒 <strong>Step Locked:</strong>{' '}
+                      {stepKey === 'accountant'
+                        ? 'Step 1 (Manager) must be verified or skipped before Accountant verification can proceed.'
+                        : 'Step 2 (Accountant / Office Admin) must be verified or skipped before Watcher verification can proceed.'}
+                    </div>
+                  )}
 
                   {stepData?.verifiedByName && (
                     <div className="step-meta-info">
@@ -2008,7 +2039,7 @@ const DealerReport: React.FC = () => {
                       placeholder={`Enter ${stepKey} remarks, observations, or verification notes...`}
                       value={stepNotes[stepKey]}
                       onChange={(e) => setStepNotes({ ...stepNotes, [stepKey]: e.target.value })}
-                      disabled={!canEditThisStep || isSubmittingVerification}
+                      disabled={!canEditThisStep || isStepLocked || isSubmittingVerification}
                     />
                   </div>
 
@@ -2028,7 +2059,7 @@ const DealerReport: React.FC = () => {
                     </div>
                   )}
 
-                  {canEditThisStep && (
+                  {canEditThisStep && !isStepLocked && (
                     <div className="step-actions">
                       <button
                         type="button"

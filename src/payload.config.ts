@@ -151,7 +151,10 @@ import { setupIdempotencyRetention } from './utilities/idempotencyRetention'
 import WaiterCalls from './collections/WaiterCalls'
 import CallLogs from './collections/CallLogs'
 import { DatabaseSyncSettings } from './globals/DatabaseSyncSettings'
+import { ReportDatabaseSettings } from './globals/ReportDatabaseSettings'
 import { triggerDatabaseSyncHandler } from './endpoints/triggerDatabaseSync'
+import { testReportSecondDbHandler } from './endpoints/testReportSecondDb'
+import { withReportSecondDb } from './utilities/reportSecondDb'
 import { checkDatabaseSyncCountsHandler } from './endpoints/checkDatabaseSyncCounts'
 import ReportCardRules from './collections/ReportCardRules'
 import { readGraphQLQueries } from './graphql/readQueries'
@@ -599,6 +602,7 @@ if (rawR2Env.S3_ENDPOINT && !r2Env.S3_ENDPOINT) {
   // All Globals
   const allGlobals: GlobalConfig[] = [
     DatabaseSyncSettings,
+    ReportDatabaseSettings,
     PaymentSettings,
     ReportVerificationSettings,
     IPSettings,
@@ -771,7 +775,7 @@ if (rawR2Env.S3_ENDPOINT && !r2Env.S3_ENDPOINT) {
     {
       path: '/reports/branch-billing',
       method: 'get',
-      handler: getBranchBillingReportHandler,
+      handler: withReportSecondDb('branch-billing', getBranchBillingReportHandler),
     },
     {
       path: '/create-payment-session',
@@ -781,72 +785,72 @@ if (rawR2Env.S3_ENDPOINT && !r2Env.S3_ENDPOINT) {
     {
       path: '/reports/tally-export',
       method: 'get',
-      handler: getTallyExportHandler,
+      handler: withReportSecondDb('tally-export', getTallyExportHandler),
     },
     {
       path: '/reports/time-wise',
       method: 'get',
-      handler: getTimeWiseReportHandler,
+      handler: withReportSecondDb('time-wise', getTimeWiseReportHandler),
     },
     {
       path: '/reports/category-wise',
       method: 'get',
-      handler: getCategoryWiseReportHandler,
+      handler: withReportSecondDb('category-wise', getCategoryWiseReportHandler),
     },
     {
       path: '/reports/category-wise/export-pdf',
       method: 'get',
-      handler: getCategoryWiseReportPDFHandler,
+      handler: withReportSecondDb('category-wise', getCategoryWiseReportPDFHandler),
     },
     {
       path: '/reports/product-wise',
       method: 'get',
-      handler: getProductWiseReportHandler,
+      handler: withReportSecondDb('product-wise', getProductWiseReportHandler),
     },
     {
       path: '/reports/product-preparation-bill-details',
       method: 'get',
-      handler: getProductPreparationBillDetailsHandler,
+      handler: withReportSecondDb('product-time', getProductPreparationBillDetailsHandler),
     },
     {
       path: '/reports/closing-entry',
       method: 'get',
-      handler: getClosingEntryReportHandler,
+      handler: withReportSecondDb('closing-entry', getClosingEntryReportHandler),
     },
     {
       path: '/reports/waiter-wise',
       method: 'get',
-      handler: getWaiterWiseBillingReportHandler,
+      handler: withReportSecondDb('waiter-wise', getWaiterWiseBillingReportHandler),
     },
     {
       path: '/reports/attendance',
       method: 'get',
-      handler: getAttendanceReportHandler,
+      handler: withReportSecondDb('attendance', getAttendanceReportHandler),
     },
     {
       path: '/reports/inventory',
       method: 'get',
-      handler: getInventoryReportHandler,
+      handler: withReportSecondDb('inventory', getInventoryReportHandler),
     },
     {
       path: '/reports/stock-order',
       method: 'get',
-      handler: getStockOrderReportHandler,
+      handler: withReportSecondDb('stock-order', getStockOrderReportHandler),
     },
     {
       path: '/reports/afterstock-customer',
       method: 'get',
-      handler: getAfterstockCustomerReportHandler,
+      handler: withReportSecondDb('afterstock-customer', getAfterstockCustomerReportHandler),
     },
     {
       path: '/reports/instock-entry',
       method: 'get',
-      handler: getInstockEntryReportHandler,
+      handler: withReportSecondDb('instock-entry', getInstockEntryReportHandler),
     },
     {
       path: '/reports/accounts-bills',
       method: 'get',
-      handler: getAccountsBillsReportHandler,
+      handler: withReportSecondDb('accounts-bills', getAccountsBillsReportHandler),
     },
     {
       path: '/reports/accounts-bills/update-verification',
@@ -861,7 +865,7 @@ if (rawR2Env.S3_ENDPOINT && !r2Env.S3_ENDPOINT) {
     {
       path: '/reports/other-products-inventory',
       method: 'get',
-      handler: getOtherProductsInventoryReportHandler,
+      handler: withReportSecondDb('other-products-inventory', getOtherProductsInventoryReportHandler),
     },
     {
       path: '/reports/other-products-inventory/reset',
@@ -871,7 +875,7 @@ if (rawR2Env.S3_ENDPOINT && !r2Env.S3_ENDPOINT) {
     {
       path: '/reports/raw-material-inventory',
       method: 'get',
-      handler: getRawMaterialInventoryReportHandler,
+      handler: withReportSecondDb('raw-material-inventory', getRawMaterialInventoryReportHandler),
     },
     {
       path: '/instock-params/update-status', // Choosing a path
@@ -881,7 +885,7 @@ if (rawR2Env.S3_ENDPOINT && !r2Env.S3_ENDPOINT) {
     {
       path: '/reports/review',
       method: 'get',
-      handler: getReviewReportHandler,
+      handler: withReportSecondDb('review', getReviewReportHandler),
     },
     {
       path: '/inventory/reset',
@@ -891,12 +895,12 @@ if (rawR2Env.S3_ENDPOINT && !r2Env.S3_ENDPOINT) {
     {
       path: '/dashboard-stats',
       method: 'get',
-      handler: getDashboardStatsHandler,
+      handler: withReportSecondDb('dashboard', getDashboardStatsHandler),
     },
     {
       path: '/reports/expense',
       method: 'get',
-      handler: getExpenseReportHandler,
+      handler: withReportSecondDb('expense', getExpenseReportHandler),
     },
     {
       path: '/reports/expense/update-employee',
@@ -906,17 +910,17 @@ if (rawR2Env.S3_ENDPOINT && !r2Env.S3_ENDPOINT) {
     {
       path: '/reports/dealer',
       method: 'get',
-      handler: getDealerReportHandler,
+      handler: withReportSecondDb('dealer', getDealerReportHandler),
     },
     {
       path: '/reports/raw-material-billing',
       method: 'get',
-      handler: getRawMaterialBillingReportHandler,
+      handler: withReportSecondDb('raw-material-billing', getRawMaterialBillingReportHandler),
     },
     {
       path: '/reports/return-order',
       method: 'get',
-      handler: getReturnOrderReportHandler,
+      handler: withReportSecondDb('return-order', getReturnOrderReportHandler),
     },
     {
       path: '/reports/branches',
@@ -1131,7 +1135,7 @@ if (rawR2Env.S3_ENDPOINT && !r2Env.S3_ENDPOINT) {
     {
       path: '/checking/live-staff',
       method: 'get',
-      handler: getLiveStaffForCheckingHandler,
+      handler: withReportSecondDb('checking', getLiveStaffForCheckingHandler),
     },
     {
       path: '/checking/trigger',
@@ -1191,7 +1195,7 @@ if (rawR2Env.S3_ENDPOINT && !r2Env.S3_ENDPOINT) {
     {
       path: '/reports/report-card-data',
       method: 'get',
-      handler: getReportCardDataHandler,
+      handler: withReportSecondDb('report-card', getReportCardDataHandler),
     },
     {
       path: '/trigger-database-sync',
@@ -1202,6 +1206,11 @@ if (rawR2Env.S3_ENDPOINT && !r2Env.S3_ENDPOINT) {
       path: '/check-database-sync-counts',
       method: 'post',
       handler: checkDatabaseSyncCountsHandler,
+    },
+    {
+      path: '/test-report-second-db',
+      method: 'post',
+      handler: testReportSecondDbHandler,
     },
   ],
 

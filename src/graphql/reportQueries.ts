@@ -11,6 +11,7 @@ import { getWaiterWiseBillingReportData } from '../services/reports/waiterWise'
 import { getAttendanceReportData } from '../services/reports/attendance'
 import { getStockOrderReportData } from '../services/reports/stockOrder'
 import { getTimeWiseReportData } from '../services/reports/timeWise'
+import { getReportRequest } from '../utilities/reportSecondDb'
 
 type AttendanceReportFilter = {
   branch?: null | string
@@ -1234,7 +1235,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
           (node: any) => node.name?.value
         ) || []
 
-        return getBranchBillingReportData(context.req, args.filter || {}, requestedFields)
+        const req = await getReportRequest(context.req, 'branch-billing')
+        return getBranchBillingReportData(req, args.filter || {}, requestedFields)
       },
     },
     closingEntryReport: {
@@ -1255,7 +1257,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
           throw new Error('Request context is missing')
         }
 
-        return getClosingEntryReportData(context.req, args.filter || {})
+        const req = await getReportRequest(context.req, 'closing-entry')
+        return getClosingEntryReportData(req, args.filter || {})
       },
     },
     inventoryReport: {
@@ -1276,7 +1279,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
           throw new Error('Request context is missing')
         }
 
-        return getInventoryReportData(context.req, args.filter || {})
+        const req = await getReportRequest(context.req, 'inventory')
+        return getInventoryReportData(req, args.filter || {})
       },
     },
     categoryWiseReport: {
@@ -1297,7 +1301,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
           throw new Error('Request context is missing')
         }
 
-        const report = await getCategoryWiseReportData(context.req, args.filter || {})
+        const req = await getReportRequest(context.req, 'category-wise')
+        const report = await getCategoryWiseReportData(req, args.filter || {})
 
         return {
           ...report,
@@ -1337,7 +1342,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
           throw new Error('Request context is missing')
         }
 
-        const report = await getProductWiseReportData(context.req, args.filter || {})
+        const req = await getReportRequest(context.req, 'product-wise')
+        const report = await getProductWiseReportData(req, args.filter || {})
 
         return {
           ...report,
@@ -1377,7 +1383,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
           throw new Error('Request context is missing')
         }
 
-        return getProductPreparationBillDetailsData(context.req, args.filter || {})
+        const req = await getReportRequest(context.req, 'product-time')
+        return getProductPreparationBillDetailsData(req, args.filter || {})
       },
     },
     waiterWiseReport: {
@@ -1398,7 +1405,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
           throw new Error('Request context is missing')
         }
 
-        return getWaiterWiseBillingReportData(context.req, args.filter || {})
+        const req = await getReportRequest(context.req, 'waiter-wise')
+        return getWaiterWiseBillingReportData(req, args.filter || {})
       },
     },
     expenseReport: {
@@ -1419,7 +1427,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
           throw new Error('Request context is missing')
         }
 
-        return getExpenseReportData(context.req, args.filter || {})
+        const req = await getReportRequest(context.req, 'expense')
+        return getExpenseReportData(req, args.filter || {})
       },
     },
     returnOrderReport: {
@@ -1440,7 +1449,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
           throw new Error('Request context is missing')
         }
 
-        return getReturnOrderReportData(context.req, args.filter || {})
+        const req = await getReportRequest(context.req, 'return-order')
+        return getReturnOrderReportData(req, args.filter || {})
       },
     },
     stockOrderReport: {
@@ -1461,7 +1471,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
           throw new Error('Request context is missing')
         }
 
-        return getStockOrderReportData(context.req, args.filter || {})
+        const req = await getReportRequest(context.req, 'stock-order')
+        return getStockOrderReportData(req, args.filter || {})
       },
     },
     timeWiseReport: {
@@ -1554,7 +1565,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
         if (!context.req) {
           throw new Error('Request context is missing')
         }
-        return getTimeWiseReportData(context.req, args.filter || {})
+        const req = await getReportRequest(context.req, 'time-wise')
+        return getTimeWiseReportData(req, args.filter || {})
       }
     },
     attendanceReport: {
@@ -1721,7 +1733,8 @@ export const reportGraphQLQueries = (graphQL: typeof import('graphql')) => {
         if (!context.req) {
           throw new Error('Request context is missing')
         }
-        return getAttendanceReportData(context.req, args.filter || {})
+        const req = await getReportRequest(context.req, 'attendance')
+        return getAttendanceReportData(req, args.filter || {})
       },
     },
   }
