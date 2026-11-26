@@ -457,22 +457,26 @@ const RawMaterialBillingReport: React.FC = () => {
 
   const [verificationSettings, setVerificationSettings] = useState<{
     effectiveFrom?: string | null
+    flowType?: 'sequential' | 'any'
     requireAccountant: boolean
     requireWatcher: boolean
     requireManager: boolean
   }>({
     effectiveFrom: null,
+    flowType: 'sequential',
     requireAccountant: true,
     requireWatcher: true,
     requireManager: true,
   })
   const [tempSettings, setTempSettings] = useState<{
     effectiveFrom?: string | null
+    flowType?: 'sequential' | 'any'
     requireAccountant: boolean
     requireWatcher: boolean
     requireManager: boolean
   }>({
     effectiveFrom: null,
+    flowType: 'sequential',
     requireAccountant: true,
     requireWatcher: true,
     requireManager: true,
@@ -2587,6 +2591,7 @@ const RawMaterialBillingReport: React.FC = () => {
                       : verificationModalItem.verification?.accountant?.status === 'rejected'
                       ? '❌'
                       : !isAdmin &&
+                        verificationSettings.flowType !== 'any' &&
                         verificationSettings.requireManager &&
                         verificationModalItem.verification?.manager?.status !== 'verified' &&
                         verificationModalItem.verification?.manager?.status !== 'skipped'
@@ -2609,6 +2614,7 @@ const RawMaterialBillingReport: React.FC = () => {
                       : verificationModalItem.verification?.watcher?.status === 'rejected'
                       ? '❌'
                       : !isAdmin &&
+                        verificationSettings.flowType !== 'any' &&
                         verificationSettings.requireAccountant &&
                         verificationModalItem.verification?.accountant?.status !== 'verified' &&
                         verificationModalItem.verification?.accountant?.status !== 'skipped'
@@ -2736,6 +2742,7 @@ const RawMaterialBillingReport: React.FC = () => {
 
                 {/* Sequential check notice */}
                 {!isAdmin &&
+                  verificationSettings.flowType !== 'any' &&
                   verificationSettings.requireManager &&
                   verificationModalItem.verification?.manager?.status !== 'verified' &&
                   verificationModalItem.verification?.manager?.status !== 'skipped' && (
@@ -2774,6 +2781,7 @@ const RawMaterialBillingReport: React.FC = () => {
                   disabled={
                     !isAccountant ||
                     (!isAdmin &&
+                      verificationSettings.flowType !== 'any' &&
                       verificationSettings.requireManager &&
                       verificationModalItem.verification?.manager?.status !== 'verified' &&
                       verificationModalItem.verification?.manager?.status !== 'skipped')
@@ -2807,6 +2815,7 @@ const RawMaterialBillingReport: React.FC = () => {
                   )}
                   {isAccountant &&
                     (isAdmin ||
+                      verificationSettings.flowType === 'any' ||
                       !verificationSettings.requireManager ||
                       verificationModalItem.verification?.manager?.status === 'verified' ||
                       verificationModalItem.verification?.manager?.status === 'skipped') && (
@@ -2843,7 +2852,7 @@ const RawMaterialBillingReport: React.FC = () => {
               <div className="verification-step-card">
                 <div className="step-card-header">
                   <div className="step-title">
-                    <span>Step 3: Watcher (CCTV) Verification</span>
+                    <span>Step 3: Watcher Verification</span>
                   </div>
                   <span
                     className={`ver-chip ver-${verificationModalItem.verification?.watcher?.status || 'pending'}`}
@@ -2860,6 +2869,7 @@ const RawMaterialBillingReport: React.FC = () => {
 
                 {/* Sequential check notice */}
                 {!isAdmin &&
+                  verificationSettings.flowType !== 'any' &&
                   verificationSettings.requireAccountant &&
                   verificationModalItem.verification?.accountant?.status !== 'verified' &&
                   verificationModalItem.verification?.accountant?.status !== 'skipped' && (
@@ -2887,17 +2897,18 @@ const RawMaterialBillingReport: React.FC = () => {
                 )}
 
                 <div style={{ marginBottom: '8px', fontSize: '0.85rem', color: 'var(--theme-text-secondary)' }}>
-                  Watcher Remarks / Notes (CCTV & Gate Delivery Check):
+                  Watcher Remarks / Notes (Gate Delivery & Verification Check):
                 </div>
                 <textarea
                   className="step-textarea"
                   rows={4}
                   value={stepNotes.watcher}
                   onChange={(e) => setStepNotes({ ...stepNotes, watcher: e.target.value })}
-                  placeholder="Enter CCTV check notes, delivery gate confirmation, quantity verification..."
+                  placeholder="Enter physical check notes, delivery gate confirmation, quantity verification..."
                   disabled={
                     !isWatcher ||
                     (!isAdmin &&
+                      verificationSettings.flowType !== 'any' &&
                       verificationSettings.requireAccountant &&
                       verificationModalItem.verification?.accountant?.status !== 'verified' &&
                       verificationModalItem.verification?.accountant?.status !== 'skipped')
@@ -2910,7 +2921,7 @@ const RawMaterialBillingReport: React.FC = () => {
                       type="text"
                       className="step-textarea"
                       style={{ padding: '6px 10px', fontSize: '0.82rem' }}
-                      placeholder="Optional reason for skipping (e.g., Watcher not available / CCTV down)"
+                      placeholder="Optional reason for skipping (e.g., Watcher not available today)"
                       value={stepSkipReason.watcher}
                       onChange={(e) => setStepSkipReason({ ...stepSkipReason, watcher: e.target.value })}
                     />
@@ -2931,6 +2942,7 @@ const RawMaterialBillingReport: React.FC = () => {
                   )}
                   {isWatcher &&
                     (isAdmin ||
+                      verificationSettings.flowType === 'any' ||
                       !verificationSettings.requireAccountant ||
                       verificationModalItem.verification?.accountant?.status === 'verified' ||
                       verificationModalItem.verification?.accountant?.status === 'skipped') && (
@@ -3001,28 +3013,58 @@ const RawMaterialBillingReport: React.FC = () => {
               Configure which verification steps are mandatory before payments can be unlocked. If a manager or watcher is not available today, you can disable their requirement here, or skip individual bills in the verification modal.
             </div>
 
-            {/* Effective From Date */}
-            <div style={{ marginBottom: '16px', background: 'var(--theme-elevation-50)', padding: '12px', borderRadius: '8px', border: '1px solid var(--theme-elevation-200)' }}>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: '6px' }}>
-                📅 Effective From Date (விதிகள் தொடங்கும் தேதி):
-              </label>
-              <input
-                type="date"
-                value={tempSettings.effectiveFrom ? dayjs(tempSettings.effectiveFrom).format('YYYY-MM-DD') : ''}
-                onChange={(e) => setTempSettings({ ...tempSettings, effectiveFrom: e.target.value || null })}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--theme-elevation-250)',
-                  background: 'var(--theme-elevation-0)',
-                  color: 'var(--theme-text-primary)',
-                  fontSize: '0.9rem',
-                  width: '100%',
-                  maxWidth: '220px',
-                }}
-              />
-              <div style={{ fontSize: '0.78rem', color: 'var(--theme-text-secondary)', marginTop: '4px' }}>
-                தேர்ந்தெடுக்கப்பட்ட இந்தத் தேதியிலிருந்து பதிவாகும் பில்களுக்கு மட்டுமே வெரிஃபிகேஷன் விதிகள் செயல்படும்.
+            {/* Effective From Date & Verification Flow */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ background: 'var(--theme-elevation-50)', padding: '12px', borderRadius: '8px', border: '1px solid var(--theme-elevation-200)' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: '6px' }}>
+                  📅 Effective From Date (தொடங்கும் தேதி):
+                </label>
+                <input
+                  type="date"
+                  value={tempSettings.effectiveFrom ? dayjs(tempSettings.effectiveFrom).format('YYYY-MM-DD') : ''}
+                  onChange={(e) => setTempSettings({ ...tempSettings, effectiveFrom: e.target.value || null })}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--theme-elevation-250)',
+                    background: 'var(--theme-elevation-0)',
+                    color: 'var(--theme-text-primary)',
+                    fontSize: '0.9rem',
+                    width: '100%',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-secondary)', marginTop: '4px' }}>
+                  இந்தத் தேதியிலிருந்து பதிவாகும் பில்களுக்கு மட்டுமே விதிகள் செயல்படும்.
+                </div>
+              </div>
+
+              <div style={{ background: 'var(--theme-elevation-50)', padding: '12px', borderRadius: '8px', border: '1px solid var(--theme-elevation-200)' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: '6px' }}>
+                  🔀 Verification Flow (சரிபார்ப்பு முறை):
+                </label>
+                <select
+                  value={tempSettings.flowType || 'sequential'}
+                  onChange={(e) => setTempSettings({ ...tempSettings, flowType: e.target.value as 'sequential' | 'any' })}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--theme-elevation-250)',
+                    background: 'var(--theme-elevation-0)',
+                    color: 'var(--theme-text-primary)',
+                    fontSize: '0.9rem',
+                    width: '100%',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <option value="sequential">Sequential Order (Step 1 → 2 → 3)</option>
+                  <option value="any">Any Order / Parallel (எந்த வரிசையிலும்)</option>
+                </select>
+                <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-secondary)', marginTop: '4px' }}>
+                  {tempSettings.flowType === 'any'
+                    ? 'யார் வேண்டுமானாலும் எப்போது வேண்டுமானாலும் சரிபார்க்கலாம் (Lock இல்லை).'
+                    : 'மேனேஜர் → அக்கவுண்டன்ட் → வாட்சர் வரிசைப்படி மட்டுமே.'}
+                </div>
               </div>
             </div>
 
@@ -3103,10 +3145,10 @@ const RawMaterialBillingReport: React.FC = () => {
                 />
                 <div>
                   <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>
-                    Step 3: Watcher (CCTV) Verification
+                    Step 3: Watcher Verification
                   </div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--theme-text-secondary)', marginTop: '2px' }}>
-                    Requires CCTV physical gate entry and goods receipt check by the Watcher team.
+                    Requires verification, physical check, and goods receipt sign-off by the Watcher team.
                   </div>
                 </div>
               </label>
