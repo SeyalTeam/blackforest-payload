@@ -2126,7 +2126,10 @@ var init_Users = __esm({
               role
             )
           },
-          filterOptions: ({ siblingData }) => {
+          filterOptions: ({ siblingData, req }) => {
+            if (req?.context?.syncFromEmployee) {
+              return true;
+            }
             const role = siblingData.role;
             if (!role || !["waiter", "cashier", "supervisor", "delivery", "driver", "chef", "kitchen", "store_keeper", "manager", "watcher"].includes(
               role
@@ -3200,14 +3203,251 @@ var init_Users = __esm({
   }
 });
 
+// src/endpoints/toggleBranchCashDrawerAccess.ts
+var toggleBranchCashDrawerAccessHandler;
+var init_toggleBranchCashDrawerAccess = __esm({
+  "src/endpoints/toggleBranchCashDrawerAccess.ts"() {
+    "use strict";
+    toggleBranchCashDrawerAccessHandler = async (req) => {
+      const allowedRoles = ["superadmin", "admin", "manager", "company", "branch", "account", "accountant"];
+      if (!req.user || !allowedRoles.includes(req.user.role)) {
+        return Response.json({ message: "Unauthorized" }, { status: 401 });
+      }
+      try {
+        let body = {};
+        try {
+          body = await req.json?.();
+        } catch (_e) {
+        }
+        if (!body || Object.keys(body).length === 0) {
+          if (req.url) {
+            const url = new URL(req.url);
+            body = {
+              branchId: url.searchParams.get("branchId")
+            };
+            const enabledParam = url.searchParams.get("enabled");
+            if (enabledParam !== null) {
+              body.enabled = enabledParam === "true";
+            }
+          }
+        }
+        const branchId = body?.branchId || body?.id;
+        const enabled = body?.enabled !== void 0 ? Boolean(body.enabled) : body?.isCashDrawerEnabled !== void 0 ? Boolean(body.isCashDrawerEnabled) : true;
+        if (branchId === "account" || branchId === "accountant") {
+          if (req.method === "GET" || body?.checkOnly === true) {
+            const paymentSettings = await req.payload.findGlobal({
+              slug: "payment-settings"
+            });
+            return Response.json({
+              success: true,
+              branchId: "accountant",
+              isCashDrawerEnabled: paymentSettings?.isAccountantCashDrawerEnabled === true
+            });
+          }
+          if (req.user.role !== "superadmin" && req.user.role !== "admin") {
+            return Response.json({ message: "Forbidden: Only Owner/Admin can toggle Accountant cash drawer access" }, { status: 403 });
+          }
+          await req.payload.updateGlobal({
+            slug: "payment-settings",
+            data: {
+              isAccountantCashDrawerEnabled: enabled
+            },
+            overrideAccess: true
+          });
+          return Response.json({
+            success: true,
+            message: `Accountant cash drawer access ${enabled ? "enabled" : "locked"} successfully`,
+            branchId: "accountant",
+            isCashDrawerEnabled: enabled
+          });
+        }
+        if (!branchId) {
+          return Response.json({ message: "Missing branchId parameter" }, { status: 400 });
+        }
+        const branch = await req.payload.findByID({
+          collection: "branches",
+          id: branchId,
+          depth: 0,
+          overrideAccess: true
+        });
+        if (!branch) {
+          return Response.json({ message: "Branch not found" }, { status: 404 });
+        }
+        if (req.user.role === "branch") {
+          const userBranchId = typeof req.user.branch === "string" ? req.user.branch : req.user.branch?.id || req.user.branch?._id;
+          if (userBranchId && String(userBranchId) !== String(branchId)) {
+            return Response.json({ message: "Forbidden: You cannot modify other branches" }, { status: 403 });
+          }
+        } else if (req.user.role === "manager") {
+          const managerCompanies = req.user.manager_companies || [];
+          const userCompanyIds = managerCompanies.map((c) => typeof c === "string" ? c : c?.id || c?._id || "").concat(
+            req.user.company ? [typeof req.user.company === "string" ? req.user.company : req.user.company?.id || req.user.company?._id || ""] : []
+          ).filter(Boolean).map(String);
+          const branchCompanyId = String(
+            typeof branch.company === "string" ? branch.company : branch.company?.id || branch.company?._id || ""
+          );
+          if (userCompanyIds.length > 0 && branchCompanyId && !userCompanyIds.includes(branchCompanyId)) {
+            return Response.json({ message: "Forbidden: Branch does not belong to your assigned companies" }, { status: 403 });
+          }
+        } else if (req.user.role === "company") {
+          const comp = req.user.company;
+          const userCompanyId = String(
+            typeof comp === "string" ? comp : comp?.id || comp?._id || ""
+          );
+          const branchCompanyId = String(
+            typeof branch.company === "string" ? branch.company : branch.company?.id || branch.company?._id || ""
+          );
+          if (userCompanyId && branchCompanyId && userCompanyId !== branchCompanyId) {
+            return Response.json({ message: "Forbidden: Branch does not belong to your company" }, { status: 403 });
+          }
+        }
+        const updatedBranch = await req.payload.update({
+          collection: "branches",
+          id: branchId,
+          data: {
+            isCashDrawerEnabled: enabled
+          },
+          overrideAccess: true
+        });
+        return Response.json({
+          success: true,
+          message: `Branch cash drawer opening access ${enabled ? "enabled" : "locked"} successfully`,
+          branchId,
+          isCashDrawerEnabled: updatedBranch.isCashDrawerEnabled
+        });
+      } catch (error) {
+        req.payload.logger.error({
+          err: error,
+          msg: "Failed to toggle branch cash drawer access"
+        });
+        return Response.json({ message: error.message || "Internal server error" }, { status: 500 });
+      }
+    };
+  }
+});
+
+// src/endpoints/toggleBranchClosingAccess.ts
+var toggleBranchClosingAccessHandler;
+var init_toggleBranchClosingAccess = __esm({
+  "src/endpoints/toggleBranchClosingAccess.ts"() {
+    "use strict";
+    toggleBranchClosingAccessHandler = async (req) => {
+      const allowedRoles = ["superadmin", "admin", "manager", "company", "branch"];
+      if (!req.user || !allowedRoles.includes(req.user.role)) {
+        return Response.json({ message: "Unauthorized" }, { status: 401 });
+      }
+      try {
+        let body = {};
+        try {
+          body = await req.json?.();
+        } catch (_e) {
+        }
+        if (!body || Object.keys(body).length === 0) {
+          if (req.url) {
+            const url = new URL(req.url);
+            body = {
+              branchId: url.searchParams.get("branchId")
+            };
+            const enabledParam = url.searchParams.get("enabled");
+            if (enabledParam !== null) {
+              body.enabled = enabledParam === "true";
+            }
+          }
+        }
+        const branchId = body?.branchId || body?.id;
+        const enabled = body?.enabled !== void 0 ? Boolean(body.enabled) : body?.isClosingEntryEnabled !== void 0 ? Boolean(body.isClosingEntryEnabled) : true;
+        if (!branchId) {
+          return Response.json({ message: "Missing branchId parameter" }, { status: 400 });
+        }
+        const branch = await req.payload.findByID({
+          collection: "branches",
+          id: branchId,
+          depth: 0,
+          overrideAccess: true
+        });
+        if (!branch) {
+          return Response.json({ message: "Branch not found" }, { status: 404 });
+        }
+        if (req.user.role === "branch") {
+          const userBranchId = typeof req.user.branch === "string" ? req.user.branch : req.user.branch?.id || req.user.branch?._id;
+          if (userBranchId && String(userBranchId) !== String(branchId)) {
+            return Response.json({ message: "Forbidden: You cannot modify other branches" }, { status: 403 });
+          }
+        } else if (req.user.role === "manager") {
+          const managerCompanies = req.user.manager_companies || [];
+          const userCompanyIds = managerCompanies.map((c) => typeof c === "string" ? c : c?.id || c?._id || "").concat(
+            req.user.company ? [typeof req.user.company === "string" ? req.user.company : req.user.company?.id || req.user.company?._id || ""] : []
+          ).filter(Boolean).map(String);
+          const branchCompanyId = String(
+            typeof branch.company === "string" ? branch.company : branch.company?.id || branch.company?._id || ""
+          );
+          if (userCompanyIds.length > 0 && branchCompanyId && !userCompanyIds.includes(branchCompanyId)) {
+            return Response.json({ message: "Forbidden: Branch does not belong to your assigned companies" }, { status: 403 });
+          }
+        } else if (req.user.role === "company") {
+          const comp = req.user.company;
+          const userCompanyId = String(
+            typeof comp === "string" ? comp : comp?.id || comp?._id || ""
+          );
+          const branchCompanyId = String(
+            typeof branch.company === "string" ? branch.company : branch.company?.id || branch.company?._id || ""
+          );
+          if (userCompanyId && branchCompanyId && userCompanyId !== branchCompanyId) {
+            return Response.json({ message: "Forbidden: Branch does not belong to your company" }, { status: 403 });
+          }
+        }
+        const updatedBranch = await req.payload.update({
+          collection: "branches",
+          id: branchId,
+          data: {
+            isClosingEntryEnabled: enabled
+          },
+          overrideAccess: true
+        });
+        return Response.json({
+          success: true,
+          message: `Branch closing entry access ${enabled ? "enabled" : "locked"} successfully`,
+          branchId,
+          isClosingEntryEnabled: updatedBranch.isClosingEntryEnabled
+        });
+      } catch (error) {
+        req.payload.logger.error({
+          err: error,
+          msg: "Failed to toggle branch closing access"
+        });
+        return Response.json({ message: error.message || "Internal server error" }, { status: 500 });
+      }
+    };
+  }
+});
+
 // src/collections/Branches.ts
 var Branches;
 var init_Branches = __esm({
   "src/collections/Branches.ts"() {
     "use strict";
     init_branchPins();
+    init_toggleBranchCashDrawerAccess();
+    init_toggleBranchClosingAccess();
     Branches = {
       slug: "branches",
+      endpoints: [
+        {
+          path: "/toggle-cashdrawer-access",
+          method: "post",
+          handler: toggleBranchCashDrawerAccessHandler
+        },
+        {
+          path: "/toggle-cashdrawer-access",
+          method: "get",
+          handler: toggleBranchCashDrawerAccessHandler
+        },
+        {
+          path: "/toggle-closing-access",
+          method: "post",
+          handler: toggleBranchClosingAccessHandler
+        }
+      ],
       admin: {
         useAsTitle: "name",
         defaultColumns: ["name", "company", "branchPin", "status"]
@@ -5947,7 +6187,7 @@ var init_Employees = __esm({
         ],
         afterChange: [
           async ({ doc, previousDoc, req }) => {
-            if (doc.team !== previousDoc?.team) {
+            if (doc.team && (!previousDoc || doc.team !== previousDoc?.team)) {
               const usersRes = await req.payload.find({
                 collection: "users",
                 where: {
@@ -5956,21 +6196,29 @@ var init_Employees = __esm({
                   }
                 },
                 depth: 0,
-                overrideAccess: true
+                overrideAccess: true,
+                req
               });
               if (usersRes.docs && usersRes.docs.length > 0) {
                 for (const user of usersRes.docs) {
-                  try {
-                    await req.payload.update({
-                      collection: "users",
-                      id: user.id,
-                      data: {
-                        role: doc.team
-                      },
-                      overrideAccess: true
-                    });
-                  } catch (e) {
-                    console.error(`Failed to sync role to user ${user.id}:`, e);
+                  if (user.role !== doc.team) {
+                    try {
+                      await req.payload.update({
+                        collection: "users",
+                        id: user.id,
+                        data: {
+                          role: doc.team
+                        },
+                        req,
+                        context: {
+                          ...req.context || {},
+                          syncFromEmployee: true
+                        },
+                        overrideAccess: true
+                      });
+                    } catch (e) {
+                      console.error(`Failed to sync role to user ${user.id}:`, e);
+                    }
                   }
                 }
               }
@@ -6736,7 +6984,7 @@ var init_TaskPhotoAudits = __esm({
           name: "task",
           type: "relationship",
           relationTo: "tasks",
-          required: true,
+          required: false,
           label: "Associated Task"
         },
         {
@@ -6823,6 +7071,7 @@ var init_TaskPhotoAudits = __esm({
           type: "select",
           defaultValue: "submitted",
           options: [
+            { label: "Pending / Waiting for Reply", value: "pending" },
             { label: "Submitted", value: "submitted" },
             { label: "Verified / Approved", value: "verified" },
             { label: "Flagged / Needs Attention", value: "flagged" }
@@ -13420,6 +13669,160 @@ var init_ReturnOrder = __esm({
           type: "text",
           index: true,
           admin: { description: "Name of the cashier who created/submitted the return order." }
+        },
+        {
+          name: "verification",
+          type: "group",
+          label: "Three-Step Verification",
+          fields: [
+            {
+              name: "overallStatus",
+              type: "select",
+              label: "Overall Verification Status",
+              defaultValue: "pending",
+              options: [
+                { label: "Pending", value: "pending" },
+                { label: "Partially Verified", value: "partially_verified" },
+                { label: "Fully Verified", value: "verified" },
+                { label: "Rejected", value: "rejected" }
+              ],
+              admin: {
+                readOnly: true
+              }
+            },
+            {
+              name: "accountant",
+              type: "group",
+              label: "Accountant / Office Admin Verification (Step 1)",
+              fields: [
+                {
+                  name: "status",
+                  type: "select",
+                  defaultValue: "pending",
+                  options: [
+                    { label: "Pending", value: "pending" },
+                    { label: "Verified", value: "verified" },
+                    { label: "Rejected", value: "rejected" },
+                    { label: "Skipped", value: "skipped" }
+                  ]
+                },
+                {
+                  name: "notes",
+                  type: "textarea",
+                  label: "Accountant Notes"
+                },
+                {
+                  name: "verifiedBy",
+                  type: "relationship",
+                  relationTo: "users",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByName",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByRole",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedAt",
+                  type: "date",
+                  admin: { readOnly: true }
+                }
+              ]
+            },
+            {
+              name: "watcher",
+              type: "group",
+              label: "Watcher Verification (Step 2)",
+              fields: [
+                {
+                  name: "status",
+                  type: "select",
+                  defaultValue: "pending",
+                  options: [
+                    { label: "Pending", value: "pending" },
+                    { label: "Verified", value: "verified" },
+                    { label: "Rejected", value: "rejected" },
+                    { label: "Skipped", value: "skipped" }
+                  ]
+                },
+                {
+                  name: "notes",
+                  type: "textarea",
+                  label: "Watcher Notes"
+                },
+                {
+                  name: "verifiedBy",
+                  type: "relationship",
+                  relationTo: "users",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByName",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByRole",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedAt",
+                  type: "date",
+                  admin: { readOnly: true }
+                }
+              ]
+            },
+            {
+              name: "manager",
+              type: "group",
+              label: "Manager Verification (Step 3)",
+              fields: [
+                {
+                  name: "status",
+                  type: "select",
+                  defaultValue: "pending",
+                  options: [
+                    { label: "Pending", value: "pending" },
+                    { label: "Verified", value: "verified" },
+                    { label: "Rejected", value: "rejected" },
+                    { label: "Skipped", value: "skipped" }
+                  ]
+                },
+                {
+                  name: "notes",
+                  type: "textarea",
+                  label: "Manager Notes"
+                },
+                {
+                  name: "verifiedBy",
+                  type: "relationship",
+                  relationTo: "users",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByName",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByRole",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedAt",
+                  type: "date",
+                  admin: { readOnly: true }
+                }
+              ]
+            }
+          ]
         }
       ],
       timestamps: true
@@ -13553,6 +13956,160 @@ var init_ClosingEntries = __esm({
           admin: {
             description: "Notes from the accounts team about this closing"
           }
+        },
+        {
+          name: "verification",
+          type: "group",
+          label: "Three-Step Verification",
+          fields: [
+            {
+              name: "overallStatus",
+              type: "select",
+              label: "Overall Verification Status",
+              defaultValue: "pending",
+              options: [
+                { label: "Pending", value: "pending" },
+                { label: "Partially Verified", value: "partially_verified" },
+                { label: "Fully Verified", value: "verified" },
+                { label: "Rejected", value: "rejected" }
+              ],
+              admin: {
+                readOnly: true
+              }
+            },
+            {
+              name: "accountant",
+              type: "group",
+              label: "Accountant / Office Admin Verification (Step 1)",
+              fields: [
+                {
+                  name: "status",
+                  type: "select",
+                  defaultValue: "pending",
+                  options: [
+                    { label: "Pending", value: "pending" },
+                    { label: "Verified", value: "verified" },
+                    { label: "Rejected", value: "rejected" },
+                    { label: "Skipped", value: "skipped" }
+                  ]
+                },
+                {
+                  name: "notes",
+                  type: "textarea",
+                  label: "Accountant Notes"
+                },
+                {
+                  name: "verifiedBy",
+                  type: "relationship",
+                  relationTo: "users",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByName",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByRole",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedAt",
+                  type: "date",
+                  admin: { readOnly: true }
+                }
+              ]
+            },
+            {
+              name: "watcher",
+              type: "group",
+              label: "Watcher Verification (Step 2)",
+              fields: [
+                {
+                  name: "status",
+                  type: "select",
+                  defaultValue: "pending",
+                  options: [
+                    { label: "Pending", value: "pending" },
+                    { label: "Verified", value: "verified" },
+                    { label: "Rejected", value: "rejected" },
+                    { label: "Skipped", value: "skipped" }
+                  ]
+                },
+                {
+                  name: "notes",
+                  type: "textarea",
+                  label: "Watcher Notes"
+                },
+                {
+                  name: "verifiedBy",
+                  type: "relationship",
+                  relationTo: "users",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByName",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByRole",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedAt",
+                  type: "date",
+                  admin: { readOnly: true }
+                }
+              ]
+            },
+            {
+              name: "manager",
+              type: "group",
+              label: "Manager Verification (Step 3)",
+              fields: [
+                {
+                  name: "status",
+                  type: "select",
+                  defaultValue: "pending",
+                  options: [
+                    { label: "Pending", value: "pending" },
+                    { label: "Verified", value: "verified" },
+                    { label: "Rejected", value: "rejected" },
+                    { label: "Skipped", value: "skipped" }
+                  ]
+                },
+                {
+                  name: "notes",
+                  type: "textarea",
+                  label: "Manager Notes"
+                },
+                {
+                  name: "verifiedBy",
+                  type: "relationship",
+                  relationTo: "users",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByName",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByRole",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedAt",
+                  type: "date",
+                  admin: { readOnly: true }
+                }
+              ]
+            }
+          ]
         }
       ],
       hooks: {
@@ -13789,6 +14346,20 @@ var init_ClosingEntries = __esm({
             data.totalSales = (doc.systemSales || 0) + (doc.manualSales || 0) + (doc.onlineSales || 0);
             data.totalPayments = (doc.creditCard || 0) + (doc.upi || 0) + (data.cash !== void 0 ? data.cash : doc.cash || 0);
             data.net = (data.totalSales || 0) - (doc.expenses || 0) - (doc.returnTotal || 0) - (doc.stockOrders || 0);
+            if (data.verification) {
+              const acc = data.verification.accountant?.status || "pending";
+              const wat = data.verification.watcher?.status || "pending";
+              const mgr = data.verification.manager?.status || "pending";
+              if (acc === "rejected" || wat === "rejected" || mgr === "rejected") {
+                data.verification.overallStatus = "rejected";
+              } else if ((acc === "verified" || acc === "skipped") && (wat === "verified" || wat === "skipped") && (mgr === "verified" || mgr === "skipped")) {
+                data.verification.overallStatus = "verified";
+              } else if (acc !== "pending" || wat !== "pending" || mgr !== "pending") {
+                data.verification.overallStatus = "partially_verified";
+              } else {
+                data.verification.overallStatus = "pending";
+              }
+            }
             return data;
           }
         ]
@@ -13917,6 +14488,100 @@ var init_Expenses = __esm({
           admin: {
             description: "Name of the cashier who created/submitted the expense."
           }
+        },
+        {
+          name: "notes",
+          type: "textarea",
+          required: false,
+          admin: {
+            description: "Remarks or notes for this expense."
+          }
+        },
+        {
+          name: "verification",
+          type: "group",
+          fields: [
+            {
+              name: "overallStatus",
+              type: "select",
+              options: [
+                { label: "Pending", value: "pending" },
+                { label: "Partially Verified", value: "partially_verified" },
+                { label: "Verified", value: "verified" },
+                { label: "Rejected", value: "rejected" }
+              ],
+              defaultValue: "pending"
+            },
+            {
+              name: "accountant",
+              type: "group",
+              fields: [
+                {
+                  name: "status",
+                  type: "select",
+                  options: [
+                    { label: "Pending", value: "pending" },
+                    { label: "Verified", value: "verified" },
+                    { label: "Rejected", value: "rejected" },
+                    { label: "Skipped", value: "skipped" }
+                  ],
+                  defaultValue: "pending"
+                },
+                { name: "notes", type: "textarea" },
+                { name: "verifiedBy", type: "relationship", relationTo: "users" },
+                { name: "verifiedByName", type: "text" },
+                { name: "verifiedByRole", type: "text" },
+                { name: "verifiedAt", type: "date" },
+                { name: "skipReason", type: "text" }
+              ]
+            },
+            {
+              name: "watcher",
+              type: "group",
+              fields: [
+                {
+                  name: "status",
+                  type: "select",
+                  options: [
+                    { label: "Pending", value: "pending" },
+                    { label: "Verified", value: "verified" },
+                    { label: "Rejected", value: "rejected" },
+                    { label: "Skipped", value: "skipped" }
+                  ],
+                  defaultValue: "pending"
+                },
+                { name: "notes", type: "textarea" },
+                { name: "verifiedBy", type: "relationship", relationTo: "users" },
+                { name: "verifiedByName", type: "text" },
+                { name: "verifiedByRole", type: "text" },
+                { name: "verifiedAt", type: "date" },
+                { name: "skipReason", type: "text" }
+              ]
+            },
+            {
+              name: "manager",
+              type: "group",
+              fields: [
+                {
+                  name: "status",
+                  type: "select",
+                  options: [
+                    { label: "Pending", value: "pending" },
+                    { label: "Verified", value: "verified" },
+                    { label: "Rejected", value: "rejected" },
+                    { label: "Skipped", value: "skipped" }
+                  ],
+                  defaultValue: "pending"
+                },
+                { name: "notes", type: "textarea" },
+                { name: "verifiedBy", type: "relationship", relationTo: "users" },
+                { name: "verifiedByName", type: "text" },
+                { name: "verifiedByRole", type: "text" },
+                { name: "verifiedAt", type: "date" },
+                { name: "skipReason", type: "text" }
+              ]
+            }
+          ]
         }
       ],
       hooks: {
@@ -14733,6 +15398,169 @@ var init_DealerBillings = __esm({
           type: "date",
           required: false,
           index: true
+        },
+        {
+          name: "notes",
+          type: "textarea",
+          label: "Notes / Remarks",
+          required: false,
+          admin: {
+            description: "Notes or remarks for this dealer / other product bill"
+          }
+        },
+        {
+          name: "verification",
+          type: "group",
+          label: "Three-Step Verification",
+          fields: [
+            {
+              name: "overallStatus",
+              type: "select",
+              label: "Overall Verification Status",
+              defaultValue: "pending",
+              options: [
+                { label: "Pending", value: "pending" },
+                { label: "Partially Verified", value: "partially_verified" },
+                { label: "Fully Verified", value: "verified" },
+                { label: "Rejected", value: "rejected" }
+              ],
+              admin: {
+                readOnly: true
+              }
+            },
+            {
+              name: "accountant",
+              type: "group",
+              label: "Accountant / Office Admin Verification (Step 1)",
+              fields: [
+                {
+                  name: "status",
+                  type: "select",
+                  defaultValue: "pending",
+                  options: [
+                    { label: "Pending", value: "pending" },
+                    { label: "Verified", value: "verified" },
+                    { label: "Rejected", value: "rejected" },
+                    { label: "Skipped", value: "skipped" }
+                  ]
+                },
+                {
+                  name: "notes",
+                  type: "textarea",
+                  label: "Accountant Notes"
+                },
+                {
+                  name: "verifiedBy",
+                  type: "relationship",
+                  relationTo: "users",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByName",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByRole",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedAt",
+                  type: "date",
+                  admin: { readOnly: true }
+                }
+              ]
+            },
+            {
+              name: "watcher",
+              type: "group",
+              label: "Watcher Verification (Step 2)",
+              fields: [
+                {
+                  name: "status",
+                  type: "select",
+                  defaultValue: "pending",
+                  options: [
+                    { label: "Pending", value: "pending" },
+                    { label: "Verified", value: "verified" },
+                    { label: "Rejected", value: "rejected" },
+                    { label: "Skipped", value: "skipped" }
+                  ]
+                },
+                {
+                  name: "notes",
+                  type: "textarea",
+                  label: "Watcher Notes"
+                },
+                {
+                  name: "verifiedBy",
+                  type: "relationship",
+                  relationTo: "users",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByName",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByRole",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedAt",
+                  type: "date",
+                  admin: { readOnly: true }
+                }
+              ]
+            },
+            {
+              name: "manager",
+              type: "group",
+              label: "Manager Verification (Step 3)",
+              fields: [
+                {
+                  name: "status",
+                  type: "select",
+                  defaultValue: "pending",
+                  options: [
+                    { label: "Pending", value: "pending" },
+                    { label: "Verified", value: "verified" },
+                    { label: "Rejected", value: "rejected" },
+                    { label: "Skipped", value: "skipped" }
+                  ]
+                },
+                {
+                  name: "notes",
+                  type: "textarea",
+                  label: "Manager Notes"
+                },
+                {
+                  name: "verifiedBy",
+                  type: "relationship",
+                  relationTo: "users",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByName",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByRole",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedAt",
+                  type: "date",
+                  admin: { readOnly: true }
+                }
+              ]
+            }
+          ]
         }
       ],
       hooks: {
@@ -14815,6 +15643,28 @@ var init_DealerBillings = __esm({
               data.paidAmount = data.total;
             } else if (data.paidAmount !== void 0 && data.total !== void 0 && data.paidAmount >= data.total) {
               data.status = "paid";
+            }
+            if (data.verification) {
+              const acc = data.verification.accountant?.status || "pending";
+              const wat = data.verification.watcher?.status || "pending";
+              const mgr = data.verification.manager?.status || "pending";
+              if (acc === "rejected" || wat === "rejected" || mgr === "rejected") {
+                data.verification.overallStatus = "rejected";
+              } else if ((acc === "verified" || acc === "skipped") && (wat === "verified" || wat === "skipped") && (mgr === "verified" || mgr === "skipped")) {
+                data.verification.overallStatus = "verified";
+              } else if (acc === "verified" || acc === "skipped" || wat === "verified" || wat === "skipped" || mgr === "verified" || mgr === "skipped") {
+                data.verification.overallStatus = "partially_verified";
+              } else {
+                data.verification.overallStatus = "pending";
+              }
+            }
+            const isTryingToPay = data.status === "paid" || data.payments && data.payments.length > 0 && data.paidAmount > 0;
+            if (isTryingToPay && operation !== "create") {
+              const userRole = req.user?.role;
+              const isSuperOrAdmin = userRole === "superadmin" || userRole === "admin";
+              if (!isSuperOrAdmin && data.verification && data.verification.overallStatus !== "verified") {
+                throw new Error("Payment cannot be processed. All required verification steps (Accountant, Watcher, Manager) must be completed or skipped first.");
+              }
             }
             return data;
           }
@@ -15036,6 +15886,160 @@ var init_RawMaterialBillings = __esm({
           }
         },
         {
+          name: "verification",
+          type: "group",
+          label: "Three-Step Verification",
+          fields: [
+            {
+              name: "overallStatus",
+              type: "select",
+              label: "Overall Verification Status",
+              defaultValue: "pending",
+              options: [
+                { label: "Pending", value: "pending" },
+                { label: "Partially Verified", value: "partially_verified" },
+                { label: "Fully Verified", value: "verified" },
+                { label: "Rejected", value: "rejected" }
+              ],
+              admin: {
+                readOnly: true
+              }
+            },
+            {
+              name: "accountant",
+              type: "group",
+              label: "Accountant / Office Admin Verification (Step 1)",
+              fields: [
+                {
+                  name: "status",
+                  type: "select",
+                  defaultValue: "pending",
+                  options: [
+                    { label: "Pending", value: "pending" },
+                    { label: "Verified", value: "verified" },
+                    { label: "Rejected", value: "rejected" },
+                    { label: "Skipped", value: "skipped" }
+                  ]
+                },
+                {
+                  name: "notes",
+                  type: "textarea",
+                  label: "Accountant Notes"
+                },
+                {
+                  name: "verifiedBy",
+                  type: "relationship",
+                  relationTo: "users",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByName",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByRole",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedAt",
+                  type: "date",
+                  admin: { readOnly: true }
+                }
+              ]
+            },
+            {
+              name: "watcher",
+              type: "group",
+              label: "Watcher Verification (Step 2)",
+              fields: [
+                {
+                  name: "status",
+                  type: "select",
+                  defaultValue: "pending",
+                  options: [
+                    { label: "Pending", value: "pending" },
+                    { label: "Verified", value: "verified" },
+                    { label: "Rejected", value: "rejected" },
+                    { label: "Skipped", value: "skipped" }
+                  ]
+                },
+                {
+                  name: "notes",
+                  type: "textarea",
+                  label: "Watcher Notes"
+                },
+                {
+                  name: "verifiedBy",
+                  type: "relationship",
+                  relationTo: "users",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByName",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByRole",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedAt",
+                  type: "date",
+                  admin: { readOnly: true }
+                }
+              ]
+            },
+            {
+              name: "manager",
+              type: "group",
+              label: "Manager Verification (Step 3)",
+              fields: [
+                {
+                  name: "status",
+                  type: "select",
+                  defaultValue: "pending",
+                  options: [
+                    { label: "Pending", value: "pending" },
+                    { label: "Verified", value: "verified" },
+                    { label: "Rejected", value: "rejected" },
+                    { label: "Skipped", value: "skipped" }
+                  ]
+                },
+                {
+                  name: "notes",
+                  type: "textarea",
+                  label: "Manager Notes"
+                },
+                {
+                  name: "verifiedBy",
+                  type: "relationship",
+                  relationTo: "users",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByName",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedByRole",
+                  type: "text",
+                  admin: { readOnly: true }
+                },
+                {
+                  name: "verifiedAt",
+                  type: "date",
+                  admin: { readOnly: true }
+                }
+              ]
+            }
+          ]
+        },
+        {
           name: "createdBy",
           type: "relationship",
           relationTo: "users",
@@ -15119,6 +16123,28 @@ var init_RawMaterialBillings = __esm({
               data.paidAmount = data.total;
             } else if (data.paidAmount !== void 0 && data.total !== void 0 && data.paidAmount >= data.total) {
               data.status = "paid";
+            }
+            if (data.verification) {
+              const acc = data.verification.accountant?.status || "pending";
+              const wat = data.verification.watcher?.status || "pending";
+              const mgr = data.verification.manager?.status || "pending";
+              if (acc === "rejected" || wat === "rejected" || mgr === "rejected") {
+                data.verification.overallStatus = "rejected";
+              } else if ((acc === "verified" || acc === "skipped") && (wat === "verified" || wat === "skipped") && (mgr === "verified" || mgr === "skipped")) {
+                data.verification.overallStatus = "verified";
+              } else if (acc === "verified" || acc === "skipped" || wat === "verified" || wat === "skipped" || mgr === "verified" || mgr === "skipped") {
+                data.verification.overallStatus = "partially_verified";
+              } else {
+                data.verification.overallStatus = "pending";
+              }
+            }
+            const isTryingToPay = data.status === "paid" || data.payments && data.payments.length > 0 && data.paidAmount > 0;
+            if (isTryingToPay && operation !== "create") {
+              const userRole = req.user?.role;
+              const isSuperOrAdmin = userRole === "superadmin" || userRole === "admin";
+              if (!isSuperOrAdmin && data.verification && data.verification.overallStatus !== "verified") {
+                throw new Error("Payment cannot be processed. All required verification steps (Accountant, Watcher, Manager) must be completed or skipped first.");
+              }
             }
             return data;
           }
@@ -18525,7 +19551,11 @@ var init_PaymentSettings = __esm({
         group: "Settings"
       },
       access: {
-        read: () => true
+        read: () => true,
+        update: ({ req }) => {
+          if (!req.user) return false;
+          return ["superadmin", "admin", "manager", "company", "branch", "account", "accountant"].includes(req.user.role);
+        }
       },
       fields: [
         {
@@ -18603,6 +19633,111 @@ var init_PaymentSettings = __esm({
               ]
             }
           ]
+        },
+        {
+          name: "isAccountantCashDrawerEnabled",
+          label: "Accountant Cash Drawer Access",
+          type: "checkbox",
+          defaultValue: false,
+          admin: {
+            description: "When enabled by the Owner/Admin, allows the Accountant role in Tracker App to open the cash drawer."
+          }
+        }
+      ]
+    };
+  }
+});
+
+// src/globals/ReportVerificationSettings.ts
+var ruleFields, ReportVerificationSettings;
+var init_ReportVerificationSettings = __esm({
+  "src/globals/ReportVerificationSettings.ts"() {
+    "use strict";
+    ruleFields = [
+      {
+        name: "effectiveFrom",
+        type: "date",
+        label: "Effective From Date",
+        required: false
+      },
+      {
+        name: "flowType",
+        type: "select",
+        label: "Verification Flow",
+        options: [
+          { label: "Sequential Order (Step 1 \u2192 Step 2 \u2192 Step 3)", value: "sequential" },
+          { label: "Any Order / Parallel (\u0B8E\u0BA8\u0BCD\u0BA4 \u0BB5\u0BB0\u0BBF\u0B9A\u0BC8\u0BAF\u0BBF\u0BB2\u0BC1\u0BAE\u0BCD)", value: "any" }
+        ],
+        defaultValue: "sequential"
+      },
+      {
+        name: "requireManager",
+        type: "checkbox",
+        label: "Require Manager Verification (Step 1)",
+        defaultValue: true
+      },
+      {
+        name: "requireAccountant",
+        type: "checkbox",
+        label: "Require Accountant / Office Admin Verification (Step 2)",
+        defaultValue: true
+      },
+      {
+        name: "requireWatcher",
+        type: "checkbox",
+        label: "Require Watcher Verification (Step 3)",
+        defaultValue: true
+      }
+    ];
+    ReportVerificationSettings = {
+      slug: "report-verification-settings",
+      label: "Report Verification Settings",
+      admin: {
+        group: "Settings"
+      },
+      access: {
+        read: () => true,
+        update: ({ req }) => {
+          if (!req.user) return false;
+          return ["superadmin", "admin"].includes(req.user.role);
+        }
+      },
+      fields: [
+        {
+          name: "rawMaterial",
+          type: "group",
+          label: "Raw Material Report Verification Rules",
+          fields: ruleFields
+        },
+        {
+          name: "closingEntry",
+          type: "group",
+          label: "Closing Entry Verification Rules",
+          fields: ruleFields
+        },
+        {
+          name: "stockOrder",
+          type: "group",
+          label: "Stock Order Verification Rules",
+          fields: ruleFields
+        },
+        {
+          name: "returnOrder",
+          type: "group",
+          label: "Return Order Verification Rules",
+          fields: ruleFields
+        },
+        {
+          name: "otherProducts",
+          type: "group",
+          label: "Other Products Report Verification Rules",
+          fields: ruleFields
+        },
+        {
+          name: "expense",
+          type: "group",
+          label: "Expense Report Verification Rules",
+          fields: ruleFields
         }
       ]
     };
@@ -20103,7 +21238,8 @@ var init_closingEntry = __esm({
         systemCash: 0,
         systemUpi: 0,
         systemCard: 0,
-        notes: toNonEmptyString(entry.notes)
+        notes: toNonEmptyString(entry.notes),
+        verification: entry.verification
       };
     };
     toExpenseBranchId = (value) => {
@@ -20162,7 +21298,8 @@ var init_closingEntry = __esm({
                 upi: "$upi",
                 card: "$creditCard",
                 denominations: "$denominations",
-                notes: "$notes"
+                notes: "$notes",
+                verification: "$verification"
               }
             },
             systemSales: { $sum: "$systemSales" },
@@ -24750,7 +25887,9 @@ var init_expense = __esm({
                 filename: "$mediaInfo.filename",
                 employeeId: "$employeeInfo._id",
                 employeeName: "$employeeInfo.name",
-                employeeRole: "$employeeInfo.team"
+                employeeRole: "$employeeInfo.team",
+                notes: "$notes",
+                verification: "$verification"
               }
             }
           }
@@ -24778,7 +25917,10 @@ var init_expense = __esm({
             imageUrl: imageUrl || (filename2 ? `/api/media/file/${filename2}` : void 0),
             employeeId: toNonEmptyString3(item.employeeId),
             employeeName: toNonEmptyString3(item.employeeName),
-            employeeRole: toNonEmptyString3(item.employeeRole)
+            employeeRole: toNonEmptyString3(item.employeeRole),
+            notes: toNonEmptyString3(item.notes, "") || void 0,
+            verification: item.verification || void 0,
+            verificationJson: item.verification ? JSON.stringify(item.verification) : null
           };
         });
         return {
@@ -25071,6 +26213,7 @@ var init_dealer = __esm({
       }
       const plannedStartDateParam = typeof args.plannedStartDate === "string" ? args.plannedStartDate : "";
       const plannedEndDateParam = typeof args.plannedEndDate === "string" ? args.plannedEndDate : "";
+      const viewModeParam = (args.viewMode || "single").toLowerCase();
       const matchQuery = {};
       if (plannedStartDateParam && plannedEndDateParam) {
         const startPlanned = dayjs21.utc(plannedStartDateParam).startOf("day").toDate();
@@ -25080,10 +26223,30 @@ var init_dealer = __esm({
           $lte: endPlanned
         };
       } else {
-        matchQuery.date = {
-          $gte: startOfDay,
-          $lte: endOfDay
-        };
+        const billCreationConditions = [
+          {
+            date: {
+              $gte: startOfDay,
+              $lte: endOfDay
+            }
+          }
+        ];
+        const paymentConditions = [
+          {
+            "payments.date": {
+              $gte: startOfDay,
+              $lte: endOfDay
+            }
+          }
+        ];
+        if (startDateParam === endDateParam) {
+          paymentConditions.push({ "payments.date": { $regex: `^${startDateParam}` } });
+        }
+        if (viewModeParam === "combined") {
+          matchQuery.$or = [...billCreationConditions, ...paymentConditions];
+        } else {
+          matchQuery.$or = billCreationConditions;
+        }
       }
       if (selectedBranches.length > 0) {
         matchQuery.branch = {
@@ -25214,6 +26377,8 @@ var init_dealer = __esm({
                 productsPhotoInfo: "$productsInfo",
                 status: { $ifNull: ["$status", "pending"] },
                 plannedPaymentDate: "$plannedPaymentDate",
+                notes: { $ifNull: ["$notes", ""] },
+                verification: "$verification",
                 productsList: "$productsList",
                 productsListMedia: "$productsListMedia",
                 productsListResolvedProducts: {
@@ -25373,7 +26538,14 @@ var init_dealer = __esm({
             deliveryPersonPhotoUrl: resolvedDeliveryPersonPhotoUrl,
             status: toNonEmptyString4(item.status, "pending"),
             plannedPaymentDate: item.plannedPaymentDate ? toDateString3(item.plannedPaymentDate) : void 0,
-            products
+            products,
+            notes: toNonEmptyString4(item.notes, ""),
+            verification: item.verification || {
+              overallStatus: "pending",
+              accountant: { status: "pending" },
+              watcher: { status: "pending" },
+              manager: { status: "pending" }
+            }
           };
         });
         return {
@@ -25425,7 +26597,8 @@ var init_getDealerReport = __esm({
           branch: typeof req.query.branch === "string" ? req.query.branch : null,
           dealer: typeof req.query.dealer === "string" ? req.query.dealer : null,
           plannedStartDate: typeof req.query.plannedStartDate === "string" ? req.query.plannedStartDate : null,
-          plannedEndDate: typeof req.query.plannedEndDate === "string" ? req.query.plannedEndDate : null
+          plannedEndDate: typeof req.query.plannedEndDate === "string" ? req.query.plannedEndDate : null,
+          viewMode: typeof req.query.viewMode === "string" ? req.query.viewMode : null
         });
         req.payload.logger.info(`Generated Dealer Report: ${report.groups.length} branch groups found`);
         return Response.json(report);
@@ -26576,6 +27749,20 @@ var init_rawMaterialBilling = __esm({
             preserveNullAndEmptyArrays: true
           }
         },
+        {
+          $lookup: {
+            from: "media",
+            localField: "materialInfo.images.0.image",
+            foreignField: "_id",
+            as: "materialDefaultPhotoInfo"
+          }
+        },
+        {
+          $unwind: {
+            path: "$materialDefaultPhotoInfo",
+            preserveNullAndEmptyArrays: true
+          }
+        },
         ...selectedCategories.length > 0 ? [
           {
             $match: {
@@ -26604,6 +27791,7 @@ var init_rawMaterialBilling = __esm({
             status: { $first: "$status" },
             plannedPaymentDate: { $first: "$plannedPaymentDate" },
             notes: { $first: "$notes" },
+            verification: { $first: "$verification" },
             rawMaterialsList: {
               $push: {
                 $cond: {
@@ -26619,8 +27807,8 @@ var init_rawMaterialBilling = __esm({
                     variants: "$materialInfo.variants",
                     packSize: "$materialInfo.packSize",
                     category: "$materialInfo.category",
-                    photoUrl: "$itemPhotoInfo.url",
-                    photoFilename: "$itemPhotoInfo.filename"
+                    photoUrl: { $ifNull: ["$itemPhotoInfo.url", "$materialDefaultPhotoInfo.url"] },
+                    photoFilename: { $ifNull: ["$itemPhotoInfo.filename", "$materialDefaultPhotoInfo.filename"] }
                   },
                   else: "$$REMOVE"
                 }
@@ -26668,6 +27856,7 @@ var init_rawMaterialBilling = __esm({
                 status: { $ifNull: ["$status", "pending"] },
                 plannedPaymentDate: "$plannedPaymentDate",
                 notes: "$notes",
+                verification: "$verification",
                 rawMaterialsList: "$rawMaterialsList"
               }
             }
@@ -26703,14 +27892,16 @@ var init_rawMaterialBilling = __esm({
           if (Array.isArray(item.rawMaterialsList)) {
             item.rawMaterialsList.forEach((m) => {
               if (m && typeof m === "object") {
+                const itemPhotoUrl = toNonEmptyString7(m.photoUrl) || (m.photoFilename ? `/api/media/file/${m.photoFilename}` : "") || (typeof m.photo === "object" && m.photo?.url ? m.photo.url : "") || void 0;
                 rawMaterials.push({
-                  name: toNonEmptyString7(m.rawMaterialName, "Unknown Material").trim(),
+                  name: toNonEmptyString7(m.rawMaterialName || m.name, "Unknown Material").trim(),
                   quantity: toNumber9(m.quantity),
                   unit: toNonEmptyString7(m.unit, "kg"),
                   packageSize: m.packageSize !== void 0 ? toNumber9(m.packageSize) : void 0,
                   numberOfPackages: m.numberOfPackages !== void 0 ? toNumber9(m.numberOfPackages) : void 0,
                   totalAmount: m.totalAmount !== void 0 ? toNumber9(m.totalAmount) : void 0,
-                  category: m.category ? toNonEmptyString7(m.category) : void 0
+                  category: m.category ? toNonEmptyString7(m.category) : void 0,
+                  photoUrl: itemPhotoUrl || (productsPhotoUrls.length > 0 ? productsPhotoUrls[0] : void 0)
                 });
               }
             });
@@ -26747,6 +27938,7 @@ var init_rawMaterialBilling = __esm({
             status: toNonEmptyString7(item.status, "pending"),
             plannedPaymentDate: item.plannedPaymentDate ? toDateString5(item.plannedPaymentDate) : void 0,
             notes: toNonEmptyString7(item.notes, ""),
+            verification: item.verification,
             rawMaterials
           };
         });
@@ -27031,7 +28223,8 @@ var init_returnOrder = __esm({
                 imageUrl: "$mediaInfo.url",
                 filename: "$mediaInfo.filename",
                 prefix: "$mediaInfo.prefix",
-                proofPhoto: "$items.proofPhoto"
+                proofPhoto: "$items.proofPhoto",
+                verification: "$verification"
               }
             }
           }
@@ -27146,7 +28339,9 @@ var init_returnOrder = __esm({
             subtotal: toNumber10(item.subtotal),
             notes: toNonEmptyString8(item.notes, "") || void 0,
             time: toDateString6(item.time),
-            imageUrl: resolvedUrl
+            imageUrl: resolvedUrl,
+            verification: item.verification || void 0,
+            verificationJson: item.verification ? JSON.stringify(item.verification) : null
           };
         });
         return {
@@ -36402,6 +37597,10 @@ var init_reportQueries = __esm({
           systemUpi: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
           systemCard: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
           notes: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
+          verificationJson: {
+            type: graphQL.GraphQLString,
+            resolve: (entry) => entry.verification ? JSON.stringify(entry.verification) : null
+          },
           denominations: { type: new graphQL.GraphQLNonNull(ClosingEntryReportDenominationsType) },
           expenseDetails: {
             type: new graphQL.GraphQLNonNull(
@@ -36887,7 +38086,9 @@ var init_reportQueries = __esm({
           imageUrl: { type: graphQL.GraphQLString },
           employeeId: { type: graphQL.GraphQLString },
           employeeName: { type: graphQL.GraphQLString },
-          employeeRole: { type: graphQL.GraphQLString }
+          employeeRole: { type: graphQL.GraphQLString },
+          notes: { type: graphQL.GraphQLString },
+          verificationJson: { type: graphQL.GraphQLString }
         }
       });
       const ExpenseReportGroupType = new graphQL.GraphQLObjectType({
@@ -36965,7 +38166,8 @@ var init_reportQueries = __esm({
           subtotal: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLFloat) },
           notes: { type: graphQL.GraphQLString },
           time: { type: new graphQL.GraphQLNonNull(graphQL.GraphQLString) },
-          imageUrl: { type: graphQL.GraphQLString }
+          imageUrl: { type: graphQL.GraphQLString },
+          verificationJson: { type: graphQL.GraphQLString }
         }
       });
       const ReturnOrderReportGroupType = new graphQL.GraphQLObjectType({
@@ -39874,196 +41076,6 @@ var init_toggleFavoriteCategoryRule = __esm({
   }
 });
 
-// src/endpoints/toggleBranchClosingAccess.ts
-var toggleBranchClosingAccessHandler;
-var init_toggleBranchClosingAccess = __esm({
-  "src/endpoints/toggleBranchClosingAccess.ts"() {
-    "use strict";
-    toggleBranchClosingAccessHandler = async (req) => {
-      const allowedRoles = ["superadmin", "admin", "manager", "company", "branch"];
-      if (!req.user || !allowedRoles.includes(req.user.role)) {
-        return Response.json({ message: "Unauthorized" }, { status: 401 });
-      }
-      try {
-        let body = {};
-        try {
-          body = await req.json?.();
-        } catch (_e) {
-        }
-        if (!body || Object.keys(body).length === 0) {
-          if (req.url) {
-            const url = new URL(req.url);
-            body = {
-              branchId: url.searchParams.get("branchId")
-            };
-            const enabledParam = url.searchParams.get("enabled");
-            if (enabledParam !== null) {
-              body.enabled = enabledParam === "true";
-            }
-          }
-        }
-        const branchId = body?.branchId || body?.id;
-        const enabled = body?.enabled !== void 0 ? Boolean(body.enabled) : body?.isClosingEntryEnabled !== void 0 ? Boolean(body.isClosingEntryEnabled) : true;
-        if (!branchId) {
-          return Response.json({ message: "Missing branchId parameter" }, { status: 400 });
-        }
-        const branch = await req.payload.findByID({
-          collection: "branches",
-          id: branchId,
-          depth: 0,
-          overrideAccess: true
-        });
-        if (!branch) {
-          return Response.json({ message: "Branch not found" }, { status: 404 });
-        }
-        if (req.user.role === "branch") {
-          const userBranchId = typeof req.user.branch === "string" ? req.user.branch : req.user.branch?.id || req.user.branch?._id;
-          if (userBranchId && String(userBranchId) !== String(branchId)) {
-            return Response.json({ message: "Forbidden: You cannot modify other branches" }, { status: 403 });
-          }
-        } else if (req.user.role === "manager") {
-          const managerCompanies = req.user.manager_companies || [];
-          const userCompanyIds = managerCompanies.map((c) => typeof c === "string" ? c : c?.id || c?._id || "").concat(
-            req.user.company ? [typeof req.user.company === "string" ? req.user.company : req.user.company?.id || req.user.company?._id || ""] : []
-          ).filter(Boolean).map(String);
-          const branchCompanyId = String(
-            typeof branch.company === "string" ? branch.company : branch.company?.id || branch.company?._id || ""
-          );
-          if (userCompanyIds.length > 0 && branchCompanyId && !userCompanyIds.includes(branchCompanyId)) {
-            return Response.json({ message: "Forbidden: Branch does not belong to your assigned companies" }, { status: 403 });
-          }
-        } else if (req.user.role === "company") {
-          const comp = req.user.company;
-          const userCompanyId = String(
-            typeof comp === "string" ? comp : comp?.id || comp?._id || ""
-          );
-          const branchCompanyId = String(
-            typeof branch.company === "string" ? branch.company : branch.company?.id || branch.company?._id || ""
-          );
-          if (userCompanyId && branchCompanyId && userCompanyId !== branchCompanyId) {
-            return Response.json({ message: "Forbidden: Branch does not belong to your company" }, { status: 403 });
-          }
-        }
-        const updatedBranch = await req.payload.update({
-          collection: "branches",
-          id: branchId,
-          data: {
-            isClosingEntryEnabled: enabled
-          },
-          overrideAccess: true
-        });
-        return Response.json({
-          success: true,
-          message: `Branch closing entry access ${enabled ? "enabled" : "locked"} successfully`,
-          branchId,
-          isClosingEntryEnabled: updatedBranch.isClosingEntryEnabled
-        });
-      } catch (error) {
-        req.payload.logger.error({
-          err: error,
-          msg: "Failed to toggle branch closing access"
-        });
-        return Response.json({ message: error.message || "Internal server error" }, { status: 500 });
-      }
-    };
-  }
-});
-
-// src/endpoints/toggleBranchCashDrawerAccess.ts
-var toggleBranchCashDrawerAccessHandler;
-var init_toggleBranchCashDrawerAccess = __esm({
-  "src/endpoints/toggleBranchCashDrawerAccess.ts"() {
-    "use strict";
-    toggleBranchCashDrawerAccessHandler = async (req) => {
-      const allowedRoles = ["superadmin", "admin", "manager", "company", "branch"];
-      if (!req.user || !allowedRoles.includes(req.user.role)) {
-        return Response.json({ message: "Unauthorized" }, { status: 401 });
-      }
-      try {
-        let body = {};
-        try {
-          body = await req.json?.();
-        } catch (_e) {
-        }
-        if (!body || Object.keys(body).length === 0) {
-          if (req.url) {
-            const url = new URL(req.url);
-            body = {
-              branchId: url.searchParams.get("branchId")
-            };
-            const enabledParam = url.searchParams.get("enabled");
-            if (enabledParam !== null) {
-              body.enabled = enabledParam === "true";
-            }
-          }
-        }
-        const branchId = body?.branchId || body?.id;
-        const enabled = body?.enabled !== void 0 ? Boolean(body.enabled) : body?.isCashDrawerEnabled !== void 0 ? Boolean(body.isCashDrawerEnabled) : true;
-        if (!branchId) {
-          return Response.json({ message: "Missing branchId parameter" }, { status: 400 });
-        }
-        const branch = await req.payload.findByID({
-          collection: "branches",
-          id: branchId,
-          depth: 0,
-          overrideAccess: true
-        });
-        if (!branch) {
-          return Response.json({ message: "Branch not found" }, { status: 404 });
-        }
-        if (req.user.role === "branch") {
-          const userBranchId = typeof req.user.branch === "string" ? req.user.branch : req.user.branch?.id || req.user.branch?._id;
-          if (userBranchId && String(userBranchId) !== String(branchId)) {
-            return Response.json({ message: "Forbidden: You cannot modify other branches" }, { status: 403 });
-          }
-        } else if (req.user.role === "manager") {
-          const managerCompanies = req.user.manager_companies || [];
-          const userCompanyIds = managerCompanies.map((c) => typeof c === "string" ? c : c?.id || c?._id || "").concat(
-            req.user.company ? [typeof req.user.company === "string" ? req.user.company : req.user.company?.id || req.user.company?._id || ""] : []
-          ).filter(Boolean).map(String);
-          const branchCompanyId = String(
-            typeof branch.company === "string" ? branch.company : branch.company?.id || branch.company?._id || ""
-          );
-          if (userCompanyIds.length > 0 && branchCompanyId && !userCompanyIds.includes(branchCompanyId)) {
-            return Response.json({ message: "Forbidden: Branch does not belong to your assigned companies" }, { status: 403 });
-          }
-        } else if (req.user.role === "company") {
-          const comp = req.user.company;
-          const userCompanyId = String(
-            typeof comp === "string" ? comp : comp?.id || comp?._id || ""
-          );
-          const branchCompanyId = String(
-            typeof branch.company === "string" ? branch.company : branch.company?.id || branch.company?._id || ""
-          );
-          if (userCompanyId && branchCompanyId && userCompanyId !== branchCompanyId) {
-            return Response.json({ message: "Forbidden: Branch does not belong to your company" }, { status: 403 });
-          }
-        }
-        const updatedBranch = await req.payload.update({
-          collection: "branches",
-          id: branchId,
-          data: {
-            isCashDrawerEnabled: enabled
-          },
-          overrideAccess: true
-        });
-        return Response.json({
-          success: true,
-          message: `Branch cash drawer opening access ${enabled ? "enabled" : "locked"} successfully`,
-          branchId,
-          isCashDrawerEnabled: updatedBranch.isCashDrawerEnabled
-        });
-      } catch (error) {
-        req.payload.logger.error({
-          err: error,
-          msg: "Failed to toggle branch cash drawer access"
-        });
-        return Response.json({ message: error.message || "Internal server error" }, { status: 500 });
-      }
-    };
-  }
-});
-
 // src/endpoints/updateFavoriteCategoryRuleCategories.ts
 var updateFavoriteCategoryRuleCategoriesHandler;
 var init_updateFavoriteCategoryRuleCategories = __esm({
@@ -40178,6 +41190,49 @@ var init_checkAppVersion = __esm({
 });
 
 // src/globals/MenuSettings.ts
+function syncMenuSettingsOptions(collections, globals) {
+  const roleMenusField = MenuSettingsGlobal.fields?.find(
+    (f) => "name" in f && f.name === "roleMenus"
+  );
+  if (!roleMenusField || !Array.isArray(roleMenusField.fields)) return;
+  const collectionsField = roleMenusField.fields.find(
+    (f) => f.name === "visibleCollections"
+  );
+  const globalsField = roleMenusField.fields.find(
+    (f) => f.name === "visibleGlobals"
+  );
+  const toLabel = (slug) => slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  if (collectionsField) {
+    const map = /* @__PURE__ */ new Map();
+    for (const opt of collectionsField.options || []) {
+      const val = typeof opt === "string" ? opt : opt.value;
+      const lbl = typeof opt === "string" ? toLabel(opt) : opt.label;
+      map.set(val, lbl);
+    }
+    for (const col of collections) {
+      if (!map.has(col.slug)) {
+        const lbl = (typeof col.labels?.singular === "string" ? col.labels.singular : "") || toLabel(col.slug);
+        map.set(col.slug, lbl);
+      }
+    }
+    collectionsField.options = Array.from(map.entries()).map(([value, label]) => ({ label, value })).sort((a, b) => a.label.localeCompare(b.label));
+  }
+  if (globalsField) {
+    const map = /* @__PURE__ */ new Map();
+    for (const opt of globalsField.options || []) {
+      const val = typeof opt === "string" ? opt : opt.value;
+      const lbl = typeof opt === "string" ? toLabel(opt) : opt.label;
+      map.set(val, lbl);
+    }
+    for (const glob of globals) {
+      if (!map.has(glob.slug)) {
+        const lbl = (typeof glob.label === "string" ? glob.label : "") || toLabel(glob.slug);
+        map.set(glob.slug, lbl);
+      }
+    }
+    globalsField.options = Array.from(map.entries()).map(([value, label]) => ({ label, value })).sort((a, b) => a.label.localeCompare(b.label));
+  }
+}
 var MenuSettingsGlobal;
 var init_MenuSettings = __esm({
   "src/globals/MenuSettings.ts"() {
@@ -40229,39 +41284,53 @@ var init_MenuSettings = __esm({
               hasMany: true,
               label: "Visible Collections",
               options: [
-                { label: "Users", value: "users" },
-                { label: "Companies", value: "companies" },
-                { label: "Branches", value: "branches" },
-                { label: "Departments", value: "departments" },
-                { label: "Categories", value: "categories" },
-                { label: "Products", value: "products" },
-                { label: "Raw Material Categories", value: "raw-material-categories" },
-                { label: "Raw Materials", value: "raw-materials" },
-                { label: "Raw Material Dealers", value: "raw-material-dealers" },
-                { label: "Media", value: "media" },
-                { label: "Dealers", value: "dealers" },
-                { label: "Employees", value: "employees" },
-                { label: "Message Threads", value: "message-threads" },
-                { label: "Message Attachments", value: "message-attachments" },
-                { label: "Messages", value: "messages" },
-                { label: "Message Receipts", value: "message-receipts" },
-                { label: "Billings", value: "billings" },
-                { label: "Return Order", value: "return-order" },
-                { label: "Closing Entries", value: "closing-entries" },
-                { label: "Expenses", value: "expenses" },
-                { label: "Stock Orders", value: "stock-orders" },
-                { label: "Dealer Billings", value: "dealer-billings" },
-                { label: "Raw Material Billings", value: "raw-material-billings" },
-                { label: "Reviews", value: "reviews" },
-                { label: "Customers", value: "customers" },
-                { label: "Billing Customers", value: "billing-customers" },
-                { label: "Instock Entries", value: "instock-entries" },
-                { label: "Tables", value: "tables" },
-                { label: "Kitchens", value: "kitchens" },
-                { label: "Attendance", value: "attendance" },
                 { label: "APK Files", value: "apk-files" },
-                { label: "Stock Alerts", value: "stock-alerts" },
+                { label: "Attendance", value: "attendance" },
+                { label: "Bank Statements", value: "bank-statements" },
+                { label: "Billing Customers", value: "billing-customers" },
+                { label: "Billings", value: "billings" },
+                { label: "Branches", value: "branches" },
+                { label: "Cakes", value: "cakes" },
+                { label: "Call Logs", value: "call-logs" },
+                { label: "Categories", value: "categories" },
+                { label: "CCTV Reports", value: "cctv-reports" },
+                { label: "Closing Entries", value: "closing-entries" },
+                { label: "Companies", value: "companies" },
+                { label: "Customers", value: "customers" },
+                { label: "Dealer Billings", value: "dealer-billings" },
+                { label: "Dealer Orders", value: "dealer-orders" },
+                { label: "Dealers", value: "dealers" },
+                { label: "Departments", value: "departments" },
+                { label: "Employees", value: "employees" },
+                { label: "Expenses", value: "expenses" },
                 { label: "Idempotency Keys", value: "idempotency-keys" },
+                { label: "Instock Entries", value: "instock-entries" },
+                { label: "Kitchens", value: "kitchens" },
+                { label: "Manager Closing Replies", value: "manager-closing-replies" },
+                { label: "Media", value: "media" },
+                { label: "Message Attachments", value: "message-attachments" },
+                { label: "Message Receipts", value: "message-receipts" },
+                { label: "Message Threads", value: "message-threads" },
+                { label: "Messages", value: "messages" },
+                { label: "Production Requests", value: "production-requests" },
+                { label: "Products", value: "products" },
+                { label: "Punch In", value: "punch-in" },
+                { label: "Raw Material Billings", value: "raw-material-billings" },
+                { label: "Raw Material Categories", value: "raw-material-categories" },
+                { label: "Raw Material Dealers", value: "raw-material-dealers" },
+                { label: "Raw Material In Stock Entries", value: "raw-material-instock-entries" },
+                { label: "Raw Materials", value: "raw-materials" },
+                { label: "Report Card Rules", value: "report-card-rules" },
+                { label: "Return Order", value: "return-order" },
+                { label: "Reviews", value: "reviews" },
+                { label: "Stock Alerts", value: "stock-alerts" },
+                { label: "Stock Orders", value: "stock-orders" },
+                { label: "Tables", value: "tables" },
+                { label: "Task Columns", value: "task-columns" },
+                { label: "Task Completions", value: "task-completions" },
+                { label: "Task Photo Audits", value: "task-photo-audits" },
+                { label: "Tasks", value: "tasks" },
+                { label: "Users", value: "users" },
                 { label: "Waiter Calls", value: "waiter-calls" }
               ]
             },
@@ -40271,40 +41340,53 @@ var init_MenuSettings = __esm({
               hasMany: true,
               label: "Visible Globals",
               options: [
-                { label: "IP Settings", value: "ip-settings" },
-                { label: "Jarvis", value: "jarvis" },
-                { label: "All Report", value: "all-report" },
-                { label: "Overall (Dashboard)", value: "general-dashboard" },
-                { label: "Time Wise Report", value: "time-wise-report" },
-                { label: "Branch Billing Report", value: "branch-billing-report" },
-                { label: "GST Report", value: "gst-report" },
-                { label: "All Bills Report", value: "accounts-bills-report" },
-                { label: "Bill Summary", value: "bill-summary" },
-                { label: "Category Wise Report", value: "category-wise-report" },
-                { label: "Product Wise Report", value: "product-wise-report" },
-                { label: "Product Time Report", value: "product-time-report" },
-                { label: "Chef Report", value: "chef-report" },
-                { label: "Closing Entry Report", value: "closing-entry-report" },
-                { label: "Waiter Wise Billing Report", value: "waiter-wise-billing-report" },
-                { label: "Attendance Report", value: "attendance-report" },
-                { label: "Inventory Report", value: "inventory-report" },
-                { label: "Stock Order Report", value: "stock-order-report" },
                 { label: "Afterstock Customer Report", value: "afterstock-customer-report" },
-                { label: "Review Report", value: "review-report" },
-                { label: "Instock Entry Report", value: "instock-entry-report" },
-                { label: "Expense Report", value: "expense-report" },
-                { label: "Return Order Report", value: "return-order-report" },
-                { label: "Dealer Report", value: "dealer-report" },
-                { label: "Raw Material Billing Report", value: "raw-material-billing-report" },
-                { label: "Branch Geo Settings", value: "branch-geo-settings" },
-                { label: "Network Status", value: "network-status" },
-                { label: "Widget Settings", value: "widget-settings" },
-                { label: "Customer Offer Settings", value: "customer-offer-settings" },
+                { label: "All Bills Report", value: "accounts-bills-report" },
+                { label: "All Report", value: "all-report" },
                 { label: "App Download Settings", value: "app-download-settings" },
                 { label: "App Version Settings", value: "app-version-settings" },
-                { label: "Work GPS", value: "work-gps" },
+                { label: "Attendance Report", value: "attendance-report" },
+                { label: "Bank Statement Upload", value: "bank-statement-upload" },
+                { label: "Bill Summary", value: "bill-summary" },
+                { label: "Branch Billing Report", value: "branch-billing-report" },
+                { label: "Branch Geo Settings", value: "branch-geo-settings" },
+                { label: "Category Wise Report", value: "category-wise-report" },
+                { label: "Chef Report", value: "chef-report" },
+                { label: "Chef Settings", value: "chef-settings" },
+                { label: "Checking Report", value: "checking-report" },
+                { label: "Closing Entry Report", value: "closing-entry-report" },
+                { label: "Customer Offer Settings", value: "customer-offer-settings" },
+                { label: "Database Sync Settings", value: "database-sync-settings" },
+                { label: "Dealer Report", value: "dealer-report" },
+                { label: "Expense Report", value: "expense-report" },
+                { label: "GST Report", value: "gst-report" },
+                { label: "Instock Entry Report", value: "instock-entry-report" },
+                { label: "Inventory Report", value: "inventory-report" },
+                { label: "IP Settings", value: "ip-settings" },
+                { label: "Jarvis", value: "jarvis" },
                 { label: "KOT Time", value: "kot-time" },
-                { label: "Chef Settings", value: "chef-settings" }
+                { label: "Menu Settings", value: "menu-settings" },
+                { label: "Message Chat", value: "messages-chat" },
+                { label: "Network Status", value: "network-status" },
+                { label: "Other Products Inventory", value: "other-products-inventory-report" },
+                { label: "Overall (Dashboard)", value: "general-dashboard" },
+                { label: "Payment Settings", value: "payment-settings" },
+                { label: "Product Time Report", value: "product-time-report" },
+                { label: "Product Wise Report", value: "product-wise-report" },
+                { label: "Raw Material Billing Report", value: "raw-material-billing-report" },
+                { label: "Raw Material Inventory", value: "raw-material-inventory-report" },
+                { label: "Report Card", value: "report-card" },
+                { label: "Report Graph", value: "report-graph" },
+                { label: "Report Verification Settings", value: "report-verification-settings" },
+                { label: "Return Order Report", value: "return-order-report" },
+                { label: "Review Report", value: "review-report" },
+                { label: "Stock Order Report", value: "stock-order-report" },
+                { label: "Time Wise Report", value: "time-wise-report" },
+                { label: "Waiter Wise Billing Report", value: "waiter-wise-billing-report" },
+                { label: "Widget Settings", value: "widget-settings" },
+                { label: "Work Board", value: "work-tasks" },
+                { label: "Work GPS", value: "work-gps" },
+                { label: "Work Settings", value: "work-settings" }
               ]
             }
           ]
@@ -40962,16 +42044,23 @@ var init_getMyDailyTasks = __esm({
           if (matchesRole && (taskRole === "chef" || normalizedRole === "chef" || userRole === "chef")) {
             const targetChefType = (task.chefType || "both").toLowerCase();
             if (targetChefType !== "both") {
-              const isUserKitchen = Boolean(
-                req.user.isKitchen || req.user.kitchen || url.searchParams.get("isKitchen") === "true" || url.searchParams.get("chefType") === "kitchen" || employeeDoc && (employeeDoc.isKitchen || employeeDoc.team?.toLowerCase().includes("kitchen"))
-              );
-              const isUserStock = Boolean(
-                req.user.isStock || req.user.stockCategories?.length || url.searchParams.get("isStock") === "true" || url.searchParams.get("chefType") === "stock" || employeeDoc && (employeeDoc.isStock || employeeDoc.team?.toLowerCase().includes("stock"))
-              );
-              if (targetChefType === "kitchen" && !isUserKitchen && isUserStock) {
+              const reqChefType = (url.searchParams.get("chefType") || "").toLowerCase().trim();
+              if (reqChefType === "kitchen" && targetChefType === "stock") {
                 return false;
               }
-              if (targetChefType === "stock" && !isUserStock && isUserKitchen) {
+              if (reqChefType === "stock" && targetChefType === "kitchen") {
+                return false;
+              }
+              const isUserKitchen = Boolean(
+                req.user.isKitchen || req.user.kitchen || url.searchParams.get("isKitchen") === "true" || employeeDoc && (employeeDoc.isKitchen || employeeDoc.team?.toLowerCase().includes("kitchen"))
+              );
+              const isUserStock = Boolean(
+                req.user.isStock || req.user.stockCategories?.length || url.searchParams.get("isStock") === "true" || employeeDoc && (employeeDoc.isStock || employeeDoc.team?.toLowerCase().includes("stock"))
+              );
+              if (targetChefType === "kitchen" && !isUserKitchen) {
+                return false;
+              }
+              if (targetChefType === "stock" && !isUserStock) {
                 return false;
               }
             }
@@ -41513,28 +42602,33 @@ var init_submitTaskAudit = __esm({
         } catch (_e) {
         }
         const {
+          auditId,
           taskId,
+          taskTitle: explicitTaskTitle,
           photos = [],
           notes,
+          role: explicitRole,
           branchId: explicitBranchId,
           chefType: explicitChefType,
           status: explicitStatus
         } = body || {};
-        if (!taskId) {
-          return Response.json({ success: false, message: "Missing required field: taskId" }, { status: 400 });
-        }
         let taskDoc = null;
-        try {
-          taskDoc = await req.payload.findByID({
-            collection: "tasks",
-            id: taskId,
-            depth: 0
-          });
-        } catch (e) {
-          return Response.json({ success: false, message: "Task not found" }, { status: 404 });
+        let taskTitle = explicitTaskTitle || "Cleaning Audit";
+        let taskFrequency = "random";
+        if (taskId) {
+          try {
+            taskDoc = await req.payload.findByID({
+              collection: "tasks",
+              id: taskId,
+              depth: 0
+            });
+            if (taskDoc) {
+              taskTitle = taskDoc.title || taskTitle;
+              taskFrequency = taskDoc.frequency || "random";
+            }
+          } catch (e) {
+          }
         }
-        const taskTitle = taskDoc?.title || "Task";
-        const taskFrequency = taskDoc?.frequency || "random";
         let employeeId = null;
         let branchId = explicitBranchId || null;
         let chefType = explicitChefType || taskDoc?.chefType || "kitchen";
@@ -41588,13 +42682,33 @@ var init_submitTaskAudit = __esm({
             capturedAt: item.capturedAt || (/* @__PURE__ */ new Date()).toISOString()
           };
         });
+        let targetAuditId = auditId || null;
+        if (!targetAuditId && (employeeId || req.user.id)) {
+          try {
+            const pendingSearch = await req.payload.find({
+              collection: "task-photo-audits",
+              where: {
+                and: [
+                  ...employeeId ? [{ employee: { equals: employeeId } }] : [{ user: { equals: req.user.id } }],
+                  { status: { equals: "pending" } }
+                ]
+              },
+              sort: "-createdAt",
+              limit: 1
+            });
+            if (pendingSearch.docs.length > 0) {
+              targetAuditId = String(pendingSearch.docs[0].id);
+            }
+          } catch (_e) {
+          }
+        }
         const auditData = {
-          task: taskId,
+          task: taskId || void 0,
           taskTitle,
           branch: branchId || void 0,
           employee: employeeId || void 0,
           user: req.user.id,
-          role: (req.user.role || "chef").toLowerCase(),
+          role: (explicitRole || req.user.role || "chef").toLowerCase(),
           chefType,
           photos: normalizedPhotos,
           photoCount: normalizedPhotos.length,
@@ -41602,10 +42716,19 @@ var init_submitTaskAudit = __esm({
           status: explicitStatus || "submitted",
           submittedAt: (/* @__PURE__ */ new Date()).toISOString()
         };
-        const createdAudit = await req.payload.create({
-          collection: "task-photo-audits",
-          data: auditData
-        });
+        let createdAudit = null;
+        if (targetAuditId) {
+          createdAudit = await req.payload.update({
+            collection: "task-photo-audits",
+            id: targetAuditId,
+            data: auditData
+          });
+        } else {
+          createdAudit = await req.payload.create({
+            collection: "task-photo-audits",
+            data: auditData
+          });
+        }
         const primaryPhotoId = normalizedPhotos[0]?.photo || null;
         const primaryPhotoUrl = normalizedPhotos[0]?.photoUrl || "";
         const d = /* @__PURE__ */ new Date();
@@ -41687,6 +42810,252 @@ var init_submitTaskAudit = __esm({
           { status: 500 }
         );
       }
+    };
+  }
+});
+
+// src/endpoints/checkingEndpoints.ts
+var getLiveStaffForCheckingHandler, triggerCheckingAuditHandler, getPendingAuditForAppHandler;
+var init_checkingEndpoints = __esm({
+  "src/endpoints/checkingEndpoints.ts"() {
+    "use strict";
+    getLiveStaffForCheckingHandler = async (req) => {
+      try {
+        const now = /* @__PURE__ */ new Date();
+        const utcOffset = now.getTime() + 5.5 * 60 * 60 * 1e3;
+        const localDate = new Date(utcOffset);
+        const year = localDate.getUTCFullYear();
+        const month = String(localDate.getUTCMonth() + 1).padStart(2, "0");
+        const day = String(localDate.getUTCDate()).padStart(2, "0");
+        const todayDateString = `${year}-${month}-${day}`;
+        const attendanceRes = await req.payload.find({
+          collection: "attendance",
+          where: {
+            dateString: { equals: todayDateString }
+          },
+          limit: 1e3,
+          depth: 2
+        });
+        const liveStaffList = [];
+        for (const doc of attendanceRes.docs) {
+          const activities = Array.isArray(doc.activities) ? doc.activities : [];
+          const sessions = activities.filter((a) => a.type === "session");
+          const hasActiveSession = sessions.some(
+            (s) => s.punchIn && (!s.punchOut || s.status === "active")
+          );
+          if (!hasActiveSession) continue;
+          const empDoc = doc.employee && typeof doc.employee === "object" ? doc.employee : null;
+          const userDoc = doc.user && typeof doc.user === "object" ? doc.user : null;
+          const branchDoc = doc.loginBranch && typeof doc.loginBranch === "object" ? doc.loginBranch : doc.branch && typeof doc.branch === "object" ? doc.branch : null;
+          const employeeId = empDoc?.id || (typeof doc.employee === "string" ? doc.employee : "");
+          const employeeName = empDoc?.name || userDoc?.name || doc.userName || "Employee";
+          const userId = userDoc?.id || (typeof doc.user === "string" ? doc.user : "");
+          const rawRole = empDoc?.team || userDoc?.role || doc.userRole || (userDoc?.isChef ? "chef" : "waiter");
+          const role = String(rawRole).toLowerCase().trim();
+          const branchId = branchDoc?.id || (typeof doc.loginBranch === "string" ? doc.loginBranch : typeof doc.branch === "string" ? doc.branch : "");
+          const branchName = branchDoc?.name || doc.branchName || doc.loginBranchName || "Main Branch";
+          const firstSession = sessions[0];
+          const firstPunchIn = firstSession?.punchIn || doc.firstPunchIn || "";
+          liveStaffList.push({
+            attendanceId: doc.id,
+            employeeId,
+            employeeName,
+            userId,
+            role,
+            branchId,
+            branchName,
+            firstPunchIn,
+            status: doc.status || "active"
+          });
+        }
+        const startOfTodayIso = new Date(Date.UTC(year, localDate.getUTCMonth(), localDate.getUTCDate(), 0, 0, 0)).toISOString();
+        const auditsRes = await req.payload.find({
+          collection: "task-photo-audits",
+          where: {
+            createdAt: { greater_than_equal: startOfTodayIso }
+          },
+          limit: 1e3,
+          depth: 1,
+          sort: "-createdAt"
+        });
+        const audits = auditsRes.docs;
+        const staffWithAudits = liveStaffList.map((staff) => {
+          const staffAudits = audits.filter((a) => {
+            const aEmpId = a.employee && typeof a.employee === "object" ? a.employee.id : a.employee;
+            const aUserId = a.user && typeof a.user === "object" ? a.user.id : a.user;
+            return staff.employeeId && aEmpId === staff.employeeId || staff.userId && aUserId === staff.userId;
+          });
+          const latestAudit = staffAudits[0] || null;
+          let auditState = "check_in";
+          if (latestAudit) {
+            if (latestAudit.status === "pending") {
+              auditState = "waiting";
+            } else if (latestAudit.status === "submitted" || latestAudit.status === "verified" || latestAudit.status === "flagged" || latestAudit.photos && latestAudit.photos.length > 0) {
+              auditState = "updated";
+            }
+          }
+          return {
+            ...staff,
+            auditState,
+            latestAudit: latestAudit ? {
+              id: latestAudit.id,
+              taskTitle: latestAudit.taskTitle,
+              status: latestAudit.status,
+              photoCount: latestAudit.photoCount || latestAudit.photos?.length || 0,
+              photos: latestAudit.photos || [],
+              notes: latestAudit.notes || "",
+              requestedAt: latestAudit.createdAt,
+              submittedAt: latestAudit.submittedAt
+            } : null
+          };
+        });
+        return Response.json({
+          success: true,
+          dateString: todayDateString,
+          count: staffWithAudits.length,
+          staff: staffWithAudits
+        });
+      } catch (error) {
+        req.payload.logger.error({ msg: "Error getting live staff for checking", error });
+        return Response.json(
+          { success: false, message: error.message || "Internal error" },
+          { status: 500 }
+        );
+      }
+    };
+    triggerCheckingAuditHandler = async (req) => {
+      if (!req.user) {
+        return Response.json({ success: false, message: "Unauthorized" }, { status: 401 });
+      }
+      try {
+        let body = {};
+        try {
+          body = await req.json?.();
+        } catch (_e) {
+        }
+        const { employeeId, userId, branchId, role = "chef", chefType = "kitchen" } = body || {};
+        if (!employeeId && !userId) {
+          return Response.json(
+            { success: false, message: "Missing employeeId or userId" },
+            { status: 400 }
+          );
+        }
+        const cleanRole = String(role).toLowerCase().trim();
+        const isWaiter = cleanRole.includes("waiter") || cleanRole.includes("billing");
+        const taskTitle = isWaiter ? "Table Cleaning Audit" : cleanRole.includes("chef") ? "Mandatory Kitchen Cleaning Audit" : "Sudden Cleaning Audit";
+        const auditData = {
+          taskTitle,
+          employee: employeeId || void 0,
+          user: userId || void 0,
+          branch: branchId || void 0,
+          role: cleanRole,
+          chefType: isWaiter ? "both" : chefType,
+          status: "pending",
+          photoCount: 0,
+          photos: [],
+          notes: "Sudden inspection triggered manually from Admin Checking Menu",
+          createdAt: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        const created = await req.payload.create({
+          collection: "task-photo-audits",
+          data: auditData
+        });
+        return Response.json({
+          success: true,
+          message: "Sudden inspection triggered successfully",
+          audit: created
+        });
+      } catch (error) {
+        req.payload.logger.error({ msg: "Error triggering sudden audit", error });
+        return Response.json(
+          { success: false, message: error.message || "Failed to trigger audit" },
+          { status: 500 }
+        );
+      }
+    };
+    getPendingAuditForAppHandler = async (req) => {
+      try {
+        const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : null;
+        const userId = typeof req.query.userId === "string" ? req.query.userId : req.user ? String(req.user.id) : null;
+        const branchId = typeof req.query.branchId === "string" ? req.query.branchId : null;
+        const role = typeof req.query.role === "string" ? req.query.role.toLowerCase() : null;
+        const conditions = [{ status: { equals: "pending" } }];
+        if (employeeId && userId) {
+          conditions.push({
+            or: [{ employee: { equals: employeeId } }, { user: { equals: userId } }]
+          });
+        } else if (employeeId) {
+          conditions.push({ employee: { equals: employeeId } });
+        } else if (userId) {
+          conditions.push({ user: { equals: userId } });
+        } else if (branchId) {
+          conditions.push({ branch: { equals: branchId } });
+        }
+        const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1e3).toISOString();
+        conditions.push({ createdAt: { greater_than_equal: twelveHoursAgo } });
+        const auditsRes = await req.payload.find({
+          collection: "task-photo-audits",
+          where: {
+            and: conditions
+          },
+          sort: "-createdAt",
+          limit: 1,
+          depth: 1
+        });
+        if (auditsRes.docs.length > 0) {
+          const pendingAudit = auditsRes.docs[0];
+          return Response.json({
+            success: true,
+            hasPendingAudit: true,
+            audit: {
+              id: pendingAudit.id,
+              taskTitle: pendingAudit.taskTitle,
+              role: pendingAudit.role,
+              chefType: pendingAudit.chefType,
+              branch: pendingAudit.branch,
+              createdAt: pendingAudit.createdAt
+            }
+          });
+        }
+        return Response.json({
+          success: true,
+          hasPendingAudit: false
+        });
+      } catch (error) {
+        req.payload.logger.error({ msg: "Error getting pending audits for app", error });
+        return Response.json(
+          { success: false, message: error.message || "Error checking pending audits" },
+          { status: 500 }
+        );
+      }
+    };
+  }
+});
+
+// src/globals/CheckingReport.ts
+var CheckingReportGlobal;
+var init_CheckingReport = __esm({
+  "src/globals/CheckingReport.ts"() {
+    "use strict";
+    CheckingReportGlobal = {
+      slug: "checking-report",
+      label: "Checking",
+      access: {
+        read: () => true
+      },
+      admin: {
+        group: "Report",
+        components: {
+          views: {
+            edit: {
+              root: {
+                Component: "/components/CheckingReport/index.tsx#default"
+              }
+            }
+          }
+        }
+      },
+      fields: []
     };
   }
 });
@@ -45260,7 +46629,7 @@ import path4 from "path";
 import { buildConfig } from "payload";
 import { fileURLToPath } from "url";
 import sharp from "sharp";
-var filename, dirname, wrapCollection, wrapGlobal, isLocalHostname2, normalizeAbsoluteURL4, publicServerURL, resolveDBMode, dbMode, databaseURI, looksLikeMongoURI, looksLikePostgresURI, postgresEnvKeys, rawPostgresConnectionString, postgresConnectionString, rawMongoConnectionString, mongoConnectionString, dbAdapter, rawR2Env, r2Env, missingR2Env, payload_config_default;
+var filename, dirname, wrapCollection, wrapGlobal, isLocalHostname2, normalizeAbsoluteURL4, publicServerURL, resolveDBMode, dbMode, databaseURI, looksLikeMongoURI, looksLikePostgresURI, postgresEnvKeys, rawPostgresConnectionString, postgresConnectionString, rawMongoConnectionString, mongoConnectionString, dbAdapter, rawR2Env, r2Env, missingR2Env, allGlobals, allCollections, payload_config_default;
 var init_payload_config = __esm({
   "src/payload.config.ts"() {
     "use strict";
@@ -45314,6 +46683,7 @@ var init_payload_config = __esm({
     init_getCategoryWiseReport();
     init_getCategoryWiseReportPDF();
     init_PaymentSettings();
+    init_ReportVerificationSettings();
     init_createPaymentSession();
     init_getProductWiseReport();
     init_getProductPreparationBillDetails();
@@ -45427,6 +46797,8 @@ var init_payload_config = __esm({
     init_getMyDailyTasks();
     init_toggleDailyTask();
     init_submitTaskAudit();
+    init_checkingEndpoints();
+    init_CheckingReport();
     init_startWork();
     init_completeWork();
     init_KotTime();
@@ -45761,6 +47133,105 @@ var init_payload_config = __esm({
     if (rawR2Env.S3_ENDPOINT && !r2Env.S3_ENDPOINT) {
       throw new Error("[R2 config] Invalid S3_ENDPOINT. Use a full URL or hostname.");
     }
+    allGlobals = [
+      DatabaseSyncSettings,
+      PaymentSettings,
+      ReportVerificationSettings,
+      IPSettings,
+      AllReportGlobal,
+      DashboardGlobal,
+      TimeWiseReportGlobal,
+      BranchBillingReportGlobal,
+      AccountsBillsReportGlobal,
+      BankStatementUploadGlobal,
+      BillSummaryGlobal,
+      GSTReportGlobal,
+      CategoryWiseReportGlobal,
+      ProductWiseReportGlobal,
+      ProductTimeReportGlobal,
+      ChefReportGlobal,
+      ClosingEntryReportGlobal,
+      WaiterWiseBillingReportGlobal,
+      ReportCardGlobal,
+      AttendanceReportGlobal,
+      CheckingReportGlobal,
+      InventoryReportGlobal,
+      StockOrderReportGlobal,
+      AfterstockCustomerReportGlobal,
+      ReviewReportGlobal,
+      InstockEntryReportGlobal,
+      ExpenseReportGlobal,
+      ReturnOrderReportGlobal,
+      ReportGraphGlobal,
+      DealerReportGlobal,
+      RawMaterialBillingReportGlobal,
+      OtherProductsInventoryReportGlobal,
+      RawMaterialInventoryReportGlobal,
+      BranchGeoSettings,
+      NetworkStatus,
+      WidgetSettingsGlobal,
+      CustomerOfferSettings,
+      AppDownloadSettings,
+      AppVersionSettings,
+      WorkSettingsGlobal,
+      WorkTasksGlobal,
+      WorkGPSGlobal,
+      MenuSettingsGlobal,
+      MessagesChatGlobal,
+      KotTimeGlobal,
+      ChefSettingsGlobal
+    ];
+    allCollections = [
+      ManagerClosingReplies_default,
+      Users,
+      Companies,
+      Branches,
+      Departments_default,
+      Categories_default,
+      Products_default,
+      RawMaterialCategories_default,
+      RawMaterials_default,
+      RawMaterialDealers_default,
+      Media,
+      Dealers_default,
+      Employees_default,
+      Tasks_default,
+      TaskColumns_default,
+      TaskCompletions_default,
+      TaskPhotoAudits_default,
+      MessageThreads,
+      MessageAttachments,
+      Messages,
+      MessageReceipts,
+      Billings_default,
+      ReturnOrder_default,
+      ClosingEntries_default,
+      Expenses_default,
+      Cakes_default,
+      StockOrders_default,
+      DealerBillings_default,
+      RawMaterialBillings_default,
+      RawMaterialInstockEntries_default,
+      ProductionRequests_default,
+      DealerOrders_default,
+      Reviews_default,
+      Customers_default,
+      BillingCustomers_default,
+      InstockEntries_default,
+      Tables_default,
+      Kitchens_default,
+      Attendance_default,
+      PunchIn_default,
+      APKFiles_default,
+      BankStatements_default,
+      StockAlerts,
+      IdempotencyKeys_default,
+      WaiterCalls_default,
+      CallLogs_default,
+      CctvReports_default,
+      ReportCardRules_default
+    ];
+    syncMenuSettingsOptions(allCollections, allGlobals);
     payload_config_default = buildConfig({
       admin: {
         user: Users.slug,
@@ -46163,6 +47634,11 @@ var init_payload_config = __esm({
           handler: toggleBranchCashDrawerAccessHandler
         },
         {
+          path: "/branches/toggle-cashdrawer-access",
+          method: "get",
+          handler: toggleBranchCashDrawerAccessHandler
+        },
+        {
           path: "/daily-tasks/my-tasks",
           method: "get",
           handler: getMyDailyTasksHandler
@@ -46181,6 +47657,21 @@ var init_payload_config = __esm({
           path: "/tasks/submit-audit",
           method: "post",
           handler: submitTaskAuditHandler
+        },
+        {
+          path: "/checking/live-staff",
+          method: "get",
+          handler: getLiveStaffForCheckingHandler
+        },
+        {
+          path: "/checking/trigger",
+          method: "post",
+          handler: triggerCheckingAuditHandler
+        },
+        {
+          path: "/checking/pending-audit",
+          method: "get",
+          handler: getPendingAuditForAppHandler
         },
         {
           path: "/attendance/start-work",
@@ -46243,103 +47734,9 @@ var init_payload_config = __esm({
           handler: checkDatabaseSyncCountsHandler
         }
       ],
-      globals: [
-        DatabaseSyncSettings,
-        PaymentSettings,
-        IPSettings,
-        AllReportGlobal,
-        DashboardGlobal,
-        TimeWiseReportGlobal,
-        BranchBillingReportGlobal,
-        AccountsBillsReportGlobal,
-        BankStatementUploadGlobal,
-        BillSummaryGlobal,
-        GSTReportGlobal,
-        CategoryWiseReportGlobal,
-        ProductWiseReportGlobal,
-        ProductTimeReportGlobal,
-        ChefReportGlobal,
-        ClosingEntryReportGlobal,
-        WaiterWiseBillingReportGlobal,
-        ReportCardGlobal,
-        AttendanceReportGlobal,
-        InventoryReportGlobal,
-        StockOrderReportGlobal,
-        AfterstockCustomerReportGlobal,
-        ReviewReportGlobal,
-        InstockEntryReportGlobal,
-        ExpenseReportGlobal,
-        ReturnOrderReportGlobal,
-        ReportGraphGlobal,
-        DealerReportGlobal,
-        RawMaterialBillingReportGlobal,
-        OtherProductsInventoryReportGlobal,
-        RawMaterialInventoryReportGlobal,
-        BranchGeoSettings,
-        NetworkStatus,
-        WidgetSettingsGlobal,
-        CustomerOfferSettings,
-        AppDownloadSettings,
-        AppVersionSettings,
-        WorkSettingsGlobal,
-        WorkTasksGlobal,
-        WorkGPSGlobal,
-        MenuSettingsGlobal,
-        MessagesChatGlobal,
-        KotTimeGlobal,
-        ChefSettingsGlobal
-      ].map(wrapGlobal),
+      globals: allGlobals.map(wrapGlobal),
       // Collections
-      collections: [
-        ManagerClosingReplies_default,
-        Users,
-        Companies,
-        Branches,
-        Departments_default,
-        Categories_default,
-        Products_default,
-        RawMaterialCategories_default,
-        RawMaterials_default,
-        RawMaterialDealers_default,
-        Media,
-        Dealers_default,
-        Employees_default,
-        Tasks_default,
-        TaskColumns_default,
-        TaskCompletions_default,
-        TaskPhotoAudits_default,
-        MessageThreads,
-        MessageAttachments,
-        Messages,
-        MessageReceipts,
-        Billings_default,
-        ReturnOrder_default,
-        ClosingEntries_default,
-        Expenses_default,
-        Cakes_default,
-        StockOrders_default,
-        DealerBillings_default,
-        RawMaterialBillings_default,
-        RawMaterialInstockEntries_default,
-        ProductionRequests_default,
-        DealerOrders_default,
-        Reviews_default,
-        Customers_default,
-        BillingCustomers_default,
-        InstockEntries_default,
-        Tables_default,
-        Kitchens_default,
-        Attendance_default,
-        PunchIn_default,
-        APKFiles_default,
-        BankStatements_default,
-        StockAlerts,
-        IdempotencyKeys_default,
-        WaiterCalls_default,
-        CallLogs_default,
-        CctvReports_default,
-        ReportCardRules_default
-      ].map(wrapCollection),
+      collections: allCollections.map(wrapCollection),
       editor: lexicalEditor(),
       secret: process.env.PAYLOAD_SECRET || "",
       typescript: {

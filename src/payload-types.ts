@@ -4900,39 +4900,45 @@ export interface ReportVerificationSetting {
   id: string;
   rawMaterial?: {
     effectiveFrom?: string | null;
+    flowType?: ('sequential' | 'any') | null;
+    requireManager?: boolean | null;
     requireAccountant?: boolean | null;
     requireWatcher?: boolean | null;
-    requireManager?: boolean | null;
   };
   closingEntry?: {
     effectiveFrom?: string | null;
+    flowType?: ('sequential' | 'any') | null;
+    requireManager?: boolean | null;
     requireAccountant?: boolean | null;
     requireWatcher?: boolean | null;
-    requireManager?: boolean | null;
   };
   stockOrder?: {
     effectiveFrom?: string | null;
+    flowType?: ('sequential' | 'any') | null;
+    requireManager?: boolean | null;
     requireAccountant?: boolean | null;
     requireWatcher?: boolean | null;
-    requireManager?: boolean | null;
   };
   returnOrder?: {
     effectiveFrom?: string | null;
+    flowType?: ('sequential' | 'any') | null;
+    requireManager?: boolean | null;
     requireAccountant?: boolean | null;
     requireWatcher?: boolean | null;
-    requireManager?: boolean | null;
   };
   otherProducts?: {
     effectiveFrom?: string | null;
+    flowType?: ('sequential' | 'any') | null;
+    requireManager?: boolean | null;
     requireAccountant?: boolean | null;
     requireWatcher?: boolean | null;
-    requireManager?: boolean | null;
   };
   expense?: {
     effectiveFrom?: string | null;
+    flowType?: ('sequential' | 'any') | null;
+    requireManager?: boolean | null;
     requireAccountant?: boolean | null;
     requireWatcher?: boolean | null;
-    requireManager?: boolean | null;
   };
   updatedAt?: string | null;
   createdAt?: string | null;
@@ -6557,78 +6563,107 @@ export interface MenuSetting {
           | 'store_keeper';
         visibleCollections?:
           | (
-              | 'users'
-              | 'companies'
-              | 'branches'
-              | 'departments'
-              | 'categories'
-              | 'products'
-              | 'raw-material-categories'
-              | 'raw-materials'
-              | 'raw-material-dealers'
-              | 'media'
-              | 'dealers'
-              | 'employees'
-              | 'message-threads'
-              | 'message-attachments'
-              | 'messages'
-              | 'message-receipts'
-              | 'billings'
-              | 'return-order'
-              | 'closing-entries'
-              | 'expenses'
-              | 'stock-orders'
-              | 'dealer-billings'
-              | 'raw-material-billings'
-              | 'reviews'
-              | 'customers'
-              | 'billing-customers'
-              | 'instock-entries'
-              | 'tables'
-              | 'kitchens'
-              | 'attendance'
               | 'apk-files'
-              | 'stock-alerts'
+              | 'attendance'
+              | 'bank-statements'
+              | 'billing-customers'
+              | 'billings'
+              | 'branches'
+              | 'cakes'
+              | 'call-logs'
+              | 'categories'
+              | 'cctv-reports'
+              | 'closing-entries'
+              | 'companies'
+              | 'customers'
+              | 'dealer-billings'
+              | 'dealer-orders'
+              | 'dealers'
+              | 'departments'
+              | 'employees'
+              | 'expenses'
               | 'idempotency-keys'
+              | 'instock-entries'
+              | 'kitchens'
+              | 'manager-closing-replies'
+              | 'media'
+              | 'message-attachments'
+              | 'message-receipts'
+              | 'message-threads'
+              | 'messages'
+              | 'production-requests'
+              | 'products'
+              | 'punch-in'
+              | 'punchin'
+              | 'raw-material-billings'
+              | 'raw-material-categories'
+              | 'raw-material-dealers'
+              | 'raw-material-instock-entries'
+              | 'raw-materials'
+              | 'report-card-rules'
+              | 'return-order'
+              | 'return-orders'
+              | 'reviews'
+              | 'stock-alerts'
+              | 'stock-orders'
+              | 'tables'
+              | 'task-columns'
+              | 'task-completions'
+              | 'task-photo-audits'
+              | 'tasks'
+              | 'users'
               | 'waiter-calls'
             )[]
           | null;
         visibleGlobals?:
           | (
-              | 'ip-settings'
-              | 'jarvis'
-              | 'all-report'
-              | 'general-dashboard'
-              | 'time-wise-report'
-              | 'branch-billing-report'
-              | 'gst-report'
-              | 'accounts-bills-report'
-              | 'bill-summary'
-              | 'category-wise-report'
-              | 'product-wise-report'
-              | 'product-time-report'
-              | 'chef-report'
-              | 'closing-entry-report'
-              | 'waiter-wise-billing-report'
-              | 'attendance-report'
-              | 'inventory-report'
-              | 'stock-order-report'
               | 'afterstock-customer-report'
-              | 'review-report'
-              | 'instock-entry-report'
-              | 'expense-report'
-              | 'return-order-report'
-              | 'dealer-report'
-              | 'raw-material-billing-report'
-              | 'branch-geo-settings'
-              | 'network-status'
-              | 'widget-settings'
-              | 'customer-offer-settings'
+              | 'accounts-bills-report'
+              | 'all-report'
               | 'app-download-settings'
               | 'app-version-settings'
-              | 'work-gps'
-              | 'kot-time'
+              | 'attendance-report'
+              | 'bank-statement-upload'
+              | 'bill-summary'
+              | 'branch-billing-report'
+              | 'branch-geo-settings'
+              | 'category-wise-report'
+              | 'checking-report'
+              | 'chef-report'
               | 'chef-settings'
+              | 'closing-entry-report'
+              | 'customer-offer-settings'
+              | 'database-sync-settings'
+              | 'dealer-report'
+              | 'expense-report'
+              | 'gst-report'
+              | 'instock-entry-report'
+              | 'inventory-report'
+              | 'ip-settings'
+              | 'jarvis'
+              | 'kot-time'
+              | 'menu-settings'
+              | 'messages-chat'
+              | 'network-status'
+              | 'other-products-inventory-report'
+              | 'general-dashboard'
+              | 'payment-settings'
+              | 'product-time-report'
+              | 'product-wise-report'
+              | 'raw-material-billing-report'
+              | 'raw-material-inventory-report'
+              | 'report-card'
+              | 'report-graph'
+              | 'report-verification-settings'
+              | 'return-order-report'
+              | 'review-report'
+              | 'stock-order-report'
+              | 'time-wise-report'
+              | 'waiter-wise-billing-report'
+              | 'widget-settings'
+              | 'work-tasks'
+              | 'work-gps'
+              | 'work-settings'
             )[]
           | null;
         id?: string | null;
@@ -6778,49 +6813,55 @@ export interface ReportVerificationSettingsSelect<T extends boolean = true> {
     | T
     | {
         effectiveFrom?: T;
+        flowType?: T;
+        requireManager?: T;
         requireAccountant?: T;
         requireWatcher?: T;
-        requireManager?: T;
       };
   closingEntry?:
     | T
     | {
         effectiveFrom?: T;
+        flowType?: T;
+        requireManager?: T;
         requireAccountant?: T;
         requireWatcher?: T;
-        requireManager?: T;
       };
   stockOrder?:
     | T
     | {
         effectiveFrom?: T;
+        flowType?: T;
+        requireManager?: T;
         requireAccountant?: T;
         requireWatcher?: T;
-        requireManager?: T;
       };
   returnOrder?:
     | T
     | {
         effectiveFrom?: T;
+        flowType?: T;
+        requireManager?: T;
         requireAccountant?: T;
         requireWatcher?: T;
-        requireManager?: T;
       };
   otherProducts?:
     | T
     | {
         effectiveFrom?: T;
+        flowType?: T;
+        requireManager?: T;
         requireAccountant?: T;
         requireWatcher?: T;
-        requireManager?: T;
       };
   expense?:
     | T
     | {
         effectiveFrom?: T;
+        flowType?: T;
+        requireManager?: T;
         requireAccountant?: T;
         requireWatcher?: T;
-        requireManager?: T;
       };
   updatedAt?: T;
   createdAt?: T;
