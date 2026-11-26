@@ -3017,7 +3017,7 @@ const RawMaterialBillingReport: React.FC = () => {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '12px', marginBottom: '16px' }}>
               <div style={{ background: 'var(--theme-elevation-50)', padding: '12px', borderRadius: '8px', border: '1px solid var(--theme-elevation-200)' }}>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: '6px' }}>
-                  📅 Effective From Date (தொடங்கும் தேதி):
+                  📅 Effective From Date:
                 </label>
                 <input
                   type="date"
@@ -3034,14 +3034,11 @@ const RawMaterialBillingReport: React.FC = () => {
                     boxSizing: 'border-box',
                   }}
                 />
-                <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-secondary)', marginTop: '4px' }}>
-                  இந்தத் தேதியிலிருந்து பதிவாகும் பில்களுக்கு மட்டுமே விதிகள் செயல்படும்.
-                </div>
               </div>
 
               <div style={{ background: 'var(--theme-elevation-50)', padding: '12px', borderRadius: '8px', border: '1px solid var(--theme-elevation-200)' }}>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: '6px' }}>
-                  🔀 Verification Flow (சரிபார்ப்பு முறை):
+                  🔀 Verification Flow:
                 </label>
                 <select
                   value={tempSettings.flowType || 'sequential'}
@@ -3058,13 +3055,8 @@ const RawMaterialBillingReport: React.FC = () => {
                   }}
                 >
                   <option value="sequential">Sequential Order (Step 1 → 2 → 3)</option>
-                  <option value="any">Any Order / Parallel (எந்த வரிசையிலும்)</option>
+                  <option value="any">Any Order / Parallel</option>
                 </select>
-                <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-secondary)', marginTop: '4px' }}>
-                  {tempSettings.flowType === 'any'
-                    ? 'யார் வேண்டுமானாலும் எப்போது வேண்டுமானாலும் சரிபார்க்கலாம் (Lock இல்லை).'
-                    : 'மேனேஜர் → அக்கவுண்டன்ட் → வாட்சர் வரிசைப்படி மட்டுமே.'}
-                </div>
               </div>
             </div>
 
