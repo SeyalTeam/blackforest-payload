@@ -491,10 +491,12 @@ const ExpenseReport: React.FC = () => {
   const [userRole, setUserRole] = useState<string>('')
   const isAdmin = ['superadmin', 'admin'].includes(userRole)
   const [verificationSettings, setVerificationSettings] = useState<{
+    effectiveFrom?: string | null
     requireAccountant: boolean
     requireWatcher: boolean
     requireManager: boolean
   }>({
+    effectiveFrom: null,
     requireAccountant: true,
     requireWatcher: true,
     requireManager: true,
@@ -1941,6 +1943,31 @@ const ExpenseReport: React.FC = () => {
             <p style={{ fontSize: '0.88rem', color: 'var(--theme-text-secondary)', marginBottom: '1.25rem' }}>
               Configure which verification steps are mandatory for expenses:
             </p>
+
+            {/* Effective From Date */}
+            <div style={{ marginBottom: '16px', background: 'var(--theme-elevation-50)', padding: '12px', borderRadius: '8px', border: '1px solid var(--theme-elevation-200)' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: '6px' }}>
+                📅 Effective From Date (விதிகள் தொடங்கும் தேதி):
+              </label>
+              <input
+                type="date"
+                value={tempSettings.effectiveFrom ? dayjs(tempSettings.effectiveFrom).format('YYYY-MM-DD') : ''}
+                onChange={(e) => setTempSettings({ ...tempSettings, effectiveFrom: e.target.value || null })}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--theme-elevation-250)',
+                  background: 'var(--theme-elevation-0)',
+                  color: 'var(--theme-text-primary)',
+                  fontSize: '0.9rem',
+                  width: '100%',
+                  maxWidth: '220px',
+                }}
+              />
+              <div style={{ fontSize: '0.78rem', color: 'var(--theme-text-secondary)', marginTop: '4px' }}>
+                தேர்ந்தெடுக்கப்பட்ட இந்தத் தேதியிலிருந்து பதிவாகும் செலவுகளுக்கு மட்டுமே வெரிஃபிகேஷன் விதிகள் செயல்படும்.
+              </div>
+            </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '1.5rem' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '0.95rem' }}>

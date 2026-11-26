@@ -4899,31 +4899,37 @@ export interface PaymentSetting {
 export interface ReportVerificationSetting {
   id: string;
   rawMaterial?: {
+    effectiveFrom?: string | null;
     requireAccountant?: boolean | null;
     requireWatcher?: boolean | null;
     requireManager?: boolean | null;
   };
   closingEntry?: {
+    effectiveFrom?: string | null;
     requireAccountant?: boolean | null;
     requireWatcher?: boolean | null;
     requireManager?: boolean | null;
   };
   stockOrder?: {
+    effectiveFrom?: string | null;
     requireAccountant?: boolean | null;
     requireWatcher?: boolean | null;
     requireManager?: boolean | null;
   };
   returnOrder?: {
+    effectiveFrom?: string | null;
     requireAccountant?: boolean | null;
     requireWatcher?: boolean | null;
     requireManager?: boolean | null;
   };
   otherProducts?: {
+    effectiveFrom?: string | null;
     requireAccountant?: boolean | null;
     requireWatcher?: boolean | null;
     requireManager?: boolean | null;
   };
   expense?: {
+    effectiveFrom?: string | null;
     requireAccountant?: boolean | null;
     requireWatcher?: boolean | null;
     requireManager?: boolean | null;
@@ -6771,6 +6777,7 @@ export interface ReportVerificationSettingsSelect<T extends boolean = true> {
   rawMaterial?:
     | T
     | {
+        effectiveFrom?: T;
         requireAccountant?: T;
         requireWatcher?: T;
         requireManager?: T;
@@ -6778,6 +6785,7 @@ export interface ReportVerificationSettingsSelect<T extends boolean = true> {
   closingEntry?:
     | T
     | {
+        effectiveFrom?: T;
         requireAccountant?: T;
         requireWatcher?: T;
         requireManager?: T;
@@ -6785,6 +6793,7 @@ export interface ReportVerificationSettingsSelect<T extends boolean = true> {
   stockOrder?:
     | T
     | {
+        effectiveFrom?: T;
         requireAccountant?: T;
         requireWatcher?: T;
         requireManager?: T;
@@ -6792,6 +6801,7 @@ export interface ReportVerificationSettingsSelect<T extends boolean = true> {
   returnOrder?:
     | T
     | {
+        effectiveFrom?: T;
         requireAccountant?: T;
         requireWatcher?: T;
         requireManager?: T;
@@ -6799,6 +6809,7 @@ export interface ReportVerificationSettingsSelect<T extends boolean = true> {
   otherProducts?:
     | T
     | {
+        effectiveFrom?: T;
         requireAccountant?: T;
         requireWatcher?: T;
         requireManager?: T;
@@ -6806,6 +6817,7 @@ export interface ReportVerificationSettingsSelect<T extends boolean = true> {
   expense?:
     | T
     | {
+        effectiveFrom?: T;
         requireAccountant?: T;
         requireWatcher?: T;
         requireManager?: T;
