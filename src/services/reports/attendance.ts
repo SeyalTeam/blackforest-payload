@@ -44,6 +44,7 @@ export type AttendanceReportItem = {
   employeeId?: string
   employeeName: string
   employeeSalary?: number
+  employeeSalaryType?: string
   employeeWorkingHours?: number
   employeeLoginTime?: string
   employeeLogoutTime?: string
@@ -707,6 +708,7 @@ export const getAttendanceReportData = async (
     const employeeId = toNonEmptyString(doc.employeeDetails?.employeeId || '')
     const employeeName = toNonEmptyString(doc.employeeDetails?.name || userName)
     const employeeSalary = typeof doc.employeeDetails?.salary === 'number' ? doc.employeeDetails.salary : undefined
+    const employeeSalaryType = toNonEmptyString(doc.employeeDetails?.salaryType || '') || undefined
     const employeeLoginTime = toNonEmptyString(doc.employeeDetails?.loginTime || '')
     const employeeLogoutTime = toNonEmptyString(doc.employeeDetails?.logoutTime || '')
     const employeeWorkingHours = typeof doc.employeeDetails?.workingHours === 'number' ? doc.employeeDetails.workingHours : undefined
@@ -983,6 +985,7 @@ export const getAttendanceReportData = async (
       id,
       date: dateIso,
       employeeSalary,
+      employeeSalaryType,
       employeeWorkingHours,
       employeeLoginTime,
       employeeLogoutTime,

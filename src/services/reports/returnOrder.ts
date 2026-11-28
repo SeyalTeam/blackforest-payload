@@ -12,6 +12,7 @@ dayjs.tz.setDefault('Asia/Kolkata')
 export type ReturnOrderReportItem = {
   id: string
   itemId?: string
+  itemIndex?: number
   returnNumber: string
   status: string
   product: string
@@ -65,6 +66,7 @@ type ReturnOrderReportArgs = {
 type RawReturnOrderItem = {
   id: unknown
   itemId: unknown
+  itemIndex?: unknown
   returnNumber: unknown
   status: unknown
   product: unknown
@@ -77,6 +79,7 @@ type RawReturnOrderItem = {
   prefix: unknown
   imageUrl: unknown
   proofPhoto: unknown
+  itemVerification?: unknown
   verification?: unknown
 }
 
@@ -269,7 +272,10 @@ export const getReturnOrderReportData = async (
       $match: matchQuery,
     },
     {
-      $unwind: '$items',
+      $unwind: {
+        path: '$items',
+        includeArrayIndex: 'itemIndex',
+      },
     },
     {
       $lookup: {
@@ -327,7 +333,8 @@ export const getReturnOrderReportData = async (
         items: {
           $push: {
             id: { $toString: '$_id' },
-            itemId: { $toString: '$items._id' },
+            itemId: { $ifNull: [{ $toString: '$items._id' }, '$items.id'] },
+            itemIndex: '$itemIndex',
             returnNumber: '$returnNumber',
             status: '$status',
             product: '$items.name',
@@ -340,6 +347,7 @@ export const getReturnOrderReportData = async (
             filename: '$mediaInfo.filename',
             prefix: '$mediaInfo.prefix',
             proofPhoto: '$items.proofPhoto',
+            itemVerification: '$items.verification',
             verification: '$verification',
           },
         },
@@ -447,6 +455,27 @@ export const getReturnOrderReportData = async (
     }
   }
 
+  const hasItemVerification = (ver: any): boolean => {
+    if (!ver || typeof ver !== 'object') return false
+    return Boolean(
+      ver.overallStatus ||
+        ver.accountant?.status ||
+        ver.watcher?.status ||
+        ver.manager?.status,
+    )
+  }
+
+  const ordersWithItemVerification = new Set<string>()
+  for (const group of groupsRaw) {
+    if (Array.isArray(group.items)) {
+      for (const it of group.items) {
+        if (hasItemVerification(it.itemVerification)) {
+          ordersWithItemVerification.add(toNonEmptyString(it.id))
+        }
+      }
+    }
+  }
+
   const groups: ReturnOrderReportGroup[] = groupsRaw.map((group) => {
     const items = (Array.isArray(group.items) ? [...group.items] : [])
       .sort((a, b) => new Date(toDateString(b.time)).getTime() - new Date(toDateString(a.time)).getTime())
@@ -469,9 +498,17 @@ export const getReturnOrderReportData = async (
           }
         }
 
+        const orderIdStr = toNonEmptyString(item.id)
+        const resolvedVerification = hasItemVerification(item.itemVerification)
+          ? item.itemVerification
+          : ordersWithItemVerification.has(orderIdStr)
+            ? undefined
+            : (item as any).verification || undefined
+
         return {
-          id: toNonEmptyString(item.id),
+          id: orderIdStr,
           itemId: toNonEmptyString(item.itemId),
+          itemIndex: typeof item.itemIndex === 'number' ? item.itemIndex : undefined,
           returnNumber: toNonEmptyString(item.returnNumber),
           status: toNonEmptyString(item.status, 'pending'),
           product: toNonEmptyString(item.product),
@@ -481,8 +518,8 @@ export const getReturnOrderReportData = async (
           notes: toNonEmptyString(item.notes, '') || undefined,
           time: toDateString(item.time),
           imageUrl: resolvedUrl,
-          verification: (item as any).verification || undefined,
-          verificationJson: (item as any).verification ? JSON.stringify((item as any).verification) : null,
+          verification: resolvedVerification,
+          verificationJson: resolvedVerification ? JSON.stringify(resolvedVerification) : null,
         }
       })
 

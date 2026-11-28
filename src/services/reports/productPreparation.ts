@@ -23,6 +23,10 @@ type RawPreparationItem = {
   finalLineTotal: unknown
   invoiceNumber: unknown
   kotNumber: unknown
+  section?: string
+  tableNumber?: string
+  itemStatus?: string
+  itemId?: string
   orderedAt: unknown
   preparedAt: unknown
   preparingTime: unknown
@@ -50,6 +54,11 @@ export type ProductPreparationBillDetail = {
   billNumber: string
   billingId: string
   billStatus?: string
+  kotNumber?: string
+  tableNumber?: string
+  section?: string
+  itemStatus?: string
+  itemId?: string
   chefName: string
   confirmedByName: string
   deliveredByName: string
@@ -788,6 +797,20 @@ export const getProductPreparationBillDetailsData = async (
         branchId: toId(b.branch),
         invoiceNumber: b.invoiceNumber,
         kotNumber: b.kotNumber,
+        section:
+          typeof b.tableDetails?.section === 'string' && b.tableDetails.section.trim()
+            ? b.tableDetails.section.trim()
+            : typeof b.section === 'string'
+              ? b.section.trim()
+              : '',
+        tableNumber:
+          b.tableDetails?.tableNumber != null && String(b.tableDetails.tableNumber).trim()
+            ? String(b.tableDetails.tableNumber).trim()
+            : b.tableNumber != null
+              ? String(b.tableNumber).trim()
+              : '',
+        itemStatus: typeof item.status === 'string' ? item.status : '',
+        itemId: item._id ? String(item._id) : item.id ? String(item.id) : '',
         billCreatedAt: b.createdAt,
         productId: item.product,
         orderedAt: item.orderedAt,
@@ -893,6 +916,11 @@ export const getProductPreparationBillDetailsData = async (
         billNumber: resolveBillNumber(row),
         billingId: toId(row.billingId) || '',
         billStatus: typeof row.billStatus === 'string' ? row.billStatus : '',
+        kotNumber: row.kotNumber != null ? String(row.kotNumber).trim() : '',
+        tableNumber: typeof row.tableNumber === 'string' ? row.tableNumber : '',
+        section: typeof row.section === 'string' ? row.section : '',
+        itemStatus: typeof row.itemStatus === 'string' ? row.itemStatus : '',
+        itemId: typeof row.itemId === 'string' ? row.itemId : '',
         chefName: typeof row.chefName === 'string' ? row.chefName : '--',
         confirmedByName: typeof row.confirmedByName === 'string' ? row.confirmedByName : '--',
         deliveredByName: typeof row.deliveredByName === 'string' && row.deliveredByName ? row.deliveredByName : '--',
@@ -942,6 +970,11 @@ export const getProductPreparationBillDetailsData = async (
       billNumber: item.billNumber,
       billingId: item.billingId,
       billStatus: item.billStatus,
+      kotNumber: item.kotNumber,
+      tableNumber: item.tableNumber,
+      section: item.section,
+      itemStatus: item.itemStatus,
+      itemId: item.itemId,
       amount: item.amount,
       chefName: item.chefName,
       confirmedByName: item.confirmedByName,

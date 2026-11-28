@@ -53,6 +53,11 @@ type ProductPreparationBillDetailsQueryResponse = {
         billNumber?: unknown
         billingId?: unknown
         billStatus?: unknown
+        kotNumber?: unknown
+        tableNumber?: unknown
+        section?: unknown
+        itemStatus?: unknown
+        itemId?: unknown
         chefName?: unknown
         confirmedByName?: unknown
         deliveredByName?: unknown
@@ -97,6 +102,11 @@ const PRODUCT_PREPARATION_BILL_DETAILS_QUERY = `
         billingId
         billNumber
         billStatus
+        kotNumber
+        tableNumber
+        section
+        itemStatus
+        itemId
         amount
         productId
         productName
@@ -230,6 +240,55 @@ const StageTimeCell: React.FC<{
   )
 }
 
+const LiveElapsedTimer: React.FC<{
+  orderedAt?: string | null
+  isFinished: boolean
+  fallbackMinutes?: number | null
+}> = ({ orderedAt, isFinished, fallbackMinutes }) => {
+  const [, setTick] = useState(0)
+
+  useEffect(() => {
+    if (isFinished || !orderedAt || orderedAt === '--') return
+    const id = setInterval(() => {
+      setTick((t) => (t + 1) % 1000000)
+    }, 1000)
+    return () => clearInterval(id)
+  }, [isFinished, orderedAt])
+
+  let formatted = '00:00'
+  if (isFinished && fallbackMinutes != null && Number.isFinite(fallbackMinutes)) {
+    const totalSec = Math.max(0, Math.round(fallbackMinutes * 60))
+    const m = Math.floor(totalSec / 60)
+    const s = totalSec % 60
+    formatted = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  } else if (orderedAt && orderedAt !== '--') {
+    const startDate = parseBillTimeValue(orderedAt, new Date())
+    if (startDate) {
+      let diffMs = Date.now() - startDate.getTime()
+      if (diffMs < -60000) diffMs += 24 * 60 * 60 * 1000
+      else if (diffMs < 0) diffMs = 0
+      const totalSec = Math.max(0, Math.floor(diffMs / 1000))
+      const h = Math.floor(totalSec / 3600)
+      const m = Math.floor((totalSec % 3600) / 60)
+      const s = totalSec % 60
+      formatted =
+        h > 0
+          ? `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+          : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    }
+  }
+
+  return (
+    <span className="pt-kot-timer-pill" title={isFinished ? 'Completed time' : 'Elapsed time since ordered'}>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+      </svg>
+      <span>{formatted}</span>
+    </span>
+  )
+}
+
 const ProductTimeReport: React.FC = () => {
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([new Date(), new Date()])
   const [rangeStartDate, rangeEndDate] = dateRange
@@ -245,6 +304,12 @@ const ProductTimeReport: React.FC = () => {
 
   const [stationType, setStationType] = useState<'kitchen' | 'counter'>('kitchen')
   const [isLive, setIsLive] = useState(false)
+  const [viewMode, setViewMode] = useState<'list' | 'grid' | 'combine'>('list')
+  const [cardStageFilters, setCardStageFilters] = useState<Record<string, StageKey | null>>({})
+  const [selectedTableFilterKey, setSelectedTableFilterKey] = useState<string | null>(null)
+  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; role: string } | null>(null)
+  const [selectedCardItems, setSelectedCardItems] = useState<Record<string, string[]>>({})
+  const [updatingCardKey, setUpdatingCardKey] = useState<string | null>(null)
   const [activeStageFilter, setActiveStageFilter] = useState<StageKey | null>(null)
   const [selectedBranch, setSelectedBranch] = useState<string>('')
   const [selectedKitchen, setSelectedKitchen] = useState<string>('')
@@ -376,6 +441,34 @@ const ProductTimeReport: React.FC = () => {
     fetchMetadata()
   }, [])
 
+  useEffect(() => {
+    let active = true
+    const fetchCurrentUser = async () => {
+      try {
+        const res = await fetch('/api/users/me', { cache: 'no-store' })
+        if (!res.ok) return
+        const data = (await res.json()) as {
+          user?: { id?: string; _id?: string; name?: string; email?: string; role?: string }
+        }
+        const u = data?.user
+        const id = u?.id || u?._id || ''
+        if (active && id) {
+          setCurrentUser({
+            id: String(id),
+            name: String(u?.name || u?.email || 'Admin'),
+            role: String(u?.role || ''),
+          })
+        }
+      } catch {
+        // ignore auth lookup errors
+      }
+    }
+    fetchCurrentUser()
+    return () => {
+      active = false
+    }
+  }, [])
+
   const filteredKitchens = useMemo(() => {
     if (!selectedBranch) return []
     if (selectedBranch === 'all') return kitchens
@@ -391,7 +484,7 @@ const ProductTimeReport: React.FC = () => {
 
     setSelectedKitchen((previous) => {
       if (previous && filteredKitchens.some((kitchen) => kitchen.id === previous)) return previous
-      return '' // Don't auto-select first one to prevent loading data on branch change
+      return filteredKitchens[0]?.id || ''
     })
   }, [filteredKitchens])
 
@@ -629,6 +722,11 @@ const ProductTimeReport: React.FC = () => {
                     ? entry.billNumber
                     : 'Unknown',
                 billStatus: typeof entry.billStatus === 'string' ? entry.billStatus : '',
+                kotNumber: typeof entry.kotNumber === 'string' ? entry.kotNumber : '',
+                tableNumber: typeof entry.tableNumber === 'string' ? entry.tableNumber : '',
+                section: typeof entry.section === 'string' ? entry.section : '',
+                itemStatus: typeof entry.itemStatus === 'string' ? entry.itemStatus : '',
+                itemId: typeof entry.itemId === 'string' ? entry.itemId : '',
                 productId: typeof entry.productId === 'string' ? entry.productId.trim() : '',
                 productName: typeof entry.productName === 'string' ? entry.productName : '--',
                 orderedAt: typeof entry.orderedAt === 'string' ? entry.orderedAt : '--',
@@ -1239,10 +1337,224 @@ const ProductTimeReport: React.FC = () => {
     }
   }, [activeStageFilter, activeStagesData])
 
+  const tablePriorityButtons = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        key: string
+        label: string
+        kotShort: string
+        isShared: boolean
+        orderedAt: string
+        startMs: number
+        isFinished: boolean
+        maxElapsedMins: number | null
+        hasExceeded: boolean
+      }
+    >()
+
+    displayDetails.forEach((entry, idx) => {
+      const key = entry.billingId || entry.billNumber || `row-${idx}`
+      const rawTable = (entry.tableNumber || '').trim()
+      const rawSection = (entry.section || '').trim()
+      const isShared = /-s-/i.test(rawTable) || rawSection.toLowerCase() === 'shared tables'
+      const cleanTable = isShared
+        ? rawTable.replace(/-s-.*$/i, '').replace(/-[a-z0-9]+$/i, '').trim() || rawTable
+        : rawTable
+      const cleanSection = rawSection.toLowerCase() === 'shared tables' ? '' : rawSection
+      const label = cleanTable
+        ? `Table ${cleanSection ? `${cleanSection} ${cleanTable}` : cleanTable}`
+        : rawSection || (stationType === 'counter' ? 'Counter' : `#${entry.billNumber}`)
+
+      const rawKot = (entry.kotNumber || '').trim()
+      const kotMatch = rawKot.match(/kot[\s\-_]*(\d+)$/i)
+      const kotShort = kotMatch ? `KOT ${kotMatch[1]}` : /^\d+$/.test(rawKot) ? `KOT ${rawKot}` : ''
+
+      const parsedStart =
+        entry.orderedAt && entry.orderedAt !== '--'
+          ? parseBillTimeValue(entry.orderedAt, new Date())
+          : null
+      const startMs = parsedStart ? parsedStart.getTime() : Number.MAX_SAFE_INTEGER
+
+      const billDone = ['completed', 'settled', 'settlement', 'cancelled'].includes(
+        String(entry.billStatus || '').toLowerCase(),
+      )
+      const itemDone =
+        billDone ||
+        isTimestampPresent(entry.deliveredAt) ||
+        entry.waiterDeliverTime != null ||
+        String(entry.itemStatus || '').toLowerCase() === 'delivered'
+      const itemElapsed =
+        entry.waiterDeliverTime ??
+        entry.supervisorConfirmingTime ??
+        entry.preparationTime ??
+        null
+      const itemExceeded =
+        entry.status === 'exceeded' ||
+        entry.chefStatus === 'exceeded' ||
+        entry.supervisorStatus === 'exceeded' ||
+        entry.waiterStatus === 'exceeded'
+
+      const existing = map.get(key)
+      if (!existing) {
+        map.set(key, {
+          key,
+          label,
+          kotShort,
+          isShared,
+          orderedAt: entry.orderedAt,
+          startMs,
+          isFinished: itemDone,
+          maxElapsedMins: itemElapsed,
+          hasExceeded: itemExceeded,
+        })
+      } else {
+        if (startMs < existing.startMs) {
+          existing.startMs = startMs
+          existing.orderedAt = entry.orderedAt
+        }
+        if (!itemDone) existing.isFinished = false
+        if (itemExceeded) existing.hasExceeded = true
+        if (itemElapsed != null) {
+          existing.maxElapsedMins =
+            existing.maxElapsedMins == null ? itemElapsed : Math.max(existing.maxElapsedMins, itemElapsed)
+        }
+      }
+    })
+
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.isFinished !== b.isFinished) return a.isFinished ? 1 : -1
+      if (a.hasExceeded !== b.hasExceeded) return a.hasExceeded ? -1 : 1
+      return a.startMs - b.startMs
+    })
+  }, [displayDetails, stationType])
+
+  useEffect(() => {
+    if (
+      selectedTableFilterKey &&
+      !tablePriorityButtons.some((btn) => btn.key === selectedTableFilterKey)
+    ) {
+      setSelectedTableFilterKey(null)
+    }
+  }, [selectedTableFilterKey, tablePriorityButtons])
+
   const tableRows = useMemo(() => {
-    if (!activeStageFilter) return displayDetails
-    return displayDetails.filter((item) => getItemStage(item, stationType) === activeStageFilter)
-  }, [displayDetails, activeStageFilter, stationType])
+    let rows = displayDetails
+    if (activeStageFilter) {
+      rows = rows.filter((item) => getItemStage(item, stationType) === activeStageFilter)
+    }
+    if (selectedTableFilterKey) {
+      rows = rows.filter((item, idx) => (item.billingId || item.billNumber || `row-${idx}`) === selectedTableFilterKey)
+    }
+    return rows
+  }, [displayDetails, activeStageFilter, stationType, selectedTableFilterKey])
+
+  const tableWiseGroups = useMemo(() => {
+    const groupsMap = new Map<
+      string,
+      {
+        key: string
+        billingId: string
+        billNumber: string
+        kotNumber: string
+        tableNumber: string
+        section: string
+        orderedAt: string
+        waiterName: string
+        billStatus: string
+        items: BillPreparationDetail[]
+        primaryEntry: BillPreparationDetail
+      }
+    >()
+
+    tableRows.forEach((entry, idx) => {
+      const groupKey = entry.billingId || entry.billNumber || `row-${idx}`
+      const existing = groupsMap.get(groupKey)
+      if (!existing) {
+        const resolvedWaiter =
+          entry.waiterName && entry.waiterName !== '--'
+            ? entry.waiterName
+            : entry.deliveredByName && entry.deliveredByName !== '--'
+              ? entry.deliveredByName
+              : ''
+        groupsMap.set(groupKey, {
+          key: groupKey,
+          billingId: entry.billingId,
+          billNumber: entry.billNumber,
+          kotNumber: entry.kotNumber || '',
+          tableNumber: entry.tableNumber || '',
+          section: entry.section || '',
+          orderedAt: entry.orderedAt,
+          waiterName: resolvedWaiter,
+          billStatus: entry.billStatus || '',
+          items: [entry],
+          primaryEntry: entry,
+        })
+      } else {
+        existing.items.push(entry)
+        if (entry.orderedAt && entry.orderedAt !== '--') {
+          const existingDate = parseBillTimeValue(existing.orderedAt, new Date())
+          const entryDate = parseBillTimeValue(entry.orderedAt, new Date())
+          if (!existingDate || (entryDate && entryDate.getTime() < existingDate.getTime())) {
+            existing.orderedAt = entry.orderedAt
+          }
+        }
+        if (!existing.kotNumber && entry.kotNumber) existing.kotNumber = entry.kotNumber
+        if (!existing.tableNumber && entry.tableNumber) existing.tableNumber = entry.tableNumber
+        if (!existing.section && entry.section) existing.section = entry.section
+        if (!existing.waiterName) {
+          const w =
+            entry.waiterName && entry.waiterName !== '--'
+              ? entry.waiterName
+              : entry.deliveredByName && entry.deliveredByName !== '--'
+                ? entry.deliveredByName
+                : ''
+          if (w) existing.waiterName = w
+        }
+      }
+    })
+
+    return Array.from(groupsMap.values())
+  }, [tableRows])
+
+  const productWiseGroups = useMemo(() => {
+    const groupsMap = new Map<
+      string,
+      {
+        key: string
+        productId: string
+        productName: string
+        totalQuantity: number
+        billIds: Set<string>
+        items: BillPreparationDetail[]
+      }
+    >()
+
+    tableRows.forEach((entry, idx) => {
+      const groupKey = entry.productId || entry.productName || `prod-${idx}`
+      const qty = typeof entry.quantity === 'number' && Number.isFinite(entry.quantity) && entry.quantity > 0 ? entry.quantity : 1
+      const billKey = entry.billingId || entry.billNumber || `bill-${idx}`
+      const existing = groupsMap.get(groupKey)
+      if (!existing) {
+        const billIds = new Set<string>()
+        billIds.add(billKey)
+        groupsMap.set(groupKey, {
+          key: groupKey,
+          productId: entry.productId,
+          productName: entry.productName || '--',
+          totalQuantity: qty,
+          billIds,
+          items: [entry],
+        })
+      } else {
+        existing.totalQuantity += qty
+        existing.billIds.add(billKey)
+        existing.items.push(entry)
+      }
+    })
+
+    return Array.from(groupsMap.values()).sort((a, b) => b.totalQuantity - a.totalQuantity)
+  }, [tableRows])
 
   const topCategoryRows = useMemo(() => {
     const categoryCountMap = new Map<
@@ -1480,9 +1792,114 @@ const ProductTimeReport: React.FC = () => {
     })
   }
 
+  const toggleCardItemSelection = (cardKey: string, itemKey: string) => {
+    setSelectedCardItems((prev) => {
+      const current = prev[cardKey] || []
+      const exists = current.includes(itemKey)
+      const next = exists ? current.filter((k) => k !== itemKey) : [...current, itemKey]
+      return {
+        ...prev,
+        [cardKey]: next,
+      }
+    })
+  }
+
+  const handleUpdateSelectedCardItems = async (
+    billingId: string,
+    cardKey: string,
+    entriesToUpdate: BillPreparationDetail[],
+  ) => {
+    if (!billingId || entriesToUpdate.length === 0 || updatingCardKey) return
+    setUpdatingCardKey(cardKey)
+    try {
+      const getRes = await fetch(`/api/billings/${encodeURIComponent(billingId)}?depth=0`, {
+        cache: 'no-store',
+      })
+      if (!getRes.ok) {
+        throw new Error(`Failed to load bill (HTTP ${getRes.status})`)
+      }
+      const billDoc = (await getRes.json()) as { items?: Array<Record<string, unknown>> }
+      const existingItems = Array.isArray(billDoc?.items) ? billDoc.items : []
+      const nowIso = new Date().toISOString()
+
+      const matchedEntries = [...entriesToUpdate]
+      const updatedItems = existingItems.map((rawItem) => {
+        const rawItemId = String(rawItem._id || rawItem.id || '')
+        const rawProductId =
+          typeof rawItem.product === 'object' && rawItem.product !== null
+            ? String((rawItem.product as { id?: unknown; _id?: unknown }).id || (rawItem.product as { _id?: unknown })._id || '')
+            : String(rawItem.product || '')
+
+        let matchIdx = -1
+        if (rawItemId) {
+          matchIdx = matchedEntries.findIndex((e) => e.itemId && e.itemId === rawItemId)
+        }
+        if (matchIdx === -1) {
+          matchIdx = matchedEntries.findIndex((e) => !e.itemId && e.productId === rawProductId)
+        }
+        if (matchIdx === -1) return rawItem
+
+        const [matchedEntry] = matchedEntries.splice(matchIdx, 1)
+        const currentStage = getItemStage(matchedEntry, stationType)
+        if (currentStage === 'completed') return rawItem
+
+        const nextStatus =
+          currentStage === 'chef'
+            ? 'prepared'
+            : currentStage === 'supervisor'
+              ? 'confirmed'
+              : 'delivered'
+
+        const patchFields: Record<string, unknown> = {
+          ...rawItem,
+          status: nextStatus,
+        }
+
+        if (nextStatus === 'prepared') {
+          patchFields.preparedAt = nowIso
+          if (currentUser?.id) patchFields.preparedBy = currentUser.id
+        } else if (nextStatus === 'confirmed') {
+          patchFields.confirmedAt = nowIso
+          if (currentUser?.id) patchFields.confirmedBy = currentUser.id
+        } else if (nextStatus === 'delivered') {
+          patchFields.deliveredAt = nowIso
+          if (currentUser?.id) patchFields.deliveredBy = currentUser.id
+        }
+
+        return patchFields
+      })
+
+      const patchRes = await fetch(`/api/billings/${encodeURIComponent(billingId)}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          items: updatedItems,
+          ...(currentUser?.id ? { actorUserId: currentUser.id } : {}),
+        }),
+      })
+      if (!patchRes.ok) {
+        throw new Error(`Failed to update bill items (HTTP ${patchRes.status})`)
+      }
+
+      setSelectedCardItems((prev) => {
+        const next = { ...prev }
+        delete next[cardKey]
+        return next
+      })
+      await fetchBillDetails(true)
+    } catch (err) {
+      setBillDetailsError(err instanceof Error ? err.message : 'Failed to update items')
+    } finally {
+      setUpdatingCardKey(null)
+    }
+  }
+
   const handleClearAllFilters = () => {
     setIsLive(false)
     setActiveStageFilter(null)
+    setSelectedTableFilterKey(null)
     setStationType('kitchen')
     setSelectedBranch('')
     setSelectedKitchen('')
@@ -1709,6 +2126,58 @@ const ProductTimeReport: React.FC = () => {
               <option value="chef_preparing_time">Preparing Time Given (Chef)</option>
             </select>
           </label>
+
+          <div className="pt-view-toggle-wrap">
+            <span className="pt-view-toggle-label">View</span>
+            <div className="pt-view-toggle" role="group" aria-label="Layout view mode">
+              <button
+                type="button"
+                className={`pt-view-toggle-btn ${viewMode === 'list' ? 'is-active' : ''}`}
+                onClick={() => setViewMode('list')}
+                aria-pressed={viewMode === 'list'}
+                title="List View (Table)"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <line x1="8" y1="6" x2="21" y2="6" />
+                  <line x1="8" y1="12" x2="21" y2="12" />
+                  <line x1="8" y1="18" x2="21" y2="18" />
+                  <line x1="3" y1="6" x2="3.01" y2="6" />
+                  <line x1="3" y1="12" x2="3.01" y2="12" />
+                  <line x1="3" y1="18" x2="3.01" y2="18" />
+                </svg>
+                <span>List</span>
+              </button>
+              <button
+                type="button"
+                className={`pt-view-toggle-btn ${viewMode === 'grid' ? 'is-active' : ''}`}
+                onClick={() => setViewMode('grid')}
+                aria-pressed={viewMode === 'grid'}
+                title="Grid View (Table-Wise Cards)"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                  <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                  <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                  <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                </svg>
+                <span>Grid</span>
+              </button>
+              <button
+                type="button"
+                className={`pt-view-toggle-btn ${viewMode === 'combine' ? 'is-active' : ''}`}
+                onClick={() => setViewMode('combine')}
+                aria-pressed={viewMode === 'combine'}
+                title="Combine View (Product-Wise Cards)"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                  <polyline points="2 17 12 22 22 17" />
+                  <polyline points="2 12 12 17 22 12" />
+                </svg>
+                <span>Combine</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         {activeStageItems.length > 0 && (
@@ -1735,6 +2204,45 @@ const ProductTimeReport: React.FC = () => {
         )}
       </div>
 
+      {tablePriorityButtons.length > 0 && (
+        <div className="pt-table-priority-bar" role="group" aria-label="Filter by table priority">
+          <button
+            type="button"
+            className={`pt-table-priority-btn ${selectedTableFilterKey === null ? 'is-active' : ''}`}
+            onClick={() => setSelectedTableFilterKey(null)}
+            aria-pressed={selectedTableFilterKey === null}
+          >
+            <span>All Tables</span>
+            <span className="pt-table-priority-count">{tablePriorityButtons.length}</span>
+          </button>
+          {tablePriorityButtons.map((btn) => {
+            const isSelected = selectedTableFilterKey === btn.key
+            return (
+              <button
+                key={btn.key}
+                type="button"
+                className={`pt-table-priority-btn ${isSelected ? 'is-active' : ''} ${btn.hasExceeded ? 'is-exceeded' : ''} ${btn.isFinished ? 'is-done' : ''}`}
+                onClick={() =>
+                  setSelectedTableFilterKey((prev) => (prev === btn.key ? null : btn.key))
+                }
+                aria-pressed={isSelected}
+                title={`${btn.label}${btn.kotShort ? ` (${btn.kotShort})` : ''}`}
+              >
+                <span className="pt-table-priority-name">
+                  {btn.label}
+                  {btn.isShared && btn.kotShort ? ` (${btn.kotShort})` : ''}
+                </span>
+                <LiveElapsedTimer
+                  orderedAt={btn.orderedAt}
+                  isFinished={btn.isFinished}
+                  fallbackMinutes={btn.maxElapsedMins}
+                />
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {error && <p className="state error">{error}</p>}
       {hasRequiredFilters && (loading || loadingBillDetails) && <p className="state">Loading report...</p>}
 
@@ -1744,7 +2252,8 @@ const ProductTimeReport: React.FC = () => {
 
       {billDetails.length > 0 && (
         <div className="report-panels">
-          <div className="pt-table-wrap details-table-wrap">
+          {viewMode === 'list' ? (
+            <div className="pt-table-wrap details-table-wrap">
             <table className="pt-report-table pt-details-table">
                 <thead>
                   {stationType === 'counter' ? (
@@ -1980,6 +2489,647 @@ const ProductTimeReport: React.FC = () => {
                 </tbody>
               </table>
           </div>
+          ) : viewMode === 'grid' ? (
+            <div className="pt-kot-grid-wrap">
+              {loadingBillDetails && <p className="state">Loading...</p>}
+              {!loadingBillDetails && billDetailsError && <p className="state error">{billDetailsError}</p>}
+              {!loadingBillDetails && !billDetailsError && tableWiseGroups.length === 0 && (
+                <p className="state">
+                  {activeStageFilter ? `No products currently in ${activeStageFilter} stage.` : 'No details found.'}
+                </p>
+              )}
+              {!loadingBillDetails && !billDetailsError && tableWiseGroups.length > 0 && (
+                <div className="pt-kot-grid">
+                  {tableWiseGroups.map((group) => {
+                    const hasAnyExceeded = group.items.some(
+                      (item) =>
+                        item.status === 'exceeded' ||
+                        item.chefStatus === 'exceeded' ||
+                        item.supervisorStatus === 'exceeded' ||
+                        item.waiterStatus === 'exceeded',
+                    )
+                    const billDone = ['completed', 'settled', 'settlement', 'cancelled'].includes(
+                      String(group.billStatus || '').toLowerCase(),
+                    )
+                    const allItemsDelivered =
+                      billDone ||
+                      group.items.every(
+                        (item) =>
+                          isTimestampPresent(item.deliveredAt) ||
+                          item.waiterDeliverTime != null ||
+                          String(item.itemStatus || '').toLowerCase() === 'delivered',
+                      )
+                    const allItemsPrepared =
+                      allItemsDelivered ||
+                      group.items.every(
+                        (item) =>
+                          isTimestampPresent(item.preparedAt) ||
+                          isTimestampPresent(item.confirmedAt) ||
+                          item.preparationTime != null,
+                      )
+
+                    const cardToneClass = hasAnyExceeded ? 'tone-exceeded' : 'tone-ontime'
+                    const displayBillNumber = group.billNumber.startsWith('#')
+                      ? group.billNumber
+                      : `#${group.billNumber}`
+                    const shortKotLabel = (() => {
+                      const raw = (group.kotNumber || '').trim()
+                      if (!raw) return ''
+                      const kotMatch = raw.match(/kot[\s\-_]*(\d+)$/i)
+                      if (kotMatch) return `KOT ${kotMatch[1]}`
+                      if (/^\d+$/.test(raw)) return `KOT ${raw}`
+                      return raw.toUpperCase().startsWith('KOT') ? raw : `KOT ${raw}`
+                    })()
+                    const isSharedTable =
+                      /-s-/i.test(group.tableNumber) ||
+                      group.section.trim().toLowerCase() === 'shared tables'
+                    const cleanTableNumber = isSharedTable
+                      ? group.tableNumber
+                          .replace(/-s-.*$/i, '')
+                          .replace(/-[a-z0-9]+$/i, '')
+                          .trim() || group.tableNumber.trim()
+                      : group.tableNumber.trim()
+                    const cleanSection =
+                      group.section.trim().toLowerCase() === 'shared tables'
+                        ? ''
+                        : group.section.trim()
+                    const orderTypeLabel =
+                      group.tableNumber || group.section
+                        ? 'Dine In'
+                        : stationType === 'counter'
+                          ? 'Counter'
+                          : 'Takeaway'
+                    const tableDisplay = cleanTableNumber
+                      ? `Table ${cleanSection ? `${cleanSection} ${cleanTableNumber}` : cleanTableNumber}`
+                      : group.section.trim()
+                    const servingLabel = allItemsDelivered
+                      ? 'Serving: Delivered'
+                      : allItemsPrepared
+                        ? 'Serving: Ready'
+                        : 'Serving: Pending'
+
+                    const maxElapsedMins = group.items.reduce<number | null>((acc, item) => {
+                      const val =
+                        item.waiterDeliverTime ??
+                        item.supervisorConfirmingTime ??
+                        item.preparationTime ??
+                        null
+                      if (val == null) return acc
+                      return acc == null ? val : Math.max(acc, val)
+                    }, null)
+
+                    const activeCardRole = cardStageFilters[group.key] || null
+                    const roleCounts: Record<StageKey, number> = {
+                      chef: 0,
+                      supervisor: 0,
+                      waiter: 0,
+                    }
+                    group.items.forEach((item) => {
+                      const st = getItemStage(item, stationType)
+                      if (st === 'chef' || st === 'supervisor' || st === 'waiter') {
+                        roleCounts[st] += 1
+                      }
+                    })
+                    const visibleCardItems = activeCardRole
+                      ? group.items.filter((item) => getItemStage(item, stationType) === activeCardRole)
+                      : group.items
+                    const cardRoleOptions: { key: StageKey; label: string }[] =
+                      stationType === 'counter'
+                        ? [
+                            { key: 'supervisor', label: 'SUPERVISOR' },
+                            {
+                              key: 'waiter',
+                              label: group.waiterName
+                                ? `WAITER - ${group.waiterName.toUpperCase()}`
+                                : 'WAITER',
+                            },
+                          ]
+                        : [
+                            { key: 'chef', label: 'CHEF' },
+                            { key: 'supervisor', label: 'SUPERVISOR' },
+                            {
+                              key: 'waiter',
+                              label: group.waiterName
+                                ? `WAITER - ${group.waiterName.toUpperCase()}`
+                                : 'WAITER',
+                            },
+                          ]
+
+                    const primaryTitle = shortKotLabel
+                      ? `${tableDisplay || orderTypeLabel} - ${shortKotLabel}`
+                      : tableDisplay || displayBillNumber
+
+                    return (
+                      <div key={group.key} className={`pt-kot-card ${cardToneClass}`}>
+                        <div className="pt-kot-card-header">
+                          <div className="pt-kot-card-top-row">
+                            <div className="pt-kot-card-title-group">
+                              <span className="pt-kot-bill-num" title={displayBillNumber}>
+                                {primaryTitle}
+                              </span>
+                              {isSharedTable && (
+                                <span className="pt-kot-shared-pill">Shared Table</span>
+                              )}
+                              <span className="pt-kot-header-dining">
+                                <span className={`pt-kot-order-type ${group.tableNumber || group.section ? 'is-dinein' : ''}`}>
+                                  {orderTypeLabel}
+                                </span>
+                                <span className="pt-kot-meta-dot">·</span>
+                                <span className="pt-kot-meta-time">{formatRailwayTime(group.orderedAt)}</span>
+                              </span>
+                            </div>
+                            <LiveElapsedTimer
+                              orderedAt={group.orderedAt}
+                              isFinished={allItemsDelivered}
+                              fallbackMinutes={maxElapsedMins}
+                            />
+                          </div>
+
+                          <div className="pt-kot-card-status-row">
+                            <div className="pt-kot-role-filter-group" role="group" aria-label="Filter items by role">
+                              {cardRoleOptions.map((roleOpt) => {
+                                const isActiveRole = activeCardRole === roleOpt.key
+                                const count = roleCounts[roleOpt.key]
+                                return (
+                                  <button
+                                    key={roleOpt.key}
+                                    type="button"
+                                    className={`pt-kot-role-filter-btn role-${roleOpt.key} ${isActiveRole ? 'is-active' : ''}`}
+                                    onClick={() =>
+                                      setCardStageFilters((prev) => ({
+                                        ...prev,
+                                        [group.key]: prev[group.key] === roleOpt.key ? null : roleOpt.key,
+                                      }))
+                                    }
+                                    aria-pressed={isActiveRole}
+                                  >
+                                    <span>{roleOpt.label}</span>
+                                    {count > 0 && <span className="pt-kot-role-count">{count}</span>}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="pt-kot-card-items">
+                          {visibleCardItems.length === 0 ? (
+                            <p className="pt-kot-empty-stage">
+                              No items in {activeCardRole} stage.
+                            </p>
+                          ) : (
+                            visibleCardItems.map((item, itemIdx) => {
+                            const itemStage = getItemStage(item, stationType)
+                            const itemDone = itemStage === 'completed'
+                            const itemReady = itemStage === 'supervisor' || itemStage === 'waiter'
+                            const itemExceeded =
+                              item.status === 'exceeded' ||
+                              item.chefStatus === 'exceeded' ||
+                              item.supervisorStatus === 'exceeded' ||
+                              item.waiterStatus === 'exceeded'
+
+                            const stageHint = itemDone
+                              ? 'Delivered'
+                              : itemStage === 'waiter'
+                                ? 'Waiter'
+                                : itemStage === 'supervisor'
+                                  ? 'Supervisor'
+                                  : 'Chef'
+
+                            const deliveryPersonName =
+                              item.deliveredByName && item.deliveredByName !== '--'
+                                ? item.deliveredByName
+                                : item.waiterName && item.waiterName !== '--'
+                                  ? item.waiterName
+                                  : '--'
+                            const chefTimeDisplay =
+                              item.preparationTime != null
+                                ? formatMinutes(item.preparationTime).replace(/\s*mins?$/i, '')
+                                : isTimestampPresent(item.preparedAt)
+                                  ? formatRailwayTime(item.preparedAt)
+                                  : '--'
+                            const supTimeDisplay =
+                              item.supervisorConfirmingTime != null
+                                ? formatMinutes(item.supervisorConfirmingTime).replace(/\s*mins?$/i, '')
+                                : isTimestampPresent(item.confirmedAt)
+                                  ? formatRailwayTime(item.confirmedAt)
+                                  : '--'
+                            const delTimeDisplay =
+                              item.waiterDeliverTime != null
+                                ? formatMinutes(item.waiterDeliverTime).replace(/\s*mins?$/i, '')
+                                : isTimestampPresent(item.deliveredAt)
+                                  ? formatRailwayTime(item.deliveredAt)
+                                  : '--'
+
+                            const itemKey = item.itemId || `${item.productId}-${itemIdx}`
+                            const selectedForCard = selectedCardItems[group.key] || []
+                            const isSelectedForUpdate = selectedForCard.includes(itemKey)
+
+                            return (
+                              <div
+                                key={`${group.key}-item-${itemIdx}`}
+                                className={`pt-kot-item-row ${itemDone ? 'is-done' : ''} ${itemExceeded ? 'is-exceeded' : ''}`}
+                                title={`Stage: ${stageHint}${item.chefName && item.chefName !== '--' ? ` · Chef: ${item.chefName}` : ''}`}
+                              >
+                                <div className="pt-kot-item-main">
+                                  <div className="pt-kot-item-left">
+                                    <span className="pt-kot-qty-badge">{item.quantity}</span>
+                                    <span className="pt-kot-item-name">{item.productName}</span>
+                                  </div>
+                                  <div className="pt-kot-item-right">
+                                    <button
+                                      type="button"
+                                      className={`pt-kot-check-box ${
+                                        itemDone
+                                          ? 'is-checked'
+                                          : isSelectedForUpdate
+                                            ? 'is-selected'
+                                            : itemReady
+                                              ? 'is-ready'
+                                              : itemExceeded
+                                                ? 'is-exceeded'
+                                                : 'is-pending'
+                                      } ${!itemDone && group.billingId ? 'is-clickable' : ''}`}
+                                      onClick={() => {
+                                        if (itemDone || !group.billingId) return
+                                        toggleCardItemSelection(group.key, itemKey)
+                                      }}
+                                      disabled={itemDone || !group.billingId || updatingCardKey === group.key}
+                                      aria-label={
+                                        itemDone
+                                          ? 'Delivered'
+                                          : isSelectedForUpdate
+                                            ? `Selected for update (${stageHint})`
+                                            : `Select to advance from ${stageHint}`
+                                      }
+                                      aria-pressed={!itemDone ? isSelectedForUpdate : undefined}
+                                      title={
+                                        itemDone
+                                          ? 'Delivered'
+                                          : isSelectedForUpdate
+                                            ? 'Selected — click Update below'
+                                            : `Click to mark ${stageHint} done`
+                                      }
+                                    >
+                                      {(itemDone || isSelectedForUpdate) && (
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                          <polyline points="20 6 9 17 4 12" />
+                                        </svg>
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="pt-kot-item-stages-inline">
+                                  {stationType !== 'counter' && (
+                                    <span
+                                      className={`pt-kot-stage-inline status-${item.chefStatus || 'neutral'}`}
+                                      title={`${item.chefName && item.chefName !== '--' ? item.chefName : '--'} - ${chefTimeDisplay}`}
+                                    >
+                                      <span className="pt-kot-stage-name">
+                                        {item.chefName && item.chefName !== '--' ? item.chefName : '--'}
+                                      </span>
+                                      <span className="pt-kot-stage-dur"> - {chefTimeDisplay}</span>
+                                    </span>
+                                  )}
+                                  <span
+                                    className={`pt-kot-stage-inline status-${item.supervisorStatus || 'neutral'}`}
+                                    title={`${item.confirmedByName && item.confirmedByName !== '--' ? item.confirmedByName : '--'} - ${supTimeDisplay}`}
+                                  >
+                                    <span className="pt-kot-stage-name">
+                                      {item.confirmedByName && item.confirmedByName !== '--' ? item.confirmedByName : '--'}
+                                    </span>
+                                    <span className="pt-kot-stage-dur"> - {supTimeDisplay}</span>
+                                  </span>
+                                  <span
+                                    className={`pt-kot-stage-inline status-${item.waiterStatus || 'neutral'}`}
+                                    title={`${deliveryPersonName} - ${delTimeDisplay}`}
+                                  >
+                                    <span className="pt-kot-stage-name">{deliveryPersonName}</span>
+                                    <span className="pt-kot-stage-dur"> - {delTimeDisplay}</span>
+                                  </span>
+                                </div>
+                              </div>
+                            )
+                          })
+                          )}
+                        </div>
+
+                        <div className="pt-kot-card-footer">
+                          {(() => {
+                            const selectedKeys = selectedCardItems[group.key] || []
+                            const selectedEntries = group.items.filter((item, idx) =>
+                              selectedKeys.includes(item.itemId || `${item.productId}-${idx}`),
+                            )
+                            const isUpdating = updatingCardKey === group.key
+
+                            if (selectedEntries.length > 0) {
+                              return (
+                                <button
+                                  type="button"
+                                  className="pt-kot-primary-btn is-update"
+                                  onClick={() =>
+                                    handleUpdateSelectedCardItems(group.billingId, group.key, selectedEntries)
+                                  }
+                                  disabled={!group.billingId || isUpdating}
+                                >
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <polyline points="20 6 9 17 4 12" />
+                                  </svg>
+                                  <span>{isUpdating ? 'Updating...' : 'Update'}</span>
+                                  <span className="pt-kot-btn-badge">
+                                    {selectedEntries.length} {selectedEntries.length === 1 ? 'item' : 'items'}
+                                  </span>
+                                </button>
+                              )
+                            }
+
+                            return (
+                              <button
+                                type="button"
+                                className="pt-kot-primary-btn"
+                                onClick={() => {
+                                  if (!group.billingId) return
+                                  setSelectedBillRow(group.primaryEntry)
+                                  setIsReceiptModalOpen(true)
+                                }}
+                                disabled={!group.billingId}
+                              >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <circle cx="12" cy="12" r="10" />
+                                  <polyline points="9 12 11 14 15 10" />
+                                </svg>
+                                <span>View Bill</span>
+                                <span className="pt-kot-btn-badge">
+                                  {group.items.length} {group.items.length === 1 ? 'item' : 'items'}
+                                </span>
+                              </button>
+                            )
+                          })()}
+
+                          <button
+                            type="button"
+                            className="pt-kot-secondary-btn"
+                            onClick={() => {
+                              if (!group.billingId) return
+                              setSelectedBillRow(group.primaryEntry)
+                              setIsReceiptModalOpen(true)
+                            }}
+                            disabled={!group.billingId}
+                            title="Open Receipt Details"
+                            aria-label="Open Receipt Details"
+                          >
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                              <polyline points="14 2 14 8 20 8" />
+                              <line x1="16" y1="13" x2="8" y2="13" />
+                              <line x1="16" y1="17" x2="8" y2="17" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="pt-kot-grid-wrap">
+              {loadingBillDetails && <p className="state">Loading...</p>}
+              {!loadingBillDetails && billDetailsError && <p className="state error">{billDetailsError}</p>}
+              {!loadingBillDetails && !billDetailsError && productWiseGroups.length === 0 && (
+                <p className="state">
+                  {activeStageFilter ? `No products currently in ${activeStageFilter} stage.` : 'No details found.'}
+                </p>
+              )}
+              {!loadingBillDetails && !billDetailsError && productWiseGroups.length > 0 && (
+                <div className="pt-kot-grid">
+                  {productWiseGroups.map((prodGroup) => {
+                    const filterKey = `combine-${prodGroup.key}`
+                    const activeCardRole = cardStageFilters[filterKey] || null
+                    const roleCounts: Record<StageKey, number> = {
+                      chef: 0,
+                      supervisor: 0,
+                      waiter: 0,
+                    }
+                    prodGroup.items.forEach((item) => {
+                      const st = getItemStage(item, stationType)
+                      if (st === 'chef' || st === 'supervisor' || st === 'waiter') {
+                        roleCounts[st] += 1
+                      }
+                    })
+                    const visibleItems = activeCardRole
+                      ? prodGroup.items.filter((item) => getItemStage(item, stationType) === activeCardRole)
+                      : prodGroup.items
+                    const cardRoleOptions: { key: StageKey; label: string }[] =
+                      stationType === 'counter'
+                        ? [
+                            { key: 'supervisor', label: 'SUPERVISOR' },
+                            { key: 'waiter', label: 'WAITER' },
+                          ]
+                        : [
+                            { key: 'chef', label: 'CHEF' },
+                            { key: 'supervisor', label: 'SUPERVISOR' },
+                            { key: 'waiter', label: 'WAITER' },
+                          ]
+                    const hasAnyExceeded = prodGroup.items.some(
+                      (item) =>
+                        item.status === 'exceeded' ||
+                        item.chefStatus === 'exceeded' ||
+                        item.supervisorStatus === 'exceeded' ||
+                        item.waiterStatus === 'exceeded',
+                    )
+                    const cardToneClass = hasAnyExceeded ? 'tone-exceeded' : 'tone-ontime'
+
+                    return (
+                      <div key={prodGroup.key} className={`pt-kot-card ${cardToneClass}`}>
+                        <div className="pt-kot-card-header">
+                          <div className="pt-kot-card-top-row">
+                            <div className="pt-kot-card-title-group">
+                              <span className="pt-kot-bill-num pt-combine-prod-title" title={prodGroup.productName}>
+                                {prodGroup.productName}
+                              </span>
+                            </div>
+                            <span className="pt-kot-qty-badge pt-combine-total-badge" title="Total Combined Quantity">
+                              {prodGroup.totalQuantity}
+                            </span>
+                          </div>
+
+                          <div className="pt-kot-card-meta-row">
+                            <div className="pt-kot-meta-left">
+                              <span className="pt-kot-meta-table">
+                                {prodGroup.billIds.size} {prodGroup.billIds.size === 1 ? 'Table' : 'Tables'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="pt-kot-card-status-row">
+                            <div className="pt-kot-role-filter-group" role="group" aria-label="Filter tables by role">
+                              {cardRoleOptions.map((roleOpt) => {
+                                const isActiveRole = activeCardRole === roleOpt.key
+                                const count = roleCounts[roleOpt.key]
+                                return (
+                                  <button
+                                    key={roleOpt.key}
+                                    type="button"
+                                    className={`pt-kot-role-filter-btn role-${roleOpt.key} ${isActiveRole ? 'is-active' : ''}`}
+                                    onClick={() =>
+                                      setCardStageFilters((prev) => ({
+                                        ...prev,
+                                        [filterKey]: prev[filterKey] === roleOpt.key ? null : roleOpt.key,
+                                      }))
+                                    }
+                                    aria-pressed={isActiveRole}
+                                  >
+                                    <span>{roleOpt.label}</span>
+                                    {count > 0 && <span className="pt-kot-role-count">{count}</span>}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="pt-kot-card-items">
+                          {visibleItems.length === 0 ? (
+                            <p className="pt-kot-empty-stage">
+                              No tables in {activeCardRole} stage.
+                            </p>
+                          ) : (
+                            visibleItems.map((item, itemIdx) => {
+                              const itemStage = getItemStage(item, stationType)
+                              const itemDone = itemStage === 'completed'
+                              const itemRawTable = (item.tableNumber || '').trim()
+                              const itemRawSection = (item.section || '').trim()
+                              const itemIsShared =
+                                /-s-/i.test(itemRawTable) ||
+                                itemRawSection.toLowerCase() === 'shared tables'
+                              const itemCleanTable = itemIsShared
+                                ? itemRawTable
+                                    .replace(/-s-.*$/i, '')
+                                    .replace(/-[a-z0-9]+$/i, '')
+                                    .trim() || itemRawTable
+                                : itemRawTable
+                              const itemCleanSection =
+                                itemRawSection.toLowerCase() === 'shared tables' ? '' : itemRawSection
+                              const itemTableLabel = itemCleanTable
+                                ? `TABLE ${itemCleanSection ? `${itemCleanSection} ${itemCleanTable}` : itemCleanTable}`
+                                : itemRawSection || `#${item.billNumber}`
+
+                              const deliveryPersonName =
+                                item.deliveredByName && item.deliveredByName !== '--'
+                                  ? item.deliveredByName
+                                  : item.waiterName && item.waiterName !== '--'
+                                    ? item.waiterName
+                                    : '--'
+                              const chefTimeDisplay =
+                                item.preparationTime != null
+                                  ? formatMinutes(item.preparationTime).replace(/\s*mins?$/i, '')
+                                  : isTimestampPresent(item.preparedAt)
+                                    ? formatRailwayTime(item.preparedAt)
+                                    : '--'
+                              const supTimeDisplay =
+                                item.supervisorConfirmingTime != null
+                                  ? formatMinutes(item.supervisorConfirmingTime).replace(/\s*mins?$/i, '')
+                                  : isTimestampPresent(item.confirmedAt)
+                                    ? formatRailwayTime(item.confirmedAt)
+                                    : '--'
+                              const delTimeDisplay =
+                                item.waiterDeliverTime != null
+                                  ? formatMinutes(item.waiterDeliverTime).replace(/\s*mins?$/i, '')
+                                  : isTimestampPresent(item.deliveredAt)
+                                    ? formatRailwayTime(item.deliveredAt)
+                                    : '--'
+                              const itemElapsedMins =
+                                item.waiterDeliverTime ??
+                                item.supervisorConfirmingTime ??
+                                item.preparationTime ??
+                                null
+
+                              return (
+                                <div key={`${prodGroup.key}-row-${itemIdx}`} className="pt-kot-item-row">
+                                  <div className="pt-kot-item-main">
+                                    <div className="pt-kot-item-left">
+                                      <span className="pt-kot-qty-badge">{item.quantity}</span>
+                                      <span
+                                        className="pt-kot-item-name pt-combine-table-link"
+                                        onClick={() => {
+                                          if (!item.billingId) return
+                                          setSelectedBillRow(item)
+                                          setIsReceiptModalOpen(true)
+                                        }}
+                                        title={`Click to view bill #${item.billNumber}`}
+                                      >
+                                        {itemTableLabel}
+                                      </span>
+                                    </div>
+                                    <div className="pt-kot-item-right">
+                                      <LiveElapsedTimer
+                                        orderedAt={item.orderedAt}
+                                        isFinished={itemDone}
+                                        fallbackMinutes={itemElapsedMins}
+                                      />
+                                      <span
+                                        className={`pt-kot-check-box ${itemDone ? 'is-checked' : ''}`}
+                                        aria-label={itemDone ? 'Delivered' : 'Pending'}
+                                      >
+                                        {itemDone && (
+                                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                            <polyline points="20 6 9 17 4 12" />
+                                          </svg>
+                                        )}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="pt-kot-item-stages-inline">
+                                    {stationType !== 'counter' && (
+                                      <span
+                                        className={`pt-kot-stage-inline status-${item.chefStatus || 'neutral'}`}
+                                        title={`${item.chefName && item.chefName !== '--' ? item.chefName : '--'} - ${chefTimeDisplay}`}
+                                      >
+                                        <span className="pt-kot-stage-name">
+                                          {item.chefName && item.chefName !== '--' ? item.chefName : '--'}
+                                        </span>
+                                        <span className="pt-kot-stage-dur"> - {chefTimeDisplay}</span>
+                                      </span>
+                                    )}
+                                    <span
+                                      className={`pt-kot-stage-inline status-${item.supervisorStatus || 'neutral'}`}
+                                      title={`${item.confirmedByName && item.confirmedByName !== '--' ? item.confirmedByName : '--'} - ${supTimeDisplay}`}
+                                    >
+                                      <span className="pt-kot-stage-name">
+                                        {item.confirmedByName && item.confirmedByName !== '--' ? item.confirmedByName : '--'}
+                                      </span>
+                                      <span className="pt-kot-stage-dur"> - {supTimeDisplay}</span>
+                                    </span>
+                                    <span
+                                      className={`pt-kot-stage-inline status-${item.waiterStatus || 'neutral'}`}
+                                      title={`${deliveryPersonName} - ${delTimeDisplay}`}
+                                    >
+                                      <span className="pt-kot-stage-name">{deliveryPersonName}</span>
+                                      <span className="pt-kot-stage-dur"> - {delTimeDisplay}</span>
+                                    </span>
+                                  </div>
+                                </div>
+                              )
+                            })
+                          )}
+                        </div>
+
+                        <div className="pt-kot-card-footer">
+                          <div className="pt-combine-footer-summary">
+                            <span>Total Qty: <strong>{prodGroup.totalQuantity}</strong></span>
+                            <span>{prodGroup.billIds.size} {prodGroup.billIds.size === 1 ? 'Table' : 'Tables'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="pt-status-summary-row">
             {statusSummaryCards.map((card) => (

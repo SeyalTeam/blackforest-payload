@@ -8,6 +8,161 @@ import timezone from 'dayjs/plugin/timezone.js' // Assume installed: npm i dayjs
 dayjs.extend(utc)
 dayjs.extend(timezone)
 
+const createVerificationField = () => ({
+  name: 'verification',
+  type: 'group' as const,
+  label: 'Three-Step Verification',
+  fields: [
+    {
+      name: 'overallStatus',
+      type: 'select' as const,
+      label: 'Overall Verification Status',
+      defaultValue: 'pending',
+      options: [
+        { label: 'Pending', value: 'pending' },
+        { label: 'Partially Verified', value: 'partially_verified' },
+        { label: 'Fully Verified', value: 'verified' },
+        { label: 'Rejected', value: 'rejected' },
+      ],
+      admin: {
+        readOnly: true,
+      },
+    },
+    {
+      name: 'accountant',
+      type: 'group' as const,
+      label: 'Accountant / Office Admin Verification (Step 1)',
+      fields: [
+        {
+          name: 'status',
+          type: 'select' as const,
+          defaultValue: 'pending',
+          options: [
+            { label: 'Pending', value: 'pending' },
+            { label: 'Verified', value: 'verified' },
+            { label: 'Rejected', value: 'rejected' },
+            { label: 'Skipped', value: 'skipped' },
+          ],
+        },
+        {
+          name: 'notes',
+          type: 'textarea' as const,
+          label: 'Accountant Notes',
+        },
+        {
+          name: 'verifiedBy',
+          type: 'relationship' as const,
+          relationTo: 'users' as const,
+          admin: { readOnly: true },
+        },
+        {
+          name: 'verifiedByName',
+          type: 'text' as const,
+          admin: { readOnly: true },
+        },
+        {
+          name: 'verifiedByRole',
+          type: 'text' as const,
+          admin: { readOnly: true },
+        },
+        {
+          name: 'verifiedAt',
+          type: 'date' as const,
+          admin: { readOnly: true },
+        },
+      ],
+    },
+    {
+      name: 'watcher',
+      type: 'group' as const,
+      label: 'Watcher Verification (Step 2)',
+      fields: [
+        {
+          name: 'status',
+          type: 'select' as const,
+          defaultValue: 'pending',
+          options: [
+            { label: 'Pending', value: 'pending' },
+            { label: 'Verified', value: 'verified' },
+            { label: 'Rejected', value: 'rejected' },
+            { label: 'Skipped', value: 'skipped' },
+          ],
+        },
+        {
+          name: 'notes',
+          type: 'textarea' as const,
+          label: 'Watcher Notes',
+        },
+        {
+          name: 'verifiedBy',
+          type: 'relationship' as const,
+          relationTo: 'users' as const,
+          admin: { readOnly: true },
+        },
+        {
+          name: 'verifiedByName',
+          type: 'text' as const,
+          admin: { readOnly: true },
+        },
+        {
+          name: 'verifiedByRole',
+          type: 'text' as const,
+          admin: { readOnly: true },
+        },
+        {
+          name: 'verifiedAt',
+          type: 'date' as const,
+          admin: { readOnly: true },
+        },
+      ],
+    },
+    {
+      name: 'manager',
+      type: 'group' as const,
+      label: 'Manager Verification (Step 3)',
+      fields: [
+        {
+          name: 'status',
+          type: 'select' as const,
+          defaultValue: 'pending',
+          options: [
+            { label: 'Pending', value: 'pending' },
+            { label: 'Verified', value: 'verified' },
+            { label: 'Rejected', value: 'rejected' },
+            { label: 'Skipped', value: 'skipped' },
+          ],
+        },
+        {
+          name: 'notes',
+          type: 'textarea' as const,
+          label: 'Manager Notes',
+        },
+        {
+          name: 'verifiedBy',
+          type: 'relationship' as const,
+          relationTo: 'users' as const,
+          admin: { readOnly: true },
+        },
+        {
+          name: 'verifiedByName',
+          type: 'text' as const,
+          admin: { readOnly: true },
+        },
+        {
+          name: 'verifiedByRole',
+          type: 'text' as const,
+          admin: { readOnly: true },
+        },
+        {
+          name: 'verifiedAt',
+          type: 'date' as const,
+          admin: { readOnly: true },
+        },
+      ],
+    },
+  ],
+})
+
 const ReturnOrders: CollectionConfig = {
   slug: 'return-orders',
   admin: {
@@ -259,6 +414,7 @@ const ReturnOrders: CollectionConfig = {
           name: 'notes',
           type: 'textarea',
         },
+        createVerificationField(),
       ],
     },
     {
@@ -316,160 +472,7 @@ const ReturnOrders: CollectionConfig = {
       index: true,
       admin: { description: 'Name of the cashier who created/submitted the return order.' },
     },
-    {
-      name: 'verification',
-      type: 'group',
-      label: 'Three-Step Verification',
-      fields: [
-        {
-          name: 'overallStatus',
-          type: 'select',
-          label: 'Overall Verification Status',
-          defaultValue: 'pending',
-          options: [
-            { label: 'Pending', value: 'pending' },
-            { label: 'Partially Verified', value: 'partially_verified' },
-            { label: 'Fully Verified', value: 'verified' },
-            { label: 'Rejected', value: 'rejected' },
-          ],
-          admin: {
-            readOnly: true,
-          },
-        },
-        {
-          name: 'accountant',
-          type: 'group',
-          label: 'Accountant / Office Admin Verification (Step 1)',
-          fields: [
-            {
-              name: 'status',
-              type: 'select',
-              defaultValue: 'pending',
-              options: [
-                { label: 'Pending', value: 'pending' },
-                { label: 'Verified', value: 'verified' },
-                { label: 'Rejected', value: 'rejected' },
-                { label: 'Skipped', value: 'skipped' },
-              ],
-            },
-            {
-              name: 'notes',
-              type: 'textarea',
-              label: 'Accountant Notes',
-            },
-            {
-              name: 'verifiedBy',
-              type: 'relationship',
-              relationTo: 'users',
-              admin: { readOnly: true },
-            },
-            {
-              name: 'verifiedByName',
-              type: 'text',
-              admin: { readOnly: true },
-            },
-            {
-              name: 'verifiedByRole',
-              type: 'text',
-              admin: { readOnly: true },
-            },
-            {
-              name: 'verifiedAt',
-              type: 'date',
-              admin: { readOnly: true },
-            },
-          ],
-        },
-        {
-          name: 'watcher',
-          type: 'group',
-          label: 'Watcher Verification (Step 2)',
-          fields: [
-            {
-              name: 'status',
-              type: 'select',
-              defaultValue: 'pending',
-              options: [
-                { label: 'Pending', value: 'pending' },
-                { label: 'Verified', value: 'verified' },
-                { label: 'Rejected', value: 'rejected' },
-                { label: 'Skipped', value: 'skipped' },
-              ],
-            },
-            {
-              name: 'notes',
-              type: 'textarea',
-              label: 'Watcher Notes',
-            },
-            {
-              name: 'verifiedBy',
-              type: 'relationship',
-              relationTo: 'users',
-              admin: { readOnly: true },
-            },
-            {
-              name: 'verifiedByName',
-              type: 'text',
-              admin: { readOnly: true },
-            },
-            {
-              name: 'verifiedByRole',
-              type: 'text',
-              admin: { readOnly: true },
-            },
-            {
-              name: 'verifiedAt',
-              type: 'date',
-              admin: { readOnly: true },
-            },
-          ],
-        },
-        {
-          name: 'manager',
-          type: 'group',
-          label: 'Manager Verification (Step 3)',
-          fields: [
-            {
-              name: 'status',
-              type: 'select',
-              defaultValue: 'pending',
-              options: [
-                { label: 'Pending', value: 'pending' },
-                { label: 'Verified', value: 'verified' },
-                { label: 'Rejected', value: 'rejected' },
-                { label: 'Skipped', value: 'skipped' },
-              ],
-            },
-            {
-              name: 'notes',
-              type: 'textarea',
-              label: 'Manager Notes',
-            },
-            {
-              name: 'verifiedBy',
-              type: 'relationship',
-              relationTo: 'users',
-              admin: { readOnly: true },
-            },
-            {
-              name: 'verifiedByName',
-              type: 'text',
-              admin: { readOnly: true },
-            },
-            {
-              name: 'verifiedByRole',
-              type: 'text',
-              admin: { readOnly: true },
-            },
-            {
-              name: 'verifiedAt',
-              type: 'date',
-              admin: { readOnly: true },
-            },
-          ],
-        },
-      ],
-    },
+    createVerificationField(),
   ],
   timestamps: true,
 }

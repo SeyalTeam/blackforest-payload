@@ -135,13 +135,35 @@ const Employees: CollectionConfig = {
       ]
     },
     {
-      name: 'salary',
-      type: 'number',
-      label: 'Salary',
-      required: false,
-      admin: {
-        description: 'Monthly salary amount',
-      }
+      type: 'row',
+      fields: [
+        {
+          name: 'salaryType',
+          type: 'select',
+          label: 'Salary Type',
+          options: [
+            { label: 'Monthly', value: 'monthly' },
+            { label: 'Daily', value: 'daily' },
+            { label: 'Hourly', value: 'hourly' },
+          ],
+          defaultValue: 'hourly',
+          required: false,
+          admin: {
+            width: '50%',
+            description: 'Choose whether salary is calculated Monthly, Daily, or Hourly',
+          },
+        },
+        {
+          name: 'salary',
+          type: 'number',
+          label: 'Salary',
+          required: false,
+          admin: {
+            width: '50%',
+            description: 'Monthly salary amount',
+          },
+        },
+      ],
     },
     {
       name: 'status',

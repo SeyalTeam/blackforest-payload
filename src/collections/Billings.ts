@@ -2154,7 +2154,7 @@ const Billings: CollectionConfig = {
       ['superadmin', 'admin', 'branch', 'waiter', 'company'].includes(user.role),
     update: ({ req: { user } }) =>
       user?.role != null &&
-      ['superadmin', 'admin', 'branch', 'waiter', 'cashier', 'supervisor', 'company'].includes(
+      ['superadmin', 'admin', 'accountant', 'branch', 'waiter', 'cashier', 'supervisor', 'company'].includes(
         user.role,
       ),
     delete: ({ req: { user } }) => user?.role === 'superadmin',

@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { returnOrderId, orderId, billId, id, step, status, notes, skipReason } = body || {}
+    const { returnOrderId, orderId, billId, id, itemId, itemIndex, step, status, notes, skipReason } = body || {}
     const targetId = returnOrderId || orderId || billId || id
 
     if (!targetId) {
@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
     const existingOrder = await payload.findByID({
       collection: 'return-orders',
       id: targetId,
+      depth: 0,
       overrideAccess: true,
     })
 
@@ -70,12 +71,33 @@ export async function POST(request: NextRequest) {
       return Response.json({ message: 'Return order not found' }, { status: 404 })
     }
 
-    const currentVerification = (existingOrder as any).verification || {
+    const orderItems: any[] = Array.isArray((existingOrder as any).items) ? (existingOrder as any).items : []
+    const hasItemIndex = typeof itemIndex === 'number' && itemIndex >= 0 && itemIndex < orderItems.length
+    const hasItemId = typeof itemId === 'string' ? itemId.trim().length > 0 : Boolean(itemId)
+    const isItemLevel = hasItemId || hasItemIndex
+
+    let targetItemIndex = -1
+    if (hasItemId) {
+      targetItemIndex = orderItems.findIndex((it: any) => String(it?.id || it?._id || '') === String(itemId))
+    }
+    if (targetItemIndex === -1 && hasItemIndex) {
+      targetItemIndex = itemIndex
+    }
+
+    if (isItemLevel && targetItemIndex === -1) {
+      return Response.json({ message: 'Return order item not found' }, { status: 404 })
+    }
+
+    const defaultVerification = {
       overallStatus: 'pending',
       accountant: { status: 'pending', notes: '' },
       watcher: { status: 'pending', notes: '' },
       manager: { status: 'pending', notes: '' },
     }
+
+    const currentVerification = isItemLevel
+      ? (orderItems[targetItemIndex]?.verification || defaultVerification)
+      : ((existingOrder as any).verification || defaultVerification)
 
     // Sequential verification enforcement (unless superadmin/admin)
     if (!isSuperOrAdmin) {
@@ -166,6 +188,45 @@ export async function POST(request: NextRequest) {
     ]
       .filter(Boolean)
       .join(' ')
+
+    if (isItemLevel) {
+      const updatedItems = orderItems.map((it: any, idx: number) =>
+        idx === targetItemIndex ? { ...it, verification: newVerification } : it,
+      )
+
+      const itemStatuses = updatedItems.map((it: any) => it?.verification?.overallStatus || 'pending')
+      let parentOverallStatus: 'pending' | 'partially_verified' | 'verified' | 'rejected' = 'pending'
+      if (itemStatuses.some((s) => s === 'rejected')) {
+        parentOverallStatus = 'rejected'
+      } else if (itemStatuses.length > 0 && itemStatuses.every((s) => s === 'verified')) {
+        parentOverallStatus = 'verified'
+      } else if (itemStatuses.some((s) => s === 'verified' || s === 'partially_verified')) {
+        parentOverallStatus = 'partially_verified'
+      }
+
+      const existingOrderVer = (existingOrder as any).verification || defaultVerification
+      const updated = await (payload as any).update({
+        collection: 'return-orders',
+        id: targetId,
+        data: {
+          items: updatedItems,
+          verification: {
+            ...existingOrderVer,
+            overallStatus: parentOverallStatus,
+          },
+        },
+        overrideAccess: true,
+      })
+
+      const savedItem = Array.isArray((updated as any)?.items) ? (updated as any).items[targetItemIndex] : null
+      return Response.json({
+        success: true,
+        id: (updated as any)?.id || targetId,
+        itemId,
+        verification: savedItem?.verification || newVerification,
+        notes: combinedNotes,
+      })
+    }
 
     const updated = await (payload as any).update({
       collection: 'return-orders',

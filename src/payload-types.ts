@@ -942,6 +942,10 @@ export interface Employee {
    */
   weekoffCount?: number | null;
   /**
+   * Choose whether salary is calculated Monthly, Daily, or Hourly
+   */
+  salaryType?: ('monthly' | 'daily' | 'hourly') | null;
+  /**
    * Monthly salary amount
    */
   salary?: number | null;
@@ -1581,6 +1585,33 @@ export interface ReturnOrder {
     subtotal: number;
     proofPhoto?: (string | null) | Media;
     notes?: string | null;
+    verification?: {
+      overallStatus?: ('pending' | 'partially_verified' | 'verified' | 'rejected') | null;
+      accountant?: {
+        status?: ('pending' | 'verified' | 'rejected' | 'skipped') | null;
+        notes?: string | null;
+        verifiedBy?: (string | null) | User;
+        verifiedByName?: string | null;
+        verifiedByRole?: string | null;
+        verifiedAt?: string | null;
+      };
+      watcher?: {
+        status?: ('pending' | 'verified' | 'rejected' | 'skipped') | null;
+        notes?: string | null;
+        verifiedBy?: (string | null) | User;
+        verifiedByName?: string | null;
+        verifiedByRole?: string | null;
+        verifiedAt?: string | null;
+      };
+      manager?: {
+        status?: ('pending' | 'verified' | 'rejected' | 'skipped') | null;
+        notes?: string | null;
+        verifiedBy?: (string | null) | User;
+        verifiedByName?: string | null;
+        verifiedByRole?: string | null;
+        verifiedAt?: string | null;
+      };
+    };
     id?: string | null;
   }[];
   totalAmount: number;
@@ -3578,6 +3609,7 @@ export interface EmployeesSelect<T extends boolean = true> {
   workingHours?: T;
   monthlyLeaveCount?: T;
   weekoffCount?: T;
+  salaryType?: T;
   salary?: T;
   status?: T;
   team?: T;
@@ -3903,6 +3935,41 @@ export interface ReturnOrdersSelect<T extends boolean = true> {
         subtotal?: T;
         proofPhoto?: T;
         notes?: T;
+        verification?:
+          | T
+          | {
+              overallStatus?: T;
+              accountant?:
+                | T
+                | {
+                    status?: T;
+                    notes?: T;
+                    verifiedBy?: T;
+                    verifiedByName?: T;
+                    verifiedByRole?: T;
+                    verifiedAt?: T;
+                  };
+              watcher?:
+                | T
+                | {
+                    status?: T;
+                    notes?: T;
+                    verifiedBy?: T;
+                    verifiedByName?: T;
+                    verifiedByRole?: T;
+                    verifiedAt?: T;
+                  };
+              manager?:
+                | T
+                | {
+                    status?: T;
+                    notes?: T;
+                    verifiedBy?: T;
+                    verifiedByName?: T;
+                    verifiedByRole?: T;
+                    verifiedAt?: T;
+                  };
+            };
         id?: T;
       };
   totalAmount?: T;

@@ -188,6 +188,7 @@ const customColumnStyles = {
 type ReturnOrderItem = {
   id: string
   itemId?: string
+  itemIndex?: number
   returnNumber: string
   status: string
   product: string
@@ -285,6 +286,7 @@ const RETURN_ORDER_REPORT_QUERY = `
         items {
           id
           itemId
+          itemIndex
           returnNumber
           status
           product
@@ -501,6 +503,8 @@ const ReturnOrderReport: React.FC = () => {
     targetId: string,
     step: 'accountant' | 'watcher' | 'manager',
     status: 'verified' | 'rejected' | 'skipped',
+    itemId?: string,
+    itemIndex?: number,
   ) => {
     setIsSubmittingVerification(true)
     try {
@@ -511,6 +515,8 @@ const ReturnOrderReport: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           returnOrderId: targetId,
+          itemId,
+          itemIndex,
           step,
           status,
           notes: notesText,
@@ -528,7 +534,13 @@ const ReturnOrderReport: React.FC = () => {
       if (data) {
         const updatedGroups = data.groups.map((group) => {
           const updatedItems = group.items.map((i) => {
-            if (i.id === targetId) {
+            const isMatch =
+              itemId && i.itemId
+                ? i.id === targetId && i.itemId === itemId
+                : typeof itemIndex === 'number' && typeof i.itemIndex === 'number'
+                  ? i.id === targetId && i.itemIndex === itemIndex
+                  : i.id === targetId
+            if (isMatch) {
               return {
                 ...i,
                 verification: json.verification,
@@ -542,7 +554,14 @@ const ReturnOrderReport: React.FC = () => {
         setData({ ...data, groups: updatedGroups })
       }
 
-      if (verificationModalItem && verificationModalItem.id === targetId) {
+      if (
+        verificationModalItem &&
+        verificationModalItem.id === targetId &&
+        (!itemId || !verificationModalItem.itemId || verificationModalItem.itemId === itemId) &&
+        (typeof itemIndex !== 'number' ||
+          typeof verificationModalItem.itemIndex !== 'number' ||
+          verificationModalItem.itemIndex === itemIndex)
+      ) {
         setVerificationModalItem((prev) =>
           prev
             ? {
@@ -1536,7 +1555,7 @@ const ReturnOrderReport: React.FC = () => {
                       <button
                         type="button"
                         className="ver-btn ver-btn--reject"
-                        onClick={() => handleVerificationSubmit(verificationModalItem.id, stepKey, 'rejected')}
+                        onClick={() => handleVerificationSubmit(verificationModalItem.id, stepKey, 'rejected', verificationModalItem.itemId, verificationModalItem.itemIndex)}
                         disabled={isSubmittingVerification}
                       >
                         <XCircle size={15} /> Flag / Reject
@@ -1551,7 +1570,7 @@ const ReturnOrderReport: React.FC = () => {
                               alert('Please enter a skip reason first (e.g. "Manager not available today").')
                               return
                             }
-                            handleVerificationSubmit(verificationModalItem.id, stepKey, 'skipped')
+                            handleVerificationSubmit(verificationModalItem.id, stepKey, 'skipped', verificationModalItem.itemId, verificationModalItem.itemIndex)
                           }}
                           disabled={isSubmittingVerification}
                         >
@@ -1562,7 +1581,7 @@ const ReturnOrderReport: React.FC = () => {
                       <button
                         type="button"
                         className="ver-btn ver-btn--approve"
-                        onClick={() => handleVerificationSubmit(verificationModalItem.id, stepKey, 'verified')}
+                        onClick={() => handleVerificationSubmit(verificationModalItem.id, stepKey, 'verified', verificationModalItem.itemId, verificationModalItem.itemIndex)}
                         disabled={isSubmittingVerification}
                       >
                         <CheckCircle2 size={15} /> Verify & Approve

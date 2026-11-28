@@ -39,6 +39,7 @@ export type AggregatedItem = {
   employeeIdStr: string
   employeePhotoUrl?: string
   employeeSalary?: number
+  employeeSalaryType?: string
   employeeWorkingHours?: number
   userRole: string
   employeeTeam: string
@@ -76,6 +77,7 @@ export type AttendanceItem = {
   employeePhone?: string
   employeePhotoUrl?: string
   employeeSalary?: number
+  employeeSalaryType?: string
   employeeWorkingHours?: number
   employeeLoginTime?: string
   employeeLogoutTime?: string
@@ -169,6 +171,7 @@ const ATTENDANCE_REPORT_QUERY = `
         employeePhone
         employeePhotoUrl
         employeeSalary
+        employeeSalaryType
         employeeWorkingHours
         employeeLoginTime
         employeeLogoutTime
@@ -392,20 +395,33 @@ const AttendanceReport: React.FC = () => {
   const getDailySalary = (item: AttendanceItem): number => {
     const base = item.employeeSalary || 0
     if (!base) return 0
-    if (item.status === 'active' || item.status === 'on_break') {
-      return Math.round(base / 30)
-    }
     const info = getDayTypeDisplay(item)
-    if (info?.label === 'Half Day') {
-      return Math.round((base / 30) * 0.5)
-    }
     if (info?.label === 'Week Off' || info?.label === 'On Leave' || info?.label === 'Holiday') {
       return 0
     }
-    if (item.totalWorkSeconds === 0) {
+    const salaryType = item.employeeSalaryType || 'hourly'
+    if (salaryType === 'monthly' || salaryType === 'daily') {
+      if (item.status === 'active' || item.status === 'on_break') {
+        return Math.round(base / 30)
+      }
+      if (info?.label === 'Half Day') {
+        return Math.round((base / 30) * 0.5)
+      }
+      if ((item.totalWorkSeconds || 0) === 0) {
+        return 0
+      }
+      return Math.round(base / 30)
+    }
+    const workSeconds = item.totalWorkSeconds || 0
+    if (workSeconds === 0) {
+      if (info?.label === 'Half Day') {
+        return Math.round((base / 30) * 0.5)
+      }
       return 0
     }
-    return Math.round(base / 30)
+    const dutyHours = item.employeeWorkingHours && item.employeeWorkingHours > 0 ? item.employeeWorkingHours : 12
+    const hourlyRate = base / 30 / dutyHours
+    return Math.round((workSeconds / 3600) * hourlyRate)
   }
 
   const { displayItems, isAggregatedView } = useMemo(() => {
@@ -533,9 +549,7 @@ const AttendanceReport: React.FC = () => {
       const leaveDatesFormatted = leaveDaysNumbers.length > 0 ? leaveDaysNumbers.join(',') : 'None'
       const daysLeave = leaveDateStrings.length
 
-      const baseSalary = g.employeeSalary || 0
-      // User explicitly requested: "BASED ON PRESNT CALCULATE SALARY"
-      const salaryAmount = Math.round((baseSalary / 30) * g.daysPresent)
+      const salaryAmount = g.originalItems.reduce((sum, item) => sum + getDailySalary(item), 0)
 
       const branchSet = new Set<string>()
       g.originalItems.forEach(i => {
@@ -1595,6 +1609,11 @@ const AttendanceReport: React.FC = () => {
                           </td>
                           <td className="text-center">
                             <strong style={{ color: 'var(--theme-text-primary)' }}>{item.employeeWorkingHours || 12}h</strong>
+                            {item.employeeSalary ? (
+                              <span style={{ fontSize: '0.7rem', color: 'var(--theme-text-secondary)', display: 'block', fontWeight: 500 }}>
+                                ₹{item.employeeSalary}
+                              </span>
+                            ) : null}
                           </td>
                           <td className="text-center work-hours-cell">
                             <strong style={{ color: 'var(--theme-success-600)' }}>
@@ -1666,7 +1685,12 @@ const AttendanceReport: React.FC = () => {
                             {item.totalBreakFormatted}
                           </td>
                           <td className="text-center" style={{ fontWeight: 500, color: 'var(--theme-primary-600)' }}>
-                            {item.employeeWorkingHours ? `${item.employeeWorkingHours}h` : '-'}
+                            <div>{item.employeeWorkingHours ? `${item.employeeWorkingHours}h` : '-'}</div>
+                            {item.employeeSalary ? (
+                              <span style={{ fontSize: '0.7rem', color: 'var(--theme-text-secondary)', display: 'block', fontWeight: 500 }}>
+                                ₹{item.employeeSalary}
+                              </span>
+                            ) : null}
                           </td>
                           <td className="text-center work-hours-cell">{item.totalWorkFormatted}</td>
                           <td className="text-center">
@@ -1676,16 +1700,9 @@ const AttendanceReport: React.FC = () => {
                           </td>
                           <td className="text-center">
                             {item.employeeSalary ? (
-                              <div>
-                                <strong style={{ color: 'var(--theme-text-primary)' }}>
-                                  ₹{getDailySalary(item)}
-                                </strong>
-                                {getDayTypeDisplay(item)?.label === 'Half Day' && (
-                                  <span style={{ fontSize: '0.68rem', color: 'var(--theme-warning-700, #f59e0b)', display: 'block', fontWeight: 600 }}>
-                                    (0.5 Day)
-                                  </span>
-                                )}
-                              </div>
+                              <strong style={{ color: 'var(--theme-text-primary)' }}>
+                                ₹{getDailySalary(item)}
+                              </strong>
                             ) : (
                               <span style={{ color: 'var(--theme-text-secondary)' }}>-</span>
                             )}
